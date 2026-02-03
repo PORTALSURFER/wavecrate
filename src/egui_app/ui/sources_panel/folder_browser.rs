@@ -580,22 +580,26 @@ impl EguiApp {
     }
 
     fn render_delete_recovery_queue(&mut self, ui: &mut Ui) {
-        let recovery = &mut self.controller.ui.sources.folders.delete_recovery;
-        if !recovery.in_progress && recovery.entries.is_empty() {
+        let (in_progress, entries) = {
+            let recovery = &self.controller.ui.sources.folders.delete_recovery;
+            (recovery.in_progress, recovery.entries.clone())
+        };
+        if !in_progress && entries.is_empty() {
             return;
         }
         let palette = style::palette();
-        let count = recovery.entries.len();
-        let title = if recovery.in_progress {
+        let count = entries.len();
+        let title = if in_progress {
             "Delete recovery (running...)".to_string()
         } else {
             format!("Delete recovery ({count})")
         };
+        let mut clear_log_clicked = false;
         egui::CollapsingHeader::new(title)
-            .id_source("delete_recovery_queue")
-            .default_open(recovery.in_progress)
+            .id_salt("delete_recovery_queue")
+            .default_open(in_progress)
             .show(ui, |ui| {
-                if recovery.entries.is_empty() {
+                if entries.is_empty() {
                     ui.label(
                         RichText::new("Scanning for staged deletes...")
                             .small()
@@ -603,7 +607,7 @@ impl EguiApp {
                     );
                     return;
                 }
-                for entry in &recovery.entries {
+                for entry in &entries {
                     let status_label = match (entry.action, entry.status) {
                         (
                             crate::egui_app::state::FolderDeleteRecoveryAction::Restore,
@@ -647,9 +651,12 @@ impl EguiApp {
                 }
                 ui.add_space(4.0);
                 if ui.button("Clear recovery log").clicked() {
-                    self.controller.clear_folder_delete_recovery_log();
+                    clear_log_clicked = true;
                 }
             });
+        if clear_log_clicked {
+            self.controller.clear_folder_delete_recovery_log();
+        }
         ui.add_space(6.0);
     }
 }

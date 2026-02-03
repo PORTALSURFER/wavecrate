@@ -433,10 +433,8 @@ fn unique_restore_path(original: &Path) -> (PathBuf, Option<String>) {
     for idx in 1..=1000 {
         let candidate = parent.join(format!("{name}{RESTORE_SUFFIX}-{idx}"));
         if !candidate.exists() {
-            return (
-                candidate,
-                Some(format!("Restored as {}", candidate.display())),
-            );
+            let detail = Some(format!("Restored as {}", candidate.display()));
+            return (candidate, detail);
         }
     }
     let fallback = parent.join(format!(
