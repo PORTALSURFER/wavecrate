@@ -92,7 +92,7 @@ impl EguiApp {
         );
         let scroll_to = self.controller.ui.sources.folders.scroll_to;
         let mut hovered_folder = None;
-        let rows = std::mem::take(&mut self.controller.ui.sources.folders.rows);
+        let rows = self.controller.ui.sources.folders.rows.clone();
         let root_row = rows.first().filter(|row| row.is_root);
         let has_folder_rows = rows.iter().any(|row| !row.is_root);
         let show_hotkey_column = rows.iter().any(|row| row.hotkey.is_some());
@@ -577,7 +577,6 @@ impl EguiApp {
         }
         style::paint_section_border(ui, frame_response.response.rect, focused);
         self.controller.ui.sources.folders.scroll_to = None;
-        self.controller.ui.sources.folders.rows = rows;
     }
 
     fn render_delete_recovery_queue(&mut self, ui: &mut Ui) {
