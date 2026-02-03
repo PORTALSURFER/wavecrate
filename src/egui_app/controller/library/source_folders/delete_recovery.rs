@@ -157,14 +157,19 @@ pub(crate) fn rollback_staged_folder(
     staging_root: &Path,
     err: &str,
 ) -> Result<(), String> {
+    let rollback_context = format!(
+        " (original: {}, staged: {})",
+        info.original_relative.display(),
+        info.staged_relative.display()
+    );
     if let Err(restore_err) = fs::rename(&info.staged_absolute, absolute) {
         return Err(format!(
-            "{err} (also failed to restore folder: {restore_err})"
+            "{err}{rollback_context} (also failed to restore folder: {restore_err})"
         ));
     }
     let _ = remove_entry(staging_root, &info.id);
     cleanup_staging_root(staging_root);
-    Err(err.to_string())
+    Err(format!("{err}{rollback_context}"))
 }
 
 /// Recover staged deletes for the provided sources.
