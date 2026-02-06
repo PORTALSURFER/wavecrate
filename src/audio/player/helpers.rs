@@ -9,9 +9,9 @@ use super::super::DEFAULT_ANTI_CLIP_FADE;
 #[cfg(test)]
 use super::super::fade::{EdgeFade, fade_duration};
 use super::super::fade::{FadeOutHandle, FadeOutOnRequest, fade_frames_for_duration};
+use super::AudioPlayer;
 #[cfg(test)]
 use crate::audio::mixer::{decoder_from_bytes, map_seek_error};
-use super::AudioPlayer;
 
 impl AudioPlayer {
     pub(super) fn effective_volume(&self) -> f32 {
@@ -26,8 +26,10 @@ impl AudioPlayer {
     pub(super) fn reset_playback_state(&mut self) {
         self.started_at = None;
         self.play_span = None;
+        self.play_span_frames = None;
         self.looping = false;
         self.loop_offset = None;
+        self.loop_offset_frames = None;
         #[cfg(test)]
         {
             self.elapsed_override = None;
@@ -41,7 +43,7 @@ impl AudioPlayer {
         let _volume = self.effective_volume();
         let format = (source.sample_rate(), source.channels());
         let handle = FadeOutHandle::new();
-        
+
         if self
             .stream
             .append_source(FadeOutOnRequest::new(source, handle.clone()), 1.0)
@@ -51,7 +53,7 @@ impl AudioPlayer {
         } else {
             warn!("Failed to append audio source: output stream unavailable");
         }
-        
+
         (handle, format)
     }
 

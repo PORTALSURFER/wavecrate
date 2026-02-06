@@ -1,8 +1,8 @@
 use std::io::Cursor;
 use std::sync::Arc;
 
-use crate::audio::decoder::SymphoniaDecoder;
 use crate::audio::Source;
+use crate::audio::decoder::SymphoniaDecoder;
 
 pub(crate) fn decoder_from_bytes(bytes: Arc<[u8]>) -> Result<SymphoniaDecoder, String> {
     SymphoniaDecoder::from_bytes(bytes)
@@ -13,6 +13,12 @@ pub(crate) fn decoder_duration(bytes: &Arc<[u8]>) -> Option<f32> {
         .ok()
         .and_then(|decoder| decoder.total_duration())
         .map(|duration| duration.as_secs_f32())
+}
+
+pub(crate) fn decoder_sample_rate(bytes: &Arc<[u8]>) -> Option<u32> {
+    decoder_from_bytes(bytes.clone())
+        .ok()
+        .map(|decoder| decoder.sample_rate().max(1))
 }
 
 pub(crate) fn wav_header_duration(bytes: &Arc<[u8]>) -> Option<f32> {

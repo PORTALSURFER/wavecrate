@@ -4,10 +4,11 @@ use std::time::{Duration, Instant};
 
 #[cfg(test)]
 use crate::audio::Source;
- 
+
 use super::super::DEFAULT_ANTI_CLIP_FADE;
 use super::super::output::{AudioOutputConfig, ResolvedOutput, open_output_stream};
 use super::super::routing::duration_from_secs_f32;
+use super::super::timebase::seconds_to_frames_round;
 
 use super::{AudioPlayer, EditFadeHandle};
 use crate::selection::SelectionRange;
@@ -29,11 +30,14 @@ impl AudioPlayer {
             sink_format: None,
             current_audio: None,
             track_duration: None,
+            track_total_frames: None,
             sample_rate: None,
             started_at: None,
             play_span: None,
+            play_span_frames: None,
             looping: false,
             loop_offset: None,
+            loop_offset_frames: None,
             volume: 1.0,
             playback_gain: 1.0,
             anti_clip_enabled: true,
@@ -47,16 +51,23 @@ impl AudioPlayer {
 
     /// Store audio bytes and duration for later playback.
     pub fn set_audio(&mut self, data: Vec<u8>, duration: f32) {
-        use super::super::mixer::{decoder_duration, wav_header_duration, wav_spec_from_bytes};
+        use super::super::mixer::{
+            decoder_duration, decoder_sample_rate, wav_header_duration, wav_spec_from_bytes,
+        };
         let audio = Arc::from(data);
         let provided = duration.max(0.0);
         let fallback = decoder_duration(&audio)
             .or_else(|| wav_header_duration(&audio))
             .unwrap_or(0.0);
-        
-        let sample_rate = wav_spec_from_bytes(&audio).map(|(_, rate)| rate);
+
+        let sample_rate = wav_spec_from_bytes(&audio)
+            .map(|(_, rate)| rate)
+            .or_else(|| decoder_sample_rate(&audio));
         let chosen = if provided > 0.0 { provided } else { fallback };
         self.track_duration = Some(chosen);
+        self.track_total_frames = sample_rate
+            .map(|rate| seconds_to_frames_round(chosen, rate).max(1))
+            .filter(|frames| *frames > 0);
         self.sample_rate = sample_rate;
         self.current_audio = Some(audio);
         self.reset_playback_state();
@@ -68,7 +79,7 @@ impl AudioPlayer {
         let effective = self.effective_volume();
         self.stream.set_volume(effective);
     }
- 
+
     /// Adjust normalized audition gain for current and future playback.
     pub fn set_playback_gain(&mut self, gain: f32) {
         self.playback_gain = if gain.is_finite() && gain > 0.0 {
@@ -107,7 +118,7 @@ impl AudioPlayer {
         if let Some(duration) = self.track_duration {
             self.edit_fade_handle.update(range, duration);
         } else {
-             self.edit_fade_handle.update(None, 0.0);
+            self.edit_fade_handle.update(None, 0.0);
         }
     }
 
@@ -129,11 +140,14 @@ impl AudioPlayer {
             sink_format: None,
             current_audio: None,
             track_duration,
+            track_total_frames: None,
             sample_rate: None,
             started_at,
             play_span,
+            play_span_frames: None,
             looping,
             loop_offset,
+            loop_offset_frames: None,
             volume: 1.0,
             playback_gain: 1.0,
             anti_clip_enabled: true,
@@ -160,14 +174,25 @@ impl AudioPlayer {
             }
         }
         impl Source for SineWave {
-            fn current_frame_len(&self) -> Option<usize> { None }
-            fn channels(&self) -> u16 { 1 }
-            fn sample_rate(&self) -> u32 { 44100 }
-            fn total_duration(&self) -> Option<Duration> { None }
+            fn current_frame_len(&self) -> Option<usize> {
+                None
+            }
+            fn channels(&self) -> u16 {
+                1
+            }
+            fn sample_rate(&self) -> u32 {
+                44100
+            }
+            fn total_duration(&self) -> Option<Duration> {
+                None
+            }
         }
 
         let mut player = AudioPlayer::new().ok()?;
-        let source = SineWave { pos: 0.0, step: 220.0 * 2.0 * std::f32::consts::PI / 44100.0 };
+        let source = SineWave {
+            pos: 0.0,
+            step: 220.0 * 2.0 * std::f32::consts::PI / 44100.0,
+        };
         player.build_sink_with_fade(source);
         player.started_at = Some(Instant::now());
         Some(player)

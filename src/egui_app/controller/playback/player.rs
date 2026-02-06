@@ -231,7 +231,23 @@ fn playhead_completed_span(controller: &EguiController, progress: f32, is_loopin
         .active_span_end
         .unwrap_or(1.0)
         .clamp(0.0, 1.0);
-    progress + super::PLAYHEAD_COMPLETION_EPSILON >= target
+    progress + playhead_completion_epsilon(controller) >= target
+}
+
+fn playhead_completion_epsilon(controller: &EguiController) -> f32 {
+    let Some(audio) = controller.sample_view.wav.loaded_audio.as_ref() else {
+        return super::PLAYHEAD_COMPLETION_EPSILON;
+    };
+    if !audio.duration_seconds.is_finite()
+        || audio.duration_seconds <= 0.0
+        || audio.sample_rate == 0
+    {
+        return super::PLAYHEAD_COMPLETION_EPSILON;
+    }
+    let frame_epsilon = 1.0 / (audio.duration_seconds * audio.sample_rate as f32);
+    frame_epsilon
+        .max(f32::EPSILON)
+        .max(super::PLAYHEAD_COMPLETION_EPSILON * 0.1)
 }
 
 fn smooth_progress_after_seek(
@@ -313,20 +329,14 @@ mod tests {
 }
 
 /// Update the active playback selection and its cached duration label.
-pub(crate) fn apply_selection(
-    controller: &mut EguiController,
-    range: Option<SelectionRange>,
-) {
+pub(crate) fn apply_selection(controller: &mut EguiController, range: Option<SelectionRange>) {
     let label = range.and_then(|selection| selection_duration_label(controller, selection));
     controller.ui.waveform.selection = range;
     controller.ui.waveform.selection_duration = label;
 }
 
 /// Update the edit selection and synchronize edit-fade preview state.
-pub(crate) fn apply_edit_selection(
-    controller: &mut EguiController,
-    range: Option<SelectionRange>,
-) {
+pub(crate) fn apply_edit_selection(controller: &mut EguiController, range: Option<SelectionRange>) {
     let previous = controller.ui.waveform.edit_selection;
     controller.ui.waveform.edit_selection = range;
     if let Some(player) = controller.audio.player.as_ref() {

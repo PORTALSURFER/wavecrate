@@ -4,11 +4,11 @@ use std::time::{Duration, Instant};
 use super::fade::FadeOutHandle;
 use super::output::{CpalAudioStream, ResolvedOutput};
 
+mod edit_fade_impl;
 mod helpers;
 mod playback;
 mod progress;
 mod state;
-mod edit_fade_impl;
 pub(crate) use edit_fade_impl::{EditFadeHandle, EditFadeSource};
 
 /// Simple audio helper that plays a loaded wav buffer and reports progress.
@@ -20,11 +20,14 @@ pub struct AudioPlayer {
     sink_format: Option<(u32, u16)>,
     current_audio: Option<Arc<[u8]>>,
     track_duration: Option<f32>,
+    track_total_frames: Option<u64>,
     sample_rate: Option<u32>,
     started_at: Option<Instant>,
     play_span: Option<(f32, f32)>,
+    play_span_frames: Option<(u64, u64)>,
     looping: bool,
     loop_offset: Option<f32>,
+    loop_offset_frames: Option<u64>,
     volume: f32,
     playback_gain: f32,
     anti_clip_enabled: bool,

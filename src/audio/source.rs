@@ -1,16 +1,19 @@
+use crate::audio::timebase::{
+    duration_for_frames, duration_to_samples_ceil, duration_to_samples_floor,
+};
 use std::time::Duration;
 
 /// Trait for audio sources that can provide samples.
 pub trait Source: Iterator<Item = f32> + Send {
     /// Returns the number of samples in the current frame, if known.
     fn current_frame_len(&self) -> Option<usize>;
-    
+
     /// Returns the number of channels.
     fn channels(&self) -> u16;
-    
+
     /// Returns the sample rate.
     fn sample_rate(&self) -> u32;
-    
+
     /// Returns the total duration of the source, if known.
     fn total_duration(&self) -> Option<Duration>;
 
@@ -24,10 +27,25 @@ pub trait Source: Iterator<Item = f32> + Send {
     where
         Self: Sized,
     {
+        let sample_count = duration_to_samples_ceil(duration, self.sample_rate(), self.channels());
         TakeDuration {
             inner: self,
-            remaining_samples: None,
+            remaining_samples: sample_count,
             duration,
+        }
+    }
+
+    /// Limits the source to an exact sample count.
+    ///
+    /// This is used by playback code that has already quantized span boundaries
+    /// in frame/sample domain and must avoid additional duration rounding.
+    fn take_samples(self, sample_count: usize) -> TakeSamples<Self>
+    where
+        Self: Sized,
+    {
+        TakeSamples {
+            inner: self,
+            remaining_samples: sample_count,
         }
     }
 
@@ -60,10 +78,22 @@ pub trait Source: Iterator<Item = f32> + Send {
     where
         Self: Sized,
     {
-        let sample_rate = self.sample_rate();
-        let channels = self.channels();
-        let samples_to_skip = (duration.as_secs_f64() * sample_rate as f64 * channels as f64).round() as usize;
+        let samples_to_skip =
+            duration_to_samples_floor(duration, self.sample_rate(), self.channels());
         for _ in 0..samples_to_skip {
+            if self.next().is_none() {
+                break;
+            }
+        }
+        self
+    }
+
+    /// Skips an exact number of samples from the source start.
+    fn skip_samples(mut self, sample_count: usize) -> Self
+    where
+        Self: Sized,
+    {
+        for _ in 0..sample_count {
             if self.next().is_none() {
                 break;
             }
@@ -155,7 +185,9 @@ impl Source for SamplesBuffer {
 
     fn total_duration(&self) -> Option<Duration> {
         let frames = self.samples.len() as u64 / self.channels as u64;
-        Some(Duration::from_nanos((frames * 1_000_000_000) / self.sample_rate as u64))
+        Some(Duration::from_nanos(
+            (frames * 1_000_000_000) / self.sample_rate as u64,
+        ))
     }
 }
 
@@ -173,7 +205,7 @@ impl Clone for SamplesBuffer {
 /// Source that limits duration.
 pub struct TakeDuration<S> {
     inner: S,
-    remaining_samples: Option<usize>,
+    remaining_samples: usize,
     duration: Duration,
 }
 
@@ -184,19 +216,11 @@ where
     type Item = f32;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining_samples.is_none() {
-            let sample_rate = self.inner.sample_rate();
-            let channels = self.inner.channels();
-            let samples = (self.duration.as_secs_f64() * sample_rate as f64 * channels as f64).round() as usize;
-            self.remaining_samples = Some(samples);
-        }
-
-        let remaining = self.remaining_samples.as_mut().unwrap();
-        if *remaining == 0 {
+        if self.remaining_samples == 0 {
             return None;
         }
 
-        *remaining -= 1;
+        self.remaining_samples -= 1;
         self.inner.next()
     }
 }
@@ -206,8 +230,9 @@ where
     S: Source,
 {
     fn current_frame_len(&self) -> Option<usize> {
-        self.inner.current_frame_len()
-            .map(|l| l.min(self.remaining_samples.unwrap_or(usize::MAX)))
+        self.inner
+            .current_frame_len()
+            .map(|l| l.min(self.remaining_samples))
     }
 
     fn channels(&self) -> u16 {
@@ -220,6 +245,56 @@ where
 
     fn total_duration(&self) -> Option<Duration> {
         Some(self.duration)
+    }
+
+    fn last_error(&self) -> Option<String> {
+        self.inner.last_error()
+    }
+}
+
+/// Source that limits by an exact sample count.
+pub struct TakeSamples<S> {
+    inner: S,
+    remaining_samples: usize,
+}
+
+impl<S> Iterator for TakeSamples<S>
+where
+    S: Source,
+{
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining_samples == 0 {
+            return None;
+        }
+        self.remaining_samples -= 1;
+        self.inner.next()
+    }
+}
+
+impl<S> Source for TakeSamples<S>
+where
+    S: Source,
+{
+    fn current_frame_len(&self) -> Option<usize> {
+        self.inner
+            .current_frame_len()
+            .map(|len| len.min(self.remaining_samples))
+    }
+
+    fn channels(&self) -> u16 {
+        self.inner.channels()
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.inner.sample_rate()
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        let channels = self.inner.channels().max(1) as u64;
+        let frames = (self.remaining_samples as u64).div_ceil(channels);
+        Some(duration_for_frames(frames, self.inner.sample_rate()))
     }
 
     fn last_error(&self) -> Option<String> {
@@ -356,14 +431,15 @@ where
         let sample = self.inner.next()?;
         let sample_rate = self.inner.sample_rate();
         let channels = self.inner.channels();
-        let fade_samples = (self.fade_duration.as_secs_f64() * sample_rate as f64 * channels as f64) as u64;
-        
+        let fade_samples =
+            (self.fade_duration.as_secs_f64() * sample_rate as f64 * channels as f64) as u64;
+
         let factor = if fade_samples == 0 {
             1.0
         } else {
             (self.samples_emitted as f32 / fade_samples as f32).min(1.0)
         };
-        
+
         self.samples_emitted = self.samples_emitted.saturating_add(1);
         Some(sample * factor)
     }
@@ -391,5 +467,71 @@ where
 
     fn last_error(&self) -> Option<String> {
         self.inner.last_error()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Source;
+    use std::time::Duration;
+
+    #[derive(Clone)]
+    struct DummySource {
+        sample_rate: u32,
+        channels: u16,
+        next_value: f32,
+    }
+
+    impl Iterator for DummySource {
+        type Item = f32;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let value = self.next_value;
+            self.next_value += 1.0;
+            Some(value)
+        }
+    }
+
+    impl Source for DummySource {
+        fn current_frame_len(&self) -> Option<usize> {
+            None
+        }
+
+        fn channels(&self) -> u16 {
+            self.channels
+        }
+
+        fn sample_rate(&self) -> u32 {
+            self.sample_rate
+        }
+
+        fn total_duration(&self) -> Option<Duration> {
+            None
+        }
+    }
+
+    #[test]
+    fn take_samples_returns_exact_count() {
+        let source = DummySource {
+            sample_rate: 48_000,
+            channels: 2,
+            next_value: 0.0,
+        };
+        let count = source.take_samples(5).count();
+        assert_eq!(count, 5);
+    }
+
+    #[test]
+    fn skip_duration_uses_floor_semantics() {
+        let source = DummySource {
+            sample_rate: 44_100,
+            channels: 2,
+            next_value: 0.0,
+        };
+        let duration = Duration::from_nanos(22_675);
+        let mut skipped = source.skip_duration(duration);
+        // One frame is 2 samples in stereo; floor conversion stays just below full-frame skip.
+        let first = skipped.next().expect("sample");
+        assert_eq!(first as usize, 1);
     }
 }
