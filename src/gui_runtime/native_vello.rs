@@ -3,18 +3,24 @@
 use super::egui_wgpu::{EguiRunOptions, WindowIconRgba};
 use crate::gui::{
     input::key_code_from_winit,
-    native_shell::{NativeShellState, Primitive, ShellLayout},
+    native_shell::{NativeShellState, Primitive, ShellLayout, TextAlign, TextRun},
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
+use skrifa::{
+    MetadataProvider,
+    instance::{LocationRef, Size as FontSize},
+};
 use std::{
+    collections::HashMap,
+    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
 use vello::util::{RenderContext, RenderSurface};
 use vello::{
-    AaConfig, RenderParams, Renderer, RendererOptions, Scene,
+    AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene,
     kurbo::{Affine, Circle, Rect as KurboRect},
-    peniko::{Color, Fill},
+    peniko::{Blob, Color, Fill, FontData},
     wgpu,
 };
 use winit::{
@@ -34,6 +40,7 @@ struct NativeVelloRunner {
     render_surface: Option<RenderSurface<'static>>,
     renderer: Option<Renderer>,
     scene: Scene,
+    text_renderer: NativeTextRenderer,
     shell_layout: Option<ShellLayout>,
     shell_state: NativeShellState,
     clear_color: Rgba8,
@@ -51,6 +58,7 @@ impl NativeVelloRunner {
             render_surface: None,
             renderer: None,
             scene: Scene::new(),
+            text_renderer: NativeTextRenderer::new(),
             shell_layout: None,
             shell_state: NativeShellState::new(),
             clear_color: Rgba8 {
@@ -173,6 +181,8 @@ impl NativeVelloRunner {
                 }
             }
         }
+        self.text_renderer
+            .draw_text_runs(&mut self.scene, &frame.text_runs);
     }
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
@@ -340,6 +350,196 @@ impl ApplicationHandler for NativeVelloRunner {
             event_loop.set_control_flow(ControlFlow::Wait);
         }
     }
+}
+
+#[derive(Clone, Debug)]
+struct GlyphLayout {
+    id: u32,
+    x: f32,
+}
+
+#[derive(Clone, Debug)]
+struct TextLayout {
+    width: f32,
+    glyphs: Vec<GlyphLayout>,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+struct TextLayoutKey {
+    text: String,
+    font_size_bits: u32,
+}
+
+#[derive(Clone)]
+struct LoadedFont {
+    font: FontData,
+}
+
+struct NativeTextRenderer {
+    loaded_font: Option<LoadedFont>,
+    layout_cache: HashMap<TextLayoutKey, TextLayout>,
+}
+
+impl NativeTextRenderer {
+    fn new() -> Self {
+        let loaded_font = load_native_font().map(|font| LoadedFont { font });
+        if loaded_font.is_none() {
+            eprintln!(
+                "Native vello text renderer: no fallback font found; text runs will be skipped"
+            );
+        }
+        Self {
+            loaded_font,
+            layout_cache: HashMap::new(),
+        }
+    }
+
+    fn draw_text_runs(&mut self, scene: &mut Scene, text_runs: &[TextRun]) {
+        let Some(font) = self.loaded_font.clone() else {
+            return;
+        };
+        for run in text_runs {
+            if run.text.is_empty() || run.font_size <= 0.0 {
+                continue;
+            }
+            let Some(layout) = self.layout_for(&font, &run.text, run.font_size) else {
+                continue;
+            };
+            let mut origin_x = run.position.x;
+            if let Some(max_width) = run.max_width {
+                let extra = (max_width - layout.width).max(0.0);
+                origin_x += match run.align {
+                    TextAlign::Left => 0.0,
+                    TextAlign::Center => extra * 0.5,
+                    TextAlign::Right => extra,
+                };
+            }
+            let clip_width = run.max_width.unwrap_or(f32::INFINITY);
+            let baseline = run.position.y + run.font_size;
+            let glyph_iter = layout
+                .glyphs
+                .iter()
+                .take_while(|glyph| glyph.x <= clip_width)
+                .map(|glyph| Glyph {
+                    id: glyph.id,
+                    x: origin_x + glyph.x,
+                    y: baseline,
+                });
+            scene
+                .draw_glyphs(&font.font)
+                .font_size(run.font_size)
+                .brush(color_from_rgba(run.color))
+                .draw(Fill::NonZero, glyph_iter);
+        }
+    }
+
+    fn layout_for<'a>(
+        &'a mut self,
+        font: &LoadedFont,
+        text: &str,
+        font_size: f32,
+    ) -> Option<&'a TextLayout> {
+        let key = TextLayoutKey {
+            text: text.to_string(),
+            font_size_bits: font_size.to_bits(),
+        };
+        if !self.layout_cache.contains_key(&key) {
+            let layout = Self::compute_layout(font, text, font_size)?;
+            self.layout_cache.insert(key.clone(), layout);
+        }
+        self.layout_cache.get(&key)
+    }
+
+    fn compute_layout(font: &LoadedFont, text: &str, font_size: f32) -> Option<TextLayout> {
+        let font_ref =
+            skrifa::FontRef::from_index(font.font.data.as_ref(), font.font.index).ok()?;
+        let charmap = font_ref.charmap();
+        let metrics = font_ref.glyph_metrics(FontSize::new(font_size), LocationRef::default());
+        let fallback_glyph = charmap.map('?');
+
+        let mut x = 0.0_f32;
+        let mut glyphs = Vec::with_capacity(text.len());
+        for ch in text.chars() {
+            if ch == '\n' || ch == '\r' {
+                break;
+            }
+            if ch == '\t' {
+                x += font_size * 2.0;
+                continue;
+            }
+            if ch == ' ' {
+                x += font_size * 0.33;
+                continue;
+            }
+            if ch.is_control() {
+                continue;
+            }
+            let glyph_id = charmap.map(ch).or(fallback_glyph);
+            let Some(glyph_id) = glyph_id else {
+                x += font_size * 0.5;
+                continue;
+            };
+            glyphs.push(GlyphLayout {
+                id: glyph_id.to_u32(),
+                x,
+            });
+            let advance = metrics
+                .advance_width(glyph_id)
+                .unwrap_or(font_size * 0.55)
+                .max(0.0);
+            x += advance;
+        }
+
+        Some(TextLayout { width: x, glyphs })
+    }
+}
+
+fn load_native_font() -> Option<FontData> {
+    for path in native_font_candidates() {
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
+        return Some(FontData::new(Blob::from(bytes), 0));
+    }
+    None
+}
+
+fn native_font_candidates() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Ok(path) = std::env::var("SEMPAL_NATIVE_FONT_PATH") {
+        candidates.push(PathBuf::from(path));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(windir) = std::env::var("WINDIR") {
+            let base = PathBuf::from(windir).join("Fonts");
+            candidates.push(base.join("segoeui.ttf"));
+            candidates.push(base.join("arial.ttf"));
+            candidates.push(base.join("consola.ttf"));
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        candidates.push(PathBuf::from("/System/Library/Fonts/SFNS.ttf"));
+        candidates.push(PathBuf::from(
+            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+        ));
+        candidates.push(PathBuf::from("/Library/Fonts/Arial.ttf"));
+    }
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    {
+        candidates.push(PathBuf::from(
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        ));
+        candidates.push(PathBuf::from("/usr/share/fonts/dejavu/DejaVuSans.ttf"));
+        candidates.push(PathBuf::from("/usr/share/fonts/TTF/DejaVuSans.ttf"));
+        candidates.push(PathBuf::from(
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        ));
+    }
+
+    candidates
 }
 
 fn to_kurbo_rect(rect: UiRect) -> KurboRect {
