@@ -8,9 +8,9 @@
 )]
 use egui::{self, Context};
 use sempal::audio::AudioPlayer;
-use sempal::gui_app::{MIN_VIEWPORT_SIZE, SempalGuiApp, new_native_bridge, new_sempal_app};
+use sempal::gui_app::{new_native_bridge, new_sempal_app, SempalGuiApp, MIN_VIEWPORT_SIZE};
 use sempal::gui_runtime::{
-    EguiAppRuntime, EguiRunOptions, WindowIconRgba, run_egui_wgpu_app, run_native_vello_app,
+    run_egui_wgpu_app, run_native_vello_app, EguiAppRuntime, EguiRunOptions, WindowIconRgba,
 };
 use sempal::logging;
 use sempal::waveform::WaveformRenderer;
@@ -74,13 +74,23 @@ fn main() -> Result<(), String> {
 }
 
 fn resolve_gui_backend() -> Result<GuiBackend, String> {
-    if let Some(value) = backend_from_arg_list(std::env::args().skip(1))? {
+    resolve_gui_backend_from(
+        std::env::args().skip(1),
+        std::env::var(GUI_BACKEND_ENV_VAR).ok(),
+    )
+}
+
+fn resolve_gui_backend_from(
+    args: impl IntoIterator<Item = String>,
+    env_value: Option<String>,
+) -> Result<GuiBackend, String> {
+    if let Some(value) = backend_from_arg_list(args)? {
         return Ok(value);
     }
-    if let Ok(value) = std::env::var(GUI_BACKEND_ENV_VAR) {
+    if let Some(value) = env_value {
         return parse_backend_value(&value);
     }
-    Ok(GuiBackend::LegacyEgui)
+    Ok(GuiBackend::NativeVello)
 }
 
 fn backend_from_arg_list(
@@ -128,8 +138,8 @@ fn enable_windows_console() {
         OPEN_EXISTING,
     };
     use windows::Win32::System::Console::{
-        ATTACH_PARENT_PROCESS, AllocConsole, AttachConsole, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE,
-        SetStdHandle,
+        AllocConsole, AttachConsole, SetStdHandle, ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE,
+        STD_OUTPUT_HANDLE,
     };
 
     unsafe {
@@ -259,5 +269,12 @@ mod tests {
         let err = backend_from_arg_list(vec![String::from("--gui-backend=invalid")])
             .expect_err("invalid backend should fail");
         assert!(err.contains("Unsupported GUI backend"));
+    }
+
+    #[test]
+    fn backend_resolution_defaults_to_native_vello_when_unspecified() {
+        let selected = resolve_gui_backend_from(Vec::<String>::new(), None)
+            .expect("default backend resolution should succeed");
+        assert_eq!(selected, GuiBackend::NativeVello);
     }
 }
