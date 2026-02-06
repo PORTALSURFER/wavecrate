@@ -289,10 +289,17 @@ mod tests {
             start_barrier_waited: false,
         };
         let mut async_source = AsyncSource::with_buffer_seconds(source, 1.0);
-        thread::sleep(Duration::from_millis(20));
-        let mut collected = Vec::new();
-        while let Some(sample) = async_source.next() {
-            collected.push(sample);
+        let available = async_source.prefill_for_duration(
+            Duration::from_millis(300),
+            Duration::from_millis(100),
+        );
+        assert!(
+            available >= 3,
+            "expected three prefetched samples, got {available}"
+        );
+        let mut collected = Vec::with_capacity(3);
+        for _ in 0..3 {
+            collected.push(async_source.next().expect("prefilled sample"));
         }
         assert_eq!(collected, vec![0.1, 0.2, 0.3]);
     }
