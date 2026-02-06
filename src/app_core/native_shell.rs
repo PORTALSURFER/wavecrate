@@ -14,7 +14,7 @@ use crate::{
 };
 use radiant::app::{
     AppModel, BrowserPanelModel, BrowserRowModel, ColumnModel, NormalizedRangeModel,
-    SourceRowModel, SourcesPanelModel, WaveformPanelModel,
+    SourceRowModel, SourcesPanelModel, StatusBarModel, WaveformPanelModel,
 };
 use std::collections::HashSet;
 
@@ -25,6 +25,7 @@ pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
     let transport_running = controller.is_playing();
     let sources = project_sources_model(&controller.ui);
     let status_text = controller.ui.status.text.clone();
+    let status = project_status_model(&controller.ui, selected_column);
     let column_counts = [
         controller.ui.browser.trash.len(),
         controller.ui.browser.neutral.len(),
@@ -37,6 +38,7 @@ pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
         backend_label: String::from("backend: native_vello"),
         sources_label: format!("Sources ({})", sources.rows.len()),
         status_text,
+        status,
         columns: [
             ColumnModel::new("Trash", column_counts[0]),
             ColumnModel::new("Samples", column_counts[1]),
@@ -47,6 +49,35 @@ pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
         sources,
         browser,
         waveform,
+    }
+}
+
+fn project_status_model(ui: &UiState, selected_column: usize) -> StatusBarModel {
+    let left = ui.status.text.clone();
+    let center = format!(
+        "rows: {} | selected: {} | anchor: {} | search: {}{}",
+        ui.browser.visible.len(),
+        ui.browser.selected_paths.len(),
+        ui.browser
+            .selection_anchor_visible
+            .map(|row| row.to_string())
+            .unwrap_or_else(|| String::from("—")),
+        if ui.browser.search_query.is_empty() {
+            "—"
+        } else {
+            ui.browser.search_query.as_str()
+        },
+        if ui.browser.search_busy {
+            " | filtering…"
+        } else {
+            ""
+        }
+    );
+    let right = format!("col: {}/3", selected_column + 1);
+    StatusBarModel {
+        left,
+        center,
+        right,
     }
 }
 
@@ -121,7 +152,13 @@ fn project_browser_model(controller: &mut EguiController) -> BrowserPanelModel {
         .as_deref()
         .map(view_model::sample_display_label);
     let anchor_visible_row = controller.ui.browser.selection_anchor_visible;
-    let selected_paths: HashSet<_> = controller.ui.browser.selected_paths.iter().cloned().collect();
+    let selected_paths: HashSet<_> = controller
+        .ui
+        .browser
+        .selected_paths
+        .iter()
+        .cloned()
+        .collect();
 
     let mut rows = Vec::new();
     let visible_count = visible.len();

@@ -1,13 +1,13 @@
 # GUI migration parity matrix (`egui` -> `radiant`)
 
-This document tracks feature parity work required to remove Sempal's legacy
-`egui` renderer path and run fully on `radiant` (`native_vello`) by default.
+This document tracks feature parity work after cutting over the main Sempal UI
+to `radiant` (`native_vello`) as the only runtime path.
 
-## P0 (required before removing legacy runtime path)
+## P0 (main runtime cutover)
 
 | Area | Capability | Current state | Owner target |
 | --- | --- | --- | --- |
-| Runtime startup | Native backend as default path | Done | Sempal |
+| Runtime startup | Native backend as only main path | Done | Sempal |
 | Sources panel | Select source row + reflect missing state | Done (bridge projection) | Sempal + Radiant |
 | Browser panel | Row focus and multi-select (click/ctrl/shift patterns) | Done (controller wired) | Sempal |
 | Browser panel | Search query update and busy indicator | Done (bridge projection + action) | Sempal |
@@ -17,15 +17,15 @@ This document tracks feature parity work required to remove Sempal's legacy
 | Status surface | Status text visible in native shell | Done (single-line footer text) | Radiant |
 | Focus model | Focus browser/sources/waveform/search targets | Done | Sempal |
 
-## P1 (close parity after legacy path removal)
+## P1 (close parity after main-path cutover)
 
 | Area | Capability | Current state | Owner target |
 | --- | --- | --- | --- |
 | Browser actions | Context menus (rename/tag/delete) | Not yet in native shell | Radiant + Sempal |
 | Source management | Folder actions (rename/create/delete/recovery) | Not yet in native shell | Radiant + Sempal |
-| Workflow overlays | Progress, drag overlays, prompts | Partial/legacy-only | Radiant |
-| Update UX | In-app release notes/update prompts | Legacy-only | Radiant + Sempal |
-| Map view | Cluster map interactions and rendering | Legacy-only | Radiant + Sempal |
+| Workflow overlays | Progress, drag overlays, prompts | Partial (legacy implementation remains in old modules) | Radiant |
+| Update UX | In-app release notes/update prompts | Legacy-only ancillary UI | Radiant + Sempal |
+| Map view | Cluster map interactions and rendering | Legacy-only modules | Radiant + Sempal |
 
 ## P2 (post-cutover polish and expansion)
 
@@ -39,4 +39,5 @@ This document tracks feature parity work required to remove Sempal's legacy
 
 - New backend-neutral projection helpers now live under `src/app_core`.
 - Native bridge orchestration remains in `src/gui_app/bridge.rs`.
-- Legacy `egui` renderer code remains for now and will be removed after P0 signoff.
+- Main runtime backend selection has been removed; `src/main.rs` now boots native Vello directly.
+- Installer/updater binaries still use the `egui` host path and are tracked separately.
