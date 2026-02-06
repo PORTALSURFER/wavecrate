@@ -29,6 +29,7 @@ Audio sample triage tool built with Rust.
   - `--gui-backend legacy_egui` runs the legacy compatibility UI path.
   - `--gui-backend native_vello` forces the native radiant path explicitly.
   - `SEMPAL_GUI_BACKEND` can also be set to `legacy_egui` or `native_vello`.
+  - Migration parity tracker: `docs/gui_migration_parity.md`.
   - Native shell text rendering can use `SEMPAL_NATIVE_FONT_PATH=/path/to/font.ttf` if automatic system font discovery fails.
 - Windows (ASIO): If you want to build with ASIO support (or your build fails looking for the ASIO SDK), download the Steinberg ASIO SDK and set `CPAL_ASIO_DIR` to the SDK path (e.g. a folder named `ASIOSDK`) before running `cargo build`/`cargo run`.
 

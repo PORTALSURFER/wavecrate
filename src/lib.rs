@@ -5,6 +5,8 @@
 extern crate alloc;
 /// Background analysis helpers.
 pub mod analysis;
+/// Backend-neutral app-core projection and action helpers used during GUI migration.
+pub mod app_core;
 /// Application directory helpers.
 pub mod app_dirs;
 /// Audio playback utilities.
