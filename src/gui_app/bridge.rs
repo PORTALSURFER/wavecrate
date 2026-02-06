@@ -9,7 +9,7 @@ use crate::{
     egui_app::controller::EguiController,
     waveform::WaveformRenderer,
 };
-use radiant::app::{AppModel, FrameBuildResult, NativeAppBridge, UiAction};
+use radiant::app::{AppModel, BrowserTagTarget, FrameBuildResult, NativeAppBridge, UiAction};
 use std::{cell::RefCell, rc::Rc};
 
 /// Host bridge used by the native `radiant` runtime.
@@ -55,6 +55,77 @@ impl SempalNativeBridge {
             return;
         };
         self.controller.focus_browser_row(target);
+    }
+
+    fn delete_browser_selection(&mut self) {
+        let mut rows: Vec<usize> = self
+            .controller
+            .ui
+            .browser
+            .selected_paths
+            .clone()
+            .iter()
+            .filter_map(|path| self.controller.visible_row_for_path(path))
+            .collect();
+        if let Some(row) = self.controller.focused_browser_row() {
+            if rows.is_empty() {
+                rows = self.controller.action_rows_from_primary(row);
+            } else if !rows.contains(&row) {
+                rows.push(row);
+            }
+        }
+        rows.sort_unstable();
+        rows.dedup();
+        if rows.is_empty() {
+            return;
+        }
+        let _ = self.controller.delete_browser_samples(&rows);
+    }
+
+    fn tag_browser_selection(&mut self, target: BrowserTagTarget) {
+        let rating = match target {
+            BrowserTagTarget::Trash => crate::sample_sources::Rating::TRASH_3,
+            BrowserTagTarget::Neutral => crate::sample_sources::Rating::NEUTRAL,
+            BrowserTagTarget::Keep => crate::sample_sources::Rating::KEEP_1,
+        };
+        self.controller.tag_selected(rating);
+    }
+
+    fn confirm_active_prompt(&mut self) {
+        match self.controller.ui.waveform.pending_destructive.clone() {
+            Some(prompt) => {
+                self.controller
+                    .apply_confirmed_destructive_edit(prompt.edit);
+            }
+            None => {
+                if self.controller.ui.browser.pending_action.is_some() {
+                    self.controller.apply_pending_browser_rename();
+                    return;
+                }
+                if let Some(crate::egui_app::state::FolderActionPrompt::Rename { target, name }) =
+                    self.controller.ui.sources.folders.pending_action.clone()
+                {
+                    self.controller.ui.sources.folders.pending_action = None;
+                    self.controller.ui.sources.folders.rename_focus_requested = false;
+                    if let Err(err) = self.controller.rename_folder(&target, &name) {
+                        self.controller
+                            .set_status(err, crate::egui_app::ui::style::StatusTone::Error);
+                    }
+                }
+            }
+        }
+    }
+
+    fn cancel_active_prompt(&mut self) {
+        if self.controller.ui.waveform.pending_destructive.is_some() {
+            self.controller.clear_destructive_prompt();
+            return;
+        }
+        if self.controller.ui.browser.pending_action.is_some() {
+            self.controller.cancel_browser_rename();
+            return;
+        }
+        self.controller.cancel_folder_rename();
     }
 }
 
@@ -110,6 +181,14 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             UiAction::SelectAllBrowserRows => self.controller.select_all_browser_rows(),
             UiAction::SetBrowserSearch { query } => self.controller.set_browser_search(query),
+            UiAction::StartBrowserRename => self.controller.start_browser_rename(),
+            UiAction::ConfirmBrowserRename => self.controller.apply_pending_browser_rename(),
+            UiAction::CancelBrowserRename => self.controller.cancel_browser_rename(),
+            UiAction::TagBrowserSelection { target } => self.tag_browser_selection(target),
+            UiAction::DeleteBrowserSelection => self.delete_browser_selection(),
+            UiAction::ConfirmPrompt => self.confirm_active_prompt(),
+            UiAction::CancelPrompt => self.cancel_active_prompt(),
+            UiAction::CancelProgress => self.controller.request_progress_cancel(),
             UiAction::ToggleLoopPlayback => self.controller.toggle_loop(),
             UiAction::SeekWaveform { position_milli } => {
                 let normalized = normalized_from_milli(position_milli);

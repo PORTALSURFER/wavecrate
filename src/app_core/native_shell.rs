@@ -13,8 +13,9 @@ use crate::{
     selection::SelectionRange,
 };
 use radiant::app::{
-    AppModel, BrowserPanelModel, BrowserRowModel, ColumnModel, NormalizedRangeModel,
-    SourceRowModel, SourcesPanelModel, StatusBarModel, WaveformPanelModel,
+    AppModel, BrowserActionsModel, BrowserPanelModel, BrowserRowModel, ColumnModel,
+    ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, NormalizedRangeModel,
+    ProgressOverlayModel, SourceRowModel, SourcesPanelModel, StatusBarModel, WaveformPanelModel,
 };
 use std::collections::HashSet;
 
@@ -26,6 +27,10 @@ pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
     let sources = project_sources_model(&controller.ui);
     let status_text = controller.ui.status.text.clone();
     let status = project_status_model(&controller.ui, selected_column);
+    let browser_actions = project_browser_actions_model(&controller.ui);
+    let progress_overlay = project_progress_overlay_model(&controller.ui);
+    let confirm_prompt = project_confirm_prompt_model(&controller.ui);
+    let drag_overlay = project_drag_overlay_model(&controller.ui);
     let column_counts = [
         controller.ui.browser.trash.len(),
         controller.ui.browser.neutral.len(),
@@ -39,6 +44,10 @@ pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
         sources_label: format!("Sources ({})", sources.rows.len()),
         status_text,
         status,
+        browser_actions,
+        progress_overlay,
+        confirm_prompt,
+        drag_overlay,
         columns: [
             ColumnModel::new("Trash", column_counts[0]),
             ColumnModel::new("Samples", column_counts[1]),
@@ -49,6 +58,104 @@ pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
         sources,
         browser,
         waveform,
+    }
+}
+
+fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel {
+    let has_focus = ui.browser.selected_visible.is_some();
+    let has_selection = has_focus || !ui.browser.selected_paths.is_empty();
+    BrowserActionsModel {
+        can_rename: has_focus,
+        can_delete: has_selection,
+        can_tag: has_selection,
+    }
+}
+
+fn project_progress_overlay_model(ui: &UiState) -> ProgressOverlayModel {
+    ProgressOverlayModel {
+        visible: ui.progress.visible,
+        modal: ui.progress.modal,
+        title: ui.progress.title.clone(),
+        detail: ui.progress.detail.clone(),
+        completed: ui.progress.completed,
+        total: ui.progress.total,
+        cancelable: ui.progress.cancelable,
+        cancel_requested: ui.progress.cancel_requested,
+    }
+}
+
+fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
+    if let Some(crate::egui_app::state::SampleBrowserActionPrompt::Rename { target, .. }) =
+        ui.browser.pending_action.as_ref()
+    {
+        return ConfirmPromptModel {
+            visible: true,
+            kind: Some(ConfirmPromptKind::BrowserRename),
+            title: String::from("Rename sample"),
+            message: String::from("Apply rename for focused sample?"),
+            confirm_label: String::from("Apply"),
+            cancel_label: String::from("Cancel"),
+            target_label: Some(target.display().to_string()),
+        };
+    }
+    if let Some(crate::egui_app::state::FolderActionPrompt::Rename { target, .. }) =
+        ui.sources.folders.pending_action.as_ref()
+    {
+        return ConfirmPromptModel {
+            visible: true,
+            kind: Some(ConfirmPromptKind::FolderRename),
+            title: String::from("Rename folder"),
+            message: String::from("Apply folder rename?"),
+            confirm_label: String::from("Apply"),
+            cancel_label: String::from("Cancel"),
+            target_label: Some(target.display().to_string()),
+        };
+    }
+    if let Some(prompt) = ui.waveform.pending_destructive.as_ref() {
+        return ConfirmPromptModel {
+            visible: true,
+            kind: Some(ConfirmPromptKind::DestructiveEdit),
+            title: prompt.title.clone(),
+            message: prompt.message.clone(),
+            confirm_label: String::from("Apply"),
+            cancel_label: String::from("Cancel"),
+            target_label: None,
+        };
+    }
+    ConfirmPromptModel::default()
+}
+
+fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
+    let active = ui.drag.payload.is_some();
+    if !active {
+        return DragOverlayModel::default();
+    }
+    let target_label = match &ui.drag.active_target {
+        crate::egui_app::state::DragTarget::None => String::from("No target"),
+        crate::egui_app::state::DragTarget::BrowserTriage(column) => match column {
+            crate::egui_app::state::TriageFlagColumn::Trash => String::from("Trash column"),
+            crate::egui_app::state::TriageFlagColumn::Neutral => String::from("Neutral column"),
+            crate::egui_app::state::TriageFlagColumn::Keep => String::from("Keep column"),
+        },
+        crate::egui_app::state::DragTarget::SourcesRow(_) => String::from("Sources list"),
+        crate::egui_app::state::DragTarget::FolderPanel { folder } => folder
+            .as_ref()
+            .map(|path| format!("Folder: {}", path.display()))
+            .unwrap_or_else(|| String::from("Folder panel")),
+        crate::egui_app::state::DragTarget::DropTarget { path } => {
+            format!("Drop target: {}", path.display())
+        }
+        crate::egui_app::state::DragTarget::DropTargetsPanel => String::from("Drop targets"),
+        crate::egui_app::state::DragTarget::External => String::from("External target"),
+    };
+    DragOverlayModel {
+        active,
+        label: ui.drag.label.clone(),
+        target_label,
+        valid_target: !matches!(
+            ui.drag.active_target,
+            crate::egui_app::state::DragTarget::None
+        ),
     }
 }
 
@@ -294,5 +401,57 @@ mod tests {
         let range = selection_range_from_milli(2000, 0);
         assert_eq!(range.start(), 0.0);
         assert_eq!(range.end(), 1.0);
+    }
+
+    #[test]
+    fn browser_actions_require_focus_or_selection() {
+        let mut ui = UiState::default();
+        let projected = project_browser_actions_model(&ui);
+        assert!(!projected.can_rename);
+        assert!(!projected.can_delete);
+        assert!(!projected.can_tag);
+
+        ui.browser.selected_visible = Some(0);
+        let projected = project_browser_actions_model(&ui);
+        assert!(projected.can_rename);
+        assert!(projected.can_delete);
+        assert!(projected.can_tag);
+    }
+
+    #[test]
+    fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
+        let mut ui = UiState::default();
+        ui.browser.pending_action =
+            Some(crate::egui_app::state::SampleBrowserActionPrompt::Rename {
+                target: std::path::PathBuf::from("kick.wav"),
+                name: String::from("kick"),
+            });
+        ui.waveform.pending_destructive = Some(crate::egui_app::state::DestructiveEditPrompt {
+            edit: crate::egui_app::state::DestructiveSelectionEdit::TrimSelection,
+            title: String::from("Trim selection"),
+            message: String::from("Apply trim?"),
+        });
+        let projected = project_confirm_prompt_model(&ui);
+        assert!(projected.visible);
+        assert_eq!(projected.kind, Some(ConfirmPromptKind::BrowserRename));
+    }
+
+    #[test]
+    fn progress_overlay_projection_preserves_cancel_state() {
+        let mut ui = UiState::default();
+        ui.progress.visible = true;
+        ui.progress.modal = true;
+        ui.progress.title = String::from("Scanning");
+        ui.progress.completed = 3;
+        ui.progress.total = 9;
+        ui.progress.cancelable = true;
+        ui.progress.cancel_requested = true;
+        let projected = project_progress_overlay_model(&ui);
+        assert!(projected.visible);
+        assert!(projected.modal);
+        assert!(projected.cancelable);
+        assert!(projected.cancel_requested);
+        assert_eq!(projected.completed, 3);
+        assert_eq!(projected.total, 9);
     }
 }
