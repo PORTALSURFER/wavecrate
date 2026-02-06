@@ -92,6 +92,54 @@ pub(crate) fn key_code_from_egui(key: egui::Key) -> Option<KeyCode> {
     })
 }
 
+/// Convert a `winit` physical key code into the local backend-agnostic key representation.
+pub(crate) fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCode> {
+    use winit::keyboard::KeyCode as WinitKeyCode;
+    Some(match key {
+        WinitKeyCode::Digit0 => KeyCode::Num0,
+        WinitKeyCode::Digit1 => KeyCode::Num1,
+        WinitKeyCode::Digit2 => KeyCode::Num2,
+        WinitKeyCode::Digit3 => KeyCode::Num3,
+        WinitKeyCode::Digit4 => KeyCode::Num4,
+        WinitKeyCode::Digit5 => KeyCode::Num5,
+        WinitKeyCode::Digit6 => KeyCode::Num6,
+        WinitKeyCode::Digit7 => KeyCode::Num7,
+        WinitKeyCode::Digit8 => KeyCode::Num8,
+        WinitKeyCode::Digit9 => KeyCode::Num9,
+        WinitKeyCode::KeyA => KeyCode::A,
+        WinitKeyCode::KeyB => KeyCode::B,
+        WinitKeyCode::KeyC => KeyCode::C,
+        WinitKeyCode::KeyD => KeyCode::D,
+        WinitKeyCode::Enter | WinitKeyCode::NumpadEnter => KeyCode::Enter,
+        WinitKeyCode::KeyF => KeyCode::F,
+        WinitKeyCode::F1 => KeyCode::F1,
+        WinitKeyCode::KeyG => KeyCode::G,
+        WinitKeyCode::KeyI => KeyCode::I,
+        WinitKeyCode::KeyL => KeyCode::L,
+        WinitKeyCode::KeyM => KeyCode::M,
+        WinitKeyCode::KeyN => KeyCode::N,
+        WinitKeyCode::BracketLeft => KeyCode::OpenBracket,
+        WinitKeyCode::BracketRight => KeyCode::CloseBracket,
+        WinitKeyCode::KeyP => KeyCode::P,
+        WinitKeyCode::Quote => KeyCode::Quote,
+        WinitKeyCode::KeyR => KeyCode::R,
+        WinitKeyCode::KeyS => KeyCode::S,
+        WinitKeyCode::Slash => KeyCode::Slash,
+        WinitKeyCode::Backslash => KeyCode::Backslash,
+        WinitKeyCode::KeyT => KeyCode::T,
+        WinitKeyCode::KeyU => KeyCode::U,
+        WinitKeyCode::KeyW => KeyCode::W,
+        WinitKeyCode::KeyX => KeyCode::X,
+        WinitKeyCode::KeyY => KeyCode::Y,
+        WinitKeyCode::KeyZ => KeyCode::Z,
+        WinitKeyCode::ArrowLeft => KeyCode::ArrowLeft,
+        WinitKeyCode::ArrowRight => KeyCode::ArrowRight,
+        WinitKeyCode::ArrowUp => KeyCode::ArrowUp,
+        WinitKeyCode::ArrowDown => KeyCode::ArrowDown,
+        _ => return None,
+    })
+}
+
 /// Convert a backend-agnostic key code back to `egui` for transitional input handling.
 pub(crate) fn egui_key_from_code(key: KeyCode) -> egui::Key {
     match key {
