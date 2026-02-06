@@ -56,4 +56,12 @@ impl EguiController {
     pub(crate) fn scroll_waveform_view(&mut self, center: f64) {
         self.waveform().scroll_waveform_view(center);
     }
+
+    pub(crate) fn zoom_waveform_to_selection(&mut self) {
+        self.waveform().zoom_to_selection();
+    }
+
+    pub(crate) fn zoom_waveform_full(&mut self) {
+        self.waveform().zoom_out_full();
+    }
 }

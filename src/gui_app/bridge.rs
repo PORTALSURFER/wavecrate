@@ -7,6 +7,7 @@ use crate::{
         state::{TriageFlagColumn, UiState},
         view_model,
     },
+    selection::SelectionRange,
     waveform::WaveformRenderer,
 };
 use radiant::app::{
@@ -121,12 +122,16 @@ impl NativeAppBridge for SempalNativeBridge {
             UiAction::FocusBrowserPanel => self.controller.focus_browser_list(),
             UiAction::FocusSourcesPanel => self.controller.focus_sources_list(),
             UiAction::FocusWaveformPanel => self.controller.focus_waveform(),
-            UiAction::FocusLoadedSampleInBrowser => self.controller.focus_loaded_sample_in_browser(),
+            UiAction::FocusLoadedSampleInBrowser => {
+                self.controller.focus_loaded_sample_in_browser()
+            }
             UiAction::FocusBrowserSearch => self.controller.focus_browser_search(),
             UiAction::FocusFolderSearch => self.controller.focus_folder_search(),
             UiAction::SelectSourceRow { index } => self.controller.select_source_by_index(index),
             UiAction::MoveBrowserFocus { delta } => self.move_browser_focus(delta),
-            UiAction::FocusBrowserRow { visible_row } => self.controller.focus_browser_row(visible_row),
+            UiAction::FocusBrowserRow { visible_row } => {
+                self.controller.focus_browser_row(visible_row)
+            }
             UiAction::ToggleBrowserRowSelection { visible_row } => {
                 self.controller.toggle_browser_row_selection(visible_row)
             }
@@ -146,7 +151,9 @@ impl NativeAppBridge for SempalNativeBridge {
                     self.controller.add_range_browser_selection(target);
                 }
             }
-            UiAction::ToggleFocusedBrowserRowSelection => self.controller.toggle_focused_selection(),
+            UiAction::ToggleFocusedBrowserRowSelection => {
+                self.controller.toggle_focused_selection()
+            }
             UiAction::SelectAllBrowserRows => self.controller.select_all_browser_rows(),
             UiAction::SetBrowserSearch { query } => self.controller.set_browser_search(query),
             UiAction::ToggleLoopPlayback => self.controller.toggle_loop(),
@@ -157,7 +164,39 @@ impl NativeAppBridge for SempalNativeBridge {
                 self.controller.focus_waveform();
             }
             UiAction::SetWaveformCursor { position_milli } => {
-                self.controller.set_waveform_cursor(milli_to_normalized(position_milli));
+                self.controller
+                    .set_waveform_cursor(milli_to_normalized(position_milli));
+                self.controller.focus_waveform();
+            }
+            UiAction::SetWaveformSelectionRange {
+                start_milli,
+                end_milli,
+            } => {
+                self.controller
+                    .set_selection_range(selection_range_from_milli(start_milli, end_milli));
+                self.controller.focus_waveform();
+            }
+            UiAction::ClearWaveformSelection => {
+                self.controller.clear_selection();
+                self.controller.focus_waveform();
+            }
+            UiAction::ZoomWaveform { zoom_in, steps } => {
+                self.controller.zoom_waveform_steps_with_factor(
+                    zoom_in,
+                    u32::from(steps.max(1)),
+                    None,
+                    None,
+                    true,
+                    true,
+                );
+                self.controller.focus_waveform();
+            }
+            UiAction::ZoomWaveformToSelection => {
+                self.controller.zoom_waveform_to_selection();
+                self.controller.focus_waveform();
+            }
+            UiAction::ZoomWaveformFull => {
+                self.controller.zoom_waveform_full();
                 self.controller.focus_waveform();
             }
             UiAction::Undo => self.controller.undo(),
@@ -229,7 +268,13 @@ fn project_browser_model(controller: &mut EguiController) -> BrowserPanelModel {
         .as_deref()
         .map(view_model::sample_display_label);
     let anchor_visible_row = controller.ui.browser.selection_anchor_visible;
-    let selected_paths: HashSet<_> = controller.ui.browser.selected_paths.iter().cloned().collect();
+    let selected_paths: HashSet<_> = controller
+        .ui
+        .browser
+        .selected_paths
+        .iter()
+        .cloned()
+        .collect();
 
     let mut rows = Vec::new();
     let visible_count = visible.len();
@@ -272,7 +317,10 @@ fn project_browser_model(controller: &mut EguiController) -> BrowserPanelModel {
 
 fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
     WaveformPanelModel {
-        loaded_label: ui.loaded_wav.as_deref().map(view_model::sample_display_label),
+        loaded_label: ui
+            .loaded_wav
+            .as_deref()
+            .map(view_model::sample_display_label),
         cursor_milli: ui.waveform.cursor.map(normalized_to_milli),
         playhead_milli: ui
             .waveform
@@ -315,6 +363,13 @@ fn milli_to_normalized(value: u16) -> f32 {
     (value.min(1000) as f32) / 1000.0
 }
 
+fn selection_range_from_milli(start_milli: u16, end_milli: u16) -> SelectionRange {
+    SelectionRange::new(
+        milli_to_normalized(start_milli),
+        milli_to_normalized(end_milli),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -334,8 +389,28 @@ mod tests {
 
     #[test]
     fn browser_column_index_maps_rating_buckets() {
-        assert_eq!(browser_column_index(crate::sample_sources::Rating::TRASH_1), 0);
-        assert_eq!(browser_column_index(crate::sample_sources::Rating::NEUTRAL), 1);
-        assert_eq!(browser_column_index(crate::sample_sources::Rating::KEEP_1), 2);
+        assert_eq!(
+            browser_column_index(crate::sample_sources::Rating::TRASH_1),
+            0
+        );
+        assert_eq!(
+            browser_column_index(crate::sample_sources::Rating::NEUTRAL),
+            1
+        );
+        assert_eq!(
+            browser_column_index(crate::sample_sources::Rating::KEEP_1),
+            2
+        );
+    }
+
+    #[test]
+    fn selection_range_from_milli_clamps_and_orders_bounds() {
+        let range = selection_range_from_milli(750, 250);
+        assert_eq!(range.start(), 0.25);
+        assert_eq!(range.end(), 0.75);
+
+        let range = selection_range_from_milli(2000, 0);
+        assert_eq!(range.start(), 0.0);
+        assert_eq!(range.end(), 1.0);
     }
 }
