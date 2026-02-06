@@ -4,7 +4,7 @@ use super::common::{prepare_browser_sample, visible_indices};
 use crate::egui_app::controller::ui::hotkeys;
 use crate::egui_app::state::FocusContext;
 use crate::egui_app::state::SampleBrowserTab;
-use egui::Key;
+use crate::gui::input::KeyCode;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;
@@ -41,7 +41,7 @@ fn find_similar_hotkey_is_registered() {
         .expect("find-similar hotkey");
     assert_eq!(action.label, "Toggle find similar");
     assert!(action.is_global());
-    assert_eq!(action.gesture.first.key, Key::F);
+    assert_eq!(action.gesture.first.key, KeyCode::F);
     assert!(action.gesture.first.shift);
     assert!(!action.gesture.first.command);
     assert!(!action.gesture.first.alt);
@@ -102,7 +102,7 @@ fn focus_history_hotkeys_are_registered() {
         .find(|a| a.id == "focus-history-previous")
         .expect("focus-history-previous hotkey");
     assert_eq!(previous.label, "Previous focused sample");
-    assert_eq!(previous.gesture.first.key, Key::ArrowLeft);
+    assert_eq!(previous.gesture.first.key, KeyCode::ArrowLeft);
     assert!(!previous.gesture.first.shift);
     assert!(!previous.gesture.first.command);
     assert!(!previous.gesture.first.alt);
@@ -112,7 +112,7 @@ fn focus_history_hotkeys_are_registered() {
         .find(|a| a.id == "focus-history-next")
         .expect("focus-history-next hotkey");
     assert_eq!(next.label, "Next focused sample");
-    assert_eq!(next.gesture.first.key, Key::ArrowRight);
+    assert_eq!(next.gesture.first.key, KeyCode::ArrowRight);
     assert!(!next.gesture.first.shift);
     assert!(!next.gesture.first.command);
     assert!(!next.gesture.first.alt);
@@ -196,7 +196,7 @@ fn random_sample_hotkey_is_registered() {
         .expect("play-random-sample hotkey");
     assert_eq!(action.label, "Play random sample");
     assert!(action.is_global());
-    assert_eq!(action.gesture.first.key, Key::R);
+    assert_eq!(action.gesture.first.key, KeyCode::R);
     assert!(action.gesture.first.shift);
     assert!(!action.gesture.first.command);
     assert!(action.gesture.chord.is_none());
@@ -209,7 +209,7 @@ fn random_history_hotkey_is_registered() {
         .expect("play-previous-random-sample hotkey");
     assert_eq!(action.label, "Play previous random sample");
     assert!(action.is_global());
-    assert_eq!(action.gesture.first.key, Key::R);
+    assert_eq!(action.gesture.first.key, KeyCode::R);
     assert!(action.gesture.first.shift);
     assert!(action.gesture.first.command);
     assert!(action.gesture.chord.is_none());
@@ -222,7 +222,7 @@ fn random_navigation_toggle_hotkey_is_registered() {
         .expect("toggle-random-navigation-mode hotkey");
     assert_eq!(action.label, "Toggle random navigation mode");
     assert!(action.is_global());
-    assert_eq!(action.gesture.first.key, Key::R);
+    assert_eq!(action.gesture.first.key, KeyCode::R);
     assert!(action.gesture.first.alt);
     assert!(!action.gesture.first.shift);
     assert!(!action.gesture.first.command);
@@ -236,7 +236,7 @@ fn trash_move_hotkeys_are_registered() {
         .expect("move-trashed-to-folder hotkey");
     assert_eq!(base.label, "Move trashed samples to folder");
     assert!(base.is_global());
-    assert_eq!(base.gesture.first.key, egui::Key::P);
+    assert_eq!(base.gesture.first.key, KeyCode::P);
     assert!(!base.gesture.first.shift);
 
     let shifted = hotkeys::iter_actions()
@@ -244,7 +244,7 @@ fn trash_move_hotkeys_are_registered() {
         .expect("move-trashed-to-folder-shift hotkey");
     assert_eq!(shifted.label, "Move trashed samples to folder");
     assert!(shifted.is_global());
-    assert_eq!(shifted.gesture.first.key, egui::Key::P);
+    assert_eq!(shifted.gesture.first.key, KeyCode::P);
     assert!(shifted.gesture.first.shift);
 }
 
@@ -255,7 +255,7 @@ fn tag_neutral_hotkey_is_registered() {
         .expect("tag-neutral hotkey");
     assert_eq!(action.label, "Neutral sample(s)");
     assert!(action.is_global());
-    assert_eq!(action.gesture.first.key, Key::Quote);
+    assert_eq!(action.gesture.first.key, KeyCode::Quote);
     assert!(!action.gesture.first.shift);
     assert!(!action.gesture.first.command);
     assert!(!action.gesture.first.alt);
@@ -276,7 +276,10 @@ fn quote_hotkey_tags_selected_sample_neutral() {
         .expect("tag-neutral hotkey");
     controller.handle_hotkey(action, FocusContext::None);
 
-    assert_eq!(controller.wav_entry(0).unwrap().tag, crate::sample_sources::Rating::NEUTRAL);
+    assert_eq!(
+        controller.wav_entry(0).unwrap().tag,
+        crate::sample_sources::Rating::NEUTRAL
+    );
 }
 
 #[test]
@@ -296,10 +299,16 @@ fn trash_move_hotkey_moves_samples() -> Result<(), String> {
         .map_err(|err| format!("open db: {err}"))?;
     db.upsert_file(Path::new("trash.wav"), 4, 1)
         .map_err(|err| format!("upsert: {err}"))?;
-    db.set_tag(Path::new("trash.wav"), crate::sample_sources::Rating::TRASH_3)
-        .map_err(|err| format!("tag: {err}"))?;
+    db.set_tag(
+        Path::new("trash.wav"),
+        crate::sample_sources::Rating::TRASH_3,
+    )
+    .map_err(|err| format!("tag: {err}"))?;
 
-    controller.set_wav_entries_for_tests(vec![sample_entry("trash.wav", crate::sample_sources::Rating::TRASH_3)]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "trash.wav",
+        crate::sample_sources::Rating::TRASH_3,
+    )]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
 
@@ -435,7 +444,11 @@ fn random_sample_navigation_avoids_repeats() {
     // Play all 3 samples randomly
     for _ in 0..3 {
         controller.play_random_visible_sample();
-        let selected = controller.ui.browser.selected_visible.expect("sample selected");
+        let selected = controller
+            .ui
+            .browser
+            .selected_visible
+            .expect("sample selected");
         let path = controller
             .visible_browser_index(selected)
             .and_then(|idx| controller.wav_entry(idx))
@@ -448,11 +461,18 @@ fn random_sample_navigation_avoids_repeats() {
 
     // The next one should be a repeat (since all were played)
     controller.play_random_visible_sample();
-    let selected = controller.ui.browser.selected_visible.expect("sample selected");
+    let selected = controller
+        .ui
+        .browser
+        .selected_visible
+        .expect("sample selected");
     let path = controller
         .visible_browser_index(selected)
         .and_then(|idx| controller.wav_entry(idx))
         .map(|e| e.relative_path.clone())
         .expect("path");
-    assert!(played.contains(&path), "Should repeat after all were played");
+    assert!(
+        played.contains(&path),
+        "Should repeat after all were played"
+    );
 }

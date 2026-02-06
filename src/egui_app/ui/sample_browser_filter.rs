@@ -2,6 +2,7 @@ use super::style;
 use super::*;
 use crate::egui_app::controller::hotkeys;
 use crate::egui_app::state::{SampleBrowserSort, TriageFlagFilter};
+use crate::gui::input::KeyCode;
 use eframe::egui::{self, RichText, Ui};
 
 impl EguiApp {
@@ -90,7 +91,7 @@ impl EguiApp {
             let mut query = self.controller.ui.browser.search_query.clone();
             let search_hint = format!(
                 "Search samples ({})...",
-                hotkeys::format_keypress(&hotkeys::KeyPress::with_command(egui::Key::F))
+                hotkeys::format_keypress(&hotkeys::KeyPress::with_command(KeyCode::F))
             );
             let response = ui.add(
                 egui::TextEdit::singleline(&mut query)

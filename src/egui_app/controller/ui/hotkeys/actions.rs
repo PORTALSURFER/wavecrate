@@ -1,6 +1,6 @@
 use super::types::{HotkeyAction, HotkeyCommand, HotkeyGesture, HotkeyScope, KeyPress};
 use crate::egui_app::state::FocusContext;
-use egui::Key;
+use crate::gui::input::KeyCode as Key;
 
 pub(crate) const HOTKEY_ACTIONS: &[HotkeyAction] = &[
     HotkeyAction {

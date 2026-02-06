@@ -9,7 +9,7 @@
 use eframe::egui;
 use egui::viewport::IconData;
 use sempal::audio::AudioPlayer;
-use sempal::egui_app::ui::{EguiApp, MIN_VIEWPORT_SIZE};
+use sempal::gui_app::{MIN_VIEWPORT_SIZE, new_sempal_app};
 use sempal::logging;
 use sempal::waveform::WaveformRenderer;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Sempal",
         native_options,
         Box::new(
-            move |_cc| match EguiApp::new(renderer.clone(), player.clone()) {
+            move |_cc| match new_sempal_app(renderer.clone(), player.clone()) {
                 Ok(app) => Ok(Box::new(app)),
                 Err(err) => Ok(Box::new(LaunchError { message: err })),
             },

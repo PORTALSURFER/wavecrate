@@ -7,6 +7,7 @@ use super::style;
 use super::utils::{folder_row_label, sample_housing_folders};
 use crate::egui_app::controller::hotkeys;
 use crate::egui_app::state::{DragSource, DragTarget, FocusContext, RootFolderFilterMode};
+use crate::gui::input::KeyCode;
 use eframe::egui::{self, Align, Align2, Layout, RichText, StrokeKind, TextStyle, Ui};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -77,7 +78,7 @@ impl EguiApp {
                 let mut query = self.controller.ui.sources.folders.search_query.clone();
                 let search_hint = format!(
                     "Search folders ({})...",
-                    hotkeys::format_keypress(&hotkeys::KeyPress::with_command(egui::Key::F))
+                    hotkeys::format_keypress(&hotkeys::KeyPress::with_command(KeyCode::F))
                 );
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut query)
@@ -97,7 +98,8 @@ impl EguiApp {
         self.controller.ui.sources.folders.header_height = header_response.response.rect.height();
         let header_gap = ui.spacing().item_spacing.y;
         ui.add_space(header_gap);
-        let content_height = (height - header_response.response.rect.height() - header_gap).max(0.0);
+        let content_height =
+            (height - header_response.response.rect.height() - header_gap).max(0.0);
         let frame = style::section_frame();
         let focused = matches!(
             self.controller.ui.focus.context,
@@ -135,8 +137,8 @@ impl EguiApp {
             };
             let active_folder_target = match &self.controller.ui.drag.active_target {
                 DragTarget::FolderPanel { folder } => folder
-                .clone()
-                .or_else(|| self.controller.ui.drag.last_folder_target.clone()),
+                    .clone()
+                    .or_else(|| self.controller.ui.drag.last_folder_target.clone()),
                 _ => None,
             };
             if let Some(root_row) = root_row {
@@ -185,7 +187,8 @@ impl EguiApp {
                 let mut badge_offset = 0.0;
                 if is_selected {
                     if let Some(mode) = root_row.root_filter_mode {
-                        badge_offset = paint_root_filter_badge(ui, response.rect, mode, root_row.negated);
+                        badge_offset =
+                            paint_root_filter_badge(ui, response.rect, mode, root_row.negated);
                     }
                 }
                 if sample_parent_folders.contains(&root_row.path) {
@@ -249,8 +252,7 @@ impl EguiApp {
                         );
                     }
                 }
-                if external_drop_ready
-                    && pointer_pos.is_some_and(|pos| response.rect.contains(pos))
+                if external_drop_ready && pointer_pos.is_some_and(|pos| response.rect.contains(pos))
                 {
                     ui.painter().rect_stroke(
                         response.rect.expand(2.0),
@@ -319,7 +321,8 @@ impl EguiApp {
                         TextStyle::Body.resolve(ui.style()),
                         palette.text_muted,
                     );
-                    let response = ui.interact(rect, ui.id().with("folder_empty_row"), egui::Sense::click());
+                    let response =
+                        ui.interact(rect, ui.id().with("folder_empty_row"), egui::Sense::click());
                     self.root_row_menu(&response);
                     return;
                 }
@@ -545,10 +548,12 @@ impl EguiApp {
                 }
                 let empty_height = ui.available_height();
                 if empty_height > 0.0 {
-                    let response = ui.allocate_exact_size(
-                        egui::vec2(ui.available_width(), empty_height),
-                        egui::Sense::click(),
-                    ).1;
+                    let response = ui
+                        .allocate_exact_size(
+                            egui::vec2(ui.available_width(), empty_height),
+                            egui::Sense::click(),
+                        )
+                        .1;
                     self.root_row_menu(&response);
                 }
             });
@@ -655,11 +660,7 @@ impl EguiApp {
                     );
                     ui.label(RichText::new(label).color(status_color));
                     if let Some(detail) = &entry.detail {
-                        ui.label(
-                            RichText::new(detail)
-                                .small()
-                                .color(palette.text_muted),
-                        );
+                        ui.label(RichText::new(detail).small().color(palette.text_muted));
                     }
                 }
                 ui.add_space(4.0);
@@ -705,9 +706,9 @@ fn paint_root_filter_badge(
         RootFolderFilterMode::RootOnly => ("ROOT", palette.accent_copper),
     };
     let font_id = TextStyle::Button.resolve(ui.style());
-    let galley = ui.ctx().fonts_mut(|fonts| {
-        fonts.layout_no_wrap(label.to_string(), font_id.clone(), color)
-    });
+    let galley = ui
+        .ctx()
+        .fonts_mut(|fonts| fonts.layout_no_wrap(label.to_string(), font_id.clone(), color));
     let padding = ui.spacing().button_padding.x;
     let dot_radius = 3.0;
     let dot_gap = 6.0;
@@ -718,7 +719,6 @@ fn paint_root_filter_badge(
         .text(text_pos, Align2::RIGHT_CENTER, label, font_id, color);
     let text_left = right_edge - galley.size().x;
     let dot_center = egui::pos2(text_left - dot_gap - dot_radius, rect.center().y);
-    ui.painter()
-        .circle_filled(dot_center, dot_radius, color);
+    ui.painter().circle_filled(dot_center, dot_radius, color);
     galley.size().x + dot_gap + dot_radius * 2.0 + negation_offset + 6.0
 }

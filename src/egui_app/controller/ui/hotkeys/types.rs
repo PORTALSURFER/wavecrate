@@ -1,5 +1,5 @@
 use crate::egui_app::state::FocusContext;
-use egui::Key;
+use crate::gui::input::KeyCode;
 
 /// Identifies the surface that owns a hotkey action.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,28 +27,28 @@ pub(crate) struct HotkeyGesture {
 /// A single keypress plus modifier state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct KeyPress {
-    pub(crate) key: Key,
+    pub(crate) key: KeyCode,
     pub(crate) command: bool,
     pub(crate) shift: bool,
     pub(crate) alt: bool,
 }
 
 impl HotkeyGesture {
-    pub const fn new(key: Key) -> Self {
+    pub const fn new(key: KeyCode) -> Self {
         Self {
             first: KeyPress::new(key),
             chord: None,
         }
     }
 
-    pub const fn with_command(key: Key) -> Self {
+    pub const fn with_command(key: KeyCode) -> Self {
         Self {
             first: KeyPress::with_command(key),
             chord: None,
         }
     }
 
-    pub const fn with_shift(key: Key) -> Self {
+    pub const fn with_shift(key: KeyCode) -> Self {
         Self {
             first: KeyPress::with_shift(key),
             chord: None,
@@ -64,7 +64,7 @@ impl HotkeyGesture {
 }
 
 impl KeyPress {
-    pub const fn new(key: Key) -> Self {
+    pub const fn new(key: KeyCode) -> Self {
         Self {
             key,
             command: false,
@@ -73,7 +73,7 @@ impl KeyPress {
         }
     }
 
-    pub const fn with_command(key: Key) -> Self {
+    pub const fn with_command(key: KeyCode) -> Self {
         Self {
             key,
             command: true,
@@ -82,7 +82,7 @@ impl KeyPress {
         }
     }
 
-    pub const fn with_shift(key: Key) -> Self {
+    pub const fn with_shift(key: KeyCode) -> Self {
         Self {
             key,
             command: false,
@@ -91,7 +91,7 @@ impl KeyPress {
         }
     }
 
-    pub const fn with_alt(key: Key) -> Self {
+    pub const fn with_alt(key: KeyCode) -> Self {
         Self {
             key,
             command: false,

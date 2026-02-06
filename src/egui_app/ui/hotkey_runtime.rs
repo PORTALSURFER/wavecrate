@@ -1,6 +1,7 @@
 use crate::egui_app::controller::hotkeys;
 use crate::egui_app::state::FocusContext;
 use crate::egui_app::ui::EguiApp;
+use crate::gui::input::{KeyCode, egui_key_from_code, key_code_from_egui};
 use eframe::egui;
 use std::time::{Duration, Instant};
 
@@ -34,10 +35,7 @@ impl EguiApp {
             self.controller.ui.browser.pending_action,
             Some(crate::egui_app::state::SampleBrowserActionPrompt::Rename { .. })
         );
-        if folder_rename_active
-            || folder_create_active
-            || browser_rename_active
-        {
+        if folder_rename_active || folder_create_active || browser_rename_active {
             return;
         }
         let wants_text_input = ctx.wants_keyboard_input();
@@ -210,6 +208,7 @@ fn keypress_from_event(event: &egui::Event) -> Option<KeyEventPress> {
             modifiers,
             ..
         } => {
+            let key = key_code_from_egui(*key)?;
             let command = if cfg!(target_os = "macos") {
                 modifiers.command
             } else {
@@ -217,7 +216,7 @@ fn keypress_from_event(event: &egui::Event) -> Option<KeyEventPress> {
             };
             Some(KeyEventPress {
                 press: hotkeys::KeyPress {
-                    key: *key,
+                    key,
                     command,
                     shift: modifiers.shift,
                     alt: modifiers.alt,
@@ -238,38 +237,38 @@ fn press_matches(press: &hotkeys::KeyPress, target: &hotkeys::KeyPress) -> bool 
 
 fn press_text_variants(press: &hotkeys::KeyPress) -> &'static [&'static str] {
     match press.key {
-        egui::Key::Num0 => &["0"],
-        egui::Key::Num1 => &["1"],
-        egui::Key::Num2 => &["2"],
-        egui::Key::Num3 => &["3"],
-        egui::Key::Num4 => &["4"],
-        egui::Key::Num5 => &["5"],
-        egui::Key::Num6 => &["6"],
-        egui::Key::Num7 => &["7"],
-        egui::Key::Num8 => &["8"],
-        egui::Key::Num9 => &["9"],
-        egui::Key::X => &["x", "X"],
-        egui::Key::N => &["n", "N"],
-        egui::Key::D => &["d", "D"],
-        egui::Key::C => &["c", "C"],
-        egui::Key::M => &["m", "M"],
-        egui::Key::B => &["b", "B"],
-        egui::Key::T => &["t", "T"],
-        egui::Key::I => &["i", "I"],
-        egui::Key::U => &["u", "U"],
-        egui::Key::Y => &["y", "Y"],
-        egui::Key::Z => &["z", "Z"],
-        egui::Key::F => &["f", "F"],
-        egui::Key::Slash => &["/", "?"],
-        egui::Key::Backslash => &["\\", "|"],
-        egui::Key::Quote => &["'", "\""],
-        egui::Key::G => &["g", "G"],
-        egui::Key::S => &["s", "S"],
-        egui::Key::W => &["w", "W"],
-        egui::Key::L => &["l", "L"],
-        egui::Key::P => &["p", "P"],
-        egui::Key::OpenBracket => &["[", "{"],
-        egui::Key::CloseBracket => &["]", "}"],
+        KeyCode::Num0 => &["0"],
+        KeyCode::Num1 => &["1"],
+        KeyCode::Num2 => &["2"],
+        KeyCode::Num3 => &["3"],
+        KeyCode::Num4 => &["4"],
+        KeyCode::Num5 => &["5"],
+        KeyCode::Num6 => &["6"],
+        KeyCode::Num7 => &["7"],
+        KeyCode::Num8 => &["8"],
+        KeyCode::Num9 => &["9"],
+        KeyCode::X => &["x", "X"],
+        KeyCode::N => &["n", "N"],
+        KeyCode::D => &["d", "D"],
+        KeyCode::C => &["c", "C"],
+        KeyCode::M => &["m", "M"],
+        KeyCode::B => &["b", "B"],
+        KeyCode::T => &["t", "T"],
+        KeyCode::I => &["i", "I"],
+        KeyCode::U => &["u", "U"],
+        KeyCode::Y => &["y", "Y"],
+        KeyCode::Z => &["z", "Z"],
+        KeyCode::F => &["f", "F"],
+        KeyCode::Slash => &["/", "?"],
+        KeyCode::Backslash => &["\\", "|"],
+        KeyCode::Quote => &["'", "\""],
+        KeyCode::G => &["g", "G"],
+        KeyCode::S => &["s", "S"],
+        KeyCode::W => &["w", "W"],
+        KeyCode::L => &["l", "L"],
+        KeyCode::P => &["p", "P"],
+        KeyCode::OpenBracket => &["[", "{"],
+        KeyCode::CloseBracket => &["]", "}"],
         _ => &[],
     }
 }
@@ -277,7 +276,7 @@ fn press_text_variants(press: &hotkeys::KeyPress) -> &'static [&'static str] {
 fn consume_press(ctx: &egui::Context, press: hotkeys::KeyPress) {
     let modifiers = keypress_modifiers(&press);
     ctx.input_mut(|i| {
-        i.consume_key(modifiers, press.key);
+        i.consume_key(modifiers, egui_key_from_code(press.key));
         let text_variants = press_text_variants(&press);
         if !text_variants.is_empty() {
             i.events.retain(|event| {
@@ -301,18 +300,18 @@ fn keypress_modifiers(press: &hotkeys::KeyPress) -> egui::Modifiers {
     modifiers
 }
 
-fn hotkey_number_for_key(key: egui::Key) -> Option<u8> {
+fn hotkey_number_for_key(key: KeyCode) -> Option<u8> {
     match key {
-        egui::Key::Num0 => Some(0),
-        egui::Key::Num1 => Some(1),
-        egui::Key::Num2 => Some(2),
-        egui::Key::Num3 => Some(3),
-        egui::Key::Num4 => Some(4),
-        egui::Key::Num5 => Some(5),
-        egui::Key::Num6 => Some(6),
-        egui::Key::Num7 => Some(7),
-        egui::Key::Num8 => Some(8),
-        egui::Key::Num9 => Some(9),
+        KeyCode::Num0 => Some(0),
+        KeyCode::Num1 => Some(1),
+        KeyCode::Num2 => Some(2),
+        KeyCode::Num3 => Some(3),
+        KeyCode::Num4 => Some(4),
+        KeyCode::Num5 => Some(5),
+        KeyCode::Num6 => Some(6),
+        KeyCode::Num7 => Some(7),
+        KeyCode::Num8 => Some(8),
+        KeyCode::Num9 => Some(9),
         _ => None,
     }
 }
@@ -324,7 +323,7 @@ mod tests {
     #[test]
     fn consume_press_drops_hotkey_events() {
         let ctx = egui::Context::default();
-        let press = hotkeys::KeyPress::new(egui::Key::N);
+        let press = hotkeys::KeyPress::new(KeyCode::N);
         ctx.input_mut(|i| {
             i.events.push(egui::Event::Key {
                 key: egui::Key::N,
@@ -347,7 +346,7 @@ mod tests {
     #[test]
     fn consume_press_removes_uppercase_text() {
         let ctx = egui::Context::default();
-        let press = hotkeys::KeyPress::new(egui::Key::C);
+        let press = hotkeys::KeyPress::new(KeyCode::C);
         ctx.input_mut(|i| {
             i.events.push(egui::Event::Key {
                 key: egui::Key::C,
@@ -368,7 +367,7 @@ mod tests {
     #[test]
     fn consume_press_removes_backslash_text() {
         let ctx = egui::Context::default();
-        let press = hotkeys::KeyPress::new(egui::Key::Backslash);
+        let press = hotkeys::KeyPress::new(KeyCode::Backslash);
         ctx.input_mut(|i| {
             i.events.push(egui::Event::Key {
                 key: egui::Key::Backslash,

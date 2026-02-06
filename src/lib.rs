@@ -15,6 +15,12 @@ pub mod egui_app;
 pub mod external_clipboard;
 /// Platform helpers for external drag-and-drop.
 pub mod external_drag;
+/// Backend-agnostic GUI primitives used during renderer migration.
+pub mod gui;
+/// Transitional GUI app exports and constructors.
+pub mod gui_app;
+/// Shared runtime abstractions for the GUI migration.
+pub mod gui_runtime;
 mod http_client;
 /// GitHub issue reporting via the Sempal gateway.
 pub mod issue_gateway;
