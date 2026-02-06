@@ -34,6 +34,7 @@ winit = "0.30.12"
 pollster = "0.4.0"
 vello = "0.7.0"
 skrifa = "0.40.0"
+radiant = { path = "vendor/radiant" }
 open = "5.3.3"
 image = "0.25.9"
 raw-window-handle = "0.6"

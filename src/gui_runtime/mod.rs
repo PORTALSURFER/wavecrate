@@ -1,9 +1,5 @@
-//! Shared GUI runtime host implementations.
+//! Shared GUI runtime host implementations re-exported from `radiant`.
 
-mod egui_wgpu;
-mod native_vello;
-
-pub use egui_wgpu::{
-    EguiAppRuntime, EguiRunOptions, WindowIconRgba, run_egui_wgpu_app,
+pub use radiant::gui_runtime::{
+    EguiAppRuntime, EguiRunOptions, WindowIconRgba, run_egui_wgpu_app, run_native_vello_preview,
 };
-pub use native_vello::run_native_vello_preview;
