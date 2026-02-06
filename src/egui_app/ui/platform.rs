@@ -12,8 +12,8 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
 use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetWindowRect};
 
 #[cfg(target_os = "windows")]
-pub(super) fn hwnd_from_frame(frame: &eframe::Frame) -> Option<HWND> {
-    let handle = frame.window_handle().ok()?;
+pub(super) fn hwnd_from_window(window: &winit::window::Window) -> Option<HWND> {
+    let handle = window.window_handle().ok()?;
     match handle.as_raw() {
         RawWindowHandle::Win32(win) => Some(HWND(win.hwnd.get() as *mut _)),
         _ => None,

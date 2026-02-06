@@ -544,6 +544,8 @@ fn mark_staging_root_hidden(staging_root: &Path) {
         wide.push(0);
         let _ = unsafe { SetFileAttributesW(PCWSTR(wide.as_ptr()), FILE_ATTRIBUTE_HIDDEN) };
     }
+    #[cfg(not(target_os = "windows"))]
+    let _ = staging_root;
 }
 
 /// Remove the staging root if it is now empty.

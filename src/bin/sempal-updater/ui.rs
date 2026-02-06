@@ -1,6 +1,7 @@
-use eframe::egui::{self, RichText};
+use egui::{self, RichText};
 use sempal::{
     egui_app::ui::style,
+    gui_runtime::{EguiAppRuntime, EguiRunOptions, run_egui_wgpu_app},
     updater::{
         APP_NAME, ApplyPlan, ReleaseSummary, UpdateChannel, UpdateProgress, UpdaterRunArgs,
         apply_update_with_progress, list_recent_releases,
@@ -10,22 +11,19 @@ use std::{
     sync::mpsc::{self, Receiver},
     thread,
 };
+
 const MAX_LOG_LINES: usize = 200;
 const RELEASE_LIST_LIMIT: usize = 5;
+
 pub fn run_gui(args: UpdaterRunArgs) -> Result<(), String> {
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([560.0, 420.0])
-            .with_min_inner_size([440.0, 320.0])
-            .with_title(format!("{APP_NAME} updater")),
-        ..Default::default()
+    let options = EguiRunOptions {
+        title: format!("{APP_NAME} updater"),
+        inner_size: Some([560.0, 420.0]),
+        min_inner_size: Some([440.0, 320.0]),
+        maximized: false,
+        icon: None,
     };
-    eframe::run_native(
-        &format!("{APP_NAME} updater"),
-        options,
-        Box::new(|_cc| Ok(Box::new(UpdateUiApp::new(args)))),
-    )
-    .map_err(|err| err.to_string())
+    run_egui_wgpu_app(options, UpdateUiApp::new(args))
 }
 
 struct UpdateUiApp {
@@ -83,10 +81,10 @@ impl UpdateUiApp {
         if self.selected_tag.is_some() {
             return;
         }
-        if let ReleaseState::Loaded(options) = &self.release_state {
-            if let Some(first) = options.first() {
-                self.selected_tag = Some(first.tag.clone());
-            }
+        if let ReleaseState::Loaded(options) = &self.release_state
+            && let Some(first) = options.first()
+        {
+            self.selected_tag = Some(first.tag.clone());
         }
     }
 
@@ -360,8 +358,12 @@ impl UpdateUiApp {
     }
 }
 
-impl eframe::App for UpdateUiApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+impl EguiAppRuntime for UpdateUiApp {
+    fn setup(&mut self, ctx: &egui::Context) {
+        self.apply_visuals(ctx);
+    }
+
+    fn update(&mut self, ctx: &egui::Context, _window: &winit::window::Window) {
         self.apply_visuals(ctx);
         self.handle_background_updates(ctx);
         egui::CentralPanel::default().show(ctx, |ui| self.render_panel(ui, ctx));

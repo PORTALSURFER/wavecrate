@@ -1,27 +1,25 @@
-use eframe::egui::{self, Align, Button, Layout, RichText, ScrollArea};
+use egui::{self, Align, Button, Layout, RichText, ScrollArea};
 use std::{path::PathBuf, sync::mpsc, thread};
 
-use sempal::egui_app::ui::style;
+use sempal::{
+    egui_app::ui::style,
+    gui_runtime::{EguiAppRuntime, EguiRunOptions, WindowIconRgba, run_egui_wgpu_app},
+};
 
 use crate::{APP_NAME, install, paths};
 
-pub(crate) fn run_installer_app() -> eframe::Result<()> {
-    let mut viewport = egui::ViewportBuilder::default().with_inner_size([600.0, 300.0]);
-    if let Some(icon) = load_installer_icon() {
-        viewport = viewport.with_icon(icon);
-    }
-    let native_options = eframe::NativeOptions {
-        viewport,
-        ..Default::default()
+pub(crate) fn run_installer_app() -> Result<(), String> {
+    let options = EguiRunOptions {
+        title: String::from("SemPal Installer"),
+        inner_size: Some([600.0, 300.0]),
+        min_inner_size: Some([560.0, 280.0]),
+        maximized: false,
+        icon: load_installer_icon(),
     };
-    eframe::run_native(
-        "SemPal Installer",
-        native_options,
-        Box::new(|cc| Ok(Box::new(InstallerApp::new(cc)))),
-    )
+    run_egui_wgpu_app(options, InstallerApp::new())
 }
 
-fn load_installer_icon() -> Option<egui::IconData> {
+fn load_installer_icon() -> Option<WindowIconRgba> {
     decode_icon(include_bytes!("../../../assets/logo3.ico")).or_else(|| {
         let fallback = decode_icon(include_bytes!("../../../assets/logo3.png"));
         if fallback.is_none() {
@@ -31,10 +29,10 @@ fn load_installer_icon() -> Option<egui::IconData> {
     })
 }
 
-fn decode_icon(bytes: &[u8]) -> Option<egui::IconData> {
+fn decode_icon(bytes: &[u8]) -> Option<WindowIconRgba> {
     let image = image::load_from_memory(bytes).ok()?.to_rgba8();
     let (width, height) = image.dimensions();
-    Some(egui::IconData {
+    Some(WindowIconRgba {
         rgba: image.into_raw(),
         width,
         height,
@@ -91,11 +89,7 @@ struct InstallerApp {
 }
 
 impl InstallerApp {
-    fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let mut visuals = cc.egui_ctx.style().visuals.clone();
-        style::apply_visuals(&mut visuals);
-        cc.egui_ctx.set_visuals(visuals);
-
+    fn new() -> Self {
         Self {
             step: InstallStep::Welcome,
             install_dir: paths::default_install_dir(),
@@ -155,10 +149,8 @@ impl InstallerApp {
             }
         }
     }
-}
 
-impl eframe::App for InstallerApp {
-    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+    fn render(&mut self, ctx: &egui::Context) {
         self.poll_installer();
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.spacing_mut().item_spacing = egui::vec2(12.0, 12.0);
@@ -202,10 +194,10 @@ impl eframe::App for InstallerApp {
                     ui.label("Choose installation folder");
                     ui.horizontal(|ui| {
                         ui.monospace(self.install_dir.display().to_string());
-                        if ui.button("Browse").clicked() {
-                            if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                                self.install_dir = folder;
-                            }
+                        if ui.button("Browse").clicked()
+                            && let Some(folder) = rfd::FileDialog::new().pick_folder()
+                        {
+                            self.install_dir = folder;
                         }
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -267,12 +259,11 @@ impl eframe::App for InstallerApp {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui.add(Button::new("Finish")).clicked() {
                             self.finish_errors.clear();
-                            if self.open_folder_on_finish {
-                                if let Err(err) = open::that(&self.install_dir) {
-                                    self.finish_errors.push(format!(
-                                        "Failed to open install folder: {err}"
-                                    ));
-                                }
+                            if self.open_folder_on_finish
+                                && let Err(err) = open::that(&self.install_dir)
+                            {
+                                self.finish_errors
+                                    .push(format!("Failed to open install folder: {err}"));
                             }
                             if self.launch_on_finish {
                                 let exe = self.install_dir.join("sempal.exe");
@@ -310,6 +301,18 @@ impl eframe::App for InstallerApp {
                 }
             }
         });
+    }
+}
+
+impl EguiAppRuntime for InstallerApp {
+    fn setup(&mut self, ctx: &egui::Context) {
+        let mut visuals = ctx.style().visuals.clone();
+        style::apply_visuals(&mut visuals);
+        ctx.set_visuals(visuals);
+    }
+
+    fn update(&mut self, ctx: &egui::Context, _window: &winit::window::Window) {
+        self.render(ctx);
     }
 }
 

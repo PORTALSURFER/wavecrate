@@ -19,7 +19,7 @@ const APP_PUBLISHER: &str = "SemPal";
 #[cfg(target_os = "windows")]
 const UNINSTALL_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\SemPal";
 
-fn main() -> eframe::Result<()> {
+fn main() -> Result<(), String> {
     if env::args().any(|arg| arg == "--uninstall") {
         if let Err(err) = cleanup::run_uninstall() {
             eprintln!("Uninstall failed: {err}");

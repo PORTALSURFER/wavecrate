@@ -1,21 +1,24 @@
 use eframe::egui;
+use winit::window::Window;
 
 use super::super::EguiApp;
 #[cfg(target_os = "windows")]
 use super::super::platform;
 
 impl EguiApp {
-    pub(super) fn prepare_frame(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    pub(super) fn prepare_frame(&mut self, ctx: &egui::Context, window: &Window) {
         self.apply_visuals(ctx);
         self.ensure_initial_focus(ctx);
+        #[cfg(not(target_os = "windows"))]
+        let _ = window;
         let feedback_modal_open = self.controller.ui.feedback_issue.open;
         #[cfg(target_os = "windows")]
         self.controller
-            .set_drag_hwnd(platform::hwnd_from_frame(_frame));
+            .set_drag_hwnd(platform::hwnd_from_window(window));
         #[cfg(target_os = "windows")]
         if !feedback_modal_open {
             let pixels_per_point = ctx.pixels_per_point();
-            self.controller.ui.drag.os_cursor_pos = platform::hwnd_from_frame(_frame)
+            self.controller.ui.drag.os_cursor_pos = platform::hwnd_from_window(window)
                 .and_then(|hwnd| platform::cursor_pos_in_client_points(hwnd, pixels_per_point));
             let left_mouse_down = platform::left_mouse_button_down();
             self.controller
@@ -50,7 +53,7 @@ impl EguiApp {
                 .drag
                 .payload
                 .is_some()
-                .then(|| platform::hwnd_from_frame(_frame))
+                .then(|| platform::hwnd_from_window(window))
                 .flatten()
                 .and_then(platform::cursor_inside_hwnd)
                 .map(|inside| inside && window_focused);

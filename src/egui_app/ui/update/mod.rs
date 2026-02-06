@@ -1,16 +1,18 @@
 use eframe::egui;
+use winit::window::Window;
 
 use super::EguiApp;
 use super::input::{InputSnapshot, user_activity_detected};
+use crate::gui_runtime::EguiAppRuntime;
 use update_prompt::FocusFlags;
 
 mod release_notes;
 mod update_progress;
 mod update_prompt;
 
-impl eframe::App for EguiApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        self.prepare_frame(ctx, frame);
+impl EguiAppRuntime for EguiApp {
+    fn update(&mut self, ctx: &egui::Context, window: &Window) {
+        self.prepare_frame(ctx, window);
         let focus_context = self.controller.ui.focus.context;
         let focus_flags = FocusFlags::from_context(focus_context);
         self.handle_focus_side_effects(&focus_flags);
@@ -30,7 +32,7 @@ impl eframe::App for EguiApp {
         self.render_ui(ctx, &input, focus_context);
     }
 
-    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+    fn on_exit(&mut self) {
         self.controller.commit_pending_age_update();
         self.controller.shutdown();
     }
