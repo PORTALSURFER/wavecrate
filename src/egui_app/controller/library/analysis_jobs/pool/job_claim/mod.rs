@@ -1,13 +1,14 @@
 use super::job_execution::{run_analysis_jobs_with_decoded_batch, run_job};
-use crate::egui_app::controller::library::analysis_jobs::db as analysis_db;
 use crate::egui_app::controller::jobs::JobMessageSender;
+use crate::egui_app::controller::library::analysis_jobs::db as analysis_db;
+use crate::gui::repaint::SharedRepaintSignal;
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{
-    Arc, Mutex, RwLock,
     atomic::AtomicU32,
     atomic::{AtomicBool, Ordering},
+    Arc, Mutex, RwLock,
 };
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -32,9 +33,7 @@ mod selection;
 pub(crate) use claim::{
     decode_queue_target, decode_worker_count_with_override, worker_count_with_override,
 };
-pub(crate) use queue::{
-    DecodeOutcome, DecodedQueue, DecodedWork,
-};
+pub(crate) use queue::{DecodeOutcome, DecodedQueue, DecodedWork};
 
 #[cfg(test)]
 mod tests;
@@ -83,10 +82,8 @@ pub(crate) fn spawn_decoder_worker(
             let job = match selector.select_next(allowed.as_ref()) {
                 selection::ClaimSelection::Job(job) => job,
                 selection::ClaimSelection::NoSources => {
-                    let _ = claim_wakeup.wait_for(
-                        &mut wake_counter,
-                        claim::SOURCE_REFRESH_INTERVAL,
-                    );
+                    let _ =
+                        claim_wakeup.wait_for(&mut wake_counter, claim::SOURCE_REFRESH_INTERVAL);
                     continue;
                 }
                 selection::ClaimSelection::Idle => {
@@ -164,7 +161,7 @@ pub(crate) fn spawn_decoder_worker(
 pub(crate) fn spawn_compute_worker(
     _worker_index: usize,
     tx: JobMessageSender,
-    signal: Arc<Mutex<Option<egui::Context>>>,
+    signal: Arc<SharedRepaintSignal>,
     decode_queue: Arc<DecodedQueue>,
     cancel: Arc<AtomicBool>,
     shutdown: Arc<AtomicBool>,
@@ -203,11 +200,7 @@ pub(crate) fn spawn_compute_worker(
                     &mut deferred_updates,
                     log_jobs,
                 );
-                if let Ok(lock) = signal.lock() {
-                    if let Some(ctx) = lock.as_ref() {
-                        ctx.request_repaint();
-                    }
-                }
+                signal.request_repaint();
                 continue;
             }
             if log_queue && last_queue_log.elapsed() >= Duration::from_secs(2) {
@@ -400,11 +393,7 @@ pub(crate) fn spawn_compute_worker(
                 &mut deferred_updates,
                 log_jobs,
             );
-            if let Ok(lock) = signal.lock() {
-                if let Some(ctx) = lock.as_ref() {
-                    ctx.request_repaint();
-                }
-            }
+            signal.request_repaint();
         }
     })
 }

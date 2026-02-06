@@ -4,16 +4,19 @@ mod job_execution;
 mod job_progress;
 mod progress_cache;
 
-use crate::egui_app::controller::jobs::JobMessageSender;
-use crate::sample_sources::SourceId;
 use super::wakeup;
+use crate::egui_app::controller::jobs::JobMessageSender;
+use crate::gui::repaint::{RepaintSignal, SharedRepaintSignal};
+use crate::sample_sources::SourceId;
 use progress_cache::ProgressCache;
 #[cfg(not(test))]
 use std::collections::HashSet;
+#[cfg(not(test))]
+use std::sync::Mutex;
 use std::sync::{
-    Arc, Mutex, RwLock,
     atomic::AtomicU32,
     atomic::{AtomicBool, Ordering},
+    Arc, RwLock,
 };
 use std::thread::JoinHandle;
 use tracing::info;
@@ -34,7 +37,7 @@ pub(crate) struct AnalysisWorkerPool {
     _progress_cache: Arc<RwLock<ProgressCache>>,
     #[cfg_attr(test, allow(dead_code))]
     progress_wakeup: Arc<job_progress::ProgressPollerWakeup>,
-    repaint_signal: Arc<Mutex<Option<egui::Context>>>,
+    repaint_signal: Arc<SharedRepaintSignal>,
     threads: Vec<JoinHandle<()>>,
 }
 
@@ -55,15 +58,13 @@ impl AnalysisWorkerPool {
             decode_worker_count_override: Arc::new(AtomicU32::new(0)),
             _progress_cache: Arc::new(RwLock::new(ProgressCache::default())),
             progress_wakeup: Arc::new(job_progress::ProgressPollerWakeup::new()),
-            repaint_signal: Arc::new(Mutex::new(None)),
+            repaint_signal: Arc::new(SharedRepaintSignal::default()),
             threads: Vec::new(),
         }
     }
 
-    pub(crate) fn set_repaint_signal(&self, ctx: egui::Context) {
-        if let Ok(mut signal) = self.repaint_signal.lock() {
-            *signal = Some(ctx);
-        }
+    pub(crate) fn set_repaint_signal(&self, signal: Arc<dyn RepaintSignal>) {
+        self.repaint_signal.set_signal(Some(signal));
     }
     pub(crate) fn set_max_analysis_duration_seconds(&self, value: f32) {
         let clamped = value.clamp(0.0, 60.0 * 60.0);
@@ -94,19 +95,13 @@ impl AnalysisWorkerPool {
         self.use_cache.store(enabled, Ordering::Relaxed);
     }
 
-    pub(crate) fn set_analysis_version_override(
-        &self,
-        value: Option<String>,
-    ) {
+    pub(crate) fn set_analysis_version_override(&self, value: Option<String>) {
         if let Ok(mut guard) = self.analysis_version_override.write() {
             *guard = value;
         }
     }
 
-    pub(crate) fn set_allowed_sources(
-        &self,
-        sources: Option<Vec<SourceId>>,
-    ) {
+    pub(crate) fn set_allowed_sources(&self, sources: Option<Vec<SourceId>>) {
         if let Ok(mut guard) = self.allowed_source_ids.write() {
             let next = sources.map(|ids| ids.into_iter().collect::<std::collections::HashSet<_>>());
             let count = next.as_ref().map(|ids| ids.len()).unwrap_or(0);
@@ -135,10 +130,7 @@ impl AnalysisWorkerPool {
         wakeup::notify_claim_wakeup();
     }
 
-    pub(crate) fn start(
-        &mut self,
-        message_tx: JobMessageSender,
-    ) {
+    pub(crate) fn start(&mut self, message_tx: JobMessageSender) {
         let _ = &message_tx;
         if !self.threads.is_empty() {
             return;

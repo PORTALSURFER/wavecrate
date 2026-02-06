@@ -1,4 +1,3 @@
-use super::ScanJobMessage;
 use super::library::analysis_jobs::AnalysisJobMessage;
 use super::library::source_folders::delete_recovery::DeleteRecoveryReport;
 use super::library::trash_move;
@@ -13,14 +12,16 @@ use super::source_watcher::{
 };
 use super::state::audio::{PendingAudio, PendingPlayback, PendingRecordingWaveform};
 use super::state::runtime::{UpdateCheckResult, WavLoadJob, WavLoadResult};
+use super::ScanJobMessage;
+use crate::gui::repaint::{RepaintSignal, SharedRepaintSignal};
 use crate::sample_sources::SourceId;
 use std::{
     collections::BTreeSet,
     path::PathBuf,
     sync::{
-        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
         mpsc::{Receiver, SendError, Sender, SyncSender, TrySendError},
+        Arc,
     },
     thread,
     time::{Duration, Instant},
@@ -91,9 +92,7 @@ fn job_message_delivery(message: &JobMessage) -> JobMessageDelivery {
             JobMessageDelivery::DropIfFull
         }
         JobMessage::FileOps(FileOpMessage::Progress { .. }) => JobMessageDelivery::DropIfFull,
-        JobMessage::Analysis(AnalysisJobMessage::Progress { .. }) => {
-            JobMessageDelivery::DropIfFull
-        }
+        JobMessage::Analysis(AnalysisJobMessage::Progress { .. }) => JobMessageDelivery::DropIfFull,
         _ => JobMessageDelivery::MustDeliver,
     }
 }
@@ -229,9 +228,7 @@ fn poll_issue_gateway_with_backoff(
         attempts += 1;
         match poller(request_id) {
             Ok(Some(token)) => {
-                return Some(IssueGatewayAuthResult {
-                    result: Ok(token),
-                });
+                return Some(IssueGatewayAuthResult { result: Ok(token) });
             }
             Ok(None) => {}
             Err(err) => {
@@ -603,11 +600,13 @@ pub(crate) struct ControllerJobs {
     pub(crate) wav_job_tx: Sender<WavLoadJob>,
     pub(crate) audio_job_tx: Sender<AudioLoadJob>,
     recording_waveform_job_tx: RecordingWaveformJobSender,
-    pub(crate) search_job_tx: crate::egui_app::controller::library::wavs::browser_search_worker::SearchJobSender,
+    pub(crate) search_job_tx:
+        crate::egui_app::controller::library::wavs::browser_search_worker::SearchJobSender,
     wav_loader: WavLoaderHandle,
     audio_loader: AudioLoaderHandle,
     recording_waveform_loader: RecordingWaveformWorkerHandle,
-    search_worker: crate::egui_app::controller::library::wavs::browser_search_worker::SearchWorkerHandle,
+    search_worker:
+        crate::egui_app::controller::library::wavs::browser_search_worker::SearchWorkerHandle,
     source_watcher: SourceWatcherHandle,
     forwarders: Option<JobForwarderHandles>,
     message_tx: JobMessageSender,
@@ -638,7 +637,7 @@ pub(crate) struct ControllerJobs {
     pub(super) issue_token_load_in_progress: bool,
     pub(super) issue_token_save_in_progress: bool,
     pub(super) issue_token_delete_in_progress: bool,
-    pub(super) repaint_signal: Arc<Mutex<Option<egui::Context>>>,
+    pub(super) repaint_signal: Arc<SharedRepaintSignal>,
 }
 
 #[derive(Clone, Debug)]
@@ -658,7 +657,7 @@ pub(crate) struct JobForwarderHandles {
 impl JobForwarderHandles {
     fn spawn(
         message_tx: &JobMessageSender,
-        repaint_signal: &Arc<Mutex<Option<egui::Context>>>,
+        repaint_signal: &Arc<SharedRepaintSignal>,
         wav_job_rx: Receiver<WavLoadResult>,
         audio_job_rx: Receiver<AudioLoadResult>,
         recording_waveform_job_rx: Receiver<RecordingWaveformLoadResult>,
@@ -706,18 +705,14 @@ impl JobForwarderHandles {
 
 fn spawn_forwarder<T: Send + 'static>(
     message_tx: JobMessageSender,
-    repaint_signal: Arc<Mutex<Option<egui::Context>>>,
+    repaint_signal: Arc<SharedRepaintSignal>,
     rx: Receiver<T>,
     wrap: fn(T) -> JobMessage,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         while let Ok(message) = rx.recv() {
             let _ = message_tx.send(wrap(message));
-            if let Ok(lock) = repaint_signal.lock() {
-                if let Some(ctx) = lock.as_ref() {
-                    ctx.request_repaint();
-                }
-            }
+            repaint_signal.request_repaint();
         }
     })
 }
@@ -742,7 +737,7 @@ impl ControllerJobs {
         let (message_tx, message_rx) = std::sync::mpsc::sync_channel::<JobMessage>(capacity);
         let message_tx = JobMessageSender::new(message_tx);
         let source_watcher = super::source_watcher::spawn_source_watcher(message_tx.clone());
-        let repaint_signal = Arc::new(Mutex::new(None));
+        let repaint_signal = Arc::new(SharedRepaintSignal::default());
         let forwarders = JobForwarderHandles::spawn(
             &message_tx,
             &repaint_signal,
@@ -803,10 +798,8 @@ impl ControllerJobs {
         self.message_tx.clone()
     }
 
-    pub(crate) fn set_repaint_signal(&self, ctx: egui::Context) {
-        if let Ok(mut signal) = self.repaint_signal.lock() {
-            *signal = Some(ctx);
-        }
+    pub(crate) fn set_repaint_signal(&self, signal: Arc<dyn RepaintSignal>) {
+        self.repaint_signal.set_signal(Some(signal));
     }
 
     /// Shut down background workers owned by the controller to avoid leaking threads on exit.
@@ -892,7 +885,10 @@ impl ControllerJobs {
     }
 
     /// Replace the active recording waveform refresh request.
-    pub(super) fn set_pending_recording_waveform(&mut self, pending: Option<PendingRecordingWaveform>) {
+    pub(super) fn set_pending_recording_waveform(
+        &mut self,
+        pending: Option<PendingRecordingWaveform>,
+    ) {
         self.pending_recording_waveform = pending;
     }
 
@@ -905,7 +901,8 @@ impl ControllerJobs {
     /// Generate a request id for recording waveform refresh jobs.
     pub(super) fn next_recording_waveform_request_id(&mut self) -> u64 {
         let request_id = self.next_recording_waveform_request_id;
-        self.next_recording_waveform_request_id = self.next_recording_waveform_request_id
+        self.next_recording_waveform_request_id = self
+            .next_recording_waveform_request_id
             .wrapping_add(1)
             .max(1);
         request_id
@@ -941,10 +938,7 @@ impl ControllerJobs {
             cancel.store(true, Ordering::Relaxed);
         }
         let request_id = self.next_folder_scan_request_id;
-        self.next_folder_scan_request_id = self
-            .next_folder_scan_request_id
-            .wrapping_add(1)
-            .max(1);
+        self.next_folder_scan_request_id = self.next_folder_scan_request_id.wrapping_add(1).max(1);
         let cancel = Arc::new(AtomicBool::new(false));
         self.folder_scan_cancel = Some(cancel.clone());
         self.pending_folder_scan = Some(PendingFolderScan {
@@ -954,8 +948,7 @@ impl ControllerJobs {
         let tx = self.message_tx.clone();
         let signal = self.repaint_signal.clone();
         thread::spawn(move || {
-            let folders =
-                super::library::source_folders::scan_disk_folders(&root, cancel.as_ref());
+            let folders = super::library::source_folders::scan_disk_folders(&root, cancel.as_ref());
             if cancel.load(Ordering::Relaxed) {
                 return;
             }
@@ -964,11 +957,7 @@ impl ControllerJobs {
                 source_id,
                 folders,
             }));
-            if let Ok(lock) = signal.lock() {
-                if let Some(ctx) = lock.as_ref() {
-                    ctx.request_repaint();
-                }
-            }
+            signal.request_repaint();
         });
         request_id
     }
@@ -981,11 +970,9 @@ impl ControllerJobs {
 
     /// Return whether a folder scan result matches the latest request.
     pub(super) fn folder_scan_matches(&self, request_id: u64, source_id: &SourceId) -> bool {
-        self.pending_folder_scan
-            .as_ref()
-            .is_some_and(|pending| {
-                pending.request_id == request_id && &pending.source_id == source_id
-            })
+        self.pending_folder_scan.as_ref().is_some_and(|pending| {
+            pending.request_id == request_id && &pending.source_id == source_id
+        })
     }
 
     pub(super) fn start_scan(&mut self, rx: Receiver<ScanJobMessage>, cancel: Arc<AtomicBool>) {
@@ -998,11 +985,7 @@ impl ControllerJobs {
             while let Ok(message) = rx.recv() {
                 let is_finished = matches!(message, ScanJobMessage::Finished(_));
                 let _ = tx.send(JobMessage::Scan(message));
-                if let Ok(lock) = signal.lock() {
-                    if let Some(ctx) = lock.as_ref() {
-                        ctx.request_repaint();
-                    }
-                }
+                signal.request_repaint();
                 if is_finished {
                     break;
                 }
@@ -1043,11 +1026,7 @@ impl ControllerJobs {
             while let Ok(message) = rx.recv() {
                 let is_finished = matches!(message, trash_move::TrashMoveMessage::Finished(_));
                 let _ = tx.send(JobMessage::TrashMove(message));
-                if let Ok(lock) = signal.lock() {
-                    if let Some(ctx) = lock.as_ref() {
-                        ctx.request_repaint();
-                    }
-                }
+                signal.request_repaint();
                 if is_finished {
                     break;
                 }
@@ -1070,11 +1049,7 @@ impl ControllerJobs {
     }
 
     /// Begin forwarding file operation progress messages from a background worker.
-    pub(super) fn start_file_ops(
-        &mut self,
-        rx: Receiver<FileOpMessage>,
-        cancel: Arc<AtomicBool>,
-    ) {
+    pub(super) fn start_file_ops(&mut self, rx: Receiver<FileOpMessage>, cancel: Arc<AtomicBool>) {
         self.file_ops_in_progress = true;
         self.file_ops_cancel = Some(cancel);
         let tx = self.message_tx.clone();
@@ -1083,11 +1058,7 @@ impl ControllerJobs {
             while let Ok(message) = rx.recv() {
                 let is_finished = matches!(message, FileOpMessage::Finished(_));
                 let _ = tx.send(JobMessage::FileOps(message));
-                if let Ok(lock) = signal.lock() {
-                    if let Some(ctx) = lock.as_ref() {
-                        ctx.request_repaint();
-                    }
-                }
+                signal.request_repaint();
                 if is_finished {
                     break;
                 }
@@ -1125,17 +1096,16 @@ impl ControllerJobs {
         let tx = self.message_tx.clone();
         let signal = self.repaint_signal.clone();
         thread::spawn(move || {
-            let result =
-                super::ui::map_view::run_umap_build(&job.model_id, &job.umap_version, &job.source_id);
+            let result = super::ui::map_view::run_umap_build(
+                &job.model_id,
+                &job.umap_version,
+                &job.source_id,
+            );
             let _ = tx.send(JobMessage::UmapBuilt(UmapBuildResult {
                 umap_version: job.umap_version,
                 result,
             }));
-            if let Ok(lock) = signal.lock() {
-                if let Some(ctx) = lock.as_ref() {
-                    ctx.request_repaint();
-                }
-            }
+            signal.request_repaint();
         });
     }
 
@@ -1161,11 +1131,7 @@ impl ControllerJobs {
                 source_id: job.source_id,
                 result,
             }));
-            if let Ok(lock) = signal.lock() {
-                if let Some(ctx) = lock.as_ref() {
-                    ctx.request_repaint();
-                }
-            }
+            signal.request_repaint();
         });
     }
 
@@ -1183,11 +1149,7 @@ impl ControllerJobs {
         thread::spawn(move || {
             let result = super::updates::run_update_check(request);
             let _ = tx.send(JobMessage::UpdateChecked(UpdateCheckResult { result }));
-            if let Ok(lock) = signal.lock() {
-                if let Some(ctx) = lock.as_ref() {
-                    ctx.request_repaint();
-                }
-            }
+            signal.request_repaint();
         });
     }
 
@@ -1212,7 +1174,6 @@ impl ControllerJobs {
     pub(super) fn clear_issue_gateway_create(&mut self) {
         self.issue_gateway_in_progress = false;
     }
-
 
     pub(super) fn clear_issue_gateway_auth(&mut self) {
         self.issue_gateway_auth_in_progress = false;
@@ -1257,16 +1218,11 @@ impl ControllerJobs {
         let tx = self.message_tx.clone();
         let signal = self.repaint_signal.clone();
         thread::spawn(move || {
-            let result = crate::issue_gateway::IssueTokenStore::new()
-                .and_then(|store| store.get());
+            let result = crate::issue_gateway::IssueTokenStore::new().and_then(|store| store.get());
             let _ = tx.send(JobMessage::IssueTokenLoaded(IssueTokenLoadResult {
                 result,
             }));
-            if let Ok(lock) = signal.lock() {
-                if let Some(ctx) = lock.as_ref() {
-                    ctx.request_repaint();
-                }
-            }
+            signal.request_repaint();
         });
     }
 
@@ -1291,11 +1247,7 @@ impl ControllerJobs {
                 reopen_modal: job.reopen_modal,
                 result,
             }));
-            if let Ok(lock) = signal.lock() {
-                if let Some(ctx) = lock.as_ref() {
-                    ctx.request_repaint();
-                }
-            }
+            signal.request_repaint();
         });
     }
 
@@ -1313,16 +1265,12 @@ impl ControllerJobs {
         let tx = self.message_tx.clone();
         let signal = self.repaint_signal.clone();
         thread::spawn(move || {
-            let result = crate::issue_gateway::IssueTokenStore::new()
-                .and_then(|store| store.delete());
+            let result =
+                crate::issue_gateway::IssueTokenStore::new().and_then(|store| store.delete());
             let _ = tx.send(JobMessage::IssueTokenDeleted(IssueTokenDeleteResult {
                 result,
             }));
-            if let Ok(lock) = signal.lock() {
-                if let Some(ctx) = lock.as_ref() {
-                    ctx.request_repaint();
-                }
-            }
+            signal.request_repaint();
         });
     }
 
@@ -1340,14 +1288,14 @@ impl ControllerJobs {
             // But we also need database access for tags.
             let source_id = job.source.id.clone();
             let relative_path = job.relative_path.clone();
-            
+
             let result = (|| {
                 let (mut samples, spec) =
                     super::library::wav_io::read_samples_for_normalization(&job.absolute_path)?;
                 if samples.is_empty() {
                     return Err("No audio data to normalize".to_string());
                 }
-                
+
                 crate::analysis::audio::normalize_peak_in_place(&mut samples);
 
                 let target_spec = hound::WavSpec {
@@ -1364,11 +1312,14 @@ impl ControllerJobs {
 
                 let (file_size, modified_ns) =
                     super::library::wav_io::file_metadata(&job.absolute_path)?;
-                
+
                 // For the tag, we'll need to open the DB again since we don't have EguiController.
-                let db = job.source.open_db()
+                let db = job
+                    .source
+                    .open_db()
                     .map_err(|err| format!("Database unavailable: {err}"))?;
-                let tag = db.tag_for_path(&job.relative_path)
+                let tag = db
+                    .tag_for_path(&job.relative_path)
                     .map_err(|err| format!("Failed to read database: {err}"))?
                     .ok_or_else(|| "Sample not found in database".to_string())?;
 
@@ -1380,11 +1331,7 @@ impl ControllerJobs {
                 relative_path,
                 result,
             }));
-            if let Ok(lock) = signal.lock() {
-                if let Some(ctx) = lock.as_ref() {
-                    ctx.request_repaint();
-                }
-            }
+            signal.request_repaint();
         });
     }
 }
@@ -1417,8 +1364,7 @@ mod tests {
 
         match result {
             Some(IssueGatewayAuthResult {
-                result:
-                    Err(crate::issue_gateway::api::IssueAuthError::TimedOut { attempts, .. }),
+                result: Err(crate::issue_gateway::api::IssueAuthError::TimedOut { attempts, .. }),
             }) => {
                 assert_eq!(attempts, 3);
             }

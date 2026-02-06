@@ -1,10 +1,13 @@
-use crate::egui_app::controller::library::analysis_jobs::db;
-use crate::egui_app::controller::library::analysis_jobs::types::{AnalysisJobMessage, AnalysisProgress};
 use crate::egui_app::controller::jobs::{JobMessage, JobMessageSender};
+use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::egui_app::controller::library::analysis_jobs::types::{
+    AnalysisJobMessage, AnalysisProgress,
+};
+use crate::gui::repaint::SharedRepaintSignal;
 use rusqlite::Connection;
 use std::sync::{
-    Arc, Condvar, Mutex, RwLock,
     atomic::{AtomicBool, Ordering},
+    Arc, Condvar, Mutex, RwLock,
 };
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -39,20 +42,14 @@ impl ProgressPollerWakeup {
 
     /// Notify the poller that progress state has changed.
     pub(crate) fn notify(&self) {
-        let mut state = self
-            .state
-            .lock()
-            .expect("progress poller wakeup poisoned");
+        let mut state = self.state.lock().expect("progress poller wakeup poisoned");
         state.counter = state.counter.wrapping_add(1);
         self.ready.notify_one();
     }
 
     /// Wait until notified or until the timeout elapses.
     pub(crate) fn wait_for(&self, seen: &mut u64, timeout: Duration) -> bool {
-        let state = self
-            .state
-            .lock()
-            .expect("progress poller wakeup poisoned");
+        let state = self.state.lock().expect("progress poller wakeup poisoned");
         if state.counter != *seen {
             *seen = state.counter;
             return true;
@@ -148,7 +145,7 @@ fn cleanup_stale_jobs(
     stale_before: i64,
     progress_cache: &Arc<RwLock<ProgressCache>>,
     tx: &JobMessageSender,
-    signal: &Arc<Mutex<Option<egui::Context>>>,
+    signal: &Arc<SharedRepaintSignal>,
 ) -> usize {
     let mut changed = 0;
     let mut touched_sources = std::collections::HashSet::new();
@@ -185,11 +182,7 @@ fn cleanup_stale_jobs(
             source_id: None,
             progress: total,
         }));
-        if let Ok(lock) = signal.lock() {
-            if let Some(ctx) = lock.as_ref() {
-                ctx.request_repaint();
-            }
-        }
+        signal.request_repaint();
     }
     changed
 }
@@ -204,7 +197,7 @@ fn now_epoch_seconds() -> i64 {
 #[cfg_attr(test, allow(dead_code))]
 pub(crate) fn spawn_progress_poller(
     tx: JobMessageSender,
-    signal: Arc<Mutex<Option<egui::Context>>>,
+    signal: Arc<SharedRepaintSignal>,
     cancel: Arc<AtomicBool>,
     shutdown: Arc<AtomicBool>,
     allowed_source_ids: Arc<
@@ -235,9 +228,11 @@ pub(crate) fn spawn_progress_poller(
             if last_cleanup.elapsed() >= STALE_CLEANUP_INTERVAL {
                 last_cleanup = Instant::now();
                 let stale_before = now_epoch_seconds().saturating_sub(
-                    crate::egui_app::controller::library::analysis_jobs::stale_running_job_seconds(),
+                    crate::egui_app::controller::library::analysis_jobs::stale_running_job_seconds(
+                    ),
                 );
-                let _ = cleanup_stale_jobs(&mut sources, stale_before, &progress_cache, &tx, &signal);
+                let _ =
+                    cleanup_stale_jobs(&mut sources, stale_before, &progress_cache, &tx, &signal);
             }
             if cancel.load(Ordering::Relaxed) {
                 let _ = progress_wakeup.wait_for(&mut wake_counter, POLL_INTERVAL_IDLE);
@@ -272,11 +267,7 @@ pub(crate) fn spawn_progress_poller(
                     source_id: None,
                     progress,
                 }));
-                if let Ok(lock) = signal.lock() {
-                    if let Some(ctx) = lock.as_ref() {
-                        ctx.request_repaint();
-                    }
-                }
+                signal.request_repaint();
             }
             if progress.pending == 0 && progress.running == 0 {
                 idle_polls = idle_polls.saturating_add(1);
@@ -335,7 +326,7 @@ mod tests {
         let (tx, _rx) = std::sync::mpsc::sync_channel(1);
         let tx = JobMessageSender::new(tx);
         let stale_before = now - 10;
-        let signal = Arc::new(Mutex::new(None));
+        let signal = Arc::new(SharedRepaintSignal::default());
 
         let changed = cleanup_stale_jobs(&mut sources, stale_before, &cache, &tx, &signal);
 
@@ -383,7 +374,7 @@ mod tests {
         let (tx, rx) = std::sync::mpsc::sync_channel(1);
         let tx = JobMessageSender::new(tx);
         let stale_before = now - 10;
-        let signal = Arc::new(Mutex::new(None));
+        let signal = Arc::new(SharedRepaintSignal::default());
 
         let changed = cleanup_stale_jobs(&mut sources, stale_before, &cache, &tx, &signal);
 

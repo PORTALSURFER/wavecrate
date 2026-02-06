@@ -19,6 +19,7 @@ use crate::{
     audio::AudioPlayer,
     egui_app::state::UiState,
     egui_app::{ui::style, view_model},
+    gui::repaint::RepaintSignal,
     sample_sources::{
         SampleSource, SourceDatabase, SourceDbError, SourceId,
         WavEntry,
@@ -39,6 +40,7 @@ use std::{
     cell::RefCell,
     path::{Path, PathBuf},
     rc::Rc,
+    sync::Arc,
     time::{Duration, Instant},
 };pub(crate) use crate::egui_app::ui::style::StatusTone;
 
@@ -234,9 +236,9 @@ impl EguiController {
             || self.runtime.jobs.issue_gateway_poll_in_progress
     }
 
-    pub(crate) fn set_repaint_signal(&mut self, ctx: egui::Context) {
-        self.runtime.jobs.set_repaint_signal(ctx.clone());
-        self.runtime.analysis.set_repaint_signal(ctx);
+    pub(crate) fn set_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
+        self.runtime.jobs.set_repaint_signal(signal.clone());
+        self.runtime.analysis.set_repaint_signal(signal);
     }
 
     /// Shut down background workers owned by the controller.

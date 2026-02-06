@@ -2,11 +2,13 @@ use super::hotkey_overlay;
 use super::input::InputSnapshot;
 use super::progress_overlay;
 use crate::egui_app::controller::hotkeys;
+use crate::egui_app::repaint::EguiRepaintSignal;
 use crate::egui_app::state::FocusContext;
-use crate::egui_app::ui::{EguiApp, helpers};
 use crate::egui_app::ui::style;
+use crate::egui_app::ui::{helpers, EguiApp};
 use eframe::egui;
 use eframe::egui::{TopBottomPanel, Ui, UiBuilder};
+use std::sync::Arc;
 
 impl EguiApp {
     pub(super) fn apply_visuals(&mut self, ctx: &egui::Context) {
@@ -113,8 +115,9 @@ impl EguiApp {
         self.controller.start_folder_delete_recovery_if_needed();
         self.render_panels(ctx);
         self.render_overlays(ctx, input, focus_context);
-        
-        self.controller.set_repaint_signal(ctx.clone());
+
+        self.controller
+            .set_repaint_signal(Arc::new(EguiRepaintSignal::new(ctx.clone())));
 
         // Only repaint when necessary to reduce idle CPU usage
         if self.controller.is_playing()
@@ -227,14 +230,8 @@ impl EguiApp {
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     let selected = self.controller.ui.sources.drop_targets.selected;
-                    let row = selected.and_then(|index| {
-                        self.controller
-                            .ui
-                            .sources
-                            .drop_targets
-                            .rows
-                            .get(index)
-                    });
+                    let row = selected
+                        .and_then(|index| self.controller.ui.sources.drop_targets.rows.get(index));
                     if let Some(row) = row {
                         ui.label(egui::RichText::new(row.path.display().to_string()));
                     }
