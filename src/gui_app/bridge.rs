@@ -5,10 +5,14 @@ use crate::{
     egui_app::{
         controller::EguiController,
         state::{TriageFlagColumn, UiState},
+        view_model,
     },
     waveform::WaveformRenderer,
 };
-use radiant::app::{AppModel, ColumnModel, FrameBuildResult, NativeAppBridge, UiAction};
+use radiant::app::{
+    AppModel, BrowserPanelModel, ColumnModel, FrameBuildResult, NativeAppBridge,
+    NormalizedRangeModel, SourceRowModel, SourcesPanelModel, UiAction, WaveformPanelModel,
+};
 use std::{cell::RefCell, rc::Rc};
 
 /// Host bridge used by the native `radiant` runtime.
@@ -40,10 +44,13 @@ impl SempalNativeBridge {
         let ui = &self.controller.ui;
         let selected_column = selected_column_index(ui);
         let transport_running = self.controller.is_playing();
+        let sources = project_sources_model(ui);
+        let browser = project_browser_model(ui);
+        let waveform = project_waveform_model(ui);
         AppModel {
             title: String::from("Sempal"),
             backend_label: String::from("backend: native_vello"),
-            sources_label: format!("Sources ({})", ui.sources.rows.len()),
+            sources_label: format!("Sources ({})", sources.rows.len()),
             status_text: ui.status.text.clone(),
             columns: [
                 ColumnModel::new("Trash", ui.browser.trash.len()),
@@ -52,6 +59,9 @@ impl SempalNativeBridge {
             ],
             selected_column,
             transport_running,
+            sources,
+            browser,
+            waveform,
         }
     }
 
@@ -62,6 +72,22 @@ impl SempalNativeBridge {
         if delta != 0 {
             self.controller.move_selection_column(delta);
         }
+    }
+
+    fn move_browser_focus(&mut self, delta: i8) {
+        let visible_count = self.controller.ui.browser.visible.len();
+        if visible_count == 0 {
+            return;
+        }
+        let base = self
+            .controller
+            .ui
+            .browser
+            .selected_visible
+            .unwrap_or(0)
+            .min(visible_count - 1);
+        let target = (base as isize + delta as isize).clamp(0, visible_count as isize - 1) as usize;
+        self.controller.focus_browser_row(target);
     }
 }
 
@@ -80,6 +106,34 @@ impl NativeAppBridge for SempalNativeBridge {
                 self.controller.move_selection_column(delta as isize);
             }
             UiAction::ToggleTransport => self.controller.toggle_play_pause(),
+            UiAction::FocusBrowserPanel => self.controller.focus_browser_list(),
+            UiAction::FocusSourcesPanel => self.controller.focus_sources_list(),
+            UiAction::FocusWaveformPanel => self.controller.focus_waveform(),
+            UiAction::FocusLoadedSampleInBrowser => self.controller.focus_loaded_sample_in_browser(),
+            UiAction::FocusBrowserSearch => self.controller.focus_browser_search(),
+            UiAction::FocusFolderSearch => self.controller.focus_folder_search(),
+            UiAction::SelectSourceRow { index } => self.controller.select_source_by_index(index),
+            UiAction::MoveBrowserFocus { delta } => self.move_browser_focus(delta),
+            UiAction::FocusBrowserRow { visible_row } => self.controller.focus_browser_row(visible_row),
+            UiAction::ToggleBrowserRowSelection { visible_row } => {
+                self.controller.toggle_browser_row_selection(visible_row)
+            }
+            UiAction::ToggleFocusedBrowserRowSelection => self.controller.toggle_focused_selection(),
+            UiAction::SelectAllBrowserRows => self.controller.select_all_browser_rows(),
+            UiAction::SetBrowserSearch { query } => self.controller.set_browser_search(query),
+            UiAction::ToggleLoopPlayback => self.controller.toggle_loop(),
+            UiAction::SeekWaveform { position_milli } => {
+                let normalized = milli_to_normalized(position_milli);
+                self.controller.seek_to(normalized);
+                self.controller.set_waveform_cursor(normalized);
+                self.controller.focus_waveform();
+            }
+            UiAction::SetWaveformCursor { position_milli } => {
+                self.controller.set_waveform_cursor(milli_to_normalized(position_milli));
+                self.controller.focus_waveform();
+            }
+            UiAction::Undo => self.controller.undo(),
+            UiAction::Redo => self.controller.redo(),
         }
     }
 
@@ -111,6 +165,74 @@ fn selected_column_index(ui: &UiState) -> usize {
         .unwrap_or(1)
 }
 
+fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
+    SourcesPanelModel {
+        header: format!("Sources ({})", ui.sources.rows.len()),
+        search_query: ui.sources.folders.search_query.clone(),
+        selected_row: ui.sources.selected,
+        rows: ui
+            .sources
+            .rows
+            .iter()
+            .enumerate()
+            .map(|(row_index, row)| {
+                SourceRowModel::new(
+                    row.name.clone(),
+                    row.path.clone(),
+                    ui.sources
+                        .selected
+                        .is_some_and(|selected| selected == row_index),
+                    row.missing,
+                )
+            })
+            .collect(),
+    }
+}
+
+fn project_browser_model(ui: &UiState) -> BrowserPanelModel {
+    BrowserPanelModel {
+        visible_count: ui.browser.visible.len(),
+        selected_visible_row: ui.browser.selected_visible,
+        selected_path_count: ui.browser.selected_paths.len(),
+        search_query: ui.browser.search_query.clone(),
+        busy: ui.browser.search_busy,
+        focused_sample_label: ui.loaded_wav.as_deref().map(view_model::sample_display_label),
+    }
+}
+
+fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
+    WaveformPanelModel {
+        loaded_label: ui.loaded_wav.as_deref().map(view_model::sample_display_label),
+        cursor_milli: ui.waveform.cursor.map(normalized_to_milli),
+        playhead_milli: ui
+            .waveform
+            .playhead
+            .visible
+            .then_some(normalized_to_milli(ui.waveform.playhead.position)),
+        selection_milli: ui.waveform.selection.map(|selection| {
+            NormalizedRangeModel::new(
+                normalized_to_milli(selection.start()),
+                normalized_to_milli(selection.end()),
+            )
+        }),
+        view_start_milli: normalized64_to_milli(ui.waveform.view.start),
+        view_end_milli: normalized64_to_milli(ui.waveform.view.end),
+        loop_enabled: ui.waveform.loop_enabled,
+    }
+}
+
+fn normalized_to_milli(value: f32) -> u16 {
+    (value.clamp(0.0, 1.0) * 1000.0).round() as u16
+}
+
+fn normalized64_to_milli(value: f64) -> u16 {
+    (value.clamp(0.0, 1.0) * 1000.0).round() as u16
+}
+
+fn milli_to_normalized(value: u16) -> f32 {
+    (value.min(1000) as f32) / 1000.0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,5 +241,12 @@ mod tests {
     fn selected_column_defaults_to_middle_column_without_selection() {
         let ui = UiState::default();
         assert_eq!(selected_column_index(&ui), 1);
+    }
+
+    #[test]
+    fn normalized_to_milli_clamps_bounds() {
+        assert_eq!(normalized_to_milli(-0.3), 0);
+        assert_eq!(normalized_to_milli(0.455), 455);
+        assert_eq!(normalized_to_milli(1.7), 1000);
     }
 }
