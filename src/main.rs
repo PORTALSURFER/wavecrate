@@ -8,9 +8,9 @@
 )]
 use egui::{self, Context};
 use sempal::audio::AudioPlayer;
-use sempal::gui_app::{MIN_VIEWPORT_SIZE, SempalGuiApp, new_sempal_app};
+use sempal::gui_app::{MIN_VIEWPORT_SIZE, SempalGuiApp, new_native_bridge, new_sempal_app};
 use sempal::gui_runtime::{
-    EguiAppRuntime, EguiRunOptions, WindowIconRgba, run_egui_wgpu_app, run_native_vello_preview,
+    EguiAppRuntime, EguiRunOptions, WindowIconRgba, run_egui_wgpu_app, run_native_vello_app,
 };
 use sempal::logging;
 use sempal::waveform::WaveformRenderer;
@@ -64,7 +64,12 @@ fn main() -> Result<(), String> {
             };
             run_egui_wgpu_app(options, app)
         }
-        GuiBackend::NativeVello => run_native_vello_preview(options),
+        GuiBackend::NativeVello => {
+            let renderer = WaveformRenderer::new(680, 260);
+            let player = None::<std::rc::Rc<std::cell::RefCell<AudioPlayer>>>;
+            let bridge = new_native_bridge(renderer, player)?;
+            run_native_vello_app(options, bridge)
+        }
     }
 }
 
