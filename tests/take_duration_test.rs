@@ -31,27 +31,23 @@ mod tests {
         
         // Test various frame counts
         for target_frames in [1, 10, 100, 1000] {
-            // Calculate duration using floor (our fix)
-            let nanos = (target_frames as u64 * 1_000_000_000) / rate as u64;
+            // Encode an exact frame count in nanoseconds using integer ceil.
+            let nanos = (target_frames as u64 * 1_000_000_000 + rate as u64 - 1) / rate as u64;
             let duration = Duration::from_nanos(nanos);
             
             let source = EndlessSource { sample_rate: rate, channels };
             let sample_count = source.take_duration(duration).count();
             
             let expected_samples = target_frames * channels as usize;
-            
-            println!("Frames: {}, Duration: {}ns, Samples: {}, Expected: {}", 
-                     target_frames, nanos, sample_count, expected_samples);
-            
-            // Check if sample count is even (required for stereo alignment)
-            assert_eq!(sample_count % 2, 0, 
-                      "Sample count must be even for stereo, got {} for {} frames", 
-                      sample_count, target_frames);
-            
-            // Ideally should match expected, but let's see what we get
-            if sample_count != expected_samples {
-                println!("WARNING: Got {} samples, expected {}", sample_count, expected_samples);
-            }
+            assert_eq!(
+                sample_count, expected_samples,
+                "take_duration should preserve exact frame counts for ceil-encoded durations"
+            );
+            assert_eq!(
+                sample_count % channels as usize,
+                0,
+                "sample count must stay channel-aligned"
+            );
         }
     }
 }

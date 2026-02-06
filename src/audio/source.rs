@@ -1,5 +1,5 @@
 use crate::audio::timebase::{
-    duration_for_frames, duration_to_samples_ceil, duration_to_samples_floor,
+    duration_for_frames, duration_to_samples_floor, duration_to_samples_frame_aligned_floor,
 };
 use std::time::Duration;
 
@@ -27,7 +27,8 @@ pub trait Source: Iterator<Item = f32> + Send {
     where
         Self: Sized,
     {
-        let sample_count = duration_to_samples_ceil(duration, self.sample_rate(), self.channels());
+        let sample_count =
+            duration_to_samples_frame_aligned_floor(duration, self.sample_rate(), self.channels());
         TakeDuration {
             inner: self,
             remaining_samples: sample_count,
@@ -519,6 +520,19 @@ mod tests {
         };
         let count = source.take_samples(5).count();
         assert_eq!(count, 5);
+    }
+
+    #[test]
+    fn take_duration_preserves_channel_alignment() {
+        let source = DummySource {
+            sample_rate: 44_100,
+            channels: 2,
+            next_value: 0.0,
+        };
+        let duration = Duration::from_nanos(22_676);
+        let count = source.take_duration(duration).count();
+        assert_eq!(count, 2);
+        assert_eq!(count % 2, 0);
     }
 
     #[test]
