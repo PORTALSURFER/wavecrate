@@ -47,6 +47,7 @@ pub(crate) fn duration_to_samples_ceil(
 }
 
 /// Convert seconds to frames using floor semantics.
+#[cfg(test)]
 pub(crate) fn seconds_to_frames_floor(seconds: f32, sample_rate: u32) -> u64 {
     if !seconds.is_finite() || seconds <= 0.0 {
         return 0;

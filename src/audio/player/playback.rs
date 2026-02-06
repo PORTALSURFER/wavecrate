@@ -1,9 +1,7 @@
 use std::time::Duration;
 
 use crate::audio::SamplesBuffer;
-use crate::audio::timebase::{
-    duration_for_frames, frames_to_seconds, seconds_to_frames_floor, seconds_to_frames_round,
-};
+use crate::audio::timebase::{duration_for_frames, frames_to_seconds, seconds_to_frames_round};
 use crate::audio::{AsyncSource, Source};
 
 use super::super::fade::{EdgeFade, fade_duration};
@@ -258,11 +256,14 @@ impl AudioPlayer {
 
     /// Calculate a frame-aligned span duration that never extends beyond the
     /// original floating-point span request.
+    #[cfg(test)]
     pub(crate) fn aligned_span_duration(span_seconds: f32, sample_rate: u32) -> Duration {
         if sample_rate == 0 {
             return Duration::from_secs_f32(span_seconds.max(0.0));
         }
-        let frames = seconds_to_frames_floor(span_seconds.max(0.0), sample_rate).max(1);
+        let frames =
+            crate::audio::timebase::seconds_to_frames_floor(span_seconds.max(0.0), sample_rate)
+                .max(1);
         duration_for_frames(frames, sample_rate)
     }
 
