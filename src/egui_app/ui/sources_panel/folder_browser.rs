@@ -58,9 +58,21 @@ impl EguiApp {
                 .controller
                 .current_folder_model()
                 .is_some_and(|model| model.disk_refresh_in_progress);
-            if refreshing {
-                ui.label(RichText::new("Refreshing...").small().color(palette.text_muted));
-            }
+            let refresh_status_width = 110.0;
+            let refresh_status_label = if refreshing { "Refreshing..." } else { "" };
+            let refresh_status_color = if refreshing {
+                palette.text_muted
+            } else {
+                egui::Color32::TRANSPARENT
+            };
+            ui.add_sized(
+                [refresh_status_width, ui.spacing().interact_size.y],
+                egui::Label::new(
+                    RichText::new(refresh_status_label)
+                        .small()
+                        .color(refresh_status_color),
+                ),
+            );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let mut query = self.controller.ui.sources.folders.search_query.clone();
                 let search_hint = format!(
@@ -69,6 +81,7 @@ impl EguiApp {
                 );
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut query)
+                        .id_salt("folder_search_input")
                         .hint_text(search_hint)
                         .desired_width(180.0),
                 );
