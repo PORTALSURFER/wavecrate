@@ -24,6 +24,10 @@ Audio sample triage tool built with Rust and egui.
 - From the project root: `cargo run --release`.
 - Or build once and run the binary: `cargo build --release` then `target/release/sempal`.
 - Playback uses your default audio output device.
+- GUI backend selection (migration rollout):
+  - `--gui-backend legacy_egui` runs the current production UI path.
+  - `--gui-backend native_vello` runs the experimental native Vello preview runtime.
+  - `SEMPAL_GUI_BACKEND` can also be set to `legacy_egui` or `native_vello`.
 - Windows (ASIO): If you want to build with ASIO support (or your build fails looking for the ASIO SDK), download the Steinberg ASIO SDK and set `CPAL_ASIO_DIR` to the SDK path (e.g. a folder named `ASIOSDK`) before running `cargo build`/`cargo run`.
 
 ## ML model setup (PANNs)

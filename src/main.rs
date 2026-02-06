@@ -9,9 +9,29 @@
 use egui::{self, Context};
 use sempal::audio::AudioPlayer;
 use sempal::gui_app::{MIN_VIEWPORT_SIZE, SempalGuiApp, new_sempal_app};
-use sempal::gui_runtime::{EguiAppRuntime, EguiRunOptions, WindowIconRgba, run_egui_wgpu_app};
+use sempal::gui_runtime::{
+    EguiAppRuntime, EguiRunOptions, WindowIconRgba, run_egui_wgpu_app, run_native_vello_preview,
+};
 use sempal::logging;
 use sempal::waveform::WaveformRenderer;
+
+const GUI_BACKEND_ENV_VAR: &str = "SEMPAL_GUI_BACKEND";
+const GUI_BACKEND_ARG: &str = "--gui-backend";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GuiBackend {
+    LegacyEgui,
+    NativeVello,
+}
+
+impl GuiBackend {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::LegacyEgui => "legacy_egui",
+            Self::NativeVello => "native_vello",
+        }
+    }
+}
 
 fn main() -> Result<(), String> {
     #[cfg(all(target_os = "windows", not(debug_assertions)))]
@@ -23,8 +43,8 @@ fn main() -> Result<(), String> {
         eprintln!("Logging disabled: {err}");
     }
 
-    let renderer = WaveformRenderer::new(680, 260);
-    let player = None::<std::rc::Rc<std::cell::RefCell<AudioPlayer>>>;
+    let backend = resolve_gui_backend()?;
+    eprintln!("GUI backend: {}", backend.as_str());
 
     let options = EguiRunOptions {
         title: String::from("Sempal"),
@@ -34,12 +54,60 @@ fn main() -> Result<(), String> {
         icon: load_app_icon(),
     };
 
-    let app = match new_sempal_app(renderer, player) {
-        Ok(app) => RootApp::Main(app),
-        Err(err) => RootApp::LaunchError(LaunchError { message: err }),
-    };
+    match backend {
+        GuiBackend::LegacyEgui => {
+            let renderer = WaveformRenderer::new(680, 260);
+            let player = None::<std::rc::Rc<std::cell::RefCell<AudioPlayer>>>;
+            let app = match new_sempal_app(renderer, player) {
+                Ok(app) => RootApp::Main(app),
+                Err(err) => RootApp::LaunchError(LaunchError { message: err }),
+            };
+            run_egui_wgpu_app(options, app)
+        }
+        GuiBackend::NativeVello => run_native_vello_preview(options),
+    }
+}
 
-    run_egui_wgpu_app(options, app)
+fn resolve_gui_backend() -> Result<GuiBackend, String> {
+    if let Some(value) = backend_from_arg_list(std::env::args().skip(1))? {
+        return Ok(value);
+    }
+    if let Ok(value) = std::env::var(GUI_BACKEND_ENV_VAR) {
+        return parse_backend_value(&value);
+    }
+    Ok(GuiBackend::LegacyEgui)
+}
+
+fn backend_from_arg_list(
+    args: impl IntoIterator<Item = String>,
+) -> Result<Option<GuiBackend>, String> {
+    let mut selected = None;
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        if let Some(value) = arg.strip_prefix("--gui-backend=") {
+            selected = Some(parse_backend_value(value)?);
+            continue;
+        }
+        if arg == GUI_BACKEND_ARG {
+            let Some(value) = args.next() else {
+                return Err(format!(
+                    "{GUI_BACKEND_ARG} requires a value: legacy_egui or native_vello"
+                ));
+            };
+            selected = Some(parse_backend_value(&value)?);
+        }
+    }
+    Ok(selected)
+}
+
+fn parse_backend_value(value: &str) -> Result<GuiBackend, String> {
+    match value.trim() {
+        "legacy_egui" => Ok(GuiBackend::LegacyEgui),
+        "native_vello" => Ok(GuiBackend::NativeVello),
+        other => Err(format!(
+            "Unsupported GUI backend '{other}'. Supported values: legacy_egui, native_vello",
+        )),
+    }
 }
 
 #[cfg(all(target_os = "windows", not(debug_assertions)))]
@@ -165,5 +233,26 @@ mod tests {
     fn embedded_icons_decode() {
         assert!(decode_icon(include_bytes!("../assets/logo3.ico")).is_some());
         assert!(decode_icon(include_bytes!("../assets/logo3.png")).is_some());
+    }
+
+    #[test]
+    fn backend_arg_parsing_accepts_explicit_value_forms() {
+        let selected = backend_from_arg_list(vec![String::from("--gui-backend=native_vello")])
+            .expect("arg parsing should succeed");
+        assert_eq!(selected, Some(GuiBackend::NativeVello));
+
+        let selected = backend_from_arg_list(vec![
+            String::from("--gui-backend"),
+            String::from("legacy_egui"),
+        ])
+        .expect("arg parsing should succeed");
+        assert_eq!(selected, Some(GuiBackend::LegacyEgui));
+    }
+
+    #[test]
+    fn backend_arg_parsing_rejects_invalid_values() {
+        let err = backend_from_arg_list(vec![String::from("--gui-backend=invalid")])
+            .expect_err("invalid backend should fail");
+        assert!(err.contains("Unsupported GUI backend"));
     }
 }
