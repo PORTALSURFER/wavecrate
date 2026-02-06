@@ -10,9 +10,10 @@ use crate::{
     waveform::WaveformRenderer,
 };
 use radiant::app::{
-    AppModel, BrowserPanelModel, ColumnModel, FrameBuildResult, NativeAppBridge,
+    AppModel, BrowserPanelModel, BrowserRowModel, ColumnModel, FrameBuildResult, NativeAppBridge,
     NormalizedRangeModel, SourceRowModel, SourcesPanelModel, UiAction, WaveformPanelModel,
 };
+use std::collections::HashSet;
 use std::{cell::RefCell, rc::Rc};
 
 /// Host bridge used by the native `radiant` runtime.
@@ -40,22 +41,27 @@ impl SempalNativeBridge {
         Ok(Self { controller })
     }
 
-    fn project_model(&self) -> AppModel {
-        let ui = &self.controller.ui;
-        let selected_column = selected_column_index(ui);
+    fn project_model(&mut self) -> AppModel {
+        let selected_column = selected_column_index(&self.controller.ui);
         let transport_running = self.controller.is_playing();
-        let sources = project_sources_model(ui);
-        let browser = project_browser_model(ui);
-        let waveform = project_waveform_model(ui);
+        let sources = project_sources_model(&self.controller.ui);
+        let status_text = self.controller.ui.status.text.clone();
+        let column_counts = [
+            self.controller.ui.browser.trash.len(),
+            self.controller.ui.browser.neutral.len(),
+            self.controller.ui.browser.keep.len(),
+        ];
+        let waveform = project_waveform_model(&self.controller.ui);
+        let browser = project_browser_model(&mut self.controller);
         AppModel {
             title: String::from("Sempal"),
             backend_label: String::from("backend: native_vello"),
             sources_label: format!("Sources ({})", sources.rows.len()),
-            status_text: ui.status.text.clone(),
+            status_text,
             columns: [
-                ColumnModel::new("Trash", ui.browser.trash.len()),
-                ColumnModel::new("Samples", ui.browser.neutral.len()),
-                ColumnModel::new("Keep", ui.browser.keep.len()),
+                ColumnModel::new("Trash", column_counts[0]),
+                ColumnModel::new("Samples", column_counts[1]),
+                ColumnModel::new("Keep", column_counts[2]),
             ],
             selected_column,
             transport_running,
@@ -75,9 +81,16 @@ impl SempalNativeBridge {
     }
 
     fn move_browser_focus(&mut self, delta: i8) {
+        let Some(target) = self.browser_focus_target(delta) else {
+            return;
+        };
+        self.controller.focus_browser_row(target);
+    }
+
+    fn browser_focus_target(&self, delta: i8) -> Option<usize> {
         let visible_count = self.controller.ui.browser.visible.len();
         if visible_count == 0 {
-            return;
+            return None;
         }
         let base = self
             .controller
@@ -86,8 +99,7 @@ impl SempalNativeBridge {
             .selected_visible
             .unwrap_or(0)
             .min(visible_count - 1);
-        let target = (base as isize + delta as isize).clamp(0, visible_count as isize - 1) as usize;
-        self.controller.focus_browser_row(target);
+        Some((base as isize + delta as isize).clamp(0, visible_count as isize - 1) as usize)
     }
 }
 
@@ -117,6 +129,22 @@ impl NativeAppBridge for SempalNativeBridge {
             UiAction::FocusBrowserRow { visible_row } => self.controller.focus_browser_row(visible_row),
             UiAction::ToggleBrowserRowSelection { visible_row } => {
                 self.controller.toggle_browser_row_selection(visible_row)
+            }
+            UiAction::ExtendBrowserSelectionToRow { visible_row } => {
+                self.controller.extend_browser_selection_to_row(visible_row)
+            }
+            UiAction::AddRangeBrowserSelection { visible_row } => {
+                self.controller.add_range_browser_selection(visible_row)
+            }
+            UiAction::ExtendBrowserSelectionFromFocus { delta } => {
+                if let Some(target) = self.browser_focus_target(delta) {
+                    self.controller.extend_browser_selection_to_row(target);
+                }
+            }
+            UiAction::AddRangeBrowserSelectionFromFocus { delta } => {
+                if let Some(target) = self.browser_focus_target(delta) {
+                    self.controller.add_range_browser_selection(target);
+                }
             }
             UiAction::ToggleFocusedBrowserRowSelection => self.controller.toggle_focused_selection(),
             UiAction::SelectAllBrowserRows => self.controller.select_all_browser_rows(),
@@ -189,14 +217,56 @@ fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
     }
 }
 
-fn project_browser_model(ui: &UiState) -> BrowserPanelModel {
+fn project_browser_model(controller: &mut EguiController) -> BrowserPanelModel {
+    let visible = controller.ui.browser.visible.clone();
+    let selected_visible_row = controller.ui.browser.selected_visible;
+    let selected_path_count = controller.ui.browser.selected_paths.len();
+    let search_query = controller.ui.browser.search_query.clone();
+    let busy = controller.ui.browser.search_busy;
+    let focused_sample_label = controller
+        .ui
+        .loaded_wav
+        .as_deref()
+        .map(view_model::sample_display_label);
+    let anchor_visible_row = controller.ui.browser.selection_anchor_visible;
+    let selected_paths: HashSet<_> = controller.ui.browser.selected_paths.iter().cloned().collect();
+
+    let mut rows = Vec::new();
+    let visible_count = visible.len();
+    let rendered = visible_count.min(MAX_RENDERED_BROWSER_ROWS);
+    for visible_row in 0..rendered {
+        let Some(absolute_index) = visible.get(visible_row) else {
+            continue;
+        };
+        if let Some(entry) = controller.wav_entry(absolute_index) {
+            let selected = selected_paths.contains(&entry.relative_path);
+            rows.push(BrowserRowModel::new(
+                visible_row,
+                view_model::sample_display_label(&entry.relative_path),
+                browser_column_index(entry.tag),
+                selected,
+                selected_visible_row.is_some_and(|focused| focused == visible_row),
+            ));
+        } else {
+            rows.push(BrowserRowModel::new(
+                visible_row,
+                format!("row {}", visible_row + 1),
+                1,
+                false,
+                selected_visible_row.is_some_and(|focused| focused == visible_row),
+            ));
+        }
+    }
+
     BrowserPanelModel {
-        visible_count: ui.browser.visible.len(),
-        selected_visible_row: ui.browser.selected_visible,
-        selected_path_count: ui.browser.selected_paths.len(),
-        search_query: ui.browser.search_query.clone(),
-        busy: ui.browser.search_busy,
-        focused_sample_label: ui.loaded_wav.as_deref().map(view_model::sample_display_label),
+        visible_count,
+        selected_visible_row,
+        selected_path_count,
+        search_query,
+        busy,
+        focused_sample_label,
+        anchor_visible_row,
+        rows,
     }
 }
 
@@ -218,6 +288,18 @@ fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
         view_start_milli: normalized64_to_milli(ui.waveform.view.start),
         view_end_milli: normalized64_to_milli(ui.waveform.view.end),
         loop_enabled: ui.waveform.loop_enabled,
+    }
+}
+
+const MAX_RENDERED_BROWSER_ROWS: usize = 48;
+
+fn browser_column_index(tag: crate::sample_sources::Rating) -> usize {
+    if tag.is_trash() {
+        0
+    } else if tag.is_keep() {
+        2
+    } else {
+        1
     }
 }
 
@@ -248,5 +330,12 @@ mod tests {
         assert_eq!(normalized_to_milli(-0.3), 0);
         assert_eq!(normalized_to_milli(0.455), 455);
         assert_eq!(normalized_to_milli(1.7), 1000);
+    }
+
+    #[test]
+    fn browser_column_index_maps_rating_buckets() {
+        assert_eq!(browser_column_index(crate::sample_sources::Rating::TRASH_1), 0);
+        assert_eq!(browser_column_index(crate::sample_sources::Rating::NEUTRAL), 1);
+        assert_eq!(browser_column_index(crate::sample_sources::Rating::KEEP_1), 2);
     }
 }
