@@ -18,6 +18,6 @@ pub trait AppControllerStatusExt {
 
 impl AppControllerStatusExt for AppController {
     fn set_error_status(&mut self, message: impl Into<String>) {
-        crate::egui_app::controller::EguiController::set_error_status(self, message);
+        AppController::set_error_status(self, message);
     }
 }

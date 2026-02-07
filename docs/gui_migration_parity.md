@@ -83,6 +83,9 @@ to `radiant` (`native_vello`) as the only runtime path.
   `egui_app::state` paths in host integration code.
 - Native runtime-facing projection/view constants now consume migration-facing
   `app_core::{view_model,ui}` aliases instead of direct `egui_app` module paths.
+- `app_core::ui` now owns native viewport baseline constants directly
+  (960x560 default, 640x400 minimum) so runtime entrypoints no longer depend on
+  legacy `egui_app::ui` constant definitions.
 - Native bridge status updates now route through `app_core::controller`
   extension helpers backed by a dedicated legacy-controller
   `set_error_status` shim, removing migration-facing `StatusTone` coupling to
