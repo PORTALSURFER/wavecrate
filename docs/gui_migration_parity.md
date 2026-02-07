@@ -70,6 +70,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Native map/update header metadata now uses single-band compact composition so projected labels
   remain inside tokenized header/control rows in dense viewports, with hover/cluster/viewport
   details consolidated into footer metadata lines.
+- Native layout tiering now keeps the classic-dense baseline as default up through common
+  desktop widths (wide tier starts above 2100 logical px), and wide-tier row/header metrics
+  remain table-dense instead of switching to oversized card spacing.
 - Browser projection/render windows now target larger native-shell stress sets
   (`MAX_RENDERED_BROWSER_ROWS` 512 in host projection and higher per-tier native row caps),
   with explicit tests for tail clamping, focus preservation, and deterministic large-dataset frames.
