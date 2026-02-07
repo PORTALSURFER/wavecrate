@@ -18,7 +18,10 @@ use radiant::app::{
     FolderRecoveryModel, FolderRowModel, NormalizedRangeModel, ProgressOverlayModel,
     SourceRowModel, SourcesPanelModel, StatusBarModel, WaveformPanelModel,
 };
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 const MAX_RENDERED_BROWSER_ROWS: usize = 48;
 
@@ -122,6 +125,9 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             .map(|prompt| match prompt {
                 crate::egui_app::state::FolderActionPrompt::Rename { name, .. } => name.clone(),
             });
+        let input_error = input_value
+            .as_deref()
+            .and_then(|name| folder_rename_validation_error(ui, target, name));
         return ConfirmPromptModel {
             visible: true,
             kind: Some(ConfirmPromptKind::FolderRename),
@@ -132,7 +138,7 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             target_label: Some(target.display().to_string()),
             input_value,
             input_placeholder: Some(String::from("Folder name")),
-            input_error: None,
+            input_error,
         };
     }
     if let Some(new_folder) = ui.sources.folders.new_folder.as_ref() {
@@ -141,6 +147,7 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
         } else {
             new_folder.parent.display().to_string()
         };
+        let input_error = folder_create_validation_error(ui, &new_folder.parent, &new_folder.name);
         return ConfirmPromptModel {
             visible: true,
             kind: Some(ConfirmPromptKind::FolderCreate),
@@ -151,7 +158,7 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             target_label: Some(target_label),
             input_value: Some(new_folder.name.clone()),
             input_placeholder: Some(String::from("New folder name")),
-            input_error: None,
+            input_error,
         };
     }
     if let Some(prompt) = ui.waveform.pending_destructive.as_ref() {
@@ -325,7 +332,8 @@ fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
             can_create_folder_at_root: ui.sources.selected.is_some(),
             can_rename_folder: can_manage_folder,
             can_delete_folder: can_manage_folder,
-            can_clear_recovery_log: !ui.sources.folders.delete_recovery.entries.is_empty(),
+            can_clear_recovery_log: !ui.sources.folders.delete_recovery.entries.is_empty()
+                && !ui.sources.folders.delete_recovery.in_progress,
         },
         folder_recovery: FolderRecoveryModel {
             in_progress: ui.sources.folders.delete_recovery.in_progress,
@@ -433,6 +441,68 @@ fn normalized_to_milli(value: f32) -> u16 {
 
 fn normalized64_to_milli(value: f64) -> u16 {
     (value.clamp(0.0, 1.0) * 1000.0).round() as u16
+}
+
+fn normalize_folder_name_input(name: &str) -> Result<String, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err(String::from("Folder name cannot be empty"));
+    }
+    if trimmed == "." || trimmed == ".." {
+        return Err(String::from("Folder name is invalid"));
+    }
+    if trimmed.contains(['/', '\\']) {
+        return Err(String::from("Folder name cannot contain path separators"));
+    }
+    Ok(trimmed.to_string())
+}
+
+fn folder_with_name(target: &Path, name: &str) -> PathBuf {
+    target.parent().map_or_else(
+        || PathBuf::from(name),
+        |parent| {
+            if parent.as_os_str().is_empty() {
+                PathBuf::from(name)
+            } else {
+                parent.join(name)
+            }
+        },
+    )
+}
+
+fn folder_exists_in_rows(ui: &UiState, relative_path: &Path) -> bool {
+    ui.sources
+        .folders
+        .rows
+        .iter()
+        .any(|row| row.path == relative_path)
+}
+
+fn folder_create_validation_error(ui: &UiState, parent: &Path, name: &str) -> Option<String> {
+    let normalized = match normalize_folder_name_input(name) {
+        Ok(normalized) => normalized,
+        Err(err) => return Some(err),
+    };
+    let relative = if parent.as_os_str().is_empty() {
+        PathBuf::from(&normalized)
+    } else {
+        parent.join(&normalized)
+    };
+    folder_exists_in_rows(ui, &relative)
+        .then_some(format!("Folder already exists: {}", relative.display()))
+}
+
+fn folder_rename_validation_error(ui: &UiState, target: &Path, name: &str) -> Option<String> {
+    let normalized = match normalize_folder_name_input(name) {
+        Ok(normalized) => normalized,
+        Err(err) => return Some(err),
+    };
+    let renamed = folder_with_name(target, &normalized);
+    if renamed == target {
+        return None;
+    }
+    folder_exists_in_rows(ui, &renamed)
+        .then_some(format!("Folder already exists: {}", renamed.display()))
 }
 
 #[cfg(test)]
@@ -543,6 +613,101 @@ mod tests {
     }
 
     #[test]
+    fn confirm_prompt_projects_folder_create_validation_errors() {
+        let mut ui = UiState::default();
+        ui.sources
+            .folders
+            .rows
+            .push(crate::egui_app::state::FolderRowView {
+                path: std::path::PathBuf::from("drums/existing"),
+                name: String::from("existing"),
+                depth: 1,
+                has_children: false,
+                expanded: false,
+                selected: false,
+                negated: false,
+                hotkey: None,
+                is_root: false,
+                root_filter_mode: None,
+            });
+        ui.sources.folders.new_folder = Some(crate::egui_app::state::InlineFolderCreation {
+            parent: std::path::PathBuf::from("drums"),
+            name: String::from("existing"),
+            focus_requested: true,
+        });
+        let projected = project_confirm_prompt_model(&ui);
+        assert_eq!(
+            projected.input_error.as_deref(),
+            Some("Folder already exists: drums/existing")
+        );
+
+        if let Some(new_folder) = ui.sources.folders.new_folder.as_mut() {
+            new_folder.name = String::from("bad/name");
+        }
+        let projected = project_confirm_prompt_model(&ui);
+        assert_eq!(
+            projected.input_error.as_deref(),
+            Some("Folder name cannot contain path separators")
+        );
+    }
+
+    #[test]
+    fn confirm_prompt_projects_folder_rename_validation_errors() {
+        let mut ui = UiState::default();
+        ui.sources
+            .folders
+            .rows
+            .push(crate::egui_app::state::FolderRowView {
+                path: std::path::PathBuf::from("drums"),
+                name: String::from("drums"),
+                depth: 1,
+                has_children: false,
+                expanded: false,
+                selected: true,
+                negated: false,
+                hotkey: None,
+                is_root: false,
+                root_filter_mode: None,
+            });
+        ui.sources
+            .folders
+            .rows
+            .push(crate::egui_app::state::FolderRowView {
+                path: std::path::PathBuf::from("kicks"),
+                name: String::from("kicks"),
+                depth: 1,
+                has_children: false,
+                expanded: false,
+                selected: false,
+                negated: false,
+                hotkey: None,
+                is_root: false,
+                root_filter_mode: None,
+            });
+        ui.sources.folders.pending_action =
+            Some(crate::egui_app::state::FolderActionPrompt::Rename {
+                target: std::path::PathBuf::from("drums"),
+                name: String::from("kicks"),
+            });
+        let projected = project_confirm_prompt_model(&ui);
+        assert_eq!(
+            projected.input_error.as_deref(),
+            Some("Folder already exists: kicks")
+        );
+
+        ui.sources.folders.pending_action =
+            Some(crate::egui_app::state::FolderActionPrompt::Rename {
+                target: std::path::PathBuf::from("drums"),
+                name: String::from("../bad"),
+            });
+        let projected = project_confirm_prompt_model(&ui);
+        assert_eq!(
+            projected.input_error.as_deref(),
+            Some("Folder name cannot contain path separators")
+        );
+    }
+
+    #[test]
     fn progress_overlay_projection_preserves_cancel_state() {
         let mut ui = UiState::default();
         ui.progress.visible = true;
@@ -606,5 +771,22 @@ mod tests {
         let projected = project_sources_model(&ui);
         assert!(projected.folder_actions.can_rename_folder);
         assert!(projected.folder_actions.can_delete_folder);
+    }
+
+    #[test]
+    fn folder_actions_disable_recovery_clear_while_recovery_is_running() {
+        let mut ui = UiState::default();
+        ui.sources.folders.delete_recovery.entries.push(
+            crate::egui_app::state::FolderDeleteRecoveryEntry {
+                source_label: String::from("source"),
+                relative_path: std::path::PathBuf::from("drums"),
+                action: crate::egui_app::state::FolderDeleteRecoveryAction::Restore,
+                status: crate::egui_app::state::FolderDeleteRecoveryStatus::Completed,
+                detail: None,
+            },
+        );
+        ui.sources.folders.delete_recovery.in_progress = true;
+        let projected = project_sources_model(&ui);
+        assert!(!projected.folder_actions.can_clear_recovery_log);
     }
 }

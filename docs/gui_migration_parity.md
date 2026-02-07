@@ -44,3 +44,13 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Main runtime backend selection has been removed; `src/main.rs` now boots native Vello directly.
 - Native shell layout now derives panel/frame metrics from shared style tokens (`vendor/radiant/src/gui/native_shell/style.rs`) and exposes explicit panel bands in `vendor/radiant/src/gui/native_shell/layout.rs`.
 - Installer/updater binaries still use the `egui` host path and are tracked separately.
+
+## Source Management Polish Checklist
+
+- [x] Keep folder rename prompt open on validation/runtime error instead of collapsing immediately.
+- [x] Surface folder create/rename validation errors inside native prompt (`input_error` projection).
+- [x] Gate prompt confirm actions when prompt validation errors are present (mouse + keyboard paths).
+- [x] Disable recovery-log clear action while recovery is still running.
+- [x] Add native-shell tests for disabled source actions and validation-gated prompt confirms.
+- [x] Add projection tests for folder create/rename validation errors and recovery-action gating.
+- [ ] Finalize remaining visual polish for folder recovery affordances across compact viewport edge cases.

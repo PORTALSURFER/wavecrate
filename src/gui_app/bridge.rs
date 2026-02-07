@@ -105,11 +105,16 @@ impl SempalNativeBridge {
                 if let Some(crate::egui_app::state::FolderActionPrompt::Rename { target, name }) =
                     self.controller.ui.sources.folders.pending_action.clone()
                 {
-                    self.controller.ui.sources.folders.pending_action = None;
-                    self.controller.ui.sources.folders.rename_focus_requested = false;
-                    if let Err(err) = self.controller.rename_folder(&target, &name) {
-                        self.controller
-                            .set_status(err, crate::egui_app::ui::style::StatusTone::Error);
+                    match self.controller.rename_folder(&target, &name) {
+                        Ok(()) => {
+                            self.controller.ui.sources.folders.pending_action = None;
+                            self.controller.ui.sources.folders.rename_focus_requested = false;
+                        }
+                        Err(err) => {
+                            self.controller.ui.sources.folders.rename_focus_requested = true;
+                            self.controller
+                                .set_status(err, crate::egui_app::ui::style::StatusTone::Error);
+                        }
                     }
                     return;
                 }
@@ -121,9 +126,15 @@ impl SempalNativeBridge {
                         Ok(()) => {
                             self.controller.ui.sources.folders.new_folder = None;
                         }
-                        Err(err) => self
-                            .controller
-                            .set_status(err, crate::egui_app::ui::style::StatusTone::Error),
+                        Err(err) => {
+                            if let Some(new_folder) =
+                                self.controller.ui.sources.folders.new_folder.as_mut()
+                            {
+                                new_folder.focus_requested = true;
+                            }
+                            self.controller
+                                .set_status(err, crate::egui_app::ui::style::StatusTone::Error);
+                        }
                     }
                 }
             }
