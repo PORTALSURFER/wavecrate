@@ -14,11 +14,11 @@ use crate::{
     selection::SelectionRange,
 };
 use radiant::app::{
-    AppModel, BrowserActionsModel, BrowserPanelModel, BrowserRowModel, ColumnModel,
-    ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, FolderActionsModel,
+    AppModel, BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
+    ColumnModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, FolderActionsModel,
     FolderRecoveryModel, FolderRowModel, MapPanelModel, MapPointModel, MapRenderModeModel,
     NormalizedRangeModel, ProgressOverlayModel, SourceRowModel, SourcesPanelModel, StatusBarModel,
-    UpdatePanelModel, UpdateStatusModel, WaveformPanelModel,
+    UpdatePanelModel, UpdateStatusModel, WaveformChromeModel, WaveformPanelModel,
 };
 use std::{
     collections::HashSet,
@@ -47,6 +47,8 @@ pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
     ];
     let waveform = project_waveform_model(&controller.ui);
     let browser = project_browser_model(controller);
+    let browser_chrome = project_browser_chrome_model(&controller.ui, browser.visible_count);
+    let waveform_chrome = project_waveform_chrome_model(&controller.ui);
     AppModel {
         title: String::from("Sempal"),
         backend_label: String::from("backend: native_vello"),
@@ -66,8 +68,10 @@ pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
         transport_running,
         sources,
         browser,
+        browser_chrome,
         map,
         waveform,
+        waveform_chrome,
         update,
     }
 }
@@ -545,6 +549,25 @@ fn project_browser_model(controller: &mut EguiController) -> BrowserPanelModel {
     }
 }
 
+fn project_browser_chrome_model(ui: &UiState, visible_count: usize) -> BrowserChromeModel {
+    BrowserChromeModel {
+        samples_tab_label: String::from("Samples"),
+        map_tab_label: String::from("Similarity map"),
+        search_prefix_label: String::from("Search"),
+        search_placeholder: String::from("Search samples (Ctrl+F)"),
+        activity_ready_label: String::from("Ready"),
+        activity_busy_label: String::from("Filtering"),
+        sort_prefix_label: String::from("Sort"),
+        sort_order_label: browser_sort_label(ui.browser.sort).to_owned(),
+        similarity_toggle_label: if ui.browser.similarity_sort_follow_loaded {
+            String::from("follow loaded")
+        } else {
+            String::from("manual anchor")
+        },
+        item_count_label: format!("{visible_count} items"),
+    }
+}
+
 fn browser_render_window(
     visible_count: usize,
     selected_visible_row: Option<usize>,
@@ -592,6 +615,16 @@ fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
         loop_enabled: ui.waveform.loop_enabled,
         tempo_label: ui.waveform.bpm_value.map(|bpm| format!("{bpm:.1} BPM")),
         zoom_label: Some(format!("{zoom_percent:.0}%")),
+    }
+}
+
+fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel {
+    WaveformChromeModel {
+        transport_hint: if ui.waveform.loop_enabled {
+            String::from("Loop enabled")
+        } else {
+            String::from("Loop disabled")
+        },
     }
 }
 
@@ -804,6 +837,24 @@ mod tests {
     }
 
     #[test]
+    fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
+        let mut ui = UiState::default();
+        ui.browser.sort = crate::egui_app::state::SampleBrowserSort::Similarity;
+        ui.browser.similarity_sort_follow_loaded = true;
+        let projected = project_browser_chrome_model(&ui, 1437);
+        assert_eq!(projected.samples_tab_label, "Samples");
+        assert_eq!(projected.map_tab_label, "Similarity map");
+        assert_eq!(projected.search_prefix_label, "Search");
+        assert_eq!(projected.search_placeholder, "Search samples (Ctrl+F)");
+        assert_eq!(projected.activity_ready_label, "Ready");
+        assert_eq!(projected.activity_busy_label, "Filtering");
+        assert_eq!(projected.sort_prefix_label, "Sort");
+        assert_eq!(projected.sort_order_label, "Similarity");
+        assert_eq!(projected.similarity_toggle_label, "follow loaded");
+        assert_eq!(projected.item_count_label, "1437 items");
+    }
+
+    #[test]
     fn waveform_projection_exposes_tempo_and_zoom_labels() {
         let mut ui = UiState::default();
         ui.waveform.bpm_value = Some(128.0);
@@ -812,6 +863,18 @@ mod tests {
         let projected = project_waveform_model(&ui);
         assert_eq!(projected.tempo_label.as_deref(), Some("128.0 BPM"));
         assert_eq!(projected.zoom_label.as_deref(), Some("200%"));
+    }
+
+    #[test]
+    fn waveform_chrome_projection_reflects_loop_hint() {
+        let mut ui = UiState::default();
+        ui.waveform.loop_enabled = false;
+        let projected = project_waveform_chrome_model(&ui);
+        assert_eq!(projected.transport_hint, "Loop disabled");
+
+        ui.waveform.loop_enabled = true;
+        let projected = project_waveform_chrome_model(&ui);
+        assert_eq!(projected.transport_hint, "Loop enabled");
     }
 
     #[test]

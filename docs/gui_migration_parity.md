@@ -51,6 +51,10 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Browser rows now support explicit bucket labels in native projections (for example BPM badges) instead of relying only on coarse column tags.
 - Native browser map tab now consumes projected point clouds and emits click-to-focus sample actions.
 - Native top bar now consumes update-check projection state and emits update actions (check/open/install/dismiss).
+- Native browser/waveform chrome text now comes from projected host models
+  (`BrowserChromeModel`, `WaveformChromeModel`) instead of renderer-local hardcoded labels.
+- Baseline geometry/copy target for legacy parity is documented in
+  `docs/native_shell_legacy_baseline.md`.
 - Installer/updater binaries still use the `egui` host path and are tracked separately.
 
 ## Classic Baseline Layout Contract (v2)
