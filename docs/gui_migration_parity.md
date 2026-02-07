@@ -81,6 +81,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - App-core native-shell projection and native bridge prompt/tab routing now consume
   migration-facing `app_core::{controller,state}` aliases instead of direct
   `app::state` paths in host integration code.
+- The migration-facing `app_core::controller::AppController` alias now points to
+  `app::controller::LegacyAppController` to keep `EguiController` naming
+  confined to legacy app internals.
 - Native runtime-facing projection/view constants now consume migration-facing
   `app_core::{view_model,ui}` aliases instead of direct `app` module paths.
 - `app_core::view_model` now exposes a narrowed migration-facing helper surface

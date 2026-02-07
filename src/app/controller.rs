@@ -69,6 +69,9 @@ pub struct EguiController {
     drag_hwnd: Option<windows::Win32::Foundation::HWND>,
 }
 
+/// Transitional legacy controller alias used by migration-facing modules.
+pub type LegacyAppController = EguiController;
+
 impl EguiController {
     /// Create a controller with shared renderer and optional audio player.
     pub fn new(renderer: WaveformRenderer, player: Option<Rc<RefCell<AudioPlayer>>>) -> Self {

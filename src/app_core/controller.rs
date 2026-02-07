@@ -5,7 +5,7 @@
 //! that remains valid while `app` internals are retired.
 
 /// Transitional controller type used by native runtime bridges and migration CLIs.
-pub type AppController = crate::app::controller::EguiController;
+pub type AppController = crate::app::controller::LegacyAppController;
 
 /// Backend-neutral status helpers for migration-facing runtime code.
 pub trait AppControllerStatusExt {
