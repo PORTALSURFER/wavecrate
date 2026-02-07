@@ -89,6 +89,15 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
     if let Some(crate::egui_app::state::SampleBrowserActionPrompt::Rename { target, .. }) =
         ui.browser.pending_action.as_ref()
     {
+        let input_value = ui
+            .browser
+            .pending_action
+            .as_ref()
+            .map(|prompt| match prompt {
+                crate::egui_app::state::SampleBrowserActionPrompt::Rename { name, .. } => {
+                    name.clone()
+                }
+            });
         return ConfirmPromptModel {
             visible: true,
             kind: Some(ConfirmPromptKind::BrowserRename),
@@ -97,11 +106,22 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             confirm_label: String::from("Apply"),
             cancel_label: String::from("Cancel"),
             target_label: Some(target.display().to_string()),
+            input_value,
+            input_placeholder: Some(String::from("Sample name")),
+            input_error: None,
         };
     }
     if let Some(crate::egui_app::state::FolderActionPrompt::Rename { target, .. }) =
         ui.sources.folders.pending_action.as_ref()
     {
+        let input_value = ui
+            .sources
+            .folders
+            .pending_action
+            .as_ref()
+            .map(|prompt| match prompt {
+                crate::egui_app::state::FolderActionPrompt::Rename { name, .. } => name.clone(),
+            });
         return ConfirmPromptModel {
             visible: true,
             kind: Some(ConfirmPromptKind::FolderRename),
@@ -110,6 +130,28 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             confirm_label: String::from("Apply"),
             cancel_label: String::from("Cancel"),
             target_label: Some(target.display().to_string()),
+            input_value,
+            input_placeholder: Some(String::from("Folder name")),
+            input_error: None,
+        };
+    }
+    if let Some(new_folder) = ui.sources.folders.new_folder.as_ref() {
+        let target_label = if new_folder.parent.as_os_str().is_empty() {
+            String::from("source root")
+        } else {
+            new_folder.parent.display().to_string()
+        };
+        return ConfirmPromptModel {
+            visible: true,
+            kind: Some(ConfirmPromptKind::FolderCreate),
+            title: String::from("Create folder"),
+            message: String::from("Create a new folder at the selected location."),
+            confirm_label: String::from("Create"),
+            cancel_label: String::from("Cancel"),
+            target_label: Some(target_label),
+            input_value: Some(new_folder.name.clone()),
+            input_placeholder: Some(String::from("New folder name")),
+            input_error: None,
         };
     }
     if let Some(prompt) = ui.waveform.pending_destructive.as_ref() {
@@ -121,6 +163,9 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             confirm_label: String::from("Apply"),
             cancel_label: String::from("Cancel"),
             target_label: None,
+            input_value: None,
+            input_placeholder: None,
+            input_error: None,
         };
     }
     ConfirmPromptModel::default()
@@ -476,6 +521,25 @@ mod tests {
         let projected = project_confirm_prompt_model(&ui);
         assert!(projected.visible);
         assert_eq!(projected.kind, Some(ConfirmPromptKind::BrowserRename));
+    }
+
+    #[test]
+    fn confirm_prompt_projects_folder_create_inline_state() {
+        let mut ui = UiState::default();
+        ui.sources.folders.new_folder = Some(crate::egui_app::state::InlineFolderCreation {
+            parent: std::path::PathBuf::from("drums"),
+            name: String::from("kicks"),
+            focus_requested: true,
+        });
+        let projected = project_confirm_prompt_model(&ui);
+        assert!(projected.visible);
+        assert_eq!(projected.kind, Some(ConfirmPromptKind::FolderCreate));
+        assert_eq!(projected.confirm_label, "Create");
+        assert_eq!(projected.input_value.as_deref(), Some("kicks"));
+        assert_eq!(
+            projected.input_placeholder.as_deref(),
+            Some("New folder name")
+        );
     }
 
     #[test]

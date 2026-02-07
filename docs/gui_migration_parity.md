@@ -22,7 +22,7 @@ to `radiant` (`native_vello`) as the only runtime path.
 | Area | Capability | Current state | Owner target |
 | --- | --- | --- | --- |
 | Browser actions | Context menus (rename/tag/delete) | Done (native action strip + bridge routing) | Radiant + Sempal |
-| Source management | Folder actions (rename/create/delete/recovery) | Partial (native folder rows + actions wired; text-edit parity still pending) | Radiant + Sempal |
+| Source management | Folder actions (rename/create/delete/recovery) | Partial (native folder prompt text-entry + actions wired; layout/interaction polish pending) | Radiant + Sempal |
 | Workflow overlays | Progress, drag overlays, prompts | Done (native overlay rendering + prompt/progress actions) | Radiant |
 | Update UX | In-app release notes/update prompts | Legacy-only ancillary UI | Radiant + Sempal |
 | Map view | Cluster map interactions and rendering | Legacy-only modules | Radiant + Sempal |

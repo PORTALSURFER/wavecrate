@@ -111,6 +111,20 @@ impl SempalNativeBridge {
                         self.controller
                             .set_status(err, crate::egui_app::ui::style::StatusTone::Error);
                     }
+                    return;
+                }
+                if let Some(new_folder) = self.controller.ui.sources.folders.new_folder.clone() {
+                    match self
+                        .controller
+                        .create_folder(&new_folder.parent, &new_folder.name)
+                    {
+                        Ok(()) => {
+                            self.controller.ui.sources.folders.new_folder = None;
+                        }
+                        Err(err) => self
+                            .controller
+                            .set_status(err, crate::egui_app::ui::style::StatusTone::Error),
+                    }
                 }
             }
         }
@@ -125,12 +139,37 @@ impl SempalNativeBridge {
             self.controller.cancel_browser_rename();
             return;
         }
+        if self.controller.ui.sources.folders.new_folder.is_some() {
+            self.controller.cancel_new_folder_creation();
+            return;
+        }
         self.controller.cancel_folder_rename();
     }
 
     fn move_folder_focus(&mut self, delta: i8) {
         self.controller
             .nudge_folder_selection(delta as isize, false);
+    }
+
+    fn set_active_prompt_input(&mut self, value: String) {
+        if let Some(crate::egui_app::state::SampleBrowserActionPrompt::Rename { name, .. }) =
+            self.controller.ui.browser.pending_action.as_mut()
+        {
+            *name = value;
+            self.controller.ui.browser.rename_focus_requested = true;
+            return;
+        }
+        if let Some(crate::egui_app::state::FolderActionPrompt::Rename { name, .. }) =
+            self.controller.ui.sources.folders.pending_action.as_mut()
+        {
+            *name = value;
+            self.controller.ui.sources.folders.rename_focus_requested = true;
+            return;
+        }
+        if let Some(new_folder) = self.controller.ui.sources.folders.new_folder.as_mut() {
+            new_folder.name = value;
+            new_folder.focus_requested = true;
+        }
     }
 }
 
@@ -157,6 +196,7 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             UiAction::FocusBrowserSearch => self.controller.focus_browser_search(),
             UiAction::FocusFolderSearch => self.controller.focus_folder_search(),
+            UiAction::SetFolderSearch { query } => self.controller.set_folder_search(query),
             UiAction::SelectSourceRow { index } => self.controller.select_source_by_index(index),
             UiAction::FocusFolderRow { index } => self.controller.focus_folder_row(index),
             UiAction::MoveFolderFocus { delta } => self.move_folder_focus(delta),
@@ -195,6 +235,7 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             UiAction::SelectAllBrowserRows => self.controller.select_all_browser_rows(),
             UiAction::SetBrowserSearch { query } => self.controller.set_browser_search(query),
+            UiAction::SetPromptInput { value } => self.set_active_prompt_input(value),
             UiAction::StartBrowserRename => self.controller.start_browser_rename(),
             UiAction::ConfirmBrowserRename => self.controller.apply_pending_browser_rename(),
             UiAction::CancelBrowserRename => self.controller.cancel_browser_rename(),
