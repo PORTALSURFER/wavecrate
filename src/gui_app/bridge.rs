@@ -102,7 +102,7 @@ impl SempalNativeBridge {
                     self.controller.apply_pending_browser_rename();
                     return;
                 }
-                if let Some(crate::egui_app::state::FolderActionPrompt::Rename { target, name }) =
+                if let Some(crate::app_core::state::FolderActionPrompt::Rename { target, name }) =
                     self.controller.ui.sources.folders.pending_action.clone()
                 {
                     match self.controller.rename_folder(&target, &name) {
@@ -113,7 +113,7 @@ impl SempalNativeBridge {
                         Err(err) => {
                             self.controller.ui.sources.folders.rename_focus_requested = true;
                             self.controller
-                                .set_status(err, crate::egui_app::ui::style::StatusTone::Error);
+                                .set_status(err, crate::app_core::state::StatusTone::Error);
                         }
                     }
                     return;
@@ -133,7 +133,7 @@ impl SempalNativeBridge {
                                 new_folder.focus_requested = true;
                             }
                             self.controller
-                                .set_status(err, crate::egui_app::ui::style::StatusTone::Error);
+                                .set_status(err, crate::app_core::state::StatusTone::Error);
                         }
                     }
                 }
@@ -164,9 +164,9 @@ impl SempalNativeBridge {
 
     fn set_browser_tab(&mut self, map: bool) {
         self.controller.ui.browser.active_tab = if map {
-            crate::egui_app::state::SampleBrowserTab::Map
+            crate::app_core::state::SampleBrowserTab::Map
         } else {
-            crate::egui_app::state::SampleBrowserTab::List
+            crate::app_core::state::SampleBrowserTab::List
         };
         self.controller.ui.map.open = map;
     }
@@ -179,34 +179,34 @@ impl SempalNativeBridge {
         if let Err(err) = self.controller.focus_sample_from_map(&sample_id) {
             self.controller.set_status(
                 format!("Map focus failed: {err}"),
-                crate::egui_app::ui::style::StatusTone::Error,
+                crate::app_core::state::StatusTone::Error,
             );
             return;
         }
         if let Err(err) = self.controller.preview_sample_by_id(&sample_id) {
             self.controller.set_status(
                 format!("Preview failed: {err}"),
-                crate::egui_app::ui::style::StatusTone::Error,
+                crate::app_core::state::StatusTone::Error,
             );
             return;
         }
         if let Err(err) = self.controller.play_audio(false, None) {
             self.controller.set_status(
                 format!("Playback failed: {err}"),
-                crate::egui_app::ui::style::StatusTone::Error,
+                crate::app_core::state::StatusTone::Error,
             );
         }
     }
 
     fn set_active_prompt_input(&mut self, value: String) {
-        if let Some(crate::egui_app::state::SampleBrowserActionPrompt::Rename { name, .. }) =
+        if let Some(crate::app_core::state::SampleBrowserActionPrompt::Rename { name, .. }) =
             self.controller.ui.browser.pending_action.as_mut()
         {
             *name = value;
             self.controller.ui.browser.rename_focus_requested = true;
             return;
         }
-        if let Some(crate::egui_app::state::FolderActionPrompt::Rename { name, .. }) =
+        if let Some(crate::app_core::state::FolderActionPrompt::Rename { name, .. }) =
             self.controller.ui.sources.folders.pending_action.as_mut()
         {
             *name = value;

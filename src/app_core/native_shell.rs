@@ -5,13 +5,11 @@
 //! back into controller-domain selection math.
 
 use super::controller::AppController;
+use crate::app_core::state::{
+    MapQueryBounds, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
+};
 use crate::{
-    analysis::similarity::SIMILARITY_MODEL_ID,
-    egui_app::{
-        state::{MapQueryBounds, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus},
-        view_model,
-    },
-    selection::SelectionRange,
+    analysis::similarity::SIMILARITY_MODEL_ID, egui_app::view_model, selection::SelectionRange,
 };
 use radiant::app::{
     AppModel, BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
@@ -136,8 +134,8 @@ fn project_update_model(ui: &UiState) -> UpdatePanelModel {
 fn project_map_model(controller: &mut AppController) -> MapPanelModel {
     let active = matches!(controller.ui.browser.active_tab, SampleBrowserTab::Map);
     let render_mode = match controller.ui.map.last_render_mode {
-        crate::egui_app::state::MapRenderMode::Heatmap => MapRenderModeModel::Heatmap,
-        crate::egui_app::state::MapRenderMode::Points => MapRenderModeModel::Points,
+        crate::app_core::state::MapRenderMode::Heatmap => MapRenderModeModel::Heatmap,
+        crate::app_core::state::MapRenderMode::Points => MapRenderModeModel::Points,
     };
     let render_mode_label = match render_mode {
         MapRenderModeModel::Heatmap => "heatmap",
@@ -346,7 +344,7 @@ fn project_progress_overlay_model(ui: &UiState) -> ProgressOverlayModel {
 }
 
 fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
-    if let Some(crate::egui_app::state::SampleBrowserActionPrompt::Rename { target, .. }) =
+    if let Some(crate::app_core::state::SampleBrowserActionPrompt::Rename { target, .. }) =
         ui.browser.pending_action.as_ref()
     {
         let input_value = ui
@@ -354,7 +352,7 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             .pending_action
             .as_ref()
             .map(|prompt| match prompt {
-                crate::egui_app::state::SampleBrowserActionPrompt::Rename { name, .. } => {
+                crate::app_core::state::SampleBrowserActionPrompt::Rename { name, .. } => {
                     name.clone()
                 }
             });
@@ -371,7 +369,7 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             input_error: None,
         };
     }
-    if let Some(crate::egui_app::state::FolderActionPrompt::Rename { target, .. }) =
+    if let Some(crate::app_core::state::FolderActionPrompt::Rename { target, .. }) =
         ui.sources.folders.pending_action.as_ref()
     {
         let input_value = ui
@@ -380,7 +378,7 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             .pending_action
             .as_ref()
             .map(|prompt| match prompt {
-                crate::egui_app::state::FolderActionPrompt::Rename { name, .. } => name.clone(),
+                crate::app_core::state::FolderActionPrompt::Rename { name, .. } => name.clone(),
             });
         let input_error = input_value
             .as_deref()
@@ -441,22 +439,22 @@ fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
         return DragOverlayModel::default();
     }
     let target_label = match &ui.drag.active_target {
-        crate::egui_app::state::DragTarget::None => String::from("No target"),
-        crate::egui_app::state::DragTarget::BrowserTriage(column) => match column {
-            crate::egui_app::state::TriageFlagColumn::Trash => String::from("Trash column"),
-            crate::egui_app::state::TriageFlagColumn::Neutral => String::from("Neutral column"),
-            crate::egui_app::state::TriageFlagColumn::Keep => String::from("Keep column"),
+        crate::app_core::state::DragTarget::None => String::from("No target"),
+        crate::app_core::state::DragTarget::BrowserTriage(column) => match column {
+            crate::app_core::state::TriageFlagColumn::Trash => String::from("Trash column"),
+            crate::app_core::state::TriageFlagColumn::Neutral => String::from("Neutral column"),
+            crate::app_core::state::TriageFlagColumn::Keep => String::from("Keep column"),
         },
-        crate::egui_app::state::DragTarget::SourcesRow(_) => String::from("Sources list"),
-        crate::egui_app::state::DragTarget::FolderPanel { folder } => folder
+        crate::app_core::state::DragTarget::SourcesRow(_) => String::from("Sources list"),
+        crate::app_core::state::DragTarget::FolderPanel { folder } => folder
             .as_ref()
             .map(|path| format!("Folder: {}", path.display()))
             .unwrap_or_else(|| String::from("Folder panel")),
-        crate::egui_app::state::DragTarget::DropTarget { path } => {
+        crate::app_core::state::DragTarget::DropTarget { path } => {
             format!("Drop target: {}", path.display())
         }
-        crate::egui_app::state::DragTarget::DropTargetsPanel => String::from("Drop targets"),
-        crate::egui_app::state::DragTarget::External => String::from("External target"),
+        crate::app_core::state::DragTarget::DropTargetsPanel => String::from("Drop targets"),
+        crate::app_core::state::DragTarget::External => String::from("External target"),
     };
     DragOverlayModel {
         active,
@@ -464,7 +462,7 @@ fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
         target_label,
         valid_target: !matches!(
             ui.drag.active_target,
-            crate::egui_app::state::DragTarget::None
+            crate::app_core::state::DragTarget::None
         ),
     }
 }
@@ -790,8 +788,8 @@ fn format_bpm_badge_label(bpm: f32) -> String {
     }
 }
 
-fn browser_sort_label(sort: crate::egui_app::state::SampleBrowserSort) -> &'static str {
-    use crate::egui_app::state::SampleBrowserSort;
+fn browser_sort_label(sort: crate::app_core::state::SampleBrowserSort) -> &'static str {
+    use crate::app_core::state::SampleBrowserSort;
     match sort {
         SampleBrowserSort::ListOrder => "List order",
         SampleBrowserSort::Similarity => "Similarity",
@@ -800,8 +798,8 @@ fn browser_sort_label(sort: crate::egui_app::state::SampleBrowserSort) -> &'stat
     }
 }
 
-fn browser_tab_label(tab: crate::egui_app::state::SampleBrowserTab) -> &'static str {
-    use crate::egui_app::state::SampleBrowserTab;
+fn browser_tab_label(tab: crate::app_core::state::SampleBrowserTab) -> &'static str {
+    use crate::app_core::state::SampleBrowserTab;
     match tab {
         SampleBrowserTab::List => "Samples",
         SampleBrowserTab::Map => "Similarity map",
@@ -898,7 +896,7 @@ mod tests {
     #[test]
     fn browser_focus_target_clamps_to_visible_window() {
         let mut ui = UiState::default();
-        ui.browser.visible = crate::egui_app::state::VisibleRows::List(vec![0, 1, 2, 3]);
+        ui.browser.visible = crate::app_core::state::VisibleRows::List(vec![0, 1, 2, 3]);
         ui.browser.selected_visible = Some(1);
 
         assert_eq!(browser_focus_target(&ui, -8), Some(0));
@@ -965,8 +963,8 @@ mod tests {
     fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
         let mut controller =
             AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-        controller.ui.browser.sort = crate::egui_app::state::SampleBrowserSort::PlaybackAgeDesc;
-        controller.ui.browser.active_tab = crate::egui_app::state::SampleBrowserTab::Map;
+        controller.ui.browser.sort = crate::app_core::state::SampleBrowserSort::PlaybackAgeDesc;
+        controller.ui.browser.active_tab = crate::app_core::state::SampleBrowserTab::Map;
         let projected = project_browser_model(&mut controller);
         assert_eq!(
             projected.search_placeholder.as_deref(),
@@ -982,7 +980,7 @@ mod tests {
     #[test]
     fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
         let mut ui = UiState::default();
-        ui.browser.sort = crate::egui_app::state::SampleBrowserSort::Similarity;
+        ui.browser.sort = crate::app_core::state::SampleBrowserSort::Similarity;
         ui.browser.similarity_sort_follow_loaded = true;
         let projected = project_browser_chrome_model(&ui, 1437);
         assert_eq!(projected.samples_tab_label, "Samples");
@@ -1061,7 +1059,7 @@ mod tests {
     fn map_projection_exposes_legend_selection_and_viewport_labels() {
         let mut controller =
             AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-        controller.ui.browser.active_tab = crate::egui_app::state::SampleBrowserTab::Map;
+        controller.ui.browser.active_tab = crate::app_core::state::SampleBrowserTab::Map;
         controller.ui.map.zoom = 1.75;
         controller.ui.map.pan.x = 12.0;
         controller.ui.map.pan.y = -8.0;
@@ -1107,12 +1105,12 @@ mod tests {
     fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
         let mut ui = UiState::default();
         ui.browser.pending_action =
-            Some(crate::egui_app::state::SampleBrowserActionPrompt::Rename {
+            Some(crate::app_core::state::SampleBrowserActionPrompt::Rename {
                 target: std::path::PathBuf::from("kick.wav"),
                 name: String::from("kick"),
             });
-        ui.waveform.pending_destructive = Some(crate::egui_app::state::DestructiveEditPrompt {
-            edit: crate::egui_app::state::DestructiveSelectionEdit::TrimSelection,
+        ui.waveform.pending_destructive = Some(crate::app_core::state::DestructiveEditPrompt {
+            edit: crate::app_core::state::DestructiveSelectionEdit::TrimSelection,
             title: String::from("Trim selection"),
             message: String::from("Apply trim?"),
         });
@@ -1124,7 +1122,7 @@ mod tests {
     #[test]
     fn confirm_prompt_projects_folder_create_inline_state() {
         let mut ui = UiState::default();
-        ui.sources.folders.new_folder = Some(crate::egui_app::state::InlineFolderCreation {
+        ui.sources.folders.new_folder = Some(crate::app_core::state::InlineFolderCreation {
             parent: std::path::PathBuf::from("drums"),
             name: String::from("kicks"),
             focus_requested: true,
@@ -1146,7 +1144,7 @@ mod tests {
         ui.sources
             .folders
             .rows
-            .push(crate::egui_app::state::FolderRowView {
+            .push(crate::app_core::state::FolderRowView {
                 path: std::path::PathBuf::from("drums/existing"),
                 name: String::from("existing"),
                 depth: 1,
@@ -1158,7 +1156,7 @@ mod tests {
                 is_root: false,
                 root_filter_mode: None,
             });
-        ui.sources.folders.new_folder = Some(crate::egui_app::state::InlineFolderCreation {
+        ui.sources.folders.new_folder = Some(crate::app_core::state::InlineFolderCreation {
             parent: std::path::PathBuf::from("drums"),
             name: String::from("existing"),
             focus_requested: true,
@@ -1185,7 +1183,7 @@ mod tests {
         ui.sources
             .folders
             .rows
-            .push(crate::egui_app::state::FolderRowView {
+            .push(crate::app_core::state::FolderRowView {
                 path: std::path::PathBuf::from("drums"),
                 name: String::from("drums"),
                 depth: 1,
@@ -1200,7 +1198,7 @@ mod tests {
         ui.sources
             .folders
             .rows
-            .push(crate::egui_app::state::FolderRowView {
+            .push(crate::app_core::state::FolderRowView {
                 path: std::path::PathBuf::from("kicks"),
                 name: String::from("kicks"),
                 depth: 1,
@@ -1213,7 +1211,7 @@ mod tests {
                 root_filter_mode: None,
             });
         ui.sources.folders.pending_action =
-            Some(crate::egui_app::state::FolderActionPrompt::Rename {
+            Some(crate::app_core::state::FolderActionPrompt::Rename {
                 target: std::path::PathBuf::from("drums"),
                 name: String::from("kicks"),
             });
@@ -1224,7 +1222,7 @@ mod tests {
         );
 
         ui.sources.folders.pending_action =
-            Some(crate::egui_app::state::FolderActionPrompt::Rename {
+            Some(crate::app_core::state::FolderActionPrompt::Rename {
                 target: std::path::PathBuf::from("drums"),
                 name: String::from("../bad"),
             });
@@ -1261,7 +1259,7 @@ mod tests {
         ui.sources
             .folders
             .rows
-            .push(crate::egui_app::state::FolderRowView {
+            .push(crate::app_core::state::FolderRowView {
                 path: std::path::PathBuf::new(),
                 name: String::from("Root"),
                 depth: 0,
@@ -1283,7 +1281,7 @@ mod tests {
         ui.sources
             .folders
             .rows
-            .push(crate::egui_app::state::FolderRowView {
+            .push(crate::app_core::state::FolderRowView {
                 path: std::path::PathBuf::from("drums"),
                 name: String::from("drums"),
                 depth: 1,
@@ -1305,11 +1303,11 @@ mod tests {
     fn folder_actions_disable_recovery_clear_while_recovery_is_running() {
         let mut ui = UiState::default();
         ui.sources.folders.delete_recovery.entries.push(
-            crate::egui_app::state::FolderDeleteRecoveryEntry {
+            crate::app_core::state::FolderDeleteRecoveryEntry {
                 source_label: String::from("source"),
                 relative_path: std::path::PathBuf::from("drums"),
-                action: crate::egui_app::state::FolderDeleteRecoveryAction::Restore,
-                status: crate::egui_app::state::FolderDeleteRecoveryStatus::Completed,
+                action: crate::app_core::state::FolderDeleteRecoveryAction::Restore,
+                status: crate::app_core::state::FolderDeleteRecoveryStatus::Completed,
                 detail: None,
             },
         );

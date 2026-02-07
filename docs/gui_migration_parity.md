@@ -78,6 +78,9 @@ to `radiant` (`native_vello`) as the only runtime path.
   with explicit tests for tail clamping, focus preservation, and deterministic large-dataset frames.
 - Installer/updater binaries now run on the native radiant host path (`run_native_vello_app`);
   dependency cleanup for legacy `egui_app` modules remains a follow-up task.
+- App-core native-shell projection and native bridge prompt/tab routing now consume
+  migration-facing `app_core::{controller,state}` aliases instead of direct
+  `egui_app::state` paths in host integration code.
 
 ## Classic Baseline Layout Contract (v2)
 
