@@ -31,8 +31,8 @@ to `radiant` (`native_vello`) as the only runtime path.
 
 | Area | Capability | Current state | Owner target |
 | --- | --- | --- | --- |
-| Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress (classic-shell top bar + browser band scaffolding landed) | Radiant |
-| Layout contract | Tokenized header/body/footer geometry shared by paint + hit testing | In progress (classic single-table browser bands now first-class in layout tree) | Radiant |
+| Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress (classic-shell browser chrome now uses explicit tab/toolbar/search/chip/header compositions) | Radiant |
+| Layout contract | Tokenized header/body/footer geometry shared by paint + hit testing | In progress (browser tabs/toolbar/header/footer heights + table columns now token-driven) | Radiant |
 | Sidebar layout | Tokenized source/folder section sizing and action controls | Done (tiered sizing and compact edge-case guards) | Radiant |
 | Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | In progress (single-table focused window + higher per-tier row caps) | Radiant |
 | Tooling | Snapshot + interaction golden tests for native shell | In progress (deterministic frame-contract + virtualization hit/geometry tests) | Radiant + Sempal |
@@ -45,6 +45,7 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Native shell layout now derives panel/frame metrics from shared style tokens (`vendor/radiant/src/gui/native_shell/style.rs`) and exposes explicit panel bands in `vendor/radiant/src/gui/native_shell/layout.rs`.
 - Browser region migration has started from triage columns toward the classic table shell:
   tabs + toolbar + table header/rows/footer are now explicit layout bands used by paint and hit-testing.
+- Browser chrome now renders explicit search + state/sort chips and tokenized table columns (`#`, `Sample`, `Bucket`) instead of a single placeholder toolbar/header text line.
 - Installer/updater binaries still use the `egui` host path and are tracked separately.
 
 ## Source Management Polish Checklist
