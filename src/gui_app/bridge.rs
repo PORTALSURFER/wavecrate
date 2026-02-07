@@ -102,8 +102,14 @@ impl SempalNativeBridge {
                     self.controller.apply_pending_browser_rename();
                     return;
                 }
-                if let Some(crate::app_core::state::FolderActionPrompt::Rename { target, name }) =
-                    self.controller.ui.sources.folders.pending_action.clone()
+                if let Some(crate::app_core::state::FolderActionPrompt::Rename { target, name }) = self
+                    .controller
+                    .ui
+                    .sources
+                    .folders
+                    .pending_action
+                    .clone()
+                    .map(crate::app_core::state::FolderActionPrompt::from)
                 {
                     match self.controller.rename_folder(&target, &name) {
                         Ok(()) => {
@@ -198,14 +204,14 @@ impl SempalNativeBridge {
     }
 
     fn set_active_prompt_input(&mut self, value: String) {
-        if let Some(crate::app_core::state::SampleBrowserActionPrompt::Rename { name, .. }) =
+        if let Some(crate::app::state::SampleBrowserActionPrompt::Rename { name, .. }) =
             self.controller.ui.browser.pending_action.as_mut()
         {
             *name = value;
             self.controller.ui.browser.rename_focus_requested = true;
             return;
         }
-        if let Some(crate::app_core::state::FolderActionPrompt::Rename { name, .. }) =
+        if let Some(crate::app::state::FolderActionPrompt::Rename { name, .. }) =
             self.controller.ui.sources.folders.pending_action.as_mut()
         {
             *name = value;

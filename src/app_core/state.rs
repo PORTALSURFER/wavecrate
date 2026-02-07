@@ -128,10 +128,65 @@ impl From<MapRenderMode> for crate::app::state::MapRenderMode {
         }
     }
 }
-/// Alias for browser inline action prompts.
-pub type SampleBrowserActionPrompt = crate::app::state::SampleBrowserActionPrompt;
-/// Alias for folder action prompts.
-pub type FolderActionPrompt = crate::app::state::FolderActionPrompt;
+/// Pending inline action for the sample browser.
+#[derive(Clone, Debug)]
+pub enum SampleBrowserActionPrompt {
+    /// Rename the selected entry.
+    Rename {
+        /// Path to rename.
+        target: std::path::PathBuf,
+        /// New name.
+        name: String,
+    },
+}
+
+impl From<crate::app::state::SampleBrowserActionPrompt> for SampleBrowserActionPrompt {
+    fn from(value: crate::app::state::SampleBrowserActionPrompt) -> Self {
+        match value {
+            crate::app::state::SampleBrowserActionPrompt::Rename { target, name } => {
+                Self::Rename { target, name }
+            }
+        }
+    }
+}
+
+impl From<SampleBrowserActionPrompt> for crate::app::state::SampleBrowserActionPrompt {
+    fn from(value: SampleBrowserActionPrompt) -> Self {
+        match value {
+            SampleBrowserActionPrompt::Rename { target, name } => Self::Rename { target, name },
+        }
+    }
+}
+
+/// Pending inline action for the folder browser.
+#[derive(Clone, Debug)]
+pub enum FolderActionPrompt {
+    /// Rename the target folder.
+    Rename {
+        /// Folder path to rename.
+        target: std::path::PathBuf,
+        /// New folder name.
+        name: String,
+    },
+}
+
+impl From<crate::app::state::FolderActionPrompt> for FolderActionPrompt {
+    fn from(value: crate::app::state::FolderActionPrompt) -> Self {
+        match value {
+            crate::app::state::FolderActionPrompt::Rename { target, name } => {
+                Self::Rename { target, name }
+            }
+        }
+    }
+}
+
+impl From<FolderActionPrompt> for crate::app::state::FolderActionPrompt {
+    fn from(value: FolderActionPrompt) -> Self {
+        match value {
+            FolderActionPrompt::Rename { target, name } => Self::Rename { target, name },
+        }
+    }
+}
 /// Alias for drag-and-drop target state.
 pub type DragTarget = crate::app::state::DragTarget;
 /// Browser sort mode used by migration-facing projections and bridge actions.

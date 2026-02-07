@@ -348,18 +348,13 @@ fn project_progress_overlay_model(ui: &UiState) -> ProgressOverlayModel {
 }
 
 fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
-    if let Some(crate::app_core::state::SampleBrowserActionPrompt::Rename { target, .. }) =
-        ui.browser.pending_action.as_ref()
+    if let Some(crate::app_core::state::SampleBrowserActionPrompt::Rename { target, name }) = ui
+        .browser
+        .pending_action
+        .clone()
+        .map(crate::app_core::state::SampleBrowserActionPrompt::from)
     {
-        let input_value = ui
-            .browser
-            .pending_action
-            .as_ref()
-            .map(|prompt| match prompt {
-                crate::app_core::state::SampleBrowserActionPrompt::Rename { name, .. } => {
-                    name.clone()
-                }
-            });
+        let input_value = Some(name);
         return ConfirmPromptModel {
             visible: true,
             kind: Some(ConfirmPromptKind::BrowserRename),
@@ -373,20 +368,17 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             input_error: None,
         };
     }
-    if let Some(crate::app_core::state::FolderActionPrompt::Rename { target, .. }) =
-        ui.sources.folders.pending_action.as_ref()
+    if let Some(crate::app_core::state::FolderActionPrompt::Rename { target, name }) = ui
+        .sources
+        .folders
+        .pending_action
+        .clone()
+        .map(crate::app_core::state::FolderActionPrompt::from)
     {
-        let input_value = ui
-            .sources
-            .folders
-            .pending_action
-            .as_ref()
-            .map(|prompt| match prompt {
-                crate::app_core::state::FolderActionPrompt::Rename { name, .. } => name.clone(),
-            });
+        let input_value = Some(name);
         let input_error = input_value
             .as_deref()
-            .and_then(|name| folder_rename_validation_error(ui, target, name));
+            .and_then(|name| folder_rename_validation_error(ui, &target, name));
         return ConfirmPromptModel {
             visible: true,
             kind: Some(ConfirmPromptKind::FolderRename),
@@ -1116,11 +1108,13 @@ mod tests {
     #[test]
     fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
         let mut ui = UiState::default();
-        ui.browser.pending_action =
-            Some(crate::app_core::state::SampleBrowserActionPrompt::Rename {
+        ui.browser.pending_action = Some(
+            crate::app_core::state::SampleBrowserActionPrompt::Rename {
                 target: std::path::PathBuf::from("kick.wav"),
                 name: String::from("kick"),
-            });
+            }
+            .into(),
+        );
         ui.waveform.pending_destructive = Some(crate::app_core::state::DestructiveEditPrompt {
             edit: crate::app_core::state::DestructiveSelectionEdit::TrimSelection,
             title: String::from("Trim selection"),
@@ -1222,22 +1216,26 @@ mod tests {
                 is_root: false,
                 root_filter_mode: None,
             });
-        ui.sources.folders.pending_action =
-            Some(crate::app_core::state::FolderActionPrompt::Rename {
+        ui.sources.folders.pending_action = Some(
+            crate::app_core::state::FolderActionPrompt::Rename {
                 target: std::path::PathBuf::from("drums"),
                 name: String::from("kicks"),
-            });
+            }
+            .into(),
+        );
         let projected = project_confirm_prompt_model(&ui);
         assert_eq!(
             projected.input_error.as_deref(),
             Some("Folder already exists: kicks")
         );
 
-        ui.sources.folders.pending_action =
-            Some(crate::app_core::state::FolderActionPrompt::Rename {
+        ui.sources.folders.pending_action = Some(
+            crate::app_core::state::FolderActionPrompt::Rename {
                 target: std::path::PathBuf::from("drums"),
                 name: String::from("../bad"),
-            });
+            }
+            .into(),
+        );
         let projected = project_confirm_prompt_model(&ui);
         assert_eq!(
             projected.input_error.as_deref(),
