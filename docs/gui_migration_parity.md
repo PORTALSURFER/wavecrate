@@ -31,11 +31,11 @@ to `radiant` (`native_vello`) as the only runtime path.
 
 | Area | Capability | Current state | Owner target |
 | --- | --- | --- | --- |
-| Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress (classic-shell browser chrome now uses explicit tab/toolbar/search/chip/header compositions plus two-row top-bar controls + table striping refinements) | Radiant |
+| Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress (classic-shell browser chrome now uses explicit tab/toolbar/search/chip/header compositions, two-row top-bar controls, stronger alternating table striping, and waveform title hierarchy refinement) | Radiant |
 | Layout contract | Tokenized header/body/footer geometry shared by paint + hit testing | In progress (browser tabs/toolbar/header/footer heights + table columns now token-driven, plus tokenized viewport/guard-rail clamps and snapshot contract metrics) | Radiant |
 | Sidebar layout | Tokenized source/folder section sizing and action controls | Done (tiered sizing and compact edge-case guards) | Radiant |
 | Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | In progress (single-table focused window + higher per-tier row caps) | Radiant |
-| Tooling | Snapshot + interaction golden tests for native shell | In progress (deterministic frame-contract + virtualization hit/geometry tests) | Radiant + Sempal |
+| Tooling | Snapshot + interaction golden tests for native shell | In progress (deterministic frame-contract + virtualization hit/geometry tests + tiered visual-density contract assertions) | Radiant + Sempal |
 
 ## Migration notes
 
@@ -61,6 +61,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Native layout guard rails now come from sizing tokens (viewport clamp, top-bar split,
   waveform/browser minimum split, browser footer/tabs/header minima) and are validated through
   `ShellLayout::contract_snapshot(...)` assertions in native-shell tests.
+- Native browser table now uses higher-contrast alternating row striping and refined bucket-chip
+  blend levels to better match classic list readability, and waveform title text uses primary
+  hierarchy emphasis instead of muted metadata styling.
 - Installer/updater binaries still use the `egui` host path and are tracked separately.
 
 ## Classic Baseline Layout Contract (v2)
