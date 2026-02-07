@@ -34,8 +34,8 @@ to `radiant` (`native_vello`) as the only runtime path.
 | Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress (standard-first rhythm pass + style-tokenized subtle motion) | Radiant |
 | Layout contract | Tokenized header/body/footer geometry shared by paint + hit testing | Done | Radiant |
 | Sidebar layout | Tokenized source/folder section sizing and action controls | Done (tiered sizing and compact edge-case guards) | Radiant |
-| Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | Baseline only | Radiant |
-| Tooling | Snapshot + interaction golden tests for native shell | In progress (deterministic frame-contract + geometry tests) | Radiant + Sempal |
+| Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | In progress (200-row projection window + focused per-column render window) | Radiant |
+| Tooling | Snapshot + interaction golden tests for native shell | In progress (deterministic frame-contract + virtualization hit/geometry tests) | Radiant + Sempal |
 
 ## Migration notes
 

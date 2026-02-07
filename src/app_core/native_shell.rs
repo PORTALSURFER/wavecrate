@@ -23,7 +23,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const MAX_RENDERED_BROWSER_ROWS: usize = 48;
+const MAX_RENDERED_BROWSER_ROWS: usize = 200;
 
 pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
     let selected_column = selected_column_index(&controller.ui);
@@ -364,8 +364,9 @@ fn project_browser_model(controller: &mut EguiController) -> BrowserPanelModel {
 
     let mut rows = Vec::new();
     let visible_count = visible.len();
-    let rendered = visible_count.min(MAX_RENDERED_BROWSER_ROWS);
-    for visible_row in 0..rendered {
+    let (window_start, window_len) =
+        browser_render_window(visible_count, selected_visible_row, anchor_visible_row);
+    for visible_row in window_start..(window_start + window_len) {
         let Some(absolute_index) = visible.get(visible_row) else {
             continue;
         };
@@ -399,6 +400,28 @@ fn project_browser_model(controller: &mut EguiController) -> BrowserPanelModel {
         anchor_visible_row,
         rows,
     }
+}
+
+fn browser_render_window(
+    visible_count: usize,
+    selected_visible_row: Option<usize>,
+    anchor_visible_row: Option<usize>,
+) -> (usize, usize) {
+    if visible_count == 0 {
+        return (0, 0);
+    }
+    let window_len = visible_count.min(MAX_RENDERED_BROWSER_ROWS);
+    if window_len == visible_count {
+        return (0, window_len);
+    }
+    let pivot = selected_visible_row
+        .or(anchor_visible_row)
+        .unwrap_or(0)
+        .min(visible_count - 1);
+    let half_window = window_len / 2;
+    let max_start = visible_count - window_len;
+    let window_start = pivot.saturating_sub(half_window).min(max_start);
+    (window_start, window_len)
 }
 
 fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
@@ -531,6 +554,27 @@ mod tests {
         assert_eq!(browser_focus_target(&ui, -8), Some(0));
         assert_eq!(browser_focus_target(&ui, 1), Some(2));
         assert_eq!(browser_focus_target(&ui, 99), Some(3));
+    }
+
+    #[test]
+    fn browser_render_window_limits_to_target_size() {
+        let (start, len) = browser_render_window(500, None, None);
+        assert_eq!(start, 0);
+        assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
+    }
+
+    #[test]
+    fn browser_render_window_centers_on_selected_row() {
+        let (start, len) = browser_render_window(500, Some(250), None);
+        assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
+        assert_eq!(start, 150);
+    }
+
+    #[test]
+    fn browser_render_window_clamps_near_end_of_visible_rows() {
+        let (start, len) = browser_render_window(500, Some(490), None);
+        assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
+        assert_eq!(start, 300);
     }
 
     #[test]
