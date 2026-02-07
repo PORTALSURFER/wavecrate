@@ -165,7 +165,8 @@ impl SempalNativeBridge {
             crate::app_core::state::SampleBrowserTab::Map
         } else {
             crate::app_core::state::SampleBrowserTab::List
-        };
+        }
+        .into();
         self.controller.ui.map.open = map;
     }
 

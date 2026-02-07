@@ -9,14 +9,125 @@
 pub type UiState = crate::app::state::UiState;
 /// Alias for map query bounds in similarity map projection.
 pub type MapQueryBounds = crate::app::state::MapQueryBounds;
-/// Alias for browser tab selection state.
-pub type SampleBrowserTab = crate::app::state::SampleBrowserTab;
-/// Alias for browser triage columns.
-pub type TriageFlagColumn = crate::app::state::TriageFlagColumn;
-/// Alias for update status state.
-pub type UpdateStatus = crate::app::state::UpdateStatus;
-/// Alias for map render mode state.
-pub type MapRenderMode = crate::app::state::MapRenderMode;
+/// Browser tab selection state used by migration-facing consumers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SampleBrowserTab {
+    /// List/table browser tab.
+    List,
+    /// Similarity map browser tab.
+    Map,
+}
+
+impl From<crate::app::state::SampleBrowserTab> for SampleBrowserTab {
+    fn from(value: crate::app::state::SampleBrowserTab) -> Self {
+        match value {
+            crate::app::state::SampleBrowserTab::List => Self::List,
+            crate::app::state::SampleBrowserTab::Map => Self::Map,
+        }
+    }
+}
+
+impl From<SampleBrowserTab> for crate::app::state::SampleBrowserTab {
+    fn from(value: SampleBrowserTab) -> Self {
+        match value {
+            SampleBrowserTab::List => Self::List,
+            SampleBrowserTab::Map => Self::Map,
+        }
+    }
+}
+
+/// Browser triage columns used in migration-facing drag/drop projection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TriageFlagColumn {
+    /// Trash column.
+    Trash,
+    /// Neutral column.
+    Neutral,
+    /// Keep column.
+    Keep,
+}
+
+impl From<crate::app::state::TriageFlagColumn> for TriageFlagColumn {
+    fn from(value: crate::app::state::TriageFlagColumn) -> Self {
+        match value {
+            crate::app::state::TriageFlagColumn::Trash => Self::Trash,
+            crate::app::state::TriageFlagColumn::Neutral => Self::Neutral,
+            crate::app::state::TriageFlagColumn::Keep => Self::Keep,
+        }
+    }
+}
+
+impl From<TriageFlagColumn> for crate::app::state::TriageFlagColumn {
+    fn from(value: TriageFlagColumn) -> Self {
+        match value {
+            TriageFlagColumn::Trash => Self::Trash,
+            TriageFlagColumn::Neutral => Self::Neutral,
+            TriageFlagColumn::Keep => Self::Keep,
+        }
+    }
+}
+
+/// Update status surfaced by migration-facing render projections.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UpdateStatus {
+    /// No update activity in progress.
+    Idle,
+    /// Update check in progress.
+    Checking,
+    /// A newer update is available.
+    UpdateAvailable,
+    /// Update check failed.
+    Error,
+}
+
+impl From<crate::app::state::UpdateStatus> for UpdateStatus {
+    fn from(value: crate::app::state::UpdateStatus) -> Self {
+        match value {
+            crate::app::state::UpdateStatus::Idle => Self::Idle,
+            crate::app::state::UpdateStatus::Checking => Self::Checking,
+            crate::app::state::UpdateStatus::UpdateAvailable => Self::UpdateAvailable,
+            crate::app::state::UpdateStatus::Error => Self::Error,
+        }
+    }
+}
+
+impl From<UpdateStatus> for crate::app::state::UpdateStatus {
+    fn from(value: UpdateStatus) -> Self {
+        match value {
+            UpdateStatus::Idle => Self::Idle,
+            UpdateStatus::Checking => Self::Checking,
+            UpdateStatus::UpdateAvailable => Self::UpdateAvailable,
+            UpdateStatus::Error => Self::Error,
+        }
+    }
+}
+
+/// Map render mode used by migration-facing render projections.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MapRenderMode {
+    /// Render a density heatmap.
+    Heatmap,
+    /// Render individual points.
+    Points,
+}
+
+impl From<crate::app::state::MapRenderMode> for MapRenderMode {
+    fn from(value: crate::app::state::MapRenderMode) -> Self {
+        match value {
+            crate::app::state::MapRenderMode::Heatmap => Self::Heatmap,
+            crate::app::state::MapRenderMode::Points => Self::Points,
+        }
+    }
+}
+
+impl From<MapRenderMode> for crate::app::state::MapRenderMode {
+    fn from(value: MapRenderMode) -> Self {
+        match value {
+            MapRenderMode::Heatmap => Self::Heatmap,
+            MapRenderMode::Points => Self::Points,
+        }
+    }
+}
 /// Alias for browser inline action prompts.
 pub type SampleBrowserActionPrompt = crate::app::state::SampleBrowserActionPrompt;
 /// Alias for folder action prompts.

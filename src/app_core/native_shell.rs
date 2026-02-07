@@ -6,7 +6,7 @@
 
 use super::controller::AppController;
 use crate::app_core::state::{
-    MapQueryBounds, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
+    MapQueryBounds, MapRenderMode, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
 };
 use crate::{
     analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model, selection::SelectionRange,
@@ -75,13 +75,14 @@ pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
 }
 
 fn project_update_model(ui: &UiState) -> UpdatePanelModel {
-    let status = match ui.update.status {
+    let update_status = UpdateStatus::from(ui.update.status.clone());
+    let status = match update_status {
         UpdateStatus::Idle => UpdateStatusModel::Idle,
         UpdateStatus::Checking => UpdateStatusModel::Checking,
         UpdateStatus::UpdateAvailable => UpdateStatusModel::Available,
         UpdateStatus::Error => UpdateStatusModel::Error,
     };
-    let status_label = match ui.update.status {
+    let status_label = match update_status {
         UpdateStatus::Idle => String::from("Updates: idle"),
         UpdateStatus::Checking => String::from("Checking updates..."),
         UpdateStatus::UpdateAvailable => ui
@@ -97,7 +98,7 @@ fn project_update_model(ui: &UiState) -> UpdatePanelModel {
             .map(|err| format!("Update check failed: {err}"))
             .unwrap_or_else(|| String::from("Update check failed")),
     };
-    let action_hint_label = match ui.update.status {
+    let action_hint_label = match update_status {
         UpdateStatus::Idle => String::from("Action: check"),
         UpdateStatus::Checking => String::from("Action: waiting"),
         UpdateStatus::UpdateAvailable => {
@@ -109,7 +110,7 @@ fn project_update_model(ui: &UiState) -> UpdatePanelModel {
         }
         UpdateStatus::Error => String::from("Action: retry"),
     };
-    let release_notes_label = match ui.update.status {
+    let release_notes_label = match update_status {
         UpdateStatus::UpdateAvailable => {
             let tag = ui.update.available_tag.as_deref().unwrap_or("latest");
             if let Some(published_at) = ui.update.available_published_at.as_deref() {
@@ -132,10 +133,13 @@ fn project_update_model(ui: &UiState) -> UpdatePanelModel {
 }
 
 fn project_map_model(controller: &mut AppController) -> MapPanelModel {
-    let active = matches!(controller.ui.browser.active_tab, SampleBrowserTab::Map);
-    let render_mode = match controller.ui.map.last_render_mode {
-        crate::app_core::state::MapRenderMode::Heatmap => MapRenderModeModel::Heatmap,
-        crate::app_core::state::MapRenderMode::Points => MapRenderModeModel::Points,
+    let active = matches!(
+        SampleBrowserTab::from(controller.ui.browser.active_tab),
+        SampleBrowserTab::Map
+    );
+    let render_mode = match MapRenderMode::from(controller.ui.map.last_render_mode) {
+        MapRenderMode::Heatmap => MapRenderModeModel::Heatmap,
+        MapRenderMode::Points => MapRenderModeModel::Points,
     };
     let render_mode_label = match render_mode {
         MapRenderModeModel::Heatmap => "heatmap",
@@ -440,10 +444,10 @@ fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
     }
     let target_label = match &ui.drag.active_target {
         crate::app_core::state::DragTarget::None => String::from("No target"),
-        crate::app_core::state::DragTarget::BrowserTriage(column) => match column {
-            crate::app_core::state::TriageFlagColumn::Trash => String::from("Trash column"),
-            crate::app_core::state::TriageFlagColumn::Neutral => String::from("Neutral column"),
-            crate::app_core::state::TriageFlagColumn::Keep => String::from("Keep column"),
+        crate::app_core::state::DragTarget::BrowserTriage(column) => match TriageFlagColumn::from(*column) {
+            TriageFlagColumn::Trash => String::from("Trash column"),
+            TriageFlagColumn::Neutral => String::from("Neutral column"),
+            TriageFlagColumn::Keep => String::from("Keep column"),
         },
         crate::app_core::state::DragTarget::SourcesRow(_) => String::from("Sources list"),
         crate::app_core::state::DragTarget::FolderPanel { folder } => folder
@@ -499,7 +503,7 @@ fn project_status_model(ui: &UiState, selected_column: usize) -> StatusBarModel 
 pub(crate) fn selected_column_index(ui: &UiState) -> usize {
     ui.browser
         .selected
-        .map(|selected| match selected.column {
+        .map(|selected| match TriageFlagColumn::from(selected.column) {
             TriageFlagColumn::Trash => 0,
             TriageFlagColumn::Neutral => 1,
             TriageFlagColumn::Keep => 2,
@@ -605,7 +609,7 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
     let search_placeholder = Some(String::from("Search samples (Ctrl+F)"));
     let busy = controller.ui.browser.search_busy;
     let sort_label = Some(browser_sort_label(controller.ui.browser.sort).to_owned());
-    let active_tab_label = Some(browser_tab_label(controller.ui.browser.active_tab).to_owned());
+    let active_tab_label = Some(browser_tab_label(controller.ui.browser.active_tab.into()).to_owned());
     let focused_sample_label = controller
         .ui
         .loaded_wav
@@ -799,7 +803,6 @@ fn browser_sort_label(sort: crate::app_core::state::SampleBrowserSort) -> &'stat
 }
 
 fn browser_tab_label(tab: crate::app_core::state::SampleBrowserTab) -> &'static str {
-    use crate::app_core::state::SampleBrowserTab;
     match tab {
         SampleBrowserTab::List => "Samples",
         SampleBrowserTab::Map => "Similarity map",
@@ -964,7 +967,7 @@ mod tests {
         let mut controller =
             AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
         controller.ui.browser.sort = crate::app_core::state::SampleBrowserSort::PlaybackAgeDesc;
-        controller.ui.browser.active_tab = crate::app_core::state::SampleBrowserTab::Map;
+        controller.ui.browser.active_tab = crate::app_core::state::SampleBrowserTab::Map.into();
         let projected = project_browser_model(&mut controller);
         assert_eq!(
             projected.search_placeholder.as_deref(),
@@ -1027,7 +1030,7 @@ mod tests {
         assert_eq!(projected.action_hint_label, "Action: check");
         assert!(projected.release_notes_label.is_empty());
 
-        ui.update.status = UpdateStatus::UpdateAvailable;
+        ui.update.status = UpdateStatus::UpdateAvailable.into();
         ui.update.available_tag = Some(String::from("v20.1.0"));
         ui.update.available_url = Some(String::from("https://example.invalid/release"));
         ui.update.available_published_at = Some(String::from("2026-02-01T12:00:00Z"));
@@ -1043,7 +1046,7 @@ mod tests {
             "Release: v20.1.0 (2026-02-01T12:00:00Z)"
         );
 
-        ui.update.status = UpdateStatus::Error;
+        ui.update.status = UpdateStatus::Error.into();
         ui.update.last_error = Some(String::from("network timeout"));
         let projected = project_update_model(&ui);
         assert_eq!(projected.status, UpdateStatusModel::Error);
@@ -1059,7 +1062,7 @@ mod tests {
     fn map_projection_exposes_legend_selection_and_viewport_labels() {
         let mut controller =
             AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-        controller.ui.browser.active_tab = crate::app_core::state::SampleBrowserTab::Map;
+        controller.ui.browser.active_tab = crate::app_core::state::SampleBrowserTab::Map.into();
         controller.ui.map.zoom = 1.75;
         controller.ui.map.pan.x = 12.0;
         controller.ui.map.pan.y = -8.0;
