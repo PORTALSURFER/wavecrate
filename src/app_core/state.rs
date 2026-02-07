@@ -134,10 +134,88 @@ pub type SampleBrowserActionPrompt = crate::app::state::SampleBrowserActionPromp
 pub type FolderActionPrompt = crate::app::state::FolderActionPrompt;
 /// Alias for drag-and-drop target state.
 pub type DragTarget = crate::app::state::DragTarget;
-/// Alias for browser sort state.
-pub type SampleBrowserSort = crate::app::state::SampleBrowserSort;
-/// Alias for visible-row projection state.
-pub type VisibleRows = crate::app::state::VisibleRows;
+/// Browser sort mode used by migration-facing projections and bridge actions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SampleBrowserSort {
+    /// Preserve the original list order.
+    ListOrder,
+    /// Sort by similarity score.
+    Similarity,
+    /// Sort by playback age ascending.
+    PlaybackAgeAsc,
+    /// Sort by playback age descending.
+    PlaybackAgeDesc,
+}
+
+impl From<crate::app::state::SampleBrowserSort> for SampleBrowserSort {
+    fn from(value: crate::app::state::SampleBrowserSort) -> Self {
+        match value {
+            crate::app::state::SampleBrowserSort::ListOrder => Self::ListOrder,
+            crate::app::state::SampleBrowserSort::Similarity => Self::Similarity,
+            crate::app::state::SampleBrowserSort::PlaybackAgeAsc => Self::PlaybackAgeAsc,
+            crate::app::state::SampleBrowserSort::PlaybackAgeDesc => Self::PlaybackAgeDesc,
+        }
+    }
+}
+
+impl From<SampleBrowserSort> for crate::app::state::SampleBrowserSort {
+    fn from(value: SampleBrowserSort) -> Self {
+        match value {
+            SampleBrowserSort::ListOrder => Self::ListOrder,
+            SampleBrowserSort::Similarity => Self::Similarity,
+            SampleBrowserSort::PlaybackAgeAsc => Self::PlaybackAgeAsc,
+            SampleBrowserSort::PlaybackAgeDesc => Self::PlaybackAgeDesc,
+        }
+    }
+}
+
+/// Visible row projection used by migration-facing browser helpers.
+#[derive(Clone, Debug)]
+pub enum VisibleRows {
+    /// All rows are visible; total stores the count.
+    All {
+        /// Total number of rows.
+        total: usize,
+    },
+    /// Only the provided indices are visible.
+    List(Vec<usize>),
+}
+
+impl VisibleRows {
+    /// Return the number of visible rows represented by this projection.
+    pub fn len(&self) -> usize {
+        match self {
+            VisibleRows::All { total } => *total,
+            VisibleRows::List(rows) => rows.len(),
+        }
+    }
+
+    /// Resolve a visible row index to an absolute row index.
+    pub fn get(&self, row: usize) -> Option<usize> {
+        match self {
+            VisibleRows::All { total } => (row < *total).then_some(row),
+            VisibleRows::List(rows) => rows.get(row).copied(),
+        }
+    }
+}
+
+impl From<crate::app::state::VisibleRows> for VisibleRows {
+    fn from(value: crate::app::state::VisibleRows) -> Self {
+        match value {
+            crate::app::state::VisibleRows::All { total } => Self::All { total },
+            crate::app::state::VisibleRows::List(rows) => Self::List(rows),
+        }
+    }
+}
+
+impl From<VisibleRows> for crate::app::state::VisibleRows {
+    fn from(value: VisibleRows) -> Self {
+        match value {
+            VisibleRows::All { total } => Self::All { total },
+            VisibleRows::List(rows) => Self::List(rows),
+        }
+    }
+}
 /// Alias for destructive edit prompt state.
 pub type DestructiveEditPrompt = crate::app::state::DestructiveEditPrompt;
 /// Alias for destructive waveform edit enum.

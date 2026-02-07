@@ -602,13 +602,18 @@ fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
 }
 
 fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
-    let visible = controller.ui.browser.visible.clone();
+    let visible = crate::app_core::state::VisibleRows::from(controller.ui.browser.visible.clone());
     let selected_visible_row = controller.ui.browser.selected_visible;
     let selected_path_count = controller.ui.browser.selected_paths.len();
     let search_query = controller.ui.browser.search_query.clone();
     let search_placeholder = Some(String::from("Search samples (Ctrl+F)"));
     let busy = controller.ui.browser.search_busy;
-    let sort_label = Some(browser_sort_label(controller.ui.browser.sort).to_owned());
+    let sort_label = Some(
+        browser_sort_label(crate::app_core::state::SampleBrowserSort::from(
+            controller.ui.browser.sort,
+        ))
+        .to_owned(),
+    );
     let active_tab_label = Some(browser_tab_label(controller.ui.browser.active_tab.into()).to_owned());
     let focused_sample_label = controller
         .ui
@@ -685,7 +690,10 @@ fn project_browser_chrome_model(ui: &UiState, visible_count: usize) -> BrowserCh
         activity_ready_label: String::from("Ready"),
         activity_busy_label: String::from("Filtering"),
         sort_prefix_label: String::from("Sort"),
-        sort_order_label: browser_sort_label(ui.browser.sort).to_owned(),
+        sort_order_label: browser_sort_label(crate::app_core::state::SampleBrowserSort::from(
+            ui.browser.sort,
+        ))
+        .to_owned(),
         similarity_toggle_label: if ui.browser.similarity_sort_follow_loaded {
             String::from("follow loaded")
         } else {
@@ -899,7 +907,7 @@ mod tests {
     #[test]
     fn browser_focus_target_clamps_to_visible_window() {
         let mut ui = UiState::default();
-        ui.browser.visible = crate::app_core::state::VisibleRows::List(vec![0, 1, 2, 3]);
+        ui.browser.visible = crate::app_core::state::VisibleRows::List(vec![0, 1, 2, 3]).into();
         ui.browser.selected_visible = Some(1);
 
         assert_eq!(browser_focus_target(&ui, -8), Some(0));
@@ -966,7 +974,8 @@ mod tests {
     fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
         let mut controller =
             AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-        controller.ui.browser.sort = crate::app_core::state::SampleBrowserSort::PlaybackAgeDesc;
+        controller.ui.browser.sort =
+            crate::app_core::state::SampleBrowserSort::PlaybackAgeDesc.into();
         controller.ui.browser.active_tab = crate::app_core::state::SampleBrowserTab::Map.into();
         let projected = project_browser_model(&mut controller);
         assert_eq!(
@@ -983,7 +992,7 @@ mod tests {
     #[test]
     fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
         let mut ui = UiState::default();
-        ui.browser.sort = crate::app_core::state::SampleBrowserSort::Similarity;
+        ui.browser.sort = crate::app_core::state::SampleBrowserSort::Similarity.into();
         ui.browser.similarity_sort_follow_loaded = true;
         let projected = project_browser_chrome_model(&ui, 1437);
         assert_eq!(projected.samples_tab_label, "Samples");
