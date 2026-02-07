@@ -64,6 +64,17 @@ impl EguiController {
         }
     }
 
+    pub(crate) fn set_folder_rename_input(&mut self, value: String) -> bool {
+        let Some(FolderActionPrompt::Rename { name, .. }) =
+            self.ui.sources.folders.pending_action.as_mut()
+        else {
+            return false;
+        };
+        *name = value;
+        self.ui.sources.folders.rename_focus_requested = true;
+        true
+    }
+
     pub(crate) fn confirm_folder_delete(&self, target: &Path) -> bool {
         if cfg!(test) {
             return true;

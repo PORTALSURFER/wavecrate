@@ -55,6 +55,15 @@ impl EguiController {
         self.ui.sources.folders.new_folder = None;
     }
 
+    pub(crate) fn set_new_folder_creation_input(&mut self, value: String) -> bool {
+        let Some(new_folder) = self.ui.sources.folders.new_folder.as_mut() else {
+            return false;
+        };
+        new_folder.name = value;
+        new_folder.focus_requested = true;
+        true
+    }
+
     fn ensure_folder_expanded_for_creation(&mut self, parent: &Path) {
         if parent.as_os_str().is_empty() {
             return;

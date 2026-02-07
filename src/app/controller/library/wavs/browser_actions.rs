@@ -118,6 +118,17 @@ impl EguiController {
         }
     }
 
+    pub(crate) fn set_browser_rename_input(&mut self, value: String) -> bool {
+        let Some(SampleBrowserActionPrompt::Rename { name, .. }) =
+            self.ui.browser.pending_action.as_mut()
+        else {
+            return false;
+        };
+        *name = value;
+        self.ui.browser.rename_focus_requested = true;
+        true
+    }
+
     /// Toggle whether a visible browser row is included in the multi-selection set.
     pub fn toggle_browser_row_selection(&mut self, visible_row: usize) {
         self.apply_browser_selection(visible_row, SelectionAction::Toggle);

@@ -211,51 +211,13 @@ impl SempalNativeBridge {
     }
 
     fn set_active_prompt_input(&mut self, value: String) {
-        if let Some(prompt) = self
-            .controller
-            .ui
-            .browser
-            .pending_action
-            .clone()
-            .map(crate::app_core::state::SampleBrowserActionPrompt::from)
-        {
-            let prompt = match prompt {
-                crate::app_core::state::SampleBrowserActionPrompt::Rename { target, .. } => {
-                    crate::app_core::state::SampleBrowserActionPrompt::Rename {
-                        target,
-                        name: value,
-                    }
-                }
-            };
-            self.controller.ui.browser.pending_action = Some(prompt.into());
-            self.controller.ui.browser.rename_focus_requested = true;
+        if self.controller.set_browser_rename_input(value.clone()) {
             return;
         }
-        if let Some(prompt) = self
-            .controller
-            .ui
-            .sources
-            .folders
-            .pending_action
-            .clone()
-            .map(crate::app_core::state::FolderActionPrompt::from)
-        {
-            let prompt = match prompt {
-                crate::app_core::state::FolderActionPrompt::Rename { target, .. } => {
-                    crate::app_core::state::FolderActionPrompt::Rename {
-                        target,
-                        name: value,
-                    }
-                }
-            };
-            self.controller.ui.sources.folders.pending_action = Some(prompt.into());
-            self.controller.ui.sources.folders.rename_focus_requested = true;
+        if self.controller.set_folder_rename_input(value.clone()) {
             return;
         }
-        if let Some(new_folder) = self.controller.ui.sources.folders.new_folder.as_mut() {
-            new_folder.name = value;
-            new_folder.focus_requested = true;
-        }
+        self.controller.set_new_folder_creation_input(value);
     }
 }
 
