@@ -22,7 +22,7 @@ to `radiant` (`native_vello`) as the only runtime path.
 | Area | Capability | Current state | Owner target |
 | --- | --- | --- | --- |
 | Browser actions | Context menus (rename/tag/delete) | Done (native action strip + bridge routing) | Radiant + Sempal |
-| Source management | Folder actions (rename/create/delete/recovery) | Partial (native folder prompt text-entry + actions wired; layout/interaction polish pending) | Radiant + Sempal |
+| Source management | Folder actions (rename/create/delete/recovery) | Done (native prompt/action flows + validation/error gating + compact recovery polish) | Radiant + Sempal |
 | Workflow overlays | Progress, drag overlays, prompts | Done (native overlay rendering + prompt/progress actions) | Radiant |
 | Update UX | In-app release notes/update prompts | Legacy-only ancillary UI | Radiant + Sempal |
 | Map view | Cluster map interactions and rendering | Legacy-only modules | Radiant + Sempal |
@@ -31,11 +31,11 @@ to `radiant` (`native_vello`) as the only runtime path.
 
 | Area | Capability | Current state | Owner target |
 | --- | --- | --- | --- |
-| Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress | Radiant |
+| Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress (standard-first rhythm pass + style-tokenized subtle motion) | Radiant |
 | Layout contract | Tokenized header/body/footer geometry shared by paint + hit testing | Done | Radiant |
-| Sidebar layout | Tokenized source/folder section sizing and action controls | In progress | Radiant |
+| Sidebar layout | Tokenized source/folder section sizing and action controls | Done (tiered sizing and compact edge-case guards) | Radiant |
 | Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | Baseline only | Radiant |
-| Tooling | Snapshot + interaction golden tests for native shell | Partial | Radiant + Sempal |
+| Tooling | Snapshot + interaction golden tests for native shell | In progress (deterministic frame-contract + geometry tests) | Radiant + Sempal |
 
 ## Migration notes
 
