@@ -81,6 +81,8 @@ to `radiant` (`native_vello`) as the only runtime path.
 - App-core native-shell projection and native bridge prompt/tab routing now consume
   migration-facing `app_core::{controller,state}` aliases instead of direct
   `egui_app::state` paths in host integration code.
+- Native runtime-facing projection/view constants now consume migration-facing
+  `app_core::{view_model,ui}` aliases instead of direct `egui_app` module paths.
 - Sempal `gui_runtime` now exposes a native-only host surface
   (`NativeRunOptions`, `run_native_vello_app`, `run_native_vello_preview`)
   and no longer re-exports egui runtime launch APIs.

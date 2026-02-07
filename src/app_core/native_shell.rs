@@ -9,7 +9,7 @@ use crate::app_core::state::{
     MapQueryBounds, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
 };
 use crate::{
-    analysis::similarity::SIMILARITY_MODEL_ID, egui_app::view_model, selection::SelectionRange,
+    analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model, selection::SelectionRange,
 };
 use radiant::app::{
     AppModel, BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
