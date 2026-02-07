@@ -24,8 +24,8 @@ to `radiant` (`native_vello`) as the only runtime path.
 | Browser actions | Context menus (rename/tag/delete) | Done (native action strip + bridge routing) | Radiant + Sempal |
 | Source management | Folder actions (rename/create/delete/recovery) | Done (native prompt/action flows + validation/error gating + compact recovery polish) | Radiant + Sempal |
 | Workflow overlays | Progress, drag overlays, prompts | Done (native overlay rendering + prompt/progress actions) | Radiant |
-| Update UX | In-app release notes/update prompts | Legacy-only ancillary UI | Radiant + Sempal |
-| Map view | Cluster map interactions and rendering | Legacy-only modules | Radiant + Sempal |
+| Update UX | In-app release notes/update prompts | In progress (native top-bar update actions: check/open/install/dismiss) | Radiant + Sempal |
+| Map view | Cluster map interactions and rendering | In progress (native map tab now renders normalized points with click-to-focus routing) | Radiant + Sempal |
 
 ## P2 (post-cutover polish and expansion)
 
@@ -49,6 +49,8 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Top bar now uses a tokenized split layout (title row + controls row) with explicit options/volume meter geometry instead of hardcoded text offsets.
 - Projection now supplies native render hints for browser tab/sort/search labels and waveform tempo/zoom labels to avoid hardcoded placeholder copy.
 - Browser rows now support explicit bucket labels in native projections (for example BPM badges) instead of relying only on coarse column tags.
+- Native browser map tab now consumes projected point clouds and emits click-to-focus sample actions.
+- Native top bar now consumes update-check projection state and emits update actions (check/open/install/dismiss).
 - Installer/updater binaries still use the `egui` host path and are tracked separately.
 
 ## Classic Baseline Layout Contract (v2)

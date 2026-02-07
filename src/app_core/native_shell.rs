@@ -5,9 +5,10 @@
 //! back into controller-domain selection math.
 
 use crate::{
+    analysis::similarity::SIMILARITY_MODEL_ID,
     egui_app::{
         controller::EguiController,
-        state::{TriageFlagColumn, UiState},
+        state::{MapQueryBounds, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus},
         view_model,
     },
     selection::SelectionRange,
@@ -15,8 +16,9 @@ use crate::{
 use radiant::app::{
     AppModel, BrowserActionsModel, BrowserPanelModel, BrowserRowModel, ColumnModel,
     ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, FolderActionsModel,
-    FolderRecoveryModel, FolderRowModel, NormalizedRangeModel, ProgressOverlayModel,
-    SourceRowModel, SourcesPanelModel, StatusBarModel, WaveformPanelModel,
+    FolderRecoveryModel, FolderRowModel, MapPanelModel, MapPointModel, MapRenderModeModel,
+    NormalizedRangeModel, ProgressOverlayModel, SourceRowModel, SourcesPanelModel, StatusBarModel,
+    UpdatePanelModel, UpdateStatusModel, WaveformPanelModel,
 };
 use std::{
     collections::HashSet,
@@ -24,6 +26,7 @@ use std::{
 };
 
 const MAX_RENDERED_BROWSER_ROWS: usize = 200;
+const MAX_RENDERED_MAP_POINTS: usize = 2_500;
 
 pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
     let selected_column = selected_column_index(&controller.ui);
@@ -32,6 +35,8 @@ pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
     let status_text = controller.ui.status.text.clone();
     let status = project_status_model(&controller.ui, selected_column);
     let browser_actions = project_browser_actions_model(&controller.ui);
+    let map = project_map_model(controller);
+    let update = project_update_model(&controller.ui);
     let progress_overlay = project_progress_overlay_model(&controller.ui);
     let confirm_prompt = project_confirm_prompt_model(&controller.ui);
     let drag_overlay = project_drag_overlay_model(&controller.ui);
@@ -61,7 +66,130 @@ pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
         transport_running,
         sources,
         browser,
+        map,
         waveform,
+        update,
+    }
+}
+
+fn project_update_model(ui: &UiState) -> UpdatePanelModel {
+    let status = match ui.update.status {
+        UpdateStatus::Idle => UpdateStatusModel::Idle,
+        UpdateStatus::Checking => UpdateStatusModel::Checking,
+        UpdateStatus::UpdateAvailable => UpdateStatusModel::Available,
+        UpdateStatus::Error => UpdateStatusModel::Error,
+    };
+    UpdatePanelModel {
+        status,
+        available_tag: ui.update.available_tag.clone(),
+        available_url: ui.update.available_url.clone(),
+        last_error: ui.update.last_error.clone(),
+    }
+}
+
+fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
+    let active = matches!(controller.ui.browser.active_tab, SampleBrowserTab::Map);
+    let render_mode = match controller.ui.map.last_render_mode {
+        crate::egui_app::state::MapRenderMode::Heatmap => MapRenderModeModel::Heatmap,
+        crate::egui_app::state::MapRenderMode::Points => MapRenderModeModel::Points,
+    };
+    if !active {
+        return MapPanelModel {
+            active: false,
+            summary: String::from("Map hidden"),
+            error: None,
+            render_mode,
+            points: Vec::new(),
+        };
+    }
+
+    let source_id = controller.current_source().map(|source| source.id);
+    let umap_version = controller.ui.map.umap_version.clone();
+    let bounds =
+        match controller.umap_bounds(SIMILARITY_MODEL_ID, &umap_version, source_id.as_ref()) {
+            Ok(bounds) => bounds,
+            Err(err) => {
+                return MapPanelModel {
+                    active: true,
+                    summary: String::from("Map unavailable"),
+                    error: Some(err),
+                    render_mode,
+                    points: Vec::new(),
+                };
+            }
+        };
+    let Some(bounds) = bounds else {
+        return MapPanelModel {
+            active: true,
+            summary: String::from("No map data (run similarity prep)"),
+            error: None,
+            render_mode,
+            points: Vec::new(),
+        };
+    };
+
+    let points = match controller.umap_points_in_bounds(
+        SIMILARITY_MODEL_ID,
+        &umap_version,
+        "umap",
+        &umap_version,
+        source_id.as_ref(),
+        MapQueryBounds {
+            min_x: bounds.min_x,
+            max_x: bounds.max_x,
+            min_y: bounds.min_y,
+            max_y: bounds.max_y,
+        },
+        MAX_RENDERED_MAP_POINTS,
+    ) {
+        Ok(points) => points,
+        Err(err) => {
+            return MapPanelModel {
+                active: true,
+                summary: String::from("Map query failed"),
+                error: Some(err),
+                render_mode,
+                points: Vec::new(),
+            };
+        }
+    };
+
+    let focused_sample_id = controller.selected_sample_id();
+    let selected_sample_id = controller.ui.map.selected_sample_id.clone();
+    let denom_x = (bounds.max_x - bounds.min_x).max(1e-6);
+    let denom_y = (bounds.max_y - bounds.min_y).max(1e-6);
+    let points = points
+        .into_iter()
+        .map(|point| {
+            let x = ((point.x - bounds.min_x) / denom_x).clamp(0.0, 1.0);
+            let y = ((point.y - bounds.min_y) / denom_y).clamp(0.0, 1.0);
+            MapPointModel {
+                selected: selected_sample_id
+                    .as_deref()
+                    .is_some_and(|selected| selected == point.sample_id),
+                focused: focused_sample_id
+                    .as_deref()
+                    .is_some_and(|focused| focused == point.sample_id),
+                sample_id: point.sample_id,
+                x_milli: normalized_to_milli(x),
+                y_milli: normalized_to_milli(y),
+                cluster_id: point.cluster_id,
+            }
+        })
+        .collect::<Vec<_>>();
+    let summary = format!(
+        "{} points | zoom {:.2}x | pan ({:.0}, {:.0})",
+        points.len(),
+        controller.ui.map.zoom,
+        controller.ui.map.pan.x,
+        controller.ui.map.pan.y
+    );
+    MapPanelModel {
+        active: true,
+        summary,
+        error: None,
+        render_mode,
+        points,
     }
 }
 

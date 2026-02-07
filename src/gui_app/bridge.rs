@@ -162,6 +162,42 @@ impl SempalNativeBridge {
             .nudge_folder_selection(delta as isize, false);
     }
 
+    fn set_browser_tab(&mut self, map: bool) {
+        self.controller.ui.browser.active_tab = if map {
+            crate::egui_app::state::SampleBrowserTab::Map
+        } else {
+            crate::egui_app::state::SampleBrowserTab::List
+        };
+        self.controller.ui.map.open = map;
+    }
+
+    fn focus_map_sample(&mut self, sample_id: String) {
+        self.set_browser_tab(true);
+        self.controller.ui.map.selected_sample_id = Some(sample_id.clone());
+        self.controller.ui.map.hovered_sample_id = Some(sample_id.clone());
+        self.controller.ui.map.paint_hover_active_id = Some(sample_id.clone());
+        if let Err(err) = self.controller.focus_sample_from_map(&sample_id) {
+            self.controller.set_status(
+                format!("Map focus failed: {err}"),
+                crate::egui_app::ui::style::StatusTone::Error,
+            );
+            return;
+        }
+        if let Err(err) = self.controller.preview_sample_by_id(&sample_id) {
+            self.controller.set_status(
+                format!("Preview failed: {err}"),
+                crate::egui_app::ui::style::StatusTone::Error,
+            );
+            return;
+        }
+        if let Err(err) = self.controller.play_audio(false, None) {
+            self.controller.set_status(
+                format!("Playback failed: {err}"),
+                crate::egui_app::ui::style::StatusTone::Error,
+            );
+        }
+    }
+
     fn set_active_prompt_input(&mut self, value: String) {
         if let Some(crate::egui_app::state::SampleBrowserActionPrompt::Rename { name, .. }) =
             self.controller.ui.browser.pending_action.as_mut()
@@ -246,6 +282,8 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             UiAction::SelectAllBrowserRows => self.controller.select_all_browser_rows(),
             UiAction::SetBrowserSearch { query } => self.controller.set_browser_search(query),
+            UiAction::SetBrowserTab { map } => self.set_browser_tab(map),
+            UiAction::FocusMapSample { sample_id } => self.focus_map_sample(sample_id),
             UiAction::SetPromptInput { value } => self.set_active_prompt_input(value),
             UiAction::StartBrowserRename => self.controller.start_browser_rename(),
             UiAction::ConfirmBrowserRename => self.controller.apply_pending_browser_rename(),
@@ -300,6 +338,10 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             UiAction::Undo => self.controller.undo(),
             UiAction::Redo => self.controller.redo(),
+            UiAction::CheckForUpdates => self.controller.check_for_updates_now(),
+            UiAction::OpenUpdateLink => self.controller.open_update_link(),
+            UiAction::InstallUpdate => self.controller.install_update_and_exit(),
+            UiAction::DismissUpdate => self.controller.dismiss_update_notification(),
         }
     }
 
