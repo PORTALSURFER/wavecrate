@@ -24,8 +24,8 @@ to `radiant` (`native_vello`) as the only runtime path.
 | Browser actions | Context menus (rename/tag/delete) | Done (native action strip + bridge routing) | Radiant + Sempal |
 | Source management | Folder actions (rename/create/delete/recovery) | Done (native prompt/action flows + validation/error gating + compact recovery polish) | Radiant + Sempal |
 | Workflow overlays | Progress, drag overlays, prompts | Done (native overlay rendering + prompt/progress actions) | Radiant |
-| Update UX | In-app release notes/update prompts | In progress (native top-bar update actions now include projected status/hint labels plus check/open/install/dismiss controls) | Radiant + Sempal |
-| Map view | Cluster map interactions and rendering | In progress (native map tab now renders normalized points with click-to-focus routing plus projected legend/selection/viewport labels) | Radiant + Sempal |
+| Update UX | In-app release notes/update prompts | Done (native top-bar now consumes projected status/hint/release metadata labels with check/open/install/dismiss routing) | Radiant + Sempal |
+| Map view | Cluster map interactions and rendering | Done (native map tab now renders normalized points with click-to-focus routing plus projected legend/selection/hover/cluster/viewport labels) | Radiant + Sempal |
 
 ## P2 (post-cutover polish and expansion)
 
@@ -54,6 +54,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Native map/update projection now also carries explicit chrome labels
   (`legend/selection/viewport` for map and `status/action-hint` for updates)
   so renderer copy no longer needs update/map-specific fallback strings.
+- Native map projection now also carries explicit `hover` and `cluster` labels,
+  and update projection now carries explicit release metadata labels, so
+  map/update chrome can remain projection-driven without renderer-local strings.
 - Native browser/waveform chrome text now comes from projected host models
   (`BrowserChromeModel`, `WaveformChromeModel`) instead of renderer-local hardcoded labels.
 - Baseline geometry/copy target for legacy parity is documented in

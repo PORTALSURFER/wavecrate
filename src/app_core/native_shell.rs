@@ -111,10 +111,22 @@ fn project_update_model(ui: &UiState) -> UpdatePanelModel {
         }
         UpdateStatus::Error => String::from("Action: retry"),
     };
+    let release_notes_label = match ui.update.status {
+        UpdateStatus::UpdateAvailable => {
+            let tag = ui.update.available_tag.as_deref().unwrap_or("latest");
+            if let Some(published_at) = ui.update.available_published_at.as_deref() {
+                format!("Release: {tag} ({published_at})")
+            } else {
+                format!("Release: {tag}")
+            }
+        }
+        _ => String::new(),
+    };
     UpdatePanelModel {
         status,
         status_label,
         action_hint_label,
+        release_notes_label,
         available_tag: ui.update.available_tag.clone(),
         available_url: ui.update.available_url.clone(),
         last_error: ui.update.last_error.clone(),
@@ -137,6 +149,8 @@ fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
             summary: String::from("Map hidden"),
             legend_label: format!("Render: {render_mode_label}"),
             selection_label: String::from("Selection: —"),
+            hover_label: String::from("Hover: —"),
+            cluster_label: String::from("Clusters: —"),
             viewport_label: String::from("zoom 1.00x | pan (0, 0)"),
             error: None,
             render_mode,
@@ -155,6 +169,8 @@ fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
                     summary: String::from("Map unavailable"),
                     legend_label: format!("Render: {render_mode_label}"),
                     selection_label: String::from("Selection: unavailable"),
+                    hover_label: String::from("Hover: unavailable"),
+                    cluster_label: String::from("Clusters: unavailable"),
                     viewport_label: format!(
                         "zoom {:.2}x | pan ({:.0}, {:.0})",
                         controller.ui.map.zoom, controller.ui.map.pan.x, controller.ui.map.pan.y
@@ -171,6 +187,8 @@ fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
             summary: String::from("No map data (run similarity prep)"),
             legend_label: format!("Render: {render_mode_label}"),
             selection_label: String::from("Selection: —"),
+            hover_label: String::from("Hover: —"),
+            cluster_label: String::from("Clusters: —"),
             viewport_label: format!(
                 "zoom {:.2}x | pan ({:.0}, {:.0})",
                 controller.ui.map.zoom, controller.ui.map.pan.x, controller.ui.map.pan.y
@@ -202,6 +220,8 @@ fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
                 summary: String::from("Map query failed"),
                 legend_label: format!("Render: {render_mode_label}"),
                 selection_label: String::from("Selection: unavailable"),
+                hover_label: String::from("Hover: unavailable"),
+                cluster_label: String::from("Clusters: unavailable"),
                 viewport_label: format!(
                     "zoom {:.2}x | pan ({:.0}, {:.0})",
                     controller.ui.map.zoom, controller.ui.map.pan.x, controller.ui.map.pan.y
@@ -217,6 +237,11 @@ fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
     let selected_sample_id = controller.ui.map.selected_sample_id.clone();
     let denom_x = (bounds.max_x - bounds.min_x).max(1e-6);
     let denom_y = (bounds.max_y - bounds.min_y).max(1e-6);
+    let cluster_count = points
+        .iter()
+        .filter_map(|point| point.cluster_id)
+        .collect::<HashSet<_>>()
+        .len();
     let points = points
         .into_iter()
         .map(|point| {
@@ -250,6 +275,20 @@ fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
                 .map(|label| format!("Focus: {label}"))
         })
         .unwrap_or_else(|| String::from("Selection: —"));
+    let hover_label = controller
+        .ui
+        .map
+        .hovered_sample_id
+        .as_deref()
+        .or(controller.ui.map.paint_hover_active_id.as_deref())
+        .map(short_sample_label)
+        .map(|label| format!("Hover: {label}"))
+        .unwrap_or_else(|| String::from("Hover: —"));
+    let cluster_label = if cluster_count == 0 {
+        String::from("Clusters: —")
+    } else {
+        format!("Clusters: {cluster_count}")
+    };
     let viewport_label = format!(
         "zoom {:.2}x | pan ({:.0}, {:.0})",
         controller.ui.map.zoom, controller.ui.map.pan.x, controller.ui.map.pan.y
@@ -260,6 +299,8 @@ fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
         summary,
         legend_label: format!("Render: {render_mode_label}"),
         selection_label,
+        hover_label,
+        cluster_label,
         viewport_label,
         error: None,
         render_mode,
@@ -986,16 +1027,22 @@ mod tests {
         assert_eq!(projected.status, UpdateStatusModel::Idle);
         assert_eq!(projected.status_label, "Updates: idle");
         assert_eq!(projected.action_hint_label, "Action: check");
+        assert!(projected.release_notes_label.is_empty());
 
         ui.update.status = UpdateStatus::UpdateAvailable;
         ui.update.available_tag = Some(String::from("v20.1.0"));
         ui.update.available_url = Some(String::from("https://example.invalid/release"));
+        ui.update.available_published_at = Some(String::from("2026-02-01T12:00:00Z"));
         let projected = project_update_model(&ui);
         assert_eq!(projected.status, UpdateStatusModel::Available);
         assert_eq!(projected.status_label, "Update available: v20.1.0");
         assert_eq!(
             projected.action_hint_label,
             "Actions: open | install | dismiss"
+        );
+        assert_eq!(
+            projected.release_notes_label,
+            "Release: v20.1.0 (2026-02-01T12:00:00Z)"
         );
 
         ui.update.status = UpdateStatus::Error;
@@ -1007,6 +1054,7 @@ mod tests {
             "Update check failed: network timeout"
         );
         assert_eq!(projected.action_hint_label, "Action: retry");
+        assert!(projected.release_notes_label.is_empty());
     }
 
     #[test]
@@ -1018,11 +1066,14 @@ mod tests {
         controller.ui.map.pan.x = 12.0;
         controller.ui.map.pan.y = -8.0;
         controller.ui.map.selected_sample_id = Some(String::from("source::kick_24.wav"));
+        controller.ui.map.hovered_sample_id = Some(String::from("source::kick_hover.wav"));
 
         let projected = project_map_model(&mut controller);
         assert!(projected.active);
         assert!(projected.legend_label.starts_with("Render:"));
         assert!(projected.selection_label.contains("Selection:"));
+        assert!(projected.hover_label.contains("Hover:"));
+        assert!(projected.cluster_label.starts_with("Clusters:"));
         assert_eq!(projected.viewport_label, "zoom 1.75x | pan (12, -8)");
     }
 
