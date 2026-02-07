@@ -25,7 +25,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const MAX_RENDERED_BROWSER_ROWS: usize = 200;
+const MAX_RENDERED_BROWSER_ROWS: usize = 512;
 const MAX_RENDERED_MAP_POINTS: usize = 2_500;
 
 pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
@@ -869,21 +869,39 @@ mod tests {
     fn browser_render_window_limits_to_target_size() {
         let (start, len) = browser_render_window(500, None, None);
         assert_eq!(start, 0);
-        assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
+        assert_eq!(len, 500);
     }
 
     #[test]
     fn browser_render_window_centers_on_selected_row() {
         let (start, len) = browser_render_window(500, Some(250), None);
-        assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
-        assert_eq!(start, 150);
+        assert_eq!(len, 500);
+        assert_eq!(start, 0);
     }
 
     #[test]
     fn browser_render_window_clamps_near_end_of_visible_rows() {
         let (start, len) = browser_render_window(500, Some(490), None);
+        assert_eq!(len, 500);
+        assert_eq!(start, 0);
+    }
+
+    #[test]
+    fn browser_render_window_limits_large_visible_sets_to_cap() {
+        let (start, len) = browser_render_window(1_200, None, None);
+        assert_eq!(start, 0);
         assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
-        assert_eq!(start, 300);
+    }
+
+    #[test]
+    fn browser_render_window_centers_and_tail_clamps_for_large_visible_sets() {
+        let (center_start, center_len) = browser_render_window(1_200, Some(800), None);
+        assert_eq!(center_len, MAX_RENDERED_BROWSER_ROWS);
+        assert_eq!(center_start, 544);
+
+        let (tail_start, tail_len) = browser_render_window(1_200, Some(1_190), None);
+        assert_eq!(tail_len, MAX_RENDERED_BROWSER_ROWS);
+        assert_eq!(tail_start, 688);
     }
 
     #[test]

@@ -34,8 +34,8 @@ to `radiant` (`native_vello`) as the only runtime path.
 | Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress (classic-shell browser chrome now uses explicit tab/toolbar/search/chip/header compositions, two-row top-bar controls, stronger alternating table striping, and waveform title hierarchy refinement) | Radiant |
 | Layout contract | Tokenized header/body/footer geometry shared by paint + hit testing | In progress (browser tabs/toolbar/header/footer heights + table columns now token-driven, plus tokenized viewport/guard-rail clamps and snapshot contract metrics) | Radiant |
 | Sidebar layout | Tokenized source/folder section sizing and action controls | Done (tiered sizing and compact edge-case guards) | Radiant |
-| Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | In progress (single-table focused window + higher per-tier row caps) | Radiant |
-| Tooling | Snapshot + interaction golden tests for native shell | In progress (deterministic frame-contract + virtualization hit/geometry tests + tiered visual-density contract assertions) | Radiant + Sempal |
+| Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | In progress (single-table focused window + higher per-tier row caps + tail-clamp/focus-preservation checks on 1k+ rows) | Radiant |
+| Tooling | Snapshot + interaction golden tests for native shell | In progress (deterministic frame-contract + virtualization hit/geometry tests + tiered visual-density and large-dataset determinism assertions) | Radiant + Sempal |
 
 ## Migration notes
 
@@ -64,6 +64,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Native browser table now uses higher-contrast alternating row striping and refined bucket-chip
   blend levels to better match classic list readability, and waveform title text uses primary
   hierarchy emphasis instead of muted metadata styling.
+- Browser projection/render windows now target larger native-shell stress sets
+  (`MAX_RENDERED_BROWSER_ROWS` 512 in host projection and higher per-tier native row caps),
+  with explicit tests for tail clamping, focus preservation, and deterministic large-dataset frames.
 - Installer/updater binaries still use the `egui` host path and are tracked separately.
 
 ## Classic Baseline Layout Contract (v2)
