@@ -21,9 +21,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 
 | Area | Capability | Current state | Owner target |
 | --- | --- | --- | --- |
-| Browser actions | Context menus (rename/tag/delete) | Not yet in native shell | Radiant + Sempal |
-| Source management | Folder actions (rename/create/delete/recovery) | Not yet in native shell | Radiant + Sempal |
-| Workflow overlays | Progress, drag overlays, prompts | Partial (legacy implementation remains in old modules) | Radiant |
+| Browser actions | Context menus (rename/tag/delete) | Done (native action strip + bridge routing) | Radiant + Sempal |
+| Source management | Folder actions (rename/create/delete/recovery) | Partial (native folder rows + actions wired; text-edit parity still pending) | Radiant + Sempal |
+| Workflow overlays | Progress, drag overlays, prompts | Done (native overlay rendering + prompt/progress actions) | Radiant |
 | Update UX | In-app release notes/update prompts | Legacy-only ancillary UI | Radiant + Sempal |
 | Map view | Cluster map interactions and rendering | Legacy-only modules | Radiant + Sempal |
 
@@ -33,6 +33,7 @@ to `radiant` (`native_vello`) as the only runtime path.
 | --- | --- | --- | --- |
 | Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress | Radiant |
 | Layout contract | Tokenized header/body/footer geometry shared by paint + hit testing | Done | Radiant |
+| Sidebar layout | Tokenized source/folder section sizing and action controls | In progress | Radiant |
 | Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | Baseline only | Radiant |
 | Tooling | Snapshot + interaction golden tests for native shell | Partial | Radiant + Sempal |
 

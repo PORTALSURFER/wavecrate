@@ -14,8 +14,9 @@ use crate::{
 };
 use radiant::app::{
     AppModel, BrowserActionsModel, BrowserPanelModel, BrowserRowModel, ColumnModel,
-    ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, NormalizedRangeModel,
-    ProgressOverlayModel, SourceRowModel, SourcesPanelModel, StatusBarModel, WaveformPanelModel,
+    ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, FolderActionsModel,
+    FolderRecoveryModel, FolderRowModel, NormalizedRangeModel, ProgressOverlayModel,
+    SourceRowModel, SourcesPanelModel, StatusBarModel, WaveformPanelModel,
 };
 use std::collections::HashSet;
 
@@ -224,10 +225,18 @@ pub(crate) fn selection_range_from_milli(start_milli: u16, end_milli: u16) -> Se
 }
 
 fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
+    let focused_folder = ui
+        .sources
+        .folders
+        .focused
+        .and_then(|index| ui.sources.folders.rows.get(index).cloned());
+    let can_manage_folder = focused_folder.as_ref().is_some_and(|row| !row.is_root);
     SourcesPanelModel {
         header: format!("Sources ({})", ui.sources.rows.len()),
         search_query: ui.sources.folders.search_query.clone(),
+        folder_search_query: ui.sources.folders.search_query.clone(),
         selected_row: ui.sources.selected,
+        focused_folder_row: ui.sources.folders.focused,
         rows: ui
             .sources
             .rows
@@ -244,6 +253,39 @@ fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
                 )
             })
             .collect(),
+        folder_rows: ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .enumerate()
+            .map(|(row_index, row)| {
+                FolderRowModel::new(
+                    row.name.clone(),
+                    row.path.display().to_string(),
+                    row.depth,
+                    row.selected,
+                    ui.sources
+                        .folders
+                        .focused
+                        .is_some_and(|focused| focused == row_index),
+                    row.is_root,
+                    row.has_children,
+                    row.expanded,
+                )
+            })
+            .collect(),
+        folder_actions: FolderActionsModel {
+            can_create_folder: ui.sources.selected.is_some(),
+            can_create_folder_at_root: ui.sources.selected.is_some(),
+            can_rename_folder: can_manage_folder,
+            can_delete_folder: can_manage_folder,
+            can_clear_recovery_log: !ui.sources.folders.delete_recovery.entries.is_empty(),
+        },
+        folder_recovery: FolderRecoveryModel {
+            in_progress: ui.sources.folders.delete_recovery.in_progress,
+            entry_count: ui.sources.folders.delete_recovery.entries.len(),
+        },
     }
 }
 
@@ -453,5 +495,52 @@ mod tests {
         assert!(projected.cancel_requested);
         assert_eq!(projected.completed, 3);
         assert_eq!(projected.total, 9);
+    }
+
+    #[test]
+    fn folder_actions_require_non_root_focus_for_destructive_actions() {
+        let mut ui = UiState::default();
+        ui.sources.selected = Some(0);
+        ui.sources
+            .folders
+            .rows
+            .push(crate::egui_app::state::FolderRowView {
+                path: std::path::PathBuf::new(),
+                name: String::from("Root"),
+                depth: 0,
+                has_children: true,
+                expanded: true,
+                selected: false,
+                negated: false,
+                hotkey: None,
+                is_root: true,
+                root_filter_mode: None,
+            });
+        ui.sources.folders.focused = Some(0);
+        let projected = project_sources_model(&ui);
+        assert!(projected.folder_actions.can_create_folder);
+        assert!(projected.folder_actions.can_create_folder_at_root);
+        assert!(!projected.folder_actions.can_rename_folder);
+        assert!(!projected.folder_actions.can_delete_folder);
+
+        ui.sources
+            .folders
+            .rows
+            .push(crate::egui_app::state::FolderRowView {
+                path: std::path::PathBuf::from("drums"),
+                name: String::from("drums"),
+                depth: 1,
+                has_children: false,
+                expanded: false,
+                selected: true,
+                negated: false,
+                hotkey: None,
+                is_root: false,
+                root_filter_mode: None,
+            });
+        ui.sources.folders.focused = Some(1);
+        let projected = project_sources_model(&ui);
+        assert!(projected.folder_actions.can_rename_folder);
+        assert!(projected.folder_actions.can_delete_folder);
     }
 }

@@ -127,6 +127,11 @@ impl SempalNativeBridge {
         }
         self.controller.cancel_folder_rename();
     }
+
+    fn move_folder_focus(&mut self, delta: i8) {
+        self.controller
+            .nudge_folder_selection(delta as isize, false);
+    }
 }
 
 impl NativeAppBridge for SempalNativeBridge {
@@ -153,6 +158,15 @@ impl NativeAppBridge for SempalNativeBridge {
             UiAction::FocusBrowserSearch => self.controller.focus_browser_search(),
             UiAction::FocusFolderSearch => self.controller.focus_folder_search(),
             UiAction::SelectSourceRow { index } => self.controller.select_source_by_index(index),
+            UiAction::FocusFolderRow { index } => self.controller.focus_folder_row(index),
+            UiAction::MoveFolderFocus { delta } => self.move_folder_focus(delta),
+            UiAction::StartNewFolder => self.controller.start_new_folder(),
+            UiAction::StartNewFolderAtRoot => self.controller.start_new_folder_at_root(),
+            UiAction::StartFolderRename => self.controller.start_folder_rename(),
+            UiAction::DeleteFocusedFolder => self.controller.delete_focused_folder(),
+            UiAction::ClearFolderDeleteRecoveryLog => {
+                self.controller.clear_folder_delete_recovery_log()
+            }
             UiAction::MoveBrowserFocus { delta } => self.move_browser_focus(delta),
             UiAction::FocusBrowserRow { visible_row } => {
                 self.controller.focus_browser_row(visible_row)
