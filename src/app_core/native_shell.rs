@@ -4,10 +4,10 @@
 //! backend-neutral `radiant::app` models and to translate normalized UI ranges
 //! back into controller-domain selection math.
 
+use super::controller::AppController;
 use crate::{
     analysis::similarity::SIMILARITY_MODEL_ID,
     egui_app::{
-        controller::EguiController,
         state::{MapQueryBounds, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus},
         view_model,
     },
@@ -28,7 +28,7 @@ use std::{
 const MAX_RENDERED_BROWSER_ROWS: usize = 512;
 const MAX_RENDERED_MAP_POINTS: usize = 2_500;
 
-pub(crate) fn project_app_model(controller: &mut EguiController) -> AppModel {
+pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
     let selected_column = selected_column_index(&controller.ui);
     let transport_running = controller.is_playing();
     let sources = project_sources_model(&controller.ui);
@@ -133,7 +133,7 @@ fn project_update_model(ui: &UiState) -> UpdatePanelModel {
     }
 }
 
-fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
+fn project_map_model(controller: &mut AppController) -> MapPanelModel {
     let active = matches!(controller.ui.browser.active_tab, SampleBrowserTab::Map);
     let render_mode = match controller.ui.map.last_render_mode {
         crate::egui_app::state::MapRenderMode::Heatmap => MapRenderModeModel::Heatmap,
@@ -599,7 +599,7 @@ fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
     }
 }
 
-fn project_browser_model(controller: &mut EguiController) -> BrowserPanelModel {
+fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
     let visible = controller.ui.browser.visible.clone();
     let selected_visible_row = controller.ui.browser.selected_visible;
     let selected_path_count = controller.ui.browser.selected_paths.len();
@@ -764,7 +764,7 @@ fn browser_column_index(tag: crate::sample_sources::Rating) -> usize {
 }
 
 fn browser_bucket_label(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     relative_path: &Path,
     tag: crate::sample_sources::Rating,
 ) -> String {
@@ -964,7 +964,7 @@ mod tests {
     #[test]
     fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
         let mut controller =
-            EguiController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+            AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
         controller.ui.browser.sort = crate::egui_app::state::SampleBrowserSort::PlaybackAgeDesc;
         controller.ui.browser.active_tab = crate::egui_app::state::SampleBrowserTab::Map;
         let projected = project_browser_model(&mut controller);
@@ -1060,7 +1060,7 @@ mod tests {
     #[test]
     fn map_projection_exposes_legend_selection_and_viewport_labels() {
         let mut controller =
-            EguiController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+            AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
         controller.ui.browser.active_tab = crate::egui_app::state::SampleBrowserTab::Map;
         controller.ui.map.zoom = 1.75;
         controller.ui.map.pan.x = 12.0;

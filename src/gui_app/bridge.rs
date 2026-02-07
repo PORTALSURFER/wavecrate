@@ -1,12 +1,12 @@
 //! Native runtime bridge between sempal controller state and `radiant`.
 
 use crate::{
+    app_core::controller::AppController,
     app_core::native_shell::{
         browser_focus_target, normalized_from_milli, project_app_model, selected_column_index,
         selection_range_from_milli,
     },
     audio::AudioPlayer,
-    egui_app::controller::EguiController,
     waveform::WaveformRenderer,
 };
 use radiant::app::{AppModel, BrowserTagTarget, FrameBuildResult, NativeAppBridge, UiAction};
@@ -14,7 +14,7 @@ use std::{cell::RefCell, rc::Rc};
 
 /// Host bridge used by the native `radiant` runtime.
 pub struct SempalNativeBridge {
-    controller: EguiController,
+    controller: AppController,
 }
 
 impl SempalNativeBridge {
@@ -25,7 +25,7 @@ impl SempalNativeBridge {
     ) -> Result<Self, String> {
         let cfg = crate::sample_sources::config::load_or_default()
             .map_err(|err| format!("Failed to load config: {err}"))?;
-        let mut controller = EguiController::new_with_job_message_queue_capacity(
+        let mut controller = AppController::new_with_job_message_queue_capacity(
             renderer,
             player,
             cfg.core.job_message_queue_capacity as usize,
