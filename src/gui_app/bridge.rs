@@ -1,7 +1,7 @@
 //! Native runtime bridge between sempal controller state and `radiant`.
 
 use crate::{
-    app_core::controller::AppController,
+    app_core::controller::{AppController, AppControllerStatusExt},
     app_core::native_shell::{
         browser_focus_target, normalized_from_milli, project_app_model, selected_column_index,
         selection_range_from_milli,
@@ -112,8 +112,7 @@ impl SempalNativeBridge {
                         }
                         Err(err) => {
                             self.controller.ui.sources.folders.rename_focus_requested = true;
-                            self.controller
-                                .set_status(err, crate::app_core::state::StatusTone::Error);
+                            self.controller.set_error_status(err);
                         }
                     }
                     return;
@@ -132,8 +131,7 @@ impl SempalNativeBridge {
                             {
                                 new_folder.focus_requested = true;
                             }
-                            self.controller
-                                .set_status(err, crate::app_core::state::StatusTone::Error);
+                            self.controller.set_error_status(err);
                         }
                     }
                 }
@@ -177,24 +175,18 @@ impl SempalNativeBridge {
         self.controller.ui.map.hovered_sample_id = Some(sample_id.clone());
         self.controller.ui.map.paint_hover_active_id = Some(sample_id.clone());
         if let Err(err) = self.controller.focus_sample_from_map(&sample_id) {
-            self.controller.set_status(
-                format!("Map focus failed: {err}"),
-                crate::app_core::state::StatusTone::Error,
-            );
+            self.controller
+                .set_error_status(format!("Map focus failed: {err}"));
             return;
         }
         if let Err(err) = self.controller.preview_sample_by_id(&sample_id) {
-            self.controller.set_status(
-                format!("Preview failed: {err}"),
-                crate::app_core::state::StatusTone::Error,
-            );
+            self.controller
+                .set_error_status(format!("Preview failed: {err}"));
             return;
         }
         if let Err(err) = self.controller.play_audio(false, None) {
-            self.controller.set_status(
-                format!("Playback failed: {err}"),
-                crate::app_core::state::StatusTone::Error,
-            );
+            self.controller
+                .set_error_status(format!("Playback failed: {err}"));
         }
     }
 

@@ -6,3 +6,18 @@
 
 /// Transitional controller type used by native runtime bridges and migration CLIs.
 pub type AppController = crate::egui_app::controller::EguiController;
+
+/// Backend-neutral status helpers for migration-facing runtime code.
+pub trait AppControllerStatusExt {
+    /// Set an error status message on the controller.
+    ///
+    /// This keeps native-bridge code independent from legacy UI status-tone
+    /// enums while migration is in progress.
+    fn set_error_status(&mut self, message: impl Into<String>);
+}
+
+impl AppControllerStatusExt for AppController {
+    fn set_error_status(&mut self, message: impl Into<String>) {
+        self.set_status(message, crate::egui_app::ui::style::StatusTone::Error);
+    }
+}

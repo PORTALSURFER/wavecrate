@@ -41,5 +41,3 @@ pub type FolderDeleteRecoveryEntry = crate::egui_app::state::FolderDeleteRecover
 pub type FolderDeleteRecoveryAction = crate::egui_app::state::FolderDeleteRecoveryAction;
 /// Alias for folder delete recovery status state.
 pub type FolderDeleteRecoveryStatus = crate::egui_app::state::FolderDeleteRecoveryStatus;
-/// Alias for status tone values used by controller status updates.
-pub type StatusTone = crate::egui_app::ui::style::StatusTone;
