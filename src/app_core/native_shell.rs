@@ -212,7 +212,8 @@ fn project_map_model(controller: &mut AppController) -> MapPanelModel {
             max_x: bounds.max_x,
             min_y: bounds.min_y,
             max_y: bounds.max_y,
-        },
+        }
+        .into(),
         MAX_RENDERED_MAP_POINTS,
     ) {
         Ok(points) => points,
@@ -439,7 +440,8 @@ fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
     if !active {
         return DragOverlayModel::default();
     }
-    let target_label = match &ui.drag.active_target {
+    let active_target = crate::app_core::state::DragTarget::from(ui.drag.active_target.clone());
+    let target_label = match &active_target {
         crate::app_core::state::DragTarget::None => String::from("No target"),
         crate::app_core::state::DragTarget::BrowserTriage(column) => match TriageFlagColumn::from(*column) {
             TriageFlagColumn::Trash => String::from("Trash column"),
@@ -461,10 +463,7 @@ fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
         active,
         label: ui.drag.label.clone(),
         target_label,
-        valid_target: !matches!(
-            ui.drag.active_target,
-            crate::app_core::state::DragTarget::None
-        ),
+        valid_target: !matches!(active_target, crate::app_core::state::DragTarget::None),
     }
 }
 

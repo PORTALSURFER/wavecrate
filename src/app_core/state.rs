@@ -7,8 +7,40 @@
 
 /// Alias for the legacy UI state root during migration.
 pub type UiState = crate::app::state::UiState;
-/// Alias for map query bounds in similarity map projection.
-pub type MapQueryBounds = crate::app::state::MapQueryBounds;
+/// Bounds used to query visible points in the map projection.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MapQueryBounds {
+    /// Minimum X coordinate for query.
+    pub min_x: f32,
+    /// Maximum X coordinate for query.
+    pub max_x: f32,
+    /// Minimum Y coordinate for query.
+    pub min_y: f32,
+    /// Maximum Y coordinate for query.
+    pub max_y: f32,
+}
+
+impl From<crate::app::state::MapQueryBounds> for MapQueryBounds {
+    fn from(value: crate::app::state::MapQueryBounds) -> Self {
+        Self {
+            min_x: value.min_x,
+            max_x: value.max_x,
+            min_y: value.min_y,
+            max_y: value.max_y,
+        }
+    }
+}
+
+impl From<MapQueryBounds> for crate::app::state::MapQueryBounds {
+    fn from(value: MapQueryBounds) -> Self {
+        Self {
+            min_x: value.min_x,
+            max_x: value.max_x,
+            min_y: value.min_y,
+            max_y: value.max_y,
+        }
+    }
+}
 /// Browser tab selection state used by migration-facing consumers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SampleBrowserTab {
@@ -187,8 +219,60 @@ impl From<FolderActionPrompt> for crate::app::state::FolderActionPrompt {
         }
     }
 }
-/// Alias for drag-and-drop target state.
-pub type DragTarget = crate::app::state::DragTarget;
+/// Unified drag target variants projected for migration-facing views.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DragTarget {
+    /// No active target.
+    None,
+    /// Browser triage column target.
+    BrowserTriage(TriageFlagColumn),
+    /// Sources row target.
+    SourcesRow(crate::sample_sources::SourceId),
+    /// Folder panel target (optional path).
+    FolderPanel {
+        /// Optional folder path hovered.
+        folder: Option<std::path::PathBuf>,
+    },
+    /// Drop target row.
+    DropTarget {
+        /// Path for the drop target.
+        path: std::path::PathBuf,
+    },
+    /// Drop targets panel background.
+    DropTargetsPanel,
+    /// External target outside the app.
+    External,
+}
+
+impl From<crate::app::state::DragTarget> for DragTarget {
+    fn from(value: crate::app::state::DragTarget) -> Self {
+        match value {
+            crate::app::state::DragTarget::None => Self::None,
+            crate::app::state::DragTarget::BrowserTriage(column) => {
+                Self::BrowserTriage(column.into())
+            }
+            crate::app::state::DragTarget::SourcesRow(id) => Self::SourcesRow(id),
+            crate::app::state::DragTarget::FolderPanel { folder } => Self::FolderPanel { folder },
+            crate::app::state::DragTarget::DropTarget { path } => Self::DropTarget { path },
+            crate::app::state::DragTarget::DropTargetsPanel => Self::DropTargetsPanel,
+            crate::app::state::DragTarget::External => Self::External,
+        }
+    }
+}
+
+impl From<DragTarget> for crate::app::state::DragTarget {
+    fn from(value: DragTarget) -> Self {
+        match value {
+            DragTarget::None => Self::None,
+            DragTarget::BrowserTriage(column) => Self::BrowserTriage(column.into()),
+            DragTarget::SourcesRow(id) => Self::SourcesRow(id),
+            DragTarget::FolderPanel { folder } => Self::FolderPanel { folder },
+            DragTarget::DropTarget { path } => Self::DropTarget { path },
+            DragTarget::DropTargetsPanel => Self::DropTargetsPanel,
+            DragTarget::External => Self::External,
+        }
+    }
+}
 /// Browser sort mode used by migration-facing projections and bridge actions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SampleBrowserSort {
