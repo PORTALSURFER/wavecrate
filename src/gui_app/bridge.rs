@@ -92,10 +92,17 @@ impl SempalNativeBridge {
     }
 
     fn confirm_active_prompt(&mut self) {
-        match self.controller.ui.waveform.pending_destructive.clone() {
+        match self
+            .controller
+            .ui
+            .waveform
+            .pending_destructive
+            .clone()
+            .map(crate::app_core::state::DestructiveEditPrompt::from)
+        {
             Some(prompt) => {
                 self.controller
-                    .apply_confirmed_destructive_edit(prompt.edit);
+                    .apply_confirmed_destructive_edit(prompt.edit.into());
             }
             None => {
                 if self.controller.ui.browser.pending_action.is_some() {

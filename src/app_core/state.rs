@@ -271,10 +271,91 @@ impl From<VisibleRows> for crate::app::state::VisibleRows {
         }
     }
 }
-/// Alias for destructive edit prompt state.
-pub type DestructiveEditPrompt = crate::app::state::DestructiveEditPrompt;
-/// Alias for destructive waveform edit enum.
-pub type DestructiveSelectionEdit = crate::app::state::DestructiveSelectionEdit;
+/// Destructive selection edits that overwrite audio on disk.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DestructiveSelectionEdit {
+    /// Crop the selection and discard the rest.
+    CropSelection,
+    /// Trim everything outside the selection.
+    TrimSelection,
+    /// Reverse the selected audio.
+    ReverseSelection,
+    /// Apply a left-to-right fade.
+    FadeLeftToRight,
+    /// Apply a right-to-left fade.
+    FadeRightToLeft,
+    /// Apply short fade-in/out ramps at the selection edges to reduce clicks.
+    ShortEdgeFades,
+    /// Mute the selection.
+    MuteSelection,
+    /// Normalize the selection.
+    NormalizeSelection,
+    /// Attempt to remove clicks in the selection.
+    ClickRemoval,
+}
+
+impl From<crate::app::state::DestructiveSelectionEdit> for DestructiveSelectionEdit {
+    fn from(value: crate::app::state::DestructiveSelectionEdit) -> Self {
+        match value {
+            crate::app::state::DestructiveSelectionEdit::CropSelection => Self::CropSelection,
+            crate::app::state::DestructiveSelectionEdit::TrimSelection => Self::TrimSelection,
+            crate::app::state::DestructiveSelectionEdit::ReverseSelection => Self::ReverseSelection,
+            crate::app::state::DestructiveSelectionEdit::FadeLeftToRight => Self::FadeLeftToRight,
+            crate::app::state::DestructiveSelectionEdit::FadeRightToLeft => Self::FadeRightToLeft,
+            crate::app::state::DestructiveSelectionEdit::ShortEdgeFades => Self::ShortEdgeFades,
+            crate::app::state::DestructiveSelectionEdit::MuteSelection => Self::MuteSelection,
+            crate::app::state::DestructiveSelectionEdit::NormalizeSelection => Self::NormalizeSelection,
+            crate::app::state::DestructiveSelectionEdit::ClickRemoval => Self::ClickRemoval,
+        }
+    }
+}
+
+impl From<DestructiveSelectionEdit> for crate::app::state::DestructiveSelectionEdit {
+    fn from(value: DestructiveSelectionEdit) -> Self {
+        match value {
+            DestructiveSelectionEdit::CropSelection => Self::CropSelection,
+            DestructiveSelectionEdit::TrimSelection => Self::TrimSelection,
+            DestructiveSelectionEdit::ReverseSelection => Self::ReverseSelection,
+            DestructiveSelectionEdit::FadeLeftToRight => Self::FadeLeftToRight,
+            DestructiveSelectionEdit::FadeRightToLeft => Self::FadeRightToLeft,
+            DestructiveSelectionEdit::ShortEdgeFades => Self::ShortEdgeFades,
+            DestructiveSelectionEdit::MuteSelection => Self::MuteSelection,
+            DestructiveSelectionEdit::NormalizeSelection => Self::NormalizeSelection,
+            DestructiveSelectionEdit::ClickRemoval => Self::ClickRemoval,
+        }
+    }
+}
+
+/// Confirmation prompt content for destructive edits.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DestructiveEditPrompt {
+    /// Edit type that will be applied.
+    pub edit: DestructiveSelectionEdit,
+    /// Prompt title text.
+    pub title: String,
+    /// Prompt body text.
+    pub message: String,
+}
+
+impl From<crate::app::state::DestructiveEditPrompt> for DestructiveEditPrompt {
+    fn from(value: crate::app::state::DestructiveEditPrompt) -> Self {
+        Self {
+            edit: value.edit.into(),
+            title: value.title,
+            message: value.message,
+        }
+    }
+}
+
+impl From<DestructiveEditPrompt> for crate::app::state::DestructiveEditPrompt {
+    fn from(value: DestructiveEditPrompt) -> Self {
+        Self {
+            edit: value.edit.into(),
+            title: value.title,
+            message: value.message,
+        }
+    }
+}
 /// Alias for inline folder creation state.
 pub type InlineFolderCreation = crate::app::state::InlineFolderCreation;
 /// Alias for folder row projection state.

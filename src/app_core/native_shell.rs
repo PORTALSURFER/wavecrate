@@ -412,12 +412,17 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             input_error,
         };
     }
-    if let Some(prompt) = ui.waveform.pending_destructive.as_ref() {
+    if let Some(prompt) = ui
+        .waveform
+        .pending_destructive
+        .clone()
+        .map(crate::app_core::state::DestructiveEditPrompt::from)
+    {
         return ConfirmPromptModel {
             visible: true,
             kind: Some(ConfirmPromptKind::DestructiveEdit),
-            title: prompt.title.clone(),
-            message: prompt.message.clone(),
+            title: prompt.title,
+            message: prompt.message,
             confirm_label: String::from("Apply"),
             cancel_label: String::from("Cancel"),
             target_label: None,
@@ -1115,11 +1120,14 @@ mod tests {
             }
             .into(),
         );
-        ui.waveform.pending_destructive = Some(crate::app_core::state::DestructiveEditPrompt {
-            edit: crate::app_core::state::DestructiveSelectionEdit::TrimSelection,
-            title: String::from("Trim selection"),
-            message: String::from("Apply trim?"),
-        });
+        ui.waveform.pending_destructive = Some(
+            crate::app_core::state::DestructiveEditPrompt {
+                edit: crate::app_core::state::DestructiveSelectionEdit::TrimSelection,
+                title: String::from("Trim selection"),
+                message: String::from("Apply trim?"),
+            }
+            .into(),
+        );
         let projected = project_confirm_prompt_model(&ui);
         assert!(projected.visible);
         assert_eq!(projected.kind, Some(ConfirmPromptKind::BrowserRename));
