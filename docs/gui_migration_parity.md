@@ -31,11 +31,11 @@ to `radiant` (`native_vello`) as the only runtime path.
 
 | Area | Capability | Current state | Owner target |
 | --- | --- | --- | --- |
-| Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress (classic-shell browser chrome now uses explicit tab/toolbar/search/chip/header compositions, two-row top-bar controls, stronger alternating table striping, and waveform title hierarchy refinement) | Radiant |
-| Layout contract | Tokenized header/body/footer geometry shared by paint + hit testing | In progress (browser tabs/toolbar/header/footer heights + table columns now token-driven, plus tokenized viewport/guard-rail clamps and snapshot contract metrics) | Radiant |
+| Rendering polish | Motion/styling refinement inspired by Xilem/Vello | Done (map/update header chrome now keeps metadata inside tokenized bands while preserving projected copy hierarchy, with compact footer metadata fallbacks for dense viewports) | Radiant |
+| Layout contract | Tokenized header/body/footer geometry shared by paint + hit testing | Done (top-bar cluster reserve assertions and single-line browser-header metadata capacity checks now enforce tokenized non-overlap contracts across compact/standard/wide tiers) | Radiant |
 | Sidebar layout | Tokenized source/folder section sizing and action controls | Done (tiered sizing and compact edge-case guards) | Radiant |
-| Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | In progress (single-table focused window + higher per-tier row caps + tail-clamp/focus-preservation checks on 1k+ rows) | Radiant |
-| Tooling | Snapshot + interaction golden tests for native shell | In progress (deterministic frame-contract + virtualization hit/geometry tests + tiered visual-density and large-dataset determinism assertions) | Radiant + Sempal |
+| Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | Done (5k-row virtualization now validates focus/tail preservation and deterministic frame rebuilds across compact/standard/wide tiers) | Radiant |
+| Tooling | Snapshot + interaction golden tests for native shell | Done (tiered contract tests now include map/update header-band fit checks plus 5k-row deterministic virtualization assertions) | Radiant + Sempal |
 
 ## Migration notes
 
@@ -67,6 +67,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Native browser table now uses higher-contrast alternating row striping and refined bucket-chip
   blend levels to better match classic list readability, and waveform title text uses primary
   hierarchy emphasis instead of muted metadata styling.
+- Native map/update header metadata now uses single-band compact composition so projected labels
+  remain inside tokenized header/control rows in dense viewports, with hover/cluster/viewport
+  details consolidated into footer metadata lines.
 - Browser projection/render windows now target larger native-shell stress sets
   (`MAX_RENDERED_BROWSER_ROWS` 512 in host projection and higher per-tier native row caps),
   with explicit tests for tail clamping, focus preservation, and deterministic large-dataset frames.
