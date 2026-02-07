@@ -48,7 +48,20 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Browser chrome now renders explicit search + state/sort chips and tokenized table columns (`#`, `Sample`, `Bucket`) instead of a single placeholder toolbar/header text line.
 - Top bar now uses a tokenized split layout (title row + controls row) with explicit options/volume meter geometry instead of hardcoded text offsets.
 - Projection now supplies native render hints for browser tab/sort/search labels and waveform tempo/zoom labels to avoid hardcoded placeholder copy.
+- Browser rows now support explicit bucket labels in native projections (for example BPM badges) instead of relying only on coarse column tags.
 - Installer/updater binaries still use the `egui` host path and are tracked separately.
+
+## Classic Baseline Layout Contract (v1)
+
+The native shell is now tuned against the classic Sempal density baseline:
+
+- narrower sidebar ratio and tighter frame gaps in the standard viewport tier,
+- denser browser row rhythm with tighter tab/toolbar/header/footer bands,
+- compact typography cadence across row labels and metadata text,
+- per-row bucket chip labels sourced from projection metadata (e.g. BPM badges).
+
+This contract is enforced by native-shell style tests in `vendor/radiant/src/gui/native_shell/style.rs`
+and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
 
 ## Source Management Polish Checklist
 

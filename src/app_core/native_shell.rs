@@ -374,22 +374,31 @@ fn project_browser_model(controller: &mut EguiController) -> BrowserPanelModel {
             continue;
         };
         if let Some(entry) = controller.wav_entry(absolute_index) {
+            let relative_path = entry.relative_path.clone();
+            let entry_tag = entry.tag;
             let selected = selected_paths.contains(&entry.relative_path);
-            rows.push(BrowserRowModel::new(
-                visible_row,
-                view_model::sample_display_label(&entry.relative_path),
-                browser_column_index(entry.tag),
-                selected,
-                selected_visible_row.is_some_and(|focused| focused == visible_row),
-            ));
+            let bucket_label = browser_bucket_label(controller, &relative_path, entry_tag);
+            rows.push(
+                BrowserRowModel::new(
+                    visible_row,
+                    view_model::sample_display_label(&relative_path),
+                    browser_column_index(entry_tag),
+                    selected,
+                    selected_visible_row.is_some_and(|focused| focused == visible_row),
+                )
+                .with_bucket_label(bucket_label),
+            );
         } else {
-            rows.push(BrowserRowModel::new(
-                visible_row,
-                format!("row {}", visible_row + 1),
-                1,
-                false,
-                selected_visible_row.is_some_and(|focused| focused == visible_row),
-            ));
+            rows.push(
+                BrowserRowModel::new(
+                    visible_row,
+                    format!("row {}", visible_row + 1),
+                    1,
+                    false,
+                    selected_visible_row.is_some_and(|focused| focused == visible_row),
+                )
+                .with_bucket_label(String::from("SAMPLE")),
+            );
         }
     }
 
@@ -431,8 +440,7 @@ fn browser_render_window(
 }
 
 fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
-    let view_span = (ui.waveform.view.end - ui.waveform.view.start)
-        .clamp(0.000_1, 1.0) as f32;
+    let view_span = (ui.waveform.view.end - ui.waveform.view.start).clamp(0.000_1, 1.0) as f32;
     let zoom_percent = (100.0 / view_span).round().clamp(100.0, 9999.0);
     WaveformPanelModel {
         loaded_label: ui
@@ -466,6 +474,33 @@ fn browser_column_index(tag: crate::sample_sources::Rating) -> usize {
         2
     } else {
         1
+    }
+}
+
+fn browser_bucket_label(
+    controller: &mut EguiController,
+    relative_path: &Path,
+    tag: crate::sample_sources::Rating,
+) -> String {
+    if let Some(bpm) = controller.bpm_value_for_path(relative_path) {
+        return format_bpm_badge_label(bpm);
+    }
+    match browser_column_index(tag) {
+        0 => String::from("TRASH"),
+        2 => String::from("KEEP"),
+        _ => String::from("SAMPLE"),
+    }
+}
+
+fn format_bpm_badge_label(bpm: f32) -> String {
+    if !bpm.is_finite() || bpm <= 0.0 {
+        return String::from("SAMPLE");
+    }
+    let rounded = bpm.round();
+    if (bpm - rounded).abs() < 0.05 {
+        format!("{rounded:.0} BPM")
+    } else {
+        format!("{bpm:.1} BPM")
     }
 }
 
@@ -624,10 +659,8 @@ mod tests {
 
     #[test]
     fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
-        let mut controller = EguiController::new(
-            crate::waveform::WaveformRenderer::new(32, 32),
-            None,
-        );
+        let mut controller =
+            EguiController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
         controller.ui.browser.sort = crate::egui_app::state::SampleBrowserSort::PlaybackAgeDesc;
         controller.ui.browser.active_tab = crate::egui_app::state::SampleBrowserTab::Map;
         let projected = project_browser_model(&mut controller);
@@ -636,7 +669,10 @@ mod tests {
             Some("Search samples (Ctrl+F)")
         );
         assert_eq!(projected.sort_label.as_deref(), Some("Playback age ↓"));
-        assert_eq!(projected.active_tab_label.as_deref(), Some("Similarity map"));
+        assert_eq!(
+            projected.active_tab_label.as_deref(),
+            Some("Similarity map")
+        );
     }
 
     #[test]
