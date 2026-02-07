@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::controller::library::analysis_jobs;
+use crate::app::state::SampleBrowserTab;
 use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 use std::collections::HashMap;
@@ -19,6 +20,24 @@ pub(crate) struct UmapPoint {
 }
 
 impl EguiController {
+    /// Switch between browser list/map tabs and keep map visibility in sync.
+    pub fn set_browser_tab(&mut self, map: bool) {
+        self.ui.browser.active_tab = if map {
+            SampleBrowserTab::Map
+        } else {
+            SampleBrowserTab::List
+        };
+        self.ui.map.open = map;
+    }
+
+    /// Stage map focus/hover ids before resolving sample focus and preview.
+    pub fn stage_map_sample_focus(&mut self, sample_id: &str) {
+        let sample_id = sample_id.to_string();
+        self.ui.map.selected_sample_id = Some(sample_id.clone());
+        self.ui.map.hovered_sample_id = Some(sample_id.clone());
+        self.ui.map.paint_hover_active_id = Some(sample_id);
+    }
+
     /// Open the map view panel.
     pub fn open_map(&mut self) {
         self.ui.map.open = true;

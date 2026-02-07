@@ -174,20 +174,12 @@ impl SempalNativeBridge {
     }
 
     fn set_browser_tab(&mut self, map: bool) {
-        self.controller.ui.browser.active_tab = if map {
-            crate::app_core::state::SampleBrowserTab::Map
-        } else {
-            crate::app_core::state::SampleBrowserTab::List
-        }
-        .into();
-        self.controller.ui.map.open = map;
+        self.controller.set_browser_tab(map);
     }
 
     fn focus_map_sample(&mut self, sample_id: String) {
         self.set_browser_tab(true);
-        self.controller.ui.map.selected_sample_id = Some(sample_id.clone());
-        self.controller.ui.map.hovered_sample_id = Some(sample_id.clone());
-        self.controller.ui.map.paint_hover_active_id = Some(sample_id.clone());
+        self.controller.stage_map_sample_focus(&sample_id);
         if let Err(err) = self.controller.focus_sample_from_map(&sample_id) {
             AppControllerStatusExt::set_error_status(
                 &mut self.controller,
