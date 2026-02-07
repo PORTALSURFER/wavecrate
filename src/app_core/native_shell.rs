@@ -83,8 +83,38 @@ fn project_update_model(ui: &UiState) -> UpdatePanelModel {
         UpdateStatus::UpdateAvailable => UpdateStatusModel::Available,
         UpdateStatus::Error => UpdateStatusModel::Error,
     };
+    let status_label = match ui.update.status {
+        UpdateStatus::Idle => String::from("Updates: idle"),
+        UpdateStatus::Checking => String::from("Checking updates..."),
+        UpdateStatus::UpdateAvailable => ui
+            .update
+            .available_tag
+            .as_deref()
+            .map(|tag| format!("Update available: {tag}"))
+            .unwrap_or_else(|| String::from("Update available")),
+        UpdateStatus::Error => ui
+            .update
+            .last_error
+            .as_deref()
+            .map(|err| format!("Update check failed: {err}"))
+            .unwrap_or_else(|| String::from("Update check failed")),
+    };
+    let action_hint_label = match ui.update.status {
+        UpdateStatus::Idle => String::from("Action: check"),
+        UpdateStatus::Checking => String::from("Action: waiting"),
+        UpdateStatus::UpdateAvailable => {
+            if ui.update.available_url.is_some() {
+                String::from("Actions: open | install | dismiss")
+            } else {
+                String::from("Action: dismiss")
+            }
+        }
+        UpdateStatus::Error => String::from("Action: retry"),
+    };
     UpdatePanelModel {
         status,
+        status_label,
+        action_hint_label,
         available_tag: ui.update.available_tag.clone(),
         available_url: ui.update.available_url.clone(),
         last_error: ui.update.last_error.clone(),
@@ -97,10 +127,17 @@ fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
         crate::egui_app::state::MapRenderMode::Heatmap => MapRenderModeModel::Heatmap,
         crate::egui_app::state::MapRenderMode::Points => MapRenderModeModel::Points,
     };
+    let render_mode_label = match render_mode {
+        MapRenderModeModel::Heatmap => "heatmap",
+        MapRenderModeModel::Points => "points",
+    };
     if !active {
         return MapPanelModel {
             active: false,
             summary: String::from("Map hidden"),
+            legend_label: format!("Render: {render_mode_label}"),
+            selection_label: String::from("Selection: —"),
+            viewport_label: String::from("zoom 1.00x | pan (0, 0)"),
             error: None,
             render_mode,
             points: Vec::new(),
@@ -116,6 +153,12 @@ fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
                 return MapPanelModel {
                     active: true,
                     summary: String::from("Map unavailable"),
+                    legend_label: format!("Render: {render_mode_label}"),
+                    selection_label: String::from("Selection: unavailable"),
+                    viewport_label: format!(
+                        "zoom {:.2}x | pan ({:.0}, {:.0})",
+                        controller.ui.map.zoom, controller.ui.map.pan.x, controller.ui.map.pan.y
+                    ),
                     error: Some(err),
                     render_mode,
                     points: Vec::new(),
@@ -126,6 +169,12 @@ fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
         return MapPanelModel {
             active: true,
             summary: String::from("No map data (run similarity prep)"),
+            legend_label: format!("Render: {render_mode_label}"),
+            selection_label: String::from("Selection: —"),
+            viewport_label: format!(
+                "zoom {:.2}x | pan ({:.0}, {:.0})",
+                controller.ui.map.zoom, controller.ui.map.pan.x, controller.ui.map.pan.y
+            ),
             error: None,
             render_mode,
             points: Vec::new(),
@@ -151,6 +200,12 @@ fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
             return MapPanelModel {
                 active: true,
                 summary: String::from("Map query failed"),
+                legend_label: format!("Render: {render_mode_label}"),
+                selection_label: String::from("Selection: unavailable"),
+                viewport_label: format!(
+                    "zoom {:.2}x | pan ({:.0}, {:.0})",
+                    controller.ui.map.zoom, controller.ui.map.pan.x, controller.ui.map.pan.y
+                ),
                 error: Some(err),
                 render_mode,
                 points: Vec::new(),
@@ -181,19 +236,48 @@ fn project_map_model(controller: &mut EguiController) -> MapPanelModel {
             }
         })
         .collect::<Vec<_>>();
-    let summary = format!(
-        "{} points | zoom {:.2}x | pan ({:.0}, {:.0})",
-        points.len(),
-        controller.ui.map.zoom,
-        controller.ui.map.pan.x,
-        controller.ui.map.pan.y
+    let selection_label = controller
+        .ui
+        .map
+        .selected_sample_id
+        .as_deref()
+        .map(short_sample_label)
+        .map(|label| format!("Selection: {label}"))
+        .or_else(|| {
+            focused_sample_id
+                .as_deref()
+                .map(short_sample_label)
+                .map(|label| format!("Focus: {label}"))
+        })
+        .unwrap_or_else(|| String::from("Selection: —"));
+    let viewport_label = format!(
+        "zoom {:.2}x | pan ({:.0}, {:.0})",
+        controller.ui.map.zoom, controller.ui.map.pan.x, controller.ui.map.pan.y
     );
+    let summary = format!("{} points", points.len());
     MapPanelModel {
         active: true,
         summary,
+        legend_label: format!("Render: {render_mode_label}"),
+        selection_label,
+        viewport_label,
         error: None,
         render_mode,
         points,
+    }
+}
+
+fn short_sample_label(sample_id: &str) -> String {
+    let candidate = Path::new(sample_id)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(sample_id);
+    if candidate.chars().count() > 32 {
+        let mut truncated = candidate.chars().take(29).collect::<String>();
+        truncated.push_str("...");
+        truncated
+    } else {
+        candidate.to_string()
     }
 }
 
@@ -875,6 +959,53 @@ mod tests {
         ui.waveform.loop_enabled = true;
         let projected = project_waveform_chrome_model(&ui);
         assert_eq!(projected.transport_hint, "Loop enabled");
+    }
+
+    #[test]
+    fn update_projection_exposes_status_and_action_hint_labels() {
+        let mut ui = UiState::default();
+        let projected = project_update_model(&ui);
+        assert_eq!(projected.status, UpdateStatusModel::Idle);
+        assert_eq!(projected.status_label, "Updates: idle");
+        assert_eq!(projected.action_hint_label, "Action: check");
+
+        ui.update.status = UpdateStatus::UpdateAvailable;
+        ui.update.available_tag = Some(String::from("v20.1.0"));
+        ui.update.available_url = Some(String::from("https://example.invalid/release"));
+        let projected = project_update_model(&ui);
+        assert_eq!(projected.status, UpdateStatusModel::Available);
+        assert_eq!(projected.status_label, "Update available: v20.1.0");
+        assert_eq!(
+            projected.action_hint_label,
+            "Actions: open | install | dismiss"
+        );
+
+        ui.update.status = UpdateStatus::Error;
+        ui.update.last_error = Some(String::from("network timeout"));
+        let projected = project_update_model(&ui);
+        assert_eq!(projected.status, UpdateStatusModel::Error);
+        assert_eq!(
+            projected.status_label,
+            "Update check failed: network timeout"
+        );
+        assert_eq!(projected.action_hint_label, "Action: retry");
+    }
+
+    #[test]
+    fn map_projection_exposes_legend_selection_and_viewport_labels() {
+        let mut controller =
+            EguiController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+        controller.ui.browser.active_tab = crate::egui_app::state::SampleBrowserTab::Map;
+        controller.ui.map.zoom = 1.75;
+        controller.ui.map.pan.x = 12.0;
+        controller.ui.map.pan.y = -8.0;
+        controller.ui.map.selected_sample_id = Some(String::from("source::kick_24.wav"));
+
+        let projected = project_map_model(&mut controller);
+        assert!(projected.active);
+        assert!(projected.legend_label.starts_with("Render:"));
+        assert!(projected.selection_label.contains("Selection:"));
+        assert_eq!(projected.viewport_label, "zoom 1.75x | pan (12, -8)");
     }
 
     #[test]

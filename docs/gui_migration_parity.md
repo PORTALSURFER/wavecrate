@@ -24,8 +24,8 @@ to `radiant` (`native_vello`) as the only runtime path.
 | Browser actions | Context menus (rename/tag/delete) | Done (native action strip + bridge routing) | Radiant + Sempal |
 | Source management | Folder actions (rename/create/delete/recovery) | Done (native prompt/action flows + validation/error gating + compact recovery polish) | Radiant + Sempal |
 | Workflow overlays | Progress, drag overlays, prompts | Done (native overlay rendering + prompt/progress actions) | Radiant |
-| Update UX | In-app release notes/update prompts | In progress (native top-bar update actions: check/open/install/dismiss) | Radiant + Sempal |
-| Map view | Cluster map interactions and rendering | In progress (native map tab now renders normalized points with click-to-focus routing) | Radiant + Sempal |
+| Update UX | In-app release notes/update prompts | In progress (native top-bar update actions now include projected status/hint labels plus check/open/install/dismiss controls) | Radiant + Sempal |
+| Map view | Cluster map interactions and rendering | In progress (native map tab now renders normalized points with click-to-focus routing plus projected legend/selection/viewport labels) | Radiant + Sempal |
 
 ## P2 (post-cutover polish and expansion)
 
@@ -51,6 +51,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Browser rows now support explicit bucket labels in native projections (for example BPM badges) instead of relying only on coarse column tags.
 - Native browser map tab now consumes projected point clouds and emits click-to-focus sample actions.
 - Native top bar now consumes update-check projection state and emits update actions (check/open/install/dismiss).
+- Native map/update projection now also carries explicit chrome labels
+  (`legend/selection/viewport` for map and `status/action-hint` for updates)
+  so renderer copy no longer needs update/map-specific fallback strings.
 - Native browser/waveform chrome text now comes from projected host models
   (`BrowserChromeModel`, `WaveformChromeModel`) instead of renderer-local hardcoded labels.
 - Baseline geometry/copy target for legacy parity is documented in
