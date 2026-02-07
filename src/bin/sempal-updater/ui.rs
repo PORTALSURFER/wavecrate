@@ -1,10 +1,12 @@
-use egui::{self, RichText};
+use radiant::app::{
+    AppModel, BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
+    NativeAppBridge, SourceRowModel, StatusBarModel, UiAction, UpdatePanelModel, UpdateStatusModel,
+};
 use sempal::{
-    egui_app::ui::style,
-    gui_runtime::{EguiAppRuntime, EguiRunOptions, run_egui_wgpu_app},
+    gui_runtime::{EguiRunOptions, run_native_vello_app},
     updater::{
         APP_NAME, ApplyPlan, ReleaseSummary, UpdateChannel, UpdateProgress, UpdaterRunArgs,
-        apply_update_with_progress, list_recent_releases,
+        apply_update_with_progress, list_recent_releases, open_release_page,
     },
 };
 use std::{
@@ -15,20 +17,43 @@ use std::{
 const MAX_LOG_LINES: usize = 200;
 const RELEASE_LIST_LIMIT: usize = 5;
 
+/// Run the updater UI using the native radiant runtime.
 pub fn run_gui(args: UpdaterRunArgs) -> Result<(), String> {
     let options = EguiRunOptions {
         title: format!("{APP_NAME} updater"),
-        inner_size: Some([560.0, 420.0]),
-        min_inner_size: Some([440.0, 320.0]),
+        inner_size: Some([860.0, 620.0]),
+        min_inner_size: Some([640.0, 420.0]),
         maximized: false,
         icon: None,
     };
-    run_egui_wgpu_app(options, UpdateUiApp::new(args))
+    run_native_vello_app(options, UpdateNativeBridge::new(args))
 }
 
-struct UpdateUiApp {
+#[derive(Debug, Clone)]
+struct ReleaseOption {
+    tag: String,
+    label: String,
+    html_url: String,
+}
+
+#[derive(Debug, Clone)]
+enum ReleaseState {
+    Idle,
+    Loading,
+    Loaded(Vec<ReleaseOption>),
+    Error(String),
+}
+
+#[derive(Debug, Clone)]
+enum UiStatus {
+    Idle,
+    Updating,
+    Success(String),
+    Error(String),
+}
+
+struct UpdateNativeBridge {
     args: UpdaterRunArgs,
-    visuals_set: bool,
     release_state: ReleaseState,
     release_rx: Option<Receiver<Result<Vec<ReleaseSummary>, String>>>,
     selected_tag: Option<String>,
@@ -36,13 +61,13 @@ struct UpdateUiApp {
     log: Vec<String>,
     progress_rx: Option<Receiver<UpdateProgress>>,
     result_rx: Option<Receiver<Result<ApplyPlan, String>>>,
+    show_log_view: bool,
 }
 
-impl UpdateUiApp {
+impl UpdateNativeBridge {
     fn new(args: UpdaterRunArgs) -> Self {
-        let mut app = Self {
+        let mut bridge = Self {
             args,
-            visuals_set: false,
             release_state: ReleaseState::Idle,
             release_rx: None,
             selected_tag: None,
@@ -50,9 +75,10 @@ impl UpdateUiApp {
             log: Vec::new(),
             progress_rx: None,
             result_rx: None,
+            show_log_view: false,
         };
-        app.refresh_release_list();
-        app
+        bridge.refresh_release_list();
+        bridge
     }
 
     fn refresh_release_list(&mut self) {
@@ -60,6 +86,7 @@ impl UpdateUiApp {
             self.release_state = ReleaseState::Loaded(vec![ReleaseOption {
                 tag: "nightly".to_string(),
                 label: "nightly".to_string(),
+                html_url: String::new(),
             }]);
             self.selected_tag = Some("nightly".to_string());
             return;
@@ -88,6 +115,46 @@ impl UpdateUiApp {
         }
     }
 
+    fn selected_release(&self) -> Option<&ReleaseOption> {
+        let selected = self.selected_tag.as_deref()?;
+        let ReleaseState::Loaded(options) = &self.release_state else {
+            return None;
+        };
+        options.iter().find(|option| option.tag == selected)
+    }
+
+    fn select_release_by_row(&mut self, visible_row: usize) {
+        let ReleaseState::Loaded(options) = &self.release_state else {
+            return;
+        };
+        if let Some(option) = options.get(visible_row) {
+            self.selected_tag = Some(option.tag.clone());
+        }
+    }
+
+    fn move_release_focus(&mut self, delta: i8) {
+        let ReleaseState::Loaded(options) = &self.release_state else {
+            return;
+        };
+        if options.is_empty() {
+            return;
+        }
+        let current_index = self
+            .selected_tag
+            .as_ref()
+            .and_then(|tag| options.iter().position(|option| option.tag == *tag))
+            .unwrap_or(0);
+        let max_index = options.len() - 1;
+        let next_index = if delta.is_negative() {
+            current_index.saturating_sub(delta.unsigned_abs() as usize)
+        } else {
+            (current_index + delta as usize).min(max_index)
+        };
+        if let Some(option) = options.get(next_index) {
+            self.selected_tag = Some(option.tag.clone());
+        }
+    }
+
     fn start_update(&mut self) {
         if matches!(self.status, UiStatus::Updating) {
             return;
@@ -101,6 +168,7 @@ impl UpdateUiApp {
         self.log.clear();
         self.push_log("Starting update...");
         self.status = UiStatus::Updating;
+        self.show_log_view = true;
         thread::spawn(move || {
             let result = apply_update_with_progress(args, |progress| {
                 let _ = progress_tx.send(progress);
@@ -118,17 +186,10 @@ impl UpdateUiApp {
         }
     }
 
-    fn handle_background_updates(&mut self, ctx: &egui::Context) {
-        self.handle_release_updates(ctx);
-        self.handle_progress_updates(ctx);
-        self.handle_result_updates(ctx);
-    }
-
-    fn handle_release_updates(&mut self, ctx: &egui::Context) {
-        let Some(rx) = &self.release_rx else {
-            return;
-        };
-        if let Ok(result) = rx.try_recv() {
+    fn poll_background_updates(&mut self) {
+        if let Some(rx) = &self.release_rx
+            && let Ok(result) = rx.try_recv()
+        {
             self.release_rx = None;
             match result {
                 Ok(list) => {
@@ -140,31 +201,18 @@ impl UpdateUiApp {
                     self.release_state = ReleaseState::Error(err);
                 }
             }
-            ctx.request_repaint();
         }
-    }
 
-    fn handle_progress_updates(&mut self, ctx: &egui::Context) {
-        let Some(rx) = &self.progress_rx else {
-            return;
-        };
-        let messages: Vec<String> = rx.try_iter().map(|progress| progress.message).collect();
-        if messages.is_empty() {
-            return;
+        if let Some(rx) = &self.progress_rx {
+            let messages: Vec<String> = rx.try_iter().map(|progress| progress.message).collect();
+            for message in messages {
+                self.push_log(message);
+            }
         }
-        for message in messages {
-            self.push_log(message);
-        }
-        if !self.log.is_empty() {
-            ctx.request_repaint();
-        }
-    }
 
-    fn handle_result_updates(&mut self, ctx: &egui::Context) {
-        let Some(rx) = &self.result_rx else {
-            return;
-        };
-        if let Ok(result) = rx.try_recv() {
+        if let Some(rx) = &self.result_rx
+            && let Ok(result) = rx.try_recv()
+        {
             self.result_rx = None;
             self.progress_rx = None;
             match result {
@@ -194,203 +242,239 @@ impl UpdateUiApp {
                     self.status = UiStatus::Error(err);
                 }
             }
-            ctx.request_repaint();
         }
     }
 
-    fn apply_visuals(&mut self, ctx: &egui::Context) {
-        if self.visuals_set {
-            return;
-        }
-        let mut visuals = egui::Visuals::dark();
-        style::apply_visuals(&mut visuals);
-        ctx.set_visuals(visuals);
-        self.visuals_set = true;
-    }
-
-    fn render_status(&self, ui: &mut egui::Ui) {
-        let palette = style::palette();
+    fn update_panel_model(&self) -> UpdatePanelModel {
+        let mut model = UpdatePanelModel::default();
         match &self.status {
-            UiStatus::Idle => {
-                ui.label(RichText::new("Ready to update.").color(palette.text_muted));
-            }
             UiStatus::Updating => {
-                ui.label(RichText::new("Applying update...").color(palette.accent_ice));
-            }
-            UiStatus::Success(message) => {
-                ui.label(RichText::new(message).color(palette.accent_mint));
+                model.status = UpdateStatusModel::Checking;
+                model.status_label = String::from("Applying update");
+                model.action_hint_label = String::from("Please wait for completion");
             }
             UiStatus::Error(message) => {
-                ui.label(RichText::new(message).color(palette.warning));
+                model.status = UpdateStatusModel::Error;
+                model.status_label = String::from("Update failed");
+                model.last_error = Some(message.clone());
+                model.action_hint_label = String::from("Retry check");
             }
-        }
-    }
-
-    fn render_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        let palette = style::palette();
-        ui.spacing_mut().item_spacing = egui::vec2(10.0, 8.0);
-        self.render_header(ui, &palette);
-        self.render_metadata(ui, &palette);
-        self.render_version_selector(ui, &palette);
-        self.render_status(ui);
-        self.render_actions(ui, ctx);
-        self.render_progress(ui, &palette);
-    }
-
-    fn render_header(&self, ui: &mut egui::Ui, palette: &style::Palette) {
-        ui.vertical_centered(|ui| {
-            ui.heading(RichText::new(format!("{APP_NAME} updater")).color(palette.text_primary));
-            ui.label(
-                RichText::new("Install updates or pick a recent version to downgrade.")
-                    .color(palette.text_muted),
-            );
-        });
-        ui.add_space(8.0);
-    }
-
-    fn render_metadata(&self, ui: &mut egui::Ui, palette: &style::Palette) {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Install dir:").color(palette.text_muted));
-            ui.label(
-                RichText::new(self.args.install_dir.display().to_string())
-                    .color(palette.text_primary),
-            );
-        });
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Channel:").color(palette.text_muted));
-            ui.label(
-                RichText::new(channel_label(self.args.identity.channel))
-                    .color(palette.text_primary),
-            );
-        });
-    }
-
-    fn render_version_selector(&mut self, ui: &mut egui::Ui, palette: &style::Palette) {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("Version:").color(palette.text_muted));
-            let mut refresh_clicked = false;
-            let mut ensure_selected = false;
-            match self.release_state.clone() {
+            UiStatus::Success(message) => {
+                model.status = UpdateStatusModel::Available;
+                model.status_label = message.clone();
+                if let Some(release) = self.selected_release() {
+                    model.available_tag = Some(release.tag.clone());
+                    if !release.html_url.is_empty() {
+                        model.available_url = Some(release.html_url.clone());
+                    }
+                }
+                model.action_hint_label = String::from("Open release notes or dismiss");
+            }
+            UiStatus::Idle => match &self.release_state {
                 ReleaseState::Loading => {
-                    ui.label(RichText::new("Loading...").color(palette.text_muted));
+                    model.status = UpdateStatusModel::Checking;
+                    model.status_label = String::from("Loading releases");
+                    model.action_hint_label = String::from("Fetching recent releases");
                 }
                 ReleaseState::Error(message) => {
-                    ui.label(RichText::new("Unavailable").color(palette.warning));
-                    if ui.button("Retry").clicked() {
-                        refresh_clicked = true;
-                    }
-                    ui.label(RichText::new(message).color(palette.text_muted).small());
+                    model.status = UpdateStatusModel::Error;
+                    model.status_label = String::from("Release list unavailable");
+                    model.last_error = Some(message.clone());
+                    model.action_hint_label = String::from("Retry check");
                 }
-                ReleaseState::Loaded(options) => {
-                    if options.is_empty() {
-                        ui.label(RichText::new("No releases found").color(palette.warning));
-                        if ui.button("Refresh").clicked() {
-                            refresh_clicked = true;
-                        }
-                    } else {
-                        if self.selected_tag.is_none() {
-                            ensure_selected = true;
-                        }
-                        let selected = self
-                            .selected_tag
-                            .clone()
-                            .unwrap_or_else(|| options[0].tag.clone());
-                        egui::ComboBox::from_id_salt("version_select")
-                            .selected_text(selected_label(&options, &selected))
-                            .show_ui(ui, |ui| {
-                                for option in options.iter() {
-                                    ui.selectable_value(
-                                        &mut self.selected_tag,
-                                        Some(option.tag.clone()),
-                                        &option.label,
-                                    );
-                                }
-                            });
-                        if ui.button("Refresh").clicked() {
-                            refresh_clicked = true;
+                ReleaseState::Loaded(_) => {
+                    model.status = UpdateStatusModel::Available;
+                    model.status_label = String::from("Ready to update");
+                    if let Some(release) = self.selected_release() {
+                        model.available_tag = Some(release.tag.clone());
+                        if !release.html_url.is_empty() {
+                            model.available_url = Some(release.html_url.clone());
                         }
                     }
+                    model.action_hint_label =
+                        String::from("Install selected release or open notes");
                 }
                 ReleaseState::Idle => {
-                    ui.label(RichText::new("Waiting...").color(palette.text_muted));
+                    model.status = UpdateStatusModel::Idle;
+                    model.status_label = String::from("Idle");
+                    model.action_hint_label = String::from("Check for updates");
                 }
-            }
-            if ensure_selected {
-                self.ensure_selected_tag();
-            }
-            if refresh_clicked {
+            },
+        }
+        model.release_notes_label = self
+            .selected_release()
+            .map(|release| format!("Selected: {}", release.label))
+            .unwrap_or_else(|| String::from("Selected: none"));
+        model
+    }
+
+    fn browser_rows(&self) -> Vec<BrowserRowModel> {
+        if self.show_log_view {
+            return self
+                .log
+                .iter()
+                .enumerate()
+                .map(|(index, line)| BrowserRowModel::new(index, line, 1, false, false))
+                .collect();
+        }
+
+        let ReleaseState::Loaded(options) = &self.release_state else {
+            return Vec::new();
+        };
+        let selected_tag = self.selected_tag.clone();
+        options
+            .iter()
+            .enumerate()
+            .map(|(index, option)| {
+                let focused = selected_tag.as_ref().is_some_and(|tag| *tag == option.tag);
+                BrowserRowModel::new(index, option.label.clone(), 1, focused, focused)
+                    .with_bucket_label(option.tag.clone())
+            })
+            .collect()
+    }
+
+    fn app_model(&self) -> AppModel {
+        let mut model = AppModel {
+            title: format!("{APP_NAME} updater"),
+            backend_label: format!(
+                "{} | {}",
+                channel_label(self.args.identity.channel),
+                self.args.install_dir.display()
+            ),
+            sources_label: String::from("Updater"),
+            status_text: String::new(),
+            status: StatusBarModel {
+                left: format!("channel: {}", channel_label(self.args.identity.channel)),
+                center: self
+                    .selected_tag
+                    .clone()
+                    .map(|tag| format!("selected: {tag}"))
+                    .unwrap_or_else(|| String::from("selected: none")),
+                right: match self.status {
+                    UiStatus::Updating => String::from("updating"),
+                    UiStatus::Success(_) => String::from("updated"),
+                    UiStatus::Error(_) => String::from("error"),
+                    UiStatus::Idle => String::from("idle"),
+                },
+            },
+            transport_running: true,
+            ..AppModel::default()
+        };
+
+        model.browser_actions = BrowserActionsModel::default();
+        model.browser = BrowserPanelModel {
+            visible_count: self.browser_rows().len(),
+            selected_visible_row: self.selected_tag.as_ref().and_then(|selected| {
+                let ReleaseState::Loaded(options) = &self.release_state else {
+                    return None;
+                };
+                options.iter().position(|option| option.tag == *selected)
+            }),
+            selected_path_count: usize::from(self.selected_tag.is_some()),
+            search_query: if self.show_log_view {
+                String::from("log view")
+            } else {
+                String::from("release list")
+            },
+            search_placeholder: Some(String::from("Arrows + enter to select release")),
+            busy: matches!(self.release_state, ReleaseState::Loading)
+                || matches!(self.status, UiStatus::Updating),
+            sort_label: Some(String::from("recent first")),
+            active_tab_label: Some(if self.show_log_view {
+                String::from("Log")
+            } else {
+                String::from("Versions")
+            }),
+            focused_sample_label: self.selected_tag.clone(),
+            anchor_visible_row: None,
+            rows: self.browser_rows(),
+        };
+        model.browser_chrome = BrowserChromeModel {
+            samples_tab_label: String::from("Versions"),
+            map_tab_label: String::from("Progress log"),
+            search_prefix_label: String::from("Mode"),
+            search_placeholder: String::from("Use top actions"),
+            activity_ready_label: String::from("Ready"),
+            activity_busy_label: String::from("Updating"),
+            sort_prefix_label: String::from("Order"),
+            sort_order_label: String::from("Recent"),
+            similarity_toggle_label: String::from("n/a"),
+            item_count_label: format!("{} rows", model.browser.visible_count),
+        };
+        model.sources.rows = vec![
+            SourceRowModel::new(
+                "Install dir",
+                self.args.install_dir.display().to_string(),
+                false,
+                false,
+            ),
+            SourceRowModel::new(
+                "Target",
+                self.args.identity.target.clone(),
+                false,
+                false,
+            ),
+        ];
+        model.update = self.update_panel_model();
+        model
+    }
+}
+
+impl NativeAppBridge for UpdateNativeBridge {
+    fn pull_model(&mut self) -> AppModel {
+        self.poll_background_updates();
+        self.ensure_selected_tag();
+        self.app_model()
+    }
+
+    fn on_action(&mut self, action: UiAction) {
+        match action {
+            UiAction::CheckForUpdates => {
                 self.refresh_release_list();
             }
-        });
-        ui.add_space(8.0);
-    }
-
-    fn render_actions(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        let updating = matches!(self.status, UiStatus::Updating);
-        ui.horizontal(|ui| {
-            if ui
-                .add_enabled(!updating, egui::Button::new("Install update"))
-                .clicked()
-            {
-                self.start_update();
-            }
-            if ui.button("Close").clicked() {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            }
-        });
-        ui.add_space(8.0);
-    }
-
-    fn render_progress(&self, ui: &mut egui::Ui, palette: &style::Palette) {
-        ui.label(RichText::new("Progress").color(palette.text_muted));
-        egui::ScrollArea::vertical()
-            .stick_to_bottom(true)
-            .max_height(160.0)
-            .show(ui, |ui| {
-                if self.log.is_empty() {
-                    ui.label(RichText::new("No activity yet.").color(palette.text_muted));
-                } else {
-                    for line in &self.log {
-                        ui.label(RichText::new(line).color(palette.text_primary));
-                    }
+            UiAction::InstallUpdate => {
+                if !matches!(self.status, UiStatus::Updating) {
+                    self.start_update();
                 }
-            });
+            }
+            UiAction::OpenUpdateLink => {
+                if let Some(url) = self
+                    .selected_release()
+                    .map(|release| release.html_url.clone())
+                    .filter(|url| !url.is_empty())
+                    && let Err(err) = open_release_page(&url)
+                {
+                    self.status = UiStatus::Error(err);
+                }
+            }
+            UiAction::DismissUpdate => {
+                request_process_exit();
+            }
+            UiAction::FocusBrowserRow { visible_row } => {
+                if !self.show_log_view {
+                    self.select_release_by_row(visible_row);
+                }
+            }
+            UiAction::MoveBrowserFocus { delta } => {
+                if !self.show_log_view {
+                    self.move_release_focus(delta);
+                }
+            }
+            UiAction::SetBrowserTab { map } => {
+                self.show_log_view = map;
+            }
+            _ => {}
+        }
     }
 }
 
-impl EguiAppRuntime for UpdateUiApp {
-    fn setup(&mut self, ctx: &egui::Context) {
-        self.apply_visuals(ctx);
-    }
-
-    fn update(&mut self, ctx: &egui::Context, _window: &winit::window::Window) {
-        self.apply_visuals(ctx);
-        self.handle_background_updates(ctx);
-        egui::CentralPanel::default().show(ctx, |ui| self.render_panel(ui, ctx));
-    }
+#[cfg(not(test))]
+fn request_process_exit() {
+    std::process::exit(0);
 }
 
-#[derive(Debug, Clone)]
-struct ReleaseOption {
-    tag: String,
-    label: String,
-}
-
-#[derive(Debug, Clone)]
-enum ReleaseState {
-    Idle,
-    Loading,
-    Loaded(Vec<ReleaseOption>),
-    Error(String),
-}
-
-#[derive(Debug, Clone)]
-enum UiStatus {
-    Idle,
-    Updating,
-    Success(String),
-    Error(String),
-}
+#[cfg(test)]
+fn request_process_exit() {}
 
 fn format_release_option(summary: ReleaseSummary) -> ReleaseOption {
     let label = match summary.published_at.as_deref() {
@@ -400,6 +484,7 @@ fn format_release_option(summary: ReleaseSummary) -> ReleaseOption {
     ReleaseOption {
         tag: summary.tag,
         label,
+        html_url: summary.html_url,
     }
 }
 
@@ -407,17 +492,59 @@ fn short_date(value: &str) -> String {
     value.get(0..10).unwrap_or(value).to_string()
 }
 
-fn selected_label(options: &[ReleaseOption], tag: &str) -> String {
-    options
-        .iter()
-        .find(|option| option.tag == tag)
-        .map(|option| option.label.clone())
-        .unwrap_or_else(|| tag.to_string())
-}
-
 fn channel_label(channel: UpdateChannel) -> &'static str {
     match channel {
         UpdateChannel::Stable => "stable",
         UpdateChannel::Nightly => "nightly",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sempal::updater::{RuntimeIdentity, UpdateChannel, UpdaterRunArgs};
+    use std::path::PathBuf;
+
+    fn test_args() -> UpdaterRunArgs {
+        UpdaterRunArgs {
+            repo: "owner/repo".to_string(),
+            identity: RuntimeIdentity {
+                app: "Sempal".to_string(),
+                channel: UpdateChannel::Stable,
+                target: "x86_64".to_string(),
+                platform: "windows".to_string(),
+                arch: "x86_64".to_string(),
+            },
+            install_dir: PathBuf::from("/tmp/sempal"),
+            relaunch: true,
+            requested_tag: None,
+        }
+    }
+
+    #[test]
+    fn focus_action_selects_loaded_release() {
+        let mut bridge = UpdateNativeBridge::new(test_args());
+        bridge.release_state = ReleaseState::Loaded(vec![
+            ReleaseOption {
+                tag: "v1.0.0".to_string(),
+                label: "v1.0.0".to_string(),
+                html_url: String::new(),
+            },
+            ReleaseOption {
+                tag: "v1.1.0".to_string(),
+                label: "v1.1.0".to_string(),
+                html_url: String::new(),
+            },
+        ]);
+        bridge.on_action(UiAction::FocusBrowserRow { visible_row: 1 });
+        assert_eq!(bridge.selected_tag.as_deref(), Some("v1.1.0"));
+    }
+
+    #[test]
+    fn app_model_switches_tabs_for_log_view() {
+        let mut bridge = UpdateNativeBridge::new(test_args());
+        bridge.on_action(UiAction::SetBrowserTab { map: true });
+        let model = bridge.pull_model();
+        assert_eq!(model.browser.active_tab_label.as_deref(), Some("Log"));
     }
 }

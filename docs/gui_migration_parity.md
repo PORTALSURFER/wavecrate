@@ -76,7 +76,8 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Browser projection/render windows now target larger native-shell stress sets
   (`MAX_RENDERED_BROWSER_ROWS` 512 in host projection and higher per-tier native row caps),
   with explicit tests for tail clamping, focus preservation, and deterministic large-dataset frames.
-- Installer/updater binaries still use the `egui` host path and are tracked separately.
+- Installer/updater binaries now run on the native radiant host path (`run_native_vello_app`);
+  dependency cleanup for legacy `egui_app` modules remains a follow-up task.
 
 ## Classic Baseline Layout Contract (v2)
 

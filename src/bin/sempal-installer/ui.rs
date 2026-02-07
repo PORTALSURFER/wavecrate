@@ -1,42 +1,20 @@
-use egui::{self, Align, Button, Layout, RichText, ScrollArea};
+use radiant::app::{
+    AppModel, BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
+    NativeAppBridge, SourceRowModel, StatusBarModel, UiAction, UpdatePanelModel, UpdateStatusModel,
+};
 use std::{path::PathBuf, sync::mpsc, thread};
 
-use sempal::{
-    egui_app::ui::style,
-    gui_runtime::{EguiAppRuntime, EguiRunOptions, WindowIconRgba, run_egui_wgpu_app},
-};
+use sempal::gui_runtime::{EguiRunOptions, WindowIconRgba, run_native_vello_app};
 
 use crate::{APP_NAME, install, paths};
 
-pub(crate) fn run_installer_app() -> Result<(), String> {
-    let options = EguiRunOptions {
-        title: String::from("SemPal Installer"),
-        inner_size: Some([600.0, 300.0]),
-        min_inner_size: Some([560.0, 280.0]),
-        maximized: false,
-        icon: load_installer_icon(),
-    };
-    run_egui_wgpu_app(options, InstallerApp::new())
-}
-
-fn load_installer_icon() -> Option<WindowIconRgba> {
-    decode_icon(include_bytes!("../../../assets/logo3.ico")).or_else(|| {
-        let fallback = decode_icon(include_bytes!("../../../assets/logo3.png"));
-        if fallback.is_none() {
-            eprintln!("Failed to decode installer icon assets.");
-        }
-        fallback
-    })
-}
-
-fn decode_icon(bytes: &[u8]) -> Option<WindowIconRgba> {
-    let image = image::load_from_memory(bytes).ok()?.to_rgba8();
-    let (width, height) = image.dimensions();
-    Some(WindowIconRgba {
-        rgba: image.into_raw(),
-        width,
-        height,
-    })
+/// Events emitted by installer worker threads and consumed by the UI bridge.
+pub(crate) enum InstallerEvent {
+    Started { total_files: usize },
+    FileCopied { copied_files: usize, name: String },
+    Log(String),
+    Finished,
+    Failed(String),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -65,15 +43,7 @@ impl Default for InstallProgress {
     }
 }
 
-pub(crate) enum InstallerEvent {
-    Started { total_files: usize },
-    FileCopied { copied_files: usize, name: String },
-    Log(String),
-    Finished,
-    Failed(String),
-}
-
-struct InstallerApp {
+struct InstallerNativeBridge {
     step: InstallStep,
     install_dir: PathBuf,
     bundle_dir: PathBuf,
@@ -88,7 +58,7 @@ struct InstallerApp {
     install_finished: bool,
 }
 
-impl InstallerApp {
+impl InstallerNativeBridge {
     fn new() -> Self {
         Self {
             step: InstallStep::Welcome,
@@ -141,6 +111,7 @@ impl InstallerApp {
                 }
                 InstallerEvent::Finished => {
                     self.install_finished = true;
+                    self.step = InstallStep::Done;
                 }
                 InstallerEvent::Failed(err) => {
                     self.error = Some(err);
@@ -150,171 +121,317 @@ impl InstallerApp {
         }
     }
 
-    fn render(&mut self, ctx: &egui::Context) {
-        self.poll_installer();
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.spacing_mut().item_spacing = egui::vec2(12.0, 12.0);
-            ui.heading(APP_NAME);
-            ui.add_space(6.0);
+    fn browse_install_dir(&mut self) {
+        if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+            self.install_dir = folder;
+        }
+    }
 
-            match self.step {
-                InstallStep::Welcome => {
-                    ui.label("Welcome to the SemPal installer.");
-                    ui.label("This will install SemPal and the required ML models.");
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.button("Next").clicked() {
-                            self.step = InstallStep::License;
-                        }
-                    });
-                }
-                InstallStep::License => {
-                    ui.label("License");
-                    let scroll_height = (ui.available_height() - 64.0).max(160.0);
-                    ScrollArea::vertical()
-                        .max_height(scroll_height)
-                        .show(ui, |ui| {
-                            ui.add(
-                                egui::TextEdit::multiline(&mut self.license_text)
-                                    .desired_rows(16)
-                                    .desired_width(ui.available_width())
-                                    .font(egui::TextStyle::Monospace)
-                                    .interactive(false),
-                            );
-                        });
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.button("Next").clicked() {
-                            self.step = InstallStep::Location;
-                        }
-                        if ui.button("Back").clicked() {
-                            self.step = InstallStep::Welcome;
-                        }
-                    });
-                }
-                InstallStep::Location => {
-                    ui.label("Choose installation folder");
-                    ui.horizontal(|ui| {
-                        ui.monospace(self.install_dir.display().to_string());
-                        if ui.button("Browse").clicked()
-                            && let Some(folder) = rfd::FileDialog::new().pick_folder()
-                        {
-                            self.install_dir = folder;
-                        }
-                    });
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.button("Install").clicked() {
-                            self.start_install();
-                        }
-                        if ui.button("Back").clicked() {
-                            self.step = InstallStep::License;
-                        }
-                    });
-                }
-                InstallStep::Installing => {
-                    let progress = (self.progress.copied_files as f32
-                        / self.progress.total_files.max(1) as f32)
-                        .clamp(0.0, 1.0);
-                    ui.label("Installing...");
-                    ui.add(egui::ProgressBar::new(progress).show_percentage());
-                    if let Some(current) = &self.progress.current {
-                        ui.label(format!("Copying {current}"));
-                    }
-                    ui.separator();
-                    ui.label("Install log");
-                    let log_width = ui.available_width();
-                    let log_color = if self.install_finished {
-                        style::palette().success
-                    } else {
-                        style::palette().warning
-                    };
-                    ScrollArea::vertical().max_height(140.0).show(ui, |ui| {
-                        ui.set_min_width(log_width);
-                        for line in &self.logs {
-                            ui.label(RichText::new(line).color(log_color));
-                        }
-                    });
-                    if self.install_finished {
-                        ui.add_space(8.0);
-                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if ui.button("Continue").clicked() {
-                                self.step = InstallStep::Done;
-                                self.finish_errors.clear();
-                            }
-                        });
-                    }
-                }
-                InstallStep::Done => {
-                    ui.label(RichText::new("Installation complete.").strong());
-                    ui.checkbox(&mut self.open_folder_on_finish, "Open install folder");
-                    ui.checkbox(&mut self.launch_on_finish, "Launch SemPal");
-                    if !self.finish_errors.is_empty() {
-                        ui.add_space(8.0);
-                        ui.label(
-                            RichText::new("Could not complete all finish actions:")
-                                .color(style::palette().warning),
-                        );
-                        for message in &self.finish_errors {
-                            ui.label(RichText::new(message).color(style::palette().warning));
-                        }
-                    }
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.add(Button::new("Finish")).clicked() {
-                            self.finish_errors.clear();
-                            if self.open_folder_on_finish
-                                && let Err(err) = open::that(&self.install_dir)
-                            {
-                                self.finish_errors
-                                    .push(format!("Failed to open install folder: {err}"));
-                            }
-                            if self.launch_on_finish {
-                                let exe = self.install_dir.join("sempal.exe");
-                                if let Err(err) = std::process::Command::new(exe).spawn() {
-                                    self.finish_errors
-                                        .push(format!("Failed to launch SemPal: {err}"));
-                                }
-                            }
-                            if self.finish_errors.is_empty() {
-                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                            }
-                        }
-                    });
-                }
-                InstallStep::Error => {
-                    ui.label(RichText::new("Installation failed.").color(style::palette().warning));
-                    if let Some(error) = &self.error {
-                        ui.label(error);
-                    }
-                    ui.separator();
-                    ui.label("Install log");
-                    let log_width = ui.available_width();
-                    let log_color = style::semantic_palette().destructive;
-                    ScrollArea::vertical().max_height(140.0).show(ui, |ui| {
-                        ui.set_min_width(log_width);
-                        for line in &self.logs {
-                            ui.label(RichText::new(line).color(log_color));
-                        }
-                    });
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.button("Close").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                    });
+    fn advance_step(&mut self) {
+        match self.step {
+            InstallStep::Welcome => self.step = InstallStep::License,
+            InstallStep::License => self.step = InstallStep::Location,
+            InstallStep::Location => self.start_install(),
+            InstallStep::Done => self.run_finish_actions(),
+            InstallStep::Error => self.start_install(),
+            InstallStep::Installing => {}
+        }
+    }
+
+    fn back_step(&mut self) {
+        match self.step {
+            InstallStep::Welcome => request_process_exit(),
+            InstallStep::License => self.step = InstallStep::Welcome,
+            InstallStep::Location => self.step = InstallStep::License,
+            InstallStep::Done => request_process_exit(),
+            InstallStep::Error => request_process_exit(),
+            InstallStep::Installing => {}
+        }
+    }
+
+    fn run_finish_actions(&mut self) {
+        self.finish_errors.clear();
+        if self.open_folder_on_finish
+            && let Err(err) = open::that(&self.install_dir)
+        {
+            self.finish_errors
+                .push(format!("Failed to open install folder: {err}"));
+        }
+        if self.launch_on_finish {
+            let exe = self.install_dir.join("sempal.exe");
+            if let Err(err) = std::process::Command::new(exe).spawn() {
+                self.finish_errors
+                    .push(format!("Failed to launch SemPal: {err}"));
+            }
+        }
+        if self.finish_errors.is_empty() {
+            request_process_exit();
+        }
+    }
+
+    fn update_panel(&self) -> UpdatePanelModel {
+        let mut model = UpdatePanelModel::default();
+        match self.step {
+            InstallStep::Welcome => {
+                model.status = UpdateStatusModel::Available;
+                model.status_label = String::from("Installer ready");
+                model.action_hint_label = String::from("Install=Next | Dismiss=Exit");
+                model.available_url = Some(String::from("internal://welcome"));
+            }
+            InstallStep::License => {
+                model.status = UpdateStatusModel::Available;
+                model.status_label = String::from("Review license");
+                model.action_hint_label = String::from("Open=Back | Install=Next");
+                model.available_url = Some(String::from("internal://license"));
+                model.release_notes_label = String::from("Press Install to continue");
+            }
+            InstallStep::Location => {
+                model.status = UpdateStatusModel::Available;
+                model.status_label = String::from("Choose install location");
+                model.action_hint_label = String::from("Open=Browse | Install=Start");
+                model.available_url = Some(String::from("internal://location"));
+                model.release_notes_label = self.install_dir.display().to_string();
+            }
+            InstallStep::Installing => {
+                model.status = UpdateStatusModel::Checking;
+                model.status_label = String::from("Installing");
+                model.action_hint_label = String::from("Please wait");
+                model.release_notes_label = self
+                    .progress
+                    .current
+                    .as_ref()
+                    .map(|name| format!("Copying {name}"))
+                    .unwrap_or_else(|| String::from("Preparing"));
+            }
+            InstallStep::Done => {
+                model.status = UpdateStatusModel::Available;
+                model.status_label = String::from("Installation complete");
+                model.action_hint_label = String::from("Open=Folder | Install=Launch | Dismiss=Exit");
+                model.available_url = Some(String::from("internal://done"));
+                model.release_notes_label = format!(
+                    "Open folder: {} | Launch app: {}",
+                    bool_word(self.open_folder_on_finish),
+                    bool_word(self.launch_on_finish)
+                );
+            }
+            InstallStep::Error => {
+                model.status = UpdateStatusModel::Error;
+                model.status_label = String::from("Installation failed");
+                model.action_hint_label = String::from("Retry check to reinstall");
+                model.last_error = self.error.clone();
+            }
+        }
+        model
+    }
+
+    fn browser_rows(&self) -> Vec<BrowserRowModel> {
+        match self.step {
+            InstallStep::Welcome => vec![
+                BrowserRowModel::new(
+                    0,
+                    "Welcome to the SemPal installer",
+                    1,
+                    false,
+                    false,
+                ),
+                BrowserRowModel::new(
+                    1,
+                    "Install includes app binaries and required ML assets",
+                    1,
+                    false,
+                    false,
+                ),
+            ],
+            InstallStep::License => self
+                .license_text
+                .lines()
+                .take(120)
+                .enumerate()
+                .map(|(index, line)| BrowserRowModel::new(index, line.to_string(), 1, false, false))
+                .collect(),
+            InstallStep::Location => vec![
+                BrowserRowModel::new(
+                    0,
+                    format!("Install path: {}", self.install_dir.display()),
+                    1,
+                    true,
+                    true,
+                )
+                .with_bucket_label("browse"),
+                BrowserRowModel::new(
+                    1,
+                    format!("Bundle source: {}", self.bundle_dir.display()),
+                    1,
+                    false,
+                    false,
+                ),
+            ],
+            InstallStep::Installing | InstallStep::Done | InstallStep::Error => self
+                .logs
+                .iter()
+                .enumerate()
+                .map(|(index, line)| BrowserRowModel::new(index, line, 1, false, false))
+                .collect(),
+        }
+    }
+
+    fn app_model(&self) -> AppModel {
+        let rows = self.browser_rows();
+        let mut model = AppModel {
+            title: format!("{APP_NAME} installer"),
+            backend_label: format!("install dir: {}", self.install_dir.display()),
+            sources_label: String::from("Installer"),
+            status_text: String::new(),
+            status: StatusBarModel {
+                left: step_label(self.step).to_string(),
+                center: match self.step {
+                    InstallStep::Installing => format!(
+                        "{}/{} files",
+                        self.progress.copied_files, self.progress.total_files
+                    ),
+                    _ => format!("logs: {}", self.logs.len()),
+                },
+                right: if self.install_finished {
+                    String::from("finished")
+                } else {
+                    String::from("active")
+                },
+            },
+            transport_running: true,
+            ..AppModel::default()
+        };
+        model.browser_actions = BrowserActionsModel::default();
+        model.sources.rows = vec![
+            SourceRowModel::new("Install dir", self.install_dir.display().to_string(), false, false),
+            SourceRowModel::new("Bundle dir", self.bundle_dir.display().to_string(), false, false),
+        ];
+        model.browser = BrowserPanelModel {
+            visible_count: rows.len(),
+            selected_visible_row: if matches!(self.step, InstallStep::Location) {
+                Some(0)
+            } else {
+                None
+            },
+            selected_path_count: 0,
+            search_query: step_label(self.step).to_string(),
+            search_placeholder: Some(String::from("Use top action buttons")),
+            busy: matches!(self.step, InstallStep::Installing),
+            sort_label: Some(String::from("installer")),
+            active_tab_label: Some(String::from("Flow")),
+            focused_sample_label: None,
+            anchor_visible_row: None,
+            rows,
+        };
+        model.browser_chrome = BrowserChromeModel {
+            samples_tab_label: String::from("Flow"),
+            map_tab_label: String::from("Log"),
+            search_prefix_label: String::from("Step"),
+            search_placeholder: String::from("Installer flow"),
+            activity_ready_label: String::from("Ready"),
+            activity_busy_label: String::from("Installing"),
+            sort_prefix_label: String::from("Mode"),
+            sort_order_label: String::from("Installer"),
+            similarity_toggle_label: String::from("n/a"),
+            item_count_label: format!("{} rows", model.browser.visible_count),
+        };
+        model.update = self.update_panel();
+        model
+    }
+}
+
+impl NativeAppBridge for InstallerNativeBridge {
+    fn pull_model(&mut self) -> AppModel {
+        self.poll_installer();
+        self.app_model()
+    }
+
+    fn on_action(&mut self, action: UiAction) {
+        match action {
+            UiAction::InstallUpdate => self.advance_step(),
+            UiAction::OpenUpdateLink => {
+                if matches!(self.step, InstallStep::Location) {
+                    self.browse_install_dir();
+                } else if matches!(self.step, InstallStep::Done)
+                    && let Err(err) = open::that(&self.install_dir)
+                {
+                    self.finish_errors
+                        .push(format!("Failed to open install folder: {err}"));
+                } else {
+                    self.back_step();
                 }
             }
-        });
+            UiAction::DismissUpdate => self.back_step(),
+            UiAction::CheckForUpdates => {
+                if matches!(self.step, InstallStep::Error) {
+                    self.start_install();
+                } else {
+                    self.advance_step();
+                }
+            }
+            UiAction::SelectSourceRow { index } => {
+                if index == 0 && matches!(self.step, InstallStep::Location) {
+                    self.browse_install_dir();
+                }
+            }
+            _ => {}
+        }
     }
 }
 
-impl EguiAppRuntime for InstallerApp {
-    fn setup(&mut self, ctx: &egui::Context) {
-        let mut visuals = ctx.style().visuals.clone();
-        style::apply_visuals(&mut visuals);
-        ctx.set_visuals(visuals);
-    }
+/// Run the installer UI using the native radiant runtime.
+pub(crate) fn run_installer_app() -> Result<(), String> {
+    let options = EguiRunOptions {
+        title: String::from("SemPal Installer"),
+        inner_size: Some([860.0, 620.0]),
+        min_inner_size: Some([640.0, 420.0]),
+        maximized: false,
+        icon: load_installer_icon(),
+    };
+    run_native_vello_app(options, InstallerNativeBridge::new())
+}
 
-    fn update(&mut self, ctx: &egui::Context, _window: &winit::window::Window) {
-        self.render(ctx);
+fn load_installer_icon() -> Option<WindowIconRgba> {
+    decode_icon(include_bytes!("../../../assets/logo3.ico")).or_else(|| {
+        let fallback = decode_icon(include_bytes!("../../../assets/logo3.png"));
+        if fallback.is_none() {
+            eprintln!("Failed to decode installer icon assets.");
+        }
+        fallback
+    })
+}
+
+fn decode_icon(bytes: &[u8]) -> Option<WindowIconRgba> {
+    let image = image::load_from_memory(bytes).ok()?.to_rgba8();
+    let (width, height) = image.dimensions();
+    Some(WindowIconRgba {
+        rgba: image.into_raw(),
+        width,
+        height,
+    })
+}
+
+fn step_label(step: InstallStep) -> &'static str {
+    match step {
+        InstallStep::Welcome => "welcome",
+        InstallStep::License => "license",
+        InstallStep::Location => "location",
+        InstallStep::Installing => "installing",
+        InstallStep::Done => "done",
+        InstallStep::Error => "error",
     }
 }
+
+fn bool_word(value: bool) -> &'static str {
+    if value { "yes" } else { "no" }
+}
+
+#[cfg(not(test))]
+fn request_process_exit() {
+    std::process::exit(0);
+}
+
+#[cfg(test)]
+fn request_process_exit() {}
 
 pub(crate) fn send_started(
     sender: &mpsc::Sender<InstallerEvent>,
@@ -342,3 +459,17 @@ pub(crate) fn send_finished(sender: &mpsc::Sender<InstallerEvent>) -> Result<(),
 }
 
 pub(crate) type InstallerSender = mpsc::Sender<InstallerEvent>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn step_transitions_follow_expected_order() {
+        let mut bridge = InstallerNativeBridge::new();
+        bridge.advance_step();
+        assert_eq!(step_label(bridge.step), "license");
+        bridge.advance_step();
+        assert_eq!(step_label(bridge.step), "location");
+    }
+}
