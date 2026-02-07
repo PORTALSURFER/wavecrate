@@ -86,6 +86,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Native bridge status updates now route through `app_core::controller`
   extension helpers, removing migration-facing `StatusTone` coupling to
   legacy `egui_app::ui::style` enums.
+- Sempal runtime options now use a sempal-owned `NativeRunOptions` surface in
+  `src/gui_runtime/mod.rs` with conversion wrappers into radiant internals,
+  removing legacy `EguiRunOptions` naming from sempal's public runtime API.
 - Sempal `gui_runtime` now exposes a native-only host surface
   (`NativeRunOptions`, `run_native_vello_app`, `run_native_vello_preview`)
   and no longer re-exports egui runtime launch APIs.
