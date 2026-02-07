@@ -109,44 +109,11 @@ impl SempalNativeBridge {
                     self.controller.apply_pending_browser_rename();
                     return;
                 }
-                if let Some(crate::app_core::state::FolderActionPrompt::Rename { target, name }) = self
-                    .controller
-                    .ui
-                    .sources
-                    .folders
-                    .pending_action
-                    .clone()
-                    .map(crate::app_core::state::FolderActionPrompt::from)
-                {
-                    match self.controller.rename_folder(&target, &name) {
-                        Ok(()) => {
-                            self.controller.ui.sources.folders.pending_action = None;
-                            self.controller.ui.sources.folders.rename_focus_requested = false;
-                        }
-                        Err(err) => {
-                            self.controller.ui.sources.folders.rename_focus_requested = true;
-                            AppControllerStatusExt::set_error_status(&mut self.controller, err);
-                        }
-                    }
+                if self.controller.apply_pending_folder_rename() {
                     return;
                 }
-                if let Some(new_folder) = self.controller.ui.sources.folders.new_folder.clone() {
-                    match self
-                        .controller
-                        .create_folder(&new_folder.parent, &new_folder.name)
-                    {
-                        Ok(()) => {
-                            self.controller.ui.sources.folders.new_folder = None;
-                        }
-                        Err(err) => {
-                            if let Some(new_folder) =
-                                self.controller.ui.sources.folders.new_folder.as_mut()
-                            {
-                                new_folder.focus_requested = true;
-                            }
-                            AppControllerStatusExt::set_error_status(&mut self.controller, err);
-                        }
-                    }
+                if self.controller.apply_pending_new_folder_creation() {
+                    return;
                 }
             }
         }

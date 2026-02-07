@@ -64,6 +64,24 @@ impl EguiController {
         true
     }
 
+    pub(crate) fn apply_pending_new_folder_creation(&mut self) -> bool {
+        let Some(new_folder) = self.ui.sources.folders.new_folder.clone() else {
+            return false;
+        };
+        match self.create_folder(&new_folder.parent, &new_folder.name) {
+            Ok(()) => {
+                self.ui.sources.folders.new_folder = None;
+            }
+            Err(err) => {
+                if let Some(new_folder) = self.ui.sources.folders.new_folder.as_mut() {
+                    new_folder.focus_requested = true;
+                }
+                self.set_status(err, StatusTone::Error);
+            }
+        }
+        true
+    }
+
     fn ensure_folder_expanded_for_creation(&mut self, parent: &Path) {
         if parent.as_os_str().is_empty() {
             return;
