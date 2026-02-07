@@ -1,7 +1,15 @@
 //! Shared GUI runtime host implementations re-exported from `radiant`.
 
 /// RGBA icon payload used by native runtime hosts.
-pub type WindowIconRgba = radiant::gui_runtime::WindowIconRgba;
+#[derive(Clone, Debug)]
+pub struct WindowIconRgba {
+    /// RGBA pixel bytes in row-major order.
+    pub rgba: Vec<u8>,
+    /// Icon width in pixels.
+    pub width: u32,
+    /// Icon height in pixels.
+    pub height: u32,
+}
 /// Native runtime launch options for Vello hosts.
 #[derive(Clone, Debug, Default)]
 pub struct NativeRunOptions {
@@ -24,7 +32,17 @@ impl From<NativeRunOptions> for radiant::gui_runtime::EguiRunOptions {
             inner_size: value.inner_size,
             min_inner_size: value.min_inner_size,
             maximized: value.maximized,
-            icon: value.icon,
+            icon: value.icon.map(Into::into),
+        }
+    }
+}
+
+impl From<WindowIconRgba> for radiant::gui_runtime::WindowIconRgba {
+    fn from(value: WindowIconRgba) -> Self {
+        Self {
+            rgba: value.rgba,
+            width: value.width,
+            height: value.height,
         }
     }
 }

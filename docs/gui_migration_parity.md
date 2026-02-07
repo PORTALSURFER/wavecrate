@@ -89,6 +89,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Sempal runtime options now use a sempal-owned `NativeRunOptions` surface in
   `src/gui_runtime/mod.rs` with conversion wrappers into radiant internals,
   removing legacy `EguiRunOptions` naming from sempal's public runtime API.
+- Sempal runtime icon payloads now use a sempal-owned `WindowIconRgba` type in
+  `src/gui_runtime/mod.rs`, with explicit conversion into radiant runtime
+  internals to keep native host API ownership in sempal.
 - Sempal `gui_runtime` now exposes a native-only host surface
   (`NativeRunOptions`, `run_native_vello_app`, `run_native_vello_preview`)
   and no longer re-exports egui runtime launch APIs.
