@@ -47,6 +47,7 @@ to `radiant` (`native_vello`) as the only runtime path.
   tabs + toolbar + table header/rows/footer are now explicit layout bands used by paint and hit-testing.
 - Browser chrome now renders explicit search + state/sort chips and tokenized table columns (`#`, `Sample`, `Bucket`) instead of a single placeholder toolbar/header text line.
 - Top bar now uses a tokenized split layout (title row + controls row) with explicit options/volume meter geometry instead of hardcoded text offsets.
+- Projection now supplies native render hints for browser tab/sort/search labels and waveform tempo/zoom labels to avoid hardcoded placeholder copy.
 - Installer/updater binaries still use the `egui` host path and are tracked separately.
 
 ## Source Management Polish Checklist

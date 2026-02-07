@@ -347,7 +347,10 @@ fn project_browser_model(controller: &mut EguiController) -> BrowserPanelModel {
     let selected_visible_row = controller.ui.browser.selected_visible;
     let selected_path_count = controller.ui.browser.selected_paths.len();
     let search_query = controller.ui.browser.search_query.clone();
+    let search_placeholder = Some(String::from("Search samples (Ctrl+F)"));
     let busy = controller.ui.browser.search_busy;
+    let sort_label = Some(browser_sort_label(controller.ui.browser.sort).to_owned());
+    let active_tab_label = Some(browser_tab_label(controller.ui.browser.active_tab).to_owned());
     let focused_sample_label = controller
         .ui
         .loaded_wav
@@ -395,7 +398,10 @@ fn project_browser_model(controller: &mut EguiController) -> BrowserPanelModel {
         selected_visible_row,
         selected_path_count,
         search_query,
+        search_placeholder,
         busy,
+        sort_label,
+        active_tab_label,
         focused_sample_label,
         anchor_visible_row,
         rows,
@@ -425,6 +431,9 @@ fn browser_render_window(
 }
 
 fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
+    let view_span = (ui.waveform.view.end - ui.waveform.view.start)
+        .clamp(0.000_1, 1.0) as f32;
+    let zoom_percent = (100.0 / view_span).round().clamp(100.0, 9999.0);
     WaveformPanelModel {
         loaded_label: ui
             .loaded_wav
@@ -445,6 +454,8 @@ fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
         view_start_milli: normalized64_to_milli(ui.waveform.view.start),
         view_end_milli: normalized64_to_milli(ui.waveform.view.end),
         loop_enabled: ui.waveform.loop_enabled,
+        tempo_label: ui.waveform.bpm_value.map(|bpm| format!("{bpm:.1} BPM")),
+        zoom_label: Some(format!("{zoom_percent:.0}%")),
     }
 }
 
@@ -455,6 +466,24 @@ fn browser_column_index(tag: crate::sample_sources::Rating) -> usize {
         2
     } else {
         1
+    }
+}
+
+fn browser_sort_label(sort: crate::egui_app::state::SampleBrowserSort) -> &'static str {
+    use crate::egui_app::state::SampleBrowserSort;
+    match sort {
+        SampleBrowserSort::ListOrder => "List order",
+        SampleBrowserSort::Similarity => "Similarity",
+        SampleBrowserSort::PlaybackAgeAsc => "Playback age ↑",
+        SampleBrowserSort::PlaybackAgeDesc => "Playback age ↓",
+    }
+}
+
+fn browser_tab_label(tab: crate::egui_app::state::SampleBrowserTab) -> &'static str {
+    use crate::egui_app::state::SampleBrowserTab;
+    match tab {
+        SampleBrowserTab::List => "Samples",
+        SampleBrowserTab::Map => "Similarity map",
     }
 }
 
@@ -591,6 +620,34 @@ mod tests {
             browser_column_index(crate::sample_sources::Rating::KEEP_1),
             2
         );
+    }
+
+    #[test]
+    fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
+        let mut controller = EguiController::new(
+            crate::waveform::WaveformRenderer::new(32, 32),
+            None,
+        );
+        controller.ui.browser.sort = crate::egui_app::state::SampleBrowserSort::PlaybackAgeDesc;
+        controller.ui.browser.active_tab = crate::egui_app::state::SampleBrowserTab::Map;
+        let projected = project_browser_model(&mut controller);
+        assert_eq!(
+            projected.search_placeholder.as_deref(),
+            Some("Search samples (Ctrl+F)")
+        );
+        assert_eq!(projected.sort_label.as_deref(), Some("Playback age ↓"));
+        assert_eq!(projected.active_tab_label.as_deref(), Some("Similarity map"));
+    }
+
+    #[test]
+    fn waveform_projection_exposes_tempo_and_zoom_labels() {
+        let mut ui = UiState::default();
+        ui.waveform.bpm_value = Some(128.0);
+        ui.waveform.view.start = 0.25;
+        ui.waveform.view.end = 0.75;
+        let projected = project_waveform_model(&ui);
+        assert_eq!(projected.tempo_label.as_deref(), Some("128.0 BPM"));
+        assert_eq!(projected.zoom_label.as_deref(), Some("200%"));
     }
 
     #[test]
