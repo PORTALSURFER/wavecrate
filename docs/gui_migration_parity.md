@@ -51,16 +51,24 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Browser rows now support explicit bucket labels in native projections (for example BPM badges) instead of relying only on coarse column tags.
 - Installer/updater binaries still use the `egui` host path and are tracked separately.
 
-## Classic Baseline Layout Contract (v1)
+## Classic Baseline Layout Contract (v2)
 
 The native shell is now tuned against the classic Sempal density baseline:
 
-- narrower sidebar ratio and tighter frame gaps in the standard viewport tier,
-- denser browser row rhythm with tighter tab/toolbar/header/footer bands,
-- compact typography cadence across row labels and metadata text,
-- per-row bucket chip labels sourced from projection metadata (e.g. BPM badges).
+- standard tier sidebar width is constrained to a compact classic range
+  (`sidebar_ratio` 0.14..0.18, `sidebar_max_width` <= 220),
+- browser rows target dense table cadence
+  (`browser_row_height` 15.5..17.0 with tighter row gaps),
+- waveform/header split stays compact to preserve browser table capacity
+  (`waveform_ratio` <= 0.36),
+- typography remains compact for list readability
+  (`font_body` <= 9.1, `font_meta` <= 8.8),
+- per-row bucket chip labels are sourced from projection metadata (e.g. BPM badges),
+- reference viewport contract uses 1440x810 with:
+  sidebar width 155..220, waveform card height 150..280, and >=22 visible browser rows.
 
 This contract is enforced by native-shell style tests in `vendor/radiant/src/gui/native_shell/style.rs`
+plus layout geometry tests in `vendor/radiant/src/gui/native_shell/mod.rs`,
 and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
 
 ## Source Management Polish Checklist
