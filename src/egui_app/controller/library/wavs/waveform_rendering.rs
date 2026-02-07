@@ -1,5 +1,5 @@
-use crate::egui_app::controller::playback::audio_cache::FileMetadata;
 use super::*;
+use crate::egui_app::controller::playback::audio_cache::FileMetadata;
 use crate::egui_app::state::WaveformView;
 use crate::waveform::DecodedWaveform;
 use std::fs;
@@ -8,6 +8,17 @@ use std::path::Path;
 const MIN_VIEW_WIDTH_BASE: f64 = 1e-9;
 const MIN_SAMPLES_PER_PIXEL: f32 = 1.0;
 pub(crate) const DEFAULT_TRANSIENT_SENSITIVITY: f32 = 0.6;
+
+fn waveform_image_to_egui(image: crate::waveform::WaveformImage) -> egui::ColorImage {
+    let pixels = image
+        .pixels
+        .into_iter()
+        .map(|pixel| {
+            egui::Color32::from_rgba_unmultiplied(pixel.r(), pixel.g(), pixel.b(), pixel.a())
+        })
+        .collect();
+    egui::ColorImage::new(image.size, pixels)
+}
 
 fn min_view_width_for_frames(frame_count: usize, width_px: u32) -> f64 {
     if frame_count == 0 {
@@ -67,11 +78,9 @@ fn edit_fade_matches(
                 && (a.fade_out_length() - b.fade_out_length()).abs() <= eps
                 && (a.fade_out_mute_length() - b.fade_out_mute_length()).abs() <= eps
                 && (a.gain() - b.gain()).abs() <= eps
-                && a.fade_in().map(|f| f.curve).unwrap_or(0.5)
-                    .to_bits()
+                && a.fade_in().map(|f| f.curve).unwrap_or(0.5).to_bits()
                     == b.fade_in().map(|f| f.curve).unwrap_or(0.5).to_bits()
-                && a.fade_out().map(|f| f.curve).unwrap_or(0.5)
-                    .to_bits()
+                && a.fade_out().map(|f| f.curve).unwrap_or(0.5).to_bits()
                     == b.fade_out().map(|f| f.curve).unwrap_or(0.5).to_bits()
         }
         _ => false,
@@ -102,7 +111,13 @@ impl EguiController {
         decoded: DecodedWaveform,
         transients: Option<Vec<f32>>,
     ) {
-        if self.sample_view.waveform.decoded.as_ref().is_some_and(|d| d.cache_token == decoded.cache_token) {
+        if self
+            .sample_view
+            .waveform
+            .decoded
+            .as_ref()
+            .is_some_and(|d| d.cache_token == decoded.cache_token)
+        {
             // Content matches, no need to invalidate the current render or transients.
             self.sample_view.waveform.decoded = Some(decoded);
             return;
@@ -113,13 +128,13 @@ impl EguiController {
         // identical to the previous render.
         self.sample_view.waveform.render_meta = None;
         self.sample_view.waveform.decoded = Some(decoded);
-        
+
         // Reset view to show full waveform when loading new audio
         self.ui.waveform.view = WaveformView {
             start: 0.0,
             end: 1.0,
         };
-        
+
         if let Some(transients) = transients {
             self.ui.waveform.transients = transients;
             self.ui.waveform.transient_cache_token = Some(token);
@@ -201,6 +216,7 @@ impl EguiController {
                 height,
                 desired_meta.edit_fade,
             );
+        let color_image = waveform_image_to_egui(color_image);
         let (view_start, view_end) = self
             .sample_view
             .renderer

@@ -1,13 +1,13 @@
 mod cache;
 mod paint;
 
+use super::WaveformImage;
 use super::{DecodedWaveform, WaveformChannelView, WaveformColumnView, WaveformRenderer};
-use crate::selection::{SelectionRange, fade_gain_at_position};
-use egui::ColorImage;
+use crate::selection::{fade_gain_at_position, SelectionRange};
 
 impl WaveformRenderer {
-    /// Produce an empty waveform as an egui color image.
-    pub fn empty_color_image(&self) -> ColorImage {
+    /// Produce an empty waveform image buffer.
+    pub fn empty_color_image(&self) -> WaveformImage {
         self.render_color_image_with_size(
             &[],
             1,
@@ -20,12 +20,12 @@ impl WaveformRenderer {
         )
     }
 
-    /// Render an egui color image for a decoded waveform in the given channel view.
+    /// Render a waveform image for a decoded waveform in the given channel view.
     pub fn render_color_image_for_mode(
         &self,
         decoded: &DecodedWaveform,
         view: WaveformChannelView,
-    ) -> ColorImage {
+    ) -> WaveformImage {
         if decoded.samples.is_empty() {
             return self.render_color_image_for_view_with_size(
                 decoded,
@@ -48,7 +48,7 @@ impl WaveformRenderer {
         )
     }
 
-    /// Render an egui color image for a decoded waveform over a normalized view window.
+    /// Render a waveform image for a decoded waveform over a normalized view window.
     ///
     /// Uses a cached full-width column envelope keyed by zoom (view fraction) to reduce work
     /// during panning at a constant zoom level.
@@ -60,19 +60,13 @@ impl WaveformRenderer {
         view: WaveformChannelView,
         width: u32,
         height: u32,
-    ) -> ColorImage {
+    ) -> WaveformImage {
         self.render_color_image_for_view_with_size_and_fade(
-            decoded,
-            view_start,
-            view_end,
-            view,
-            width,
-            height,
-            None,
+            decoded, view_start, view_end, view, width, height, None,
         )
     }
 
-    /// Render an egui color image for a decoded waveform over a normalized view window
+    /// Render a waveform image for a decoded waveform over a normalized view window
     /// with an optional edit-fade preview applied.
     pub fn render_color_image_for_view_with_size_and_fade(
         &self,
@@ -83,7 +77,7 @@ impl WaveformRenderer {
         width: u32,
         height: u32,
         edit_fade: Option<SelectionRange>,
-    ) -> ColorImage {
+    ) -> WaveformImage {
         let width = width.max(1);
         let height = height.max(1);
         let channels = decoded.channel_count();
@@ -182,7 +176,7 @@ impl WaveformRenderer {
         )
     }
 
-    /// Render an egui color image at an explicit size for a view window.
+    /// Render a waveform image at an explicit size for a view window.
     ///
     /// `view_start`/`view_end` are normalized offsets into the full waveform and are used
     /// to align any optional edit-fade preview with the rendered slice.
@@ -196,7 +190,7 @@ impl WaveformRenderer {
         view_start: f32,
         view_end: f32,
         edit_fade: Option<SelectionRange>,
-    ) -> ColorImage {
+    ) -> WaveformImage {
         let width = width.max(1);
         let height = height.max(1);
         let frame_count = samples.len() / channels.max(1);
@@ -287,11 +281,7 @@ impl WaveformRenderer {
     }
 }
 
-fn fade_intersects_view(
-    view_start: f32,
-    view_end: f32,
-    edit_fade: Option<SelectionRange>,
-) -> bool {
+fn fade_intersects_view(view_start: f32, view_end: f32, edit_fade: Option<SelectionRange>) -> bool {
     let Some(selection) = edit_fade else {
         return false;
     };

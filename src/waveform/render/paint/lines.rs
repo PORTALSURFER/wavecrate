@@ -1,5 +1,5 @@
 use super::WaveformRenderer;
-use egui::{Color32, ColorImage};
+use crate::waveform::{WaveformImage, WaveformRgba};
 
 impl WaveformRenderer {
     pub(in crate::waveform::render) fn paint_line_image(
@@ -7,13 +7,13 @@ impl WaveformRenderer {
         channels: usize,
         width: u32,
         height: u32,
-        foreground: Color32,
-        background: Color32,
+        foreground: WaveformRgba,
+        background: WaveformRgba,
         channel_index: Option<usize>,
-    ) -> ColorImage {
+    ) -> WaveformImage {
         let fill =
-            Color32::from_rgba_unmultiplied(background.r(), background.g(), background.b(), 0);
-        let mut image = ColorImage::new(
+            WaveformRgba::from_rgba_unmultiplied(background.r(), background.g(), background.b(), 0);
+        let mut image = WaveformImage::new(
             [width as usize, height as usize],
             vec![fill; (width as usize) * (height as usize)],
         );
@@ -69,9 +69,9 @@ impl WaveformRenderer {
         channels: usize,
         width: u32,
         height: u32,
-        foreground: Color32,
-        background: Color32,
-    ) -> ColorImage {
+        foreground: WaveformRgba,
+        background: WaveformRgba,
+    ) -> WaveformImage {
         let gap = if height >= 3 { 2 } else { 0 };
         let split_height = height.saturating_sub(gap);
         let top_height = (split_height / 2).max(1);
@@ -96,8 +96,8 @@ impl WaveformRenderer {
             Some(1),
         );
         let fill =
-            Color32::from_rgba_unmultiplied(background.r(), background.g(), background.b(), 0);
-        let mut image = ColorImage::new(
+            WaveformRgba::from_rgba_unmultiplied(background.r(), background.g(), background.b(), 0);
+        let mut image = WaveformImage::new(
             [width as usize, height as usize],
             vec![fill; (width as usize) * (height as usize)],
         );
@@ -191,7 +191,7 @@ impl WaveformRenderer {
     }
 
     fn blend_pixel(
-        image: &mut ColorImage,
+        image: &mut WaveformImage,
         stride: usize,
         x: usize,
         y: usize,
@@ -206,12 +206,12 @@ impl WaveformRenderer {
             let alpha = (fg.3 as f32 * coverage.clamp(0.0, 1.0)).round() as u8;
             let existing = pixel.a();
             let blended = existing.max(alpha);
-            *pixel = Color32::from_rgba_unmultiplied(fg.0, fg.1, fg.2, blended);
+            *pixel = WaveformRgba::from_rgba_unmultiplied(fg.0, fg.1, fg.2, blended);
         }
     }
 
     fn draw_line_aa(
-        image: &mut ColorImage,
+        image: &mut WaveformImage,
         stride: usize,
         width: usize,
         height: usize,
@@ -361,7 +361,7 @@ impl WaveformRenderer {
     }
 
     fn plot_aa(
-        image: &mut ColorImage,
+        image: &mut WaveformImage,
         stride: usize,
         width: usize,
         height: usize,

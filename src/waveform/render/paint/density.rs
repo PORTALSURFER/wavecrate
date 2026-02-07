@@ -1,18 +1,18 @@
 use super::WaveformRenderer;
-use egui::{Color32, ColorImage};
+use crate::waveform::{WaveformImage, WaveformRgba};
 
 impl WaveformRenderer {
     pub(in crate::waveform::render) fn paint_color_image_for_size_with_density(
         columns: &[(f32, f32)],
         width: u32,
         height: u32,
-        foreground: Color32,
-        background: Color32,
+        foreground: WaveformRgba,
+        background: WaveformRgba,
         frames_per_column: f32,
-    ) -> ColorImage {
+    ) -> WaveformImage {
         let fill =
-            Color32::from_rgba_unmultiplied(background.r(), background.g(), background.b(), 0);
-        let mut image = ColorImage::new(
+            WaveformRgba::from_rgba_unmultiplied(background.r(), background.g(), background.b(), 0);
+        let mut image = WaveformImage::new(
             [width as usize, height as usize],
             vec![fill; (width as usize) * (height as usize)],
         );
@@ -52,7 +52,7 @@ impl WaveformRenderer {
                 let alpha = ((fg.3 as f32) * boosted).round() as u8;
                 let idx = y as usize * stride + x;
                 if let Some(pixel) = image.pixels.get_mut(idx) {
-                    *pixel = Color32::from_rgba_unmultiplied(fg.0, fg.1, fg.2, alpha);
+                    *pixel = WaveformRgba::from_rgba_unmultiplied(fg.0, fg.1, fg.2, alpha);
                 }
             }
         }
@@ -64,10 +64,10 @@ impl WaveformRenderer {
         right: &[(f32, f32)],
         width: u32,
         height: u32,
-        foreground: Color32,
-        background: Color32,
+        foreground: WaveformRgba,
+        background: WaveformRgba,
         frames_per_column: f32,
-    ) -> ColorImage {
+    ) -> WaveformImage {
         let gap = if height >= 3 { 2 } else { 0 };
         let split_height = height.saturating_sub(gap);
         let top_height = (split_height / 2).max(1);
@@ -91,8 +91,8 @@ impl WaveformRenderer {
         );
 
         let fill =
-            Color32::from_rgba_unmultiplied(background.r(), background.g(), background.b(), 0);
-        let mut image = ColorImage::new(
+            WaveformRgba::from_rgba_unmultiplied(background.r(), background.g(), background.b(), 0);
+        let mut image = WaveformImage::new(
             [width as usize, height as usize],
             vec![fill; (width as usize) * (height as usize)],
         );

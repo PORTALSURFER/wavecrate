@@ -5,8 +5,6 @@ mod sampling;
 pub(crate) mod transients;
 mod zoom_cache;
 
-use egui::Color32;
-use egui::ColorImage;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::path::Path;
@@ -16,10 +14,68 @@ pub use error::{WaveformDecodeError, WaveformLoadError};
 
 const MAX_WAVEFORM_BYTES: u64 = 512 * 1024 * 1024;
 
+/// Backend-neutral RGBA pixel value used by waveform rendering.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WaveformRgba {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+}
+
+impl WaveformRgba {
+    /// Construct an opaque color from RGB channels.
+    pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
+        Self { r, g, b, a: 255 }
+    }
+
+    /// Construct a color from unmultiplied RGBA channels.
+    pub const fn from_rgba_unmultiplied(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self { r, g, b, a }
+    }
+
+    /// Red channel.
+    pub const fn r(self) -> u8 {
+        self.r
+    }
+
+    /// Green channel.
+    pub const fn g(self) -> u8 {
+        self.g
+    }
+
+    /// Blue channel.
+    pub const fn b(self) -> u8 {
+        self.b
+    }
+
+    /// Alpha channel.
+    pub const fn a(self) -> u8 {
+        self.a
+    }
+}
+
+/// Backend-neutral image buffer used by waveform rendering.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WaveformImage {
+    /// `[width, height]` dimensions.
+    pub size: [usize; 2],
+    /// Row-major RGBA pixels.
+    pub pixels: Vec<WaveformRgba>,
+}
+
+impl WaveformImage {
+    /// Construct an image from dimensions and row-major pixels.
+    pub fn new(size: [usize; 2], pixels: Vec<WaveformRgba>) -> Self {
+        debug_assert_eq!(pixels.len(), size[0].saturating_mul(size[1]));
+        Self { size, pixels }
+    }
+}
+
 /// Waveform pixels and audio payload loaded from disk.
 pub struct LoadedWaveform {
     /// Rendered waveform image.
-    pub image: ColorImage,
+    pub image: WaveformImage,
     /// Raw audio bytes for playback or export.
     pub audio_bytes: Vec<u8>,
     /// Duration of the audio in seconds.
@@ -365,8 +421,8 @@ mod peaks_tests {
 pub struct WaveformRenderer {
     pub(crate) width: u32,
     pub(crate) height: u32,
-    pub(crate) background: Color32,
-    pub(crate) foreground: Color32,
+    pub(crate) background: WaveformRgba,
+    pub(crate) foreground: WaveformRgba,
     zoom_cache: std::sync::Arc<zoom_cache::WaveformZoomCache>,
     decode_cache: std::sync::Arc<std::sync::Mutex<decode::DecodeCache>>,
 }
@@ -377,8 +433,8 @@ impl WaveformRenderer {
         Self {
             width,
             height,
-            background: Color32::from_rgb(18, 16, 14),
-            foreground: Color32::from_rgb(250, 246, 240),
+            background: WaveformRgba::from_rgb(18, 16, 14),
+            foreground: WaveformRgba::from_rgb(250, 246, 240),
             zoom_cache: std::sync::Arc::new(zoom_cache::WaveformZoomCache::new()),
             decode_cache: std::sync::Arc::new(decode::default_decode_cache()),
         }
@@ -404,10 +460,7 @@ impl WaveformRenderer {
     }
 }
 
-fn read_audio_bytes_with_limit(
-    path: &Path,
-    max_bytes: u64,
-) -> Result<Vec<u8>, WaveformLoadError> {
+fn read_audio_bytes_with_limit(path: &Path, max_bytes: u64) -> Result<Vec<u8>, WaveformLoadError> {
     let metadata = std::fs::metadata(path).map_err(|source| WaveformLoadError::Metadata {
         path: path.to_path_buf(),
         source,

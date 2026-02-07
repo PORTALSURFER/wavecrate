@@ -84,6 +84,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Sempal `gui_runtime` now exposes a native-only host surface
   (`NativeRunOptions`, `run_native_vello_app`, `run_native_vello_preview`)
   and no longer re-exports egui runtime launch APIs.
+- Waveform rendering internals now use backend-neutral image/color buffers
+  (`WaveformImage`, `WaveformRgba`) with egui conversion isolated to legacy
+  egui-controller call sites.
 
 ## Classic Baseline Layout Contract (v2)
 

@@ -1,7 +1,7 @@
+use super::WaveformImage;
 use super::{DecodedWaveform, WaveformChannelView, WaveformRenderer};
 use crate::selection::SelectionRange;
 use crate::waveform::zoom_cache::CachedColumns;
-use egui::ColorImage;
 
 impl WaveformRenderer {
     pub(crate) fn cached_view_window(
@@ -33,7 +33,7 @@ impl WaveformRenderer {
         width: u32,
         height: u32,
         edit_fade: Option<SelectionRange>,
-    ) -> Option<ColorImage> {
+    ) -> Option<WaveformImage> {
         let frame_count = decoded.frame_count();
         let fraction = (view_end - view_start).max(0.000_001);
         let full_width = self.cached_full_width(width, fraction, frame_count);

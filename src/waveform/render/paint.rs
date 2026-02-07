@@ -1,8 +1,8 @@
 mod density;
 mod lines;
 
+use super::WaveformImage;
 use super::WaveformRenderer;
-use egui::ColorImage;
 
 impl WaveformRenderer {
     pub(super) fn smoothing_radius(frames_per_column: f32, width: u32) -> usize {
@@ -49,7 +49,7 @@ impl WaveformRenderer {
         smoothed
     }
 
-    pub(super) fn blit_image(target: &mut ColorImage, source: &ColorImage, y_offset: usize) {
+    pub(super) fn blit_image(target: &mut WaveformImage, source: &WaveformImage, y_offset: usize) {
         let width = target.size[0].min(source.size[0]);
         for y in 0..source.size[1] {
             let dest_y = y + y_offset;
