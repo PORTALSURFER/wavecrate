@@ -11,13 +11,13 @@ pub type AppController = crate::egui_app::controller::EguiController;
 pub trait AppControllerStatusExt {
     /// Set an error status message on the controller.
     ///
-    /// This keeps native-bridge code independent from legacy UI status-tone
-    /// enums while migration is in progress.
+    /// This keeps native-bridge code independent from legacy UI style enums
+    /// while migration is in progress.
     fn set_error_status(&mut self, message: impl Into<String>);
 }
 
 impl AppControllerStatusExt for AppController {
     fn set_error_status(&mut self, message: impl Into<String>) {
-        self.set_status(message, crate::egui_app::ui::style::StatusTone::Error);
+        crate::egui_app::controller::EguiController::set_error_status(self, message);
     }
 }

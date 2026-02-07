@@ -4,8 +4,8 @@
 
 mod library;
 mod playback;
-mod ui;
 mod source_watcher;
+mod ui;
 
 mod config;
 pub(crate) mod controller_state;
@@ -15,35 +15,32 @@ pub(crate) mod undo;
 mod undo_jobs;
 pub(crate) mod updates;
 
+pub(crate) use crate::egui_app::ui::style::StatusTone;
 use crate::{
     audio::AudioPlayer,
     egui_app::state::UiState,
     egui_app::{ui::style, view_model},
     gui::repaint::RepaintSignal,
-    sample_sources::{
-        SampleSource, SourceDatabase, SourceDbError, SourceId,
-        WavEntry,
-    },
+    sample_sources::{SampleSource, SourceDatabase, SourceDbError, SourceId, WavEntry},
     selection::SelectionRange,
     waveform::WaveformRenderer,
 };
-pub(in crate::egui_app::controller) use library::analysis_jobs::AnalysisJobMessage;
-use library::analysis_jobs::AnalysisWorkerPool;
-use playback::audio_loader::{AudioLoadError, AudioLoadJob, AudioLoadOutcome};
 pub(crate) use controller_state::*;
 use egui::Color32;
+pub(in crate::egui_app::controller) use library::analysis_jobs::AnalysisJobMessage;
+use library::analysis_jobs::AnalysisWorkerPool;
 use open;
+use playback::audio_loader::{AudioLoadError, AudioLoadJob, AudioLoadOutcome};
 use rfd::FileDialog;
-pub(crate) use ui::hotkeys;
-pub(crate) use ui::status_message::StatusMessage;
 use std::{
     cell::RefCell,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
-};pub(crate) use crate::egui_app::ui::style::StatusTone;
-
+};
+pub(crate) use ui::hotkeys;
+pub(crate) use ui::status_message::StatusMessage;
 
 pub(crate) const MIN_SELECTION_WIDTH: f32 = 0.001;
 pub(crate) const BPM_MIN_SELECTION_DIVISOR: f32 = 16.0;
@@ -216,6 +213,10 @@ impl EguiController {
             self.ui.status.log.drain(0..overflow);
         }
         log_status_entry(tone, self.ui.status.log.last().expect("just pushed"));
+    }
+
+    pub(crate) fn set_error_status(&mut self, text: impl Into<String>) {
+        self.set_status(text, StatusTone::Error);
     }
 
     pub(crate) fn set_status_message(&mut self, message: StatusMessage) {
