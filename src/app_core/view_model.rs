@@ -1,7 +1,13 @@
 //! Backend-neutral view-model aliases for migration consumers.
 //!
-//! This re-export keeps runtime-facing projection code independent from direct
+//! These helpers keep runtime-facing projection code independent from direct
 //! `egui_app::view_model` module paths while controller internals continue to
-//! migrate.
+//! migrate. Keep this surface minimal and add only functions needed by
+//! migration-facing modules.
 
-pub use crate::egui_app::view_model::*;
+use std::path::Path;
+
+/// Build a human-readable label for a sample path.
+pub fn sample_display_label(path: &Path) -> String {
+    crate::egui_app::view_model::sample_display_label(path)
+}

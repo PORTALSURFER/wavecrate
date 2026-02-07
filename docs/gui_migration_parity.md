@@ -83,6 +83,9 @@ to `radiant` (`native_vello`) as the only runtime path.
   `egui_app::state` paths in host integration code.
 - Native runtime-facing projection/view constants now consume migration-facing
   `app_core::{view_model,ui}` aliases instead of direct `egui_app` module paths.
+- `app_core::view_model` now exposes a narrowed migration-facing helper surface
+  (currently `sample_display_label`) instead of a blanket re-export of legacy
+  `egui_app::view_model` symbols.
 - `app_core::ui` now owns native viewport baseline constants directly
   (960x560 default, 640x400 minimum) so runtime entrypoints no longer depend on
   legacy `egui_app::ui` constant definitions.
