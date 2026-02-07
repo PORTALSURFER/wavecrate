@@ -129,6 +129,10 @@ impl EguiController {
         true
     }
 
+    pub(crate) fn has_pending_browser_rename(&self) -> bool {
+        self.ui.browser.pending_action.is_some()
+    }
+
     pub(crate) fn delete_active_browser_selection(&mut self) -> bool {
         let mut rows: Vec<usize> = self
             .ui

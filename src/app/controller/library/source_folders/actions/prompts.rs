@@ -75,6 +75,13 @@ impl EguiController {
         true
     }
 
+    pub(crate) fn has_pending_folder_rename(&self) -> bool {
+        matches!(
+            self.ui.sources.folders.pending_action,
+            Some(FolderActionPrompt::Rename { .. })
+        )
+    }
+
     pub(crate) fn apply_pending_folder_rename(&mut self) -> bool {
         let action = self.ui.sources.folders.pending_action.clone();
         let Some(FolderActionPrompt::Rename { target, name }) = action else {

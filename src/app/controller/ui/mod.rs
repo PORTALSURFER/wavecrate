@@ -17,6 +17,7 @@ pub(crate) mod interaction_options;
 pub(crate) mod loading;
 pub(crate) mod map_view;
 pub(crate) mod os_explorer;
+pub(crate) mod prompt_flow;
 pub(crate) mod status_message;
 pub(crate) mod waveform_controller;
 pub(crate) mod waveform_slide;

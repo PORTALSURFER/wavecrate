@@ -64,6 +64,10 @@ impl EguiController {
         true
     }
 
+    pub(crate) fn has_pending_new_folder_creation(&self) -> bool {
+        self.ui.sources.folders.new_folder.is_some()
+    }
+
     pub(crate) fn apply_pending_new_folder_creation(&mut self) -> bool {
         let Some(new_folder) = self.ui.sources.folders.new_folder.clone() else {
             return false;

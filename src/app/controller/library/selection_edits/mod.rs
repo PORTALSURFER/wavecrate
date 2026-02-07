@@ -74,6 +74,18 @@ impl EguiController {
         self.ui.waveform.pending_destructive = None;
     }
 
+    pub(crate) fn has_pending_destructive_prompt(&self) -> bool {
+        self.ui.waveform.pending_destructive.is_some()
+    }
+
+    pub(crate) fn apply_pending_destructive_prompt(&mut self) -> bool {
+        let Some(prompt) = self.ui.waveform.pending_destructive.clone() else {
+            return false;
+        };
+        self.apply_confirmed_destructive_edit(prompt.edit);
+        true
+    }
+
     /// Apply edit-selection fades to disk and clear preview fades.
     pub(crate) fn commit_edit_selection_fades(&mut self) -> Result<bool, String> {
         let Some(selection) = self.ui.waveform.edit_selection else {

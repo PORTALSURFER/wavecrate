@@ -71,47 +71,11 @@ impl SempalNativeBridge {
     }
 
     fn confirm_active_prompt(&mut self) {
-        match self
-            .controller
-            .ui
-            .waveform
-            .pending_destructive
-            .clone()
-            .map(crate::app_core::state::DestructiveEditPrompt::from)
-        {
-            Some(prompt) => {
-                self.controller
-                    .apply_confirmed_destructive_edit(prompt.edit.into());
-            }
-            None => {
-                if self.controller.ui.browser.pending_action.is_some() {
-                    self.controller.apply_pending_browser_rename();
-                    return;
-                }
-                if self.controller.apply_pending_folder_rename() {
-                    return;
-                }
-                if self.controller.apply_pending_new_folder_creation() {
-                    return;
-                }
-            }
-        }
+        let _ = self.controller.confirm_active_prompt();
     }
 
     fn cancel_active_prompt(&mut self) {
-        if self.controller.ui.waveform.pending_destructive.is_some() {
-            self.controller.clear_destructive_prompt();
-            return;
-        }
-        if self.controller.ui.browser.pending_action.is_some() {
-            self.controller.cancel_browser_rename();
-            return;
-        }
-        if self.controller.ui.sources.folders.new_folder.is_some() {
-            self.controller.cancel_new_folder_creation();
-            return;
-        }
-        self.controller.cancel_folder_rename();
+        let _ = self.controller.cancel_active_prompt();
     }
 
     fn move_folder_focus(&mut self, delta: i8) {
