@@ -53,4 +53,4 @@ to `radiant` (`native_vello`) as the only runtime path.
 - [x] Disable recovery-log clear action while recovery is still running.
 - [x] Add native-shell tests for disabled source actions and validation-gated prompt confirms.
 - [x] Add projection tests for folder create/rename validation errors and recovery-action gating.
-- [ ] Finalize remaining visual polish for folder recovery affordances across compact viewport edge cases.
+- [x] Finalize remaining visual polish for folder recovery affordances across compact viewport edge cases.
