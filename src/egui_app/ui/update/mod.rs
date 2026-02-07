@@ -1,9 +1,9 @@
 use eframe::egui;
 use winit::window::Window;
 
+use super::input::{user_activity_detected, InputSnapshot};
 use super::EguiApp;
-use super::input::{InputSnapshot, user_activity_detected};
-use crate::gui_runtime::EguiAppRuntime;
+use radiant::gui_runtime::EguiAppRuntime;
 use update_prompt::FocusFlags;
 
 mod release_notes;

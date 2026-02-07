@@ -9,7 +9,7 @@
 
 use sempal::audio::AudioPlayer;
 use sempal::gui_app::{new_native_bridge, MIN_VIEWPORT_SIZE};
-use sempal::gui_runtime::{run_native_vello_app, EguiRunOptions, WindowIconRgba};
+use sempal::gui_runtime::{run_native_vello_app, NativeRunOptions, WindowIconRgba};
 use sempal::logging;
 use sempal::waveform::WaveformRenderer;
 
@@ -23,7 +23,7 @@ fn main() -> Result<(), String> {
         eprintln!("Logging disabled: {err}");
     }
 
-    let options = EguiRunOptions {
+    let options = NativeRunOptions {
         title: String::from("Sempal"),
         inner_size: None,
         min_inner_size: Some(MIN_VIEWPORT_SIZE),

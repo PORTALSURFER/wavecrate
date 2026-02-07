@@ -3,7 +3,7 @@ use radiant::app::{
     NativeAppBridge, SourceRowModel, StatusBarModel, UiAction, UpdatePanelModel, UpdateStatusModel,
 };
 use sempal::{
-    gui_runtime::{EguiRunOptions, run_native_vello_app},
+    gui_runtime::{NativeRunOptions, run_native_vello_app},
     updater::{
         APP_NAME, ApplyPlan, ReleaseSummary, UpdateChannel, UpdateProgress, UpdaterRunArgs,
         apply_update_with_progress, list_recent_releases, open_release_page,
@@ -19,7 +19,7 @@ const RELEASE_LIST_LIMIT: usize = 5;
 
 /// Run the updater UI using the native radiant runtime.
 pub fn run_gui(args: UpdaterRunArgs) -> Result<(), String> {
-    let options = EguiRunOptions {
+    let options = NativeRunOptions {
         title: format!("{APP_NAME} updater"),
         inner_size: Some([860.0, 620.0]),
         min_inner_size: Some([640.0, 420.0]),

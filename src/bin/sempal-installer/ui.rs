@@ -4,7 +4,7 @@ use radiant::app::{
 };
 use std::{path::PathBuf, sync::mpsc, thread};
 
-use sempal::gui_runtime::{EguiRunOptions, WindowIconRgba, run_native_vello_app};
+use sempal::gui_runtime::{NativeRunOptions, WindowIconRgba, run_native_vello_app};
 
 use crate::{APP_NAME, install, paths};
 
@@ -380,7 +380,7 @@ impl NativeAppBridge for InstallerNativeBridge {
 
 /// Run the installer UI using the native radiant runtime.
 pub(crate) fn run_installer_app() -> Result<(), String> {
-    let options = EguiRunOptions {
+    let options = NativeRunOptions {
         title: String::from("SemPal Installer"),
         inner_size: Some([860.0, 620.0]),
         min_inner_size: Some([640.0, 420.0]),
