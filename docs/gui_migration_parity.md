@@ -31,10 +31,10 @@ to `radiant` (`native_vello`) as the only runtime path.
 
 | Area | Capability | Current state | Owner target |
 | --- | --- | --- | --- |
-| Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress (standard-first rhythm pass + style-tokenized subtle motion) | Radiant |
-| Layout contract | Tokenized header/body/footer geometry shared by paint + hit testing | Done | Radiant |
+| Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress (classic-shell top bar + browser band scaffolding landed) | Radiant |
+| Layout contract | Tokenized header/body/footer geometry shared by paint + hit testing | In progress (classic single-table browser bands now first-class in layout tree) | Radiant |
 | Sidebar layout | Tokenized source/folder section sizing and action controls | Done (tiered sizing and compact edge-case guards) | Radiant |
-| Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | In progress (200-row projection window + focused per-column render window) | Radiant |
+| Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | In progress (single-table focused window + higher per-tier row caps) | Radiant |
 | Tooling | Snapshot + interaction golden tests for native shell | In progress (deterministic frame-contract + virtualization hit/geometry tests) | Radiant + Sempal |
 
 ## Migration notes
@@ -43,6 +43,8 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Native bridge orchestration remains in `src/gui_app/bridge.rs`.
 - Main runtime backend selection has been removed; `src/main.rs` now boots native Vello directly.
 - Native shell layout now derives panel/frame metrics from shared style tokens (`vendor/radiant/src/gui/native_shell/style.rs`) and exposes explicit panel bands in `vendor/radiant/src/gui/native_shell/layout.rs`.
+- Browser region migration has started from triage columns toward the classic table shell:
+  tabs + toolbar + table header/rows/footer are now explicit layout bands used by paint and hit-testing.
 - Installer/updater binaries still use the `egui` host path and are tracked separately.
 
 ## Source Management Polish Checklist
