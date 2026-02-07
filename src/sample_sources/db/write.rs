@@ -41,7 +41,7 @@ impl SourceDatabase {
             extension
         ])
         .map_err(map_sql_error)?;
-        
+
         Self::bump_revision(&self.connection)?;
         Ok(())
     }

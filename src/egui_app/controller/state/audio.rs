@@ -1,9 +1,9 @@
 //! Audio playback and loading state for the controller.
 
 use crate::audio::AudioPlayer;
-use crate::egui_app::controller::playback::audio_cache::AudioCache;
-use crate::sample_sources::SourceId;
 use crate::audio::{AudioRecorder, InputMonitor};
+use crate::app::controller::playback::audio_cache::AudioCache;
+use crate::sample_sources::SourceId;
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;

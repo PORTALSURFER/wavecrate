@@ -1,7 +1,9 @@
 use super::EguiController;
 use super::MIN_SELECTION_WIDTH;
-use crate::egui_app::controller::playback::audio_samples::{DecodedSamples, crop_samples, decode_samples_from_bytes, write_wav};
 use crate::analysis::audio::{detect_non_silent_ranges, downmix_to_mono_into};
+use crate::app::controller::playback::audio_samples::{
+    DecodedSamples, crop_samples, decode_samples_from_bytes, write_wav,
+};
 use crate::sample_sources::SampleSource;
 use crate::selection::SelectionRange;
 use std::cmp::Ordering;

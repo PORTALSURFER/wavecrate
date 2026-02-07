@@ -257,7 +257,7 @@ impl WaveformController<'_> {
             return false;
         }
         let focus_from_pointer = focus.is_some();
-        let original = self.ui.waveform.view;  // Use actual view, not display_view
+        let original = self.ui.waveform.view; // Use actual view, not display_view
         let default_factor = self.ui.controls.keyboard_zoom_factor.max(0.01);
         let base = factor_override.unwrap_or(default_factor).max(0.01) as f64;
         let factor = if zoom_in { base } else { 1.0 / base };
@@ -343,7 +343,6 @@ impl WaveformController<'_> {
         self.refresh_waveform_image();
     }
 }
-
 
 pub(crate) fn views_differ(a: WaveformView, b: WaveformView) -> bool {
     (a.start - b.start).abs() > VIEW_EPSILON || (a.end - b.end).abs() > VIEW_EPSILON

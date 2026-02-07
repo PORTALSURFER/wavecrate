@@ -1,6 +1,6 @@
 use super::*;
-use crate::egui_app::controller::ui::hotkeys::{HotkeyAction, HotkeyCommand};
-use crate::egui_app::state::FocusContext;
+use crate::app::controller::ui::hotkeys::{HotkeyAction, HotkeyCommand};
+use crate::app::state::FocusContext;
 
 mod browser;
 mod waveform;
@@ -192,11 +192,11 @@ impl EguiController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::egui_app::controller::ui::hotkeys;
-    use crate::egui_app::controller::test_support::{
+    use crate::app::controller::test_support::{
         load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry,
     };
-    use crate::egui_app::state::FocusContext;
+    use crate::app::controller::ui::hotkeys;
+    use crate::app::state::FocusContext;
     use crate::sample_sources::Rating;
     use crate::selection::SelectionRange;
 
@@ -240,5 +240,4 @@ mod tests {
         controller.handle_hotkey(action, FocusContext::Waveform);
         assert!(!controller.ui.browser.search_focus_requested);
     }
-
 }

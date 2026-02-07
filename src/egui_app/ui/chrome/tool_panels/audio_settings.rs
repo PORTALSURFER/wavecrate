@@ -1,11 +1,11 @@
 use eframe::egui::{self, RichText, SliderClamping};
 
 use super::section_label;
-use crate::egui_app::ui::EguiApp;
-use crate::egui_app::ui::style;
+use crate::app::ui::EguiApp;
+use crate::app::ui::style;
 
 impl EguiApp {
-    pub(in crate::egui_app::ui) fn render_audio_settings_window(&mut self, ctx: &egui::Context) {
+    pub(in crate::app::ui) fn render_audio_settings_window(&mut self, ctx: &egui::Context) {
         if !self.controller.ui.audio.panel_open {
             return;
         }
@@ -150,7 +150,7 @@ impl EguiApp {
         self.controller.ui.audio.panel_open = open;
     }
 
-    pub(in crate::egui_app::ui::chrome) fn render_audio_options_menu(&mut self, ui: &mut egui::Ui) {
+    pub(in crate::app::ui::chrome) fn render_audio_options_menu(&mut self, ui: &mut egui::Ui) {
         let palette = style::palette();
         ui.label(
             RichText::new("Audio output")

@@ -1,5 +1,5 @@
 use super::super::{AudioPlayer, normalized_progress};
-use crate::audio::output::{open_output_stream, AudioOutputConfig};
+use crate::audio::output::{AudioOutputConfig, open_output_stream};
 use std::time::{Duration, Instant};
 
 #[test]

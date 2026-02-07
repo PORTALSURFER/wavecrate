@@ -6,7 +6,7 @@ pub(super) fn render_markers(
     app: &mut EguiApp,
     ui: &mut egui::Ui,
     rect: egui::Rect,
-    view: crate::egui_app::state::WaveformView,
+    view: crate::app::state::WaveformView,
     start_marker_color: Color32,
     to_screen_x: &impl Fn(f32, egui::Rect) -> f32,
 ) {
@@ -35,7 +35,7 @@ fn draw_transient_markers(
     app: &EguiApp,
     ui: &mut egui::Ui,
     rect: egui::Rect,
-    view: crate::egui_app::state::WaveformView,
+    view: crate::app::state::WaveformView,
     to_screen_x: &impl Fn(f32, egui::Rect) -> f32,
 ) {
     let transients = &app.controller.ui.waveform.transients;
@@ -49,14 +49,14 @@ fn draw_transient_markers(
     let top = rect.top() + super::LOOP_BAR_HEIGHT;
     let bottom = rect.bottom();
     let height = bottom - top;
-    
+
     for &marker in transients {
         let m = marker as f64;
         if m < view.start || m > view.end {
             continue;
         }
         let x = to_screen_x(marker, rect);
-        
+
         // Draw fading line
         let steps = 10;
         for i in 0..steps {
@@ -65,7 +65,7 @@ fn draw_transient_markers(
             let alpha = (160.0 * (1.0 - t_start)).max(0.0) as u8;
             let segment_top = top + t_start * height;
             let segment_bottom = top + t_end * height;
-            
+
             ui.painter().line_segment(
                 [egui::pos2(x, segment_top), egui::pos2(x, segment_bottom)],
                 Stroke::new(1.0, style::with_alpha(palette.accent_mint, alpha)),

@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::egui_app::state::FolderRowView;
+use crate::app::state::FolderRowView;
 use std::collections::BTreeSet;
 
 fn ancestors(path: &Path) -> Vec<PathBuf> {
@@ -273,7 +273,7 @@ impl EguiController {
                             model.selected.insert(root_path.clone());
                             model.selection_anchor = Some(root_path.clone());
                             model.root_filter_mode =
-                                crate::egui_app::state::RootFolderFilterMode::AllDescendants;
+                                crate::app::state::RootFolderFilterMode::AllDescendants;
                         }
                     }
                     FolderSelectMode::Toggle => {
@@ -288,7 +288,7 @@ impl EguiController {
                                 model.selection_anchor = Some(root_path.clone());
                             }
                             model.root_filter_mode =
-                                crate::egui_app::state::RootFolderFilterMode::AllDescendants;
+                                crate::app::state::RootFolderFilterMode::AllDescendants;
                         }
                     }
                 }

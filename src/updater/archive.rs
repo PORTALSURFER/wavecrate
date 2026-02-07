@@ -163,11 +163,7 @@ pub(super) fn unzip_to_dir(zip_path: &Path, dest_dir: &Path) -> Result<(), Updat
 #[cfg(unix)]
 fn safe_unix_file_mode(archive_mode: u32) -> u32 {
     let is_executable = archive_mode & 0o111 != 0;
-    if is_executable {
-        0o755
-    } else {
-        0o644
-    }
+    if is_executable { 0o755 } else { 0o644 }
 }
 
 fn unzip_to_dir_with_limits(
@@ -207,8 +203,7 @@ fn unzip_to_dir_with_limits(
                     entry.name()
                 )));
             }
-            let max_uncompressed =
-                compressed_size.saturating_mul(limits.max_compression_ratio);
+            let max_uncompressed = compressed_size.saturating_mul(limits.max_compression_ratio);
             if uncompressed_size > max_uncompressed {
                 return Err(UpdateError::Invalid(format!(
                     "Archive entry '{}' exceeds compression ratio limit",
@@ -406,9 +401,8 @@ mod tests {
             max_total_uncompressed_bytes: 100,
             max_compression_ratio: 100,
         };
-        let err =
-            unzip_to_dir_with_limits(&zip_path, temp.path().join("out").as_path(), limits)
-                .unwrap_err();
+        let err = unzip_to_dir_with_limits(&zip_path, temp.path().join("out").as_path(), limits)
+            .unwrap_err();
         assert!(err.to_string().contains("too large"));
     }
 
@@ -416,20 +410,15 @@ mod tests {
     fn unzip_rejects_total_uncompressed_over_limit() {
         let temp = tempdir().expect("tempdir");
         let zip_path = temp.path().join("total.zip");
-        write_zip(
-            &zip_path,
-            &[("a.txt", &[1u8; 6]), ("b.txt", &[2u8; 6])],
-        )
-        .expect("zip write");
+        write_zip(&zip_path, &[("a.txt", &[1u8; 6]), ("b.txt", &[2u8; 6])]).expect("zip write");
         let limits = ZipExtractionLimits {
             max_entries: 10,
             max_entry_uncompressed_bytes: 10,
             max_total_uncompressed_bytes: 10,
             max_compression_ratio: 100,
         };
-        let err =
-            unzip_to_dir_with_limits(&zip_path, temp.path().join("out").as_path(), limits)
-                .unwrap_err();
+        let err = unzip_to_dir_with_limits(&zip_path, temp.path().join("out").as_path(), limits)
+            .unwrap_err();
         assert!(err.to_string().contains("exceeds limit"));
     }
 
@@ -445,9 +434,8 @@ mod tests {
             max_total_uncompressed_bytes: 10_000,
             max_compression_ratio: 2,
         };
-        let err =
-            unzip_to_dir_with_limits(&zip_path, temp.path().join("out").as_path(), limits)
-                .unwrap_err();
+        let err = unzip_to_dir_with_limits(&zip_path, temp.path().join("out").as_path(), limits)
+            .unwrap_err();
         assert!(err.to_string().contains("compression ratio"));
     }
 

@@ -1,5 +1,5 @@
-mod artifacts;
 mod ann_index;
+mod artifacts;
 mod cleanup;
 mod connection;
 mod constants;
@@ -12,14 +12,14 @@ mod types;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use ann_index::{
+    clear_ann_index_dirty, enqueue_rebuild_ann_index_job, mark_ann_index_dirty,
+};
 pub(crate) use artifacts::{
     CachedEmbedding, CachedFeatures, cached_embedding_by_hash, cached_features_by_hash,
     invalidate_analysis_artifacts, update_analysis_metadata, update_sample_duration,
-    update_sample_long_mark,
-    upsert_analysis_features, upsert_cached_embedding, upsert_cached_features, upsert_embedding,
-};
-pub(crate) use ann_index::{
-    clear_ann_index_dirty, enqueue_rebuild_ann_index_job, mark_ann_index_dirty,
+    update_sample_long_mark, upsert_analysis_features, upsert_cached_embedding,
+    upsert_cached_features, upsert_embedding,
 };
 pub(crate) use cleanup::purge_orphaned_samples;
 pub(crate) use cleanup::{
@@ -36,13 +36,13 @@ pub(crate) use enqueue::{enqueue_jobs, upsert_samples};
 pub(crate) use ids::{build_sample_id, parse_sample_id};
 #[cfg(test)]
 pub(crate) use jobs::claim_next_job;
-pub(crate) use jobs::{
-    SampleAnalysisState, claim_next_jobs, mark_done, mark_failed_with_reason,
-    mark_pending, sample_analysis_states, sample_bpm, sample_content_hash,
-    sample_ids_missing_duration, touch_running_at, update_sample_bpms,
-};
 #[cfg(test)]
 pub(crate) use jobs::update_sample_bpm;
+pub(crate) use jobs::{
+    SampleAnalysisState, claim_next_jobs, mark_done, mark_failed_with_reason, mark_pending,
+    sample_analysis_states, sample_bpm, sample_content_hash, sample_ids_missing_duration,
+    touch_running_at, update_sample_bpms,
+};
 pub(crate) use progress::{
     current_embedding_backfill_progress, current_progress, current_running_jobs,
 };

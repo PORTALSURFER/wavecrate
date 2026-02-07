@@ -1,8 +1,8 @@
 use super::*;
-use crate::egui_app::controller::playback::audio_samples::{
+use crate::app::controller::playback::audio_samples::{
     decode_samples_from_bytes, wav_bytes_from_samples,
 };
-use crate::egui_app::state::WaveformView;
+use crate::app::state::WaveformView;
 
 impl EguiController {
     pub(crate) fn load_waveform_for_selection(
@@ -102,13 +102,7 @@ impl EguiController {
         self.runtime.jobs.set_pending_audio(None);
         self.sample_view.wav.loaded_wav = Some(relative_path.to_path_buf());
         self.ui.loaded_wav = Some(relative_path.to_path_buf());
-        self.sync_loaded_audio(
-            source,
-            relative_path,
-            duration_seconds,
-            sample_rate,
-            bytes,
-        )?;
+        self.sync_loaded_audio(source, relative_path, duration_seconds, sample_rate, bytes)?;
         if matches!(intent, AudioLoadIntent::Selection) {
             self.apply_loaded_sample_bpm(source, relative_path);
             self.apply_loaded_sample_loop_marker(source, relative_path);
@@ -239,11 +233,7 @@ impl EguiController {
         format!("{sample_rate} Hz")
     }
 
-    pub(crate) fn invalidate_cached_audio(
-        &mut self,
-        source_id: &SourceId,
-        relative_path: &Path,
-    ) {
+    pub(crate) fn invalidate_cached_audio(&mut self, source_id: &SourceId, relative_path: &Path) {
         let key = CacheKey::new(source_id, relative_path);
         self.audio.cache.invalidate(&key);
     }
@@ -287,7 +277,8 @@ impl EguiController {
         if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
             return;
         }
-        let (size, modified_ns, content_hash) = match self.wav_index_for_path(relative_path)
+        let (size, modified_ns, content_hash) = match self
+            .wav_index_for_path(relative_path)
             .and_then(|index| self.wav_entry(index))
         {
             Some(entry) => (
@@ -335,21 +326,15 @@ impl EguiController {
         if self.sample_view.wav.selected_wav.as_deref() == Some(relative_path) {
             let long_sample_mark = duration_seconds.is_finite()
                 && duration_seconds > self.long_sample_threshold_seconds();
-            if let Err(err) = analysis_jobs::update_sample_long_mark(
-                &conn,
-                &sample_id,
-                long_sample_mark,
-            ) {
+            if let Err(err) =
+                analysis_jobs::update_sample_long_mark(&conn, &sample_id, long_sample_mark)
+            {
                 tracing::warn!(
                     "Failed to store long sample mark for {}: {err}",
                     relative_path.display()
                 );
             } else {
-                self.update_cached_long_mark_for_path(
-                    &source.id,
-                    relative_path,
-                    long_sample_mark,
-                );
+                self.update_cached_long_mark_for_path(&source.id, relative_path, long_sample_mark);
             }
         }
         self.update_cached_duration_for_path(
@@ -394,11 +379,7 @@ impl EguiController {
         self.ui.waveform.loop_enabled = looped;
     }
 
-    fn load_sample_bpm_metadata(
-        &self,
-        source: &SampleSource,
-        relative_path: &Path,
-    ) -> Option<f32> {
+    fn load_sample_bpm_metadata(&self, source: &SampleSource, relative_path: &Path) -> Option<f32> {
         let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), relative_path);
         let conn = match analysis_jobs::open_source_db(&source.root) {
             Ok(conn) => conn,

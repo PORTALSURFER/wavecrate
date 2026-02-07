@@ -74,11 +74,11 @@ impl EguiApp {
         ui.add_space(10.0);
         const APP_VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
         match self.controller.ui.update.status {
-            crate::egui_app::state::UpdateStatus::Checking => {
+            crate::app::state::UpdateStatus::Checking => {
                 ui.label(RichText::new("Checking updates…").color(palette.text_muted));
                 ui.add_space(10.0);
             }
-            crate::egui_app::state::UpdateStatus::UpdateAvailable => {
+            crate::app::state::UpdateStatus::UpdateAvailable => {
                 let label = self
                     .controller
                     .ui
@@ -114,7 +114,7 @@ impl EguiApp {
                 }
                 ui.add_space(10.0);
             }
-            crate::egui_app::state::UpdateStatus::Error => {
+            crate::app::state::UpdateStatus::Error => {
                 if ui
                     .add(buttons::action_button("Update check failed"))
                     .clicked()
@@ -123,7 +123,7 @@ impl EguiApp {
                 }
                 ui.add_space(10.0);
             }
-            crate::egui_app::state::UpdateStatus::Idle => {}
+            crate::app::state::UpdateStatus::Idle => {}
         }
         ui.add_space(10.0);
         let mut volume = self.controller.ui.volume;
@@ -147,7 +147,7 @@ impl EguiApp {
                     progress.completed.min(progress.total),
                     progress.total
                 ))
-            } else if progress.task == Some(crate::egui_app::state::ProgressTaskKind::Scan)
+            } else if progress.task == Some(crate::app::state::ProgressTaskKind::Scan)
                 && progress.completed > 0
             {
                 bar.text(format!("{} files", progress.completed))

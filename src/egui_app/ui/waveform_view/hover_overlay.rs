@@ -7,7 +7,7 @@ pub(super) fn render_hover_overlay(
     ui: &mut egui::Ui,
     rect: egui::Rect,
     pointer_pos: Option<egui::Pos2>,
-    view: crate::egui_app::state::WaveformView,
+    view: crate::app::state::WaveformView,
     view_width: f64,
     cursor_color: Color32,
     to_screen_x: &impl Fn(f32, egui::Rect) -> f32,

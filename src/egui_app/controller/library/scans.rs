@@ -47,11 +47,7 @@ impl EguiController {
         self.request_auto_quick_sync_for_source(source, min_interval);
     }
 
-    fn request_auto_quick_sync_for_source(
-        &mut self,
-        source: SampleSource,
-        min_interval: Duration,
-    ) {
+    fn request_auto_quick_sync_for_source(&mut self, source: SampleSource, min_interval: Duration) {
         if self.runtime.jobs.scan_in_progress() {
             return;
         }
@@ -59,7 +55,11 @@ impl EguiController {
             return;
         }
         let now = Instant::now();
-        let last_sync = self.runtime.auto_sync_last_by_source.get(&source.id).copied();
+        let last_sync = self
+            .runtime
+            .auto_sync_last_by_source
+            .get(&source.id)
+            .copied();
         if !auto_sync_due(last_sync, now, min_interval) {
             return;
         }
@@ -136,7 +136,9 @@ impl EguiController {
 }
 
 fn auto_sync_due(last_sync: Option<Instant>, now: Instant, min_interval: Duration) -> bool {
-    last_sync.map_or(true, |last| now.saturating_duration_since(last) >= min_interval)
+    last_sync.map_or(true, |last| {
+        now.saturating_duration_since(last) >= min_interval
+    })
 }
 
 #[cfg(test)]

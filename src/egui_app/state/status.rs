@@ -1,4 +1,4 @@
-use crate::egui_app::ui::style;
+use crate::app::ui::style;
 use egui::Color32;
 
 /// Status badge + text shown in the footer.

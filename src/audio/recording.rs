@@ -7,10 +7,10 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
 
+use super::output::MonitorSink;
+use crate::audio::SamplesBuffer;
 use cpal::Stream;
 use cpal::traits::StreamTrait;
-use crate::audio::SamplesBuffer;
-use super::output::MonitorSink;
 
 use super::input::{
     AudioInputConfig, AudioInputError, ResolvedInput, StreamChannelSelection, build_input_stream,
@@ -94,9 +94,12 @@ impl AudioRecorder {
         }
         self.active = false;
         drop(self.stream.take());
-        let mut writer = self.writer.take().ok_or_else(|| AudioInputError::RecordingFailed {
-            detail: "Recorder writer unavailable".into(),
-        })?;
+        let mut writer = self
+            .writer
+            .take()
+            .ok_or_else(|| AudioInputError::RecordingFailed {
+                detail: "Recorder writer unavailable".into(),
+            })?;
         let _ = writer.stop();
         let stats = writer.join()?;
         let duration_seconds = if stats.frames == 0 {
@@ -252,7 +255,12 @@ fn writer_loop(
     writer.finalize()
 }
 
-fn monitor_loop(sink: MonitorSink, channels: u16, sample_rate: u32, receiver: Receiver<MonitorCommand>) {
+fn monitor_loop(
+    sink: MonitorSink,
+    channels: u16,
+    sample_rate: u32,
+    receiver: Receiver<MonitorCommand>,
+) {
     let channels = channels.max(1);
     let sample_rate = sample_rate.max(1);
     sink.play();

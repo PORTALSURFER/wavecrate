@@ -3,7 +3,7 @@ use eframe::egui::Ui;
 use std::path::{Path, PathBuf};
 
 pub(super) fn folder_row_label(
-    row: &crate::egui_app::state::FolderRowView,
+    row: &crate::app::state::FolderRowView,
     row_width: f32,
     ui: &Ui,
 ) -> String {

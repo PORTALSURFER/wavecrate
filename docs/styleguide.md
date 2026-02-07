@@ -42,7 +42,7 @@ Inspired by a microchip die
 - Duplicate hover: fill **#30343A**, stroke **#A49274**  
 - Triage: Trash **#9E6660** (subtle **#744E4A**), Keep **#7E9C7E**  
 - Missing marker **#CC8484**  
-- Palette source of truth: `src/egui_app/ui/style.rs` — keep these values in sync when the theme shifts.
+- Palette source of truth: `src/app/ui/style.rs` — keep these values in sync when the theme shifts.
 
 ---
 

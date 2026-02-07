@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::egui_app::state::WaveformView;
+use crate::app::state::WaveformView;
 use eframe::egui::{self, Ui};
 
 pub(in super::super) fn handle_waveform_interactions(
@@ -45,10 +45,7 @@ pub(in super::super) fn handle_waveform_interactions(
     let focus_override = response
         .hover_pos()
         .or_else(|| response.interact_pointer_pos())
-        .map(|pos| {
-            ((pos.x - rect.left()) / rect.width()) as f64
-                * view_width + view.start
-        })
+        .map(|pos| ((pos.x - rect.left()) / rect.width()) as f64 * view_width + view.start)
         .map(|pos| pos.clamp(0.0, 1.0));
     app.controller.zoom_waveform_steps_with_factor(
         zoom_in,

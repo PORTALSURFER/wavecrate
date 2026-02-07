@@ -12,7 +12,7 @@ pub(super) fn render_overlays(
     app: &mut EguiApp,
     ui: &mut egui::Ui,
     rect: egui::Rect,
-    view: crate::egui_app::state::WaveformView,
+    view: crate::app::state::WaveformView,
     view_width: f64,
     highlight: Color32,
     start_marker_color: Color32,
@@ -20,5 +20,13 @@ pub(super) fn render_overlays(
 ) {
     markers::render_markers(app, ui, rect, view, start_marker_color, to_screen_x);
     selection::render_loop_bar(app, ui, rect, view, view_width as f32, highlight);
-    playhead::render_playhead(app, ui, rect, view, view_width as f32, highlight, to_screen_x);
+    playhead::render_playhead(
+        app,
+        ui,
+        rect,
+        view,
+        view_width as f32,
+        highlight,
+        to_screen_x,
+    );
 }

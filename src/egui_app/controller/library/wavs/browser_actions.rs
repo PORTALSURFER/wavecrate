@@ -1,18 +1,15 @@
 use super::*;
-use crate::egui_app::state::{FocusContext, SampleBrowserActionPrompt};
-use crate::egui_app::ui::style::StatusTone;
-use crate::egui_app::view_model;
+use crate::app::state::{FocusContext, SampleBrowserActionPrompt};
+use crate::app::ui::style::StatusTone;
+use crate::app::view_model;
 use std::path::Path;
 
 impl EguiController {
-    pub(crate) fn visible_row_for_path(
-        &mut self,
-        path: &Path,
-    ) -> Option<usize> {
+    pub(crate) fn visible_row_for_path(&mut self, path: &Path) -> Option<usize> {
         let entry_index = self.wav_index_for_path(path)?;
         match &self.ui.browser.visible {
-            crate::egui_app::state::VisibleRows::All { .. } => Some(entry_index),
-            crate::egui_app::state::VisibleRows::List(rows) => {
+            crate::app::state::VisibleRows::All { .. } => Some(entry_index),
+            crate::app::state::VisibleRows::List(rows) => {
                 rows.iter().position(|idx| *idx == entry_index)
             }
         }
@@ -174,7 +171,7 @@ impl EguiController {
             .reserve(self.ui.browser.visible.len());
         let visible = self.ui.browser.visible.clone();
         match visible {
-            crate::egui_app::state::VisibleRows::All { total } => {
+            crate::app::state::VisibleRows::All { total } => {
                 for index in 0..total {
                     let path = self
                         .wav_entry(index)
@@ -184,7 +181,7 @@ impl EguiController {
                     }
                 }
             }
-            crate::egui_app::state::VisibleRows::List(rows) => {
+            crate::app::state::VisibleRows::List(rows) => {
                 for index in rows {
                     let path = self
                         .wav_entry(index)
@@ -220,7 +217,9 @@ impl EguiController {
             );
             return;
         }
-        if let Err(err) = crate::egui_app::controller::ui::os_explorer::reveal_in_file_explorer(&absolute) {
+        if let Err(err) =
+            crate::app::controller::ui::os_explorer::reveal_in_file_explorer(&absolute)
+        {
             self.set_status(err, StatusTone::Error);
         }
     }

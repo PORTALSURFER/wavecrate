@@ -1,13 +1,13 @@
-use crate::egui_app::controller::jobs::{JobMessage, JobMessageSender};
-use crate::egui_app::controller::library::analysis_jobs::db;
-use crate::egui_app::controller::library::analysis_jobs::types::{
+use crate::app::controller::jobs::{JobMessage, JobMessageSender};
+use crate::app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::types::{
     AnalysisJobMessage, AnalysisProgress,
 };
 use crate::gui::repaint::SharedRepaintSignal;
 use rusqlite::Connection;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc, Condvar, Mutex, RwLock,
+    atomic::{AtomicBool, Ordering},
 };
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -228,7 +228,7 @@ pub(crate) fn spawn_progress_poller(
             if last_cleanup.elapsed() >= STALE_CLEANUP_INTERVAL {
                 last_cleanup = Instant::now();
                 let stale_before = now_epoch_seconds().saturating_sub(
-                    crate::egui_app::controller::library::analysis_jobs::stale_running_job_seconds(
+                    crate::app::controller::library::analysis_jobs::stale_running_job_seconds(
                     ),
                 );
                 let _ =

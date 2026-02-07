@@ -108,10 +108,6 @@ fn recovers_from_library_lock_poisoning() {
     });
 }
 
-
-
-
-
 #[test]
 fn creates_embedding_tables() {
     let temp = tempdir().unwrap();
@@ -183,10 +179,7 @@ fn reuses_known_source_id_for_same_root() {
         .unwrap();
 
         // Simulate removal by saving with no sources; mapping should still be remembered.
-        save(&LibraryState {
-            sources: vec![],
-        })
-        .unwrap();
+        save(&LibraryState { sources: vec![] }).unwrap();
 
         let reused = lookup_source_id_for_root(&root)
             .unwrap()

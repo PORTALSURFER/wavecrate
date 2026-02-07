@@ -1,9 +1,9 @@
 use super::DEFAULT_CLUSTER_MIN_SIZE;
 use super::store::{DbSimilarityPrepStore, SimilarityPrepStore};
 use crate::analysis::hdbscan::{HdbscanConfig, HdbscanMethod};
-use crate::egui_app::controller::EguiController;
-use crate::egui_app::controller::jobs;
-use crate::egui_app::controller::library::analysis_jobs;
+use crate::app::controller::EguiController;
+use crate::app::controller::jobs;
+use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::{SampleSource, SourceId};
 use std::thread;
 use tracing::info;

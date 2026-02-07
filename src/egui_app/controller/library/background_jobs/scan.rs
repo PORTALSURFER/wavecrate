@@ -1,6 +1,6 @@
 use super::progress;
 use super::*;
-use crate::egui_app::state::ProgressTaskKind;
+use crate::app::state::ProgressTaskKind;
 
 pub(crate) fn handle_scan_progress(
     controller: &mut EguiController,
@@ -74,10 +74,8 @@ pub(crate) fn handle_scan_finished(controller: &mut EguiController, result: Scan
                     let tx = controller.runtime.jobs.message_sender();
                     let changed_samples = changed_samples.clone();
                     std::thread::spawn(move || {
-                        let result = analysis_jobs::enqueue_jobs_for_source(
-                            &source,
-                            &changed_samples,
-                        );
+                        let result =
+                            analysis_jobs::enqueue_jobs_for_source(&source, &changed_samples);
                         match result {
                             Ok((inserted, progress)) => {
                                 let _ = tx.send(JobMessage::Analysis(
@@ -115,8 +113,7 @@ pub(crate) fn handle_scan_finished(controller: &mut EguiController, result: Scan
                             ));
                         }
                     }
-                    let embed_result =
-                        analysis_jobs::enqueue_jobs_for_embedding_backfill(&source);
+                    let embed_result = analysis_jobs::enqueue_jobs_for_embedding_backfill(&source);
                     match embed_result {
                         Ok((inserted, progress)) => {
                             if inserted > 0 {
@@ -138,8 +135,8 @@ pub(crate) fn handle_scan_finished(controller: &mut EguiController, result: Scan
             }
             if let Some(source) = source_for_duration {
                 let tx = controller.runtime.jobs.message_sender();
-                std::thread::spawn(move || {
-                    match analysis_jobs::update_missing_durations_for_source(&source) {
+                std::thread::spawn(
+                    move || match analysis_jobs::update_missing_durations_for_source(&source) {
                         Ok(updated) => {
                             if updated > 0 {
                                 let _ = tx.send(JobMessage::Analysis(
@@ -156,8 +153,8 @@ pub(crate) fn handle_scan_finished(controller: &mut EguiController, result: Scan
                                 source.id.as_str()
                             );
                         }
-                    }
-                });
+                    },
+                );
             }
             controller.handle_similarity_scan_finished(&result.source_id, scan_changed);
         }

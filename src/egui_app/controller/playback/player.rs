@@ -123,7 +123,7 @@ pub(crate) fn play_audio(
         start_override.is_some(),
     );
     if start_override.is_some() {
-        controller.ui.waveform.playhead.recent_seek = Some(crate::egui_app::state::PlayheadSeek {
+        controller.ui.waveform.playhead.recent_seek = Some(crate::app::state::PlayheadSeek {
             position: start,
             started_at: Instant::now(),
         });
@@ -251,7 +251,7 @@ fn playhead_completion_epsilon(controller: &EguiController) -> f32 {
 }
 
 fn smooth_progress_after_seek(
-    recent_seek: &mut Option<crate::egui_app::state::PlayheadSeek>,
+    recent_seek: &mut Option<crate::app::state::PlayheadSeek>,
     progress: f32,
 ) -> f32 {
     const SEEK_SMOOTH_SECS: f32 = 0.08;
@@ -302,7 +302,7 @@ pub(crate) fn hide_waveform_playhead_for_tests(controller: &mut EguiController) 
 #[cfg(test)]
 mod tests {
     use super::smooth_progress_after_seek;
-    use crate::egui_app::state::PlayheadSeek;
+    use crate::app::state::PlayheadSeek;
     use std::time::{Duration, Instant};
 
     #[test]

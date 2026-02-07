@@ -1,6 +1,6 @@
 use super::*;
-use crate::egui_app::ui::style::StatusTone;
-use crate::egui_app::state::FocusContext;
+use crate::app::state::FocusContext;
+use crate::app::ui::style::StatusTone;
 
 impl EguiController {
     /// Mark the sample browser as the active focus surface.
@@ -150,8 +150,7 @@ impl EguiController {
         if previous == context {
             return;
         }
-        if matches!(previous, FocusContext::Waveform)
-            && !matches!(context, FocusContext::Waveform)
+        if matches!(previous, FocusContext::Waveform) && !matches!(context, FocusContext::Waveform)
         {
             let _ = self.commit_edit_selection_fades();
         }

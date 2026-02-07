@@ -1,10 +1,8 @@
-use crate::egui_app::controller::jobs::UndoFileJob;
-use crate::egui_app::controller::library::wav_io::{
-    file_metadata, read_samples_for_normalization,
-};
-use crate::egui_app::controller::undo;
 use super::*;
-use crate::egui_app::state::{LoopCrossfadePrompt, LoopCrossfadeSettings, LoopCrossfadeUnit};
+use crate::app::controller::jobs::UndoFileJob;
+use crate::app::controller::library::wav_io::{file_metadata, read_samples_for_normalization};
+use crate::app::controller::undo;
+use crate::app::state::{LoopCrossfadePrompt, LoopCrossfadeSettings, LoopCrossfadeUnit};
 use hound::SampleFormat;
 use std::path::{Path, PathBuf};
 
@@ -48,12 +46,14 @@ impl EguiController {
             } else {
                 None
             };
-            self.runtime.jobs.set_pending_playback(Some(PendingPlayback {
-                source_id: source.id.clone(),
-                relative_path: new_relative.clone(),
-                looped: was_looping,
-                start_override,
-            }));
+            self.runtime
+                .jobs
+                .set_pending_playback(Some(PendingPlayback {
+                    source_id: source.id.clone(),
+                    relative_path: new_relative.clone(),
+                    looped: was_looping,
+                    start_override,
+                }));
             // Suppress the default autoplay to avoid double-trigger or reset to start
             self.selection_state.suppress_autoplay_once = true;
         }

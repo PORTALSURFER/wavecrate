@@ -1,6 +1,6 @@
 use super::style;
 use super::*;
-use crate::egui_app::state::WaveformView;
+use crate::app::state::WaveformView;
 use eframe::egui;
 
 const MIN_QUARTER_SPACING_PX: f32 = 4.0;

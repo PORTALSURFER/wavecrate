@@ -1,6 +1,6 @@
 use super::ops;
 use super::*;
-use crate::egui_app::state::InlineFolderCreation;
+use crate::app::state::InlineFolderCreation;
 use std::fs;
 use std::path::{Path, PathBuf};
 

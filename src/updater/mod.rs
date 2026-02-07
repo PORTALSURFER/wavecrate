@@ -1,6 +1,6 @@
 //! Update-check and update-application helpers.
 //!
-//! This module is consumed both by the main egui app (to check for new releases)
+//! This module is consumed both by the main app shell (to check for new releases)
 //! and by the optional `sempal-updater` helper binary (to apply updates).
 
 mod apply;
@@ -459,8 +459,9 @@ mod tests {
         let _guard = SymlinkMetadataHookGuard::new(Some(fail_metadata));
         let dir = tempdir().unwrap();
         let err = ensure_child_path(dir.path(), "ok/file.txt").unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("Failed to validate update path for symlinks"));
+        assert!(
+            err.to_string()
+                .contains("Failed to validate update path for symlinks")
+        );
     }
 }

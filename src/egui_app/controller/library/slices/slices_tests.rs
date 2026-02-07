@@ -1,5 +1,5 @@
-use crate::egui_app::controller::EguiController;
-use crate::egui_app::controller::test_support::write_test_wav;
+use crate::app::controller::EguiController;
+use crate::app::controller::test_support::write_test_wav;
 use crate::sample_sources::SampleSource;
 use crate::selection::SelectionRange;
 use std::path::Path;

@@ -1,12 +1,12 @@
 use super::super::test_support::{
-    dummy_controller, load_waveform_selection, prepare_with_source_and_wav_entries,
-    sample_entry, write_test_wav,
+    dummy_controller, load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry,
+    write_test_wav,
 };
-use crate::sample_sources::Rating;
 use super::super::*;
 use super::common::visible_indices;
-use crate::egui_app::controller::ui::hotkeys;
-use crate::egui_app::state::FocusContext;
+use crate::app::controller::ui::hotkeys;
+use crate::app::state::FocusContext;
+use crate::sample_sources::Rating;
 use hound::WavReader;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -24,14 +24,22 @@ fn hotkey_tagging_applies_to_all_selected_rows() {
     controller.toggle_browser_row_selection(1);
     controller.tag_selected_left();
 
-    assert_eq!(controller.wav_entry(0).unwrap().tag, crate::sample_sources::Rating::TRASH_3);
-    assert_eq!(controller.wav_entry(1).unwrap().tag, crate::sample_sources::Rating::TRASH_3);
+    assert_eq!(
+        controller.wav_entry(0).unwrap().tag,
+        crate::sample_sources::Rating::TRASH_3
+    );
+    assert_eq!(
+        controller.wav_entry(1).unwrap().tag,
+        crate::sample_sources::Rating::TRASH_3
+    );
 }
 
 #[test]
 fn focus_hotkey_does_not_autoplay_browser_sample() {
-    let (mut controller, source) =
-        prepare_with_source_and_wav_entries(vec![sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL)]);
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
     write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
 
     assert!(controller.settings.feature_flags.autoplay_selection);
@@ -124,8 +132,14 @@ fn tag_actions_apply_to_all_selected_rows() {
         .tag_browser_samples(&rows, crate::sample_sources::Rating::KEEP_1, 0)
         .unwrap();
 
-    assert_eq!(controller.wav_entry(0).unwrap().tag, crate::sample_sources::Rating::KEEP_1);
-    assert_eq!(controller.wav_entry(1).unwrap().tag, crate::sample_sources::Rating::KEEP_1);
+    assert_eq!(
+        controller.wav_entry(0).unwrap().tag,
+        crate::sample_sources::Rating::KEEP_1
+    );
+    assert_eq!(
+        controller.wav_entry(1).unwrap().tag,
+        crate::sample_sources::Rating::KEEP_1
+    );
 }
 
 #[test]
@@ -230,7 +244,10 @@ fn focused_row_actions_work_without_explicit_selection() {
 
     controller.tag_selected_left();
 
-    assert_eq!(controller.wav_entry(0).unwrap().tag, crate::sample_sources::Rating::TRASH_3);
+    assert_eq!(
+        controller.wav_entry(0).unwrap().tag,
+        crate::sample_sources::Rating::TRASH_3
+    );
     assert_eq!(controller.ui.browser.selected_visible, Some(0));
 }
 
@@ -321,7 +338,10 @@ fn browser_remove_dead_links_prunes_missing_rows() -> Result<(), String> {
     write_test_wav(&source.root.join("alive.wav"), &[0.0, 0.1, -0.1]);
     let mut dead = sample_entry("gone.wav", crate::sample_sources::Rating::NEUTRAL);
     dead.missing = true;
-    controller.set_wav_entries_for_tests(vec![sample_entry("alive.wav", crate::sample_sources::Rating::NEUTRAL), dead]);
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("alive.wav", crate::sample_sources::Rating::NEUTRAL),
+        dead,
+    ]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
 
@@ -366,7 +386,10 @@ fn removing_dead_links_for_source_prunes_missing_entries() -> Result<(), String>
     write_test_wav(&source.root.join("alive.wav"), &[0.0, 0.1, -0.1]);
     let mut dead = sample_entry("gone.wav", crate::sample_sources::Rating::NEUTRAL);
     dead.missing = true;
-    controller.set_wav_entries_for_tests(vec![sample_entry("alive.wav", crate::sample_sources::Rating::NEUTRAL), dead]);
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("alive.wav", crate::sample_sources::Rating::NEUTRAL),
+        dead,
+    ]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
     let mut missing = std::collections::HashSet::new();
@@ -446,25 +469,45 @@ fn rating_auto_advance_works() {
 
     // Case 1: Advance is ON (default)
     controller.adjust_selected_rating(1);
-    assert_eq!(controller.ui.browser.selected_visible, Some(1), "Should advance to next row");
+    assert_eq!(
+        controller.ui.browser.selected_visible,
+        Some(1),
+        "Should advance to next row"
+    );
 
     // Case 2: Advance is ON, rating again
     controller.adjust_selected_rating(-1);
-    assert_eq!(controller.ui.browser.selected_visible, Some(2), "Should advance to next row again");
+    assert_eq!(
+        controller.ui.browser.selected_visible,
+        Some(2),
+        "Should advance to next row again"
+    );
 
     // Case 3: Advance is ON, but at the end
     controller.adjust_selected_rating(1);
-    assert_eq!(controller.ui.browser.selected_visible, Some(2), "Should stay at the last row");
+    assert_eq!(
+        controller.ui.browser.selected_visible,
+        Some(2),
+        "Should stay at the last row"
+    );
 
     // Case 4: Advance is OFF
     controller.set_advance_after_rating(false);
     controller.focus_browser_row(0);
     controller.adjust_selected_rating(1);
-    assert_eq!(controller.ui.browser.selected_visible, Some(0), "Should NOT advance when setting is off");
+    assert_eq!(
+        controller.ui.browser.selected_visible,
+        Some(0),
+        "Should NOT advance when setting is off"
+    );
 
     // Case 5: tag_selected should also advance
     controller.set_advance_after_rating(true);
     controller.focus_browser_row(0);
     controller.tag_selected(Rating::KEEP_1);
-    assert_eq!(controller.ui.browser.selected_visible, Some(1), "tag_selected should also advance");
+    assert_eq!(
+        controller.ui.browser.selected_visible,
+        Some(1),
+        "tag_selected should also advance"
+    );
 }

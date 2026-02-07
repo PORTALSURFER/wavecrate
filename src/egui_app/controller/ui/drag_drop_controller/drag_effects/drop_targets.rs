@@ -1,6 +1,6 @@
 use super::super::{DragDropController, file_metadata};
-use crate::egui_app::state::DragSample;
-use crate::egui_app::ui::style::StatusTone;
+use crate::app::state::DragSample;
+use crate::app::ui::style::StatusTone;
 use crate::sample_sources::{Rating, SourceId, WavEntry};
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
@@ -94,27 +94,21 @@ impl DragDropController<'_> {
                 last_played_at,
             ) {
                 Ok(path) => {
-                    self.set_status(
-                        format!("Copied to {}", path.display()),
-                        StatusTone::Info,
-                    );
+                    self.set_status(format!("Copied to {}", path.display()), StatusTone::Info);
                 }
                 Err(err) => self.set_status(err, StatusTone::Error),
             }
             return;
         }
 
-        let destination_relative = match move_destination_relative(
-            &target.source,
-            &target.relative_folder,
-            &file_name,
-        ) {
-            Ok(path) => path,
-            Err(err) => {
-                self.set_status(err, StatusTone::Error);
-                return;
-            }
-        };
+        let destination_relative =
+            match move_destination_relative(&target.source, &target.relative_folder, &file_name) {
+                Ok(path) => path,
+                Err(err) => {
+                    self.set_status(err, StatusTone::Error);
+                    return;
+                }
+            };
         let destination_absolute = target.source.root.join(&destination_relative);
         if let Err(err) = super::source_moves::move_sample_file(&absolute, &destination_absolute) {
             self.set_status(err, StatusTone::Error);
@@ -211,8 +205,7 @@ fn copy_sample_to_target(
     looped: bool,
     last_played_at: Option<i64>,
 ) -> Result<PathBuf, String> {
-    let destination_relative =
-        copy_destination_relative(target, target_folder, file_name)?;
+    let destination_relative = copy_destination_relative(target, target_folder, file_name)?;
     let destination_absolute = target.root.join(&destination_relative);
     if let Some(parent) = destination_relative.parent() {
         if !parent.as_os_str().is_empty() {

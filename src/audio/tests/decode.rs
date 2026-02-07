@@ -34,7 +34,7 @@ fn decode_handles_various_bit_depths() {
     let sample_rate = 44100;
     let channels = 2;
     let duration = 0.5;
-    
+
     let formats = [
         (16, hound::SampleFormat::Int),
         (24, hound::SampleFormat::Int),
@@ -51,7 +51,7 @@ fn decode_handles_various_bit_depths() {
                 duration_seconds: 0.2,
                 amplitude: 0.8,
             });
-            
+
         let fixture = fixtures::build_fixture(spec);
         assert_fixture_decodes(&renderer, fixture);
     }

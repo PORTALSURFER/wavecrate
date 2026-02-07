@@ -1,7 +1,7 @@
 use super::overlay_layers::{self, OverlayLayer};
 use super::style;
 use super::*;
-use crate::egui_app::state::LoopCrossfadeUnit;
+use crate::app::state::LoopCrossfadeUnit;
 use eframe::egui::{self, Align2, RichText};
 
 impl EguiApp {
@@ -42,7 +42,7 @@ impl EguiApp {
 
 fn render_loop_crossfade_body(
     ui: &mut egui::Ui,
-    prompt: &mut crate::egui_app::state::LoopCrossfadePrompt,
+    prompt: &mut crate::app::state::LoopCrossfadePrompt,
     apply: &mut bool,
     close_prompt: &mut bool,
 ) {

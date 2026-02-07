@@ -3,8 +3,8 @@ use super::resolve::{
     normalize_l2, open_source_db_for_id, rerank_with_dsp,
 };
 use super::*;
-use crate::egui_app::state::SimilarQuery;
-use crate::egui_app::view_model;
+use crate::app::state::SimilarQuery;
+use crate::app::view_model;
 use rusqlite::params;
 use std::collections::HashMap;
 
@@ -209,14 +209,16 @@ fn resolve_anchor_index(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::egui_app::controller::test_support::{
+    use crate::app::controller::test_support::{
         prepare_with_source_and_wav_entries, sample_entry,
     };
 
     #[test]
     fn resolve_anchor_index_prefers_override() {
-        let (mut controller, _source) =
-            prepare_with_source_and_wav_entries(vec![sample_entry("a.wav", crate::sample_sources::Rating::NEUTRAL)]);
+        let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+            "a.wav",
+            crate::sample_sources::Rating::NEUTRAL,
+        )]);
         let anchor = resolve_anchor_index(&mut controller, Path::new("a.wav"), Some(7));
         assert_eq!(anchor, Some(7));
     }

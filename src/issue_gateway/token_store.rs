@@ -101,10 +101,11 @@ impl IssueTokenStore {
                             return Ok(());
                         }
                         Ok(Some(stored)) => {
-                            last_error = Some(IssueTokenStoreError::Unavailable(
-                                format!("Keyring set succeeded but read back mismatch (got {} bytes, expected {}).", 
-                                    stored.len(), token.len())
-                            ));
+                            last_error = Some(IssueTokenStoreError::Unavailable(format!(
+                                "Keyring set succeeded but read back mismatch (got {} bytes, expected {}).",
+                                stored.len(),
+                                token.len()
+                            )));
                         }
                         Ok(None) => {
                             last_error = Some(IssueTokenStoreError::Unavailable(
@@ -256,16 +257,28 @@ impl IssueTokenStore {
     fn get_key_from_env(&self) -> Result<Option<[u8; 32]>, IssueTokenStoreError> {
         match std::env::var(FALLBACK_KEY_ENV_VAR) {
             Ok(hex_key) => {
-                let bytes = decode_hex(&hex_key).map_err(|e| IssueTokenStoreError::Decode(format!("Invalid hex in {}: {}", FALLBACK_KEY_ENV_VAR, e)))?;
+                let bytes = decode_hex(&hex_key).map_err(|e| {
+                    IssueTokenStoreError::Decode(format!(
+                        "Invalid hex in {}: {}",
+                        FALLBACK_KEY_ENV_VAR, e
+                    ))
+                })?;
                 if bytes.len() != 32 {
-                    return Err(IssueTokenStoreError::Decode(format!("{} must be 32 bytes (64 hex chars), got {}", FALLBACK_KEY_ENV_VAR, bytes.len())));
+                    return Err(IssueTokenStoreError::Decode(format!(
+                        "{} must be 32 bytes (64 hex chars), got {}",
+                        FALLBACK_KEY_ENV_VAR,
+                        bytes.len()
+                    )));
                 }
                 let mut key = [0u8; 32];
                 key.copy_from_slice(&bytes);
                 Ok(Some(key))
             }
             Err(std::env::VarError::NotPresent) => Ok(None),
-            Err(std::env::VarError::NotUnicode(_)) => Err(IssueTokenStoreError::Decode(format!("{} is not valid unicode", FALLBACK_KEY_ENV_VAR))),
+            Err(std::env::VarError::NotUnicode(_)) => Err(IssueTokenStoreError::Decode(format!(
+                "{} is not valid unicode",
+                FALLBACK_KEY_ENV_VAR
+            ))),
         }
     }
 
@@ -276,7 +289,10 @@ impl IssueTokenStore {
         }
         let bytes = std::fs::read(&key_path)?;
         if bytes.len() != 32 {
-            tracing::warn!("Fallback key file {} is corrupt (wrong size), ignoring.", key_path.display());
+            tracing::warn!(
+                "Fallback key file {} is corrupt (wrong size), ignoring.",
+                key_path.display()
+            );
             return Ok(None);
         }
         let mut key = [0u8; 32];
@@ -286,7 +302,7 @@ impl IssueTokenStore {
 
     fn try_keyring_fallback_key_get(&self) -> Result<Option<[u8; 32]>, IssueTokenStoreError> {
         if keyring_disabled() {
-             return Ok(None);
+            return Ok(None);
         }
         let entry = self.fallback_key_entry()?;
         match entry.get_password() {
@@ -358,14 +374,14 @@ impl IssueTokenStore {
         let plaintext = match decrypt(&key, nonce, ciphertext) {
             Ok(plaintext) => plaintext,
             Err(err) => {
-                 // Try one last ditch attempt: checking if the 'legacy' file key works 
-                 // (only relevant if we are now using a DIFFERENT key, e.g. from env or keyring).
-                 // However, simplifying: if we can't decrypt with the resolved key, we reset.
-                 tracing::warn!(
+                // Try one last ditch attempt: checking if the 'legacy' file key works
+                // (only relevant if we are now using a DIFFERENT key, e.g. from env or keyring).
+                // However, simplifying: if we can't decrypt with the resolved key, we reset.
+                tracing::warn!(
                     "Fallback token payload failed to decrypt; clearing fallback storage: {err}"
-                 );
-                 let _ = self.fallback_delete();
-                 return Ok(None);
+                );
+                let _ = self.fallback_delete();
+                return Ok(None);
             }
         };
         let token = String::from_utf8(plaintext)
@@ -398,8 +414,6 @@ impl IssueTokenStore {
         *lock_fallback_key_cache() = None;
         Ok(())
     }
-
-
 
     fn encrypt_fallback_payload(
         &self,
@@ -984,17 +998,17 @@ mod tests {
         }
         allow_fallback();
         set_env_key();
-        
+
         let base = tempdir().unwrap();
         let _guard = app_dirs::ConfigBaseGuard::set(base.path().to_path_buf());
         let store = IssueTokenStore::new().unwrap();
 
         store.set("tok_env_fallback").unwrap();
         assert_eq!(store.get().unwrap().as_deref(), Some("tok_env_fallback"));
-        
+
         // Key file should NOT exist because we provided env var
         assert!(!store.legacy_fallback_key_path().exists());
-        
+
         store.delete().unwrap();
 
         unsafe {

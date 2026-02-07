@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
-use std::sync::{mpsc::Receiver, Arc, Condvar, Mutex, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock, mpsc::Receiver};
 use std::{fs, thread};
 use tracing::warn;
 
@@ -25,8 +25,7 @@ pub(crate) struct RecordingWaveformJob {
 }
 
 /// Result of a recording waveform refresh operation.
-#[derive(Clone)]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum RecordingWaveformUpdate {
     /// The file length did not change since the last refresh.
     NoChange { file_len: u64 },
@@ -71,7 +70,9 @@ struct RecordingWaveformKey {
 }
 
 enum RecordingWaveformMode {
-    Full { samples: Vec<f32> },
+    Full {
+        samples: Vec<f32>,
+    },
     Peaks {
         bucket_size_frames: usize,
         mono: Vec<(f32, f32)>,
@@ -107,7 +108,9 @@ impl RecordingWaveformState {
             analysis_sum: 0.0,
             analysis_count: 0,
             analysis_samples: Vec::new(),
-            mode: RecordingWaveformMode::Full { samples: Vec::new() },
+            mode: RecordingWaveformMode::Full {
+                samples: Vec::new(),
+            },
         }
     }
 
@@ -145,8 +148,7 @@ impl RecordingWaveformState {
 
     fn requires_rebuild(&self, total_frames: usize) -> bool {
         if let RecordingWaveformMode::Peaks {
-            bucket_size_frames,
-            ..
+            bucket_size_frames, ..
         } = self.mode
         {
             let next_bucket = peak_bucket_size(total_frames);
@@ -248,8 +250,9 @@ impl RecordingWaveformState {
             self.total_frames = self.total_frames.saturating_add(1);
             let mut frame_sum = 0.0f32;
             for ch in 0..self.channels as usize {
-                let sample =
-                    f32::from_le_bytes(self.tail[offset..offset + 4].try_into().unwrap_or_default());
+                let sample = f32::from_le_bytes(
+                    self.tail[offset..offset + 4].try_into().unwrap_or_default(),
+                );
                 let sample = clamp_sample(sample);
                 if let RecordingWaveformMode::Full { samples } = &mut self.mode {
                     samples.push(sample);
@@ -335,10 +338,9 @@ impl RecordingWaveformState {
                 left,
                 right,
             } => {
-                let analysis_sample_rate =
-                    ((self.sample_rate as f32) / self.analysis_stride as f32)
-                        .round()
-                        .max(1.0) as u32;
+                let analysis_sample_rate = ((self.sample_rate as f32) / self.analysis_stride as f32)
+                    .round()
+                    .max(1.0) as u32;
                 let mut analysis_samples = self.analysis_samples.clone();
                 if self.analysis_count > 0 {
                     analysis_samples.push(self.analysis_sum / self.analysis_count as f32);
@@ -473,8 +475,7 @@ impl RecordingWaveformWorkerHandle {
 
 /// Spawn a background worker that processes the latest pending recording waveform job.
 /// Returns the sender, result channel, and a shutdown handle.
-pub(crate) fn spawn_recording_waveform_loader(
-) -> (
+pub(crate) fn spawn_recording_waveform_loader() -> (
     RecordingWaveformJobSender,
     Receiver<RecordingWaveformLoadResult>,
     RecordingWaveformWorkerHandle,
@@ -586,7 +587,8 @@ fn load_recording_waveform(job: RecordingWaveformJob) -> RecordingWaveformLoadRe
         };
         let data_len = bytes.len().saturating_sub(data_offset) as u64;
         let total_frames = total_frames_for_data(data_len, job.channels);
-        let mut next_state = RecordingWaveformState::new(job.sample_rate, job.channels, data_offset);
+        let mut next_state =
+            RecordingWaveformState::new(job.sample_rate, job.channels, data_offset);
         next_state.prepare_for_total_frames(total_frames);
         next_state.consume_data_bytes(&bytes[data_offset..]);
         if matches!(next_state.mode, RecordingWaveformMode::Full { .. })
@@ -982,8 +984,7 @@ mod tests {
             data.extend_from_slice(&sample.to_le_bytes());
         }
         let bytes = build_wav_bytes(&data);
-        let decoded =
-            decode_recording_waveform(&bytes, 48_000, 2).expect("expected waveform");
+        let decoded = decode_recording_waveform(&bytes, 48_000, 2).expect("expected waveform");
         assert_eq!(decoded.samples.len(), 2);
         assert!((decoded.samples[0] - 0.1).abs() < 1e-6);
         assert!((decoded.samples[1] + 0.2).abs() < 1e-6);
@@ -1010,7 +1011,11 @@ mod tests {
         let result = load_recording_waveform(job);
         let update = result.result.expect("expected update");
         match update {
-            RecordingWaveformUpdate::Updated { decoded, bytes, file_len } => {
+            RecordingWaveformUpdate::Updated {
+                decoded,
+                bytes,
+                file_len,
+            } => {
                 assert!(decoded.duration_seconds > 0.0);
                 assert!(bytes.is_some());
                 assert!(file_len > 0);
@@ -1063,7 +1068,9 @@ mod tests {
         let truncated_result = load_recording_waveform(truncated_job);
         let update = truncated_result.result.expect("expected update");
         match update {
-            RecordingWaveformUpdate::Updated { decoded, file_len, .. } => {
+            RecordingWaveformUpdate::Updated {
+                decoded, file_len, ..
+            } => {
                 assert_eq!(file_len, 0);
                 assert_eq!(decoded.frame_count(), 0);
             }

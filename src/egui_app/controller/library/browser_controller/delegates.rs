@@ -1,10 +1,14 @@
 use super::*;
-use crate::egui_app::state::LoopCrossfadeSettings;
+use crate::app::state::LoopCrossfadeSettings;
 use tracing::warn;
 
 impl EguiController {
     /// Apply a keep/trash/neutral tag to a single visible browser row.
-    pub fn tag_browser_sample(&mut self, row: usize, tag: crate::sample_sources::Rating) -> Result<(), String> {
+    pub fn tag_browser_sample(
+        &mut self,
+        row: usize,
+        tag: crate::sample_sources::Rating,
+    ) -> Result<(), String> {
         self.browser().tag_browser_sample(row, tag)
     }
 
@@ -122,11 +126,7 @@ impl EguiController {
         })
     }
 
-    pub(crate) fn prune_cached_sample(
-        &mut self,
-        source: &SampleSource,
-        relative_path: &Path,
-    ) {
+    pub(crate) fn prune_cached_sample(&mut self, source: &SampleSource, relative_path: &Path) {
         if let Some(cache) = self.cache.wav.entries.get_mut(&source.id) {
             cache.clear();
         }
@@ -141,11 +141,7 @@ impl EguiController {
         self.clear_loaded_sample_if(source, relative_path);
     }
 
-    pub(crate) fn clear_loaded_sample_if(
-        &mut self,
-        source: &SampleSource,
-        relative_path: &Path,
-    ) {
+    pub(crate) fn clear_loaded_sample_if(&mut self, source: &SampleSource, relative_path: &Path) {
         self.invalidate_cached_audio(&source.id, relative_path);
         if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
             if self.sample_view.wav.selected_wav.as_deref() == Some(relative_path) {
@@ -175,10 +171,7 @@ impl EguiController {
         self.reload_waveform_for_selection_if_active(source, relative_path);
     }
 
-    pub(crate) fn refocus_after_filtered_removal(
-        &mut self,
-        primary_visible_row: usize,
-    ) {
+    pub(crate) fn refocus_after_filtered_removal(&mut self, primary_visible_row: usize) {
         if matches!(self.ui.browser.filter, TriageFlagFilter::All)
             && self.ui.browser.rating_filter.is_empty()
         {

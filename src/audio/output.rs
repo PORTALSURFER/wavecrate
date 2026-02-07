@@ -122,10 +122,10 @@ impl Default for ResolvedOutput {
     }
 }
 
+use cpal::traits::StreamTrait;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender, SyncSender, TryRecvError, TrySendError};
-use cpal::traits::StreamTrait;
 
 /// Commands sent to the audio callback for non-blocking control.
 enum StreamCommand {
@@ -229,12 +229,8 @@ impl CpalAudioStream {
                 volume,
             })
             .map_err(|err| match err {
-                TrySendError::Full(_) => {
-                    "Audio command queue full; dropping source".to_string()
-                }
-                TrySendError::Disconnected(_) => {
-                    "Audio output stream is unavailable".to_string()
-                }
+                TrySendError::Full(_) => "Audio command queue full; dropping source".to_string(),
+                TrySendError::Disconnected(_) => "Audio output stream is unavailable".to_string(),
             })
     }
 
@@ -247,12 +243,8 @@ impl CpalAudioStream {
         self.command_sender
             .try_send(StreamCommand::Clear)
             .map_err(|err| match err {
-                TrySendError::Full(_) => {
-                    "Audio command queue full; clear pending".to_string()
-                }
-                TrySendError::Disconnected(_) => {
-                    "Audio output stream is unavailable".to_string()
-                }
+                TrySendError::Full(_) => "Audio command queue full; clear pending".to_string(),
+                TrySendError::Disconnected(_) => "Audio output stream is unavailable".to_string(),
             })
     }
 
@@ -428,7 +420,12 @@ pub fn open_output_stream(
 
     let stream_config = match device.default_output_config() {
         Ok(c) => c,
-        Err(err) => return Err(AudioOutputError::DefaultConfig { host_id, source: err }),
+        Err(err) => {
+            return Err(AudioOutputError::DefaultConfig {
+                host_id,
+                source: err,
+            });
+        }
     };
 
     let mut stream_config: cpal::StreamConfig = stream_config.into();
@@ -459,15 +456,21 @@ pub fn open_output_stream(
         Err(err) => {
             used_fallback = true;
             let default_host = cpal::default_host();
-            let fallback_device = default_host
-                .default_output_device()
-                .ok_or_else(|| AudioOutputError::BuildStream { source: err.clone() })?;
+            let fallback_device = default_host.default_output_device().ok_or_else(|| {
+                AudioOutputError::BuildStream {
+                    source: err.clone(),
+                }
+            })?;
             resolved_host_id = default_host.id().name().to_string();
             resolved_device_name =
                 device_label(&fallback_device).unwrap_or_else(|| "Default device".to_string());
 
-            let fallback_config = fallback_device.default_output_config()
-                .map_err(|source| AudioOutputError::DefaultConfig { host_id: resolved_host_id.clone(), source })?;
+            let fallback_config = fallback_device.default_output_config().map_err(|source| {
+                AudioOutputError::DefaultConfig {
+                    host_id: resolved_host_id.clone(),
+                    source,
+                }
+            })?;
 
             let fallback_stream_config: cpal::StreamConfig = fallback_config.into();
             resolved_stream_config = fallback_stream_config.clone();
@@ -483,7 +486,9 @@ pub fn open_output_stream(
         }
     };
 
-    stream.play().map_err(|source| AudioOutputError::PlayStream { source })?;
+    stream
+        .play()
+        .map_err(|source| AudioOutputError::PlayStream { source })?;
 
     let resolved = resolved_output_from_stream_config(
         resolved_host_id,
@@ -635,12 +640,25 @@ fn build_stream_with_state(
     volume_bits: Arc<AtomicU32>,
     active_sources: Arc<AtomicUsize>,
     clear_pending: Arc<AtomicBool>,
-) -> Result<(cpal::Stream, SyncSender<StreamCommand>, Receiver<String>, Arc<AtomicBool>), cpal::BuildStreamError> {
+) -> Result<
+    (
+        cpal::Stream,
+        SyncSender<StreamCommand>,
+        Receiver<String>,
+        Arc<AtomicBool>,
+    ),
+    cpal::BuildStreamError,
+> {
     const COMMAND_QUEUE_CAPACITY: usize = 512;
     let (command_sender, command_receiver) = mpsc::sync_channel(COMMAND_QUEUE_CAPACITY);
     let (error_sender, error_receiver) = mpsc::channel();
-    let mut callback_state =
-        CallbackState::new(command_receiver, error_sender, volume_bits, active_sources, clear_pending.clone());
+    let mut callback_state = CallbackState::new(
+        command_receiver,
+        error_sender,
+        volume_bits,
+        active_sources,
+        clear_pending.clone(),
+    );
     let callback = move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
         process_audio_callback(&mut callback_state, data);
     };
@@ -690,11 +708,11 @@ mod tests {
 
     #[test]
     fn callback_propagates_error() {
+        use crate::audio::Source;
         use std::sync::Arc;
-        use std::time::Duration;
         use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize};
         use std::sync::mpsc;
-        use crate::audio::Source;
+        use std::time::Duration;
 
         struct MockSource {
             error: Option<String>,
@@ -708,11 +726,21 @@ mod tests {
         }
 
         impl Source for MockSource {
-            fn current_frame_len(&self) -> Option<usize> { None }
-            fn channels(&self) -> u16 { 2 }
-            fn sample_rate(&self) -> u32 { 44100 }
-            fn total_duration(&self) -> Option<Duration> { None }
-            fn last_error(&self) -> Option<String> { self.error.clone() }
+            fn current_frame_len(&self) -> Option<usize> {
+                None
+            }
+            fn channels(&self) -> u16 {
+                2
+            }
+            fn sample_rate(&self) -> u32 {
+                44100
+            }
+            fn total_duration(&self) -> Option<Duration> {
+                None
+            }
+            fn last_error(&self) -> Option<String> {
+                self.error.clone()
+            }
         }
 
         let (command_sender, command_receiver) = mpsc::sync_channel(8);
@@ -720,11 +748,18 @@ mod tests {
         let volume_bits = Arc::new(AtomicU32::new(1.0_f32.to_bits()));
         let active_sources = Arc::new(AtomicUsize::new(0));
         let clear_pending = Arc::new(AtomicBool::new(false));
-        let mut state =
-            CallbackState::new(command_receiver, error_sender, volume_bits, active_sources, clear_pending);
+        let mut state = CallbackState::new(
+            command_receiver,
+            error_sender,
+            volume_bits,
+            active_sources,
+            clear_pending,
+        );
         command_sender
             .send(StreamCommand::Append {
-                source: Box::new(MockSource { error: Some("failure".into()) }),
+                source: Box::new(MockSource {
+                    error: Some("failure".into()),
+                }),
                 volume: 1.0,
             })
             .unwrap();
@@ -738,11 +773,11 @@ mod tests {
 
     #[test]
     fn callback_clears_sources_with_command() {
+        use crate::audio::Source;
         use std::sync::Arc;
-        use std::time::Duration;
         use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
         use std::sync::mpsc;
-        use crate::audio::Source;
+        use std::time::Duration;
 
         struct ConstantSource;
 
@@ -754,10 +789,18 @@ mod tests {
         }
 
         impl Source for ConstantSource {
-            fn current_frame_len(&self) -> Option<usize> { None }
-            fn channels(&self) -> u16 { 1 }
-            fn sample_rate(&self) -> u32 { 44100 }
-            fn total_duration(&self) -> Option<Duration> { None }
+            fn current_frame_len(&self) -> Option<usize> {
+                None
+            }
+            fn channels(&self) -> u16 {
+                1
+            }
+            fn sample_rate(&self) -> u32 {
+                44100
+            }
+            fn total_duration(&self) -> Option<Duration> {
+                None
+            }
         }
 
         let (command_sender, command_receiver) = mpsc::sync_channel(8);
@@ -765,8 +808,13 @@ mod tests {
         let volume_bits = Arc::new(AtomicU32::new(1.0_f32.to_bits()));
         let active_sources = Arc::new(AtomicUsize::new(0));
         let clear_pending = Arc::new(AtomicBool::new(false));
-        let mut state =
-            CallbackState::new(command_receiver, error_sender, volume_bits, active_sources.clone(), clear_pending);
+        let mut state = CallbackState::new(
+            command_receiver,
+            error_sender,
+            volume_bits,
+            active_sources.clone(),
+            clear_pending,
+        );
         command_sender
             .send(StreamCommand::Append {
                 source: Box::new(ConstantSource),
@@ -784,12 +832,12 @@ mod tests {
 
     #[test]
     fn callback_stays_non_blocking_under_command_contention() {
-        use std::sync::{Arc, Barrier, Mutex};
+        use crate::audio::Source;
         use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize};
         use std::sync::mpsc;
+        use std::sync::{Arc, Barrier, Mutex};
         use std::thread;
         use std::time::Duration;
-        use crate::audio::Source;
 
         struct ConstantSource;
 
@@ -801,10 +849,18 @@ mod tests {
         }
 
         impl Source for ConstantSource {
-            fn current_frame_len(&self) -> Option<usize> { None }
-            fn channels(&self) -> u16 { 1 }
-            fn sample_rate(&self) -> u32 { 44100 }
-            fn total_duration(&self) -> Option<Duration> { None }
+            fn current_frame_len(&self) -> Option<usize> {
+                None
+            }
+            fn channels(&self) -> u16 {
+                1
+            }
+            fn sample_rate(&self) -> u32 {
+                44100
+            }
+            fn total_duration(&self) -> Option<Duration> {
+                None
+            }
         }
 
         let (command_sender, command_receiver) = mpsc::sync_channel(512);
@@ -830,8 +886,13 @@ mod tests {
         });
 
         let callback_thread = thread::spawn(move || {
-            let mut state =
-                CallbackState::new(command_receiver, error_sender, volume_bits, active_sources, clear_pending);
+            let mut state = CallbackState::new(
+                command_receiver,
+                error_sender,
+                volume_bits,
+                active_sources,
+                clear_pending,
+            );
             let mut data = vec![0.0; 64];
             for _ in 0..256 {
                 process_audio_callback(&mut state, &mut data);
@@ -874,11 +935,11 @@ mod tests {
 
     #[test]
     fn callback_clears_sources_with_pending_flag() {
+        use crate::audio::Source;
         use std::sync::Arc;
-        use std::time::Duration;
         use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
         use std::sync::mpsc;
-        use crate::audio::Source;
+        use std::time::Duration;
 
         struct ConstantSource;
 
@@ -890,10 +951,18 @@ mod tests {
         }
 
         impl Source for ConstantSource {
-            fn current_frame_len(&self) -> Option<usize> { None }
-            fn channels(&self) -> u16 { 1 }
-            fn sample_rate(&self) -> u32 { 44100 }
-            fn total_duration(&self) -> Option<Duration> { None }
+            fn current_frame_len(&self) -> Option<usize> {
+                None
+            }
+            fn channels(&self) -> u16 {
+                1
+            }
+            fn sample_rate(&self) -> u32 {
+                44100
+            }
+            fn total_duration(&self) -> Option<Duration> {
+                None
+            }
         }
 
         let (_command_sender, command_receiver) = mpsc::sync_channel(1);
@@ -901,8 +970,13 @@ mod tests {
         let volume_bits = Arc::new(AtomicU32::new(1.0_f32.to_bits()));
         let active_sources = Arc::new(AtomicUsize::new(0));
         let clear_pending = Arc::new(AtomicBool::new(true));
-        let mut state =
-            CallbackState::new(command_receiver, error_sender, volume_bits, active_sources.clone(), clear_pending);
+        let mut state = CallbackState::new(
+            command_receiver,
+            error_sender,
+            volume_bits,
+            active_sources.clone(),
+            clear_pending,
+        );
         state.sources.push((Box::new(ConstantSource), 1.0));
 
         let mut data = vec![0.0; 16];

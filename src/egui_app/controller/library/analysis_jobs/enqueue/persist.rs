@@ -1,5 +1,5 @@
-use crate::egui_app::controller::library::analysis_jobs::db;
-use crate::egui_app::controller::library::analysis_jobs::types::AnalysisProgress;
+use crate::app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::types::AnalysisProgress;
 
 pub(crate) fn write_changed_samples(
     conn: &mut rusqlite::Connection,

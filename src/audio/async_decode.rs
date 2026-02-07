@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use ringbuf::{traits::*, HeapRb};
+use ringbuf::{HeapRb, traits::*};
 
 use crate::audio::Source;
 
@@ -184,10 +184,7 @@ where
     }
 
     fn last_error(&self) -> Option<String> {
-        self.last_error
-            .lock()
-            .ok()
-            .and_then(|slot| slot.clone())
+        self.last_error.lock().ok().and_then(|slot| slot.clone())
     }
 }
 
@@ -289,10 +286,8 @@ mod tests {
             start_barrier_waited: false,
         };
         let mut async_source = AsyncSource::with_buffer_seconds(source, 1.0);
-        let available = async_source.prefill_for_duration(
-            Duration::from_millis(300),
-            Duration::from_millis(100),
-        );
+        let available = async_source
+            .prefill_for_duration(Duration::from_millis(300), Duration::from_millis(100));
         assert!(
             available >= 3,
             "expected three prefetched samples, got {available}"
@@ -347,10 +342,8 @@ mod tests {
             start_barrier_waited: false,
         };
         let mut async_source = AsyncSource::with_buffer_seconds(source, 0.1);
-        let available = async_source.prefill_for_duration(
-            Duration::from_millis(1),
-            Duration::from_millis(100),
-        );
+        let available =
+            async_source.prefill_for_duration(Duration::from_millis(1), Duration::from_millis(100));
         assert!(available >= 1);
         assert_eq!(async_source.next(), Some(0.4));
     }
@@ -391,9 +384,6 @@ mod tests {
         let mut async_source = AsyncSource::with_buffer_seconds(source, 1.0);
         thread::sleep(Duration::from_millis(20));
         while async_source.next().is_some() {}
-        assert_eq!(
-            async_source.last_error(),
-            Some("decode failed".to_string())
-        );
+        assert_eq!(async_source.last_error(), Some("decode failed".to_string()));
     }
 }

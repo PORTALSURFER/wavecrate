@@ -1,9 +1,6 @@
 use super::*;
-use crate::egui_app::controller::jobs::{
-    IssueGatewayAuthResult,
-    IssueGatewayCreateResult,
-    IssueTokenDeleteResult,
-    IssueTokenLoadResult,
+use crate::app::controller::jobs::{
+    IssueGatewayAuthResult, IssueGatewayCreateResult, IssueTokenDeleteResult, IssueTokenLoadResult,
     IssueTokenSaveResult,
 };
 
@@ -31,14 +28,14 @@ pub(crate) fn handle_issue_gateway_created(
                 controller.ui.feedback_issue.focus_title_requested = true;
                 controller.set_status(
                     format!("Created GitHub issue #{}", outcome.number),
-                    crate::egui_app::ui::style::StatusTone::Info,
+                    crate::app::ui::style::StatusTone::Info,
                 );
             } else {
                 controller.ui.feedback_issue.last_error =
                     Some("Issue creation failed.".to_string());
                 controller.set_status(
                     "Failed to create issue".to_string(),
-                    crate::egui_app::ui::style::StatusTone::Error,
+                    crate::app::ui::style::StatusTone::Error,
                 );
             }
         }
@@ -58,7 +55,7 @@ pub(crate) fn handle_issue_gateway_created(
             }
             controller.set_status(
                 format!("Failed to create issue: {err}"),
-                crate::egui_app::ui::style::StatusTone::Error,
+                crate::app::ui::style::StatusTone::Error,
             );
         }
     }
@@ -83,12 +80,12 @@ pub(crate) fn handle_issue_token_loaded(
         Ok(Some(token)) => {
             controller.ui.feedback_issue.token_cached = Some(token);
             controller.ui.feedback_issue.token_status =
-                crate::egui_app::state::IssueTokenStatus::Connected;
+                crate::app::state::IssueTokenStatus::Connected;
         }
         Ok(None) => {
             controller.ui.feedback_issue.token_cached = None;
             controller.ui.feedback_issue.token_status =
-                crate::egui_app::state::IssueTokenStatus::NotConnected;
+                crate::app::state::IssueTokenStatus::NotConnected;
             if controller.ui.feedback_issue.open {
                 controller.connect_github_issue_reporting();
             }
@@ -96,7 +93,7 @@ pub(crate) fn handle_issue_token_loaded(
         Err(err) => {
             controller.ui.feedback_issue.token_cached = None;
             controller.ui.feedback_issue.token_status =
-                crate::egui_app::state::IssueTokenStatus::Error(err.to_string());
+                crate::app::state::IssueTokenStatus::Error(err.to_string());
             controller.ui.feedback_issue.last_error = Some(err.to_string());
         }
     }
@@ -113,18 +110,18 @@ pub(crate) fn handle_issue_token_saved(
         Ok(()) => {
             controller.ui.feedback_issue.token_cached = Some(message.token);
             controller.ui.feedback_issue.token_status =
-                crate::egui_app::state::IssueTokenStatus::Connected;
+                crate::app::state::IssueTokenStatus::Connected;
             controller.ui.feedback_issue.token_modal_open = false;
             controller.ui.feedback_issue.token_input.clear();
             controller.ui.feedback_issue.token_autofill_last = None;
             controller.set_status(
                 "GitHub connected for issue reporting".to_string(),
-                crate::egui_app::ui::style::StatusTone::Info,
+                crate::app::ui::style::StatusTone::Info,
             );
         }
         Err(err) => {
             controller.ui.feedback_issue.token_status =
-                crate::egui_app::state::IssueTokenStatus::Error(err.to_string());
+                crate::app::state::IssueTokenStatus::Error(err.to_string());
             controller.ui.feedback_issue.last_error = Some(err.to_string());
             if message.reopen_modal {
                 controller.ui.feedback_issue.token_modal_open = true;
@@ -145,15 +142,15 @@ pub(crate) fn handle_issue_token_deleted(
         Ok(()) => {
             controller.ui.feedback_issue.token_cached = None;
             controller.ui.feedback_issue.token_status =
-                crate::egui_app::state::IssueTokenStatus::NotConnected;
+                crate::app::state::IssueTokenStatus::NotConnected;
             controller.set_status(
                 "GitHub disconnected".to_string(),
-                crate::egui_app::ui::style::StatusTone::Info,
+                crate::app::ui::style::StatusTone::Info,
             );
         }
         Err(err) => {
             controller.ui.feedback_issue.token_status =
-                crate::egui_app::state::IssueTokenStatus::Error(err.to_string());
+                crate::app::state::IssueTokenStatus::Error(err.to_string());
             controller.ui.feedback_issue.last_error = Some(err.to_string());
         }
     }

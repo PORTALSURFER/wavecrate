@@ -1,9 +1,8 @@
 use super::*;
 pub(crate) use super::{
-    EguiController, StatusTone, MIN_SELECTION_WIDTH,
-    WavLoadJob, WavLoadResult, LoadEntriesError,
+    EguiController, LoadEntriesError, MIN_SELECTION_WIDTH, StatusTone, WavLoadJob, WavLoadResult,
 };
-pub(crate) use crate::egui_app::state::*;
+pub(crate) use crate::app::state::*;
 pub(crate) use crate::sample_sources::*;
 pub(crate) use crate::selection::SelectionRange;
 

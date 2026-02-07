@@ -1,7 +1,7 @@
 use super::super::test_support::write_test_wav;
 use super::super::*;
 use crate::app_dirs::ConfigBaseGuard;
-use crate::egui_app::state::{DragPayload, DragSource, DragTarget};
+use crate::app::state::{DragPayload, DragSource, DragTarget};
 use crate::sample_sources::config::DropTargetConfig;
 use crate::sample_sources::{Rating, SampleSource};
 use std::path::{Path, PathBuf};
@@ -49,7 +49,11 @@ fn drop_target_copy_duplicates_sample() {
     assert!(dest.join("one.wav").is_file());
 
     let entries = db.list_files().unwrap();
-    assert!(entries.iter().any(|entry| entry.relative_path == PathBuf::from("one.wav")));
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.relative_path == PathBuf::from("one.wav"))
+    );
     assert!(entries.iter().any(|entry| {
         entry.relative_path == PathBuf::from("dest/one.wav") && entry.tag == Rating::KEEP_1
     }));
@@ -71,7 +75,10 @@ fn drop_target_panel_accepts_folder_drag() {
         source_id: source.id.clone(),
         relative_path: PathBuf::from("targets"),
     });
-    controller.ui.drag.set_target(DragSource::DropTargets, DragTarget::DropTargetsPanel);
+    controller
+        .ui
+        .drag
+        .set_target(DragSource::DropTargets, DragTarget::DropTargetsPanel);
     controller.finish_active_drag();
 
     assert_eq!(controller.settings.drop_targets.len(), 1);

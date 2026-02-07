@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::state::FocusContext;
+use crate::app::state::FocusContext;
 
 impl EguiController {
     pub(crate) fn rebuild_browser_lists(&mut self) {
@@ -153,10 +153,7 @@ impl EguiController {
         self.browser_path_for_visible(row)
     }
 
-    pub(crate) fn browser_path_for_visible(
-        &mut self,
-        visible_row: usize,
-    ) -> Option<PathBuf> {
+    pub(crate) fn browser_path_for_visible(&mut self, visible_row: usize) -> Option<PathBuf> {
         let index = self.ui.browser.visible.get(visible_row)?;
         self.wav_entry(index)
             .map(|entry| entry.relative_path.clone())

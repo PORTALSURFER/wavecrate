@@ -1,14 +1,14 @@
 //! Crash recovery support for staged folder deletes.
 
-use crate::egui_app::controller::EguiController;
-use crate::egui_app::controller::jobs::JobMessage;
-use crate::egui_app::controller::library::source_cache_invalidator;
-use crate::egui_app::state::{
+use crate::app::controller::EguiController;
+use crate::app::controller::jobs::JobMessage;
+use crate::app::controller::library::source_cache_invalidator;
+use crate::app::state::{
     FolderDeleteRecoveryAction as UiDeleteRecoveryAction,
     FolderDeleteRecoveryEntry as UiDeleteRecoveryEntry,
     FolderDeleteRecoveryStatus as UiDeleteRecoveryStatus,
 };
-use crate::egui_app::view_model;
+use crate::app::view_model;
 use crate::sample_sources::{SampleSource, SourceId};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -186,20 +186,16 @@ pub(crate) fn recover_staged_deletes(sources: &[SampleSource]) -> DeleteRecovery
         let journal = match load_journal(&staging_root) {
             Ok(journal) => journal,
             Err(err) => {
-                report
-                    .errors
-                    .push(format!("Failed to read delete journal for {}: {err}", source.root.display()));
+                report.errors.push(format!(
+                    "Failed to read delete journal for {}: {err}",
+                    source.root.display()
+                ));
                 DeleteJournal::default()
             }
         };
         let journaled_roots = journaled_staged_roots(&journal);
         recover_journaled_entries(source, &staging_root, &journal, &mut report);
-        recover_unjournaled_entries(
-            source,
-            &staging_root,
-            &journaled_roots,
-            &mut report,
-        );
+        recover_unjournaled_entries(source, &staging_root, &journaled_roots, &mut report);
         cleanup_staging_root(&staging_root);
     }
     report
@@ -245,20 +241,32 @@ impl EguiController {
                 (DeleteRecoveryAction::Restore, DeleteRecoveryStatus::Completed) => {
                     restored += 1;
                     affected_sources.insert(entry.source_id.clone());
-                    (UiDeleteRecoveryAction::Restore, UiDeleteRecoveryStatus::Completed)
+                    (
+                        UiDeleteRecoveryAction::Restore,
+                        UiDeleteRecoveryStatus::Completed,
+                    )
                 }
                 (DeleteRecoveryAction::Finalize, DeleteRecoveryStatus::Completed) => {
                     finalized += 1;
                     affected_sources.insert(entry.source_id.clone());
-                    (UiDeleteRecoveryAction::Finalize, UiDeleteRecoveryStatus::Completed)
+                    (
+                        UiDeleteRecoveryAction::Finalize,
+                        UiDeleteRecoveryStatus::Completed,
+                    )
                 }
                 (DeleteRecoveryAction::Restore, DeleteRecoveryStatus::Failed) => {
                     failed += 1;
-                    (UiDeleteRecoveryAction::Restore, UiDeleteRecoveryStatus::Failed)
+                    (
+                        UiDeleteRecoveryAction::Restore,
+                        UiDeleteRecoveryStatus::Failed,
+                    )
                 }
                 (DeleteRecoveryAction::Finalize, DeleteRecoveryStatus::Failed) => {
                     failed += 1;
-                    (UiDeleteRecoveryAction::Finalize, UiDeleteRecoveryStatus::Failed)
+                    (
+                        UiDeleteRecoveryAction::Finalize,
+                        UiDeleteRecoveryStatus::Failed,
+                    )
                 }
             };
             ui_entries.push(UiDeleteRecoveryEntry {
@@ -282,9 +290,9 @@ impl EguiController {
                 message.push_str(&format!(" ({} error(s))", error_count));
             }
             let tone = if failed > 0 || !report.errors.is_empty() {
-                crate::egui_app::ui::style::StatusTone::Warning
+                crate::app::ui::style::StatusTone::Warning
             } else {
-                crate::egui_app::ui::style::StatusTone::Info
+                crate::app::ui::style::StatusTone::Info
             };
             self.set_status(message, tone);
         } else if !report.errors.is_empty() {
@@ -293,7 +301,7 @@ impl EguiController {
                     "Delete recovery encountered {} error(s)",
                     report.errors.len()
                 ),
-                crate::egui_app::ui::style::StatusTone::Warning,
+                crate::app::ui::style::StatusTone::Warning,
             );
         }
         for err in report.errors {
@@ -342,16 +350,41 @@ fn recover_journaled_entries(
         let original = source.root.join(&original_relative);
         let (action, status, detail, remove_from_journal) = match entry.stage {
             DeleteJournalStage::DbCommitted => match finalize_staged_folder(&staged) {
-                Ok(detail) => (DeleteRecoveryAction::Finalize, DeleteRecoveryStatus::Completed, detail, true),
-                Err(err) => (DeleteRecoveryAction::Finalize, DeleteRecoveryStatus::Failed, Some(err), false),
+                Ok(detail) => (
+                    DeleteRecoveryAction::Finalize,
+                    DeleteRecoveryStatus::Completed,
+                    detail,
+                    true,
+                ),
+                Err(err) => (
+                    DeleteRecoveryAction::Finalize,
+                    DeleteRecoveryStatus::Failed,
+                    Some(err),
+                    false,
+                ),
             },
             DeleteJournalStage::Intent | DeleteJournalStage::Staged => {
                 if !staged.exists() && original.exists() {
-                    (DeleteRecoveryAction::Restore, DeleteRecoveryStatus::Completed, Some("Already restored".into()), true)
+                    (
+                        DeleteRecoveryAction::Restore,
+                        DeleteRecoveryStatus::Completed,
+                        Some("Already restored".into()),
+                        true,
+                    )
                 } else {
                     match restore_staged_folder(&staged, &original) {
-                        Ok(detail) => (DeleteRecoveryAction::Restore, DeleteRecoveryStatus::Completed, detail, true),
-                        Err(err) => (DeleteRecoveryAction::Restore, DeleteRecoveryStatus::Failed, Some(err), false),
+                        Ok(detail) => (
+                            DeleteRecoveryAction::Restore,
+                            DeleteRecoveryStatus::Completed,
+                            detail,
+                            true,
+                        ),
+                        Err(err) => (
+                            DeleteRecoveryAction::Restore,
+                            DeleteRecoveryStatus::Failed,
+                            Some(err),
+                            false,
+                        ),
                     }
                 }
             }
@@ -419,8 +452,7 @@ fn restore_staged_folder(staged: &Path, original: &Path) -> Result<Option<String
     }
     let (target, detail) = unique_restore_path(original);
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|err| format!("Failed to restore folder: {err}"))?;
+        fs::create_dir_all(parent).map_err(|err| format!("Failed to restore folder: {err}"))?;
     }
     fs::rename(staged, &target).map_err(|err| format!("Failed to restore folder: {err}"))?;
     Ok(detail)
@@ -442,10 +474,7 @@ fn unique_restore_path(original: &Path) -> (PathBuf, Option<String>) {
             return (candidate, detail);
         }
     }
-    let fallback = parent.join(format!(
-        "{name}{RESTORE_SUFFIX}-{}",
-        uuid::Uuid::new_v4()
-    ));
+    let fallback = parent.join(format!("{name}{RESTORE_SUFFIX}-{}", uuid::Uuid::new_v4()));
     (
         fallback.clone(),
         Some(format!("Restored as {}", fallback.display())),
@@ -583,7 +612,11 @@ fn load_journal(staging_root: &Path) -> Result<DeleteJournal, String> {
 
 fn insert_entry(staging_root: &Path, entry: DeleteJournalEntry) -> Result<(), String> {
     let mut journal = load_journal(staging_root)?;
-    if journal.entries.iter().any(|existing| existing.id == entry.id) {
+    if journal
+        .entries
+        .iter()
+        .any(|existing| existing.id == entry.id)
+    {
         return Err("Delete journal entry already exists".into());
     }
     journal.entries.push(entry);
@@ -630,13 +663,11 @@ fn save_journal(staging_root: &Path, journal: &DeleteJournal) -> Result<(), Stri
     let bytes = serde_json::to_vec_pretty(journal)
         .map_err(|err| format!("Failed to serialize delete journal: {err}"))?;
     let tmp_path = path.with_extension("tmp");
-    fs::write(&tmp_path, bytes)
-        .map_err(|err| format!("Failed to write delete journal: {err}"))?;
+    fs::write(&tmp_path, bytes).map_err(|err| format!("Failed to write delete journal: {err}"))?;
     if path.exists() {
         let _ = fs::remove_file(&path);
     }
-    fs::rename(&tmp_path, &path)
-        .map_err(|err| format!("Failed to save delete journal: {err}"))?;
+    fs::rename(&tmp_path, &path).map_err(|err| format!("Failed to save delete journal: {err}"))?;
     Ok(())
 }
 

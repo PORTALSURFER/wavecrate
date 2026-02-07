@@ -1,5 +1,5 @@
-use crate::egui_app::controller::EguiController;
-use crate::egui_app::state::{DragPayload, DragSource, DragTarget, PendingOsDragStart};
+use crate::app::controller::EguiController;
+use crate::app::state::{DragPayload, DragSource, DragTarget, PendingOsDragStart};
 use eframe::egui::{self, StrokeKind};
 
 pub(super) fn pointer_pos_for_drag(

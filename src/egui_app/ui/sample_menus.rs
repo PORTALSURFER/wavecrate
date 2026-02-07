@@ -1,8 +1,8 @@
 use super::helpers;
 use super::*;
 
+use crate::app::ui::style::StatusTone;
 use eframe::egui;
-use crate::egui_app::ui::style::StatusTone;
 
 impl EguiApp {
     pub(super) fn sample_tag_menu<F>(
@@ -17,17 +17,31 @@ impl EguiApp {
         ui.menu_button("Tag", |ui| {
             let mut tag_clicked = false;
             ui.horizontal(|ui| {
-                if ui.button("Trash (-3)").clicked() { tag_clicked |= on_tag(self, Rating::new(-3)); }
-                if ui.button("Trash (-2)").clicked() { tag_clicked |= on_tag(self, Rating::new(-2)); }
-                if ui.button("Trash (-1)").clicked() { tag_clicked |= on_tag(self, Rating::new(-1)); }
+                if ui.button("Trash (-3)").clicked() {
+                    tag_clicked |= on_tag(self, Rating::new(-3));
+                }
+                if ui.button("Trash (-2)").clicked() {
+                    tag_clicked |= on_tag(self, Rating::new(-2));
+                }
+                if ui.button("Trash (-1)").clicked() {
+                    tag_clicked |= on_tag(self, Rating::new(-1));
+                }
             });
             ui.separator();
-             if ui.button("Neutral (0)").clicked() { tag_clicked |= on_tag(self, Rating::NEUTRAL); }
+            if ui.button("Neutral (0)").clicked() {
+                tag_clicked |= on_tag(self, Rating::NEUTRAL);
+            }
             ui.separator();
             ui.horizontal(|ui| {
-                if ui.button("Keep (+1)").clicked() { tag_clicked |= on_tag(self, Rating::new(1)); }
-                if ui.button("Keep (+2)").clicked() { tag_clicked |= on_tag(self, Rating::new(2)); }
-                if ui.button("Keep (+3)").clicked() { tag_clicked |= on_tag(self, Rating::new(3)); }
+                if ui.button("Keep (+1)").clicked() {
+                    tag_clicked |= on_tag(self, Rating::new(1));
+                }
+                if ui.button("Keep (+2)").clicked() {
+                    tag_clicked |= on_tag(self, Rating::new(2));
+                }
+                if ui.button("Keep (+3)").clicked() {
+                    tag_clicked |= on_tag(self, Rating::new(3));
+                }
             });
 
             if tag_clicked {
@@ -93,8 +107,7 @@ impl EguiApp {
                     .desired_width(64.0)
                     .hint_text("120"),
             );
-            apply_requested =
-                edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            apply_requested = edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             if ui.button("Apply BPM").clicked() {
                 apply_requested = true;
             }

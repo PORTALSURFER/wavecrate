@@ -1,6 +1,6 @@
-use crate::egui_app::controller::jobs::UndoFileJob;
 use super::super::undo;
 use super::super::*;
+use crate::app::controller::jobs::UndoFileJob;
 use std::path::PathBuf;
 
 impl EguiController {
@@ -113,5 +113,4 @@ impl EguiController {
         )
         .with_cleanup_dir(backup_dir)
     }
-
 }

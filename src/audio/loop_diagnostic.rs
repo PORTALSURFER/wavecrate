@@ -1,6 +1,6 @@
 use crate::audio::Source;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Diagnostic wrapper that logs when a looped source restarts
 pub(crate) struct LoopDiagnostic<S> {
@@ -42,7 +42,7 @@ where
             let cycle = self.cycle_count.fetch_add(1, Ordering::Relaxed);
             let frames = self.samples_emitted / self.channels as u64;
             let is_even = frames % 2 == 0;
-            
+
             tracing::debug!(
                 "Loop cycle {} complete: emitted {} samples ({} frames), even={}, expected={}",
                 cycle,
@@ -51,7 +51,7 @@ where
                 is_even,
                 self.expected_samples_per_cycle
             );
-            
+
             self.samples_emitted = 0;
         }
 

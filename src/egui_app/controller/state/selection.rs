@@ -1,11 +1,11 @@
 //! Selection and waveform view state for the controller.
 
-use crate::egui_app::controller::library::wavs;
+use super::audio::LoadedAudio;
+use crate::app::controller::library::wavs;
 use crate::sample_sources::{SampleSource, SourceId};
 use crate::selection::SelectionRange;
-use crate::waveform::{DecodedWaveform, WaveformRenderer};
-use super::audio::LoadedAudio;
 use crate::selection::SelectionState;
+use crate::waveform::{DecodedWaveform, WaveformRenderer};
 use std::path::PathBuf;
 
 pub(crate) struct WavSelectionState {

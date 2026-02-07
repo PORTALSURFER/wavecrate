@@ -183,10 +183,7 @@ impl EguiController {
             .iter()
             .filter(|source| source.root.is_dir())
             .map(|source| {
-                super::source_watcher::SourceWatchEntry::new(
-                    source.id.clone(),
-                    source.root.clone(),
-                )
+                super::source_watcher::SourceWatchEntry::new(source.id.clone(), source.root.clone())
             })
             .collect();
         self.runtime.jobs.update_source_watcher(entries);
@@ -281,8 +278,8 @@ impl EguiController {
         self.ui.map.last_query = None;
         self.ui.map.cached_points.clear();
         self.ui.map.outdated = if let Some(source) = self.current_source() {
-            let scan_at = crate::egui_app::controller::library::similarity_prep::db::read_source_scan_timestamp(&source);
-            let prep_at = crate::egui_app::controller::library::similarity_prep::db::read_source_prep_timestamp(&source);
+            let scan_at = crate::app::controller::library::similarity_prep::db::read_source_scan_timestamp(&source);
+            let prep_at = crate::app::controller::library::similarity_prep::db::read_source_prep_timestamp(&source);
             scan_at.is_some() && scan_at != prep_at
         } else {
             false

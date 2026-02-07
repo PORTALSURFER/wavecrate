@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::controller::jobs::NormalizationJob;
+use crate::app::controller::jobs::NormalizationJob;
 
 pub(crate) struct BrowserController<'a> {
     controller: &'a mut EguiController,
@@ -92,21 +92,28 @@ impl BrowserController<'_> {
             last_played_at,
         };
 
-        let is_currently_loaded = self.sample_view.wav.loaded_audio.as_ref().is_some_and(|audio| {
-            audio.source_id == ctx.source.id && audio.relative_path == ctx.entry.relative_path
-        });
+        let is_currently_loaded = self
+            .sample_view
+            .wav
+            .loaded_audio
+            .as_ref()
+            .is_some_and(|audio| {
+                audio.source_id == ctx.source.id && audio.relative_path == ctx.entry.relative_path
+            });
         if is_currently_loaded && was_playing {
             let start_override = if playhead_position.is_finite() {
                 Some(playhead_position.clamp(0.0, 1.0))
             } else {
                 None
             };
-            self.runtime.jobs.set_pending_playback(Some(PendingPlayback {
-                source_id: ctx.source.id.clone(),
-                relative_path: ctx.entry.relative_path.clone(),
-                looped: was_looping,
-                start_override,
-            }));
+            self.runtime
+                .jobs
+                .set_pending_playback(Some(PendingPlayback {
+                    source_id: ctx.source.id.clone(),
+                    relative_path: ctx.entry.relative_path.clone(),
+                    looped: was_looping,
+                    start_override,
+                }));
         }
 
         self.update_cached_entry(&ctx.source, &ctx.entry.relative_path, updated);
@@ -230,9 +237,14 @@ impl BrowserController<'_> {
         let was_playing = self.is_playing();
         let was_looping = self.ui.waveform.loop_enabled;
         let playhead_position = self.ui.waveform.playhead.position;
-        let is_currently_loaded = self.sample_view.wav.loaded_audio.as_ref().is_some_and(|audio| {
-            audio.source_id == ctx.source.id && audio.relative_path == ctx.entry.relative_path
-        });
+        let is_currently_loaded = self
+            .sample_view
+            .wav
+            .loaded_audio
+            .as_ref()
+            .is_some_and(|audio| {
+                audio.source_id == ctx.source.id && audio.relative_path == ctx.entry.relative_path
+            });
 
         if is_currently_loaded && was_playing {
             let start_override = if playhead_position.is_finite() {
@@ -240,12 +252,14 @@ impl BrowserController<'_> {
             } else {
                 None
             };
-            self.runtime.jobs.set_pending_playback(Some(PendingPlayback {
-                source_id: ctx.source.id.clone(),
-                relative_path: updated_path.clone(),
-                looped: was_looping,
-                start_override,
-            }));
+            self.runtime
+                .jobs
+                .set_pending_playback(Some(PendingPlayback {
+                    source_id: ctx.source.id.clone(),
+                    relative_path: updated_path.clone(),
+                    looped: was_looping,
+                    start_override,
+                }));
         }
 
         self.refresh_waveform_for_sample(&ctx.source, new_relative);

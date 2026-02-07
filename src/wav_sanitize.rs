@@ -110,7 +110,7 @@ impl Seek for SanitizedWavReader {
                         } else {
                             logical_len.checked_sub((-delta) as u64)
                         };
-                         match new_pos {
+                        match new_pos {
                             Some(p) => self.seek(SeekFrom::Start(p)),
                             None => Err(io::Error::new(
                                 io::ErrorKind::InvalidInput,
@@ -136,31 +136,29 @@ pub fn open_sanitized_wav(path: &Path) -> Result<SanitizedWavReader, String> {
     chunk
         .read_to_end(&mut buffer)
         .map_err(|err| format!("Failed to read header of {}: {err}", path.display()))?;
-    
-    // We need the restore the file handle (take consumes it, but we can recover it or just clone it before? 
+
+    // We need the restore the file handle (take consumes it, but we can recover it or just clone it before?
     // `take` takes `&mut file`. `chunk` borrows `file`. `chunk.read_to_end` works.
     // `chunk` drops, `file` is available again.
     // However, the file position is now advanced by `buffer.len()`.
 
     let read_len = buffer.len();
     if read_len == 0 {
-         // Empty file?
-         return Ok(SanitizedWavReader::PassThrough(file));
+        // Empty file?
+        return Ok(SanitizedWavReader::PassThrough(file));
     }
 
     // Get total file size to pass to sanitizer (needed for RIFF size fix)
-    let total_size = file.metadata()
-        .map(|m| m.len())
-        .unwrap_or(read_len as u64); // Fallback if metadata fails?
+    let total_size = file.metadata().map(|m| m.len()).unwrap_or(read_len as u64); // Fallback if metadata fails?
 
     if sanitize_wav_header(&mut buffer, total_size) {
         // Fix applied.
         let header_len = buffer.len() as u64;
         let file_start_offset = read_len as u64;
-        
+
         // Ensure file is positioned correctly for the body.
         // It should be at `read_len` already because of `read_to_end`.
-        
+
         Ok(SanitizedWavReader::Chained {
             header: Cursor::new(buffer),
             file,
@@ -174,7 +172,6 @@ pub fn open_sanitized_wav(path: &Path) -> Result<SanitizedWavReader, String> {
         Ok(SanitizedWavReader::PassThrough(file))
     }
 }
-
 
 /// Refactored from `sanitize_wav_bytes`: inspects `bytes` (the file header) and modifies it in-place if needed.
 /// Returns true if changes were made.
@@ -193,7 +190,7 @@ fn sanitize_wav_header(bytes: &mut Vec<u8>, total_file_len: u64) -> bool {
     while offset + 8 <= bytes.len() {
         let id_slice = &bytes[offset..offset + 4];
         let id = [id_slice[0], id_slice[1], id_slice[2], id_slice[3]]; // copy to array for comparison
-        
+
         let chunk_size =
             u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap()) as usize;
         let chunk_data = match offset.checked_add(8) {
@@ -210,12 +207,12 @@ fn sanitize_wav_header(bytes: &mut Vec<u8>, total_file_len: u64) -> bool {
         {
             return false;
         }
-        
-        // If chunk data extends beyond our buffer, we can't safely inspect/fix it 
+
+        // If chunk data extends beyond our buffer, we can't safely inspect/fix it
         // if it relies on content access.
         if chunk_end > bytes.len() {
             // Special case: if it IS the fmt chunk and we have enough bytes to see the crucial parts
-            // maybe we can still fix it? 
+            // maybe we can still fix it?
             // `shrink_pcm_fmt_chunk_with_padding` requires `chunk_size` bytes to be available to check padding.
             // So if it's cut off, we can't fix it.
             break;
@@ -284,7 +281,7 @@ fn shrink_pcm_fmt_chunk_with_padding(
         Ok(b) => u16::from_le_bytes(b),
         Err(_) => return false,
     };
-    
+
     // Only apply to PCM (1) or IEEE float (3) where 16 or 18 byte fmt is standard.
     if !matches!(format_tag, 1 | 3) {
         return false;
@@ -292,13 +289,19 @@ fn shrink_pcm_fmt_chunk_with_padding(
     // Require the WaveFormatEx "cbSize" field to exist and be 0.
     // cbSize is at offset 16 relative to fmt_data (i.e. bytes 16..18 of chunk data)
     let cb_size_offset = fmt_data + 16;
-    if cb_size_offset + 2 > bytes.len() { return false; }
-    
-    let cb_size = u16::from_le_bytes(bytes[cb_size_offset..cb_size_offset + 2].try_into().unwrap());
+    if cb_size_offset + 2 > bytes.len() {
+        return false;
+    }
+
+    let cb_size = u16::from_le_bytes(
+        bytes[cb_size_offset..cb_size_offset + 2]
+            .try_into()
+            .unwrap(),
+    );
     if cb_size != 0 {
         return false;
     }
-    
+
     // Only shrink when any extra bytes are all padding zeros.
     // data starts at fmt_data. 18 bytes are: 16 bytes basic + 2 bytes cbSize.
     // Check bytes from fmt_data + 18 up to fmt_data + chunk_size.
@@ -312,7 +315,7 @@ fn shrink_pcm_fmt_chunk_with_padding(
     // Shrink fmt chunk down to 18 bytes (WaveFormatEx with cbSize=0).
     // 1. Update chunk size in header (offset+4..offset+8)
     bytes[chunk_offset + 4..chunk_offset + 8].copy_from_slice(&(18u32).to_le_bytes());
-    
+
     // 2. Remove the extra padding bytes.
     // Range to remove: from fmt_data + 18 to fmt_data + chunk_size
     bytes.drain(fmt_data + 18..fmt_data + chunk_size);
@@ -322,10 +325,10 @@ fn shrink_pcm_fmt_chunk_with_padding(
     // We removed (chunk_size - 18) bytes.
     // New size = total_file_len - (chunk_size - 18).
     // RIFF size = New size - 8.
-    
+
     let removed_count = chunk_size - 18;
     let new_len = total_file_len.saturating_sub(removed_count as u64);
-    
+
     if bytes.len() >= 8 {
         let riff_size = (new_len.saturating_sub(8) as u32).to_le_bytes();
         bytes[4..8].copy_from_slice(&riff_size);
@@ -401,14 +404,14 @@ mod tests {
     fn test_open_sanitized_wav_chained() {
         use std::io::Read;
         fn wav_bytes_pcm_16bit(samples: &[i16]) -> Vec<u8> {
-             // Redefine or use from outer scope? 
-             // The outer `wav_bytes_pcm_16bit` is available in the module.
-             super::tests::wav_bytes_pcm_16bit(samples)
+            // Redefine or use from outer scope?
+            // The outer `wav_bytes_pcm_16bit` is available in the module.
+            super::tests::wav_bytes_pcm_16bit(samples)
         }
         // Wait, I am inside `mod tests`, so `wav_bytes_pcm_16bit` is a sibling.
         let base = wav_bytes_pcm_16bit(&[0, 1000, -1000, 0]);
         let mut bad = base.clone();
-        
+
         // Malform it: fmt chunk size 20, 4 bytes padding
         bad[16..20].copy_from_slice(&20u32.to_le_bytes());
         bad.splice(12 + 8 + 16..12 + 8 + 16, [0u8; 4]);
@@ -424,13 +427,13 @@ mod tests {
         reader.read_to_end(&mut buf).unwrap();
 
         // The read buffer should be the FIXED version
-        assert_ne!(buf, bad); 
+        assert_ne!(buf, bad);
         // Logic: The fixed version should be header-shrunk.
-        // `bad` has 20 byte fmt + 4 padding = 24 bytes data + 8 bytes header = 32 bytes chunk. 
+        // `bad` has 20 byte fmt + 4 padding = 24 bytes data + 8 bytes header = 32 bytes chunk.
         // Fixed has 18 byte fmt + 0 padding = 18 bytes data + 8 bytes header = 26 bytes chunk.
         // Difference = 6 bytes.
         assert_eq!(buf.len(), bad.len() - 2);
-        
+
         // Validating with hound
         assert!(hound::WavReader::new(Cursor::new(&buf)).is_ok());
 

@@ -40,8 +40,7 @@ pub(super) fn build_peaks_with_analysis_from_float(
     let bucket_size_frames = peak_bucket_size(total_frames).max(1);
     let bucket_count = total_frames.div_ceil(bucket_size_frames).max(1);
     let analysis_stride = analysis_stride(sample_rate, total_frames);
-    let mut analysis_samples =
-        Vec::with_capacity(total_frames.div_ceil(analysis_stride).max(1));
+    let mut analysis_samples = Vec::with_capacity(total_frames.div_ceil(analysis_stride).max(1));
 
     let mut mono = vec![(1.0_f32, -1.0_f32); bucket_count];
     let mut left = if channels >= 2 {
@@ -109,8 +108,9 @@ pub(super) fn build_peaks_with_analysis_from_float(
         analysis_samples.push(analysis_sum / analysis_count as f32);
     }
 
-    let analysis_sample_rate =
-        ((sample_rate as f32) / analysis_stride as f32).round().max(1.0) as u32;
+    let analysis_sample_rate = ((sample_rate as f32) / analysis_stride as f32)
+        .round()
+        .max(1.0) as u32;
     Ok(PeaksAndAnalysis {
         peaks: WaveformPeaks {
             total_frames,
@@ -138,8 +138,7 @@ pub(super) fn build_peaks_with_analysis_from_int(
     let bucket_size_frames = peak_bucket_size(total_frames).max(1);
     let bucket_count = total_frames.div_ceil(bucket_size_frames).max(1);
     let analysis_stride = analysis_stride(sample_rate, total_frames);
-    let mut analysis_samples =
-        Vec::with_capacity(total_frames.div_ceil(analysis_stride).max(1));
+    let mut analysis_samples = Vec::with_capacity(total_frames.div_ceil(analysis_stride).max(1));
 
     let mut mono = vec![(1.0_f32, -1.0_f32); bucket_count];
     let mut left = if channels >= 2 {
@@ -207,8 +206,9 @@ pub(super) fn build_peaks_with_analysis_from_int(
         analysis_samples.push(analysis_sum / analysis_count as f32);
     }
 
-    let analysis_sample_rate =
-        ((sample_rate as f32) / analysis_stride as f32).round().max(1.0) as u32;
+    let analysis_sample_rate = ((sample_rate as f32) / analysis_stride as f32)
+        .round()
+        .max(1.0) as u32;
     Ok(PeaksAndAnalysis {
         peaks: WaveformPeaks {
             total_frames,

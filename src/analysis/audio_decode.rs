@@ -21,10 +21,7 @@ pub(crate) fn decode_audio(path: &Path, max_seconds: Option<f32>) -> Result<Deco
             sample_rate: sample_rate.max(1),
             channels: channels.max(1),
         }),
-        Err(err) => Err(format!(
-            "Audio decode failed for {}: {err}",
-            path.display()
-        )),
+        Err(err) => Err(format!("Audio decode failed for {}: {err}", path.display())),
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::egui_app::state::WaveformView;
+use crate::app::state::WaveformView;
 use crate::selection::{SelectionEdge, SelectionRange};
 use eframe::egui::{self, Color32, Stroke};
 
@@ -73,27 +73,18 @@ const FADE_MUTE_HANDLE_SIZE: f32 = 12.0;
 const FADE_MUTE_HANDLE_GAP: f32 = 6.0;
 
 /// Get the rect for a fade handle (top-left for fade-in, top-right for fade-out).
-pub(super) fn fade_handle_rect(
-    selection_rect: egui::Rect,
-    is_fade_in: bool,
-) -> egui::Rect {
+pub(super) fn fade_handle_rect(selection_rect: egui::Rect, is_fade_in: bool) -> egui::Rect {
     let size = FADE_HANDLE_SIZE;
     let x = if is_fade_in {
         selection_rect.left()
     } else {
         selection_rect.right() - size
     };
-    egui::Rect::from_min_size(
-        egui::pos2(x, selection_rect.top()),
-        egui::vec2(size, size),
-    )
+    egui::Rect::from_min_size(egui::pos2(x, selection_rect.top()), egui::vec2(size, size))
 }
 
 /// Get the rect for a lower fade handle (bottom-left for fade-in, bottom-right for fade-out).
-pub(super) fn fade_lower_handle_rect(
-    selection_rect: egui::Rect,
-    is_fade_in: bool,
-) -> egui::Rect {
+pub(super) fn fade_lower_handle_rect(selection_rect: egui::Rect, is_fade_in: bool) -> egui::Rect {
     let size = FADE_HANDLE_SIZE;
     let x = if is_fade_in {
         selection_rect.left()
@@ -107,10 +98,7 @@ pub(super) fn fade_lower_handle_rect(
 }
 
 /// Get the rect for a mute extension handle next to the lower fade handle.
-pub(super) fn fade_mute_handle_rect(
-    selection_rect: egui::Rect,
-    is_fade_in: bool,
-) -> egui::Rect {
+pub(super) fn fade_mute_handle_rect(selection_rect: egui::Rect, is_fade_in: bool) -> egui::Rect {
     let size = FADE_MUTE_HANDLE_SIZE;
     let y = selection_rect.bottom() - size;
     let x = if is_fade_in {

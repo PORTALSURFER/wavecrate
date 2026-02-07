@@ -401,13 +401,7 @@ mod tests {
     fn compute_frames_rejects_non_power_of_two_frame_size() {
         let frame_size = 1_000;
         let mel = MelBank::new(ANALYSIS_SAMPLE_RATE, frame_size, 40, 20, 20.0, 16_000.0);
-        let err = compute_frames(
-            &[],
-            ANALYSIS_SAMPLE_RATE,
-            frame_size,
-            STFT_HOP_SIZE,
-            &mel,
-        );
+        let err = compute_frames(&[], ANALYSIS_SAMPLE_RATE, frame_size, STFT_HOP_SIZE, &mel);
         assert!(err.is_err());
         if let Err(message) = err {
             assert!(message.contains("power-of-two"));

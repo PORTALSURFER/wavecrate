@@ -7,7 +7,7 @@ pub(super) fn render_playhead(
     app: &mut EguiApp,
     ui: &mut egui::Ui,
     rect: egui::Rect,
-    view: crate::egui_app::state::WaveformView,
+    view: crate::app::state::WaveformView,
     view_width: f32,
     highlight: Color32,
     to_screen_x: &impl Fn(f32, egui::Rect) -> f32,
@@ -32,18 +32,13 @@ pub(super) fn render_playhead(
         if window.len() < 2 {
             continue;
         }
-        let stops = gradient_stops_from_trail_window(
-            &window,
-            rect,
-            view,
-            view_width as f64,
-            |time| {
+        let stops =
+            gradient_stops_from_trail_window(&window, rect, view, view_width as f64, |time| {
                 let base_age = last_time.saturating_duration_since(time);
-                let t = 1.0
-                    - (base_age.as_secs_f32() / TRAIL_DURATION.as_secs_f32()).clamp(0.0, 1.0);
+                let t =
+                    1.0 - (base_age.as_secs_f32() / TRAIL_DURATION.as_secs_f32()).clamp(0.0, 1.0);
                 ((t * t) * 105.0 * fade_strength).round().clamp(0.0, 255.0) as u8
-            },
-        );
+            });
         paint_playhead_trail_mesh(ui, rect, &stops, highlight);
     }
 
@@ -51,18 +46,13 @@ pub(super) fn render_playhead(
         let cutoff = now.checked_sub(TRAIL_DURATION).unwrap_or(now);
         let window = trail_samples_in_window(&playhead.trail, cutoff);
         if window.len() >= 2 {
-            let stops = gradient_stops_from_trail_window(
-                &window,
-                rect,
-                view,
-                view_width as f64,
-                |time| {
+            let stops =
+                gradient_stops_from_trail_window(&window, rect, view, view_width as f64, |time| {
                     let age = now.saturating_duration_since(time);
                     let t =
                         1.0 - (age.as_secs_f32() / TRAIL_DURATION.as_secs_f32()).clamp(0.0, 1.0);
                     ((t * t) * 119.0).round().clamp(0.0, 255.0) as u8
-                },
-            );
+                });
             paint_playhead_trail_mesh(ui, rect, &stops, highlight);
         }
     }
@@ -80,11 +70,10 @@ pub(super) fn render_playhead(
 fn to_screen_x_unclamped(
     position: f32,
     rect: egui::Rect,
-    view: crate::egui_app::state::WaveformView,
+    view: crate::app::state::WaveformView,
     view_width: f64,
 ) -> f32 {
-    rect.left()
-        + rect.width() * ((position as f64 - view.start) / view_width) as f32
+    rect.left() + rect.width() * ((position as f64 - view.start) / view_width) as f32
 }
 
 fn playhead_trail_mesh(
@@ -149,11 +138,11 @@ fn paint_playhead_trail_mesh(
 }
 
 fn trail_samples_in_window(
-    trail: &std::collections::VecDeque<crate::egui_app::state::PlayheadTrailSample>,
+    trail: &std::collections::VecDeque<crate::app::state::PlayheadTrailSample>,
     cutoff: Instant,
-) -> Vec<crate::egui_app::state::PlayheadTrailSample> {
+) -> Vec<crate::app::state::PlayheadTrailSample> {
     let mut window = Vec::new();
-    let mut prev: Option<crate::egui_app::state::PlayheadTrailSample> = None;
+    let mut prev: Option<crate::app::state::PlayheadTrailSample> = None;
     for sample in trail.iter().copied() {
         if sample.time >= cutoff {
             if let Some(prev) = prev
@@ -167,7 +156,7 @@ fn trail_samples_in_window(
                 };
                 let span_s = span.as_secs_f32().max(1e-6);
                 let t = (elapsed.as_secs_f32() / span_s).clamp(0.0, 1.0);
-                window.push(crate::egui_app::state::PlayheadTrailSample {
+                window.push(crate::app::state::PlayheadTrailSample {
                     position: prev.position + (sample.position - prev.position) * t,
                     time: cutoff,
                 });
@@ -180,9 +169,9 @@ fn trail_samples_in_window(
 }
 
 fn gradient_stops_from_trail_window(
-    window: &[crate::egui_app::state::PlayheadTrailSample],
+    window: &[crate::app::state::PlayheadTrailSample],
     rect: egui::Rect,
-    view: crate::egui_app::state::WaveformView,
+    view: crate::app::state::WaveformView,
     view_width: f64,
     alpha_for_time: impl Fn(Instant) -> u8,
 ) -> Vec<(f32, u8)> {
@@ -300,8 +289,8 @@ fn gradient_stops_from_trail_window(
 #[cfg(test)]
 mod tests {
     use super::{gradient_stops_from_trail_window, trail_samples_in_window};
-    use crate::egui_app::state::PlayheadTrailSample;
-    use crate::egui_app::state::WaveformView;
+    use crate::app::state::PlayheadTrailSample;
+    use crate::app::state::WaveformView;
     use eframe::egui;
     use std::collections::VecDeque;
     use std::time::{Duration, Instant};

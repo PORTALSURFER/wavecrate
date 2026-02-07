@@ -8,14 +8,14 @@ use super::super::selection_geometry::{
 };
 use super::geometry::{edge_position_px, slice_rect, to_wave_pos, update_slice_edge};
 use super::{SliceEdgeSpec, SliceItem, SliceOverlayEnv, SliceOverlayResult};
-use crate::egui_app::ui::style;
+use crate::app::ui::style;
 
 pub(super) fn render_slice_overlays(
     app: &mut EguiApp,
     ui: &mut egui::Ui,
     rect: egui::Rect,
     palette: &style::Palette,
-    view: crate::egui_app::state::WaveformView,
+    view: crate::app::state::WaveformView,
     view_width: f64,
     pointer_pos: Option<egui::Pos2>,
 ) -> SliceOverlayResult {
@@ -361,7 +361,8 @@ fn update_slice_edge_drag(
     }) = app.slice_drag
         && active_index == index
     {
-        let view_fraction = ((pos.x - offset - env.rect.left()) / env.rect.width()).clamp(0.0, 1.0) as f64;
+        let view_fraction =
+            ((pos.x - offset - env.rect.left()) / env.rect.width()).clamp(0.0, 1.0) as f64;
         let absolute = env.view.start + env.view_width.max(1e-9) * view_fraction;
         let clamped = absolute.clamp(0.0, 1.0) as f32;
         if let Some(slice) = app.controller.ui.waveform.slices.get(active_index).copied() {

@@ -1,6 +1,6 @@
 use super::state;
 use super::store::SimilarityPrepStore;
-use crate::egui_app::controller::SimilarityPrepState;
+use crate::app::controller::SimilarityPrepState;
 use crate::sample_sources::SampleSource;
 
 pub(crate) struct SimilarityPrepStartPlan {
@@ -26,16 +26,13 @@ pub(crate) fn plan_similarity_prep_start(
         skip_backfill: !needs_embeddings,
         force_full_analysis,
     });
-    SimilarityPrepStartPlan {
-        skip_scan,
-        state,
-    }
+    SimilarityPrepStartPlan { skip_scan, state }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::egui_app::controller::library::analysis_jobs;
+    use crate::app::controller::library::analysis_jobs;
     use crate::sample_sources::SourceId;
     use std::path::PathBuf;
 

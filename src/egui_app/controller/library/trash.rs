@@ -1,12 +1,5 @@
-use trash_move::TrashMoveFinished;
-#[cfg(test)]
-use trash_move::TrashMoveMessage;
-#[cfg(not(test))]
-use trash_move::run_trash_move_task;
-#[cfg(test)]
-use trash_move::run_trash_move_task_with_progress;
 use super::*;
-use crate::egui_app::state::ProgressTaskKind;
+use crate::app::state::ProgressTaskKind;
 use crate::sample_sources::config::normalize_path;
 use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::fs;
@@ -16,6 +9,13 @@ use std::sync::atomic::Ordering;
 #[cfg(not(test))]
 use std::sync::mpsc::channel;
 use std::sync::{Arc, atomic::AtomicBool};
+use trash_move::TrashMoveFinished;
+#[cfg(test)]
+use trash_move::TrashMoveMessage;
+#[cfg(not(test))]
+use trash_move::run_trash_move_task;
+#[cfg(test)]
+use trash_move::run_trash_move_task_with_progress;
 
 impl EguiController {
     /// Open a folder picker and persist the chosen trash folder.

@@ -125,7 +125,7 @@ impl WaveformActions for WaveformController<'_> {
     }
 
     fn scroll_waveform_view(&mut self, center: f64) {
-        let view = self.ui.waveform.view;  // Use actual view, not display_view
+        let view = self.ui.waveform.view; // Use actual view, not display_view
         let width = view.width();
         if width >= 1.0 {
             self.ui.waveform.view = WaveformView {
@@ -140,7 +140,8 @@ impl WaveformActions for WaveformController<'_> {
         self.ui.waveform.view = WaveformView {
             start,
             end: (start + width).min(1.0),
-        }.clamp();
+        }
+        .clamp();
         self.refresh_waveform_image();
     }
 }

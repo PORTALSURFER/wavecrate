@@ -33,7 +33,7 @@ impl<'a> NumericInput<'a> {
     /// (e.g., +1.0 for ArrowUp, -1.0 for ArrowDown).
     pub fn show(self, ui: &mut egui::Ui) -> (egui::Response, Option<f32>) {
         let mut adjust = 0.0;
-        
+
         // Intercept arrow keys before TextEdit can see them
         if ui.memory(|m| m.has_focus(self.id)) {
             ui.input_mut(|i| {

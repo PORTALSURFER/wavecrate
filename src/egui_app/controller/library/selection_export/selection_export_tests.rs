@@ -1,6 +1,6 @@
 use super::*;
-use crate::egui_app::controller::library::analysis_jobs;
-use crate::egui_app::controller::test_support::write_test_wav;
+use crate::app::controller::library::analysis_jobs;
+use crate::app::controller::test_support::write_test_wav;
 use hound::WavReader;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
@@ -110,7 +110,10 @@ fn export_selection_clip_applies_short_edge_fades_when_enabled() {
     let mut controller = EguiController::new(renderer, None);
     let source = SampleSource::new(source_root.clone());
     controller.library.sources.push(source.clone());
-    controller.settings.controls.auto_edge_fades_on_selection_exports = true;
+    controller
+        .settings
+        .controls
+        .auto_edge_fades_on_selection_exports = true;
     controller.ui.controls.auto_edge_fades_on_selection_exports = true;
     controller.settings.controls.anti_clip_fade_ms = 250.0;
     controller.ui.controls.anti_clip_fade_ms = 250.0;

@@ -1,6 +1,6 @@
 use super::super::test_support::{dummy_controller, sample_entry, write_test_wav};
 use super::super::*;
-use crate::egui_app::state::FocusContext;
+use crate::app::state::FocusContext;
 use std::path::{Path, PathBuf};
 
 #[test]
@@ -19,8 +19,14 @@ fn hotkey_tagging_applies_to_all_selected_rows() {
     controller.toggle_browser_row_selection(1);
     controller.tag_selected_left();
 
-    assert_eq!(controller.wav_entry(0).unwrap().tag, crate::sample_sources::Rating::TRASH_3);
-    assert_eq!(controller.wav_entry(1).unwrap().tag, crate::sample_sources::Rating::TRASH_3);
+    assert_eq!(
+        controller.wav_entry(0).unwrap().tag,
+        crate::sample_sources::Rating::TRASH_3
+    );
+    assert_eq!(
+        controller.wav_entry(1).unwrap().tag,
+        crate::sample_sources::Rating::TRASH_3
+    );
 }
 
 #[test]
@@ -104,7 +110,10 @@ fn update_selection_paths_rewrites_browser_selected_paths() {
 fn update_cached_entry_replaces_old_path_in_lookup() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
-    controller.set_wav_entries_for_tests(vec![sample_entry("old.wav", crate::sample_sources::Rating::NEUTRAL)]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "old.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
     controller.ui.browser.selected_paths = vec![PathBuf::from("old.wav")];
@@ -153,7 +162,10 @@ fn escape_handler_clears_waveform_and_browser_state() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.cache_db(&source).unwrap();
-    controller.set_wav_entries_for_tests(vec![sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL)]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
 
@@ -201,7 +213,10 @@ fn escape_stops_playback_before_clearing_selection() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.cache_db(&source).unwrap();
-    controller.set_wav_entries_for_tests(vec![sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL)]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
 

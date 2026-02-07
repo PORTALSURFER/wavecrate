@@ -1,10 +1,12 @@
 use super::super::DragDropController;
-use crate::egui_app::controller::library::wav_io::file_metadata;
-use crate::egui_app::controller::jobs::{FileOpMessage, FileOpResult, SourceMoveRequest, SourceMoveResult, SourceMoveSuccess};
-use crate::egui_app::state::DragSample;
-use crate::egui_app::ui::style::StatusTone;
-use crate::sample_sources::{Rating, SourceDatabase, SourceId, WavEntry};
+use crate::app::controller::jobs::{
+    FileOpMessage, FileOpResult, SourceMoveRequest, SourceMoveResult, SourceMoveSuccess,
+};
+use crate::app::controller::library::wav_io::file_metadata;
+use crate::app::state::DragSample;
+use crate::app::ui::style::StatusTone;
 use crate::sample_sources::db::file_ops_journal;
+use crate::sample_sources::{Rating, SourceDatabase, SourceId, WavEntry};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{
@@ -38,10 +40,16 @@ impl DragDropController<'_> {
             return;
         }
         if self.runtime.jobs.file_ops_in_progress() {
-            self.set_status("Another file operation is already running", StatusTone::Warning);
+            self.set_status(
+                "Another file operation is already running",
+                StatusTone::Warning,
+            );
             return;
         }
-        if samples.iter().all(|sample| sample.source_id == target_source_id) {
+        if samples
+            .iter()
+            .all(|sample| sample.source_id == target_source_id)
+        {
             self.set_status("Samples are already in that source", StatusTone::Info);
             return;
         }
@@ -85,7 +93,7 @@ impl DragDropController<'_> {
         }
         self.set_status("Moving samples...", StatusTone::Busy);
         self.show_status_progress(
-            crate::egui_app::state::ProgressTaskKind::FileOps,
+            crate::app::state::ProgressTaskKind::FileOps,
             "Moving samples",
             requests.len(),
             true,
@@ -106,7 +114,7 @@ impl DragDropController<'_> {
             if let FileOpMessage::Finished(FileOpResult::SourceMove(result)) = message {
                 self.apply_source_move_result(result);
             }
-            if self.ui.progress.task == Some(crate::egui_app::state::ProgressTaskKind::FileOps) {
+            if self.ui.progress.task == Some(crate::app::state::ProgressTaskKind::FileOps) {
                 self.clear_progress();
             }
         }
@@ -249,7 +257,6 @@ impl DragDropController<'_> {
         db.remove_file(relative_path)
             .map_err(|err| format!("Failed to drop database row: {err}"))
     }
-
 }
 
 fn unique_destination_path(root: &Path, relative: &Path) -> Result<PathBuf, String> {
@@ -373,15 +380,17 @@ fn run_source_move_task(
         }
         let source_db = match source_dbs.entry(request.source_root.clone()) {
             std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
-            std::collections::hash_map::Entry::Vacant(entry) => match SourceDatabase::open(&request.source_root) {
-                Ok(db) => entry.insert(db),
-                Err(err) => {
-                    errors.push(format!("Failed to open source DB: {err}"));
-                    completed += 1;
-                    report_progress(sender, completed, detail);
-                    continue;
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                match SourceDatabase::open(&request.source_root) {
+                    Ok(db) => entry.insert(db),
+                    Err(err) => {
+                        errors.push(format!("Failed to open source DB: {err}"));
+                        completed += 1;
+                        report_progress(sender, completed, detail);
+                        continue;
+                    }
                 }
-            },
+            }
         };
         let tag = match source_db.tag_for_path(&request.relative_path) {
             Ok(Some(tag)) => tag,
@@ -423,15 +432,16 @@ fn run_source_move_task(
             }
         };
         let op_id = file_ops_journal::new_op_id();
-        let staged_relative = match file_ops_journal::staged_relative_for_target(&target_relative, &op_id) {
-            Ok(path) => path,
-            Err(err) => {
-                errors.push(format!("Failed to build staging path: {err}"));
-                completed += 1;
-                report_progress(sender, completed, detail);
-                continue;
-            }
-        };
+        let staged_relative =
+            match file_ops_journal::staged_relative_for_target(&target_relative, &op_id) {
+                Ok(path) => path,
+                Err(err) => {
+                    errors.push(format!("Failed to build staging path: {err}"));
+                    completed += 1;
+                    report_progress(sender, completed, detail);
+                    continue;
+                }
+            };
         let journal_entry = match file_ops_journal::FileOpJournalEntry::new_move(
             op_id.clone(),
             request.source_root.clone(),
@@ -595,11 +605,7 @@ fn run_source_move_task(
     }
 }
 
-fn remove_move_journal_entry(
-    errors: &mut Vec<String>,
-    db: &SourceDatabase,
-    op_id: &str,
-) {
+fn remove_move_journal_entry(errors: &mut Vec<String>, db: &SourceDatabase, op_id: &str) {
     if let Err(err) = file_ops_journal::remove_entry(db, op_id) {
         errors.push(format!("Failed to clear move journal: {err}"));
     }
@@ -624,8 +630,8 @@ fn report_progress(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::egui_app::controller::EguiController;
-    use crate::egui_app::controller::test_support::{sample_entry, write_test_wav};
+    use crate::app::controller::EguiController;
+    use crate::app::controller::test_support::{sample_entry, write_test_wav};
     use crate::sample_sources::{Rating, SampleSource};
     use crate::waveform::WaveformRenderer;
     use tempfile::tempdir;

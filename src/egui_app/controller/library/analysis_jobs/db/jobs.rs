@@ -24,10 +24,7 @@ pub(crate) fn sample_content_hash(
 }
 
 /// Load the stored BPM for a sample, if present.
-pub(crate) fn sample_bpm(
-    conn: &Connection,
-    sample_id: &str,
-) -> Result<Option<f32>, String> {
+pub(crate) fn sample_bpm(conn: &Connection, sample_id: &str) -> Result<Option<f32>, String> {
     let bpm: Option<f64> = conn
         .query_row(
             "SELECT bpm FROM samples WHERE sample_id = ?1",
@@ -264,10 +261,7 @@ pub(crate) fn claim_next_jobs(
 }
 
 #[cfg_attr(test, allow(dead_code))]
-pub(crate) fn mark_done(
-    conn: &Connection,
-    job_id: i64,
-) -> Result<(), String> {
+pub(crate) fn mark_done(conn: &Connection, job_id: i64) -> Result<(), String> {
     conn.execute(
         "UPDATE analysis_jobs
          SET status = 'done', last_error = NULL, running_at = NULL
@@ -293,10 +287,7 @@ pub(crate) fn mark_failed_with_reason(
     Ok(())
 }
 
-pub(crate) fn mark_pending(
-    conn: &Connection,
-    job_id: i64,
-) -> Result<(), String> {
+pub(crate) fn mark_pending(conn: &Connection, job_id: i64) -> Result<(), String> {
     conn.execute(
         "UPDATE analysis_jobs
          SET status = 'pending', running_at = NULL
@@ -307,10 +298,7 @@ pub(crate) fn mark_pending(
     Ok(())
 }
 
-pub(crate) fn touch_running_at(
-    conn: &Connection,
-    job_ids: &[i64],
-) -> Result<(), String> {
+pub(crate) fn touch_running_at(conn: &Connection, job_ids: &[i64]) -> Result<(), String> {
     if job_ids.is_empty() {
         return Ok(());
     }

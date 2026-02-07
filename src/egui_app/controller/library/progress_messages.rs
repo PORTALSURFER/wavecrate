@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::state::ProgressTaskKind;
+use crate::app::state::ProgressTaskKind;
 use crate::sample_sources::scanner::ScanMode;
 
 const SCAN_PROGRESS_DETAIL: &str = "Scanning audio files…";

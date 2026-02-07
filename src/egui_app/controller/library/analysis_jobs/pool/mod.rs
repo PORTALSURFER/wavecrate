@@ -5,7 +5,7 @@ mod job_progress;
 mod progress_cache;
 
 use super::wakeup;
-use crate::egui_app::controller::jobs::JobMessageSender;
+use crate::app::controller::jobs::JobMessageSender;
 use crate::gui::repaint::{RepaintSignal, SharedRepaintSignal};
 use crate::sample_sources::SourceId;
 use progress_cache::ProgressCache;
@@ -14,9 +14,9 @@ use std::collections::HashSet;
 #[cfg(not(test))]
 use std::sync::Mutex;
 use std::sync::{
+    Arc, RwLock,
     atomic::AtomicU32,
     atomic::{AtomicBool, Ordering},
-    Arc, RwLock,
 };
 use std::thread::JoinHandle;
 use tracing::info;

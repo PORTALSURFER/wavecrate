@@ -1,8 +1,6 @@
 use rusqlite::{Connection, TransactionBehavior, params};
 
-pub(crate) fn reset_running_to_pending(
-    conn: &Connection,
-) -> Result<usize, String> {
+pub(crate) fn reset_running_to_pending(conn: &Connection) -> Result<usize, String> {
     conn.execute(
         "UPDATE analysis_jobs
          SET status = 'pending', running_at = NULL
@@ -58,9 +56,7 @@ pub(crate) fn fail_stale_running_jobs_with_sources(
     Ok((changed, sources))
 }
 
-pub(crate) fn prune_jobs_for_missing_sources(
-    conn: &Connection,
-) -> Result<usize, String> {
+pub(crate) fn prune_jobs_for_missing_sources(conn: &Connection) -> Result<usize, String> {
     conn.execute(
         "DELETE FROM analysis_jobs
          WHERE job_type = ?1
@@ -74,9 +70,7 @@ pub(crate) fn prune_jobs_for_missing_sources(
     .map_err(|err| format!("Failed to prune analysis jobs for missing files: {err}"))
 }
 
-pub(crate) fn purge_orphaned_samples(
-    conn: &mut Connection,
-) -> Result<usize, String> {
+pub(crate) fn purge_orphaned_samples(conn: &mut Connection) -> Result<usize, String> {
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|err| format!("Failed to start purge transaction: {err}"))?;

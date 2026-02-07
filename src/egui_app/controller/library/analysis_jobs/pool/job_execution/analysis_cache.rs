@@ -1,4 +1,4 @@
-use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db;
 
 use super::support::load_embedding_vec_optional;
 

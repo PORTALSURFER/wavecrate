@@ -1,7 +1,7 @@
 use super::HotkeysController;
-use crate::egui_app::controller::StatusTone;
-use crate::egui_app::controller::ui::hotkeys::HotkeyCommand;
-use crate::egui_app::state::{DestructiveSelectionEdit, SampleBrowserTab};
+use crate::app::controller::StatusTone;
+use crate::app::controller::ui::hotkeys::HotkeyCommand;
+use crate::app::state::{DestructiveSelectionEdit, SampleBrowserTab};
 
 pub(crate) fn handle_browser_command(
     controller: &mut HotkeysController<'_>,

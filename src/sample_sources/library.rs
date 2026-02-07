@@ -211,7 +211,6 @@ impl LibraryDatabase {
         };
         serde_json::from_str::<Vec<KnownSourceMapping>>(&value).or_else(|_| Ok(Vec::new()))
     }
-
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

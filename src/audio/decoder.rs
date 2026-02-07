@@ -2,13 +2,13 @@
 
 use std::io::Cursor;
 use std::sync::Arc;
+use std::time::Duration;
 use symphonia::core::audio::{AudioBufferRef, Signal};
 use symphonia::core::codecs::{Decoder, DecoderOptions};
 use symphonia::core::errors::Error;
 use symphonia::core::formats::{FormatOptions, FormatReader};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::probe::Hint;
-use std::time::Duration;
 
 use super::Source;
 
@@ -49,17 +49,22 @@ impl SymphoniaDecoder {
 
         let reader = probed.format;
         let track = reader.default_track().ok_or("No default track found")?;
-        
+
         let decoder = symphonia::default::get_codecs()
             .make(&track.codec_params, &DecoderOptions::default())
             .map_err(|e| format!("Symphonia decoder creation failed: {}", e))?;
 
         let sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
-        let channels = track.codec_params.channels.map(|c| c.count() as u16).unwrap_or(2);
-        
-        let total_duration = track.codec_params.n_frames.map(|frames| {
-            duration_from_frames(frames, sample_rate)
-        });
+        let channels = track
+            .codec_params
+            .channels
+            .map(|c| c.count() as u16)
+            .unwrap_or(2);
+
+        let total_duration = track
+            .codec_params
+            .n_frames
+            .map(|frames| duration_from_frames(frames, sample_rate));
 
         Ok(Self {
             reader,
@@ -88,11 +93,19 @@ impl SymphoniaDecoder {
 
     /// Attempt to seek to an absolute playback timestamp.
     pub fn try_seek(&mut self, duration: Duration) -> Result<(), String> {
-        self.reader.seek(symphonia::core::formats::SeekMode::Coarse, symphonia::core::formats::SeekTo::Time {
-            time: symphonia::core::units::Time::new(duration.as_secs(), duration.subsec_nanos() as f64 / 1_000_000_000.0),
-            track_id: None,
-        }).map_err(|e| format!("Seek failed: {}", e))?;
-        
+        self.reader
+            .seek(
+                symphonia::core::formats::SeekMode::Coarse,
+                symphonia::core::formats::SeekTo::Time {
+                    time: symphonia::core::units::Time::new(
+                        duration.as_secs(),
+                        duration.subsec_nanos() as f64 / 1_000_000_000.0,
+                    ),
+                    track_id: None,
+                },
+            )
+            .map_err(|e| format!("Seek failed: {}", e))?;
+
         self.buffer.clear();
         self.buffer_pos = 0;
         Ok(())
@@ -113,7 +126,9 @@ impl Iterator for SymphoniaDecoder {
             // Need more data
             let packet = match self.reader.next_packet() {
                 Ok(p) => p,
-                Err(Error::IoError(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => return None,
+                Err(Error::IoError(ref e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                    return None;
+                }
                 Err(e) => {
                     tracing::error!("Symphonia error: {}", e);
                     return None;
@@ -135,7 +150,7 @@ impl Iterator for SymphoniaDecoder {
             // Interleave samples into the buffer
             self.buffer.clear();
             self.buffer_pos = 0;
-            
+
             match decoded {
                 AudioBufferRef::F32(buf) => {
                     let channels = buf.spec().channels.count();
@@ -160,7 +175,8 @@ impl Iterator for SymphoniaDecoder {
                     let frames = buf.frames();
                     for frame in 0..frames {
                         for chan in 0..channels {
-                            self.buffer.push(buf.chan(chan)[frame] as f32 / 32768.0 - 1.0);
+                            self.buffer
+                                .push(buf.chan(chan)[frame] as f32 / 32768.0 - 1.0);
                         }
                     }
                 }
@@ -178,7 +194,8 @@ impl Iterator for SymphoniaDecoder {
                     let frames = buf.frames();
                     for frame in 0..frames {
                         for chan in 0..channels {
-                            self.buffer.push(buf.chan(chan)[frame] as f32 / 2147483648.0);
+                            self.buffer
+                                .push(buf.chan(chan)[frame] as f32 / 2147483648.0);
                         }
                     }
                 }
@@ -196,7 +213,8 @@ impl Iterator for SymphoniaDecoder {
                     let frames = buf.frames();
                     for frame in 0..frames {
                         for chan in 0..channels {
-                            self.buffer.push(buf.chan(chan)[frame].0 as f32 / 8388608.0 - 1.0);
+                            self.buffer
+                                .push(buf.chan(chan)[frame].0 as f32 / 8388608.0 - 1.0);
                         }
                     }
                 }
@@ -205,7 +223,8 @@ impl Iterator for SymphoniaDecoder {
                     let frames = buf.frames();
                     for frame in 0..frames {
                         for chan in 0..channels {
-                            self.buffer.push(buf.chan(chan)[frame] as f32 / 2147483648.0 - 1.0);
+                            self.buffer
+                                .push(buf.chan(chan)[frame] as f32 / 2147483648.0 - 1.0);
                         }
                     }
                 }

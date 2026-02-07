@@ -1,6 +1,6 @@
 use super::ops;
 use super::*;
-use crate::egui_app::state::{DragSample, FocusContext};
+use crate::app::state::{DragSample, FocusContext};
 use std::path::{Path, PathBuf};
 
 impl EguiController {

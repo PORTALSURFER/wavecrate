@@ -1,4 +1,4 @@
-use crate::egui_app::state::FocusContext;
+use crate::app::state::FocusContext;
 use crate::gui::input::KeyCode;
 
 /// Identifies the surface that owns a hotkey action.

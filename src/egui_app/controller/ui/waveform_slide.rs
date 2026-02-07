@@ -1,7 +1,5 @@
-use crate::egui_app::controller::library::wav_io::{
-    file_metadata, read_samples_for_normalization,
-};
 use super::*;
+use crate::app::controller::library::wav_io::{file_metadata, read_samples_for_normalization};
 use crate::waveform::DecodedWaveform;
 use hound::SampleFormat;
 use std::sync::Arc;
@@ -84,27 +82,26 @@ impl EguiController {
             self.sample_view.waveform_slide.as_mut().and_then(|state| {
                 let (preview_samples, preview_channels, spec_channels, sample_rate) =
                     match state.preview.as_ref() {
-                    Some(preview) => (
-                        preview.samples.as_slice(),
-                        preview.channels.max(1) as usize,
-                        preview.channels.max(1),
-                        preview.sample_rate.max(1),
-                    ),
-                    None => (
-                        state.original_samples.as_slice(),
-                        state.channels.max(1),
-                        state.spec_channels,
-                        state.sample_rate,
-                    ),
-                };
+                        Some(preview) => (
+                            preview.samples.as_slice(),
+                            preview.channels.max(1) as usize,
+                            preview.channels.max(1),
+                            preview.sample_rate.max(1),
+                        ),
+                        None => (
+                            state.original_samples.as_slice(),
+                            state.channels.max(1),
+                            state.spec_channels,
+                            state.sample_rate,
+                        ),
+                    };
                 let preview_total_frames = preview_samples.len() / preview_channels.max(1);
                 let original_total_frames = state.original_samples.len() / state.channels.max(1);
                 if preview_total_frames == 0 || original_total_frames == 0 {
                     return None;
                 }
                 let delta = position - state.start_normalized;
-                let preview_offset_frames =
-                    (delta * preview_total_frames as f32).round() as isize;
+                let preview_offset_frames = (delta * preview_total_frames as f32).round() as isize;
                 let original_offset_frames =
                     (delta * original_total_frames as f32).round() as isize;
                 if preview_offset_frames == state.last_preview_offset_frames

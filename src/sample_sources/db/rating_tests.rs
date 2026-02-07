@@ -23,11 +23,11 @@ mod tests {
         assert!(Rating::TRASH_3.is_trash());
         assert!(Rating::TRASH_1.is_trash());
         assert!(!Rating::NEUTRAL.is_trash());
-        
+
         assert!(Rating::KEEP_3.is_keep());
         assert!(Rating::KEEP_1.is_keep());
         assert!(!Rating::NEUTRAL.is_keep());
-        
+
         assert!(Rating::NEUTRAL.is_neutral());
         assert!(!Rating::TRASH_1.is_neutral());
     }

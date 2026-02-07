@@ -1,5 +1,5 @@
 use super::enqueue_helpers::fast_content_hash;
-use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db;
 use crate::sample_sources::scanner::ChangedSample;
 use std::path::Path;
 

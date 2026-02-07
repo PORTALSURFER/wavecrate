@@ -1,6 +1,6 @@
 use super::super::AudioPlayer;
-use crate::waveform::WaveformRenderer;
 use crate::audio::Source;
+use crate::waveform::WaveformRenderer;
 use std::{
     io::Cursor,
     path::PathBuf,
@@ -116,16 +116,24 @@ pub(crate) mod fixtures {
             let clamped = pulse_amplitude(time, &spec.pulses);
             for _ in 0..spec.channels {
                 match spec.sample_format {
-                    SampleFormat::Float => writer.write_sample::<f32>(clamped).expect("write sample"),
-                    SampleFormat::Int => {
-                        match spec.bits_per_sample {
-                            8 => writer.write_sample::<i8>((clamped * 127.0) as i8).expect("write sample"),
-                            16 => writer.write_sample::<i16>((clamped * 32767.0) as i16).expect("write sample"),
-                            24 => writer.write_sample::<i32>((clamped * 8388607.0) as i32).expect("write sample"),
-                            32 => writer.write_sample::<i32>((clamped * 2147483647.0) as i32).expect("write sample"),
-                            _ => panic!("Unsupported bit depth for tests"),
-                        }
+                    SampleFormat::Float => {
+                        writer.write_sample::<f32>(clamped).expect("write sample")
                     }
+                    SampleFormat::Int => match spec.bits_per_sample {
+                        8 => writer
+                            .write_sample::<i8>((clamped * 127.0) as i8)
+                            .expect("write sample"),
+                        16 => writer
+                            .write_sample::<i16>((clamped * 32767.0) as i16)
+                            .expect("write sample"),
+                        24 => writer
+                            .write_sample::<i32>((clamped * 8388607.0) as i32)
+                            .expect("write sample"),
+                        32 => writer
+                            .write_sample::<i32>((clamped * 2147483647.0) as i32)
+                            .expect("write sample"),
+                        _ => panic!("Unsupported bit depth for tests"),
+                    },
                 }
             }
         }
@@ -250,7 +258,11 @@ pub(crate) fn assert_fixture_decodes(renderer: &WaveformRenderer, fixture: fixtu
     assert!(
         (actual - expected).abs() < 1e-4,
         "Amplitude mismatch at time {}: expected {}, got {} (bits={}, format={:?})",
-        sample_time, expected, actual, fixture.spec.bits_per_sample, fixture.spec.sample_format
+        sample_time,
+        expected,
+        actual,
+        fixture.spec.bits_per_sample,
+        fixture.spec.sample_format
     );
 
     let tail_time = (fixture.spec.duration_seconds - 0.01).max(0.0);

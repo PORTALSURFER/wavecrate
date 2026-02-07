@@ -19,9 +19,13 @@ fn moving_trashed_samples_moves_and_prunes_state() -> Result<(), String> {
     let db = controller.database_for(&source).unwrap();
     db.upsert_file(Path::new("trash.wav"), 4, 1).unwrap();
     db.upsert_file(Path::new("keep.wav"), 4, 1).unwrap();
-    db.set_tag(Path::new("trash.wav"), crate::sample_sources::Rating::TRASH_3)
+    db.set_tag(
+        Path::new("trash.wav"),
+        crate::sample_sources::Rating::TRASH_3,
+    )
+    .unwrap();
+    db.set_tag(Path::new("keep.wav"), crate::sample_sources::Rating::KEEP_1)
         .unwrap();
-    db.set_tag(Path::new("keep.wav"), crate::sample_sources::Rating::KEEP_1).unwrap();
 
     controller.set_wav_entries_for_tests(vec![
         sample_entry("trash.wav", crate::sample_sources::Rating::TRASH_3),
@@ -68,7 +72,8 @@ fn moving_trashed_samples_can_cancel_midway() -> Result<(), String> {
             let path = source.root.join(name);
             write_test_wav(&path, &[0.2, -0.2]);
             db.upsert_file(Path::new(name), 4, 1).unwrap();
-            db.set_tag(Path::new(name), crate::sample_sources::Rating::TRASH_3).unwrap();
+            db.set_tag(Path::new(name), crate::sample_sources::Rating::TRASH_3)
+                .unwrap();
         }
     }
 

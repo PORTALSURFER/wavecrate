@@ -225,8 +225,7 @@ mod tests {
             let tx = tx.clone();
             handles.push(thread::spawn(move || {
                 barrier.wait();
-                let columns =
-                    cache.get_or_compute(1, &samples, 1, WaveformChannelView::Mono, 32);
+                let columns = cache.get_or_compute(1, &samples, 1, WaveformChannelView::Mono, 32);
                 tx.send(first_mono_column(&columns))
                     .expect("send waveform column");
             }));

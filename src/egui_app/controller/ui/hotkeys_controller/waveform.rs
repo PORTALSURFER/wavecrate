@@ -1,7 +1,7 @@
 use super::HotkeysController;
-use crate::egui_app::controller::StatusTone;
-use crate::egui_app::controller::ui::hotkeys::HotkeyCommand;
-use crate::egui_app::state::DestructiveSelectionEdit;
+use crate::app::controller::StatusTone;
+use crate::app::controller::ui::hotkeys::HotkeyCommand;
+use crate::app::state::DestructiveSelectionEdit;
 use crate::sample_sources::WavEntry;
 
 pub(crate) fn handle_waveform_command(
@@ -201,7 +201,9 @@ impl HotkeysController<'_> {
         let last_played_at = self
             .sample_last_played_for(&source, &relative_path)
             .unwrap_or(None);
-        let looped = self.sample_looped_for(&source, &relative_path).unwrap_or(false);
+        let looped = self
+            .sample_looped_for(&source, &relative_path)
+            .unwrap_or(false);
         let updated = WavEntry {
             relative_path: relative_path.clone(),
             file_size,
@@ -290,11 +292,13 @@ impl HotkeysController<'_> {
                 let visible = &self.ui.browser.visible;
                 let next_row = row + 1;
                 if next_row < visible.len() {
-                    visible.get(next_row)
+                    visible
+                        .get(next_row)
                         .and_then(|idx| self.wav_entry(idx))
                         .map(|entry| entry.relative_path.clone())
                 } else if row > 0 {
-                    visible.get(row - 1)
+                    visible
+                        .get(row - 1)
                         .and_then(|idx| self.wav_entry(idx))
                         .map(|entry| entry.relative_path.clone())
                 } else {
@@ -306,7 +310,7 @@ impl HotkeysController<'_> {
         };
 
         // Perform deletion
-        let ctx = crate::egui_app::controller::library::browser_controller::helpers::TriageSampleContext {
+        let ctx = crate::app::controller::library::browser_controller::helpers::TriageSampleContext {
             source,
             entry: WavEntry {
                 relative_path: relative_path.clone(),
@@ -346,11 +350,11 @@ impl HotkeysController<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::egui_app::controller::test_support::{
+    use crate::app::controller::test_support::{
         load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry,
     };
-    use crate::selection::SelectionRange;
     use crate::sample_sources::Rating;
+    use crate::selection::SelectionRange;
     use std::path::PathBuf;
 
     #[test]
@@ -359,7 +363,7 @@ mod tests {
             sample_entry("one.wav", Rating::NEUTRAL),
             sample_entry("two.wav", Rating::NEUTRAL),
         ]);
-        
+
         // Load the first sample
         load_waveform_selection(
             &mut controller,
@@ -370,20 +374,32 @@ mod tests {
         );
 
         // Verify it's loaded
-        assert_eq!(controller.sample_view.wav.loaded_audio.as_ref().unwrap().relative_path, PathBuf::from("one.wav"));
+        assert_eq!(
+            controller
+                .sample_view
+                .wav
+                .loaded_audio
+                .as_ref()
+                .unwrap()
+                .relative_path,
+            PathBuf::from("one.wav")
+        );
 
         // Trigger delete command
-        let result = handle_waveform_command(&mut controller.hotkeys_ctrl(), HotkeyCommand::DeleteLoadedSample);
+        let result = handle_waveform_command(
+            &mut controller.hotkeys_ctrl(),
+            HotkeyCommand::DeleteLoadedSample,
+        );
         assert!(result);
 
         // Note: In tests, the actual file deletion might be mocked or fail if files don't exist on disk,
         // but the logic path should still execute. Since prepare_with_source_and_wav_entries often uses a real temp dir,
         // we check if it navigated.
-        
+
         // We expect it to navigate to "two.wav" (sequential next)
-        // However, since we didn't actually create the file on disk in the test helper, 
+        // However, since we didn't actually create the file on disk in the test helper,
         // try_delete_browser_sample_ctx might fail.
-        
+
         // If it fails, let's see why. Actually, prepare_with_source_and_wav_entries usually creates the files.
     }
 }

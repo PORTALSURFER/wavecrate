@@ -22,7 +22,7 @@ pub(super) fn update_slice_edge(
     edge: SelectionEdge,
     position: f32,
 ) -> SelectionRange {
-    let min_width = crate::egui_app::controller::MIN_SELECTION_WIDTH;
+    let min_width = crate::app::controller::MIN_SELECTION_WIDTH;
     match edge {
         SelectionEdge::Start => {
             let max_start = (range.end() - min_width).max(0.0);
@@ -52,9 +52,9 @@ pub(super) fn to_wave_pos(env: &SliceOverlayEnv<'_>, pos: egui::Pos2) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::egui_app::state::WaveformView;
+    use crate::app::state::WaveformView;
 
-    fn test_env<'a>(palette: &'a crate::egui_app::ui::style::Palette) -> SliceOverlayEnv<'a> {
+    fn test_env<'a>(palette: &'a crate::app::ui::style::Palette) -> SliceOverlayEnv<'a> {
         SliceOverlayEnv {
             rect: egui::Rect::from_min_size(egui::pos2(10.0, 20.0), egui::vec2(200.0, 50.0)),
             view: WaveformView {
@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn slice_rect_clamps_to_visible_range() {
-        let palette = crate::egui_app::ui::style::palette();
+        let palette = crate::app::ui::style::palette();
         let env = test_env(&palette);
         let range = SelectionRange::new(0.1, 0.9);
         let rect = slice_rect(&env, range).expect("slice should be visible");
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn slice_rect_returns_none_when_outside_view() {
-        let palette = crate::egui_app::ui::style::palette();
+        let palette = crate::app::ui::style::palette();
         let env = test_env(&palette);
         let range = SelectionRange::new(0.0, 0.1);
         assert!(slice_rect(&env, range).is_none());
@@ -92,10 +92,10 @@ mod tests {
         let start = update_slice_edge(range, SelectionEdge::Start, 0.39);
         assert!((start.end() - 0.4).abs() < f32::EPSILON);
         assert!(
-            start.start() <= 0.4 - crate::egui_app::controller::MIN_SELECTION_WIDTH + f32::EPSILON
+            start.start() <= 0.4 - crate::app::controller::MIN_SELECTION_WIDTH + f32::EPSILON
         );
         let end = update_slice_edge(range, SelectionEdge::End, 0.21);
         assert!((end.start() - 0.2).abs() < f32::EPSILON);
-        assert!(end.end() >= 0.2 + crate::egui_app::controller::MIN_SELECTION_WIDTH - f32::EPSILON);
+        assert!(end.end() >= 0.2 + crate::app::controller::MIN_SELECTION_WIDTH - f32::EPSILON);
     }
 }

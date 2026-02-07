@@ -1,8 +1,8 @@
 use super::*;
-use crate::egui_app::controller::library::wav_io::file_metadata;
-use crate::egui_app::controller::jobs::{
+use crate::app::controller::jobs::{
     ClipboardPasteOutcome, ClipboardPasteResult, FileOpMessage, FileOpResult, SourcePasteAdded,
 };
+use crate::app::controller::library::wav_io::file_metadata;
 use crate::sample_sources::db::file_ops_journal;
 use crate::sample_sources::{SourceDatabase, is_supported_audio};
 use std::path::{Path, PathBuf};
@@ -24,7 +24,10 @@ impl EguiController {
             }
         };
         if self.runtime.jobs.file_ops_in_progress() {
-            self.set_status("Another file operation is already running", StatusTone::Warning);
+            self.set_status(
+                "Another file operation is already running",
+                StatusTone::Warning,
+            );
             return true;
         }
         let Some(source) = self.current_source() else {
@@ -65,7 +68,10 @@ impl EguiController {
             return;
         }
         if self.runtime.jobs.file_ops_in_progress() {
-            self.set_status("Another file operation is already running", StatusTone::Warning);
+            self.set_status(
+                "Another file operation is already running",
+                StatusTone::Warning,
+            );
             return;
         }
         let target_label = if target_folder.as_os_str().is_empty() {
@@ -170,7 +176,7 @@ impl EguiController {
         let total = job.paths.len();
         self.set_status(format!("{title}..."), StatusTone::Busy);
         self.show_status_progress(
-            crate::egui_app::state::ProgressTaskKind::FileOps,
+            crate::app::state::ProgressTaskKind::FileOps,
             title,
             total,
             true,
@@ -180,7 +186,9 @@ impl EguiController {
         self.runtime.jobs.start_file_ops(rx, cancel.clone());
         std::thread::spawn(move || {
             let result = run_clipboard_paste_job(job, cancel, Some(&tx));
-            let _ = tx.send(FileOpMessage::Finished(FileOpResult::ClipboardPaste(result)));
+            let _ = tx.send(FileOpMessage::Finished(FileOpResult::ClipboardPaste(
+                result,
+            )));
         });
     }
 }
@@ -307,15 +315,16 @@ fn run_clipboard_paste_job(
                             }
                         };
                         let op_id = file_ops_journal::new_op_id();
-                        let staged_relative = match file_ops_journal::staged_relative_for_target(&relative, &op_id) {
-                            Ok(path) => path,
-                            Err(err) => {
-                                errors.push(format!("Failed to build staging path: {err}"));
-                                completed += 1;
-                                report_progress(sender, completed, detail);
-                                continue;
-                            }
-                        };
+                        let staged_relative =
+                            match file_ops_journal::staged_relative_for_target(&relative, &op_id) {
+                                Ok(path) => path,
+                                Err(err) => {
+                                    errors.push(format!("Failed to build staging path: {err}"));
+                                    completed += 1;
+                                    report_progress(sender, completed, detail);
+                                    continue;
+                                }
+                            };
                         let journal_entry = match file_ops_journal::FileOpJournalEntry::new_copy(
                             op_id.clone(),
                             relative.clone(),

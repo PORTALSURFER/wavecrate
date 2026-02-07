@@ -1,8 +1,8 @@
-use crate::egui_app::state::FocusContext;
+use crate::app::state::FocusContext;
 use eframe::egui;
 
+use super::super::input::{copy_shortcut_pressed, paste_shortcut_pressed, InputSnapshot};
 use super::super::EguiApp;
-use super::super::input::{InputSnapshot, copy_shortcut_pressed, paste_shortcut_pressed};
 use super::consume_keypress;
 
 pub(super) struct FocusFlags {
@@ -115,9 +115,9 @@ impl EguiApp {
 #[cfg(test)]
 mod tests {
     use super::InputSnapshot;
-    use crate::egui_app::controller::EguiController;
-    use crate::egui_app::ui::EguiApp;
-    use crate::egui_app::ui::hotkey_runtime::KeyFeedback;
+    use crate::app::controller::EguiController;
+    use crate::app::ui::hotkey_runtime::KeyFeedback;
+    use crate::app::ui::EguiApp;
     use crate::waveform::WaveformRenderer;
     use eframe::egui;
 

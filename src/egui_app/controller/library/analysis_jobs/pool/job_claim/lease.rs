@@ -1,6 +1,6 @@
 //! Claim lease helpers for analysis jobs.
 
-use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db;
 use crate::sample_sources::SourceId;
 use std::collections::HashSet;
 

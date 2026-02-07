@@ -1,4 +1,4 @@
-use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db;
 
 /// Rebuild the ANN index for the source database and clear any dirty marker.
 pub(crate) fn run_rebuild_index_job(

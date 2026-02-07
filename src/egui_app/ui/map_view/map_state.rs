@@ -2,8 +2,8 @@ use super::EguiApp;
 use super::map_clusters;
 use super::map_math;
 use super::style;
-use crate::egui_app::ui::helpers;
-use crate::egui_app::state::{MapBounds, MapFilterKey, MapQueryBounds};
+use crate::app::state::{MapBounds, MapFilterKey, MapQueryBounds};
+use crate::app::ui::helpers;
 use crate::sample_sources::SourceId;
 use eframe::egui;
 use std::sync::Arc;
@@ -18,8 +18,8 @@ pub(super) fn render_map_controls(app: &mut EguiApp, ui: &mut egui::Ui) -> bool 
     let tooltip_mode = app.controller.ui.controls.tooltip_mode;
     ui.horizontal(|ui| {
         let mode = match app.controller.ui.map.last_render_mode {
-            crate::egui_app::state::MapRenderMode::Heatmap => "heatmap",
-            crate::egui_app::state::MapRenderMode::Points => "points",
+            crate::app::state::MapRenderMode::Heatmap => "heatmap",
+            crate::app::state::MapRenderMode::Points => "points",
         };
         ui.label(format!(
             "Frame {:.2} ms | draw {} | points {} | {}",
@@ -93,7 +93,7 @@ pub(super) fn ensure_bounds(
             .umap_bounds(model_id, umap_version, source_id)
         {
             Ok(bounds) => {
-                app.controller.ui.map.bounds = bounds.map(|b| crate::egui_app::state::MapBounds {
+                app.controller.ui.map.bounds = bounds.map(|b| crate::app::state::MapBounds {
                     min_x: b.min_x,
                     max_x: b.max_x,
                     min_y: b.min_y,
@@ -142,7 +142,7 @@ pub(super) fn update_points_cache(
             Ok(points) => {
                 app.controller.ui.map.cached_points = points
                     .into_iter()
-                    .map(|p| crate::egui_app::state::MapPoint {
+                    .map(|p| crate::app::state::MapPoint {
                         sample_id: p.sample_id,
                         x: p.x,
                         y: p.y,
@@ -189,7 +189,7 @@ pub(super) fn prepare_cluster_centroids(
     cluster_method_str: &str,
     cluster_umap_version: &str,
     source_id: Option<&SourceId>,
-) -> Option<Arc<std::collections::HashMap<i32, crate::egui_app::state::MapClusterCentroid>>> {
+) -> Option<Arc<std::collections::HashMap<i32, crate::app::state::MapClusterCentroid>>> {
     let cluster_overlay = app.controller.ui.map.cluster_overlay;
     if !cluster_overlay {
         return None;

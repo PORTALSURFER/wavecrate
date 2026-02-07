@@ -1,20 +1,20 @@
 use super::job_execution::{run_analysis_jobs_with_decoded_batch, run_job};
-use crate::egui_app::controller::jobs::JobMessageSender;
-use crate::egui_app::controller::library::analysis_jobs::db as analysis_db;
+use crate::app::controller::jobs::JobMessageSender;
+use crate::app::controller::library::analysis_jobs::db as analysis_db;
 use crate::gui::repaint::SharedRepaintSignal;
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{
+    Arc, Mutex, RwLock,
     atomic::AtomicU32,
     atomic::{AtomicBool, Ordering},
-    Arc, Mutex, RwLock,
 };
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use super::progress_cache::ProgressCache;
-use crate::egui_app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
+use crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
 
 #[cfg(target_os = "windows")]
 use windows::Win32::System::Threading::{

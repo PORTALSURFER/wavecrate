@@ -1,16 +1,13 @@
 //! Apply background file operation results to controller state.
 
 use super::*;
-use crate::egui_app::controller::jobs::{
+use crate::app::controller::jobs::{
     ClipboardPasteOutcome, ClipboardPasteResult, FileOpMessage, FileOpResult, UndoFileOpResult,
     UndoFileOutcome,
 };
-use crate::egui_app::controller::undo_jobs;
-use crate::egui_app::controller::undo::{DeferredUndo, UndoDirection};
-use std::sync::{
-    Arc,
-    atomic::AtomicBool,
-};
+use crate::app::controller::undo::{DeferredUndo, UndoDirection};
+use crate::app::controller::undo_jobs;
+use std::sync::{Arc, atomic::AtomicBool};
 
 impl EguiController {
     /// Apply a completed background file operation to controller state.
@@ -103,7 +100,10 @@ impl EguiController {
 
     fn apply_undo_file_result(&mut self, result: UndoFileOpResult) {
         let Some(pending) = self.history.pending_undo.take() else {
-            self.set_status("Undo completion arrived without a pending entry", StatusTone::Error);
+            self.set_status(
+                "Undo completion arrived without a pending entry",
+                StatusTone::Error,
+            );
             return;
         };
         let action_label = match pending.direction {
@@ -139,7 +139,7 @@ impl EguiController {
         self.history.pending_undo = Some(pending);
         self.set_status(format!("{title}..."), StatusTone::Busy);
         self.show_status_progress(
-            crate::egui_app::state::ProgressTaskKind::FileOps,
+            crate::app::state::ProgressTaskKind::FileOps,
             title,
             1,
             true,

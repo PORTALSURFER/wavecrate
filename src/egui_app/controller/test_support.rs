@@ -51,7 +51,10 @@ pub(super) fn load_waveform_selection(
 ) -> PathBuf {
     let wav_path = source.root.join(filename);
     write_test_wav(&wav_path, samples);
-    controller.set_wav_entries_for_tests(vec![sample_entry(filename, crate::sample_sources::Rating::NEUTRAL)]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        filename,
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
     controller

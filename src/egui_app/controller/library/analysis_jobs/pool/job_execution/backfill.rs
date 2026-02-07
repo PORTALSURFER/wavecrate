@@ -1,4 +1,4 @@
-use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db;
 use rusqlite::{OptionalExtension, params};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -512,11 +512,7 @@ where
     Err("Embedding backfill retries exhausted".to_string())
 }
 
-fn retry_ann_update_with<F>(
-    mut op: F,
-    retries: usize,
-    base_delay: Duration,
-) -> Result<(), String>
+fn retry_ann_update_with<F>(mut op: F, retries: usize, base_delay: Duration) -> Result<(), String>
 where
     F: FnMut() -> Result<(), String>,
 {
@@ -540,9 +536,7 @@ where
 fn ann_update_backoff(base_delay: Duration, attempt: usize) -> Duration {
     let shift = attempt.min(15) as u32;
     let factor = 1u32.checked_shl(shift).unwrap_or(u32::MAX);
-    base_delay
-        .checked_mul(factor)
-        .unwrap_or(base_delay)
+    base_delay.checked_mul(factor).unwrap_or(base_delay)
 }
 
 fn load_features_vec_optional(

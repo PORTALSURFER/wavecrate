@@ -1,9 +1,9 @@
-use crate::egui_app::controller::playback::audio_cache::CacheKey;
-use crate::egui_app::controller::library::wav_io;
 use super::*;
-use crate::egui_app::view_model;
-use std::collections::HashMap;
+use crate::app::controller::library::wav_io;
+use crate::app::controller::playback::audio_cache::CacheKey;
+use crate::app::view_model;
 use crate::waveform::DecodedWaveform;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 mod audio_loading;
@@ -43,14 +43,11 @@ impl EguiController {
         sample_id: &str,
         anchor_index: Option<usize>,
     ) {
-        self.ui.browser.focused_similarity = match similar::build_focused_similarity_highlight(
-            self,
-            sample_id,
-            anchor_index,
-        ) {
-            Ok(highlight) => highlight,
-            Err(_) => None,
-        };
+        self.ui.browser.focused_similarity =
+            match similar::build_focused_similarity_highlight(self, sample_id, anchor_index) {
+                Ok(highlight) => highlight,
+                Err(_) => None,
+            };
     }
 
     /// Expose wav indices for a given triage flag column (used by virtualized rendering).
@@ -84,7 +81,7 @@ impl EguiController {
     }
 
     /// Visible wav indices after applying the active sample browser filter.
-    pub fn visible_browser_rows(&self) -> &crate::egui_app::state::VisibleRows {
+    pub fn visible_browser_rows(&self) -> &crate::app::state::VisibleRows {
         &self.ui.browser.visible
     }
 
@@ -460,11 +457,7 @@ impl EguiController {
     }
 
     /// Invalidate caches after inserting a new entry for a source.
-    pub(crate) fn insert_cached_entry(
-        &mut self,
-        source: &SampleSource,
-        entry: WavEntry,
-    ) {
+    pub(crate) fn insert_cached_entry(&mut self, source: &SampleSource, entry: WavEntry) {
         self.invalidate_wav_entries_for_source(source);
         self.invalidate_cached_audio(&source.id, &entry.relative_path);
     }
@@ -701,10 +694,7 @@ impl EguiController {
     pub fn selected_sample_id(&self) -> Option<String> {
         let source_id = self.selection_state.ctx.selected_source.as_ref()?;
         let path = self.sample_view.wav.selected_wav.as_ref()?;
-        Some(analysis_jobs::build_sample_id(
-            source_id.as_str(),
-            path,
-        ))
+        Some(analysis_jobs::build_sample_id(source_id.as_str(), path))
     }
 
     /// Focus the sample browser on a library sample_id without autoplay.

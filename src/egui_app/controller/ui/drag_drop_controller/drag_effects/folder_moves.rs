@@ -1,10 +1,10 @@
 use super::super::{DragDropController, file_metadata};
-use crate::egui_app::controller::jobs::{
+use crate::app::controller::jobs::{
     FileOpMessage, FileOpResult, FolderEntryMove, FolderMoveRequest, FolderMoveResult,
     FolderSampleMoveRequest, FolderSampleMoveResult,
 };
-use crate::egui_app::state::{DragSample, ProgressTaskKind};
-use crate::egui_app::ui::style::StatusTone;
+use crate::app::state::{DragSample, ProgressTaskKind};
+use crate::app::ui::style::StatusTone;
 use crate::sample_sources::db::file_ops_journal;
 use crate::sample_sources::{SourceDatabase, SourceId, WavEntry};
 use std::path::{Path, PathBuf};
@@ -45,7 +45,10 @@ impl DragDropController<'_> {
             target_folder.display()
         );
         if self.runtime.jobs.file_ops_in_progress() {
-            self.set_status("Another file operation is already running", StatusTone::Warning);
+            self.set_status(
+                "Another file operation is already running",
+                StatusTone::Warning,
+            );
             return;
         }
         let source_id = samples[0].source_id.clone();
@@ -164,7 +167,9 @@ impl DragDropController<'_> {
                     cancel,
                     Some(&tx),
                 );
-                let _ = tx.send(FileOpMessage::Finished(FileOpResult::FolderSampleMove(result)));
+                let _ = tx.send(FileOpMessage::Finished(FileOpResult::FolderSampleMove(
+                    result,
+                )));
             });
         }
     }
@@ -254,7 +259,10 @@ impl DragDropController<'_> {
             target_folder.display()
         );
         if self.runtime.jobs.file_ops_in_progress() {
-            self.set_status("Another file operation is already running", StatusTone::Warning);
+            self.set_status(
+                "Another file operation is already running",
+                StatusTone::Warning,
+            );
             return;
         }
         let Some(source) = self
@@ -419,10 +427,7 @@ fn run_folder_sample_move_task(
     let mut completed = 0usize;
     let mut cancelled = false;
     if !source_root.is_dir() {
-        errors.push(format!(
-            "Source folder missing: {}",
-            source_root.display()
-        ));
+        errors.push(format!("Source folder missing: {}", source_root.display()));
         return FolderSampleMoveResult {
             source_id,
             moved,
@@ -458,10 +463,7 @@ fn run_folder_sample_move_task(
         if let Some(parent) = request.target_relative.parent() {
             let target_dir = source_root.join(parent);
             if !target_dir.is_dir() {
-                errors.push(format!(
-                    "Folder not found: {}",
-                    parent.display()
-                ));
+                errors.push(format!("Folder not found: {}", parent.display()));
                 completed += 1;
                 report_progress(sender, completed, detail);
                 continue;
@@ -517,18 +519,16 @@ fn run_folder_sample_move_task(
             }
         };
         let op_id = file_ops_journal::new_op_id();
-        let staged_relative = match file_ops_journal::staged_relative_for_target(
-            &request.target_relative,
-            &op_id,
-        ) {
-            Ok(path) => path,
-            Err(err) => {
-                errors.push(format!("Failed to build staging path: {err}"));
-                completed += 1;
-                report_progress(sender, completed, detail);
-                continue;
-            }
-        };
+        let staged_relative =
+            match file_ops_journal::staged_relative_for_target(&request.target_relative, &op_id) {
+                Ok(path) => path,
+                Err(err) => {
+                    errors.push(format!("Failed to build staging path: {err}"));
+                    completed += 1;
+                    report_progress(sender, completed, detail);
+                    continue;
+                }
+            };
         let journal_entry = match file_ops_journal::FileOpJournalEntry::new_move(
             op_id.clone(),
             source_root.clone(),
@@ -692,11 +692,7 @@ fn run_folder_sample_move_task(
     }
 }
 
-fn remove_folder_move_journal_entry(
-    errors: &mut Vec<String>,
-    db: &SourceDatabase,
-    op_id: &str,
-) {
+fn remove_folder_move_journal_entry(errors: &mut Vec<String>, db: &SourceDatabase, op_id: &str) {
     if let Err(err) = file_ops_journal::remove_entry(db, op_id) {
         errors.push(format!("Failed to clear move journal: {err}"));
     }
@@ -978,7 +974,11 @@ fn run_folder_move_task(
         }
         moved = updates;
     }
-    report_progress(sender, 1, Some(format!("Moved {}", request.folder.display())));
+    report_progress(
+        sender,
+        1,
+        Some(format!("Moved {}", request.folder.display())),
+    );
     FolderMoveResult {
         source_id: request.source_id,
         old_folder: request.folder,
@@ -1003,7 +1003,7 @@ fn report_progress(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::egui_app::controller::test_support::write_test_wav;
+    use crate::app::controller::test_support::write_test_wav;
     use crate::sample_sources::{Rating, SampleSource};
     use tempfile::tempdir;
 
@@ -1024,9 +1024,7 @@ mod tests {
             .unwrap();
         batch.set_tag(Path::new("one.wav"), Rating::KEEP_1).unwrap();
         batch.set_looped(Path::new("one.wav"), true).unwrap();
-        batch
-            .set_last_played_at(Path::new("one.wav"), 42)
-            .unwrap();
+        batch.set_last_played_at(Path::new("one.wav"), 42).unwrap();
         batch.commit().unwrap();
 
         let request = FolderSampleMoveRequest {
@@ -1049,13 +1047,11 @@ mod tests {
         let db = SourceDatabase::open(&source_root).unwrap();
         assert!(db.tag_for_path(Path::new("one.wav")).unwrap().is_none());
         assert_eq!(
-            db.tag_for_path(Path::new("folder/one.wav"))
-                .unwrap(),
+            db.tag_for_path(Path::new("folder/one.wav")).unwrap(),
             Some(Rating::KEEP_1)
         );
         assert_eq!(
-            db.looped_for_path(Path::new("folder/one.wav"))
-                .unwrap(),
+            db.looped_for_path(Path::new("folder/one.wav")).unwrap(),
             Some(true)
         );
         assert_eq!(
@@ -1082,7 +1078,9 @@ mod tests {
         batch
             .upsert_file(Path::new("old/one.wav"), file_size, modified_ns)
             .unwrap();
-        batch.set_tag(Path::new("old/one.wav"), Rating::KEEP_1).unwrap();
+        batch
+            .set_tag(Path::new("old/one.wav"), Rating::KEEP_1)
+            .unwrap();
         batch.commit().unwrap();
 
         let request = FolderMoveRequest {
@@ -1091,11 +1089,7 @@ mod tests {
             folder: PathBuf::from("old"),
             target_folder: PathBuf::from("dest"),
         };
-        let result = run_folder_move_task(
-            request,
-            Arc::new(AtomicBool::new(false)),
-            None,
-        );
+        let result = run_folder_move_task(request, Arc::new(AtomicBool::new(false)), None);
 
         assert!(result.errors.is_empty());
         assert_eq!(result.moved.len(), 1);
@@ -1104,8 +1098,7 @@ mod tests {
         let db = SourceDatabase::open(&source_root).unwrap();
         assert!(db.tag_for_path(Path::new("old/one.wav")).unwrap().is_none());
         assert_eq!(
-            db.tag_for_path(Path::new("dest/old/one.wav"))
-                .unwrap(),
+            db.tag_for_path(Path::new("dest/old/one.wav")).unwrap(),
             Some(Rating::KEEP_1)
         );
     }

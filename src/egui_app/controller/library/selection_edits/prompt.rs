@@ -1,4 +1,4 @@
-use crate::egui_app::state::{DestructiveEditPrompt, DestructiveSelectionEdit};
+use crate::app::state::{DestructiveEditPrompt, DestructiveSelectionEdit};
 
 impl DestructiveSelectionEdit {
     fn title(&self) -> &'static str {

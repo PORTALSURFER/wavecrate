@@ -250,9 +250,11 @@ unsafe fn scale_in_place_avx2(samples: &mut [f32], gain: f32) {
     use rayon::prelude::*;
 
     if samples.len() >= PARALLEL_THRESHOLD {
-        samples.par_chunks_mut(PARALLEL_THRESHOLD).for_each(|chunk| {
-            unsafe { scale_in_place_avx2_impl(chunk, gain) };
-        });
+        samples
+            .par_chunks_mut(PARALLEL_THRESHOLD)
+            .for_each(|chunk| {
+                unsafe { scale_in_place_avx2_impl(chunk, gain) };
+            });
         return;
     }
     unsafe { scale_in_place_avx2_impl(samples, gain) };
@@ -265,7 +267,7 @@ unsafe fn scale_in_place_avx2_impl(samples: &mut [f32], gain: f32) {
         let gain_v = _mm256_set1_ps(gain);
         let chunk_count = samples.len() / 8;
         let (chunk_part, remainder_part) = samples.split_at_mut(chunk_count * 8);
-        
+
         for chunk in chunk_part.chunks_exact_mut(8) {
             let v = _mm256_loadu_ps(chunk.as_ptr());
             let scaled = _mm256_mul_ps(v, gain_v);
@@ -283,9 +285,11 @@ unsafe fn scale_in_place_sse2(samples: &mut [f32], gain: f32) {
     use rayon::prelude::*;
 
     if samples.len() >= PARALLEL_THRESHOLD {
-        samples.par_chunks_mut(PARALLEL_THRESHOLD).for_each(|chunk| {
-            unsafe { scale_in_place_sse2_impl(chunk, gain) };
-        });
+        samples
+            .par_chunks_mut(PARALLEL_THRESHOLD)
+            .for_each(|chunk| {
+                unsafe { scale_in_place_sse2_impl(chunk, gain) };
+            });
         return;
     }
     unsafe { scale_in_place_sse2_impl(samples, gain) };
@@ -298,7 +302,7 @@ unsafe fn scale_in_place_sse2_impl(samples: &mut [f32], gain: f32) {
         let gain_v = _mm_set1_ps(gain);
         let chunk_count = samples.len() / 4;
         let (chunk_part, remainder_part) = samples.split_at_mut(chunk_count * 4);
-        
+
         for chunk in chunk_part.chunks_exact_mut(4) {
             let v = _mm_loadu_ps(chunk.as_ptr());
             let scaled = _mm_mul_ps(v, gain_v);
@@ -316,9 +320,11 @@ unsafe fn scale_and_clamp_avx2(samples: &mut [f32], gain: f32) {
     use rayon::prelude::*;
 
     if samples.len() >= PARALLEL_THRESHOLD {
-        samples.par_chunks_mut(PARALLEL_THRESHOLD).for_each(|chunk| {
-            unsafe { scale_and_clamp_avx2_impl(chunk, gain) };
-        });
+        samples
+            .par_chunks_mut(PARALLEL_THRESHOLD)
+            .for_each(|chunk| {
+                unsafe { scale_and_clamp_avx2_impl(chunk, gain) };
+            });
         return;
     }
     unsafe { scale_and_clamp_avx2_impl(samples, gain) };
@@ -333,7 +339,7 @@ unsafe fn scale_and_clamp_avx2_impl(samples: &mut [f32], gain: f32) {
         let max_v = _mm256_set1_ps(1.0);
         let chunk_count = samples.len() / 8;
         let (chunk_part, remainder_part) = samples.split_at_mut(chunk_count * 8);
-        
+
         for chunk in chunk_part.chunks_exact_mut(8) {
             let v = _mm256_loadu_ps(chunk.as_ptr());
             let scaled = _mm256_mul_ps(v, gain_v);
@@ -352,9 +358,11 @@ unsafe fn scale_and_clamp_sse2(samples: &mut [f32], gain: f32) {
     use rayon::prelude::*;
 
     if samples.len() >= PARALLEL_THRESHOLD {
-        samples.par_chunks_mut(PARALLEL_THRESHOLD).for_each(|chunk| {
-            unsafe { scale_and_clamp_sse2_impl(chunk, gain) };
-        });
+        samples
+            .par_chunks_mut(PARALLEL_THRESHOLD)
+            .for_each(|chunk| {
+                unsafe { scale_and_clamp_sse2_impl(chunk, gain) };
+            });
         return;
     }
     unsafe { scale_and_clamp_sse2_impl(samples, gain) };
@@ -369,7 +377,7 @@ unsafe fn scale_and_clamp_sse2_impl(samples: &mut [f32], gain: f32) {
         let max_v = _mm_set1_ps(1.0);
         let chunk_count = samples.len() / 4;
         let (chunk_part, remainder_part) = samples.split_at_mut(chunk_count * 4);
-        
+
         for chunk in chunk_part.chunks_exact_mut(4) {
             let v = _mm_loadu_ps(chunk.as_ptr());
             let scaled = _mm_mul_ps(v, gain_v);
@@ -405,24 +413,24 @@ unsafe fn sum_sq_avx2_impl(samples: &[f32]) -> f64 {
         let mut sum_v1 = _mm256_set1_ps(0.0);
         let mut sum_v2 = _mm256_set1_ps(0.0);
         let mut sum_v3 = _mm256_set1_ps(0.0);
-        
+
         let mut chunks = samples.chunks_exact(32);
         for chunk in &mut chunks {
             let v0 = _mm256_loadu_ps(chunk[0..8].as_ptr());
             let v1 = _mm256_loadu_ps(chunk[8..16].as_ptr());
             let v2 = _mm256_loadu_ps(chunk[16..24].as_ptr());
             let v3 = _mm256_loadu_ps(chunk[24..32].as_ptr());
-            
+
             sum_v0 = _mm256_add_ps(sum_v0, _mm256_mul_ps(v0, v0));
             sum_v1 = _mm256_add_ps(sum_v1, _mm256_mul_ps(v1, v1));
             sum_v2 = _mm256_add_ps(sum_v2, _mm256_mul_ps(v2, v2));
             sum_v3 = _mm256_add_ps(sum_v3, _mm256_mul_ps(v3, v3));
         }
-        
+
         let sum_v = _mm256_add_ps(_mm256_add_ps(sum_v0, sum_v1), _mm256_add_ps(sum_v2, sum_v3));
         let mut tmp = [0.0_f32; 8];
         _mm256_storeu_ps(tmp.as_mut_ptr(), sum_v);
-        
+
         let mut sum = tmp.iter().map(|&v| v as f64).sum::<f64>();
         for &val in chunks.remainder() {
             let val = val as f64;
@@ -468,7 +476,6 @@ unsafe fn sum_sq_sse2_impl(samples: &[f32]) -> f64 {
         sum
     }
 }
-
 
 pub(super) fn db_to_linear(db: f32) -> f32 {
     10.0_f32.powf(db / 20.0)
@@ -528,23 +535,32 @@ mod tests {
         for (i, s) in samples.iter_mut().enumerate() {
             *s = (i as f32).sin() * 0.5;
         }
-        
+
         // Save original peak for verification
         let mut peak = 0.0_f32;
         for &s in &samples {
-             peak = peak.max(s.abs());
+            peak = peak.max(s.abs());
         }
 
         normalize_peak_in_place(&mut samples);
-        
+
         let new_peak = samples.iter().copied().map(|v| v.abs()).fold(0.0, f32::max);
-        assert!((new_peak - 1.0).abs() < 1e-5, "Peak should be 1.0, got {}", new_peak);
-        
+        assert!(
+            (new_peak - 1.0).abs() < 1e-5,
+            "Peak should be 1.0, got {}",
+            new_peak
+        );
+
         // Also verify RMS on large buffer
         let target_db = -15.0;
         normalize_rms_in_place(&mut samples, target_db);
         let measured = rms(&samples);
         let target = db_to_linear(target_db);
-        assert!((measured - target).abs() < 1e-4, "RMS should be {}, got {}", target, measured);
+        assert!(
+            (measured - target).abs() < 1e-4,
+            "RMS should be {}, got {}",
+            target,
+            measured
+        );
     }
 }

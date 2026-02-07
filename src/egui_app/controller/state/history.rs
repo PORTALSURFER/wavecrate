@@ -1,6 +1,6 @@
 //! Undo and navigation history state for the controller.
 
-use crate::egui_app::controller::undo;
+use crate::app::controller::undo;
 use crate::sample_sources::SourceId;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};

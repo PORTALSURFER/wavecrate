@@ -126,7 +126,10 @@ pub fn fetch_issue_token() -> Result<String, IssueAuthError> {
 
 /// Poll for a token using a request ID.
 pub fn poll_issue_token(request_id: &str) -> Result<Option<String>, IssueAuthError> {
-    let url = format!("{BASE_URL}/auth/poll?requestId={}", encode_uri_component(request_id));
+    let url = format!(
+        "{BASE_URL}/auth/poll?requestId={}",
+        encode_uri_component(request_id)
+    );
     let response = match get_with_retry(&url) {
         Ok(response) => response,
         Err(ureq::Error::Status(202, _)) => return Ok(None),
@@ -142,27 +145,27 @@ pub fn poll_issue_token(request_id: &str) -> Result<Option<String>, IssueAuthErr
 
     let body = read_body_limited(response, MAX_AUTH_RESPONSE_BYTES)
         .map_err(IssueAuthError::InvalidResponse)?;
-    
+
     #[derive(Deserialize)]
     struct PollResponse {
         #[serde(rename = "sessionId")]
         session_id: Option<String>,
         error: Option<String>,
     }
-    
+
     let parsed: PollResponse = serde_json::from_str(&body)
         .map_err(|err| IssueAuthError::InvalidResponse(err.to_string()))?;
-        
+
     if let Some(token) = parsed.session_id {
         if looks_like_issue_token(&token) {
             return Ok(Some(token));
         }
     }
-    
+
     if let Some(err) = parsed.error {
         return Err(IssueAuthError::ServerError(err));
     }
-    
+
     Ok(None)
 }
 
@@ -384,6 +387,4 @@ mod tests {
         let err = parse_issue_token("No token here").unwrap_err();
         assert!(err.to_string().contains("Token not found"));
     }
-
-
 }

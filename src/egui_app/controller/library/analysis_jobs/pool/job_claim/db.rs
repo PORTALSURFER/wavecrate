@@ -1,14 +1,14 @@
 use super::super::job_execution::update_job_status_with_retry;
+use super::super::job_progress::ProgressPollerWakeup;
 use super::super::progress_cache::ProgressCache;
 use super::analysis_db;
-use super::super::job_progress::ProgressPollerWakeup;
 use super::queue::DecodedQueue;
-use crate::egui_app::controller::library::analysis_jobs::types::AnalysisJobMessage;
-use crate::egui_app::controller::jobs::{JobMessage, JobMessageSender};
+use crate::app::controller::jobs::{JobMessage, JobMessageSender};
+use crate::app::controller::library::analysis_jobs::types::AnalysisJobMessage;
 use rusqlite::Connection;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, RwLock};
 use std::thread::{JoinHandle, sleep};
 use std::time::{Duration, Instant};
 

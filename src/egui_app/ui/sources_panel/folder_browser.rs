@@ -5,8 +5,8 @@ use super::helpers::{
 };
 use super::style;
 use super::utils::{folder_row_label, sample_housing_folders};
-use crate::egui_app::controller::hotkeys;
-use crate::egui_app::state::{DragSource, DragTarget, FocusContext, RootFolderFilterMode};
+use crate::app::controller::hotkeys;
+use crate::app::state::{DragSource, DragTarget, FocusContext, RootFolderFilterMode};
 use crate::gui::input::KeyCode;
 use eframe::egui::{self, Align, Align2, Layout, RichText, StrokeKind, TextStyle, Ui};
 use std::collections::HashSet;
@@ -340,7 +340,7 @@ impl EguiApp {
                     let is_focused = Some(index) == focused_row;
                     let rename_match = matches!(
                         self.controller.ui.sources.folders.pending_action,
-                        Some(crate::egui_app::state::FolderActionPrompt::Rename {
+                        Some(crate::app::state::FolderActionPrompt::Rename {
                             ref target,
                             ..
                         }) if target == &row.path
@@ -628,27 +628,27 @@ impl EguiApp {
                 for entry in &entries {
                     let status_label = match (entry.action, entry.status) {
                         (
-                            crate::egui_app::state::FolderDeleteRecoveryAction::Restore,
-                            crate::egui_app::state::FolderDeleteRecoveryStatus::Completed,
+                            crate::app::state::FolderDeleteRecoveryAction::Restore,
+                            crate::app::state::FolderDeleteRecoveryStatus::Completed,
                         ) => "Restored",
                         (
-                            crate::egui_app::state::FolderDeleteRecoveryAction::Finalize,
-                            crate::egui_app::state::FolderDeleteRecoveryStatus::Completed,
+                            crate::app::state::FolderDeleteRecoveryAction::Finalize,
+                            crate::app::state::FolderDeleteRecoveryStatus::Completed,
                         ) => "Finalized",
                         (
-                            crate::egui_app::state::FolderDeleteRecoveryAction::Restore,
-                            crate::egui_app::state::FolderDeleteRecoveryStatus::Failed,
+                            crate::app::state::FolderDeleteRecoveryAction::Restore,
+                            crate::app::state::FolderDeleteRecoveryStatus::Failed,
                         ) => "Restore failed",
                         (
-                            crate::egui_app::state::FolderDeleteRecoveryAction::Finalize,
-                            crate::egui_app::state::FolderDeleteRecoveryStatus::Failed,
+                            crate::app::state::FolderDeleteRecoveryAction::Finalize,
+                            crate::app::state::FolderDeleteRecoveryStatus::Failed,
                         ) => "Finalize failed",
                     };
                     let status_color = match entry.status {
-                        crate::egui_app::state::FolderDeleteRecoveryStatus::Completed => {
+                        crate::app::state::FolderDeleteRecoveryStatus::Completed => {
                             palette.accent_mint
                         }
-                        crate::egui_app::state::FolderDeleteRecoveryStatus::Failed => {
+                        crate::app::state::FolderDeleteRecoveryStatus::Failed => {
                             style::destructive_text()
                         }
                     };

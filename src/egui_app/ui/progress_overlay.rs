@@ -1,6 +1,6 @@
-use super::style;
 use super::overlay_layers::{self, OverlayLayer};
-use crate::egui_app::state::ProgressOverlayState;
+use super::style;
+use crate::app::state::ProgressOverlayState;
 use eframe::egui::{self, Align2, Area, Color32, Frame, Id, ProgressBar, RichText, Stroke};
 
 /// Render the modal progress overlay for long-running tasks.
@@ -42,7 +42,7 @@ pub(super) fn render_progress_overlay(ctx: &egui::Context, progress: &mut Progre
                     if progress.total > 0 {
                         let pct = (fraction * 100.0).round().clamp(0.0, 100.0);
                         bar = bar.text(format!("{pct:.0}%"));
-                    } else if progress.task == Some(crate::egui_app::state::ProgressTaskKind::Scan)
+                    } else if progress.task == Some(crate::app::state::ProgressTaskKind::Scan)
                         && progress.completed > 0
                     {
                         bar = bar.text(format!("{} files", progress.completed));

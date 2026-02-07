@@ -188,5 +188,4 @@ impl LibraryDatabase {
             .map_err(map_sql_error)?;
         Ok(())
     }
-
 }

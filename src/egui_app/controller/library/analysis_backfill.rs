@@ -25,10 +25,7 @@ impl EguiController {
             match result {
                 Ok((inserted, progress)) => {
                     let _ = tx.send(super::jobs::JobMessage::Analysis(
-                        analysis_jobs::AnalysisJobMessage::EnqueueFinished {
-                            inserted,
-                            progress,
-                        },
+                        analysis_jobs::AnalysisJobMessage::EnqueueFinished { inserted, progress },
                     ));
                 }
                 Err(err) => {
@@ -54,10 +51,7 @@ impl EguiController {
             match result {
                 Ok((inserted, progress)) => {
                     let _ = tx.send(super::jobs::JobMessage::Analysis(
-                        analysis_jobs::AnalysisJobMessage::EnqueueFinished {
-                            inserted,
-                            progress,
-                        },
+                        analysis_jobs::AnalysisJobMessage::EnqueueFinished { inserted, progress },
                     ));
                 }
                 Err(err) => {
@@ -91,9 +85,7 @@ impl EguiController {
                 }
                 Err(err) => {
                     let _ = tx.send(super::jobs::JobMessage::Analysis(
-                        analysis_jobs::AnalysisJobMessage::EmbeddingBackfillEnqueueFailed(
-                            err,
-                        ),
+                        analysis_jobs::AnalysisJobMessage::EmbeddingBackfillEnqueueFailed(err),
                     ));
                 }
             }
@@ -141,8 +133,7 @@ impl EguiController {
         let source = source.clone();
         std::thread::spawn(move || {
             if !changed_samples.is_empty() {
-                let result =
-                    analysis_jobs::enqueue_jobs_for_source(&source, &changed_samples);
+                let result = analysis_jobs::enqueue_jobs_for_source(&source, &changed_samples);
                 match result {
                     Ok((inserted, progress)) => {
                         let _ = tx.send(super::jobs::JobMessage::Analysis(
@@ -160,8 +151,7 @@ impl EguiController {
                 }
             }
 
-            let result =
-                analysis_jobs::enqueue_jobs_for_embedding_samples(&source, &sample_ids);
+            let result = analysis_jobs::enqueue_jobs_for_embedding_samples(&source, &sample_ids);
             match result {
                 Ok((inserted, progress)) => {
                     let _ = tx.send(super::jobs::JobMessage::Analysis(
@@ -173,9 +163,7 @@ impl EguiController {
                 }
                 Err(err) => {
                     let _ = tx.send(super::jobs::JobMessage::Analysis(
-                        analysis_jobs::AnalysisJobMessage::EmbeddingBackfillEnqueueFailed(
-                            err,
-                        ),
+                        analysis_jobs::AnalysisJobMessage::EmbeddingBackfillEnqueueFailed(err),
                     ));
                 }
             }

@@ -74,7 +74,6 @@ pub(crate) fn legacy_id_map_path_for(index_path: &Path) -> PathBuf {
     parent.join(format!("{basename}.{LEGACY_ANN_ID_MAP_SUFFIX}"))
 }
 
-
 /// Load the legacy id map JSON from legacy ANN files.
 pub(crate) fn load_legacy_id_map(path: &Path) -> Result<Vec<String>, String> {
     let bytes = std::fs::read(path).map_err(|err| format!("Failed to read id map: {err}"))?;

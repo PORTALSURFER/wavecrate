@@ -1,6 +1,6 @@
 use super::overlay_layers::{self, OverlayLayer};
 use super::style;
-use crate::egui_app::{
+use crate::app::{
     controller::hotkeys::{self, HotkeyAction, HotkeyGesture},
     state::FocusContext,
 };

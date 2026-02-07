@@ -1,7 +1,7 @@
 use super::enqueue_helpers::now_epoch_seconds;
-use crate::egui_app::controller::library::analysis_jobs::db;
-use crate::egui_app::controller::library::analysis_jobs::wakeup;
-use crate::egui_app::controller::library::analysis_jobs::types::AnalysisProgress;
+use crate::app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::types::AnalysisProgress;
+use crate::app::controller::library::analysis_jobs::wakeup;
 use rusqlite::params;
 use tracing::info;
 

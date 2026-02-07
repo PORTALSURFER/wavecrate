@@ -1,9 +1,7 @@
 //! Cached data for the controller, including databases and UI caches.
 
-use super::super::{
-    SampleSource, SourceDatabase, SourceDbError, SourceId, WavEntry,
-};
-use crate::egui_app::controller::library::{source_folders, wavs};
+use super::super::{SampleSource, SourceDatabase, SourceDbError, SourceId, WavEntry};
+use crate::app::controller::library::{source_folders, wavs};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -66,8 +64,7 @@ impl LibraryCacheState {
 
 pub(crate) struct BrowserCacheState {
     pub(crate) labels: HashMap<SourceId, Vec<String>>,
-    pub(crate) analysis_failures:
-        HashMap<SourceId, HashMap<PathBuf, String>>,
+    pub(crate) analysis_failures: HashMap<SourceId, HashMap<PathBuf, String>>,
     pub(crate) analysis_failures_pending: HashSet<SourceId>,
     pub(crate) search: wavs::BrowserSearchCache,
     pub(crate) features: HashMap<SourceId, FeatureCache>,
@@ -100,8 +97,7 @@ pub(crate) struct FeatureCache {
 }
 
 pub(crate) struct FolderBrowsersState {
-    pub(crate) models:
-        HashMap<SourceId, source_folders::FolderBrowserModel>,
+    pub(crate) models: HashMap<SourceId, source_folders::FolderBrowserModel>,
 }
 
 pub(crate) struct ControllerUiCacheState {
@@ -154,11 +150,7 @@ impl WavEntriesState {
         self.source_id = None;
     }
 
-    pub(crate) fn insert_page(
-        &mut self,
-        page_index: usize,
-        entries: Vec<WavEntry>,
-    ) {
+    pub(crate) fn insert_page(&mut self, page_index: usize, entries: Vec<WavEntry>) {
         let offset = page_index * self.page_size;
         for (idx, entry) in entries.iter().enumerate() {
             self.insert_lookup(entry.relative_path.clone(), offset + idx);
@@ -174,10 +166,7 @@ impl WavEntriesState {
             .and_then(|page| page.get(in_page))
     }
 
-    pub(crate) fn entry_mut(
-        &mut self,
-        index: usize,
-    ) -> Option<&mut WavEntry> {
+    pub(crate) fn entry_mut(&mut self, index: usize) -> Option<&mut WavEntry> {
         let page_index = index / self.page_size;
         let in_page = index % self.page_size;
         self.pages
@@ -185,11 +174,7 @@ impl WavEntriesState {
             .and_then(|page| page.get_mut(in_page))
     }
 
-    pub(crate) fn update_entry(
-        &mut self,
-        path: &Path,
-        entry: WavEntry,
-    ) -> bool {
+    pub(crate) fn update_entry(&mut self, path: &Path, entry: WavEntry) -> bool {
         let normalized = path.to_string_lossy().replace('\\', "/");
         let Some(index) = self.lookup.get(Path::new(&normalized)).copied() else {
             return false;
@@ -214,18 +199,18 @@ mod tests {
     #[test]
     fn test_insert_lookup_normalizes_paths() {
         let mut cache = WavEntriesState::new(10, 10);
-        
+
         // Insert with backslash
         cache.insert_lookup(PathBuf::from("foo\\bar.wav"), 1);
-        
+
         // Should be found with forward slash
         assert_eq!(cache.lookup.get(Path::new("foo/bar.wav")), Some(&1));
-        
+
         // Should be found with backslash (due to normalization on lookup/insert? No, insert normalizes key. Lookup must normalize query.)
         // We haven't updated lookup accessors on WavEntriesState itself other than update_entry.
-        // Wait, update_entry calls lookup.get(path). 
+        // Wait, update_entry calls lookup.get(path).
         // WavEntriesState::entry() accesses by index.
-        
+
         // Let's verify internal storage is normalized (size is 1)
         assert_eq!(cache.lookup.len(), 1);
         assert!(cache.lookup.contains_key(Path::new("foo/bar.wav")));
@@ -234,19 +219,22 @@ mod tests {
     #[test]
     fn test_update_entry_normalizes_lookup_key() {
         let mut cache = WavEntriesState::new(10, 10);
-        
+
         // Mock entry existence
-        cache.insert_page(0, vec![WavEntry {
-            relative_path: PathBuf::from("foo/bar.wav"),
-            file_size: 0,
-            modified_ns: 0,
-            content_hash: None,
-            tag: crate::sample_sources::Rating::NEUTRAL,
-            looped: false,
-            missing: false,
-            last_played_at: None,
-        }]);
-        
+        cache.insert_page(
+            0,
+            vec![WavEntry {
+                relative_path: PathBuf::from("foo/bar.wav"),
+                file_size: 0,
+                modified_ns: 0,
+                content_hash: None,
+                tag: crate::sample_sources::Rating::NEUTRAL,
+                looped: false,
+                missing: false,
+                last_played_at: None,
+            }],
+        );
+
         let new_entry = WavEntry {
             relative_path: PathBuf::from("foo/bar.wav"),
             file_size: 100,
@@ -257,11 +245,11 @@ mod tests {
             missing: false,
             last_played_at: None,
         };
-        
+
         // Update using backslash path
         let success = cache.update_entry(Path::new("foo\\bar.wav"), new_entry);
         assert!(success, "Should find entry even with backslash path");
-        
+
         // Verify update happened
         let entry = cache.entry(0).unwrap();
         assert_eq!(entry.tag, crate::sample_sources::Rating::KEEP_1);

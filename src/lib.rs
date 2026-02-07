@@ -11,8 +11,9 @@ pub mod app_core;
 pub mod app_dirs;
 /// Audio playback utilities.
 pub mod audio;
-/// Shared egui UI modules.
-pub mod egui_app;
+/// Shared legacy UI modules.
+#[path = "egui_app/mod.rs"]
+pub mod app;
 /// Platform helpers for copying files to the clipboard.
 pub mod external_clipboard;
 /// Platform helpers for external drag-and-drop.

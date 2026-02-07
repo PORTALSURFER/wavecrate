@@ -1,11 +1,11 @@
 use super::hotkey_overlay;
 use super::input::InputSnapshot;
 use super::progress_overlay;
-use crate::egui_app::controller::hotkeys;
-use crate::egui_app::repaint::EguiRepaintSignal;
-use crate::egui_app::state::FocusContext;
-use crate::egui_app::ui::style;
-use crate::egui_app::ui::{helpers, EguiApp};
+use crate::app::controller::hotkeys;
+use crate::app::repaint::EguiRepaintSignal;
+use crate::app::state::FocusContext;
+use crate::app::ui::style;
+use crate::app::ui::{EguiApp, helpers};
 use eframe::egui;
 use eframe::egui::{TopBottomPanel, Ui, UiBuilder};
 use std::sync::Arc;
@@ -145,14 +145,14 @@ impl EguiApp {
                         |ui| {
                             if !matches!(
                                 self.controller.ui.update.status,
-                                crate::egui_app::state::UpdateStatus::UpdateAvailable
+                                crate::app::state::UpdateStatus::UpdateAvailable
                             ) {
                                 ui.label(
                                     egui::RichText::new(APP_VERSION).color(palette.text_muted),
                                 );
                                 ui.add_space(8.0);
                                 if ui
-                                    .add(crate::egui_app::ui::chrome::buttons::action_button(
+                                    .add(crate::app::ui::chrome::buttons::action_button(
                                         "Report issue",
                                     ))
                                     .clicked()
@@ -160,7 +160,7 @@ impl EguiApp {
                                     self.controller.open_feedback_issue_prompt();
                                 }
                                 if ui
-                                    .add(crate::egui_app::ui::chrome::buttons::action_button(
+                                    .add(crate::app::ui::chrome::buttons::action_button(
                                         "Donate",
                                     ))
                                     .clicked()

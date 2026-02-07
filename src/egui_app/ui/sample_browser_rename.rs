@@ -1,6 +1,6 @@
 use super::helpers::{InlineTextEditAction, render_inline_text_edit};
 use super::*;
-use crate::egui_app::state::SampleBrowserActionPrompt;
+use crate::app::state::SampleBrowserActionPrompt;
 use eframe::egui::{self, Ui};
 
 impl EguiApp {

@@ -11,13 +11,13 @@ impl EguiApp {
         &mut self,
         ui: &mut Ui,
         row_response: &egui::Response,
-        row: &crate::egui_app::state::FolderRowView,
+        row: &crate::app::state::FolderRowView,
     ) {
         let Some(prompt) = self.controller.ui.sources.folders.pending_action.as_mut() else {
             return;
         };
         let name = match prompt {
-            crate::egui_app::state::FolderActionPrompt::Rename { name, .. } => name,
+            crate::app::state::FolderActionPrompt::Rename { name, .. } => name,
         };
         let padding = ui.spacing().button_padding.x;
         let indent = row.depth as f32 * 12.0;
@@ -89,7 +89,7 @@ impl EguiApp {
 
     pub(super) fn apply_pending_folder_rename(&mut self) {
         let action = self.controller.ui.sources.folders.pending_action.clone();
-        if let Some(crate::egui_app::state::FolderActionPrompt::Rename { target, name }) = action {
+        if let Some(crate::app::state::FolderActionPrompt::Rename { target, name }) = action {
             match self.controller.rename_folder(&target, &name) {
                 Ok(()) => {
                     self.controller.cancel_folder_rename();
@@ -116,7 +116,7 @@ impl EguiApp {
         &mut self,
         response: &egui::Response,
         index: usize,
-        row: &crate::egui_app::state::FolderRowView,
+        row: &crate::app::state::FolderRowView,
     ) {
         response.context_menu(|ui| {
             let palette = style::palette();

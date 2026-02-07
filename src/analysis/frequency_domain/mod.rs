@@ -79,8 +79,7 @@ pub(crate) fn extract_frequency_domain_features(
     sample_rate: u32,
 ) -> Result<FrequencyDomainFeatures, String> {
     let mel = MelBank::new(sample_rate, STFT_FRAME_SIZE, 40, 20, 20.0, 16_000.0);
-    let frames =
-        stft::compute_frames(samples, sample_rate, STFT_FRAME_SIZE, STFT_HOP_SIZE, &mel)?;
+    let frames = stft::compute_frames(samples, sample_rate, STFT_FRAME_SIZE, STFT_HOP_SIZE, &mel)?;
     let (early, late) = stats::early_late_ranges(frames.spectral.len());
     Ok(FrequencyDomainFeatures {
         sample_rate,

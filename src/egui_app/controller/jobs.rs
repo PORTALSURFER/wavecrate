@@ -1,3 +1,4 @@
+use super::ScanJobMessage;
 use super::library::analysis_jobs::AnalysisJobMessage;
 use super::library::source_folders::delete_recovery::DeleteRecoveryReport;
 use super::library::trash_move;
@@ -12,16 +13,15 @@ use super::source_watcher::{
 };
 use super::state::audio::{PendingAudio, PendingPlayback, PendingRecordingWaveform};
 use super::state::runtime::{UpdateCheckResult, WavLoadJob, WavLoadResult};
-use super::ScanJobMessage;
 use crate::gui::repaint::{RepaintSignal, SharedRepaintSignal};
 use crate::sample_sources::SourceId;
 use std::{
     collections::BTreeSet,
     path::PathBuf,
     sync::{
+        Arc,
         atomic::{AtomicBool, Ordering},
         mpsc::{Receiver, SendError, Sender, SyncSender, TrySendError},
-        Arc,
     },
     thread,
     time::{Duration, Instant},
@@ -102,21 +102,21 @@ pub(crate) struct SearchJob {
     pub(super) source_id: SourceId,
     pub(super) source_root: PathBuf,
     pub(super) query: String,
-    pub(super) filter: crate::egui_app::state::TriageFlagFilter,
+    pub(super) filter: crate::app::state::TriageFlagFilter,
     /// Rating levels selected for filtering (-3..=3). Empty means no rating filter.
     pub(super) rating_filter: BTreeSet<i8>,
-    pub(super) sort: crate::egui_app::state::SampleBrowserSort,
-    pub(super) similar_query: Option<crate::egui_app::state::SimilarQuery>,
+    pub(super) sort: crate::app::state::SampleBrowserSort,
+    pub(super) similar_query: Option<crate::app::state::SimilarQuery>,
     pub(super) folder_selection: Option<BTreeSet<PathBuf>>,
     pub(super) folder_negated: Option<BTreeSet<PathBuf>>,
-    pub(super) root_mode: crate::egui_app::state::RootFolderFilterMode,
+    pub(super) root_mode: crate::app::state::RootFolderFilterMode,
 }
 
 #[derive(Debug)]
 pub(crate) struct SearchResult {
     pub(crate) source_id: SourceId,
     pub(crate) query: String,
-    pub(crate) visible: crate::egui_app::state::VisibleRows,
+    pub(crate) visible: crate::app::state::VisibleRows,
     pub(crate) trash: Vec<usize>,
     pub(crate) neutral: Vec<usize>,
     pub(crate) keep: Vec<usize>,
@@ -601,12 +601,12 @@ pub(crate) struct ControllerJobs {
     pub(crate) audio_job_tx: Sender<AudioLoadJob>,
     recording_waveform_job_tx: RecordingWaveformJobSender,
     pub(crate) search_job_tx:
-        crate::egui_app::controller::library::wavs::browser_search_worker::SearchJobSender,
+        crate::app::controller::library::wavs::browser_search_worker::SearchJobSender,
     wav_loader: WavLoaderHandle,
     audio_loader: AudioLoaderHandle,
     recording_waveform_loader: RecordingWaveformWorkerHandle,
     search_worker:
-        crate::egui_app::controller::library::wavs::browser_search_worker::SearchWorkerHandle,
+        crate::app::controller::library::wavs::browser_search_worker::SearchWorkerHandle,
     source_watcher: SourceWatcherHandle,
     forwarders: Option<JobForwarderHandles>,
     message_tx: JobMessageSender,
@@ -728,9 +728,9 @@ impl ControllerJobs {
         recording_waveform_job_tx: RecordingWaveformJobSender,
         recording_waveform_job_rx: Receiver<RecordingWaveformLoadResult>,
         recording_waveform_loader: RecordingWaveformWorkerHandle,
-        search_job_tx: crate::egui_app::controller::library::wavs::browser_search_worker::SearchJobSender,
+        search_job_tx: crate::app::controller::library::wavs::browser_search_worker::SearchJobSender,
         search_job_rx: Receiver<SearchResult>,
-        search_worker: crate::egui_app::controller::library::wavs::browser_search_worker::SearchWorkerHandle,
+        search_worker: crate::app::controller::library::wavs::browser_search_worker::SearchWorkerHandle,
         job_message_queue_capacity: usize,
     ) -> Self {
         let capacity = job_message_queue_capacity.max(1);

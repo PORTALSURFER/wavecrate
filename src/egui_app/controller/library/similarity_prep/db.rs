@@ -1,4 +1,4 @@
-use crate::egui_app::controller::library::analysis_jobs;
+use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::{SampleSource, SourceDatabase, SourceId};
 
 pub(crate) fn read_source_scan_timestamp(source: &SampleSource) -> Option<i64> {

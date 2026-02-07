@@ -1,9 +1,9 @@
 use super::super::test_support::{dummy_controller, sample_entry, write_test_wav};
 use super::super::*;
 use super::common::{prepare_browser_sample, visible_indices};
-use crate::egui_app::controller::ui::hotkeys;
-use crate::egui_app::state::FocusContext;
-use crate::egui_app::state::SampleBrowserTab;
+use crate::app::controller::ui::hotkeys;
+use crate::app::state::FocusContext;
+use crate::app::state::SampleBrowserTab;
 use crate::gui::input::KeyCode;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -54,7 +54,7 @@ fn find_similar_from_map_switches_to_browser_list() {
     prepare_browser_sample(&mut controller, &source, "map.wav");
     controller.focus_browser_row(0);
     controller.ui.browser.active_tab = SampleBrowserTab::Map;
-    controller.ui.browser.similar_query = Some(crate::egui_app::state::SimilarQuery {
+    controller.ui.browser.similar_query = Some(crate::app::state::SimilarQuery {
         sample_id: "test::map.wav".to_string(),
         label: "map.wav".to_string(),
         indices: vec![0],

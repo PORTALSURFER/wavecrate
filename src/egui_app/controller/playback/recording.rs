@@ -23,7 +23,6 @@ impl EguiController {
         recorder::start_recording(self)
     }
 
-
     /// Stop recording and return the outcome if a session existed.
     pub fn stop_recording(&mut self) -> Result<Option<RecordingOutcome>, String> {
         recorder::stop_recording(self)
@@ -33,7 +32,6 @@ impl EguiController {
     pub fn stop_recording_and_load(&mut self) -> Result<(), String> {
         recorder::stop_recording_and_load(self)
     }
-
 
     pub(crate) fn refresh_recording_waveform(&mut self) {
         recorder::refresh_recording_waveform(self);

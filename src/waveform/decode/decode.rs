@@ -70,10 +70,6 @@ mod tests {
         assert!(matches!(err, Err(WaveformDecodeError::Invalid { .. })));
     }
 
-
-
-
-
     #[test]
     fn peak_only_branch_preserves_duration_and_frames() {
         let renderer = WaveformRenderer::new(12, 12);

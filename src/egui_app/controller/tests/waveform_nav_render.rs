@@ -1,7 +1,7 @@
 use super::super::test_support::{dummy_controller, sample_entry, write_test_wav};
-use crate::egui_app::controller::library::wavs;
 use super::super::*;
-use crate::egui_app::state::WaveformView;
+use crate::app::controller::library::wavs;
+use crate::app::state::WaveformView;
 use crate::waveform::DecodedWaveform;
 use std::path::{Path, PathBuf};
 use std::thread;
@@ -37,14 +37,15 @@ fn waveform_refresh_respects_view_slice_and_caps_width() {
     assert!((image.view_start - 0.25).abs() < 1e-6);
     assert!((image.view_end - 0.5).abs() < 1e-6);
     let expected_width = (controller.sample_view.waveform.size[0] as f32)
-        .min(crate::egui_app::controller::library::wavs::MAX_TEXTURE_WIDTH as f32)
+        .min(crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH as f32)
         .ceil() as usize;
     let samples_in_view = (0.5 - 0.25) * 1000.0;
     let upper = (samples_in_view as usize)
-        .min(crate::egui_app::controller::library::wavs::MAX_TEXTURE_WIDTH as usize)
+        .min(crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH as usize)
         .max(1);
     let lower = controller.sample_view.waveform.size[0]
-        .min(crate::egui_app::controller::library::wavs::MAX_TEXTURE_WIDTH) as usize;
+        .min(crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH)
+        as usize;
     let clamped = expected_width.min(upper).max(lower);
     assert_eq!(image.image.size[0], clamped);
     assert_eq!(image.image.size[1], 10);
@@ -169,7 +170,10 @@ fn play_request_is_deferred_until_audio_ready() {
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
     write_test_wav(&source.root.join("wait.wav"), &[0.0, 0.2, -0.2]);
-    controller.set_wav_entries_for_tests(vec![sample_entry("wait.wav", crate::sample_sources::Rating::NEUTRAL)]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "wait.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
 
@@ -195,7 +199,10 @@ fn loading_flag_clears_after_audio_load() {
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
     let rel = PathBuf::from("load.wav");
     write_test_wav(&source.root.join(&rel), &[0.0, 0.5, -0.5]);
-    controller.set_wav_entries_for_tests(vec![sample_entry("load.wav", crate::sample_sources::Rating::NEUTRAL)]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "load.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
 

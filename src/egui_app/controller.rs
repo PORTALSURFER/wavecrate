@@ -15,11 +15,11 @@ pub(crate) mod undo;
 mod undo_jobs;
 pub(crate) mod updates;
 
-pub(crate) use crate::egui_app::ui::style::StatusTone;
+pub(crate) use crate::app::ui::style::StatusTone;
 use crate::{
     audio::AudioPlayer,
-    egui_app::state::UiState,
-    egui_app::{ui::style, view_model},
+    app::state::UiState,
+    app::{ui::style, view_model},
     gui::repaint::RepaintSignal,
     sample_sources::{SampleSource, SourceDatabase, SourceDbError, SourceId, WavEntry},
     selection::SelectionRange,
@@ -27,7 +27,7 @@ use crate::{
 };
 pub(crate) use controller_state::*;
 use egui::Color32;
-pub(in crate::egui_app::controller) use library::analysis_jobs::AnalysisJobMessage;
+pub(in crate::app::controller) use library::analysis_jobs::AnalysisJobMessage;
 use library::analysis_jobs::AnalysisWorkerPool;
 use open;
 use playback::audio_loader::{AudioLoadError, AudioLoadJob, AudioLoadOutcome};
@@ -169,7 +169,7 @@ impl EguiController {
             && last_activity_at
                 .is_some_and(|time| now.saturating_duration_since(time) >= IDLE_WINDOW);
         let base_worker_count = if self.settings.analysis.analysis_worker_count == 0 {
-            crate::egui_app::controller::library::analysis_jobs::default_worker_count()
+            crate::app::controller::library::analysis_jobs::default_worker_count()
         } else {
             self.settings.analysis.analysis_worker_count
         };

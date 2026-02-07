@@ -1,7 +1,7 @@
-use crate::egui_app::state::TriageFlagColumn;
 use super::super::test_support::{sample_entry, write_test_wav};
 use super::super::*;
-use crate::egui_app::state::{DragPayload, DragSource, DragTarget};
+use crate::app::state::TriageFlagColumn;
+use crate::app::state::{DragPayload, DragSource, DragTarget};
 use std::path::PathBuf;
 use tempfile::tempdir;
 
@@ -18,7 +18,10 @@ fn waveform_sample_drop_copies_and_registers() {
     controller.cache_db(&source).unwrap();
 
     write_test_wav(&root.join("one.wav"), &[0.1, 0.2]);
-    controller.set_wav_entries_for_tests(vec![sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL)]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
 

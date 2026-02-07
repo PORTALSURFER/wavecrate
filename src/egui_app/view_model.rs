@@ -1,7 +1,7 @@
 //! Helpers to convert domain data into egui-facing view structs.
 // Transitional helpers; wiring into the egui renderer will consume these.
 
-use crate::egui_app::state::{DropTargetRowView, SourceRowView};
+use crate::app::state::{DropTargetRowView, SourceRowView};
 use crate::sample_sources::config::DropTargetColor;
 use crate::sample_sources::{Rating, SampleSource};
 use std::path::Path;
@@ -49,8 +49,8 @@ pub fn drop_target_row(
 pub fn sample_browser_index_for(
     tag: Rating,
     index: usize,
-) -> crate::egui_app::state::SampleBrowserIndex {
-    use crate::egui_app::state::TriageFlagColumn::*;
+) -> crate::app::state::SampleBrowserIndex {
+    use crate::app::state::TriageFlagColumn::*;
     let column = if tag.is_trash() {
         Trash
     } else if tag.is_keep() {
@@ -58,7 +58,7 @@ pub fn sample_browser_index_for(
     } else {
         Neutral
     };
-    crate::egui_app::state::SampleBrowserIndex { column, row: index }
+    crate::app::state::SampleBrowserIndex { column, row: index }
 }
 
 /// Produce a user-facing sample label that omits folders and extensions.

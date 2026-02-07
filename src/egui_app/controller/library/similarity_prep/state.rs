@@ -1,4 +1,6 @@
-pub(crate) use crate::egui_app::controller::controller_state::{SimilarityPrepStage, SimilarityPrepState};
+pub(crate) use crate::app::controller::controller_state::{
+    SimilarityPrepStage, SimilarityPrepState,
+};
 use crate::sample_sources::SourceId;
 
 pub(crate) struct SimilarityPrepInit {

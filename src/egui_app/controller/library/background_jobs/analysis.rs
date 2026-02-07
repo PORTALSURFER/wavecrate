@@ -1,7 +1,7 @@
 use super::super::analysis_jobs::{self, RunningJobInfo};
 use super::*;
-use crate::egui_app::state::ProgressTaskKind;
-use crate::egui_app::state::RunningJobSnapshot;
+use crate::app::state::ProgressTaskKind;
+use crate::app::state::RunningJobSnapshot;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) fn handle_analysis_message(
@@ -24,8 +24,7 @@ pub(crate) fn handle_analysis_message(
                 if let Some(selected_id) = selected_source.as_ref() {
                     if let Some(source) = controller.current_source() {
                         if &source.id == selected_id {
-                            if let Ok(scoped) =
-                                analysis_jobs::current_progress_for_source(&source)
+                            if let Ok(scoped) = analysis_jobs::current_progress_for_source(&source)
                             {
                                 progress = scoped;
                             }
@@ -101,12 +100,13 @@ pub(crate) fn handle_analysis_message(
                             let stale_after = analysis_jobs::stale_running_job_seconds();
                             jobs.into_iter()
                                 .map(|job| {
-                                    let label = analysis_jobs::parse_sample_id(
-                                        job.sample_id.as_str(),
-                                    )
-                                    .ok()
-                                    .map(|(_, path): (String, PathBuf)| path.to_string_lossy().to_string())
-                                    .unwrap_or(job.sample_id);
+                                    let label =
+                                        analysis_jobs::parse_sample_id(job.sample_id.as_str())
+                                            .ok()
+                                            .map(|(_, path): (String, PathBuf)| {
+                                                path.to_string_lossy().to_string()
+                                            })
+                                            .unwrap_or(job.sample_id);
                                     RunningJobSnapshot::from_heartbeat(
                                         label,
                                         job.last_heartbeat_at,
@@ -121,7 +121,7 @@ pub(crate) fn handle_analysis_message(
                     Vec::new()
                 };
                 controller.ui.progress.set_analysis_snapshot(Some(
-                    crate::egui_app::state::AnalysisProgressSnapshot {
+                    crate::app::state::AnalysisProgressSnapshot {
                         pending: progress.pending,
                         running: progress.running,
                         failed: progress.failed,

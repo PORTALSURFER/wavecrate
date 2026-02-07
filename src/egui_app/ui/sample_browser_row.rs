@@ -1,5 +1,6 @@
 //! Sample browser row rendering helpers.
 
+use super::EguiApp;
 use super::flat_items_list::FlatItemsListMetrics;
 use super::helpers::{
     NumberColumn, RowBackground, RowMarker, bpm_badge_space, clamp_label_for_width,
@@ -7,9 +8,8 @@ use super::helpers::{
 };
 use super::status_badges;
 use super::style;
-use super::EguiApp;
-use crate::egui_app::state::{DragSource, SampleBrowserActionPrompt, TriageFlagColumn};
-use crate::egui_app::view_model;
+use crate::app::state::{DragSource, SampleBrowserActionPrompt, TriageFlagColumn};
+use crate::app::view_model;
 use eframe::egui::{self, StrokeKind, Ui};
 use std::path::PathBuf;
 
@@ -38,17 +38,16 @@ pub(super) fn render_sample_browser_row(
         Some(index) => index,
         None => return,
     };
-    let (tag, path, looped, missing, last_played_at) =
-        match app.controller.wav_entry(entry_index) {
-            Some(entry) => (
-                entry.tag,
-                entry.relative_path.clone(),
-                entry.looped,
-                entry.missing,
-                entry.last_played_at,
-            ),
-            None => return,
-        };
+    let (tag, path, looped, missing, last_played_at) = match app.controller.wav_entry(entry_index) {
+        Some(entry) => (
+            entry.tag,
+            entry.relative_path.clone(),
+            entry.looped,
+            entry.missing,
+            entry.last_played_at,
+        ),
+        None => return,
+    };
     let rename_match = matches!(
         app.controller.ui.browser.pending_action,
         Some(SampleBrowserActionPrompt::Rename { ref target, .. }) if target == &path
@@ -69,7 +68,8 @@ pub(super) fn render_sample_browser_row(
     let row_width = metrics.row_width;
     let similar_query = app.controller.ui.browser.similar_query.as_ref();
     let is_anchor = similar_query.and_then(|sim| sim.anchor_index) == Some(entry_index);
-    let similar_strength = similar_query.and_then(|sim| sim.display_strength_for_index(entry_index));
+    let similar_strength =
+        similar_query.and_then(|sim| sim.display_strength_for_index(entry_index));
     let focused_similarity_strength = if similar_query.is_none() {
         app.controller
             .ui
@@ -153,8 +153,8 @@ pub(super) fn render_sample_browser_row(
     );
     let display_label = status_label.label.clone();
 
-    let row_label_width = row_width - metrics.padding - metrics.number_width - metrics.number_gap
-        - trailing_space;
+    let row_label_width =
+        row_width - metrics.padding - metrics.number_width - metrics.number_gap - trailing_space;
     let row_label = if rename_match {
         String::new()
     } else {
@@ -216,7 +216,11 @@ pub(super) fn render_sample_browser_row(
                 rating: if rename_match { None } else { Some(tag) },
                 looped: looped && !rename_match,
                 long_sample: long_sample && !rename_match,
-                bpm_label: if rename_match { None } else { bpm_label.as_deref() },
+                bpm_label: if rename_match {
+                    None
+                } else {
+                    bpm_label.as_deref()
+                },
             },
         );
         if let Some(alpha) = context.flash_alpha {
@@ -300,7 +304,7 @@ pub(super) fn render_sample_browser_row(
             ui,
             &response,
             context.drag_active,
-            crate::egui_app::state::DragTarget::BrowserTriage(context.drop_target),
+            crate::app::state::DragTarget::BrowserTriage(context.drop_target),
             row_drag_source,
             &path,
         );

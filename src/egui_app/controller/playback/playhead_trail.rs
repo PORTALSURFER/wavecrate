@@ -1,4 +1,4 @@
-use crate::egui_app::state::{FadingPlayheadTrail, PlayheadState, PlayheadTrailSample};
+use crate::app::state::{FadingPlayheadTrail, PlayheadState, PlayheadTrailSample};
 use std::time::{Duration, Instant};
 
 const TRAIL_DURATION: Duration = Duration::from_millis(1250);
@@ -111,7 +111,7 @@ pub(crate) fn tick_playhead_trail(
 #[cfg(test)]
 mod tests {
     use super::tick_playhead_trail;
-    use crate::egui_app::state::{PlayheadState, PlayheadTrailSample};
+    use crate::app::state::{PlayheadState, PlayheadTrailSample};
     use std::time::{Duration, Instant};
 
     #[test]

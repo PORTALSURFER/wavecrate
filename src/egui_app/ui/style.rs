@@ -267,7 +267,7 @@ pub fn triage_label_color(tag: Rating) -> Color32 {
     } else if tag == Rating::KEEP_3 {
         palette.triage_keep
     } else {
-        crate::egui_app::ui::style::palette().text_primary
+        crate::app::ui::style::palette().text_primary
     }
 }
 
@@ -455,18 +455,9 @@ mod tests {
         let semantic = semantic_palette();
         assert_eq!(triage_label_color(Rating::TRASH_3), semantic.triage_trash);
         assert_eq!(triage_label_color(Rating::KEEP_3), semantic.triage_keep);
-        assert_eq!(
-            triage_label_color(Rating::NEUTRAL),
-            palette().text_primary
-        );
-        assert_eq!(
-            triage_label_color(Rating::TRASH_1),
-            palette().text_primary
-        );
-        assert_eq!(
-            triage_label_color(Rating::KEEP_1),
-            palette().text_primary
-        );
+        assert_eq!(triage_label_color(Rating::NEUTRAL), palette().text_primary);
+        assert_eq!(triage_label_color(Rating::TRASH_1), palette().text_primary);
+        assert_eq!(triage_label_color(Rating::KEEP_1), palette().text_primary);
     }
 
     #[test]

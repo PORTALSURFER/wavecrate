@@ -1,4 +1,4 @@
-use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db;
 
 mod analysis;
 mod analysis_cache;

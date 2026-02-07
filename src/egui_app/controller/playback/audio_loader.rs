@@ -1,13 +1,13 @@
 use super::*;
-use crate::egui_app::controller::playback::audio_cache::FileMetadata;
+use crate::app::controller::playback::audio_cache::FileMetadata;
 use crate::waveform::{DecodedWaveform, WaveformRenderer};
 use std::{
     fs,
     path::{Component, Path, PathBuf},
     sync::{
+        Arc,
         atomic::{AtomicBool, Ordering},
         mpsc::{Receiver, Sender},
-        Arc,
     },
     thread,
     time::Duration,
@@ -65,7 +65,11 @@ impl AudioLoaderHandle {
 /// Spawn the audio loader worker and return its job channel plus shutdown handle.
 pub(crate) fn spawn_audio_loader(
     renderer: WaveformRenderer,
-) -> (Sender<AudioLoadJob>, Receiver<AudioLoadResult>, AudioLoaderHandle) {
+) -> (
+    Sender<AudioLoadJob>,
+    Receiver<AudioLoadResult>,
+    AudioLoaderHandle,
+) {
     let (tx, rx) = std::sync::mpsc::channel::<AudioLoadJob>();
     let (result_tx, result_rx) = std::sync::mpsc::channel::<AudioLoadResult>();
     let shutdown = Arc::new(AtomicBool::new(false));
@@ -149,7 +153,7 @@ fn load_audio(
     if let Some(ratio) = job.stretch_ratio {
         let wsola = crate::audio::Wsola::new(decoded.sample_rate);
         let stretched_samples = wsola.stretch(&decoded.samples, decoded.channel_count(), ratio);
-        match crate::egui_app::controller::playback::audio_samples::wav_bytes_from_samples(
+        match crate::app::controller::playback::audio_samples::wav_bytes_from_samples(
             &stretched_samples,
             decoded.sample_rate,
             decoded.channels,
@@ -170,7 +174,7 @@ fn load_audio(
 
     let transients = crate::waveform::transients::detect_transients(
         &decoded,
-        crate::egui_app::controller::library::wavs::waveform_rendering::DEFAULT_TRANSIENT_SENSITIVITY,
+        crate::app::controller::library::wavs::waveform_rendering::DEFAULT_TRANSIENT_SENSITIVITY,
     );
 
     Ok(AudioLoadOutcome {

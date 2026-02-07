@@ -1,12 +1,16 @@
 use super::helpers::TriageSampleContext;
 use super::*;
-use crate::egui_app::state::LoopCrossfadeSettings;
+use crate::app::state::LoopCrossfadeSettings;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use tracing::{info, warn};
 
 pub(crate) trait BrowserActions {
-    fn tag_browser_sample(&mut self, row: usize, tag: crate::sample_sources::Rating) -> Result<(), String>;
+    fn tag_browser_sample(
+        &mut self,
+        row: usize,
+        tag: crate::sample_sources::Rating,
+    ) -> Result<(), String>;
     fn tag_browser_samples(
         &mut self,
         rows: &[usize],
@@ -40,7 +44,11 @@ pub(crate) trait BrowserActions {
 }
 
 impl BrowserActions for BrowserController<'_> {
-    fn tag_browser_sample(&mut self, row: usize, tag: crate::sample_sources::Rating) -> Result<(), String> {
+    fn tag_browser_sample(
+        &mut self,
+        row: usize,
+        tag: crate::sample_sources::Rating,
+    ) -> Result<(), String> {
         info!(row, ?tag, "triage tag: single row");
         let result: Result<(), String> = (|| {
             let ctx = self.resolve_browser_sample(row)?;
@@ -95,7 +103,11 @@ impl BrowserActions for BrowserController<'_> {
         primary_visible_row: usize,
     ) -> Result<(), String> {
         let (contexts, mut last_error) = self.resolve_unique_browser_contexts(rows);
-        let action_label = if looped { "Marked loop" } else { "Cleared loop" };
+        let action_label = if looped {
+            "Marked loop"
+        } else {
+            "Cleared loop"
+        };
         for ctx in contexts {
             if let Err(err) = self.set_sample_looped_for_source(
                 &ctx.source,
@@ -167,9 +179,7 @@ impl BrowserActions for BrowserController<'_> {
                 .as_ref()
                 .is_some_and(|audio| {
                     audio.source_id == source_id
-                        && paths
-                            .iter()
-                            .any(|path| audio.relative_path == *path)
+                        && paths.iter().any(|path| audio.relative_path == *path)
                 });
             if loaded_matches {
                 self.set_waveform_bpm_input(Some(bpm));
@@ -225,13 +235,20 @@ impl BrowserActions for BrowserController<'_> {
             .resolve_browser_sample(primary_visible_row)
             .ok()
             .map(|ctx| ctx.entry.relative_path);
-        
+
         let was_playing = self.is_playing();
         let was_looping = self.ui.waveform.loop_enabled;
         let playhead_position = self.ui.waveform.playhead.position;
-        let primary_is_loaded = self.sample_view.wav.loaded_audio.as_ref().is_some_and(|audio| {
-            primary_path.as_ref().is_some_and(|path| audio.relative_path == *path)
-        });
+        let primary_is_loaded = self
+            .sample_view
+            .wav
+            .loaded_audio
+            .as_ref()
+            .is_some_and(|audio| {
+                primary_path
+                    .as_ref()
+                    .is_some_and(|path| audio.relative_path == *path)
+            });
 
         let mut primary_new = None;
         let mut primary_source = None;
@@ -262,12 +279,14 @@ impl BrowserActions for BrowserController<'_> {
                     } else {
                         None
                     };
-                    self.runtime.jobs.set_pending_playback(Some(PendingPlayback {
-                        source_id: source.id,
-                        relative_path: path.clone(),
-                        looped: was_looping,
-                        start_override,
-                    }));
+                    self.runtime
+                        .jobs
+                        .set_pending_playback(Some(PendingPlayback {
+                            source_id: source.id,
+                            relative_path: path.clone(),
+                            looped: was_looping,
+                            start_override,
+                        }));
                     self.selection_state.suppress_autoplay_once = true;
                 }
             }

@@ -188,7 +188,10 @@ pub(crate) fn insert_entry(
                 entry.id,
                 entry.kind.as_str(),
                 entry.stage.as_str(),
-                entry.source_root.as_ref().map(|path| path.to_string_lossy().to_string()),
+                entry
+                    .source_root
+                    .as_ref()
+                    .map(|path| path.to_string_lossy().to_string()),
                 source_relative,
                 target_relative,
                 staged_relative,
@@ -285,9 +288,7 @@ pub(crate) fn list_entries(db: &SourceDatabase) -> Result<Vec<FileOpJournalEntry
                 },
                 None => None,
             };
-            let tag = row
-                .get::<_, Option<i64>>(9)?
-                .map(Rating::from_i64);
+            let tag = row.get::<_, Option<i64>>(9)?.map(Rating::from_i64);
             let looped = row.get::<_, Option<i64>>(10)?.map(|flag| flag != 0);
             Ok(Some(FileOpJournalEntry {
                 id: row.get(0)?,
@@ -312,9 +313,7 @@ pub(crate) fn list_entries(db: &SourceDatabase) -> Result<Vec<FileOpJournalEntry
 }
 
 /// Reconcile all pending file ops against the filesystem and database.
-pub(crate) fn reconcile_pending_ops(
-    db: &SourceDatabase,
-) -> Result<FileOpReconcileSummary, String> {
+pub(crate) fn reconcile_pending_ops(db: &SourceDatabase) -> Result<FileOpReconcileSummary, String> {
     let entries = list_entries(db).map_err(|err| err.to_string())?;
     let mut summary = FileOpReconcileSummary {
         total: entries.len(),
@@ -325,9 +324,10 @@ pub(crate) fn reconcile_pending_ops(
         match reconcile_entry(db, &entry) {
             Ok(()) => {
                 if let Err(err) = remove_entry(db, &entry.id) {
-                    summary
-                        .errors
-                        .push(format!("Failed to remove journal entry {}: {err}", entry.id));
+                    summary.errors.push(format!(
+                        "Failed to remove journal entry {}: {err}",
+                        entry.id
+                    ));
                 } else {
                     summary.completed += 1;
                 }
@@ -345,9 +345,7 @@ fn reconcile_entry(db: &SourceDatabase, entry: &FileOpJournalEntry) -> Result<()
         .staged_relative
         .as_ref()
         .map(|path| target_root.join(path));
-    let staged_exists = staged_absolute
-        .as_ref()
-        .is_some_and(|path| path.is_file());
+    let staged_exists = staged_absolute.as_ref().is_some_and(|path| path.is_file());
     let target_exists = target_absolute.is_file();
     if staged_exists {
         if !target_exists {
@@ -494,7 +492,14 @@ mod tests {
 
         let staged_absolute = target_root.join(&staged_relative);
         std::fs::rename(&source_absolute, &staged_absolute).unwrap();
-        update_stage(&target_db, &entry.id, FileOpStage::Staged, Some(16), Some(1)).unwrap();
+        update_stage(
+            &target_db,
+            &entry.id,
+            FileOpStage::Staged,
+            Some(16),
+            Some(1),
+        )
+        .unwrap();
 
         let summary = reconcile_pending_ops(&target_db).unwrap();
         assert_eq!(summary.completed, 1);
@@ -561,10 +566,7 @@ mod tests {
             db.tag_for_path(&target_relative).unwrap(),
             Some(Rating::KEEP_1)
         );
-        assert_eq!(
-            db.looped_for_path(&target_relative).unwrap(),
-            Some(true)
-        );
+        assert_eq!(db.looped_for_path(&target_relative).unwrap(), Some(true));
         assert_eq!(
             db.last_played_at_for_path(&target_relative).unwrap(),
             Some(123)
@@ -593,7 +595,14 @@ mod tests {
 
         let staged_absolute = target_root.join(&staged_relative);
         std::fs::copy(&source_path, &staged_absolute).unwrap();
-        update_stage(&target_db, &entry.id, FileOpStage::Staged, Some(16), Some(1)).unwrap();
+        update_stage(
+            &target_db,
+            &entry.id,
+            FileOpStage::Staged,
+            Some(16),
+            Some(1),
+        )
+        .unwrap();
 
         let summary = reconcile_pending_ops(&target_db).unwrap();
         assert_eq!(summary.completed, 1);

@@ -3,10 +3,10 @@ use std::path::{Path, PathBuf};
 use crate::app_dirs;
 
 use super::super::config_types::{AppConfig, AppSettings, ConfigError};
-use crate::sample_sources::library::LibraryState;
 use super::LEGACY_CONFIG_FILE_NAME;
 use super::map_app_dir_error;
 use super::save::save_settings_to_path;
+use crate::sample_sources::library::LibraryState;
 
 pub(super) fn legacy_config_path() -> Result<PathBuf, ConfigError> {
     let dir = app_dirs::app_root_dir().map_err(map_app_dir_error)?;

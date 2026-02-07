@@ -43,7 +43,7 @@ impl EguiController {
             super::ui::interaction_options::clamp_anti_clip_fade_ms(
                 self.settings.controls.anti_clip_fade_ms,
             );
-        self.ui.controls = crate::egui_app::state::InteractionOptionsState {
+        self.ui.controls = crate::app::state::InteractionOptionsState {
             invert_waveform_scroll: self.settings.controls.invert_waveform_scroll,
             waveform_scroll_speed: self.settings.controls.waveform_scroll_speed,
             wheel_zoom_factor: self.settings.controls.wheel_zoom_factor,

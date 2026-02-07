@@ -1,5 +1,5 @@
 use super::db;
-use crate::egui_app::controller::library::analysis_jobs;
+use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::{SampleSource, SourceId};
 
 pub(crate) trait SimilarityPrepStore {

@@ -13,7 +13,10 @@ pub(super) fn clamp_analysis_worker_count(value: u32) -> u32 {
 }
 
 pub(super) fn clamp_job_message_queue_capacity(value: u32) -> u32 {
-    value.clamp(MIN_JOB_MESSAGE_QUEUE_CAPACITY, MAX_JOB_MESSAGE_QUEUE_CAPACITY)
+    value.clamp(
+        MIN_JOB_MESSAGE_QUEUE_CAPACITY,
+        MAX_JOB_MESSAGE_QUEUE_CAPACITY,
+    )
 }
 
 pub(super) fn default_true() -> bool {

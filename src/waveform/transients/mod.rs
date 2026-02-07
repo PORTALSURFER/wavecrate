@@ -5,7 +5,7 @@ mod stats;
 use super::DecodedWaveform;
 use odf::{analysis_params, mono_samples, spectral_flux_superflux};
 use peaks::{
-    SensitivityParams, compute_baselines, percentile, pick_peaks_hysteresis, smooth_values,
+    compute_baselines, percentile, pick_peaks_hysteresis, smooth_values, SensitivityParams,
 };
 use tracing::info;
 

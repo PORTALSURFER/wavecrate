@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::state::FolderActionPrompt;
+use crate::app::state::FolderActionPrompt;
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::path::Path;
 
@@ -24,7 +24,9 @@ impl EguiController {
             );
             return;
         }
-        if let Err(err) = crate::egui_app::controller::ui::os_explorer::open_folder_in_file_explorer(&absolute) {
+        if let Err(err) =
+            crate::app::controller::ui::os_explorer::open_folder_in_file_explorer(&absolute)
+        {
             self.set_status(err, StatusTone::Error);
         }
     }

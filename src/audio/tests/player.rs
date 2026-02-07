@@ -1,6 +1,6 @@
 use super::super::AudioPlayer;
 use super::support::{fixtures, silent_wav_bytes, test_player};
-use crate::audio::output::{open_output_stream, AudioOutputConfig};
+use crate::audio::output::{AudioOutputConfig, open_output_stream};
 use std::{
     sync::Arc,
     time::{Duration, Instant},

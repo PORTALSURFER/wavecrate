@@ -354,8 +354,8 @@ fn now_epoch_seconds() -> i64 {
 mod tests {
     use super::*;
     use crate::analysis::vector::encode_f32_le_blob;
-    use crate::egui_app::controller::test_support::dummy_controller;
-    use crate::egui_app::state::VisibleRows;
+    use crate::app::controller::test_support::dummy_controller;
+    use crate::app::state::VisibleRows;
     use rusqlite::Connection;
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -417,10 +417,8 @@ mod tests {
     fn duplicate_filter_skips_silent_rms_candidates() {
         let conn = in_memory_conn();
         let source_id = SourceId::from_string("source-a");
-        let silent_id = super::analysis_jobs::build_sample_id(
-            source_id.as_str(),
-            Path::new("silent.wav"),
-        );
+        let silent_id =
+            super::analysis_jobs::build_sample_id(source_id.as_str(), Path::new("silent.wav"));
         let loud_id =
             super::analysis_jobs::build_sample_id(source_id.as_str(), Path::new("loud.wav"));
         insert_rms(&conn, &silent_id, DUPLICATE_RMS_MIN * 0.5);
@@ -451,10 +449,8 @@ mod tests {
         let other_source = SourceId::from_string("source-b");
         let own_id =
             super::analysis_jobs::build_sample_id(source_id.as_str(), Path::new("keep.wav"));
-        let other_id = super::analysis_jobs::build_sample_id(
-            other_source.as_str(),
-            Path::new("skip.wav"),
-        );
+        let other_id =
+            super::analysis_jobs::build_sample_id(other_source.as_str(), Path::new("skip.wav"));
         insert_rms(&conn, &own_id, DUPLICATE_RMS_MIN * 10.0);
         insert_rms(&conn, &other_id, DUPLICATE_RMS_MIN * 10.0);
         let ranked = vec![
@@ -510,10 +506,8 @@ mod tests {
     fn filter_ranked_candidates_skips_unresolved_paths() {
         let conn = in_memory_conn();
         let source_id = SourceId::from_string("source-a");
-        let sample_id = super::analysis_jobs::build_sample_id(
-            source_id.as_str(),
-            Path::new("missing.wav"),
-        );
+        let sample_id =
+            super::analysis_jobs::build_sample_id(source_id.as_str(), Path::new("missing.wav"));
         let ranked = vec![(sample_id, DUPLICATE_SCORE_THRESHOLD + 0.01)];
         let (indices, scores) =
             filter_ranked_candidates(&conn, ranked, &source_id, None, |_| None).unwrap();

@@ -77,22 +77,22 @@ to `radiant` (`native_vello`) as the only runtime path.
   (`MAX_RENDERED_BROWSER_ROWS` 512 in host projection and higher per-tier native row caps),
   with explicit tests for tail clamping, focus preservation, and deterministic large-dataset frames.
 - Installer/updater binaries now run on the native radiant host path (`run_native_vello_app`);
-  dependency cleanup for legacy `egui_app` modules remains a follow-up task.
+  dependency cleanup for legacy `app` modules remains a follow-up task.
 - App-core native-shell projection and native bridge prompt/tab routing now consume
   migration-facing `app_core::{controller,state}` aliases instead of direct
-  `egui_app::state` paths in host integration code.
+  `app::state` paths in host integration code.
 - Native runtime-facing projection/view constants now consume migration-facing
-  `app_core::{view_model,ui}` aliases instead of direct `egui_app` module paths.
+  `app_core::{view_model,ui}` aliases instead of direct `app` module paths.
 - `app_core::view_model` now exposes a narrowed migration-facing helper surface
   (currently `sample_display_label`) instead of a blanket re-export of legacy
-  `egui_app::view_model` symbols.
+  `app::view_model` symbols.
 - `app_core::ui` now owns native viewport baseline constants directly
   (960x560 default, 640x400 minimum) so runtime entrypoints no longer depend on
-  legacy `egui_app::ui` constant definitions.
+  legacy `app::ui` constant definitions.
 - Native bridge status updates now route through `app_core::controller`
   extension helpers backed by a dedicated legacy-controller
   `set_error_status` shim, removing migration-facing `StatusTone` coupling to
-  `egui_app::ui::style` enums in `app_core`.
+  `app::ui::style` enums in `app_core`.
 - Sempal runtime options now use a sempal-owned `NativeRunOptions` surface in
   `src/gui_runtime/mod.rs` with conversion wrappers into radiant internals,
   removing legacy `EguiRunOptions` naming from sempal's public runtime API.

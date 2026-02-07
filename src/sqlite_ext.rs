@@ -19,14 +19,14 @@ use tracing::warn;
 #[cfg(windows)]
 mod windows_security {
     use std::path::Path;
-    use windows::core::PCWSTR;
     use windows::Win32::Foundation::{CloseHandle, HANDLE, HLOCAL, LocalFree};
     use windows::Win32::Security::{
         Authorization::{GetNamedSecurityInfoW, SE_FILE_OBJECT},
-        DACL_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION, PSID, PSECURITY_DESCRIPTOR,
-        EqualSid, GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER,
+        DACL_SECURITY_INFORMATION, EqualSid, GetTokenInformation, OWNER_SECURITY_INFORMATION,
+        PSECURITY_DESCRIPTOR, PSID, TOKEN_QUERY, TOKEN_USER, TokenUser,
     };
     use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+    use windows::core::PCWSTR;
 
     pub fn validate_extension_file_windows(path: &Path) -> Result<(), String> {
         use std::os::windows::ffi::OsStrExt;
@@ -86,7 +86,7 @@ mod windows_security {
             impl Drop for SdSafe {
                 fn drop(&mut self) {
                     unsafe {
-                        let _ = LocalFree(Some(HLOCAL(self.0 .0)));
+                        let _ = LocalFree(Some(HLOCAL(self.0.0)));
                     }
                 }
             }
@@ -353,12 +353,8 @@ mod tests {
         let outside = tempdir().unwrap();
         let ext_path = outside.path().join("test_ext.so");
         fs::write(&ext_path, b"not a sqlite extension").unwrap();
-        let err = resolve_extension_path(
-            ext_path.to_str().unwrap(),
-            Some(&allowlist_dir),
-            false,
-        )
-        .unwrap_err();
+        let err = resolve_extension_path(ext_path.to_str().unwrap(), Some(&allowlist_dir), false)
+            .unwrap_err();
         assert!(err.contains("SQLite extension must live under"));
     }
 
@@ -371,8 +367,7 @@ mod tests {
         let ext_path = outside.path().join("test_ext.so");
         fs::write(&ext_path, b"not a sqlite extension").unwrap();
         let resolved =
-            resolve_extension_path(ext_path.to_str().unwrap(), Some(&allowlist_dir), true)
-                .unwrap();
+            resolve_extension_path(ext_path.to_str().unwrap(), Some(&allowlist_dir), true).unwrap();
         assert_eq!(resolved, ext_path.canonicalize().unwrap());
     }
 

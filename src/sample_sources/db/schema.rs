@@ -254,7 +254,10 @@ fn ensure_wav_files_optional_columns(connection: &Connection) -> Result<(), Sour
     }
     if !columns.contains("last_played_at") {
         connection
-            .execute("ALTER TABLE wav_files ADD COLUMN last_played_at INTEGER", [])
+            .execute(
+                "ALTER TABLE wav_files ADD COLUMN last_played_at INTEGER",
+                [],
+            )
             .map_err(map_sql_error)?;
     }
     Ok(())
@@ -358,7 +361,10 @@ fn ensure_samples_optional_columns(connection: &Connection) -> Result<(), Source
     }
     if !columns.contains("long_sample_mark") {
         connection
-            .execute("ALTER TABLE samples ADD COLUMN long_sample_mark INTEGER", [])
+            .execute(
+                "ALTER TABLE samples ADD COLUMN long_sample_mark INTEGER",
+                [],
+            )
             .map_err(map_sql_error)?;
     }
     Ok(())

@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::state::{ActiveAudioInput, ActiveAudioOutput, AudioDeviceView, AudioHostView};
+use crate::app::state::{ActiveAudioInput, ActiveAudioOutput, AudioDeviceView, AudioHostView};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct NormalizedAudioOptions {

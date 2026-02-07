@@ -1,4 +1,4 @@
-use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db;
 
 use super::analysis_cache::{load_existing_embedding, lookup_cache_by_hash};
 use super::analysis_db::{

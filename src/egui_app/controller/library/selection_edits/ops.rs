@@ -1,6 +1,6 @@
 use super::FadeDirection;
-use crate::selection::FadeParams;
 use super::buffer::SelectionEditBuffer;
+use crate::selection::FadeParams;
 
 const MIN_MUTE_FADE_SECS: f32 = 0.002;
 
@@ -99,7 +99,14 @@ pub(crate) fn apply_directional_fade(
     if clamped_end <= clamped_start {
         return;
     }
-    apply_fade_ramp(samples, channels, clamped_start, clamped_end, direction, 0.5);
+    apply_fade_ramp(
+        samples,
+        channels,
+        clamped_start,
+        clamped_end,
+        direction,
+        0.5,
+    );
     match direction {
         FadeDirection::LeftToRight => {
             apply_muted_selection(samples, channels, clamped_end, total_frames);
@@ -291,7 +298,12 @@ fn apply_fade_ramp(
     }
 }
 
-pub(crate) fn fade_factor(frame_count: usize, progress: f32, direction: FadeDirection, curve: f32) -> f32 {
+pub(crate) fn fade_factor(
+    frame_count: usize,
+    progress: f32,
+    direction: FadeDirection,
+    curve: f32,
+) -> f32 {
     if frame_count == 1 {
         return 0.0;
     }
@@ -311,14 +323,14 @@ fn apply_s_curve(t: f32, curve: f32) -> f32 {
         // Linear
         return t;
     }
-    
+
     // Blend between linear and smootherstep based on curve value
     let smootherstep = {
         let t2 = t * t;
         let t3 = t2 * t;
         t3 * (t * (t * 6.0 - 15.0) + 10.0)
     };
-    
+
     // Interpolate between linear and smootherstep
     t * (1.0 - curve) + smootherstep * curve
 }

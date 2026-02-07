@@ -4,12 +4,12 @@ use rusqlite::{Connection, OpenFlags, Transaction};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+/// Persistent file operation journal for crash recovery.
+pub mod file_ops_journal;
 /// Read-only database queries for sample sources.
 pub mod read;
 /// SQLite schema management for sample source databases.
 pub mod schema;
-/// Persistent file operation journal for crash recovery.
-pub mod file_ops_journal;
 /// Write-focused database helpers for sample sources.
 pub mod write;
 
@@ -248,7 +248,7 @@ impl SourceDatabase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::{params, OptionalExtension};
+    use rusqlite::{OptionalExtension, params};
     use tempfile::tempdir;
 
     #[test]
@@ -343,7 +343,9 @@ mod tests {
     fn parent_dir_paths_are_rejected() {
         let dir = tempdir().unwrap();
         let db = SourceDatabase::open(dir.path()).unwrap();
-        let err = db.upsert_file(Path::new("../escape.wav"), 1, 1).unwrap_err();
+        let err = db
+            .upsert_file(Path::new("../escape.wav"), 1, 1)
+            .unwrap_err();
         assert!(matches!(err, SourceDbError::InvalidRelativePath(_)));
     }
 

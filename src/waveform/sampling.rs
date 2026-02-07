@@ -218,14 +218,11 @@ mod tests {
         let WaveformColumnView::SplitStereo { left, right } = columns else {
             panic!("expected split columns")
         };
-        assert!(
-            left.iter()
-                .any(|(min, max)| (*min - 0.75).abs() < 1e-6 && (*max - 0.75).abs() < 1e-6)
-        );
-        assert!(
-            right
-                .iter()
-                .any(|(min, max)| (*min + 0.5).abs() < 1e-6 && (*max + 0.5).abs() < 1e-6)
-        );
+        assert!(left
+            .iter()
+            .any(|(min, max)| (*min - 0.75).abs() < 1e-6 && (*max - 0.75).abs() < 1e-6));
+        assert!(right
+            .iter()
+            .any(|(min, max)| (*min + 0.5).abs() < 1e-6 && (*max + 0.5).abs() < 1e-6));
     }
 }

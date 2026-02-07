@@ -1,11 +1,11 @@
+use super::super::wakeup;
 use super::enqueue_embeddings::enqueue_jobs_for_embedding_backfill;
 use super::enqueue_samples::{
     enqueue_jobs_for_source, enqueue_jobs_for_source_backfill,
     enqueue_jobs_for_source_backfill_full, enqueue_jobs_for_source_missing_features,
 };
-use super::super::wakeup;
 use crate::app_dirs::ConfigBaseGuard;
-use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db;
 use crate::sample_sources::scanner::ChangedSample;
 use crate::sample_sources::{SampleSource, SourceDatabase};
 use rusqlite::{Connection, params};

@@ -35,11 +35,9 @@ static ANN_INDEX: LazyLock<RwLock<HashMap<String, Arc<RwLock<state::AnnIndexStat
 
 /// Get the index state wrapper, loading it if necessary.
 /// This minimizes the time the global lock is held.
-fn get_index_entry(
-    conn: &Connection,
-) -> Result<Arc<RwLock<state::AnnIndexState>>, String> {
+fn get_index_entry(conn: &Connection) -> Result<Arc<RwLock<state::AnnIndexState>>, String> {
     let key = storage::index_key(conn)?;
-    
+
     // Fast path: check with read lock
     {
         let guard = ANN_INDEX.read().map_err(|_| "ANN index lock poisoned")?;
@@ -60,7 +58,7 @@ fn get_index_entry(
     if let Some(state) = guard.get(&key) {
         return Ok(state.clone());
     }
-    
+
     guard.insert(key, loaded_state.clone());
     Ok(loaded_state)
 }
@@ -70,7 +68,9 @@ fn with_index_state_mut<R>(
     f: impl FnOnce(&mut state::AnnIndexState) -> Result<R, String>,
 ) -> Result<R, String> {
     let state_arc = get_index_entry(conn)?;
-    let mut guard = state_arc.write().map_err(|_| "ANN index state lock poisoned")?;
+    let mut guard = state_arc
+        .write()
+        .map_err(|_| "ANN index state lock poisoned")?;
     f(&mut guard)
 }
 
@@ -79,7 +79,9 @@ fn with_index_state_read<R>(
     f: impl FnOnce(&state::AnnIndexState) -> Result<R, String>,
 ) -> Result<R, String> {
     let state_arc = get_index_entry(conn)?;
-    let guard = state_arc.read().map_err(|_| "ANN index state lock poisoned")?;
+    let guard = state_arc
+        .read()
+        .map_err(|_| "ANN index state lock poisoned")?;
     f(&guard)
 }
 
@@ -127,8 +129,10 @@ pub fn find_similar(
     // Optimistic read
     {
         let state_arc = get_index_entry(conn)?;
-        let state = state_arc.read().map_err(|_| "ANN index state lock poisoned")?;
-        
+        let state = state_arc
+            .read()
+            .map_err(|_| "ANN index state lock poisoned")?;
+
         // If the ID is already known, we can search with just the read lock
         if state.id_lookup.contains_key(sample_id) {
             let results = perform_search(&state, &embedding, k, Some(sample_id))?;
@@ -142,7 +146,7 @@ pub fn find_similar(
     // Write path: update index with missing ID then search
     with_index_state_mut(conn, |state| {
         if !state.id_lookup.contains_key(sample_id) {
-             update::upsert_embedding(conn, state, sample_id, embedding.as_slice())?;
+            update::upsert_embedding(conn, state, sample_id, embedding.as_slice())?;
         }
         let results = perform_search(state, &embedding, k, Some(sample_id))?;
         if results.len() >= k {
@@ -169,7 +173,7 @@ pub fn find_similar_for_embedding(
         ));
     }
     with_index_state_read(conn, |state| {
-         if state.id_map.is_empty() {
+        if state.id_map.is_empty() {
             return Err("ANN index has no embeddings".to_string());
         }
         let results = perform_search(state, embedding, k, None)?;
@@ -244,7 +248,10 @@ fn fallback_neighbors(
             continue;
         }
         let distance = cosine_distance(embedding, &candidate);
-        scored.push(SimilarNeighbor { sample_id, distance });
+        scored.push(SimilarNeighbor {
+            sample_id,
+            distance,
+        });
     }
     scored.sort_by(|a, b| {
         a.distance
@@ -271,7 +278,7 @@ pub fn rebuild_index(conn: &Connection) -> Result<(), String> {
     let mut state = build::build_index_from_db(conn, params, index_path)?;
     update::flush_index(conn, &mut state)?;
     let key = storage::index_key(conn)?;
-    
+
     let wrapped_state = Arc::new(RwLock::new(state));
     let mut guard = ANN_INDEX
         .write()

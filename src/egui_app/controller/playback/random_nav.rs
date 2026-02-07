@@ -89,10 +89,7 @@ fn play_random_visible_sample_internal<R: Rng + ?Sized>(
         let Some(idx) = controller.visible_browser_index(row) else {
             continue;
         };
-        let Some(path) = controller
-            .wav_entry(idx)
-            .map(|e| e.relative_path.clone())
-        else {
+        let Some(path) = controller.wav_entry(idx).map(|e| e.relative_path.clone()) else {
             continue;
         };
         if !controller
@@ -105,7 +102,10 @@ fn play_random_visible_sample_internal<R: Rng + ?Sized>(
     }
 
     if available_indices.is_empty() {
-        controller.history.random_history.reset_played_for_source(&source_id);
+        controller
+            .history
+            .random_history
+            .reset_played_for_source(&source_id);
         available_indices = (0..total).collect();
     }
 
@@ -124,7 +124,10 @@ fn play_random_visible_sample_internal<R: Rng + ?Sized>(
         return;
     };
 
-    controller.history.random_history.mark_played(&source_id, &path);
+    controller
+        .history
+        .random_history
+        .mark_played(&source_id, &path);
     push_random_history(controller, source_id, path.clone());
     controller.focus_browser_row_only(visible_row);
     if start_playback

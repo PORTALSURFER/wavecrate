@@ -1,5 +1,5 @@
-use crate::egui_app::controller::library::wav_io::read_samples_for_normalization;
 use super::super::*;
+use crate::app::controller::library::wav_io::read_samples_for_normalization;
 use std::path::{Path, PathBuf};
 
 pub(crate) struct SelectionTarget {

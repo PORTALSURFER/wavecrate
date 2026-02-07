@@ -33,7 +33,6 @@ pub(crate) fn rename_target(target: &Path, new_name: &str) -> Result<PathBuf, St
     Ok(folder_with_name(target, &name))
 }
 
-
 pub(crate) fn normalize_folder_hotkey(hotkey: Option<u8>) -> Result<Option<u8>, String> {
     match hotkey {
         None => Ok(None),

@@ -169,7 +169,10 @@ mod tests {
         let release = nightly_release(Some("not-a-date"));
         let last_seen = Some("2024-01-01T00:00:00Z".to_string());
         let outcome = nightly_outcome(&last_seen, release).expect("nightly outcome");
-        assert!(matches!(outcome, UpdateCheckOutcome::UpdateAvailable { .. }));
+        assert!(matches!(
+            outcome,
+            UpdateCheckOutcome::UpdateAvailable { .. }
+        ));
     }
 
     #[test]
@@ -177,6 +180,9 @@ mod tests {
         let release = nightly_release(Some("2024-01-01T00:00:00Z"));
         let last_seen = Some("not-a-date".to_string());
         let outcome = nightly_outcome(&last_seen, release).expect("nightly outcome");
-        assert!(matches!(outcome, UpdateCheckOutcome::UpdateAvailable { .. }));
+        assert!(matches!(
+            outcome,
+            UpdateCheckOutcome::UpdateAvailable { .. }
+        ));
     }
 }

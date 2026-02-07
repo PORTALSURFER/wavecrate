@@ -1,5 +1,5 @@
 use super::*;
-pub(crate) use super::{EguiController, StatusTone, BPM_MIN_SELECTION_DIVISOR};
+pub(crate) use super::{BPM_MIN_SELECTION_DIVISOR, EguiController, StatusTone};
 pub(crate) use crate::sample_sources::*;
 pub(crate) use crate::selection::SelectionRange;
 
@@ -52,7 +52,6 @@ fn selection_meets_bpm_min(controller: &EguiController, range: SelectionRange) -
     let epsilon = min_seconds * 1.0e-3;
     selection_seconds + epsilon >= min_seconds
 }
-
 
 pub(crate) fn bpm_min_selection_seconds(controller: &EguiController) -> Option<f32> {
     if !controller.ui.waveform.bpm_snap_enabled {
@@ -308,17 +307,11 @@ impl EguiController {
         player::hide_waveform_playhead_for_tests(self);
     }
 
-    pub(crate) fn apply_selection(
-        &mut self,
-        range: Option<SelectionRange>,
-    ) {
+    pub(crate) fn apply_selection(&mut self, range: Option<SelectionRange>) {
         player::apply_selection(self, range);
     }
 
-    pub(crate) fn apply_edit_selection(
-        &mut self,
-        range: Option<SelectionRange>,
-    ) {
+    pub(crate) fn apply_edit_selection(&mut self, range: Option<SelectionRange>) {
         player::apply_edit_selection(self, range);
     }
 
@@ -336,9 +329,7 @@ impl EguiController {
         player::apply_volume(self, volume);
     }
 
-    pub(crate) fn ensure_player(
-        &mut self,
-    ) -> Result<Option<Rc<RefCell<AudioPlayer>>>, String> {
+    pub(crate) fn ensure_player(&mut self) -> Result<Option<Rc<RefCell<AudioPlayer>>>, String> {
         player::ensure_player(self)
     }
 
@@ -410,7 +401,7 @@ impl EguiController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::egui_app::controller::test_support;
+    use crate::app::controller::test_support;
     use std::path::PathBuf;
 
     #[test]

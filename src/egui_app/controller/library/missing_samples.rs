@@ -25,10 +25,7 @@ impl EguiController {
         }
     }
 
-    pub(crate) fn rebuild_missing_lookup_for_source(
-        &mut self,
-        source_id: &SourceId,
-    ) {
+    pub(crate) fn rebuild_missing_lookup_for_source(&mut self, source_id: &SourceId) {
         let mut missing = HashSet::new();
         if let Some(cache) = self.cache.wav.entries.get(source_id) {
             for page in cache.pages.values() {
@@ -50,11 +47,7 @@ impl EguiController {
         self.library.missing.wavs.insert(source_id.clone(), missing);
     }
 
-    pub(crate) fn mark_sample_missing(
-        &mut self,
-        source: &SampleSource,
-        relative_path: &Path,
-    ) {
+    pub(crate) fn mark_sample_missing(&mut self, source: &SampleSource, relative_path: &Path) {
         match self.database_for(source) {
             Ok(db) => {
                 let _ = db.set_missing(relative_path, true);
@@ -92,11 +85,7 @@ impl EguiController {
 
     /// Check whether a sample is considered missing (tests only).
     #[cfg(test)]
-    pub(crate) fn sample_missing(
-        &mut self,
-        source_id: &SourceId,
-        relative_path: &Path,
-    ) -> bool {
+    pub(crate) fn sample_missing(&mut self, source_id: &SourceId, relative_path: &Path) -> bool {
         if self.library.missing.sources.contains(source_id) {
             return true;
         }
@@ -165,10 +154,7 @@ impl EguiController {
         Ok(())
     }
 
-    pub(crate) fn show_missing_waveform_notice(
-        &mut self,
-        relative_path: &Path,
-    ) {
+    pub(crate) fn show_missing_waveform_notice(&mut self, relative_path: &Path) {
         let message = format!("File missing: {}", relative_path.display());
         self.clear_waveform_view();
         self.ui.waveform.notice = Some(message);

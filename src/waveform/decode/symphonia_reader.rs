@@ -1,11 +1,11 @@
 use super::normalize::clamp_sample;
 use super::peaks;
-use crate::waveform::{DecodedWaveform, WaveformDecodeError, WaveformPeaks, WaveformRenderer};
 use crate::audio::decoder::SymphoniaDecoder;
 use crate::audio::Source;
-use std::sync::Arc;
+use crate::waveform::{DecodedWaveform, WaveformDecodeError, WaveformPeaks, WaveformRenderer};
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 #[cfg(test)]
 static SYMPHONIA_DECODE_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -21,14 +21,15 @@ impl WaveformRenderer {
         SYMPHONIA_DECODE_COUNT.fetch_add(1, Ordering::Relaxed);
 
         let owned: Arc<[u8]> = Arc::from(bytes.to_vec());
-        let decoder = SymphoniaDecoder::from_bytes(owned)
-            .map_err(|error| WaveformDecodeError::Invalid {
+        let decoder =
+            SymphoniaDecoder::from_bytes(owned).map_err(|error| WaveformDecodeError::Invalid {
                 message: error.to_string(),
             })?;
 
         let sample_rate = decoder.sample_rate().max(1);
         let channels = decoder.channels().max(1);
-        let duration_seconds = decoder.total_duration()
+        let duration_seconds = decoder
+            .total_duration()
             .map(|duration| duration.as_secs_f32());
         let frames_estimate = duration_seconds
             .map(|secs| (secs * sample_rate as f32).round().max(0.0) as usize)
@@ -122,8 +123,9 @@ impl WaveformRenderer {
                     if analysis_count > 0 {
                         analysis_samples.push(analysis_sum / analysis_count as f32);
                     }
-                    let analysis_sample_rate =
-                        ((sample_rate as f32) / analysis_stride as f32).round().max(1.0) as u32;
+                    let analysis_sample_rate = ((sample_rate as f32) / analysis_stride as f32)
+                        .round()
+                        .max(1.0) as u32;
                     return Ok(DecodedWaveform {
                         cache_token,
                         samples: Arc::from(Vec::new()),

@@ -1,6 +1,6 @@
 use super::super::test_support::{dummy_controller, write_test_wav};
 use super::super::*;
-use crate::egui_app::controller::library::analysis_jobs;
+use crate::app::controller::library::analysis_jobs;
 use crate::selection::SelectionRange;
 use rusqlite::params;
 use std::path::{Path, PathBuf};

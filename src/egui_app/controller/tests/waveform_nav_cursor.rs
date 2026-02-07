@@ -1,6 +1,6 @@
 use super::super::test_support::{dummy_controller, sample_entry, write_test_wav};
 use super::common::prepare_browser_sample;
-use crate::egui_app::state::FocusContext;
+use crate::app::state::FocusContext;
 use crate::waveform::DecodedWaveform;
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -23,7 +23,9 @@ fn batched_zoom_matches_sequential_steps() {
 
     batched.zoom_waveform_steps(true, 3, None);
     for _ in 0..3 {
-        stepped.waveform().zoom_waveform_steps_with_factor(true, 1, None, None, false, false);
+        stepped
+            .waveform()
+            .zoom_waveform_steps_with_factor(true, 1, None, None, false, false);
     }
 
     let view_a = batched.ui.waveform.view;

@@ -33,7 +33,7 @@ pub(super) fn handle_focus_request(
     app: &mut EguiApp,
     model_id: &str,
     umap_version: &str,
-    _bounds: crate::egui_app::state::MapBounds,
+    _bounds: crate::app::state::MapBounds,
     center: egui::Pos2,
     scale: f32,
 ) {
@@ -95,7 +95,7 @@ pub(super) fn resolve_hover(
     scale: f32,
     pan: egui::Vec2,
     pointer: Option<egui::Pos2>,
-) -> Option<(crate::egui_app::state::MapPoint, egui::Pos2)> {
+) -> Option<(crate::app::state::MapPoint, egui::Pos2)> {
     let display_points = &app.controller.ui.map.cached_filtered_points;
     let hovered =
         map_interactions::find_hover_point(display_points, rect, center, scale, pan, pointer);
@@ -110,7 +110,7 @@ pub(super) fn resolve_hover(
 pub(super) fn handle_paint_hover(
     app: &mut EguiApp,
     ui: &egui::Ui,
-    hovered: Option<&(crate::egui_app::state::MapPoint, egui::Pos2)>,
+    hovered: Option<&(crate::app::state::MapPoint, egui::Pos2)>,
 ) {
     let Some((point, _)) = hovered else {
         return;
@@ -138,7 +138,7 @@ pub(super) fn handle_paint_hover(
 
 pub(super) fn handle_click(
     app: &mut EguiApp,
-    hovered: Option<&(crate::egui_app::state::MapPoint, egui::Pos2)>,
+    hovered: Option<&(crate::app::state::MapPoint, egui::Pos2)>,
 ) {
     if let Some((point, _)) = hovered {
         app.controller.ui.map.selected_sample_id = Some(point.sample_id.clone());

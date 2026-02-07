@@ -1,8 +1,8 @@
 use super::style;
-use crate::sample_sources::is_supported_audio;
-use eframe::egui::{self, Align2, Color32, PopupAnchor, TextStyle, Tooltip, Ui};
 use crate::sample_sources::Rating;
 use crate::sample_sources::config::TooltipMode;
+use crate::sample_sources::is_supported_audio;
+use eframe::egui::{self, Align2, Color32, PopupAnchor, TextStyle, Tooltip, Ui};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -135,7 +135,9 @@ pub(super) fn flash_alpha(
     let progress = (elapsed.as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0);
     let remaining = 1.0 - progress;
     let eased = remaining * remaining;
-    let alpha = (max_alpha as f32 * eased).round().clamp(0.0, max_alpha as f32) as u8;
+    let alpha = (max_alpha as f32 * eased)
+        .round()
+        .clamp(0.0, max_alpha as f32) as u8;
     Some(alpha)
 }
 
@@ -541,9 +543,11 @@ pub(super) fn render_inline_text_edit(
     }
     if select_all {
         let mut state = edit_output.state;
-        state.cursor.set_char_range(Some(egui::text::CCursorRange::select_all(
-            &edit_output.galley,
-        )));
+        state
+            .cursor
+            .set_char_range(Some(egui::text::CCursorRange::select_all(
+                &edit_output.galley,
+            )));
         state.store(ui.ctx(), response.id);
     }
     let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter));

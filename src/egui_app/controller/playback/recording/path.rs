@@ -59,7 +59,7 @@ pub(crate) fn register_recording_in_browser(
 ) -> Result<(), String> {
     let (source, relative_path) = resolve_recording_target(controller, target, recording_path)?;
     let (file_size, modified_ns) =
-        crate::egui_app::controller::library::wav_io::file_metadata(recording_path)?;
+        crate::app::controller::library::wav_io::file_metadata(recording_path)?;
     let db = controller
         .database_for(&source)
         .map_err(|err| format!("Database unavailable: {err}"))?;
@@ -165,7 +165,7 @@ fn source_by_id(controller: &EguiController, source_id: &SourceId) -> Option<Sam
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::egui_app::controller::test_support::dummy_controller;
+    use crate::app::controller::test_support::dummy_controller;
     use tempfile::tempdir;
 
     #[test]

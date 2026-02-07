@@ -164,7 +164,6 @@ pub struct FeatureFlags {
     pub autoplay_selection: bool,
 }
 
-
 impl Default for FeatureFlags {
     fn default() -> Self {
         Self {

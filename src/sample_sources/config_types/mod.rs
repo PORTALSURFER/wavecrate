@@ -6,9 +6,7 @@ mod updates;
 
 pub use analysis::AnalysisSettings;
 pub(crate) use app::AppSettings;
-pub use app::{
-    AppConfig, AppSettingsCore, DropTargetColor, DropTargetConfig, FeatureFlags,
-};
+pub use app::{AppConfig, AppSettingsCore, DropTargetColor, DropTargetConfig, FeatureFlags};
 pub use errors::ConfigError;
 pub use interaction::{InteractionOptions, TooltipMode};
 pub use updates::{UpdateChannel, UpdateSettings};

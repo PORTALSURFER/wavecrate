@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::state::{DragSource, WaveformView};
+use crate::app::state::{DragSource, WaveformView};
 use crate::selection::{SelectionEdge, SelectionRange};
 use eframe::egui::{self, CursorIcon};
 
@@ -196,10 +196,12 @@ pub(super) fn handle_edit_selection_gain_drag(
         }
     } else if response.dragged_by(egui::PointerButton::Primary) {
         if let Some(pos) = response.interact_pointer_pos() {
-            let drag = app.edit_selection_gain_drag.get_or_insert(super::EditSelectionGainDrag {
-                anchor_y: pos.y,
-                gain: selection.gain(),
-            });
+            let drag = app
+                .edit_selection_gain_drag
+                .get_or_insert(super::EditSelectionGainDrag {
+                    anchor_y: pos.y,
+                    gain: selection.gain(),
+                });
             let delta_y = pos.y - drag.anchor_y;
             let gain_delta = -delta_y / 100.0;
             let new_gain = drag.gain + gain_delta;
@@ -327,7 +329,7 @@ pub(super) fn handle_edit_fade_handle_drag(
         let normalized = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0) as f64;
         (view.start + view_width.max(1e-9) * normalized).clamp(0.0, 1.0) as f32
     };
-    
+
     // Handle fade-in mute drag (extend mute region inward)
     if fade_in_mute_response.double_clicked() {
         if let Some(fade_in) = selection.fade_in() {
@@ -345,8 +347,7 @@ pub(super) fn handle_edit_fade_handle_drag(
             }
             if new_width > 0.0 {
                 let new_fade_len = ((fade_end - new_start) / new_width).clamp(0.0, 1.0);
-                let new_mute_len = ((mute_end - new_start) / new_width)
-                    .clamp(0.0, new_fade_len);
+                let new_mute_len = ((mute_end - new_start) / new_width).clamp(0.0, new_fade_len);
                 new_selection = new_selection
                     .with_fade_in(new_fade_len, fade_in.curve)
                     .with_fade_in_mute(new_mute_len);
@@ -424,13 +425,12 @@ pub(super) fn handle_edit_fade_handle_drag(
                     } else {
                         0.0
                     };
-                    let new_fade_out_mute = if selection.fade_out_mute_length() > 0.0
-                        && new_width > 0.0
-                    {
-                        ((fade_out_mute_edge - selection.end()) / new_width).max(0.0)
-                    } else {
-                        0.0
-                    };
+                    let new_fade_out_mute =
+                        if selection.fade_out_mute_length() > 0.0 && new_width > 0.0 {
+                            ((fade_out_mute_edge - selection.end()) / new_width).max(0.0)
+                        } else {
+                            0.0
+                        };
                     new_selection = new_selection
                         .with_fade_out(new_fade_out, fade_out.curve)
                         .with_fade_out_mute(new_fade_out_mute);
@@ -519,8 +519,7 @@ pub(super) fn handle_edit_fade_handle_drag(
             }
             if new_width > 0.0 {
                 let new_fade_len = ((new_end - fade_start) / new_width).clamp(0.0, 1.0);
-                let new_mute_len = ((new_end - mute_start) / new_width)
-                    .clamp(0.0, new_fade_len);
+                let new_mute_len = ((new_end - mute_start) / new_width).clamp(0.0, new_fade_len);
                 new_selection = new_selection
                     .with_fade_out(new_fade_len, fade_out.curve)
                     .with_fade_out_mute(new_mute_len);
@@ -598,13 +597,12 @@ pub(super) fn handle_edit_fade_handle_drag(
                     } else {
                         0.0
                     };
-                    let new_fade_in_mute = if selection.fade_in_mute_length() > 0.0
-                        && new_width > 0.0
-                    {
-                        ((selection.start() - fade_in_mute_edge) / new_width).max(0.0)
-                    } else {
-                        0.0
-                    };
+                    let new_fade_in_mute =
+                        if selection.fade_in_mute_length() > 0.0 && new_width > 0.0 {
+                            ((selection.start() - fade_in_mute_edge) / new_width).max(0.0)
+                        } else {
+                            0.0
+                        };
                     new_selection = new_selection
                         .with_fade_in(new_fade_in, fade_in.curve)
                         .with_fade_in_mute(new_fade_in_mute);
@@ -676,8 +674,6 @@ pub(super) fn handle_edit_fade_handle_drag(
         }
     }
 }
-
-
 
 pub(super) fn sync_selection_edge_drag_release(app: &mut EguiApp, ctx: &egui::Context) {
     if !ctx.input(|i| i.pointer.primary_down()) {

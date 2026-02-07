@@ -8,7 +8,7 @@ impl EguiController {
         self.ui.feedback_issue.last_success_url = None;
         self.ui.feedback_issue.token_autofill_last = None;
         self.ui.feedback_issue.connecting = false;
-        self.ui.feedback_issue.token_status = crate::egui_app::state::IssueTokenStatus::Unknown;
+        self.ui.feedback_issue.token_status = crate::app::state::IssueTokenStatus::Unknown;
         self.ui.feedback_issue.token_cached = None;
         self.start_issue_token_load();
     }
@@ -33,11 +33,15 @@ impl EguiController {
         self.ui.feedback_issue.connecting = true;
         self.ui.feedback_issue.last_error = None;
         self.set_status("Opening GitHub auth page…", StatusTone::Info);
-        
+
         // Generate a random request ID for automatic polling
         let request_id = format!("req_{}", uuid::Uuid::new_v4());
-        let auth_url = format!("{}?requestId={}", crate::issue_gateway::api::AUTH_START_URL, request_id);
-        
+        let auth_url = format!(
+            "{}?requestId={}",
+            crate::issue_gateway::api::AUTH_START_URL,
+            request_id
+        );
+
         if let Err(err) = open::that(&auth_url) {
             self.ui.feedback_issue.last_error = Some(format!(
                 "Failed to open auth URL. Open it manually and paste the token: {} ({err})",
@@ -49,9 +53,9 @@ impl EguiController {
             self.ui.feedback_issue.focus_token_requested = true;
         } else {
             // Start polling in the background
-            self.runtime.jobs.begin_issue_gateway_poll(super::jobs::IssueGatewayPollJob {
-                request_id,
-            });
+            self.runtime
+                .jobs
+                .begin_issue_gateway_poll(super::jobs::IssueGatewayPollJob { request_id });
         }
     }
 
@@ -87,8 +91,7 @@ impl EguiController {
                     self.ui.feedback_issue.last_error =
                         Some("GitHub token is still loading. Try again.".to_string());
                 } else {
-                    self.ui.feedback_issue.last_error =
-                        Some("Connect GitHub first.".to_string());
+                    self.ui.feedback_issue.last_error = Some("Connect GitHub first.".to_string());
                     self.ui.feedback_issue.token_modal_open = true;
                     self.ui.feedback_issue.focus_token_requested = true;
                 }
@@ -177,10 +180,12 @@ impl EguiController {
         }
         self.ui.feedback_issue.last_error = None;
         self.ui.feedback_issue.token_saving = true;
-        self.runtime.jobs.begin_issue_token_save(super::jobs::IssueTokenSaveJob {
-            token: token.to_string(),
-            reopen_modal,
-        });
+        self.runtime
+            .jobs
+            .begin_issue_token_save(super::jobs::IssueTokenSaveJob {
+                token: token.to_string(),
+                reopen_modal,
+            });
         true
     }
 

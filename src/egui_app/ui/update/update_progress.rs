@@ -1,9 +1,9 @@
 use eframe::egui;
 use winit::window::Window;
 
-use super::super::EguiApp;
 #[cfg(target_os = "windows")]
 use super::super::platform;
+use super::super::EguiApp;
 
 impl EguiApp {
     pub(super) fn prepare_frame(&mut self, ctx: &egui::Context, window: &Window) {

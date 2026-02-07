@@ -1,12 +1,10 @@
 use super::state;
 use super::store::{DbSimilarityPrepStore, SimilarityPrepStore};
-use crate::egui_app::controller::{
-    EguiController, library::analysis_jobs, jobs,
-};
+use crate::app::controller::{EguiController, jobs, library::analysis_jobs};
+use crate::app::state::ProgressTaskKind;
+use crate::sample_sources::SourceId;
 use state::SimilarityPrepStage;
 use state::SimilarityPrepState;
-use crate::egui_app::state::ProgressTaskKind;
-use crate::sample_sources::SourceId;
 
 fn clear_similarity_prep_state(state: &mut Option<SimilarityPrepState>) -> bool {
     if state.is_some() {
@@ -78,10 +76,7 @@ impl EguiController {
         self.start_similarity_finalize(source_id, umap_version);
     }
 
-    pub(crate) fn handle_similarity_prep_result(
-        &mut self,
-        result: jobs::SimilarityPrepResult,
-    ) {
+    pub(crate) fn handle_similarity_prep_result(&mut self, result: jobs::SimilarityPrepResult) {
         let state = self.runtime.similarity_prep.take();
         if state.as_ref().map(|s| &s.source_id) != Some(&result.source_id) {
             return;

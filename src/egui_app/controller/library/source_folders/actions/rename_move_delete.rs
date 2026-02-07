@@ -1,6 +1,6 @@
+use super::super::delete_recovery;
 use super::ops;
 use super::*;
-use super::super::delete_recovery;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -67,8 +67,7 @@ impl EguiController {
         }
         let entries = self.folder_entries(target);
         let staging_root = source.root.join(delete_recovery::DELETE_STAGING_DIR);
-        let staged =
-            delete_recovery::stage_folder_for_delete(&absolute, &staging_root, target)?;
+        let staged = delete_recovery::stage_folder_for_delete(&absolute, &staging_root, target)?;
         #[cfg(test)]
         if self.runtime.fail_after_folder_delete_stage {
             self.runtime.fail_after_folder_delete_stage = false;

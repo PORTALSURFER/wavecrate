@@ -82,7 +82,7 @@ impl EguiController {
 
     /// Return the auto-selected analysis worker count for this host.
     pub fn analysis_auto_worker_count(&self) -> u32 {
-        crate::egui_app::controller::library::analysis_jobs::default_worker_count()
+        crate::app::controller::library::analysis_jobs::default_worker_count()
     }
 
     /// Return whether fast similarity-prep mode is enabled.

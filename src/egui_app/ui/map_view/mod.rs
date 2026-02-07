@@ -105,7 +105,8 @@ impl EguiApp {
             cluster_umap_version,
             source_id.as_ref(),
         );
-        let cluster_overlay_ready = resolve_cluster_overlay(cluster_overlay, centroids_arc.as_ref());
+        let cluster_overlay_ready =
+            resolve_cluster_overlay(cluster_overlay, centroids_arc.as_ref());
         let blend_enabled = cluster_overlay_ready && similarity_blend;
         let map_diagonal =
             ((bounds.max_x - bounds.min_x).powi(2) + (bounds.max_y - bounds.min_y).powi(2)).sqrt();
@@ -159,7 +160,7 @@ impl EguiApp {
                 }
             })
             .flatten();
-        let point_color = |point: &crate::egui_app::state::MapPoint, alpha: u8| {
+        let point_color = |point: &crate::app::state::MapPoint, alpha: u8| {
             if let Some((fx, fy)) = focused_point {
                 let dist = ((point.x - fx).powi(2) + (point.y - fy).powi(2)).sqrt();
                 let t = if let Some((min_dist, max_dist)) = distance_range {
@@ -268,7 +269,7 @@ impl EguiApp {
 fn resolve_cluster_overlay(
     requested: bool,
     centroids: Option<
-        &std::sync::Arc<std::collections::HashMap<i32, crate::egui_app::state::MapClusterCentroid>>,
+        &std::sync::Arc<std::collections::HashMap<i32, crate::app::state::MapClusterCentroid>>,
     >,
 ) -> bool {
     if requested && centroids.is_none() {
@@ -287,7 +288,7 @@ mod tests {
 
     #[test]
     fn cluster_overlay_requires_centroids() {
-        let centroids: Option<Arc<HashMap<i32, crate::egui_app::state::MapClusterCentroid>>> = None;
+        let centroids: Option<Arc<HashMap<i32, crate::app::state::MapClusterCentroid>>> = None;
         assert!(!resolve_cluster_overlay(true, centroids.as_ref()));
         assert!(!resolve_cluster_overlay(false, centroids.as_ref()));
     }

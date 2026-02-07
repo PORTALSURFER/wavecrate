@@ -1,5 +1,5 @@
 use super::style;
-use crate::egui_app::state::{MapBounds, MapClusterCentroid};
+use crate::app::state::{MapBounds, MapClusterCentroid};
 use eframe::egui;
 use std::collections::HashMap;
 use std::f32::consts::PI;
@@ -13,7 +13,7 @@ pub(crate) struct ClusterStats {
 }
 
 pub(crate) fn compute_cluster_stats(
-    points: &[crate::egui_app::state::MapPoint],
+    points: &[crate::app::state::MapPoint],
 ) -> Option<ClusterStats> {
     let mut cluster_sizes: HashMap<i32, usize> = HashMap::new();
     let mut assigned_count = 0usize;
@@ -65,7 +65,7 @@ pub(crate) fn cluster_color(
 }
 
 pub(crate) fn distance_shaded_cluster_color(
-    point: &crate::egui_app::state::MapPoint,
+    point: &crate::app::state::MapPoint,
     centroids: &HashMap<i32, MapClusterCentroid>,
     bounds: &MapBounds,
     palette: &style::Palette,
@@ -102,7 +102,7 @@ pub(crate) fn distance_shaded_cluster_color(
 }
 
 pub(crate) fn cluster_centroids(
-    points: &[crate::egui_app::state::MapPoint],
+    points: &[crate::app::state::MapPoint],
 ) -> HashMap<i32, MapClusterCentroid> {
     let mut sums: HashMap<i32, (f32, f32, usize)> = HashMap::new();
     for point in points {
@@ -132,7 +132,7 @@ pub(crate) fn cluster_centroids(
 }
 
 pub(crate) fn blended_cluster_color(
-    point: &crate::egui_app::state::MapPoint,
+    point: &crate::app::state::MapPoint,
     centroids: &HashMap<i32, MapClusterCentroid>,
     bounds: &MapBounds,
     palette: &style::Palette,
@@ -181,10 +181,10 @@ pub(crate) fn blended_cluster_color(
 }
 
 pub(crate) fn filter_points(
-    points: &[crate::egui_app::state::MapPoint],
+    points: &[crate::app::state::MapPoint],
     overlay: bool,
     filter: Option<i32>,
-) -> Vec<crate::egui_app::state::MapPoint> {
+) -> Vec<crate::app::state::MapPoint> {
     if !overlay && filter.is_none() {
         return points.to_vec();
     }

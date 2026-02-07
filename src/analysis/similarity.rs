@@ -42,7 +42,9 @@ pub fn embedding_from_features(features: &[f32]) -> Result<Vec<f32>, String> {
     }
     let mut embedding = features.to_vec();
     if !normalize_l2_in_place(&mut embedding) {
-        return Err("Similarity features normalization failed: zero or non-finite norm".to_string());
+        return Err(
+            "Similarity features normalization failed: zero or non-finite norm".to_string(),
+        );
     }
     Ok(embedding)
 }

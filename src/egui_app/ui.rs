@@ -37,7 +37,7 @@ pub const DEFAULT_VIEWPORT_SIZE: [f32; 2] = [960.0, 560.0];
 /// Minimum viewport size for the app window.
 pub const MIN_VIEWPORT_SIZE: [f32; 2] = [640.0, 400.0];
 
-use crate::{audio::AudioPlayer, egui_app::controller::EguiController, waveform::WaveformRenderer};
+use crate::{audio::AudioPlayer, app::controller::EguiController, waveform::WaveformRenderer};
 use eframe::egui::{self, TextureHandle};
 
 /// Renders the egui UI using the shared controller state.

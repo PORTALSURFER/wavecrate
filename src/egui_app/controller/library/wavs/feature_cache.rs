@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::controller::controller_state::{
+use crate::app::controller::controller_state::{
     AnalysisJobStatus, FeatureCache, FeatureStatus,
 };
 use rusqlite::params;
@@ -17,7 +17,7 @@ impl EguiController {
             self.ui_cache.browser.features.remove(&source_id);
             self.set_status(
                 format!("Failed to load analysis metadata: {err}"),
-                crate::egui_app::ui::style::StatusTone::Error,
+                crate::app::ui::style::StatusTone::Error,
             );
         }
     }
@@ -55,12 +55,7 @@ impl EguiController {
             return;
         };
         let normalized = relative_path.to_string_lossy().replace('\\', "/");
-        let Some(index) = self
-            .wav_entries
-            .lookup
-            .get(Path::new(&normalized))
-            .copied()
-        else {
+        let Some(index) = self.wav_entries.lookup.get(Path::new(&normalized)).copied() else {
             return;
         };
         if let Some(slot) = cache.rows.get_mut(index) {
@@ -79,9 +74,14 @@ impl EguiController {
 
     fn ensure_feature_cache(&mut self, source_id: &SourceId) -> Result<(), String> {
         let needs_len = self.wav_entries_len();
-        let existing_complete = self.ui_cache.browser.features.get(source_id).is_some_and(|cache| {
-            cache.rows.len() == needs_len && cache.rows.iter().all(|row| row.is_some())
-        });
+        let existing_complete =
+            self.ui_cache
+                .browser
+                .features
+                .get(source_id)
+                .is_some_and(|cache| {
+                    cache.rows.len() == needs_len && cache.rows.iter().all(|row| row.is_some())
+                });
         if existing_complete {
             return Ok(());
         }
@@ -135,12 +135,20 @@ impl EguiController {
                 .map_err(|err| format!("Query feature cache failed: {err}"))?
             {
                 let sample_id: String = row.get::<_, String>(0).map_err(|err| err.to_string())?;
-                let duration_seconds: Option<f64> = row.get::<_, Option<f64>>(1).map_err(|err| err.to_string())?;
-                let sr_used: Option<i64> = row.get::<_, Option<i64>>(2).map_err(|err| err.to_string())?;
-                let long_sample_mark: Option<i64> = row.get::<_, Option<i64>>(3).map_err(|err| err.to_string())?;
+                let duration_seconds: Option<f64> = row
+                    .get::<_, Option<f64>>(1)
+                    .map_err(|err| err.to_string())?;
+                let sr_used: Option<i64> = row
+                    .get::<_, Option<i64>>(2)
+                    .map_err(|err| err.to_string())?;
+                let long_sample_mark: Option<i64> = row
+                    .get::<_, Option<i64>>(3)
+                    .map_err(|err| err.to_string())?;
                 let has_features_v1: i64 = row.get::<_, i64>(4).map_err(|err| err.to_string())?;
                 let has_embedding: i64 = row.get::<_, i64>(5).map_err(|err| err.to_string())?;
-                let status: Option<String> = row.get::<_, Option<String>>(6).map_err(|err| err.to_string())?;
+                let status: Option<String> = row
+                    .get::<_, Option<String>>(6)
+                    .map_err(|err| err.to_string())?;
                 let analysis_status = status.as_deref().and_then(parse_job_status);
                 let Some(relative_path) = sample_id.split_once("::").map(|(_, p)| p) else {
                     continue;
@@ -174,8 +182,9 @@ impl EguiController {
             });
             if status.duration_seconds.is_none() {
                 if let Some(fallback) = fallback_rows.get(idx).and_then(|row| row.as_ref()) {
-                    if let Some(duration) =
-                        fallback.duration_seconds.filter(|value| value.is_finite() && *value > 0.0)
+                    if let Some(duration) = fallback
+                        .duration_seconds
+                        .filter(|value| value.is_finite() && *value > 0.0)
                     {
                         status.duration_seconds = Some(duration);
                         if status.sr_used.is_none() {
@@ -212,12 +221,7 @@ impl EguiController {
             return;
         };
         let normalized = relative_path.to_string_lossy().replace('\\', "/");
-        let Some(index) = self
-            .wav_entries
-            .lookup
-            .get(Path::new(&normalized))
-            .copied()
-        else {
+        let Some(index) = self.wav_entries.lookup.get(Path::new(&normalized)).copied() else {
             return;
         };
         if let Some(slot) = cache.rows.get_mut(index) {
@@ -253,5 +257,4 @@ fn normalize_relative_key(relative_path: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}

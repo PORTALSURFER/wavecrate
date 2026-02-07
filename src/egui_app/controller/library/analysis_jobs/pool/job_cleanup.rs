@@ -1,4 +1,4 @@
-use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db;
 
 #[cfg_attr(test, allow(dead_code))]
 pub(crate) fn reset_running_jobs() -> Result<(), String> {

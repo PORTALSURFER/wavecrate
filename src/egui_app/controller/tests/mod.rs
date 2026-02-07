@@ -1,18 +1,21 @@
 #![allow(clippy::cmp_owned, clippy::iter_cloned_collect)]
 
+mod audio_action_playback;
 mod browser_actions;
 mod browser_core;
 mod browser_selection;
 mod common;
-mod drag_drop_folders;
 mod drag_drop_drop_targets;
+mod drag_drop_folders;
 mod drag_drop_waveform;
+mod edit_selection_no_snap;
 mod external_drop_import;
 mod focus_random;
 mod folders_core;
 mod folders_search;
 mod missing;
 mod playback_loop;
+mod rating_logic;
 mod recording;
 mod selection_bpm_scale;
 mod selection_undo;
@@ -21,6 +24,3 @@ mod trash;
 mod waveform;
 mod waveform_nav_cursor;
 mod waveform_nav_render;
-mod audio_action_playback;
-mod edit_selection_no_snap;
-mod rating_logic;

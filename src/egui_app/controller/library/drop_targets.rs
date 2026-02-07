@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::view_model;
+use crate::app::view_model;
 use crate::sample_sources::config::{DropTargetColor, DropTargetConfig};
 use std::path::{Path, PathBuf};
 
@@ -126,11 +126,7 @@ impl EguiController {
     }
 
     /// Assign a preset color to a drop target entry.
-    pub(crate) fn set_drop_target_color(
-        &mut self,
-        index: usize,
-        color: Option<DropTargetColor>,
-    ) {
+    pub(crate) fn set_drop_target_color(&mut self, index: usize, color: Option<DropTargetColor>) {
         let Some(target) = self.settings.drop_targets.get_mut(index) else {
             return;
         };

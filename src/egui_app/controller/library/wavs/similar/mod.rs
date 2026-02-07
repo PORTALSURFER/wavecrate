@@ -1,6 +1,6 @@
 use super::*;
-use crate::egui_app::state::FocusedSimilarity;
-use crate::egui_app::view_model;
+use crate::app::state::FocusedSimilarity;
+use crate::app::view_model;
 
 mod apply;
 mod query;
@@ -125,7 +125,11 @@ fn focused_similarity_from_resolved(
 ) -> Option<FocusedSimilarity> {
     let mut indices = Vec::new();
     let mut scores = Vec::new();
-    for (index, score) in resolved.indices.into_iter().zip(resolved.scores.into_iter()) {
+    for (index, score) in resolved
+        .indices
+        .into_iter()
+        .zip(resolved.scores.into_iter())
+    {
         if anchor_index == Some(index) {
             continue;
         }
@@ -174,8 +178,7 @@ mod tests {
             indices: vec![1, 2, 3],
             scores: vec![0.99, 0.98, 0.97],
         };
-        let highlight = focused_similarity_from_resolved(resolved, Some(2))
-            .expect("highlight");
+        let highlight = focused_similarity_from_resolved(resolved, Some(2)).expect("highlight");
         assert_eq!(highlight.indices, vec![1, 3]);
         assert_eq!(highlight.scores, vec![0.99, 0.97]);
         assert_eq!(highlight.anchor_index, Some(2));

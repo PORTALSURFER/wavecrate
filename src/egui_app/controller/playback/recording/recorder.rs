@@ -1,8 +1,8 @@
 use super::state::audio::{PendingRecordingWaveform, RecordingTarget};
+use super::waveform_loader::RecordingWaveformJob;
 use super::*;
 use crate::audio::{AudioRecorder, InputMonitor, RecordingOutcome};
 use std::time::Instant;
-use super::waveform_loader::RecordingWaveformJob;
 
 pub(crate) fn is_recording(controller: &EguiController) -> bool {
     controller.audio.recorder.is_some()
@@ -54,10 +54,7 @@ pub(crate) fn stop_recording(
 ) -> Result<Option<RecordingOutcome>, String> {
     let target = controller.audio.recording_target.clone();
     stop_input_monitor(controller);
-    controller
-        .runtime
-        .jobs
-        .set_pending_recording_waveform(None);
+    controller.runtime.jobs.set_pending_recording_waveform(None);
     let Some(mut recorder) = controller.audio.recorder.take() else {
         return Ok(None);
     };
@@ -133,10 +130,7 @@ fn output_host_is_asio(controller: &EguiController) -> bool {
 pub(crate) fn refresh_recording_waveform(controller: &mut EguiController) {
     if !is_recording(controller) {
         controller.audio.recording_target = None;
-        controller
-            .runtime
-            .jobs
-            .set_pending_recording_waveform(None);
+        controller.runtime.jobs.set_pending_recording_waveform(None);
         return;
     }
     let (source_id, relative_path, absolute_path, last_refresh_at, last_file_len, loaded_once) =
@@ -170,14 +164,15 @@ pub(crate) fn refresh_recording_waveform(controller: &mut EguiController) {
         sample_rate: recorder.resolved().sample_rate,
         channels: recorder.resolved().channel_count,
     };
-    controller.runtime.jobs.set_pending_recording_waveform(Some(
-        PendingRecordingWaveform {
+    controller
+        .runtime
+        .jobs
+        .set_pending_recording_waveform(Some(PendingRecordingWaveform {
             request_id,
             source_id,
             relative_path,
             absolute_path,
-        },
-    ));
+        }));
     controller.runtime.jobs.send_recording_waveform_job(job);
     if let Some(target) = controller.audio.recording_target.as_mut() {
         target.last_refresh_at = Some(now);
@@ -220,7 +215,7 @@ pub(crate) fn stop_input_monitor(controller: &mut EguiController) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::egui_app::controller::test_support::dummy_controller;
+    use crate::app::controller::test_support::dummy_controller;
 
     #[test]
     fn output_host_is_asio_handles_settings_host() {

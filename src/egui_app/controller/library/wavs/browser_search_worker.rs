@@ -1,8 +1,8 @@
-use crate::egui_app::controller::jobs::{SearchJob, SearchResult};
-use crate::egui_app::state::{SampleBrowserSort, TriageFlagFilter, VisibleRows};
+use crate::app::controller::jobs::{SearchJob, SearchResult};
+use crate::app::state::{SampleBrowserSort, TriageFlagFilter, VisibleRows};
 use crate::sample_sources::Rating;
-use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
@@ -136,9 +136,7 @@ impl SearchJobQueue {
     ) -> std::sync::MutexGuard<'a, SearchJobQueueState> {
         let mut guard = poisoned.into_inner();
         if !guard.poisoned_recovered {
-            warn!(
-                "Search job queue {context} poisoned; recovering and clearing pending job."
-            );
+            warn!("Search job queue {context} poisoned; recovering and clearing pending job.");
             guard.pending = None;
             guard.poisoned_recovered = true;
         }
@@ -177,8 +175,8 @@ impl SearchWorkerHandle {
 
 /// Spawn a background worker that processes the latest pending search job.
 /// Returns the sender, result channel, and a shutdown handle.
-pub(crate) fn spawn_search_worker(
-) -> (SearchJobSender, Receiver<SearchResult>, SearchWorkerHandle) {
+pub(crate) fn spawn_search_worker() -> (SearchJobSender, Receiver<SearchResult>, SearchWorkerHandle)
+{
     let queue = Arc::new(SearchJobQueue::new());
     let sender = SearchJobSender {
         queue: Arc::clone(&queue),
@@ -255,7 +253,7 @@ fn process_search_job(
                     .map(|e| {
                         let relative_path = e.relative_path.to_string_lossy().to_string();
                         let display_label =
-                            crate::egui_app::view_model::sample_display_label(&e.relative_path);
+                            crate::app::view_model::sample_display_label(&e.relative_path);
 
                         CompactSearchEntry {
                             display_label: display_label.into_boxed_str(),
@@ -284,14 +282,13 @@ fn process_search_job(
             TriageFlagFilter::Trash => tag.is_trash(),
             TriageFlagFilter::Untagged => tag.is_neutral(),
         };
-        let rating_ok = job.rating_filter.is_empty()
-            || job.rating_filter.contains(&tag.val());
+        let rating_ok = job.rating_filter.is_empty() || job.rating_filter.contains(&tag.val());
         triage_ok && rating_ok
     };
 
     let folder_accepts = |entry: &CompactSearchEntry| {
         let path = std::path::Path::new(entry.relative_path.as_ref());
-        crate::egui_app::controller::library::source_folders::folder_filter_accepts(
+        crate::app::controller::library::source_folders::folder_filter_accepts(
             path,
             job.folder_selection.as_ref(),
             job.folder_negated.as_ref(),
@@ -396,7 +393,7 @@ fn process_search_job(
     }
 
     let has_folder_filters =
-        crate::egui_app::controller::library::source_folders::folder_filters_active(
+        crate::app::controller::library::source_folders::folder_filters_active(
             job.folder_selection.as_ref(),
             job.folder_negated.as_ref(),
             job.root_mode,
@@ -482,8 +479,8 @@ fn sort_visible_by_playback_age(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sample_sources::WavEntry;
     use crate::sample_sources::SourceId;
+    use crate::sample_sources::WavEntry;
     use std::collections::BTreeSet;
     use std::sync::mpsc;
     use std::time::Duration;
@@ -517,7 +514,8 @@ mod tests {
             .into_iter()
             .map(|e| {
                 let relative_path = e.relative_path.to_string_lossy().to_string();
-                let display_label = crate::egui_app::view_model::sample_display_label(&e.relative_path);
+                let display_label =
+                    crate::app::view_model::sample_display_label(&e.relative_path);
                 CompactSearchEntry {
                     display_label: display_label.into_boxed_str(),
                     relative_path: relative_path.into_boxed_str(),
@@ -606,7 +604,7 @@ mod tests {
             similar_query: None,
             folder_selection: None,
             folder_negated: None,
-            root_mode: crate::egui_app::state::RootFolderFilterMode::AllDescendants,
+            root_mode: crate::app::state::RootFolderFilterMode::AllDescendants,
         }
     }
 }

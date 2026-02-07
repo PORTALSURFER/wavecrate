@@ -1,11 +1,11 @@
 use eframe::egui::{self, RichText};
 
 use super::section_label;
-use crate::egui_app::ui::{EguiApp, helpers};
-use crate::egui_app::ui::style;
+use crate::app::ui::style;
+use crate::app::ui::{EguiApp, helpers};
 
 impl EguiApp {
-    pub(in crate::egui_app::ui::chrome) fn render_analysis_options_menu(
+    pub(in crate::app::ui::chrome) fn render_analysis_options_menu(
         &mut self,
         ui: &mut egui::Ui,
     ) {
@@ -32,10 +32,7 @@ impl EguiApp {
         }
 
         ui.add_space(ui.spacing().item_spacing.y);
-        ui.label(
-            RichText::new("Mark samples longer than:")
-                .color(palette.text_muted),
-        );
+        ui.label(RichText::new("Mark samples longer than:").color(palette.text_muted));
         let mut threshold = self.controller.long_sample_threshold_seconds();
         let drag = egui::DragValue::new(&mut threshold)
             .speed(1.0)
@@ -59,7 +56,10 @@ impl EguiApp {
         let response = helpers::tooltip(
             ui.add(drag),
             "Analysis Workers",
-            &format!("Number of background threads dedicated to audio analysis and feature extraction. Auto ({}) uses most available CPU cores without impacting UI responsiveness. Changes require a restart.", auto_workers),
+            &format!(
+                "Number of background threads dedicated to audio analysis and feature extraction. Auto ({}) uses most available CPU cores without impacting UI responsiveness. Changes require a restart.",
+                auto_workers
+            ),
             tooltip_mode,
         );
         if response.changed() {

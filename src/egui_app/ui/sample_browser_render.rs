@@ -1,10 +1,10 @@
+use super::EguiApp;
 use super::drag_targets;
 use super::flat_items_list::{FlatItemsListConfig, FlatItemsListResponse, render_flat_items_list};
 use super::helpers::{self, external_dropped_paths, external_hover_has_audio};
 use super::sample_browser_row::{SampleBrowserRowContext, render_sample_browser_row};
 use super::style;
-use super::EguiApp;
-use crate::egui_app::state::{FocusContext, SampleBrowserTab, TriageFlagColumn};
+use crate::app::state::{FocusContext, SampleBrowserTab, TriageFlagColumn};
 use eframe::egui::{self, StrokeKind, Ui};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -47,7 +47,13 @@ impl EguiApp {
         }
 
         render_sample_browser_hover_hint(self, ui, &list_response);
-        render_sample_browser_drop_targets(self, ui, &list_state, &list_response, state.drop_target);
+        render_sample_browser_drop_targets(
+            self,
+            ui,
+            &list_state,
+            &list_response,
+            state.drop_target,
+        );
         render_sample_browser_external_drop(self, ui, &list_state, &list_response);
     }
 }
@@ -172,7 +178,9 @@ fn render_sample_browser_hover_hint(
     ui: &mut Ui,
     list_response: &FlatItemsListResponse,
 ) {
-    let hover_pos = ui.input(|i| i.pointer.hover_pos()).unwrap_or(egui::Pos2::ZERO);
+    let hover_pos = ui
+        .input(|i| i.pointer.hover_pos())
+        .unwrap_or(egui::Pos2::ZERO);
     if list_response.frame_rect.contains(hover_pos) {
         helpers::show_hover_hint(
             ui,
@@ -194,7 +202,7 @@ fn render_sample_browser_drop_targets(
         .ui
         .drag
         .origin_source
-        .unwrap_or(crate::egui_app::state::DragSource::Browser);
+        .unwrap_or(crate::app::state::DragSource::Browser);
     drag_targets::handle_drop_zone(
         ui,
         &mut app.controller,
@@ -202,7 +210,7 @@ fn render_sample_browser_drop_targets(
         list_state.pointer_pos,
         list_response.frame_rect,
         drag_source,
-        crate::egui_app::state::DragTarget::BrowserTriage(drop_target),
+        crate::app::state::DragTarget::BrowserTriage(drop_target),
         style::drag_target_stroke(),
         StrokeKind::Inside,
     );

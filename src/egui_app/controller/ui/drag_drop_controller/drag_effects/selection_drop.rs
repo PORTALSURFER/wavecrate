@@ -1,6 +1,6 @@
 use super::super::DragDropController;
-use crate::egui_app::state::TriageFlagColumn;
-use crate::egui_app::ui::style::StatusTone;
+use crate::app::state::TriageFlagColumn;
+use crate::app::ui::style::StatusTone;
 use crate::sample_sources::{Rating, SourceId};
 use crate::selection::SelectionRange;
 use std::path::{Path, PathBuf};
@@ -169,5 +169,4 @@ impl DragDropController<'_> {
             Err(err) => self.set_status(err, StatusTone::Error),
         }
     }
-
 }

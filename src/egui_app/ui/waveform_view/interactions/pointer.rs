@@ -1,7 +1,7 @@
-use super::super::*;
 use super::super::selection_geometry;
-use crate::egui_app::state::WaveformView;
-use crate::egui_app::ui::style::StatusTone;
+use super::super::*;
+use crate::app::state::WaveformView;
+use crate::app::ui::style::StatusTone;
 use eframe::egui::{self, Ui};
 
 pub(in super::super) fn handle_waveform_pointer_interactions(
@@ -13,12 +13,13 @@ pub(in super::super) fn handle_waveform_pointer_interactions(
     view_width: f64,
 ) {
     let pointer_pos = response.interact_pointer_pos();
-    let normalize_to_waveform = |pos: egui::Pos2| {
-        ((pos.x - rect.left()) / rect.width()) as f64
-            * view_width + view.start
-    };
+    let normalize_to_waveform =
+        |pos: egui::Pos2| ((pos.x - rect.left()) / rect.width()) as f64 * view_width + view.start;
     let current_pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
-    let drag_start_normalized = if response.drag_started() || (response.hovered() && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Primary))) {
+    let drag_start_normalized = if response.drag_started()
+        || (response.hovered()
+            && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Primary)))
+    {
         if app.controller.ui.waveform.image.is_some() {
             app.controller.focus_waveform_context();
         }
@@ -31,7 +32,11 @@ pub(in super::super) fn handle_waveform_pointer_interactions(
                     .unwrap_or(pos)
             })
             .map(normalize_to_waveform)
-            .or_else(|| pointer_pos.or(current_pointer_pos).map(normalize_to_waveform))
+            .or_else(|| {
+                pointer_pos
+                    .or(current_pointer_pos)
+                    .map(normalize_to_waveform)
+            })
     } else {
         None
     };
@@ -96,7 +101,8 @@ pub(in super::super) fn handle_waveform_pointer_interactions(
                 app.controller.focus_waveform_context();
             }
             if response.dragged_by(egui::PointerButton::Secondary) {
-                app.controller.update_edit_selection_drag(value as f32, false);
+                app.controller
+                    .update_edit_selection_drag(value as f32, false);
             } else if app.controller.ui.waveform.slice_mode_enabled {
                 update_slice_paint(app, value as f32);
             } else if response.dragged_by(egui::PointerButton::Primary) {
@@ -116,13 +122,8 @@ pub(in super::super) fn handle_waveform_pointer_interactions(
             let clicked_pos = pointer_pos.or_else(|| response.hover_pos());
             let on_selection = clicked_pos
                 .map(|pos| {
-                    selection_geometry::selection_rect_for_view(
-                        selection,
-                        rect,
-                        view,
-                        view_width,
-                    )
-                    .contains(pos)
+                    selection_geometry::selection_rect_for_view(selection, rect, view, view_width)
+                        .contains(pos)
                 })
                 .unwrap_or(false);
             if !on_selection {

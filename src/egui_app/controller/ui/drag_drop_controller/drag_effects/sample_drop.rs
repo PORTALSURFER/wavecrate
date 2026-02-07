@@ -1,6 +1,6 @@
 use super::super::DragDropController;
-use crate::egui_app::state::DragSample;
-use crate::egui_app::state::TriageFlagColumn;
+use crate::app::state::DragSample;
+use crate::app::state::TriageFlagColumn;
 use crate::sample_sources::{Rating, SourceId};
 use std::path::PathBuf;
 

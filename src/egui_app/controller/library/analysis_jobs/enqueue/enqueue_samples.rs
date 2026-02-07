@@ -1,8 +1,8 @@
 use super::enqueue_helpers::now_epoch_seconds;
 use super::{invalidate, persist, scan};
-use crate::egui_app::controller::library::analysis_jobs::db;
-use crate::egui_app::controller::library::analysis_jobs::wakeup;
-use crate::egui_app::controller::library::analysis_jobs::types::AnalysisProgress;
+use crate::app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::types::AnalysisProgress;
+use crate::app::controller::library::analysis_jobs::wakeup;
 use rusqlite::params;
 use tracing::{info, warn};
 
@@ -71,9 +71,7 @@ fn enqueue_samples(
     if inserted > 0 {
         wakeup::notify_claim_wakeup();
     }
-    if let Err(err) =
-        update_missing_sample_durations(&mut conn, request.source, &sample_metadata)
-    {
+    if let Err(err) = update_missing_sample_durations(&mut conn, request.source, &sample_metadata) {
         warn!(
             source_id = %request.source.id,
             "Failed to update sample durations after scan: {err}"
@@ -283,10 +281,7 @@ fn update_missing_sample_durations(
         let probe = match crate::analysis::audio::probe_metadata(&absolute) {
             Ok(probe) => probe,
             Err(err) => {
-                warn!(
-                    "Failed to probe duration for {}: {err}",
-                    absolute.display()
-                );
+                warn!("Failed to probe duration for {}: {err}", absolute.display());
                 continue;
             }
         };
@@ -304,10 +299,7 @@ fn update_missing_sample_durations(
             Ok(true) => updated += 1,
             Ok(false) => {}
             Err(err) => {
-                warn!(
-                    "Failed to store duration for {}: {err}",
-                    sample.sample_id
-                );
+                warn!("Failed to store duration for {}: {err}", sample.sample_id);
             }
         }
     }

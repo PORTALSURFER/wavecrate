@@ -1,6 +1,6 @@
 use eframe::egui::{self, RichText};
 
-use crate::egui_app::ui::style;
+use crate::app::ui::style;
 
 pub(crate) fn action_button(label: &str) -> egui::Button<'_> {
     egui::Button::new(RichText::new(label).color(style::palette().text_primary))

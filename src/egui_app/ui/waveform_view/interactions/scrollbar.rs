@@ -1,6 +1,6 @@
 use super::super::style;
 use super::super::*;
-use crate::egui_app::state::WaveformView;
+use crate::app::state::WaveformView;
 use eframe::egui::{self, Ui};
 
 pub(in super::super) fn render_waveform_scrollbar(

@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::state::ProgressTaskKind;
+use crate::app::state::ProgressTaskKind;
 
 impl EguiController {
     /// Show status-bar progress without the modal overlay.

@@ -1,6 +1,6 @@
 use super::*;
-use crate::egui_app::state::SampleBrowserSort;
-use crate::egui_app::view_model;
+use crate::app::state::SampleBrowserSort;
+use crate::app::view_model;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use std::cmp::Ordering;
@@ -30,7 +30,7 @@ impl EguiController {
         focused_index: Option<usize>,
         loaded_index: Option<usize>,
     ) -> (
-        crate::egui_app::state::VisibleRows,
+        crate::app::state::VisibleRows,
         Option<usize>,
         Option<usize>,
     ) {
@@ -52,13 +52,14 @@ impl EguiController {
         let root_mode = self
             .root_folder_filter_mode_for_filter()
             .unwrap_or_default();
-        let has_folder_filters = crate::egui_app::controller::library::source_folders::folder_filters_active(
-            folder_selection.as_ref(),
-            folder_negated.as_ref(),
-            root_mode,
-        );
+        let has_folder_filters =
+            crate::app::controller::library::source_folders::folder_filters_active(
+                folder_selection.as_ref(),
+                folder_negated.as_ref(),
+                root_mode,
+            );
         let folder_accepts = |relative_path: &Path| {
-            crate::egui_app::controller::library::source_folders::folder_filter_accepts(
+            crate::app::controller::library::source_folders::folder_filter_accepts(
                 relative_path,
                 folder_selection.as_ref(),
                 folder_negated.as_ref(),
@@ -124,7 +125,7 @@ impl EguiController {
             let loaded_visible =
                 loaded_index.and_then(|idx| visible.iter().position(|i| *i == idx));
             return (
-                crate::egui_app::state::VisibleRows::List(visible),
+                crate::app::state::VisibleRows::List(visible),
                 selected_visible,
                 loaded_visible,
             );
@@ -138,7 +139,7 @@ impl EguiController {
             {
                 let total = self.wav_entries_len();
                 return (
-                    crate::egui_app::state::VisibleRows::All { total },
+                    crate::app::state::VisibleRows::All { total },
                     focused_index,
                     loaded_index,
                 );
@@ -170,14 +171,17 @@ impl EguiController {
                     };
                     order.then_with(|| a.0.cmp(&b.0))
                 });
-                visible = playback_scratch.into_iter().map(|(index, _)| index).collect();
+                visible = playback_scratch
+                    .into_iter()
+                    .map(|(index, _)| index)
+                    .collect();
             }
             let selected_visible =
                 focused_index.and_then(|idx| visible.iter().position(|i| *i == idx));
             let loaded_visible =
                 loaded_index.and_then(|idx| visible.iter().position(|i| *i == idx));
             return (
-                crate::egui_app::state::VisibleRows::List(visible),
+                crate::app::state::VisibleRows::List(visible),
                 selected_visible,
                 loaded_visible,
             );
@@ -217,7 +221,7 @@ impl EguiController {
         let selected_visible = focused_index.and_then(|idx| visible.iter().position(|i| *i == idx));
         let loaded_visible = loaded_index.and_then(|idx| visible.iter().position(|i| *i == idx));
         (
-            crate::egui_app::state::VisibleRows::List(visible),
+            crate::app::state::VisibleRows::List(visible),
             selected_visible,
             loaded_visible,
         )
@@ -286,7 +290,12 @@ impl EguiController {
             let mut new_scores: Vec<Option<i64>> = Vec::with_capacity(label_strings.len());
             for lbl_opt in label_strings {
                 if let Some(lbl_str) = lbl_opt {
-                    let score = self.ui_cache.browser.search.matcher.fuzzy_match(&lbl_str, query);
+                    let score = self
+                        .ui_cache
+                        .browser
+                        .search
+                        .matcher
+                        .fuzzy_match(&lbl_str, query);
                     new_scores.push(score);
                 } else {
                     new_scores.push(None);
@@ -351,18 +360,20 @@ impl EguiController {
             .unwrap_or_default();
 
         self.ui.browser.search_busy = true;
-        self.runtime.jobs.send_search_job(crate::egui_app::controller::jobs::SearchJob {
-            source_id: source.id.clone(),
-            source_root: source.root.clone(),
-            query,
-            filter,
-            rating_filter,
-            sort,
-            similar_query,
-            folder_selection,
-            folder_negated,
-            root_mode,
-        });
+        self.runtime
+            .jobs
+            .send_search_job(crate::app::controller::jobs::SearchJob {
+                source_id: source.id.clone(),
+                source_root: source.root.clone(),
+                query,
+                filter,
+                rating_filter,
+                sort,
+                similar_query,
+                folder_selection,
+                folder_negated,
+                root_mode,
+            });
     }
 }
 

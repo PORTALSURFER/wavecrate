@@ -251,8 +251,8 @@ fn copy_reader_with_hash(
 }
 
 fn read_range(file: &mut File, offset: u64, len: u64) -> Result<Vec<u8>, String> {
-    let len = usize::try_from(len)
-        .map_err(|_| "ANN container payload too large to read".to_string())?;
+    let len =
+        usize::try_from(len).map_err(|_| "ANN container payload too large to read".to_string())?;
     let mut buf = vec![0u8; len];
     file.seek(SeekFrom::Start(offset))
         .map_err(|err| format!("Failed to seek ANN container: {err}"))?;
@@ -435,8 +435,9 @@ mod tests {
     #[test]
     fn ann_container_rejects_oversized_model_id_len() {
         let model_id_len = MAX_MODEL_ID_LEN + 1;
-        let graph_offset =
-            (ANN_CONTAINER_HEADER_LEN as u64).checked_add(model_id_len as u64).unwrap();
+        let graph_offset = (ANN_CONTAINER_HEADER_LEN as u64)
+            .checked_add(model_id_len as u64)
+            .unwrap();
         let header = AnnContainerHeader {
             model_id_len,
             graph_offset,

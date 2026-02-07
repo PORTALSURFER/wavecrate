@@ -1,6 +1,6 @@
 use super::dedup::DedupTracker;
-use crate::egui_app::controller::library::analysis_jobs::db;
-use crate::egui_app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
+use crate::app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
 use std::collections::VecDeque;
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::{atomic::AtomicBool, atomic::AtomicUsize, atomic::Ordering};
@@ -25,10 +25,7 @@ impl DecodedQueue {
     }
 
     /// Creates a decoded queue with a wakeup to notify claimers when space frees.
-    pub(crate) fn new_with_wakeup(
-        max_size: usize,
-        claim_wakeup: Option<Arc<ClaimWakeup>>,
-    ) -> Self {
+    pub(crate) fn new_with_wakeup(max_size: usize, claim_wakeup: Option<Arc<ClaimWakeup>>) -> Self {
         Self {
             queue: Mutex::new(VecDeque::new()),
             ready: Condvar::new(),

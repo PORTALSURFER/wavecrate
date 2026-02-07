@@ -1,5 +1,5 @@
-use crate::analysis::audio::normalize_peak_in_place;
 use super::buffer::SelectionEditBuffer;
+use crate::analysis::audio::normalize_peak_in_place;
 use std::time::Duration;
 
 pub(crate) fn normalize_selection(
@@ -14,17 +14,17 @@ pub(crate) fn normalize_selection(
     }
     let selection_frames = (end - start) / channels;
     let fade_frames = fade_frame_count(buffer.sample_rate.max(1), selection_frames, fade_duration);
-    
+
     // Only clone the portions needed for crossfading.
     let start_fade_len = fade_frames * channels;
     let end_fade_len = fade_frames * channels;
-    
+
     let original_start = if start_fade_len > 0 {
         Some(buffer.samples[start..start + start_fade_len].to_vec())
     } else {
         None
     };
-    
+
     let original_end = if end_fade_len > 0 {
         Some(buffer.samples[end - end_fade_len..end].to_vec())
     } else {
@@ -43,7 +43,7 @@ pub(crate) fn normalize_selection(
             fade_frames,
         );
     }
-    
+
     if let Some(orig_end) = original_end {
         apply_edge_end_crossfade(
             &mut buffer.samples[end - end_fade_len..end],

@@ -1,9 +1,9 @@
 use super::{LoadEntriesError, SourceDatabase, WavEntry, WavLoadJob, WavLoadResult};
 use std::{
     sync::{
+        Arc,
         atomic::{AtomicBool, Ordering},
         mpsc::{Receiver, Sender},
-        Arc,
     },
     thread,
     time::{Duration, Instant},
@@ -28,8 +28,7 @@ impl WavLoaderHandle {
 }
 
 /// Spawn the wav entries loader worker and return its job channel plus shutdown handle.
-pub(crate) fn spawn_wav_loader(
-) -> (Sender<WavLoadJob>, Receiver<WavLoadResult>, WavLoaderHandle) {
+pub(crate) fn spawn_wav_loader() -> (Sender<WavLoadJob>, Receiver<WavLoadResult>, WavLoaderHandle) {
     let (tx, rx) = std::sync::mpsc::channel::<WavLoadJob>();
     let (result_tx, result_rx) = std::sync::mpsc::channel::<WavLoadResult>();
     let shutdown = Arc::new(AtomicBool::new(false));
@@ -79,10 +78,7 @@ pub(crate) fn load_entries(job: &WavLoadJob) -> (Result<Vec<WavEntry>, LoadEntri
                     );
                 } else {
                     for err in summary.errors {
-                        tracing::warn!(
-                            "File op recovery issue for {}: {err}",
-                            job.root.display()
-                        );
+                        tracing::warn!("File op recovery issue for {}: {err}", job.root.display());
                     }
                 }
             }

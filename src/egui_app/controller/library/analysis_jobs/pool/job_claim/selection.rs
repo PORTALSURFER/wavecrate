@@ -1,7 +1,7 @@
 //! Claim selection helpers for analysis jobs.
 
 use super::claim::{SourceClaimDb, claim_batch_size, refresh_sources};
-use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db;
 use crate::sample_sources::SourceId;
 use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;

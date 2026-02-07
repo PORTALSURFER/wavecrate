@@ -5,7 +5,7 @@ mod types;
 pub(crate) use format::format_keypress;
 pub(crate) use types::{HotkeyAction, HotkeyCommand, HotkeyGesture, HotkeyScope, KeyPress};
 
-use crate::egui_app::state::FocusContext;
+use crate::app::state::FocusContext;
 use actions::HOTKEY_ACTIONS;
 
 pub(crate) fn iter_actions() -> impl Iterator<Item = HotkeyAction> {

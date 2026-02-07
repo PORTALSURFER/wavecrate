@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::state::FocusContext;
+use crate::app::state::FocusContext;
 use crate::selection::SelectionEdge;
 
 const TRANSIENT_SNAP_RADIUS: f32 = 0.01;
@@ -129,7 +129,7 @@ pub(crate) fn finish_edit_selection_drag(controller: &mut EguiController) {
 pub(crate) fn set_selection_range(controller: &mut EguiController, range: SelectionRange) {
     controller.selection_state.range.set_range(Some(range));
     controller.apply_selection(Some(range));
-    
+
     // If playing in non-looped mode, restart playback from the new selection start
     let is_playing = controller
         .audio
@@ -137,7 +137,7 @@ pub(crate) fn set_selection_range(controller: &mut EguiController, range: Select
         .as_ref()
         .map(|p| p.borrow().is_playing())
         .unwrap_or(false);
-    
+
     if is_playing && !controller.ui.waveform.loop_enabled {
         if let Err(err) = controller.play_audio(false, Some(range.start())) {
             controller.set_status(err, StatusTone::Error);
@@ -182,22 +182,27 @@ pub(crate) fn toggle_loop(controller: &mut EguiController) {
     let was_looping = controller.ui.waveform.loop_enabled;
     controller.ui.waveform.loop_enabled = !controller.ui.waveform.loop_enabled;
     let new_loop_state = controller.ui.waveform.loop_enabled;
-    
+
     // Try to update loop markers for all selected samples in the browser
-    let loaded_path = controller.sample_view.wav.loaded_audio.as_ref()
+    let loaded_path = controller
+        .sample_view
+        .wav
+        .loaded_audio
+        .as_ref()
         .map(|audio| audio.relative_path.clone());
-    
+
     // Get the primary row (currently loaded sample if visible in browser)
-    let primary_row = loaded_path.as_ref()
+    let primary_row = loaded_path
+        .as_ref()
         .and_then(|path| controller.visible_row_for_path(path));
-    
+
     // Get all action rows (selected samples + primary if not selected)
     let action_rows = if let Some(row) = primary_row {
         controller.action_rows_from_primary(row)
     } else {
         Vec::new()
     };
-    
+
     // If we have browser rows to update, use the multi-sample approach
     if !action_rows.is_empty() {
         if let Err(err) = controller.set_loop_marker_browser_samples(
@@ -207,7 +212,7 @@ pub(crate) fn toggle_loop(controller: &mut EguiController) {
         ) {
             tracing::warn!("Failed to update loop markers for browser samples: {err}");
         }
-        
+
         // When enabling loop, also save the current BPM value to all selected samples
         if new_loop_state && !was_looping {
             if let Some(bpm) = controller.ui.waveform.bpm_value {
@@ -224,12 +229,21 @@ pub(crate) fn toggle_loop(controller: &mut EguiController) {
         }
     } else {
         // Fallback: Update loop marker for just the currently loaded sample
-        let loop_marker_update = controller.sample_view.wav.loaded_audio.as_ref().and_then(|loaded_audio| {
-            controller.library.sources.iter()
-                .find(|s| s.id == loaded_audio.source_id)
-                .map(|source| (source.clone(), loaded_audio.relative_path.clone()))
-        });
-        
+        let loop_marker_update =
+            controller
+                .sample_view
+                .wav
+                .loaded_audio
+                .as_ref()
+                .and_then(|loaded_audio| {
+                    controller
+                        .library
+                        .sources
+                        .iter()
+                        .find(|s| s.id == loaded_audio.source_id)
+                        .map(|source| (source.clone(), loaded_audio.relative_path.clone()))
+                });
+
         if let Some((source, relative_path)) = loop_marker_update {
             if let Err(err) = controller.set_sample_looped_for_source(
                 &source,
@@ -241,7 +255,7 @@ pub(crate) fn toggle_loop(controller: &mut EguiController) {
             }
         }
     }
-    
+
     if controller.ui.waveform.loop_enabled {
         controller.audio.pending_loop_disable_at = None;
         if !was_looping {

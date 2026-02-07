@@ -5,7 +5,7 @@ use super::selection_geometry::{
 };
 use super::style;
 use super::*;
-use crate::egui_app::state::WaveformView;
+use crate::app::state::WaveformView;
 use crate::selection::SelectionEdge;
 use eframe::egui::{self, Color32, CursorIcon, TextStyle, text::LayoutJob};
 
@@ -134,8 +134,7 @@ pub(super) fn render_selection_overlay(
         egui::Sense::click_and_drag(),
     );
     let primary_down = ui.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
-    let start_edge_pointer_down =
-        primary_down && start_edge_response.is_pointer_button_down_on();
+    let start_edge_pointer_down = primary_down && start_edge_response.is_pointer_button_down_on();
     let end_edge_pointer_down = primary_down && end_edge_response.is_pointer_button_down_on();
     let edge_dragging = start_edge_pointer_down
         || end_edge_pointer_down

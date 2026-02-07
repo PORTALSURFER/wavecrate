@@ -1,9 +1,9 @@
+use super::jobs::UndoFileJob;
 use std::{
     collections::VecDeque,
     fs,
     path::{Path, PathBuf},
 };
-use super::jobs::UndoFileJob;
 use uuid::Uuid;
 
 /// Execution result for an undo/redo action.
@@ -247,7 +247,10 @@ mod tests {
             UndoOutcome::Applied(label) if label == "set 2"
         ));
         assert_eq!(counter.value, 1);
-        assert!(matches!(stack.undo(&mut counter).unwrap(), UndoOutcome::Empty));
+        assert!(matches!(
+            stack.undo(&mut counter).unwrap(),
+            UndoOutcome::Empty
+        ));
         assert_eq!(counter.value, 1);
     }
 
@@ -259,17 +262,20 @@ mod tests {
         counter.value = 1;
         stack.push(UndoEntry::new(
             "set 1",
-                |c: &mut Counter| {
-                    c.value = 0;
-                    Ok(UndoExecution::Applied)
-                },
-                |c: &mut Counter| {
-                    c.value = 1;
-                    Ok(UndoExecution::Applied)
-                },
-            ));
+            |c: &mut Counter| {
+                c.value = 0;
+                Ok(UndoExecution::Applied)
+            },
+            |c: &mut Counter| {
+                c.value = 1;
+                Ok(UndoExecution::Applied)
+            },
+        ));
 
-        assert!(matches!(stack.redo(&mut counter).unwrap(), UndoOutcome::Empty));
+        assert!(matches!(
+            stack.redo(&mut counter).unwrap(),
+            UndoOutcome::Empty
+        ));
 
         stack.undo(&mut counter).unwrap();
         assert_eq!(counter.value, 0);
@@ -277,16 +283,19 @@ mod tests {
         counter.value = 2;
         stack.push(UndoEntry::new(
             "set 2",
-                |c: &mut Counter| {
-                    c.value = 1;
-                    Ok(UndoExecution::Applied)
-                },
-                |c: &mut Counter| {
-                    c.value = 2;
-                    Ok(UndoExecution::Applied)
-                },
-            ));
+            |c: &mut Counter| {
+                c.value = 1;
+                Ok(UndoExecution::Applied)
+            },
+            |c: &mut Counter| {
+                c.value = 2;
+                Ok(UndoExecution::Applied)
+            },
+        ));
 
-        assert!(matches!(stack.redo(&mut counter).unwrap(), UndoOutcome::Empty));
+        assert!(matches!(
+            stack.redo(&mut counter).unwrap(),
+            UndoOutcome::Empty
+        ));
     }
 }

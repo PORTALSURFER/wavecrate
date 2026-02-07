@@ -1,9 +1,9 @@
 use super::peaks;
 use crate::waveform::{DecodedWaveform, WaveformDecodeError, WaveformRenderer};
 use hound::SampleFormat;
-use std::sync::Arc;
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 #[cfg(test)]
 static WAV_DECODE_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -31,13 +31,11 @@ impl WaveformRenderer {
 
         if frames > max_frames {
             let peaks = match spec.sample_format {
-                SampleFormat::Float => {
-                    peaks::build_peaks_with_analysis_from_float(
-                        &mut reader,
-                        channels,
-                        spec_sample_rate,
-                    )?
-                }
+                SampleFormat::Float => peaks::build_peaks_with_analysis_from_float(
+                    &mut reader,
+                    channels,
+                    spec_sample_rate,
+                )?,
                 SampleFormat::Int => peaks::build_peaks_with_analysis_from_int(
                     &mut reader,
                     channels,

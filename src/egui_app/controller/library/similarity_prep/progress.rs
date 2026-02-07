@@ -1,6 +1,6 @@
-use crate::egui_app::controller::EguiController;
 use super::{DbSimilarityPrepStore, SimilarityPrepStore, state::SimilarityPrepStage};
-use crate::egui_app::state::AnalysisProgressSnapshot;
+use crate::app::controller::EguiController;
+use crate::app::state::AnalysisProgressSnapshot;
 use tracing::info;
 
 impl EguiController {
@@ -134,7 +134,7 @@ impl EguiController {
                         samples_total,
                         running_jobs: Vec::new(),
                         stale_after_secs: Some(
-                            crate::egui_app::controller::library::analysis_jobs::stale_running_job_seconds(),
+                            crate::app::controller::library::analysis_jobs::stale_running_job_seconds(),
                         ),
                     }));
             }

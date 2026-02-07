@@ -1,6 +1,6 @@
-use crate::egui_app::controller::library::wav_io::file_metadata;
 use super::*;
-use crate::egui_app::state::DestructiveSelectionEdit;
+use crate::app::controller::library::wav_io::file_metadata;
+use crate::app::state::DestructiveSelectionEdit;
 use hound::SampleFormat;
 use std::time::Duration;
 
@@ -18,11 +18,7 @@ pub(crate) use selection_click::repair_clicks_selection as repair_clicks_buffer;
 use selection_normalize::normalize_selection;
 
 use ops::{
-    apply_directional_fade,
-    apply_edge_fades,
-    apply_selection_fades,
-    crop_buffer,
-    reverse_buffer,
+    apply_directional_fade, apply_edge_fades, apply_selection_fades, crop_buffer, reverse_buffer,
     trim_buffer,
 };
 
@@ -31,7 +27,7 @@ use buffer::selection_frame_bounds;
 #[cfg(test)]
 use ops::{apply_muted_selection, fade_factor, slice_frames};
 
-use crate::egui_app::controller::undo;
+use crate::app::controller::undo;
 
 /// Direction of a fade applied over the active selection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -219,12 +215,14 @@ impl EguiController {
             } else {
                 None
             };
-            self.runtime.jobs.set_pending_playback(Some(PendingPlayback {
-                source_id: context.source.id.clone(),
-                relative_path: new_relative.clone(),
-                looped: was_looping,
-                start_override,
-            }));
+            self.runtime
+                .jobs
+                .set_pending_playback(Some(PendingPlayback {
+                    source_id: context.source.id.clone(),
+                    relative_path: new_relative.clone(),
+                    looped: was_looping,
+                    start_override,
+                }));
         }
 
         let _ = self.load_waveform_for_selection(&context.source, &new_relative);
@@ -283,11 +281,8 @@ impl EguiController {
         let fade_duration = Duration::from_secs_f32(fade_ms / 1000.0);
         let result = self.apply_selection_edit("Applied short fades", true, |buffer| {
             let selection_frames = buffer.end_frame.saturating_sub(buffer.start_frame);
-            let fade_frames = edge_fade_frame_count(
-                buffer.sample_rate.max(1),
-                selection_frames,
-                fade_duration,
-            );
+            let fade_frames =
+                edge_fade_frame_count(buffer.sample_rate.max(1), selection_frames, fade_duration);
             if fade_frames == 0 {
                 return Err("Selection is too short for edge fades".into());
             }
@@ -308,8 +303,9 @@ impl EguiController {
 
     /// Repair clicks inside the selection by interpolating the span.
     pub(crate) fn repair_clicks_selection(&mut self) -> Result<(), String> {
-        let result =
-            self.apply_selection_edit("Removed clicks", true, |buffer| repair_clicks_buffer(buffer));
+        let result = self.apply_selection_edit("Removed clicks", true, |buffer| {
+            repair_clicks_buffer(buffer)
+        });
         if let Err(err) = &result {
             self.set_status(err.clone(), StatusTone::Error);
         }
@@ -363,7 +359,7 @@ impl EguiController {
     {
         let context = self.selection_target()?;
         let backup = undo::OverwriteBackup::capture_before(&context.absolute_path)?;
-        
+
         let preserved_view = self.ui.waveform.view;
         let preserved_selection = self.ui.waveform.selection;
         let preserved_edit_selection = self.ui.waveform.edit_selection;
@@ -404,8 +400,8 @@ impl EguiController {
             .map_err(|err| format!("Failed to sync database entry: {err}"))?;
         db.set_tag(&context.relative_path, tag)
             .map_err(|err| format!("Failed to sync tag: {err}"))?;
-        let last_played_at = self
-            .sample_last_played_for(&context.source, &context.relative_path)?;
+        let last_played_at =
+            self.sample_last_played_for(&context.source, &context.relative_path)?;
         let looped = self.sample_looped_for(&context.source, &context.relative_path)?;
         let entry = WavEntry {
             relative_path: context.relative_path.clone(),
@@ -418,7 +414,7 @@ impl EguiController {
             last_played_at,
         };
         self.update_cached_entry(&context.source, &context.relative_path, entry);
-        
+
         // Force a full reload by clearing loaded_wav (the file was modified on disk)
         self.sample_view.wav.loaded_wav = None;
         self.ui.loaded_wav = None;
@@ -447,12 +443,14 @@ impl EguiController {
             } else {
                 None
             };
-            self.runtime.jobs.set_pending_playback(Some(PendingPlayback {
-                source_id: context.source.id.clone(),
-                relative_path: context.relative_path.clone(),
-                looped: was_looping,
-                start_override,
-            }));
+            self.runtime
+                .jobs
+                .set_pending_playback(Some(PendingPlayback {
+                    source_id: context.source.id.clone(),
+                    relative_path: context.relative_path.clone(),
+                    looped: was_looping,
+                    start_override,
+                }));
         }
 
         self.maybe_trigger_pending_playback();
@@ -471,10 +469,8 @@ impl EguiController {
     }
 
     fn selection_target(&self) -> Result<SelectionTarget, String> {
-        let selection = selection_target_range(
-            self.ui.waveform.edit_selection,
-            self.ui.waveform.selection,
-        );
+        let selection =
+            selection_target_range(self.ui.waveform.edit_selection, self.ui.waveform.selection);
         let audio = self
             .sample_view
             .wav

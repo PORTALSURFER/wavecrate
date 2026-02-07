@@ -1,7 +1,7 @@
 use super::style;
 use super::*;
-use crate::egui_app::controller::hotkeys;
-use crate::egui_app::state::{SampleBrowserSort, TriageFlagFilter};
+use crate::app::controller::hotkeys;
+use crate::app::state::{SampleBrowserSort, TriageFlagFilter};
 use crate::gui::input::KeyCode;
 use eframe::egui::{self, RichText, Ui};
 

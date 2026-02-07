@@ -160,11 +160,7 @@ fn backoff_delay(base: Duration, max: Duration, attempt: usize) -> Duration {
     let exponent = u32::try_from(attempt.saturating_sub(1)).unwrap_or(u32::MAX);
     let factor = 1u32.checked_shl(exponent).unwrap_or(u32::MAX);
     let delay = base.checked_mul(factor).unwrap_or(max);
-    if delay > max {
-        max
-    } else {
-        delay
-    }
+    if delay > max { max } else { delay }
 }
 
 fn map_github_error(err: ureq::Error) -> UpdateError {
@@ -359,11 +355,8 @@ mod tests {
 
         let mut index = 0usize;
         let value: serde_json::Value = get_json_with_retry_from(config, || {
-            let current = response_from_str(
-                responses
-                    .get(index)
-                    .expect("response sequence exhausted"),
-            );
+            let current =
+                response_from_str(responses.get(index).expect("response sequence exhausted"));
             attempts.fetch_add(1, Ordering::SeqCst);
             index += 1;
             if index < 3 {

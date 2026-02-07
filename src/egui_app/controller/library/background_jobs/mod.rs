@@ -5,13 +5,13 @@ mod similarity;
 mod updates;
 
 use super::jobs::JobMessage;
-use trash_move::TrashMoveMessage;
 use super::*;
-use crate::egui_app::controller::state::audio::AudioLoadIntent;
-use crate::egui_app::state::ProgressTaskKind;
-use crate::egui_app::controller::playback::recording::waveform_loader::RecordingWaveformUpdate;
+use crate::app::controller::playback::recording::waveform_loader::RecordingWaveformUpdate;
+use crate::app::controller::state::audio::AudioLoadIntent;
+use crate::app::state::ProgressTaskKind;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
+use trash_move::TrashMoveMessage;
 
 impl EguiController {
     pub(crate) fn poll_background_jobs(&mut self) {
@@ -219,7 +219,10 @@ impl EguiController {
                     self.apply_folder_delete_recovery_report(report);
                 }
                 JobMessage::FileOps(message) => match message {
-                    crate::egui_app::controller::jobs::FileOpMessage::Progress { completed, detail } => {
+                    crate::app::controller::jobs::FileOpMessage::Progress {
+                        completed,
+                        detail,
+                    } => {
                         progress::update_progress_detail(
                             self,
                             ProgressTaskKind::FileOps,
@@ -227,7 +230,7 @@ impl EguiController {
                             detail,
                         );
                     }
-                    crate::egui_app::controller::jobs::FileOpMessage::Finished(result) => {
+                    crate::app::controller::jobs::FileOpMessage::Finished(result) => {
                         self.runtime.jobs.clear_file_ops();
                         self.apply_file_op_result(result);
                         if self.ui.progress.task == Some(ProgressTaskKind::FileOps) {
@@ -353,14 +356,19 @@ impl EguiController {
                         // Re-sync selection/loaded hints for the new visible list
                         let focused_index = self.selected_row_index();
                         let loaded_index = self.loaded_row_index();
-                        self.ui.browser.selected_visible = focused_index
-                            .and_then(|idx| self.ui.browser.visible.position(idx));
-                        self.ui.browser.loaded_visible = loaded_index
-                            .and_then(|idx| self.ui.browser.visible.position(idx));
+                        self.ui.browser.selected_visible =
+                            focused_index.and_then(|idx| self.ui.browser.visible.position(idx));
+                        self.ui.browser.loaded_visible =
+                            loaded_index.and_then(|idx| self.ui.browser.visible.position(idx));
                     }
                 }
                 JobMessage::Normalized(message) => {
-                    let source = self.library.sources.iter().find(|s| s.id == message.source_id).cloned();
+                    let source = self
+                        .library
+                        .sources
+                        .iter()
+                        .find(|s| s.id == message.source_id)
+                        .cloned();
                     let was_playing = self.is_playing();
                     let playhead_position = self.ui.waveform.playhead.position;
                     let was_looping = self.ui.waveform.loop_enabled;
@@ -374,19 +382,25 @@ impl EguiController {
                                     modified_ns,
                                     content_hash: None,
                                     tag,
-                                    looped: self.wav_index_for_path(&message.relative_path)
+                                    looped: self
+                                        .wav_index_for_path(&message.relative_path)
                                         .and_then(|idx| self.wav_entries.entry(idx))
                                         .map(|e| e.looped)
                                         .unwrap_or(false),
                                     missing: false,
-                                    last_played_at: self.wav_index_for_path(&message.relative_path)
+                                    last_played_at: self
+                                        .wav_index_for_path(&message.relative_path)
                                         .and_then(|idx| self.wav_entries.entry(idx))
                                         .and_then(|e| e.last_played_at),
                                 };
 
-                                let is_currently_loaded = self.sample_view.wav.loaded_audio.as_ref().is_some_and(|audio| {
-                                    audio.source_id == source.id && audio.relative_path == message.relative_path
-                                });
+                                let is_currently_loaded =
+                                    self.sample_view.wav.loaded_audio.as_ref().is_some_and(
+                                        |audio| {
+                                            audio.source_id == source.id
+                                                && audio.relative_path == message.relative_path
+                                        },
+                                    );
 
                                 if is_currently_loaded && was_playing {
                                     let start_override = if playhead_position.is_finite() {
@@ -394,21 +408,25 @@ impl EguiController {
                                     } else {
                                         None
                                     };
-                                    self.runtime.jobs.set_pending_playback(Some(PendingPlayback {
-                                        source_id: source.id.clone(),
-                                        relative_path: message.relative_path.clone(),
-                                        looped: was_looping,
-                                        start_override,
-                                    }));
+                                    self.runtime
+                                        .jobs
+                                        .set_pending_playback(Some(PendingPlayback {
+                                            source_id: source.id.clone(),
+                                            relative_path: message.relative_path.clone(),
+                                            looped: was_looping,
+                                            start_override,
+                                        }));
                                 }
 
                                 self.update_cached_entry(source, &message.relative_path, updated);
-                                
-                                if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
+
+                                if self.selection_state.ctx.selected_source.as_ref()
+                                    == Some(&source.id)
+                                {
                                     self.rebuild_browser_lists();
                                 }
                                 self.refresh_waveform_for_sample(source, &message.relative_path);
-                                
+
                                 self.set_status(
                                     format!("Normalized {}", message.relative_path.display()),
                                     StatusTone::Info,
@@ -416,7 +434,10 @@ impl EguiController {
                             }
                         }
                         Err(err) => {
-                            self.set_status(format!("Normalization failed: {err}"), StatusTone::Error);
+                            self.set_status(
+                                format!("Normalization failed: {err}"),
+                                StatusTone::Error,
+                            );
                         }
                     }
                     if self.ui.progress.task == Some(ProgressTaskKind::Normalization) {

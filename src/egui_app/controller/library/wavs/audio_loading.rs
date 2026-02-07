@@ -1,13 +1,9 @@
-use crate::egui_app::controller::playback::audio_cache::CacheKey;
 use super::*;
+use crate::app::controller::playback::audio_cache::CacheKey;
 use std::path::Path;
 
 impl EguiController {
-    pub(crate) fn handle_audio_loaded(
-        &mut self,
-        pending: PendingAudio,
-        outcome: AudioLoadOutcome,
-    ) {
+    pub(crate) fn handle_audio_loaded(&mut self, pending: PendingAudio, outcome: AudioLoadOutcome) {
         let source = SampleSource {
             id: pending.source_id.clone(),
             root: pending.root.clone(),
@@ -38,7 +34,8 @@ impl EguiController {
                 .cache
                 .insert(cache_key, outcome.metadata, decoded.clone(), bytes.clone());
         }
-        let preserve_selections = self.sample_view.wav.loaded_wav.as_deref() == Some(&pending.relative_path);
+        let preserve_selections =
+            self.sample_view.wav.loaded_wav.as_deref() == Some(&pending.relative_path);
         if let Err(err) = self.finish_waveform_load(
             &source,
             &pending.relative_path,
@@ -61,11 +58,7 @@ impl EguiController {
         self.maybe_trigger_pending_playback();
     }
 
-    pub(crate) fn handle_audio_load_error(
-        &mut self,
-        pending: PendingAudio,
-        error: AudioLoadError,
-    ) {
+    pub(crate) fn handle_audio_load_error(&mut self, pending: PendingAudio, error: AudioLoadError) {
         let source = SampleSource {
             id: pending.source_id.clone(),
             root: pending.root.clone(),
@@ -168,7 +161,9 @@ impl EguiController {
         intent: AudioLoadIntent,
     ) -> Result<bool, String> {
         if matches!(intent, AudioLoadIntent::Selection)
-            && self.stretch_ratio_for_sample(source, relative_path).is_some()
+            && self
+                .stretch_ratio_for_sample(source, relative_path)
+                .is_some()
         {
             return Ok(false);
         }
@@ -183,7 +178,15 @@ impl EguiController {
         let duration_seconds = hit.decoded.duration_seconds;
         let sample_rate = hit.decoded.sample_rate;
         let preserve_selections = self.sample_view.wav.loaded_wav.as_deref() == Some(relative_path);
-        self.finish_waveform_load(source, relative_path, hit.decoded, hit.bytes, intent, preserve_selections, None)?;
+        self.finish_waveform_load(
+            source,
+            relative_path,
+            hit.decoded,
+            hit.bytes,
+            intent,
+            preserve_selections,
+            None,
+        )?;
         let message = Self::loaded_status_text(relative_path, duration_seconds, sample_rate);
         self.set_status(message, StatusTone::Info);
         if matches!(intent, AudioLoadIntent::Selection) {

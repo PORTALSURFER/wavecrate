@@ -9,8 +9,8 @@ pub(crate) fn read_samples_for_normalization(
 ) -> Result<(Vec<f32>, hound::WavSpec), String> {
     let reader_source = crate::wav_sanitize::open_sanitized_wav(path)?;
     let buf_reader = std::io::BufReader::with_capacity(1024 * 1024, reader_source);
-    let mut reader = hound::WavReader::new(buf_reader)
-        .map_err(|err| format!("Invalid wav: {err}"))?;
+    let mut reader =
+        hound::WavReader::new(buf_reader).map_err(|err| format!("Invalid wav: {err}"))?;
     let spec = reader.spec();
     let samples = match spec.sample_format {
         SampleFormat::Float => reader
@@ -37,8 +37,8 @@ pub(crate) fn write_normalized_wav(
     samples: &[f32],
     spec: hound::WavSpec,
 ) -> Result<(), String> {
-    let file = std::fs::File::create(path)
-        .map_err(|err| format!("Failed to create file: {err}"))?;
+    let file =
+        std::fs::File::create(path).map_err(|err| format!("Failed to create file: {err}"))?;
     let buf_writer = std::io::BufWriter::with_capacity(1024 * 1024, file);
     let mut writer = hound::WavWriter::new(buf_writer, spec)
         .map_err(|err| format!("Failed to write wav: {err}"))?;

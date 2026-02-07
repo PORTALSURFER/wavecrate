@@ -1,4 +1,4 @@
-use crate::egui_app::controller::library::analysis_jobs::types::AnalysisProgress;
+use crate::app::controller::library::analysis_jobs::types::AnalysisProgress;
 use crate::sample_sources::SourceId;
 use std::collections::HashMap;
 

@@ -95,7 +95,14 @@ fn apply_wav_entries_updates_missing_lookup() {
         )
         .unwrap();
     batch
-        .upsert_file_with_hash_and_tag(Path::new("gone.wav"), 1, 1, "h2", crate::sample_sources::Rating::NEUTRAL, true)
+        .upsert_file_with_hash_and_tag(
+            Path::new("gone.wav"),
+            1,
+            1,
+            "h2",
+            crate::sample_sources::Rating::NEUTRAL,
+            true,
+        )
         .unwrap();
     batch.commit().unwrap();
     let entries = vec![

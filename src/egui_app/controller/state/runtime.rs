@@ -1,9 +1,9 @@
 //! Runtime state and job coordination for the controller.
 
-use crate::egui_app::controller::library::analysis_jobs;
-use crate::egui_app::controller::jobs;
-use crate::sample_sources::{ScanMode, SourceId, WavEntry};
+use crate::app::controller::jobs;
+use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::db::SourceDbError;
+use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -138,8 +138,7 @@ pub(crate) enum ScanJobMessage {
     Finished(ScanResult),
 }
 
-#[derive(Clone)]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct UpdateCheckResult {
     pub(crate) result: Result<crate::updater::UpdateCheckOutcome, String>,
 }

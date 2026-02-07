@@ -12,10 +12,7 @@ struct AnnIndexDirtyEntry<'a> {
 }
 
 /// Mark the ANN index as dirty and record a short failure reason.
-pub(crate) fn mark_ann_index_dirty(
-    conn: &Connection,
-    reason: &str,
-) -> Result<(), String> {
+pub(crate) fn mark_ann_index_dirty(conn: &Connection, reason: &str) -> Result<(), String> {
     let payload = serde_json::to_string(&AnnIndexDirtyEntry {
         dirty_at: now_epoch_seconds(),
         reason,

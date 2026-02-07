@@ -71,7 +71,8 @@ pub fn app_root_dir() -> Result<PathBuf, AppDirError> {
     #[cfg(test)]
     ensure_test_config_base();
     #[cfg(test)]
-    if let Some(path) = TEST_APP_ROOT_OVERRIDE.with(|override_path| override_path.borrow().clone()) {
+    if let Some(path) = TEST_APP_ROOT_OVERRIDE.with(|override_path| override_path.borrow().clone())
+    {
         std::fs::create_dir_all(&path).map_err(|source| AppDirError::CreateDir {
             path: path.clone(),
             source,

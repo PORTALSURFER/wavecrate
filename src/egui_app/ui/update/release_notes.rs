@@ -1,7 +1,7 @@
 use eframe::egui;
 
-use super::super::EguiApp;
 use super::super::input::InputSnapshot;
+use super::super::EguiApp;
 use super::consume_keypress;
 use super::update_prompt::FocusFlags;
 

@@ -18,8 +18,7 @@ pub(crate) enum TrashMoveMessage {
     Finished(TrashMoveFinished),
 }
 
-#[derive(Clone)]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct TrashMoveFinished {
     pub(crate) total: usize,
     pub(crate) moved: usize,
@@ -214,7 +213,11 @@ fn unique_destination(root: &Path, relative: &Path) -> Result<PathBuf, String> {
     Err("Could not create unique trash destination".into())
 }
 
-pub(crate) fn move_to_trash(source: &SampleSource, entry: &WavEntry, trash_root: &Path) -> Result<(), String> {
+pub(crate) fn move_to_trash(
+    source: &SampleSource,
+    entry: &WavEntry,
+    trash_root: &Path,
+) -> Result<(), String> {
     let absolute = source.root.join(&entry.relative_path);
     if !absolute.is_file() {
         return Err(format!("File not found for trash: {}", absolute.display()));
@@ -280,7 +283,10 @@ mod tests {
 
         let files = db.list_files().unwrap();
         assert_eq!(files.len(), 1);
-        assert!(!files[0].missing, "Should rollback missing status on failure");
+        assert!(
+            !files[0].missing,
+            "Should rollback missing status on failure"
+        );
     }
 
     #[test]

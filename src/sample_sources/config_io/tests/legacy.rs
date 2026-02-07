@@ -1,13 +1,13 @@
 use super::super::super::config_types::{
-    AnalysisSettings, AppSettingsCore, DropTargetConfig, FeatureFlags,
-    InteractionOptions, UpdateSettings,
+    AnalysisSettings, AppSettingsCore, DropTargetConfig, FeatureFlags, InteractionOptions,
+    UpdateSettings,
 };
 use super::super::LEGACY_CONFIG_FILE_NAME;
 use super::super::load::load_or_default;
 use super::TestConfigEnv;
 use crate::audio::{AudioInputConfig, AudioOutputConfig};
-use crate::sample_sources::config::AppConfig;
 use crate::sample_sources::SampleSource;
+use crate::sample_sources::config::AppConfig;
 
 #[test]
 fn migrates_from_legacy_json() {

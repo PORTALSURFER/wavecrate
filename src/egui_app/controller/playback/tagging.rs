@@ -118,7 +118,7 @@ pub(crate) fn tag_selected(controller: &mut EguiController, target: crate::sampl
 }
 
 pub(crate) fn move_selection_column(controller: &mut EguiController, delta: isize) {
-    use crate::egui_app::state::TriageFlagFilter::*;
+    use crate::app::state::TriageFlagFilter::*;
     let filters = [All, Keep, Trash, Untagged];
     let current = controller.ui.browser.filter;
     let current_idx = filters.iter().position(|f| f == &current).unwrap_or(0) as isize;
@@ -158,7 +158,7 @@ pub(crate) fn adjust_selected_rating(controller: &mut EguiController, delta: i8)
     // However, the standard pattern in tagging.rs is to store (SourceId, Path, Rating).
     let mut previous_values: Vec<(SourceId, PathBuf, crate::sample_sources::Rating)> = Vec::new();
     let mut applied_updates: Vec<(SourceId, PathBuf, crate::sample_sources::Rating)> = Vec::new();
-    
+
     let mut contexts = Vec::with_capacity(rows.len());
     let mut seen = std::collections::HashSet::new();
     for row in rows {
@@ -185,12 +185,12 @@ pub(crate) fn adjust_selected_rating(controller: &mut EguiController, delta: i8)
         let target = crate::sample_sources::Rating::new(new_val);
 
         if target != current_rating {
-             let before = (
+            let before = (
                 ctx.source.id.clone(),
                 ctx.entry.relative_path.clone(),
                 current_rating,
             );
-            
+
             match controller.set_sample_tag_for_source(
                 &ctx.source,
                 &ctx.entry.relative_path,
@@ -199,7 +199,11 @@ pub(crate) fn adjust_selected_rating(controller: &mut EguiController, delta: i8)
             ) {
                 Ok(()) => {
                     previous_values.push(before);
-                    applied_updates.push((ctx.source.id.clone(), ctx.entry.relative_path.clone(), target));
+                    applied_updates.push((
+                        ctx.source.id.clone(),
+                        ctx.entry.relative_path.clone(),
+                        target,
+                    ));
                 }
                 Err(err) => last_error = Some(err),
             }
@@ -207,8 +211,12 @@ pub(crate) fn adjust_selected_rating(controller: &mut EguiController, delta: i8)
     }
 
     if !applied_updates.is_empty() {
-        let label = if delta > 0 { "Increase rating" } else { "Decrease rating" };
-        
+        let label = if delta > 0 {
+            "Increase rating"
+        } else {
+            "Decrease rating"
+        };
+
         // Capture for closures
         let redo_updates = applied_updates.clone();
         let undo_values = previous_values;
@@ -218,7 +226,7 @@ pub(crate) fn adjust_selected_rating(controller: &mut EguiController, delta: i8)
             label,
             move |controller: &mut EguiController| {
                 for (source_id, path, tag) in undo_values.iter() {
-                     let source = controller
+                    let source = controller
                         .library
                         .sources
                         .iter()
@@ -228,15 +236,15 @@ pub(crate) fn adjust_selected_rating(controller: &mut EguiController, delta: i8)
                     controller.set_sample_tag_for_source(&source, path, *tag, false)?;
                 }
                 if let Some(path) = refocus_path_undo.as_deref() {
-                     controller.selection_state.suppress_autoplay_once = true;
-                     if let Some(row) = controller.visible_row_for_path(path) {
-                         controller.focus_browser_row_only(row);
-                     }
+                    controller.selection_state.suppress_autoplay_once = true;
+                    if let Some(row) = controller.visible_row_for_path(path) {
+                        controller.focus_browser_row_only(row);
+                    }
                 }
                 Ok(super::undo::UndoExecution::Applied)
             },
             move |controller: &mut EguiController| {
-                 for (source_id, path, tag) in redo_updates.iter() {
+                for (source_id, path, tag) in redo_updates.iter() {
                     let source = controller
                         .library
                         .sources
@@ -254,8 +262,6 @@ pub(crate) fn adjust_selected_rating(controller: &mut EguiController, delta: i8)
     if let Some(err) = last_error {
         controller.set_status(err, StatusTone::Error);
     }
-
-
 
     if controller.settings.controls.advance_after_rating
         && controller.ui.browser.selected_visible == Some(primary_row)

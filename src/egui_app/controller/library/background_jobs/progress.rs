@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::state::ProgressTaskKind;
+use crate::app::state::ProgressTaskKind;
 
 pub(crate) fn ensure_progress_visible(
     controller: &mut EguiController,

@@ -1,4 +1,4 @@
-use crate::egui_app::ui::style::StatusTone;
+use crate::app::ui::style::StatusTone;
 
 #[derive(Clone, Debug)]
 pub(crate) enum StatusMessage {

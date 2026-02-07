@@ -1,8 +1,8 @@
 use super::*;
-use crate::egui_app::controller::library::analysis_jobs;
-use crate::egui_app::controller::library::wav_entries_loader;
+use crate::app::controller::library::analysis_jobs;
+use crate::app::controller::library::wav_entries_loader;
+use crate::app::controller::{LoadEntriesError, WavLoadJob};
 use crate::sample_sources::WavEntry;
-use crate::egui_app::controller::{WavLoadJob, LoadEntriesError};
 impl EguiController {
     pub(crate) fn sync_after_wav_entries_changed(&mut self) {
         self.rebuild_wav_lookup();

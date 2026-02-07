@@ -1,9 +1,9 @@
 use super::EguiApp;
 use super::helpers::{RowBackground, clamp_label_for_width, list_row_height, render_list_row};
-use crate::egui_app::ui::helpers;
 use super::style;
-use crate::egui_app::state::{DragPayload, DragSource, DragTarget, FocusContext};
-use crate::egui_app::ui::drag_targets::handle_drop_zone;
+use crate::app::state::{DragPayload, DragSource, DragTarget, FocusContext};
+use crate::app::ui::drag_targets::handle_drop_zone;
+use crate::app::ui::helpers;
 use eframe::egui::{self, RichText, Ui};
 
 impl EguiApp {
@@ -109,7 +109,7 @@ impl EguiApp {
         &mut self,
         response: &egui::Response,
         index: usize,
-        row: &crate::egui_app::state::SourceRowView,
+        row: &crate::app::state::SourceRowView,
     ) {
         response.context_menu(|ui| {
             let palette = style::palette();

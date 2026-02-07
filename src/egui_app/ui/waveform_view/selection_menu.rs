@@ -1,8 +1,7 @@
 use super::style;
 use super::*;
-use crate::egui_app::state::DestructiveSelectionEdit;
+use crate::app::state::DestructiveSelectionEdit;
 use eframe::egui::{self, RichText};
-
 
 pub(super) fn render_selection_context_menu(app: &mut EguiApp, ui: &mut egui::Ui) {
     let palette = style::palette();
@@ -47,22 +46,34 @@ pub(super) fn render_selection_context_menu(app: &mut EguiApp, ui: &mut egui::Ui
     ui.separator();
     ui.horizontal(|ui| {
         let fade_lr = helpers::tooltip(
-            ui.add(egui::Button::new(RichText::new("\\ Fade to null").color(palette.text_primary))),
+            ui.add(egui::Button::new(
+                RichText::new("\\ Fade to null").color(palette.text_primary),
+            )),
             "Fade to silence",
             "Apply a linear volume fade-out from start to finish across the selection.",
             tooltip_mode,
         );
         if fade_lr.clicked() {
-            request_selection_edit(app, &mut close_menu, DestructiveSelectionEdit::FadeLeftToRight);
+            request_selection_edit(
+                app,
+                &mut close_menu,
+                DestructiveSelectionEdit::FadeLeftToRight,
+            );
         }
         let fade_rl = helpers::tooltip(
-            ui.add(egui::Button::new(RichText::new("/ Fade to null").color(palette.text_primary))),
+            ui.add(egui::Button::new(
+                RichText::new("/ Fade to null").color(palette.text_primary),
+            )),
             "Fade from silence",
             "Apply a linear volume fade-in from start to finish across the selection.",
             tooltip_mode,
         );
         if fade_rl.clicked() {
-            request_selection_edit(app, &mut close_menu, DestructiveSelectionEdit::FadeRightToLeft);
+            request_selection_edit(
+                app,
+                &mut close_menu,
+                DestructiveSelectionEdit::FadeRightToLeft,
+            );
         }
     });
     if helpers::tooltip(
@@ -70,8 +81,14 @@ pub(super) fn render_selection_context_menu(app: &mut EguiApp, ui: &mut egui::Ui
         "Mute selection",
         "Immediately zero out the volume for this region without any crossfading.",
         tooltip_mode,
-    ).clicked() {
-        request_selection_edit(app, &mut close_menu, DestructiveSelectionEdit::MuteSelection);
+    )
+    .clicked()
+    {
+        request_selection_edit(
+            app,
+            &mut close_menu,
+            DestructiveSelectionEdit::MuteSelection,
+        );
     }
     if helpers::tooltip(
         ui.button("Remove clicks"),
@@ -89,7 +106,11 @@ pub(super) fn render_selection_context_menu(app: &mut EguiApp, ui: &mut egui::Ui
     ).clicked() {
         request_selection_edit(app, &mut close_menu, DestructiveSelectionEdit::ShortEdgeFades);
     }
-    let mut auto_edge_fades = app.controller.ui.controls.auto_edge_fades_on_selection_exports;
+    let mut auto_edge_fades = app
+        .controller
+        .ui
+        .controls
+        .auto_edge_fades_on_selection_exports;
     let auto_edge_response = helpers::tooltip(
         ui.checkbox(&mut auto_edge_fades, "Auto short edge fades on new samples"),
         "Auto short edge fades on new samples",

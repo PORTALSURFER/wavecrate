@@ -6,7 +6,7 @@ impl EguiApp {
     pub(super) fn render_destructive_edit_prompt(
         &mut self,
         ctx: &egui::Context,
-        prompt: crate::egui_app::state::DestructiveEditPrompt,
+        prompt: crate::app::state::DestructiveEditPrompt,
     ) {
         let mut open = true;
         let mut apply = false;
@@ -36,7 +36,7 @@ impl EguiApp {
     fn render_destructive_prompt_body(
         &mut self,
         ui: &mut egui::Ui,
-        prompt: &crate::egui_app::state::DestructiveEditPrompt,
+        prompt: &crate::app::state::DestructiveEditPrompt,
         apply: &mut bool,
         close_prompt: &mut bool,
     ) {
@@ -52,7 +52,7 @@ impl EguiApp {
     fn render_destructive_prompt_copy(
         &self,
         ui: &mut egui::Ui,
-        prompt: &crate::egui_app::state::DestructiveEditPrompt,
+        prompt: &crate::app::state::DestructiveEditPrompt,
         palette: &style::Palette,
     ) {
         ui.label(

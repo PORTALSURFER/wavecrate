@@ -1,6 +1,6 @@
-use crate::egui_app::controller::EguiController;
-use crate::egui_app::controller::ui::status_message::StatusMessage;
-use crate::egui_app::controller::jobs;
+use crate::app::controller::EguiController;
+use crate::app::controller::jobs;
+use crate::app::controller::ui::status_message::StatusMessage;
 use crate::sample_sources::SampleSource;
 
 impl EguiController {

@@ -50,11 +50,7 @@ where
                 if attempt >= config.max_attempts || !should_retry(&err) {
                     return Err(err);
                 }
-                std::thread::sleep(backoff_delay(
-                    config.base_delay,
-                    config.max_delay,
-                    attempt,
-                ));
+                std::thread::sleep(backoff_delay(config.base_delay, config.max_delay, attempt));
             }
         }
     }
@@ -127,11 +123,7 @@ fn backoff_delay(base: Duration, max: Duration, attempt: usize) -> Duration {
     let exponent = u32::try_from(attempt.saturating_sub(1)).unwrap_or(u32::MAX);
     let factor = 1u32.checked_shl(exponent).unwrap_or(u32::MAX);
     let delay = base.checked_mul(factor).unwrap_or(max);
-    if delay > max {
-        max
-    } else {
-        delay
-    }
+    if delay > max { max } else { delay }
 }
 
 #[cfg(test)]
@@ -200,15 +192,14 @@ mod tests {
             base_delay: Duration::from_millis(0),
             max_delay: Duration::from_millis(0),
         };
-        let result: Result<u32, &'static str> =
-            retry_with_backoff(config, || {
+        let result: Result<u32, &'static str> = retry_with_backoff(
+            config,
+            || {
                 attempts += 1;
-                if attempts < 3 {
-                    Err("fail")
-                } else {
-                    Ok(7)
-                }
-            }, |_| true);
+                if attempts < 3 { Err("fail") } else { Ok(7) }
+            },
+            |_| true,
+        );
         assert_eq!(result, Ok(7));
         assert_eq!(attempts, 3);
     }
@@ -221,11 +212,14 @@ mod tests {
             base_delay: Duration::from_millis(0),
             max_delay: Duration::from_millis(0),
         };
-        let result: Result<u32, &'static str> =
-            retry_with_backoff(config, || {
+        let result: Result<u32, &'static str> = retry_with_backoff(
+            config,
+            || {
                 attempts += 1;
                 Err("fail")
-            }, |_| false);
+            },
+            |_| false,
+        );
         assert_eq!(result, Err("fail"));
         assert_eq!(attempts, 1);
     }

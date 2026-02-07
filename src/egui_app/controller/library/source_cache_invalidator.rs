@@ -17,7 +17,10 @@ pub(crate) struct SourceCacheInvalidator<'a> {
     analysis_failures_cache: &'a mut HashMap<SourceId, HashMap<PathBuf, String>>,
     feature_cache: &'a mut HashMap<SourceId, FeatureCache>,
     missing_wavs: &'a mut HashMap<SourceId, HashSet<PathBuf>>,
-    folder_browsers: &'a mut HashMap<SourceId, crate::egui_app::controller::library::source_folders::FolderBrowserModel>,
+    folder_browsers: &'a mut HashMap<
+        SourceId,
+        crate::app::controller::library::source_folders::FolderBrowserModel,
+    >,
 }
 
 impl<'a> SourceCacheInvalidator<'a> {
@@ -48,7 +51,10 @@ impl<'a> SourceCacheInvalidator<'a> {
         analysis_failures_cache: &'a mut HashMap<SourceId, HashMap<PathBuf, String>>,
         feature_cache: &'a mut HashMap<SourceId, FeatureCache>,
         missing_wavs: &'a mut HashMap<SourceId, HashSet<PathBuf>>,
-        folder_browsers: &'a mut HashMap<SourceId, crate::egui_app::controller::library::source_folders::FolderBrowserModel>,
+        folder_browsers: &'a mut HashMap<
+            SourceId,
+            crate::app::controller::library::source_folders::FolderBrowserModel,
+        >,
     ) -> Self {
         Self {
             db_cache,

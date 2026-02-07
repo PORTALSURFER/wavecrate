@@ -1,4 +1,4 @@
-use crate::egui_app::state::MapRenderMode;
+use crate::app::state::MapRenderMode;
 use eframe::egui;
 
 pub(crate) fn map_to_screen(
@@ -17,7 +17,7 @@ pub(crate) fn map_to_screen(
 pub(crate) fn render_heatmap(
     painter: &egui::Painter,
     rect: egui::Rect,
-    points: &[crate::egui_app::state::MapPoint],
+    points: &[crate::app::state::MapPoint],
     center: egui::Pos2,
     scale: f32,
     pan: egui::Vec2,
@@ -31,7 +31,7 @@ pub(crate) fn render_heatmap(
 pub(crate) fn render_heatmap_with_color<F>(
     painter: &egui::Painter,
     rect: egui::Rect,
-    points: &[crate::egui_app::state::MapPoint],
+    points: &[crate::app::state::MapPoint],
     center: egui::Pos2,
     scale: f32,
     pan: egui::Vec2,
@@ -39,7 +39,7 @@ pub(crate) fn render_heatmap_with_color<F>(
     color_for_point: F,
 ) -> usize
 where
-    F: Fn(&crate::egui_app::state::MapPoint) -> egui::Color32,
+    F: Fn(&crate::app::state::MapPoint) -> egui::Color32,
 {
     let mut counts = vec![0u32; bins * bins];
     let mut r_sums = vec![0f32; bins * bins];
@@ -66,7 +66,7 @@ where
 pub(super) fn render_points(
     painter: &egui::Painter,
     rect: egui::Rect,
-    points: &[crate::egui_app::state::MapPoint],
+    points: &[crate::app::state::MapPoint],
     center: egui::Pos2,
     scale: f32,
     pan: egui::Vec2,
@@ -74,7 +74,7 @@ pub(super) fn render_points(
     focused_sample_id: Option<&str>,
     cluster_overlay: bool,
     heatmap_bins: usize,
-    point_color: impl Fn(&crate::egui_app::state::MapPoint, u8) -> egui::Color32,
+    point_color: impl Fn(&crate::app::state::MapPoint, u8) -> egui::Color32,
 ) -> (usize, usize, MapRenderMode) {
     let display_count = points.len();
     let mut draw_calls = 0usize;
@@ -113,7 +113,7 @@ pub(super) fn render_points(
 }
 
 fn heatmap_bin_index(
-    point: &crate::egui_app::state::MapPoint,
+    point: &crate::app::state::MapPoint,
     rect: egui::Rect,
     center: egui::Pos2,
     scale: f32,
@@ -135,14 +135,14 @@ fn heatmap_bin_index(
 
 fn accumulate_bin<F>(
     idx: usize,
-    point: &crate::egui_app::state::MapPoint,
+    point: &crate::app::state::MapPoint,
     color_for_point: &F,
     counts: &mut [u32],
     r_sums: &mut [f32],
     g_sums: &mut [f32],
     b_sums: &mut [f32],
 ) where
-    F: Fn(&crate::egui_app::state::MapPoint) -> egui::Color32,
+    F: Fn(&crate::app::state::MapPoint) -> egui::Color32,
 {
     let color = color_for_point(point);
     counts[idx] = counts[idx].saturating_add(1);

@@ -1,4 +1,4 @@
-use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db;
 use rusqlite::OptionalExtension;
 use std::time::Instant;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

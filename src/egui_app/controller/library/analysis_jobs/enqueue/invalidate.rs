@@ -1,4 +1,4 @@
-use crate::egui_app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db;
 use rusqlite::params;
 use std::collections::{HashMap, HashSet};
 

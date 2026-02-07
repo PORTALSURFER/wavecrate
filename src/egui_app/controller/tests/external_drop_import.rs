@@ -14,10 +14,10 @@ fn import_external_files_to_source_folder_copies_into_subfolder_and_db() {
 
     controller
         .import_external_files_to_source_folder_for_tests(
-        PathBuf::from("Drums"),
-        vec![input_path.clone()],
-    )
-    .unwrap();
+            PathBuf::from("Drums"),
+            vec![input_path.clone()],
+        )
+        .unwrap();
 
     let expected_relative = PathBuf::from("Drums").join("kick.wav");
     let expected_absolute = source.root.join(&expected_relative);
@@ -25,7 +25,9 @@ fn import_external_files_to_source_folder_copies_into_subfolder_and_db() {
 
     let db = controller.database_for(&source).unwrap();
     let entries = db.list_files().unwrap();
-    assert!(entries
-        .iter()
-        .any(|entry| entry.relative_path == expected_relative));
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.relative_path == expected_relative)
+    );
 }

@@ -48,9 +48,7 @@ impl Wsola {
         if input_frames < self.window_size * 2 {
             return input.to_vec();
         }
-        let output_frames = ((input_frames as f64) / ratio)
-            .round()
-            .max(1.0) as usize;
+        let output_frames = ((input_frames as f64) / ratio).round().max(1.0) as usize;
         let mut output = vec![0.0; output_frames * channels];
         let mono_input = mono_from_interleaved(input, channels);
         let mut mono_output = vec![0.0; output_frames];
@@ -70,11 +68,8 @@ impl Wsola {
 
         while synthesis_pos + self.window_size <= output_frames && max_analysis_start > 0 {
             let expected = analysis_pos.round() as isize;
-            let expected_clamped =
-                expected.clamp(0, max_analysis_start as isize) as usize;
-            let search_start = expected
-                .saturating_sub(self.search_radius as isize)
-                .max(0) as usize;
+            let expected_clamped = expected.clamp(0, max_analysis_start as isize) as usize;
+            let search_start = expected.saturating_sub(self.search_radius as isize).max(0) as usize;
             let search_end = (expected + self.search_radius as isize)
                 .min(max_analysis_start as isize)
                 .max(0) as usize;
@@ -117,8 +112,7 @@ impl Wsola {
                 let dst_frame = synthesis_pos + i;
                 let window = self.window[i];
                 for ch in 0..channels {
-                    output[dst_frame * channels + ch] +=
-                        input[src_frame * channels + ch] * window;
+                    output[dst_frame * channels + ch] += input[src_frame * channels + ch] * window;
                 }
                 mono_output[dst_frame] += mono_input[src_frame] * window;
             }

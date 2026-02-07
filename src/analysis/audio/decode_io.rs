@@ -4,8 +4,8 @@ use std::path::Path;
 
 use crate::audio::Source;
 use crate::audio::decoder::SymphoniaDecoder;
-use symphonia::core::io::MediaSourceStream;
 use std::time::Duration;
+use symphonia::core::io::MediaSourceStream;
 
 use super::analysis_prep::{downmix_to_mono_into, prepare_mono_for_analysis_from_slice};
 use super::resample::resample_linear_into;
@@ -56,7 +56,9 @@ pub(crate) fn probe_metadata(path: &Path) -> Result<AudioProbe, String> {
         decoder.set_hint(hint);
     }
     Ok(AudioProbe {
-        duration_seconds: decoder.total_duration().map(|dur: Duration| dur.as_secs_f32()),
+        duration_seconds: decoder
+            .total_duration()
+            .map(|dur: Duration| dur.as_secs_f32()),
         sample_rate: Some(decoder.sample_rate().max(1)),
         channels: Some(decoder.channels().max(1)),
     })

@@ -1,8 +1,10 @@
 //! File system watcher for source roots that reports audio-relevant changes.
 
-use crate::egui_app::controller::jobs::{JobMessage, JobMessageSender};
+use crate::app::controller::jobs::{JobMessage, JobMessageSender};
 use crate::sample_sources::{SourceId, db::DB_FILE_NAME, is_supported_audio};
-use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Result as NotifyResult, Watcher};
+use notify::{
+    Event, EventKind, RecommendedWatcher, RecursiveMode, Result as NotifyResult, Watcher,
+};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender};
@@ -169,8 +171,7 @@ fn drain_ready_sources(
     let ready: Vec<SourceId> = pending
         .iter()
         .filter_map(|(source_id, entry)| {
-            (now.saturating_duration_since(entry.last_event) >= debounce)
-                .then(|| source_id.clone())
+            (now.saturating_duration_since(entry.last_event) >= debounce).then(|| source_id.clone())
         })
         .collect();
     for source_id in &ready {
@@ -197,13 +198,21 @@ fn update_watched_sources(
         .map(|entry| entry.root.clone())
         .filter(|root| root.is_dir())
         .collect();
-    for root in watched_roots.difference(&desired).cloned().collect::<Vec<_>>() {
+    for root in watched_roots
+        .difference(&desired)
+        .cloned()
+        .collect::<Vec<_>>()
+    {
         if let Err(err) = watcher.unwatch(&root) {
             tracing::warn!("Failed to unwatch source root {}: {err}", root.display());
         }
         watched_roots.remove(&root);
     }
-    for root in desired.difference(watched_roots).cloned().collect::<Vec<_>>() {
+    for root in desired
+        .difference(watched_roots)
+        .cloned()
+        .collect::<Vec<_>>()
+    {
         if let Err(err) = watcher.watch(&root, RecursiveMode::Recursive) {
             tracing::warn!("Failed to watch source root {}: {err}", root.display());
             continue;
@@ -219,10 +228,7 @@ fn event_triggers_sync(event: &Event) -> bool {
     )
 }
 
-fn select_source_for_path(
-    sources: &[SourceWatchEntry],
-    path: &Path,
-) -> Option<SourceId> {
+fn select_source_for_path(sources: &[SourceWatchEntry], path: &Path) -> Option<SourceId> {
     sources
         .iter()
         .filter(|entry| path.starts_with(&entry.root))
@@ -264,7 +270,9 @@ mod tests {
     #[test]
     fn path_is_candidate_filters_db_files() {
         assert!(!path_is_candidate(Path::new(DB_FILE_NAME)));
-        assert!(!path_is_candidate(Path::new(&format!("{DB_FILE_NAME}-wal"))));
+        assert!(!path_is_candidate(Path::new(&format!(
+            "{DB_FILE_NAME}-wal"
+        ))));
     }
 
     #[test]
@@ -283,14 +291,9 @@ mod tests {
 
     #[test]
     fn select_source_for_path_picks_longest_root() {
-        let first = SourceWatchEntry::new(
-            SourceId::from_string("a"),
-            PathBuf::from("/music"),
-        );
-        let second = SourceWatchEntry::new(
-            SourceId::from_string("b"),
-            PathBuf::from("/music/drums"),
-        );
+        let first = SourceWatchEntry::new(SourceId::from_string("a"), PathBuf::from("/music"));
+        let second =
+            SourceWatchEntry::new(SourceId::from_string("b"), PathBuf::from("/music/drums"));
         let path = Path::new("/music/drums/kicks/kick.wav");
         let selected = select_source_for_path(&[first, second], path).unwrap();
         assert_eq!(selected.as_str(), "b");
@@ -302,13 +305,15 @@ mod tests {
         let source_id = SourceId::from_string("a");
         let start = Instant::now();
         update_pending_watch(&mut pending, source_id.clone(), start);
-        assert!(drain_ready_sources(
-            &mut pending,
-            start + Duration::from_millis(200),
-            Duration::from_millis(400),
-            false
-        )
-        .is_empty());
+        assert!(
+            drain_ready_sources(
+                &mut pending,
+                start + Duration::from_millis(200),
+                Duration::from_millis(400),
+                false
+            )
+            .is_empty()
+        );
         let ready = drain_ready_sources(
             &mut pending,
             start + Duration::from_millis(500),

@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::controller::library::analysis_jobs;
+use crate::app::controller::library::analysis_jobs;
 use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 use std::collections::HashMap;
@@ -80,7 +80,7 @@ impl EguiController {
         cluster_method: &str,
         cluster_umap_version: &str,
         source_id: Option<&SourceId>,
-        bounds: crate::egui_app::state::MapQueryBounds,
+        bounds: crate::app::state::MapQueryBounds,
         limit: usize,
     ) -> Result<Vec<UmapPoint>, String> {
         let conn = open_source_db(self, source_id)?;
@@ -117,7 +117,7 @@ impl EguiController {
         cluster_method: &str,
         cluster_umap_version: &str,
         source_id: Option<&SourceId>,
-    ) -> Result<HashMap<i32, crate::egui_app::state::MapClusterCentroid>, String> {
+    ) -> Result<HashMap<i32, crate::app::state::MapClusterCentroid>, String> {
         let conn = open_source_db(self, source_id)?;
         load_umap_cluster_centroids(
             &conn,
@@ -157,7 +157,8 @@ pub(crate) fn run_umap_cluster_build(
         Some(umap_version),
         sample_id_prefix.as_deref(),
         crate::analysis::hdbscan::HdbscanConfig {
-            min_cluster_size: crate::egui_app::controller::library::similarity_prep::DEFAULT_CLUSTER_MIN_SIZE,
+            min_cluster_size:
+                crate::app::controller::library::similarity_prep::DEFAULT_CLUSTER_MIN_SIZE,
             min_samples: None,
             allow_single_cluster: false,
         },
@@ -250,7 +251,7 @@ fn load_umap_points(
     cluster_method: &str,
     cluster_umap_version: &str,
     source_id: Option<&SourceId>,
-    bounds: crate::egui_app::state::MapQueryBounds,
+    bounds: crate::app::state::MapQueryBounds,
     limit: usize,
 ) -> Result<Vec<UmapPoint>, String> {
     let (sql, params) = if let Some(source_id) = source_id {
@@ -358,7 +359,7 @@ fn load_umap_cluster_centroids(
     cluster_method: &str,
     cluster_umap_version: &str,
     source_id: Option<&SourceId>,
-) -> Result<HashMap<i32, crate::egui_app::state::MapClusterCentroid>, String> {
+) -> Result<HashMap<i32, crate::app::state::MapClusterCentroid>, String> {
     let (sql, params) = if let Some(source_id) = source_id {
         let prefix = format!("{}::%", source_id.as_str());
         (
@@ -411,7 +412,7 @@ fn load_umap_cluster_centroids(
             let count: i64 = row.get(3)?;
             Ok((
                 cluster_id as i32,
-                crate::egui_app::state::MapClusterCentroid {
+                crate::app::state::MapClusterCentroid {
                     x: x as f32,
                     y: y as f32,
                     count: count as usize,

@@ -1,6 +1,6 @@
-use crate::egui_app::controller::hotkeys;
-use crate::egui_app::state::FocusContext;
-use crate::egui_app::ui::EguiApp;
+use crate::app::controller::hotkeys;
+use crate::app::state::FocusContext;
+use crate::app::ui::EguiApp;
 use crate::gui::input::{KeyCode, egui_key_from_code, key_code_from_egui};
 use eframe::egui;
 use std::time::{Duration, Instant};
@@ -28,12 +28,12 @@ impl EguiApp {
         }
         let folder_rename_active = matches!(
             self.controller.ui.sources.folders.pending_action,
-            Some(crate::egui_app::state::FolderActionPrompt::Rename { .. })
+            Some(crate::app::state::FolderActionPrompt::Rename { .. })
         );
         let folder_create_active = self.controller.ui.sources.folders.new_folder.is_some();
         let browser_rename_active = matches!(
             self.controller.ui.browser.pending_action,
-            Some(crate::egui_app::state::SampleBrowserActionPrompt::Rename { .. })
+            Some(crate::app::state::SampleBrowserActionPrompt::Rename { .. })
         );
         if folder_rename_active || folder_create_active || browser_rename_active {
             return;

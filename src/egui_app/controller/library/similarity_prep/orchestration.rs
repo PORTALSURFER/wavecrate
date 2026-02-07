@@ -1,9 +1,9 @@
 use super::plan::plan_similarity_prep_start;
-use super::store::DbSimilarityPrepStore;
 use super::state::SimilarityPrepStage;
-use crate::egui_app::controller::EguiController;
-use crate::egui_app::controller::ui::status_message::StatusMessage;
-use crate::egui_app::ui::style::StatusTone;
+use super::store::DbSimilarityPrepStore;
+use crate::app::controller::EguiController;
+use crate::app::controller::ui::status_message::StatusMessage;
+use crate::app::ui::style::StatusTone;
 
 impl EguiController {
     /// Run similarity prep for the selected source using current settings.
@@ -19,7 +19,7 @@ impl EguiController {
         force_full_analysis: bool,
     ) {
         self.runtime.similarity_prep_last_error = None;
-        
+
         // Cooldown to prevent rapid repeated attempts (e.g., from map view every frame)
         const SIMILARITY_PREP_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(5);
         if let Some(last_attempt) = self.runtime.similarity_prep_last_attempt {
@@ -28,7 +28,7 @@ impl EguiController {
             }
         }
         self.runtime.similarity_prep_last_attempt = Some(std::time::Instant::now());
-        
+
         if self.runtime.similarity_prep.is_some() {
             self.refresh_similarity_prep_progress();
             self.set_status_message(StatusMessage::SimilarityPrepAlreadyRunning);
@@ -120,7 +120,9 @@ impl EguiController {
         );
         if let Some(source) = self.find_source_by_id(&state.source_id)
             && let Ok(progress) =
-                crate::egui_app::controller::library::analysis_jobs::current_progress_for_source(&source)
+                crate::app::controller::library::analysis_jobs::current_progress_for_source(
+                    &source,
+                )
         {
             out.push_str(&format!(" analysis_progress={progress}"));
         }

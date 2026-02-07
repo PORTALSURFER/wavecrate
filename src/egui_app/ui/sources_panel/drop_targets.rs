@@ -3,10 +3,10 @@ use super::helpers::{
     RowBackground, RowMarker, clamp_label_for_width, external_dropped_paths,
     external_hover_has_audio, list_row_height, render_list_row,
 };
-use crate::egui_app::ui::helpers;
 use super::style;
-use crate::egui_app::state::{DragPayload, DragSource, DragTarget};
-use crate::egui_app::ui::drag_targets::{handle_drop_zone, handle_sample_row_drag};
+use crate::app::state::{DragPayload, DragSource, DragTarget};
+use crate::app::ui::drag_targets::{handle_drop_zone, handle_sample_row_drag};
+use crate::app::ui::helpers;
 use crate::sample_sources::config::DropTargetColor;
 use eframe::egui::{self, Align2, RichText, StrokeKind, TextStyle, Ui};
 
@@ -43,14 +43,9 @@ impl EguiApp {
             drag_payload,
             Some(DragPayload::Sample { .. } | DragPayload::Samples { .. })
         );
-        let folder_drag_active = matches!(
-            drag_payload,
-            Some(DragPayload::Folder { .. })
-        );
-        let drop_target_drag_active = matches!(
-            drag_payload,
-            Some(DragPayload::DropTargetReorder { .. })
-        );
+        let folder_drag_active = matches!(drag_payload, Some(DragPayload::Folder { .. }));
+        let drop_target_drag_active =
+            matches!(drag_payload, Some(DragPayload::DropTargetReorder { .. }));
         let external_pointer_pos = pointer_pos.or(self.external_drop_hover_pos);
         let external_drop_ready = external_hover_has_audio(ui.ctx());
         let external_drop_paths = external_dropped_paths(ui.ctx());
@@ -157,7 +152,7 @@ impl EguiApp {
                                 );
                             },
                             move |pos, _controller| {
-                                Some(crate::egui_app::state::PendingOsDragStart {
+                                Some(crate::app::state::PendingOsDragStart {
                                     payload: DragPayload::DropTargetReorder {
                                         path: row.path.clone(),
                                     },
@@ -275,8 +270,7 @@ impl EguiApp {
             egui::StrokeKind::Inside,
         );
         if external_drop_ready
-            && external_pointer_pos
-                .is_some_and(|pos| frame_response.response.rect.contains(pos))
+            && external_pointer_pos.is_some_and(|pos| frame_response.response.rect.contains(pos))
         {
             ui.painter().rect_stroke(
                 frame_response.response.rect,
@@ -293,7 +287,7 @@ impl EguiApp {
         &mut self,
         response: &egui::Response,
         index: usize,
-        row: &crate::egui_app::state::DropTargetRowView,
+        row: &crate::app::state::DropTargetRowView,
     ) {
         response.context_menu(|ui| {
             let palette = style::palette();
@@ -304,10 +298,8 @@ impl EguiApp {
             for swatch in drop_target_swatches() {
                 let is_selected = row.color == Some(swatch.color);
                 ui.horizontal(|ui| {
-                    let (rect, _) = ui.allocate_exact_size(
-                        egui::vec2(12.0, 12.0),
-                        egui::Sense::hover(),
-                    );
+                    let (rect, _) =
+                        ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
                     ui.painter().rect_filled(rect, 2.0, swatch.fill);
                     if is_selected {
                         ui.painter().rect_stroke(

@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
 use crate::sample_sources::SourceDatabase;
+use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
 
 use super::scan::{ScanError, ScanStats};
 use super::scan_fs::{compute_content_hash, ensure_root_dir, read_facts};

@@ -1,7 +1,7 @@
 use super::style;
 use super::*;
-use crate::egui_app::state::DragSource;
-use crate::egui_app::view_model;
+use crate::app::state::DragSource;
+use crate::app::view_model;
 use eframe::egui::{self, StrokeKind, Ui};
 use std::time::Duration;
 
@@ -33,7 +33,7 @@ struct WaveformLayout {
     rect: egui::Rect,
     waveform_rect: egui::Rect,
     response: egui::Response,
-    display_view: crate::egui_app::state::WaveformView,
+    display_view: crate::app::state::WaveformView,
     view_width: f64,
     scrollbar_height: f32,
     pointer_pos: Option<egui::Pos2>,
@@ -53,7 +53,9 @@ impl EguiApp {
         let frame = style::section_frame();
         let frame_response = frame.show(ui, |ui| render_waveform_frame(self, ui, &context));
         let drag_state = frame_response.inner;
-        if frame_response.response.hovered() && !drag_state.edge_dragging && !drag_state.slice_dragging
+        if frame_response.response.hovered()
+            && !drag_state.edge_dragging
+            && !drag_state.slice_dragging
         {
             helpers::show_hover_hint(
                 ui,
@@ -67,7 +69,7 @@ impl EguiApp {
         }
         if matches!(
             self.controller.ui.focus.context,
-            crate::egui_app::state::FocusContext::Waveform
+            crate::app::state::FocusContext::Waveform
         ) {
             ui.painter().rect_stroke(
                 frame_response.response.rect,
@@ -180,8 +182,8 @@ fn render_waveform_layers(
     layout: &WaveformLayout,
 ) -> Option<WaveformDragState> {
     let to_screen_x = |position: f32, rect: egui::Rect| {
-        let normalized = ((position as f64 - layout.display_view.start) / layout.view_width)
-            .clamp(0.0, 1.0);
+        let normalized =
+            ((position as f64 - layout.display_view.start) / layout.view_width).clamp(0.0, 1.0);
         rect.left() + rect.width() * normalized as f32
     };
     if !base_render::render_waveform_base(

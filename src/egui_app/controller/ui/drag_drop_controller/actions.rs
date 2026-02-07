@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::state::{DragSample, DragSource};
+use crate::app::state::{DragSample, DragSource};
 #[cfg(any(target_os = "windows", test))]
 use std::time::{Duration, Instant};
 
@@ -253,11 +253,7 @@ impl DragDropActions for DragDropController<'_> {
                 if let Some(target) = source_target {
                     self.handle_samples_drop_to_source(&samples, target);
                 } else if let Some(target_path) = drop_target_path.clone() {
-                    self.handle_samples_drop_to_drop_target(
-                        &samples,
-                        target_path,
-                        copy_requested,
-                    );
+                    self.handle_samples_drop_to_drop_target(&samples, target_path, copy_requested);
                 } else if let Some(folder) = folder_target {
                     self.handle_samples_drop_to_folder(&samples, &folder);
                 } else if triage_target.is_some() {

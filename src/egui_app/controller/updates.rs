@@ -9,7 +9,7 @@ impl EguiController {
         if !self.settings.updates.check_on_startup {
             return;
         }
-        if self.ui.update.status != crate::egui_app::state::UpdateStatus::Idle {
+        if self.ui.update.status != crate::app::state::UpdateStatus::Idle {
             return;
         }
         self.begin_update_check();
@@ -39,7 +39,7 @@ impl EguiController {
             self.ui.update.last_seen_nightly_published_at = Some(published.clone());
             self.settings.updates.last_seen_nightly_published_at = Some(published);
         }
-        self.ui.update.status = crate::egui_app::state::UpdateStatus::Idle;
+        self.ui.update.status = crate::app::state::UpdateStatus::Idle;
         self.ui.update.available_tag = None;
         self.ui.update.available_url = None;
         self.ui.update.available_published_at = None;
@@ -106,13 +106,10 @@ impl EguiController {
         }
     }
 
-    pub(crate) fn apply_update_check_result(
-        &mut self,
-        result: UpdateCheckOutcome,
-    ) {
+    pub(crate) fn apply_update_check_result(&mut self, result: UpdateCheckOutcome) {
         match result {
             UpdateCheckOutcome::UpToDate => {
-                self.ui.update.status = crate::egui_app::state::UpdateStatus::Idle;
+                self.ui.update.status = crate::app::state::UpdateStatus::Idle;
                 self.ui.update.available_tag = None;
                 self.ui.update.available_url = None;
                 self.ui.update.available_published_at = None;
@@ -122,7 +119,7 @@ impl EguiController {
                 html_url,
                 published_at,
             } => {
-                self.ui.update.status = crate::egui_app::state::UpdateStatus::UpdateAvailable;
+                self.ui.update.status = crate::app::state::UpdateStatus::UpdateAvailable;
                 self.ui.update.available_tag = Some(tag);
                 self.ui.update.available_url = Some(html_url);
                 self.ui.update.available_published_at = published_at;
@@ -132,14 +129,14 @@ impl EguiController {
 
     pub(crate) fn apply_update_check_error(&mut self, err: String) {
         if err.contains("release with required assets found") {
-            self.ui.update.status = crate::egui_app::state::UpdateStatus::Idle;
+            self.ui.update.status = crate::app::state::UpdateStatus::Idle;
             self.ui.update.last_error = None;
             self.ui.update.available_tag = None;
             self.ui.update.available_url = None;
             self.ui.update.available_published_at = None;
             return;
         }
-        self.ui.update.status = crate::egui_app::state::UpdateStatus::Error;
+        self.ui.update.status = crate::app::state::UpdateStatus::Error;
         self.ui.update.last_error = Some(err.clone());
         self.ui.update.available_tag = None;
         self.ui.update.available_url = None;
@@ -162,7 +159,7 @@ impl EguiController {
             current_version,
             last_seen_nightly_published_at: self.ui.update.last_seen_nightly_published_at.clone(),
         };
-        self.ui.update.status = crate::egui_app::state::UpdateStatus::Checking;
+        self.ui.update.status = crate::app::state::UpdateStatus::Checking;
         self.ui.update.last_error = None;
         self.runtime.jobs.begin_update_check(request);
     }
@@ -175,9 +172,7 @@ fn map_channel(channel: crate::sample_sources::config::UpdateChannel) -> UpdateC
     }
 }
 
-pub(crate) fn run_update_check(
-    request: UpdateCheckRequest,
-) -> Result<UpdateCheckOutcome, String> {
+pub(crate) fn run_update_check(request: UpdateCheckRequest) -> Result<UpdateCheckOutcome, String> {
     check_for_updates(request).map_err(|err| err.to_string())
 }
 

@@ -1,10 +1,12 @@
-use super::*;
 use super::selection_edits::apply_short_edge_fades_to_clip;
+use super::*;
 use crate::sample_sources::Rating;
 use std::fs;
 use std::time::{Duration, SystemTime};
 
-use crate::egui_app::controller::playback::audio_samples::{crop_samples, decode_samples_from_bytes, write_wav};
+use crate::app::controller::playback::audio_samples::{
+    crop_samples, decode_samples_from_bytes, write_wav,
+};
 use rusqlite::params;
 
 impl EguiController {
@@ -183,15 +185,7 @@ impl EguiController {
         };
         // Clips saved outside sources are not inserted into browser or source DB.
         let (looped, bpm) = self.selection_export_metadata();
-        self.record_selection_entry(
-            &source,
-            target_rel,
-            target_tag,
-            false,
-            false,
-            looped,
-            bpm,
-        )
+        self.record_selection_entry(&source, target_rel, target_tag, false, false, looped, bpm)
     }
 
     pub(crate) fn selection_audio(
@@ -355,8 +349,7 @@ impl EguiController {
         let content_hash = fast_content_hash(entry.file_size, entry.modified_ns);
         let conn = analysis_jobs::open_source_db(&source.root)
             .map_err(|err| format!("Failed to open analysis database: {err}"))?;
-        let sample_id =
-            analysis_jobs::build_sample_id(source.id.as_str(), &entry.relative_path);
+        let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), &entry.relative_path);
         conn.execute(
             "INSERT INTO samples (sample_id, content_hash, size, mtime_ns, duration_seconds, sr_used, analysis_version, bpm)
              VALUES (?1, ?2, ?3, ?4, NULL, NULL, NULL, ?5)

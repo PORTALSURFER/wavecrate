@@ -226,7 +226,7 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
             ui.spacing_mut().item_spacing.x = 4.0;
             
             // BPM Input Widget
-            let (bpm_edit_response, adjust) = crate::egui_app::ui::chrome::fields::NumericInput::new(
+            let (bpm_edit_response, adjust) = crate::app::ui::chrome::fields::NumericInput::new(
                 &mut app.controller.ui.waveform.bpm_input,
                 ui.id().with("bpm_input_field"),
             )

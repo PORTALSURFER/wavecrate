@@ -1,6 +1,6 @@
 use super::*;
-use crate::egui_app::controller::playback::audio_cache::FileMetadata;
-use crate::egui_app::state::WaveformView;
+use crate::app::controller::playback::audio_cache::FileMetadata;
+use crate::app::state::WaveformView;
 use crate::waveform::DecodedWaveform;
 use std::fs;
 use std::path::Path;

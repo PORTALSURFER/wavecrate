@@ -1,5 +1,5 @@
 use super::*;
-use crate::egui_app::state::FolderRowView;
+use crate::app::state::FolderRowView;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use std::collections::{BTreeMap, BTreeSet};
@@ -42,7 +42,7 @@ pub(crate) struct FolderBrowserModel {
     /// Assigned hotkey slots mapped to folder paths.
     pub(crate) hotkeys: BTreeMap<u8, PathBuf>,
     /// Root selection filter mode.
-    pub(crate) root_filter_mode: crate::egui_app::state::RootFolderFilterMode,
+    pub(crate) root_filter_mode: crate::app::state::RootFolderFilterMode,
 }
 
 impl FolderBrowserModel {
@@ -69,7 +69,7 @@ impl EguiController {
     /// Apply a completed disk scan result to the folder browser cache.
     pub(crate) fn apply_folder_scan_result(
         &mut self,
-        result: crate::egui_app::controller::jobs::FolderScanResult,
+        result: crate::app::controller::jobs::FolderScanResult,
     ) {
         let Some(model) = self.ui_cache.folders.models.get_mut(&result.source_id) else {
             return;
@@ -183,7 +183,7 @@ impl EguiController {
         self.refresh_folder_browser();
     }
 
-    pub(in crate::egui_app) fn refresh_folder_browser_if_stale(&mut self, max_age: Duration) {
+    pub(in crate::app) fn refresh_folder_browser_if_stale(&mut self, max_age: Duration) {
         let Some(source_id) = self.selection_state.ctx.selected_source.clone() else {
             return;
         };
@@ -209,12 +209,22 @@ impl EguiController {
         }
         if needs_refresh {
             let should_request = {
-                let model = self.ui_cache.folders.models.entry(source_id.clone()).or_default();
+                let model = self
+                    .ui_cache
+                    .folders
+                    .models
+                    .entry(source_id.clone())
+                    .or_default();
                 !model.disk_refresh_in_progress
             };
             if should_request {
                 if let Some(source) = self.current_source() {
-                    let model = self.ui_cache.folders.models.entry(source_id.clone()).or_default();
+                    let model = self
+                        .ui_cache
+                        .folders
+                        .models
+                        .entry(source_id.clone())
+                        .or_default();
                     model.disk_refresh_in_progress = true;
                     self.runtime
                         .jobs
@@ -387,7 +397,6 @@ impl EguiController {
             }
         }
     }
-
 }
 
 /// Scan disk folders under `root`, honoring a cancellation signal.

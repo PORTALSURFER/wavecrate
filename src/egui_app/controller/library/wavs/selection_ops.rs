@@ -1,7 +1,7 @@
 use super::*;
-use crate::egui_app::controller::library::analysis_jobs;
-use tracing::{debug, warn};
+use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::Rating;
+use tracing::{debug, warn};
 
 pub(crate) fn select_wav_by_path(controller: &mut EguiController, path: &Path) {
     select_wav_by_path_with_rebuild(controller, path, true);

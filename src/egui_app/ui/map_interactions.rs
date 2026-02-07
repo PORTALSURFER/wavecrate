@@ -2,18 +2,18 @@ use super::map_view::map_render;
 use eframe::egui;
 
 pub(crate) fn find_hover_point(
-    points: &[crate::egui_app::state::MapPoint],
+    points: &[crate::app::state::MapPoint],
     rect: egui::Rect,
     center: egui::Pos2,
     scale: f32,
     pan: egui::Vec2,
     pointer: Option<egui::Pos2>,
-) -> Option<(crate::egui_app::state::MapPoint, egui::Pos2)> {
+) -> Option<(crate::app::state::MapPoint, egui::Pos2)> {
     let pointer = pointer?;
     if !rect.contains(pointer) {
         return None;
     }
-    let mut best: Option<(crate::egui_app::state::MapPoint, egui::Pos2, f32)> = None;
+    let mut best: Option<(crate::app::state::MapPoint, egui::Pos2, f32)> = None;
     for point in points {
         let pos = map_render::map_to_screen(point.x, point.y, rect, center, scale, pan);
         let dist_sq = pos.distance_sq(pointer);

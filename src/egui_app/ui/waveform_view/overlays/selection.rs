@@ -8,7 +8,7 @@ pub(super) fn render_loop_bar(
     app: &mut EguiApp,
     ui: &mut egui::Ui,
     rect: egui::Rect,
-    view: crate::egui_app::state::WaveformView,
+    view: crate::app::state::WaveformView,
     view_width: f32,
     highlight: Color32,
 ) {
@@ -22,7 +22,13 @@ pub(super) fn render_loop_bar(
     }
 
     let selection = app.controller.ui.waveform.selection;
-    let bar_rect = loop_bar_rect(rect, view, view_width as f64, selection, super::LOOP_BAR_HEIGHT);
+    let bar_rect = loop_bar_rect(
+        rect,
+        view,
+        view_width as f64,
+        selection,
+        super::LOOP_BAR_HEIGHT,
+    );
     if let Some(selection) = selection {
         let edit_blocks_loop = app
             .controller
@@ -37,7 +43,9 @@ pub(super) fn render_loop_bar(
                 let edit_rect = selection_rect_for_view(edit, rect, view, view_width as f64);
                 let expanded = edit_rect.expand(16.0);
                 let pointer_pos = ui.input(|i| i.pointer.latest_pos());
-                pointer_pos.map(|pos| expanded.contains(pos)).unwrap_or(false)
+                pointer_pos
+                    .map(|pos| expanded.contains(pos))
+                    .unwrap_or(false)
             })
             .unwrap_or(false);
         let response = ui.interact(

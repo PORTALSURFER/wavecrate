@@ -2,9 +2,7 @@ use super::super::types::{AnalysisProgress, RunningJobInfo};
 use super::constants::{ANALYZE_SAMPLE_JOB_TYPE, EMBEDDING_BACKFILL_JOB_TYPE};
 use rusqlite::Connection;
 
-pub(crate) fn current_progress(
-    conn: &Connection,
-) -> Result<AnalysisProgress, String> {
+pub(crate) fn current_progress(conn: &Connection) -> Result<AnalysisProgress, String> {
     current_progress_for_job_type(conn, ANALYZE_SAMPLE_JOB_TYPE, true)
 }
 

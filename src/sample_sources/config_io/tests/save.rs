@@ -1,16 +1,16 @@
+#[cfg(unix)]
+use super::super::super::config_types::AppSettings;
 use super::super::super::config_types::{
     AnalysisSettings, AppSettingsCore, DropTargetColor, DropTargetConfig, FeatureFlags,
     InteractionOptions, TooltipMode, UpdateChannel, UpdateSettings,
 };
 use super::super::load::load_settings_from;
-use super::super::save::save_to_path;
-use super::TestConfigEnv;
 #[cfg(unix)]
 use super::super::save::save_settings_to_path;
+use super::super::save::save_to_path;
+use super::TestConfigEnv;
 use crate::audio::{AudioInputConfig, AudioOutputConfig};
 use crate::sample_sources::config::AppConfig;
-#[cfg(unix)]
-use super::super::super::config_types::AppSettings;
 use crate::sample_sources::library::LibraryState;
 use crate::sample_sources::{SampleSource, SourceId};
 use crate::waveform::WaveformChannelView;
@@ -138,10 +138,10 @@ fn settings_round_trip_preserves_fields() {
                 max_analysis_duration_seconds: 12.5,
                 limit_similarity_prep_duration: false,
                 long_sample_threshold_seconds: 42.0,
-            analysis_worker_count: 2,
-            fast_similarity_prep: true,
-            fast_similarity_prep_sample_rate: 8_000,
-        },
+                analysis_worker_count: 2,
+                fast_similarity_prep: true,
+                fast_similarity_prep_sample_rate: 8_000,
+            },
             updates: UpdateSettings {
                 channel: UpdateChannel::Nightly,
                 check_on_startup: false,
@@ -278,7 +278,10 @@ fn settings_round_trip_preserves_fields() {
         cfg.core.controls.anti_clip_fade_ms
     );
     assert_eq!(
-        round_trip.core.controls.auto_edge_fades_on_selection_exports,
+        round_trip
+            .core
+            .controls
+            .auto_edge_fades_on_selection_exports,
         cfg.core.controls.auto_edge_fades_on_selection_exports
     );
     assert_eq!(

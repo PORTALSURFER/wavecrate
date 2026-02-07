@@ -50,15 +50,11 @@ impl ClaimWakeup {
     /// Return the current notification counter.
     #[cfg(test)]
     pub(crate) fn snapshot(&self) -> u64 {
-        self.state
-            .lock()
-            .expect("claim wakeup poisoned")
-            .counter
+        self.state.lock().expect("claim wakeup poisoned").counter
     }
 }
 
-static CLAIM_WAKEUP: LazyLock<Arc<ClaimWakeup>> =
-    LazyLock::new(|| Arc::new(ClaimWakeup::new()));
+static CLAIM_WAKEUP: LazyLock<Arc<ClaimWakeup>> = LazyLock::new(|| Arc::new(ClaimWakeup::new()));
 
 /// Return the shared wakeup handle used by the analysis claim workers.
 pub(crate) fn claim_wakeup_handle() -> Arc<ClaimWakeup> {

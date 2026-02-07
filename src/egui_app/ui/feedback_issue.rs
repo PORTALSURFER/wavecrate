@@ -1,5 +1,5 @@
-use super::overlay_layers::OverlayLayer;
 use super::EguiApp;
+use super::overlay_layers::OverlayLayer;
 use super::style;
 use eframe::egui::{self, Align2, RichText};
 
@@ -59,9 +59,9 @@ impl EguiApp {
 
     fn render_feedback_issue_backdrop(&mut self, ctx: &egui::Context) {
         let rect = ctx.viewport_rect();
-        let painter = ctx.layer_painter(OverlayLayer::Modal.layer_id(
-            egui::Id::new("feedback_issue_backdrop_paint"),
-        ));
+        let painter = ctx.layer_painter(
+            OverlayLayer::Modal.layer_id(egui::Id::new("feedback_issue_backdrop_paint")),
+        );
         painter.rect_filled(
             rect,
             0.0,
@@ -216,22 +216,22 @@ impl EguiApp {
             ui.label(RichText::new("Status: updating token…").color(palette.text_muted));
         } else {
             match &state.token_status {
-                crate::egui_app::state::IssueTokenStatus::Connected => {
+                crate::app::state::IssueTokenStatus::Connected => {
                     ui.label(
                         RichText::new("Status: connected")
                             .color(style::status_badge_color(style::StatusTone::Info)),
                     );
                 }
-                crate::egui_app::state::IssueTokenStatus::NotConnected => {
+                crate::app::state::IssueTokenStatus::NotConnected => {
                     ui.label(RichText::new("Status: not connected").color(palette.text_muted));
                 }
-                crate::egui_app::state::IssueTokenStatus::Error(err) => {
+                crate::app::state::IssueTokenStatus::Error(err) => {
                     ui.label(
                         RichText::new(format!("Status: token store error ({err})"))
                             .color(style::status_badge_color(style::StatusTone::Warning)),
                     );
                 }
-                crate::egui_app::state::IssueTokenStatus::Unknown => {
+                crate::app::state::IssueTokenStatus::Unknown => {
                     ui.label(RichText::new("Status: checking…").color(palette.text_muted));
                 }
             }

@@ -1,8 +1,6 @@
 use super::super::test_support::{dummy_controller, sample_entry};
 use super::common::visible_indices;
-use crate::egui_app::state::{
-    TriageFlagColumn, TriageFlagFilter,
-};
+use crate::app::state::{TriageFlagColumn, TriageFlagFilter};
 use crate::sample_sources::Rating;
 use std::path::{Path, PathBuf};
 
@@ -198,7 +196,10 @@ fn tagging_keeps_selection_on_same_sample() {
         Some(Path::new("one.wav"))
     );
     assert_eq!(controller.ui.browser.selected_visible, Some(0));
-    assert_eq!(controller.wav_entry(0).unwrap().tag, crate::sample_sources::Rating::KEEP_1);
+    assert_eq!(
+        controller.wav_entry(0).unwrap().tag,
+        crate::sample_sources::Rating::KEEP_1
+    );
 }
 
 #[test]
@@ -214,10 +215,16 @@ fn left_tagging_from_keep_untags_then_trashes() {
     controller.rebuild_browser_lists();
 
     controller.tag_selected_left();
-    assert_eq!(controller.wav_entry(0).unwrap().tag, crate::sample_sources::Rating::NEUTRAL);
+    assert_eq!(
+        controller.wav_entry(0).unwrap().tag,
+        crate::sample_sources::Rating::NEUTRAL
+    );
 
     controller.tag_selected_left();
-    assert_eq!(controller.wav_entry(0).unwrap().tag, crate::sample_sources::Rating::TRASH_3);
+    assert_eq!(
+        controller.wav_entry(0).unwrap().tag,
+        crate::sample_sources::Rating::TRASH_3
+    );
 }
 
 #[test]
@@ -297,7 +304,10 @@ fn undo_tagging_refocuses_original_sample_under_filter() {
     controller.undo();
 
     assert_eq!(visible_indices(&controller), vec![0, 1, 2]);
-    assert_eq!(controller.wav_entry(1).unwrap().tag, crate::sample_sources::Rating::NEUTRAL);
+    assert_eq!(
+        controller.wav_entry(1).unwrap().tag,
+        crate::sample_sources::Rating::NEUTRAL
+    );
     assert_eq!(
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("two.wav"))
