@@ -31,7 +31,7 @@ to `radiant` (`native_vello`) as the only runtime path.
 
 | Area | Capability | Current state | Owner target |
 | --- | --- | --- | --- |
-| Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress (classic-shell browser chrome now uses explicit tab/toolbar/search/chip/header compositions) | Radiant |
+| Rendering polish | Motion/styling refinement inspired by Xilem/Vello | In progress (classic-shell browser chrome now uses explicit tab/toolbar/search/chip/header compositions plus two-row top-bar controls + table striping refinements) | Radiant |
 | Layout contract | Tokenized header/body/footer geometry shared by paint + hit testing | In progress (browser tabs/toolbar/header/footer heights + table columns now token-driven) | Radiant |
 | Sidebar layout | Tokenized source/folder section sizing and action controls | Done (tiered sizing and compact edge-case guards) | Radiant |
 | Scale behavior | Browser virtualization/perf tuning beyond 48 rendered rows | In progress (single-table focused window + higher per-tier row caps) | Radiant |
@@ -46,6 +46,7 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Browser region migration has started from triage columns toward the classic table shell:
   tabs + toolbar + table header/rows/footer are now explicit layout bands used by paint and hit-testing.
 - Browser chrome now renders explicit search + state/sort chips and tokenized table columns (`#`, `Sample`, `Bucket`) instead of a single placeholder toolbar/header text line.
+- Top bar now uses a tokenized split layout (title row + controls row) with explicit options/volume meter geometry instead of hardcoded text offsets.
 - Installer/updater binaries still use the `egui` host path and are tracked separately.
 
 ## Source Management Polish Checklist
