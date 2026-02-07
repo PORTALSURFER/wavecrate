@@ -129,6 +129,31 @@ impl EguiController {
         true
     }
 
+    pub(crate) fn delete_active_browser_selection(&mut self) -> bool {
+        let mut rows: Vec<usize> = self
+            .ui
+            .browser
+            .selected_paths
+            .clone()
+            .iter()
+            .filter_map(|path| self.visible_row_for_path(path))
+            .collect();
+        if let Some(row) = self.focused_browser_row() {
+            if rows.is_empty() {
+                rows = self.action_rows_from_primary(row);
+            } else if !rows.contains(&row) {
+                rows.push(row);
+            }
+        }
+        rows.sort_unstable();
+        rows.dedup();
+        if rows.is_empty() {
+            return false;
+        }
+        let _ = self.delete_browser_samples(&rows);
+        true
+    }
+
     /// Toggle whether a visible browser row is included in the multi-selection set.
     pub fn toggle_browser_row_selection(&mut self, visible_row: usize) {
         self.apply_browser_selection(visible_row, SelectionAction::Toggle);

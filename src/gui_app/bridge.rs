@@ -58,28 +58,7 @@ impl SempalNativeBridge {
     }
 
     fn delete_browser_selection(&mut self) {
-        let mut rows: Vec<usize> = self
-            .controller
-            .ui
-            .browser
-            .selected_paths
-            .clone()
-            .iter()
-            .filter_map(|path| self.controller.visible_row_for_path(path))
-            .collect();
-        if let Some(row) = self.controller.focused_browser_row() {
-            if rows.is_empty() {
-                rows = self.controller.action_rows_from_primary(row);
-            } else if !rows.contains(&row) {
-                rows.push(row);
-            }
-        }
-        rows.sort_unstable();
-        rows.dedup();
-        if rows.is_empty() {
-            return;
-        }
-        let _ = self.controller.delete_browser_samples(&rows);
+        let _ = self.controller.delete_active_browser_selection();
     }
 
     fn tag_browser_selection(&mut self, target: BrowserTagTarget) {
