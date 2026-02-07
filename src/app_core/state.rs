@@ -1,12 +1,10 @@
-//! Backend-neutral state aliases for migration consumers.
+//! Backend-neutral state types for migration consumers.
 //!
 //! These aliases keep host-facing migration code (`app_core` projections and
 //! native bridge action routing) independent from direct `app::state`
 //! module paths while the legacy controller internals are incrementally
 //! extracted.
 
-/// Alias for the legacy UI state root during migration.
-pub type UiState = crate::app::state::UiState;
 /// Bounds used to query visible points in the map projection.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MapQueryBounds {

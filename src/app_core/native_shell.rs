@@ -6,8 +6,9 @@
 
 use super::controller::AppController;
 use crate::app_core::state::{
-    MapQueryBounds, MapRenderMode, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
+    MapQueryBounds, MapRenderMode, SampleBrowserTab, TriageFlagColumn, UpdateStatus,
 };
+use crate::app::state::UiState;
 use crate::{
     analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model, selection::SelectionRange,
 };
