@@ -1136,11 +1136,14 @@ mod tests {
     #[test]
     fn confirm_prompt_projects_folder_create_inline_state() {
         let mut ui = UiState::default();
-        ui.sources.folders.new_folder = Some(crate::app_core::state::InlineFolderCreation {
-            parent: std::path::PathBuf::from("drums"),
-            name: String::from("kicks"),
-            focus_requested: true,
-        });
+        ui.sources.folders.new_folder = Some(
+            crate::app_core::state::InlineFolderCreation {
+                parent: std::path::PathBuf::from("drums"),
+                name: String::from("kicks"),
+                focus_requested: true,
+            }
+            .into(),
+        );
         let projected = project_confirm_prompt_model(&ui);
         assert!(projected.visible);
         assert_eq!(projected.kind, Some(ConfirmPromptKind::FolderCreate));
@@ -1158,23 +1161,29 @@ mod tests {
         ui.sources
             .folders
             .rows
-            .push(crate::app_core::state::FolderRowView {
-                path: std::path::PathBuf::from("drums/existing"),
+            .push(
+                crate::app_core::state::FolderRowView {
+                    path: std::path::PathBuf::from("drums/existing"),
+                    name: String::from("existing"),
+                    depth: 1,
+                    has_children: false,
+                    expanded: false,
+                    selected: false,
+                    negated: false,
+                    hotkey: None,
+                    is_root: false,
+                    root_filter_mode: None,
+                }
+                .into(),
+            );
+        ui.sources.folders.new_folder = Some(
+            crate::app_core::state::InlineFolderCreation {
+                parent: std::path::PathBuf::from("drums"),
                 name: String::from("existing"),
-                depth: 1,
-                has_children: false,
-                expanded: false,
-                selected: false,
-                negated: false,
-                hotkey: None,
-                is_root: false,
-                root_filter_mode: None,
-            });
-        ui.sources.folders.new_folder = Some(crate::app_core::state::InlineFolderCreation {
-            parent: std::path::PathBuf::from("drums"),
-            name: String::from("existing"),
-            focus_requested: true,
-        });
+                focus_requested: true,
+            }
+            .into(),
+        );
         let projected = project_confirm_prompt_model(&ui);
         assert_eq!(
             projected.input_error.as_deref(),
@@ -1197,33 +1206,39 @@ mod tests {
         ui.sources
             .folders
             .rows
-            .push(crate::app_core::state::FolderRowView {
-                path: std::path::PathBuf::from("drums"),
-                name: String::from("drums"),
-                depth: 1,
-                has_children: false,
-                expanded: false,
-                selected: true,
-                negated: false,
-                hotkey: None,
-                is_root: false,
-                root_filter_mode: None,
-            });
+            .push(
+                crate::app_core::state::FolderRowView {
+                    path: std::path::PathBuf::from("drums"),
+                    name: String::from("drums"),
+                    depth: 1,
+                    has_children: false,
+                    expanded: false,
+                    selected: true,
+                    negated: false,
+                    hotkey: None,
+                    is_root: false,
+                    root_filter_mode: None,
+                }
+                .into(),
+            );
         ui.sources
             .folders
             .rows
-            .push(crate::app_core::state::FolderRowView {
-                path: std::path::PathBuf::from("kicks"),
-                name: String::from("kicks"),
-                depth: 1,
-                has_children: false,
-                expanded: false,
-                selected: false,
-                negated: false,
-                hotkey: None,
-                is_root: false,
-                root_filter_mode: None,
-            });
+            .push(
+                crate::app_core::state::FolderRowView {
+                    path: std::path::PathBuf::from("kicks"),
+                    name: String::from("kicks"),
+                    depth: 1,
+                    has_children: false,
+                    expanded: false,
+                    selected: false,
+                    negated: false,
+                    hotkey: None,
+                    is_root: false,
+                    root_filter_mode: None,
+                }
+                .into(),
+            );
         ui.sources.folders.pending_action = Some(
             crate::app_core::state::FolderActionPrompt::Rename {
                 target: std::path::PathBuf::from("drums"),
@@ -1277,18 +1292,21 @@ mod tests {
         ui.sources
             .folders
             .rows
-            .push(crate::app_core::state::FolderRowView {
-                path: std::path::PathBuf::new(),
-                name: String::from("Root"),
-                depth: 0,
-                has_children: true,
-                expanded: true,
-                selected: false,
-                negated: false,
-                hotkey: None,
-                is_root: true,
-                root_filter_mode: None,
-            });
+            .push(
+                crate::app_core::state::FolderRowView {
+                    path: std::path::PathBuf::new(),
+                    name: String::from("Root"),
+                    depth: 0,
+                    has_children: true,
+                    expanded: true,
+                    selected: false,
+                    negated: false,
+                    hotkey: None,
+                    is_root: true,
+                    root_filter_mode: None,
+                }
+                .into(),
+            );
         ui.sources.folders.focused = Some(0);
         let projected = project_sources_model(&ui);
         assert!(projected.folder_actions.can_create_folder);
@@ -1299,18 +1317,21 @@ mod tests {
         ui.sources
             .folders
             .rows
-            .push(crate::app_core::state::FolderRowView {
-                path: std::path::PathBuf::from("drums"),
-                name: String::from("drums"),
-                depth: 1,
-                has_children: false,
-                expanded: false,
-                selected: true,
-                negated: false,
-                hotkey: None,
-                is_root: false,
-                root_filter_mode: None,
-            });
+            .push(
+                crate::app_core::state::FolderRowView {
+                    path: std::path::PathBuf::from("drums"),
+                    name: String::from("drums"),
+                    depth: 1,
+                    has_children: false,
+                    expanded: false,
+                    selected: true,
+                    negated: false,
+                    hotkey: None,
+                    is_root: false,
+                    root_filter_mode: None,
+                }
+                .into(),
+            );
         ui.sources.folders.focused = Some(1);
         let projected = project_sources_model(&ui);
         assert!(projected.folder_actions.can_rename_folder);
@@ -1327,7 +1348,8 @@ mod tests {
                 action: crate::app_core::state::FolderDeleteRecoveryAction::Restore,
                 status: crate::app_core::state::FolderDeleteRecoveryStatus::Completed,
                 detail: None,
-            },
+            }
+            .into(),
         );
         ui.sources.folders.delete_recovery.in_progress = true;
         let projected = project_sources_model(&ui);

@@ -356,13 +356,213 @@ impl From<DestructiveEditPrompt> for crate::app::state::DestructiveEditPrompt {
         }
     }
 }
-/// Alias for inline folder creation state.
-pub type InlineFolderCreation = crate::app::state::InlineFolderCreation;
-/// Alias for folder row projection state.
-pub type FolderRowView = crate::app::state::FolderRowView;
-/// Alias for folder delete recovery entry state.
-pub type FolderDeleteRecoveryEntry = crate::app::state::FolderDeleteRecoveryEntry;
-/// Alias for folder delete recovery action state.
-pub type FolderDeleteRecoveryAction = crate::app::state::FolderDeleteRecoveryAction;
-/// Alias for folder delete recovery status state.
-pub type FolderDeleteRecoveryStatus = crate::app::state::FolderDeleteRecoveryStatus;
+/// Root selection behavior for the folder browser.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RootFolderFilterMode {
+    /// Root selection includes all descendants.
+    #[default]
+    AllDescendants,
+    /// Root selection includes only files at the source root.
+    RootOnly,
+}
+
+impl From<crate::app::state::RootFolderFilterMode> for RootFolderFilterMode {
+    fn from(value: crate::app::state::RootFolderFilterMode) -> Self {
+        match value {
+            crate::app::state::RootFolderFilterMode::AllDescendants => Self::AllDescendants,
+            crate::app::state::RootFolderFilterMode::RootOnly => Self::RootOnly,
+        }
+    }
+}
+
+impl From<RootFolderFilterMode> for crate::app::state::RootFolderFilterMode {
+    fn from(value: RootFolderFilterMode) -> Self {
+        match value {
+            RootFolderFilterMode::AllDescendants => Self::AllDescendants,
+            RootFolderFilterMode::RootOnly => Self::RootOnly,
+        }
+    }
+}
+
+/// Render-friendly folder row.
+#[derive(Clone, Debug)]
+pub struct FolderRowView {
+    /// Full path for the folder.
+    pub path: std::path::PathBuf,
+    /// Display name.
+    pub name: String,
+    /// Depth in the tree.
+    pub depth: usize,
+    /// Whether the folder has children.
+    pub has_children: bool,
+    /// Whether the folder is expanded.
+    pub expanded: bool,
+    /// Whether the folder is selected.
+    pub selected: bool,
+    /// Whether the folder is negated in filters.
+    pub negated: bool,
+    /// Optional hotkey number.
+    pub hotkey: Option<u8>,
+    /// Whether this row represents the root.
+    pub is_root: bool,
+    /// Root filter mode when this row represents the root.
+    pub root_filter_mode: Option<RootFolderFilterMode>,
+}
+
+impl From<crate::app::state::FolderRowView> for FolderRowView {
+    fn from(value: crate::app::state::FolderRowView) -> Self {
+        Self {
+            path: value.path,
+            name: value.name,
+            depth: value.depth,
+            has_children: value.has_children,
+            expanded: value.expanded,
+            selected: value.selected,
+            negated: value.negated,
+            hotkey: value.hotkey,
+            is_root: value.is_root,
+            root_filter_mode: value.root_filter_mode.map(Into::into),
+        }
+    }
+}
+
+impl From<FolderRowView> for crate::app::state::FolderRowView {
+    fn from(value: FolderRowView) -> Self {
+        Self {
+            path: value.path,
+            name: value.name,
+            depth: value.depth,
+            has_children: value.has_children,
+            expanded: value.expanded,
+            selected: value.selected,
+            negated: value.negated,
+            hotkey: value.hotkey,
+            is_root: value.is_root,
+            root_filter_mode: value.root_filter_mode.map(Into::into),
+        }
+    }
+}
+
+/// Inline editor state for a pending folder creation.
+#[derive(Clone, Debug)]
+pub struct InlineFolderCreation {
+    /// Parent folder path.
+    pub parent: std::path::PathBuf,
+    /// New folder name.
+    pub name: String,
+    /// Whether the input should be focused.
+    pub focus_requested: bool,
+}
+
+impl From<crate::app::state::InlineFolderCreation> for InlineFolderCreation {
+    fn from(value: crate::app::state::InlineFolderCreation) -> Self {
+        Self {
+            parent: value.parent,
+            name: value.name,
+            focus_requested: value.focus_requested,
+        }
+    }
+}
+
+impl From<InlineFolderCreation> for crate::app::state::InlineFolderCreation {
+    fn from(value: InlineFolderCreation) -> Self {
+        Self {
+            parent: value.parent,
+            name: value.name,
+            focus_requested: value.focus_requested,
+        }
+    }
+}
+
+/// Recovery action taken for a staged delete.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FolderDeleteRecoveryAction {
+    /// Restore the staged folder into the source.
+    Restore,
+    /// Finalize the staged delete by removing the folder.
+    Finalize,
+}
+
+impl From<crate::app::state::FolderDeleteRecoveryAction> for FolderDeleteRecoveryAction {
+    fn from(value: crate::app::state::FolderDeleteRecoveryAction) -> Self {
+        match value {
+            crate::app::state::FolderDeleteRecoveryAction::Restore => Self::Restore,
+            crate::app::state::FolderDeleteRecoveryAction::Finalize => Self::Finalize,
+        }
+    }
+}
+
+impl From<FolderDeleteRecoveryAction> for crate::app::state::FolderDeleteRecoveryAction {
+    fn from(value: FolderDeleteRecoveryAction) -> Self {
+        match value {
+            FolderDeleteRecoveryAction::Restore => Self::Restore,
+            FolderDeleteRecoveryAction::Finalize => Self::Finalize,
+        }
+    }
+}
+
+/// Recovery outcome for a staged delete.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FolderDeleteRecoveryStatus {
+    /// Recovery action succeeded.
+    Completed,
+    /// Recovery action failed.
+    Failed,
+}
+
+impl From<crate::app::state::FolderDeleteRecoveryStatus> for FolderDeleteRecoveryStatus {
+    fn from(value: crate::app::state::FolderDeleteRecoveryStatus) -> Self {
+        match value {
+            crate::app::state::FolderDeleteRecoveryStatus::Completed => Self::Completed,
+            crate::app::state::FolderDeleteRecoveryStatus::Failed => Self::Failed,
+        }
+    }
+}
+
+impl From<FolderDeleteRecoveryStatus> for crate::app::state::FolderDeleteRecoveryStatus {
+    fn from(value: FolderDeleteRecoveryStatus) -> Self {
+        match value {
+            FolderDeleteRecoveryStatus::Completed => Self::Completed,
+            FolderDeleteRecoveryStatus::Failed => Self::Failed,
+        }
+    }
+}
+
+/// Display entry for a recovered staged delete.
+#[derive(Clone, Debug)]
+pub struct FolderDeleteRecoveryEntry {
+    /// Display label for the source.
+    pub source_label: String,
+    /// Original folder path relative to the source root.
+    pub relative_path: std::path::PathBuf,
+    /// Action taken during recovery.
+    pub action: FolderDeleteRecoveryAction,
+    /// Outcome of the recovery attempt.
+    pub status: FolderDeleteRecoveryStatus,
+    /// Optional extra detail for the UI.
+    pub detail: Option<String>,
+}
+
+impl From<crate::app::state::FolderDeleteRecoveryEntry> for FolderDeleteRecoveryEntry {
+    fn from(value: crate::app::state::FolderDeleteRecoveryEntry) -> Self {
+        Self {
+            source_label: value.source_label,
+            relative_path: value.relative_path,
+            action: value.action.into(),
+            status: value.status.into(),
+            detail: value.detail,
+        }
+    }
+}
+
+impl From<FolderDeleteRecoveryEntry> for crate::app::state::FolderDeleteRecoveryEntry {
+    fn from(value: FolderDeleteRecoveryEntry) -> Self {
+        Self {
+            source_label: value.source_label,
+            relative_path: value.relative_path,
+            action: value.action.into(),
+            status: value.status.into(),
+            detail: value.detail,
+        }
+    }
+}
