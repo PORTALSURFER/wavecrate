@@ -24,14 +24,12 @@ use crate::app_core::actions::{
 use crate::app_core::state::{
     MapQueryBounds, MapRenderMode, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
 };
+use crate::app_core::ui::{MAX_RENDERED_BROWSER_ROWS, MAX_RENDERED_MAP_POINTS};
 use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
-
-const MAX_RENDERED_BROWSER_ROWS: usize = 512;
-const MAX_RENDERED_MAP_POINTS: usize = 2_500;
 
 pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
     let selected_column = selected_column_index(&controller.ui);

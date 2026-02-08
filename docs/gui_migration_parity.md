@@ -110,6 +110,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - `app_core::ui` now owns native viewport baseline constants directly
   (960x560 default, 640x400 minimum) so runtime entrypoints no longer depend on
   legacy `app::ui` constant definitions.
+- `app_core::ui` now also owns native projection render caps
+  (`MAX_RENDERED_BROWSER_ROWS`, `MAX_RENDERED_MAP_POINTS`) so native-shell
+  projection limits are shared from backend-neutral migration constants.
 - Native bridge status flows now route directly through
   `app::controller::AppController` methods in `app_core` runtime glue,
   without a separate `set_error_status` migration shim.
