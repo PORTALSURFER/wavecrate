@@ -80,6 +80,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Remaining legacy `app` module dependencies in migration-facing runtime glue are now centralized
   behind `app_core::legacy` adapters (`controller/state/view_model`) instead of being imported
   directly across multiple `app_core` modules (`src/app_core/legacy/*`).
+- Legacy runtime compatibility now flows through crate-internal
+  `src/legacy_runtime/mod.rs`, so migration adapters no longer depend directly
+  on `crate::app::*` paths.
 - App-core native-shell projection and native bridge prompt/tab routing now consume
   migration-facing `app_core::{controller,state}` aliases instead of direct
   `app::state` paths in host integration code.
@@ -161,6 +164,10 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
 - `src/app/controller.rs` still exposes legacy naming (`EguiController`) that is
   intentionally confined to legacy internals; a final rename/extraction pass is
   still pending.
+- `src/lib.rs` still publicly exports `app` to keep legacy internals reachable
+  under `#![deny(warnings)]`; reducing this visibility currently trips extensive
+  legacy `dead_code` failures and should be done together with legacy module
+  removal.
 - Top-level docs still include legacy-specific references (`docs/egui_layout.md`)
   that should be retired or re-scoped once the legacy UI path is fully removed.
 

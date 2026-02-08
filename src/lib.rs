@@ -13,6 +13,8 @@ pub mod app_dirs;
 pub mod audio;
 /// Shared legacy UI modules.
 pub mod app;
+/// Internal namespace for legacy runtime adapters used during migration.
+pub(crate) mod legacy_runtime;
 /// Platform helpers for copying files to the clipboard.
 pub mod external_clipboard;
 /// Platform helpers for external drag-and-drop.

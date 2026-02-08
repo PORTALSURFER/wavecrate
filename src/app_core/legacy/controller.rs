@@ -1,6 +1,6 @@
 //! Legacy controller module adapter.
 //!
 //! Keeping this re-export in one place ensures migration-facing code does not
-//! import `crate::app::controller` directly.
+//! import legacy controller modules directly.
 
-pub(crate) use crate::app::controller::*;
+pub(crate) use crate::legacy_runtime::controller::*;
