@@ -78,8 +78,8 @@ to `radiant` (`native_vello`) as the only runtime path.
   with explicit tests for tail clamping, focus preservation, and deterministic large-dataset frames.
 - Installer/updater binaries now run on the native radiant host path (`run_native_vello_app`).
 - Remaining legacy `app` module dependencies in migration-facing runtime glue are now centralized
-  behind `app_core::legacy` aliases (`controller/state/view_model`) instead of being imported
-  directly across multiple `app_core` modules.
+  behind `app_core::legacy` adapters (`controller/state/view_model`) instead of being imported
+  directly across multiple `app_core` modules (`src/app_core/legacy/*`).
 - App-core native-shell projection and native bridge prompt/tab routing now consume
   migration-facing `app_core::{controller,state}` aliases instead of direct
   `app::state` paths in host integration code.
@@ -153,6 +153,16 @@ The native shell is now tuned against the classic Sempal density baseline:
 This contract is enforced by native-shell style tests in `vendor/radiant/src/gui/native_shell/style.rs`
 plus layout geometry tests in `vendor/radiant/src/gui/native_shell/mod.rs`,
 and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
+
+## Remaining migration blockers
+
+- Legacy `egui` UI implementation still exists under `src/app/ui/**` and remains
+  tied to the legacy runtime/controller internals.
+- `src/app/controller.rs` still exposes legacy naming (`EguiController`) that is
+  intentionally confined to legacy internals; a final rename/extraction pass is
+  still pending.
+- Top-level docs still include legacy-specific references (`docs/egui_layout.md`)
+  that should be retired or re-scoped once the legacy UI path is fully removed.
 
 ## Source Management Polish Checklist
 
