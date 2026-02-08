@@ -69,8 +69,8 @@ pub struct EguiController {
     drag_hwnd: Option<windows::Win32::Foundation::HWND>,
 }
 
-/// Transitional legacy controller alias used by migration-facing modules.
-pub type LegacyAppController = EguiController;
+/// Public controller alias used by migration-facing runtime modules.
+pub type AppController = EguiController;
 
 impl EguiController {
     /// Create a controller with shared renderer and optional audio player.

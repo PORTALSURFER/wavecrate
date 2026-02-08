@@ -82,7 +82,7 @@ to `radiant` (`native_vello`) as the only runtime path.
   migration-facing `app_core::{controller,state}` aliases instead of direct
   `app::state` paths in host integration code.
 - The migration-facing `app_core::controller::AppController` alias now points to
-  `app::controller::LegacyAppController` to keep `EguiController` naming
+  `app::controller::AppController` to keep `EguiController` naming
   confined to legacy app internals.
 - `app_core::state` now owns migration-facing enums for browser tab, triage
   column, update status, and map render mode, with explicit conversion bridges

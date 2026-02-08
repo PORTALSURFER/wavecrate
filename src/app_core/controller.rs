@@ -5,7 +5,7 @@
 //! that remains valid while `app` internals are retired.
 
 /// Transitional controller type used by native runtime bridges and migration CLIs.
-pub type AppController = crate::app::controller::LegacyAppController;
+pub type AppController = crate::app::controller::AppController;
 
 use radiant::app::{AppModel, UiAction};
 use std::{cell::RefCell, rc::Rc};
