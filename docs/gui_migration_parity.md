@@ -1,4 +1,4 @@
-# GUI migration parity matrix (`egui` -> `radiant`)
+# GUI migration parity matrix (legacy runtime -> `radiant`)
 
 This document tracks feature parity work after cutting over the main Sempal UI
 to `radiant` (`native_vello`) as the only runtime path.
@@ -132,10 +132,10 @@ to `radiant` (`native_vello`) as the only runtime path.
   internals to keep native host API ownership in sempal.
 - Sempal `gui_runtime` now exposes a native-only host surface
   (`NativeRunOptions`, `run_native_vello_app`, `run_native_vello_preview`)
-  and no longer re-exports egui runtime launch APIs.
+  and no longer re-exports legacy runtime launch APIs.
 - Waveform rendering internals now use backend-neutral image/color buffers
-  (`WaveformImage`, `WaveformRgba`) with egui conversion isolated to legacy
-  egui-controller call sites.
+  (`WaveformImage`, `WaveformRgba`) with conversion isolated to legacy
+  controller call sites.
 
 ## Classic Baseline Layout Contract (v2)
 
@@ -170,6 +170,17 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
   removal.
 - Top-level docs still include legacy-specific references (`docs/egui_layout.md`)
   that should be retired or re-scoped once the legacy UI path is fully removed.
+
+## Legacy Removal Checklist
+
+- [ ] Gate legacy runtime modules (`src/app/**`) behind `legacy-egui-runtime`
+  without triggering crate-wide `dead_code` failures.
+- [ ] Replace remaining legacy controller symbol naming (`EguiController`)
+  with backend-neutral naming in legacy internals before final deletion.
+- [ ] Remove public crate exposure of legacy module surface (`pub mod app` in
+  `src/lib.rs`) once migration consumers no longer require it.
+- [ ] Delete legacy layout-only docs (`docs/egui_layout.md`) after porting any
+  remaining actionable guidance into native-shell docs.
 
 ## Source Management Polish Checklist
 

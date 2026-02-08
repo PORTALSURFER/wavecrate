@@ -1,5 +1,9 @@
 # egui layout design
 
+> Legacy-only reference: this document describes the old egui runtime layout.
+> Native migration work should use `docs/native_shell_legacy_baseline.md` and
+> `docs/gui_migration_parity.md` as the current source of truth.
+
 - Use `eframe` panels to mirror the Slint structure: a top bar (`TopBottomPanel::top`), left sources sidebar (`SidePanel::left`), and a central content area (`CentralPanel`) that stacks waveform and triage lists.
 - Maintain dark theme values similar to the current UI (charcoal backgrounds with teal/blue accents) via an app-wide `Visuals` override and shared color constants.
 - Top bar: app title, spacer, and a close/quit button aligned to the right. Close should trigger the same shutdown path used for file/system workers.

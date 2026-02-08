@@ -2,7 +2,7 @@
 //!
 //! This module defines the explicit compatibility boundary: migration-facing
 //! runtime code should depend on `app_core`, and only these adapters may touch
-//! legacy `crate::app::*` modules while extraction is in progress.
+//! legacy runtime modules while extraction is in progress.
 
 /// Legacy controller adapter surface.
 pub(crate) mod controller;
