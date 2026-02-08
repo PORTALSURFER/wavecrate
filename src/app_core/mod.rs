@@ -5,6 +5,8 @@
 
 /// Transitional controller aliases used by migration-facing runtimes and CLIs.
 pub mod controller;
+/// Native runtime bridge implementations for migration-facing runtimes.
+pub mod native_bridge;
 pub(crate) mod native_shell;
 /// Transitional state aliases used by migration-facing runtimes and CLIs.
 pub mod state;

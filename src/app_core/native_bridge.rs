@@ -1,4 +1,7 @@
-//! Native runtime bridge between sempal controller state and `radiant`.
+//! Native runtime bridge implementations for migration-facing runtimes.
+//!
+//! This module hosts the `radiant` bridge surface so runtime entrypoints can
+//! depend on `app_core` instead of transitional `gui_app` paths.
 
 use crate::{
     app_core::controller::{
