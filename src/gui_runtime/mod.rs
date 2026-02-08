@@ -25,7 +25,7 @@ pub struct NativeRunOptions {
     pub icon: Option<WindowIconRgba>,
 }
 
-impl From<NativeRunOptions> for radiant::gui_runtime::EguiRunOptions {
+impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
     fn from(value: NativeRunOptions) -> Self {
         Self {
             title: value.title,
