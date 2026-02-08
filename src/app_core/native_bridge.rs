@@ -1,7 +1,7 @@
 //! Native runtime bridge implementations for migration-facing runtimes.
 //!
 //! This module hosts the `radiant` bridge surface so runtime entrypoints can
-//! depend on `app_core` instead of transitional `gui_app` paths.
+//! depend on `app_core` instead of legacy runtime module paths.
 
 use crate::{
     app_core::actions::{NativeAppModel, NativeFrameBuildResult, NativeUiAction},

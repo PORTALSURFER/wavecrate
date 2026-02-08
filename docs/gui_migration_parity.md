@@ -92,6 +92,10 @@ to `radiant` (`native_vello`) as the only runtime path.
   (`NativeUiAction`, `NativeAppModel`, `NativeFrameBuildResult`,
   `NativeAppBridge`) so runtime bridge/controller glue no longer imports
   `radiant::app` types directly.
+- Native installer/updater shells and `app_core::native_shell` now consume
+  migration-facing `app_core::actions` model aliases (browser/map/folder/update/
+  waveform + status/prompt types), removing direct `radiant::app` imports from
+  migration host entrypoints and projection glue.
 - Native runtime-facing projection/view constants now consume migration-facing
   `app_core::{view_model,ui}` aliases instead of direct `app` module paths.
 - `app_core::view_model` now exposes a narrowed migration-facing helper surface

@@ -8,7 +8,7 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
 # Large-list Performance QA
 
 ## Goals
-- Confirm 50k+ wav entries remain responsive in egui (scrolling, selection, drag/drop).
+- Confirm 50k+ wav entries remain responsive in the native shell (scrolling, selection, drag/drop).
 - Ensure background loading and status timings are reasonable and non-blocking.
 
 ## Setup
