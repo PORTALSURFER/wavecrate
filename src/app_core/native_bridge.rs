@@ -4,13 +4,14 @@
 //! depend on `app_core` instead of transitional `gui_app` paths.
 
 use crate::{
+    app_core::actions::{NativeAppModel, NativeFrameBuildResult, NativeUiAction},
     app_core::controller::{
         AppController, AppControllerNativeRuntimeExt, build_native_app_controller,
     },
     audio::AudioPlayer,
     waveform::WaveformRenderer,
 };
-use radiant::app::{AppModel, FrameBuildResult, NativeAppBridge, UiAction};
+use radiant::app::NativeAppBridge;
 use std::{cell::RefCell, rc::Rc};
 
 /// Host bridge used by the native `radiant` runtime.
@@ -30,16 +31,16 @@ impl SempalNativeBridge {
 }
 
 impl NativeAppBridge for SempalNativeBridge {
-    fn pull_model(&mut self) -> AppModel {
+    fn pull_model(&mut self) -> NativeAppModel {
         self.controller.prepare_native_frame();
         self.controller.project_native_app_model()
     }
 
-    fn on_action(&mut self, action: UiAction) {
+    fn on_action(&mut self, action: NativeUiAction) {
         self.controller.apply_native_ui_action(action);
     }
 
-    fn on_frame_result(&mut self, _result: FrameBuildResult) {}
+    fn on_frame_result(&mut self, _result: NativeFrameBuildResult) {}
 
     fn on_exit(&mut self) {
         if let Err(err) = self.controller.persist_native_exit_config() {

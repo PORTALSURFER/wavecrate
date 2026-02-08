@@ -88,6 +88,9 @@ to `radiant` (`native_vello`) as the only runtime path.
   column, update status, and map render mode, with explicit conversion bridges
   to legacy `app::state` enums at runtime boundaries, plus a migration-facing
   `UiState` alias for projection internals.
+- `app_core::actions` now owns migration-facing native runtime aliases
+  (`NativeUiAction`, `NativeAppModel`, `NativeFrameBuildResult`) so runtime
+  bridge/controller glue no longer imports `radiant::app` types directly.
 - Native runtime-facing projection/view constants now consume migration-facing
   `app_core::{view_model,ui}` aliases instead of direct `app` module paths.
 - `app_core::view_model` now exposes a narrowed migration-facing helper surface
