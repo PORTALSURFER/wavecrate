@@ -9,7 +9,7 @@
 
 use sempal::audio::AudioPlayer;
 use sempal::app_core::native_bridge::new_native_bridge;
-use sempal::gui_app::MIN_VIEWPORT_SIZE;
+use sempal::app_core::ui::MIN_VIEWPORT_SIZE;
 use sempal::gui_runtime::{run_native_vello_app, NativeRunOptions, WindowIconRgba};
 use sempal::logging;
 use sempal::waveform::WaveformRenderer;

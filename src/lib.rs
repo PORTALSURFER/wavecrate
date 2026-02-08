@@ -19,8 +19,6 @@ pub mod external_clipboard;
 pub mod external_drag;
 /// Backend-agnostic GUI primitives used during renderer migration.
 pub mod gui;
-/// Transitional GUI app exports and constructors.
-pub mod gui_app;
 /// Shared runtime abstractions for the GUI migration.
 pub mod gui_runtime;
 mod http_client;
