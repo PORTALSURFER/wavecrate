@@ -1,11 +1,16 @@
 use std::cell::RefCell;
-use std::fs::File;
 use std::path::Path;
 
-use crate::audio::Source;
-use crate::audio::decoder::SymphoniaDecoder;
+#[cfg(any(test, feature = "legacy-egui-runtime"))]
+use std::fs::File;
+#[cfg(any(test, feature = "legacy-egui-runtime"))]
 use std::time::Duration;
+#[cfg(any(test, feature = "legacy-egui-runtime"))]
 use symphonia::core::io::MediaSourceStream;
+#[cfg(any(test, feature = "legacy-egui-runtime"))]
+use crate::audio::decoder::SymphoniaDecoder;
+#[cfg(any(test, feature = "legacy-egui-runtime"))]
+use crate::audio::Source;
 
 use super::analysis_prep::{downmix_to_mono_into, prepare_mono_for_analysis_from_slice};
 use super::resample::resample_linear_into;
@@ -15,6 +20,7 @@ pub(crate) fn decode_for_analysis(path: &Path) -> Result<AnalysisAudio, String> 
     decode_for_analysis_with_rate(path, ANALYSIS_SAMPLE_RATE)
 }
 
+#[cfg(any(test, feature = "legacy-egui-runtime"))]
 pub(crate) struct AudioProbe {
     pub(crate) duration_seconds: Option<f32>,
     #[allow(dead_code)]
@@ -23,6 +29,7 @@ pub(crate) struct AudioProbe {
     pub(crate) channels: Option<u16>,
 }
 
+#[cfg(any(test, feature = "legacy-egui-runtime"))]
 pub(crate) fn probe_metadata(path: &Path) -> Result<AudioProbe, String> {
     if path
         .extension()

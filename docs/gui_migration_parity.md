@@ -169,17 +169,17 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
 - `src/app/controller.rs` still exposes legacy naming (`EguiController`) that is
   intentionally confined to legacy internals; a final rename/extraction pass is
   still pending.
-- `src/lib.rs` still publicly exports `app` to keep legacy internals reachable
-  under `#![deny(warnings)]`; reducing this visibility currently trips extensive
-  legacy `dead_code` failures and should be done together with legacy module
-  removal.
+- `src/lib.rs` still publicly exports `app` when `legacy-egui-runtime` is
+  explicitly enabled; removing this remaining public legacy surface requires
+  final legacy module deletion to avoid `dead_code` failures under
+  `#![deny(warnings)]`.
 
 ## Legacy Removal Checklist
 
 - [x] Add `--no-default-features` compile path for migration-facing `app_core`
   via fallback stubs while preserving default native runtime behavior.
-- [ ] Gate legacy runtime modules (`src/app/**`) behind `legacy-egui-runtime`
-  without triggering crate-wide `dead_code` failures.
+- [x] Gate legacy runtime modules (`src/app/**`) behind `legacy-egui-runtime`
+  and switch crate defaults to native-only (`default = []`).
 - [x] Promote backend-neutral primary controller naming (`AppController`) while
   keeping `EguiController` as a compatibility alias during migration.
 - [ ] Remove public crate exposure of legacy module surface (`pub mod app` in

@@ -17,6 +17,7 @@ mod mixer;
 mod player;
 mod routing;
 mod source;
+#[cfg(feature = "legacy-egui-runtime")]
 mod time_stretch;
 mod timebase;
 
@@ -31,6 +32,7 @@ pub use output::{
 };
 pub use player::AudioPlayer;
 pub use recording::{AudioRecorder, InputMonitor, RecordingOutcome};
+#[cfg(feature = "legacy-egui-runtime")]
 pub(crate) use time_stretch::Wsola;
 
 pub(crate) use async_decode::AsyncSource;

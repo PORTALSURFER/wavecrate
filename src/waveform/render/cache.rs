@@ -4,6 +4,7 @@ use crate::selection::SelectionRange;
 use crate::waveform::zoom_cache::CachedColumns;
 
 impl WaveformRenderer {
+    #[cfg(any(test, feature = "legacy-egui-runtime"))]
     pub(crate) fn cached_view_window(
         &self,
         decoded: &DecodedWaveform,

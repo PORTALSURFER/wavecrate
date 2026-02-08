@@ -17,12 +17,17 @@ pub(crate) const SILENCE_PRE_ROLL_SECONDS: f32 = 0.01;
 pub(crate) const SILENCE_POST_ROLL_SECONDS: f32 = 0.005;
 const EMBEDDING_TARGET_RMS_DB: f32 = -20.0;
 
+#[cfg(feature = "legacy-egui-runtime")]
 pub(crate) use analysis_prep::downmix_to_mono_into;
+pub(crate) use decode::decode_for_analysis;
+#[cfg(feature = "legacy-egui-runtime")]
 pub(crate) use decode::{
-    decode_for_analysis, decode_for_analysis_with_rate, decode_for_analysis_with_rate_limit,
-    probe_metadata,
+    decode_for_analysis_with_rate, decode_for_analysis_with_rate_limit, probe_metadata,
 };
-pub(crate) use normalize::{normalize_peak_in_place, sanitize_samples_in_place};
+pub(crate) use normalize::sanitize_samples_in_place;
+#[cfg(feature = "legacy-egui-runtime")]
+pub(crate) use normalize::normalize_peak_in_place;
+#[cfg(feature = "legacy-egui-runtime")]
 pub(crate) use silence::detect_non_silent_ranges;
 
 /// Decoded mono audio ready for analysis.

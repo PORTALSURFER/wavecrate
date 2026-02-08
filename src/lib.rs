@@ -15,6 +15,7 @@ pub mod audio;
 ///
 /// This remains enabled by default via the `legacy-egui-runtime` feature while
 /// migration completes.
+#[cfg(feature = "legacy-egui-runtime")]
 pub mod app;
 /// Internal namespace for legacy runtime adapters used during migration.
 pub(crate) mod legacy_runtime;
