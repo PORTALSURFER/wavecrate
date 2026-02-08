@@ -1,7 +1,7 @@
 //! Native runtime bridge between sempal controller state and `radiant`.
 
 use crate::{
-    app_core::controller::{AppController, AppControllerStatusExt},
+    app_core::controller::AppController,
     app_core::native_shell::{
         normalized_from_milli, project_app_model, selection_range_from_milli,
     },
@@ -79,28 +79,7 @@ impl SempalNativeBridge {
     }
 
     fn focus_map_sample(&mut self, sample_id: String) {
-        self.set_browser_tab(true);
-        self.controller.stage_map_sample_focus(&sample_id);
-        if let Err(err) = self.controller.focus_sample_from_map(&sample_id) {
-            AppControllerStatusExt::set_error_status(
-                &mut self.controller,
-                format!("Map focus failed: {err}"),
-            );
-            return;
-        }
-        if let Err(err) = self.controller.preview_sample_by_id(&sample_id) {
-            AppControllerStatusExt::set_error_status(
-                &mut self.controller,
-                format!("Preview failed: {err}"),
-            );
-            return;
-        }
-        if let Err(err) = self.controller.play_audio(false, None) {
-            AppControllerStatusExt::set_error_status(
-                &mut self.controller,
-                format!("Playback failed: {err}"),
-            );
-        }
+        self.controller.focus_map_sample_and_preview(&sample_id);
     }
 
     fn set_active_prompt_input(&mut self, value: String) {
