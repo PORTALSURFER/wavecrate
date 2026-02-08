@@ -129,4 +129,9 @@ impl EguiController {
             self.focus_folder_row(target);
         }
     }
+
+    /// Move folder focus by one UI step without extending selection.
+    pub fn nudge_folder_focus_action(&mut self, delta: i8) {
+        self.nudge_folder_selection(delta as isize, false);
+    }
 }

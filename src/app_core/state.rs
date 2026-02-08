@@ -66,6 +66,17 @@ impl From<SampleBrowserTab> for crate::app::state::SampleBrowserTab {
     }
 }
 
+/// Browser tag targets used by migration-facing action routing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BrowserTagTarget {
+    /// Mark selection as trash.
+    Trash,
+    /// Mark selection as neutral.
+    Neutral,
+    /// Mark selection as keep.
+    Keep,
+}
+
 /// Browser triage columns used in migration-facing drag/drop projection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TriageFlagColumn {

@@ -43,6 +43,11 @@ impl EguiController {
         true
     }
 
+    /// Focus browser row using UI delta input, ignoring no-op outcomes.
+    pub fn focus_browser_delta_action(&mut self, delta: i8) {
+        let _ = self.focus_browser_delta(delta);
+    }
+
     /// Extend browser selection by `delta` rows from the current focus.
     ///
     /// When `additive` is `false`, this replaces the selection range.
@@ -219,6 +224,25 @@ impl EguiController {
         }
         let _ = self.delete_browser_samples(&rows);
         true
+    }
+
+    /// Delete current browser selection from UI actions, ignoring no-op outcomes.
+    pub fn delete_active_browser_selection_action(&mut self) {
+        let _ = self.delete_active_browser_selection();
+    }
+
+    /// Apply a triage tag target to current browser selection from UI actions.
+    pub fn tag_selected_browser_target(&mut self, target: crate::app_core::state::BrowserTagTarget) {
+        let rating = match target {
+            crate::app_core::state::BrowserTagTarget::Trash => {
+                crate::sample_sources::Rating::TRASH_3
+            }
+            crate::app_core::state::BrowserTagTarget::Neutral => {
+                crate::sample_sources::Rating::NEUTRAL
+            }
+            crate::app_core::state::BrowserTagTarget::Keep => crate::sample_sources::Rating::KEEP_1,
+        };
+        self.tag_selected(rating);
     }
 
     /// Toggle whether a visible browser row is included in the multi-selection set.

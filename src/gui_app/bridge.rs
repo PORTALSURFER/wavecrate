@@ -3,6 +3,7 @@
 use crate::{
     app_core::controller::AppController,
     app_core::native_shell::project_app_model,
+    app_core::state::BrowserTagTarget as AppBrowserTagTarget,
     audio::AudioPlayer,
     waveform::WaveformRenderer,
 };
@@ -37,58 +38,6 @@ impl SempalNativeBridge {
     fn project_model(&mut self) -> AppModel {
         project_app_model(&mut self.controller)
     }
-
-    fn on_select_column(&mut self, target_index: usize) {
-        self.controller.select_column_by_index(target_index);
-    }
-
-    fn move_browser_focus(&mut self, delta: i8) {
-        let _ = self.controller.focus_browser_delta(delta);
-    }
-
-    fn delete_browser_selection(&mut self) {
-        let _ = self.controller.delete_active_browser_selection();
-    }
-
-    fn tag_browser_selection(&mut self, target: BrowserTagTarget) {
-        let rating = match target {
-            BrowserTagTarget::Trash => crate::sample_sources::Rating::TRASH_3,
-            BrowserTagTarget::Neutral => crate::sample_sources::Rating::NEUTRAL,
-            BrowserTagTarget::Keep => crate::sample_sources::Rating::KEEP_1,
-        };
-        self.controller.tag_selected(rating);
-    }
-
-    fn confirm_active_prompt(&mut self) {
-        let _ = self.controller.confirm_active_prompt();
-    }
-
-    fn cancel_active_prompt(&mut self) {
-        let _ = self.controller.cancel_active_prompt();
-    }
-
-    fn move_folder_focus(&mut self, delta: i8) {
-        self.controller
-            .nudge_folder_selection(delta as isize, false);
-    }
-
-    fn set_browser_tab(&mut self, map: bool) {
-        self.controller.set_browser_tab(map);
-    }
-
-    fn focus_map_sample(&mut self, sample_id: String) {
-        self.controller.focus_map_sample_and_preview(&sample_id);
-    }
-
-    fn set_active_prompt_input(&mut self, value: String) {
-        if self.controller.set_browser_rename_input(value.clone()) {
-            return;
-        }
-        if self.controller.set_folder_rename_input(value.clone()) {
-            return;
-        }
-        self.controller.set_new_folder_creation_input(value);
-    }
 }
 
 impl NativeAppBridge for SempalNativeBridge {
@@ -101,7 +50,7 @@ impl NativeAppBridge for SempalNativeBridge {
 
     fn on_action(&mut self, action: UiAction) {
         match action {
-            UiAction::SelectColumn { index } => self.on_select_column(index),
+            UiAction::SelectColumn { index } => self.controller.select_column_by_index(index),
             UiAction::MoveColumn { delta } => {
                 self.controller.move_selection_column(delta as isize);
             }
@@ -117,7 +66,7 @@ impl NativeAppBridge for SempalNativeBridge {
             UiAction::SetFolderSearch { query } => self.controller.set_folder_search(query),
             UiAction::SelectSourceRow { index } => self.controller.select_source_by_index(index),
             UiAction::FocusFolderRow { index } => self.controller.focus_folder_row(index),
-            UiAction::MoveFolderFocus { delta } => self.move_folder_focus(delta),
+            UiAction::MoveFolderFocus { delta } => self.controller.nudge_folder_focus_action(delta),
             UiAction::StartNewFolder => self.controller.start_new_folder(),
             UiAction::StartNewFolderAtRoot => self.controller.start_new_folder_at_root(),
             UiAction::StartFolderRename => self.controller.start_folder_rename(),
@@ -125,7 +74,7 @@ impl NativeAppBridge for SempalNativeBridge {
             UiAction::ClearFolderDeleteRecoveryLog => {
                 self.controller.clear_folder_delete_recovery_log()
             }
-            UiAction::MoveBrowserFocus { delta } => self.move_browser_focus(delta),
+            UiAction::MoveBrowserFocus { delta } => self.controller.focus_browser_delta_action(delta),
             UiAction::FocusBrowserRow { visible_row } => {
                 self.controller.focus_browser_row(visible_row)
             }
@@ -149,16 +98,27 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             UiAction::SelectAllBrowserRows => self.controller.select_all_browser_rows(),
             UiAction::SetBrowserSearch { query } => self.controller.set_browser_search(query),
-            UiAction::SetBrowserTab { map } => self.set_browser_tab(map),
-            UiAction::FocusMapSample { sample_id } => self.focus_map_sample(sample_id),
-            UiAction::SetPromptInput { value } => self.set_active_prompt_input(value),
+            UiAction::SetBrowserTab { map } => self.controller.set_browser_tab(map),
+            UiAction::FocusMapSample { sample_id } => {
+                self.controller.focus_map_sample_and_preview(&sample_id)
+            }
+            UiAction::SetPromptInput { value } => self.controller.set_active_prompt_input(value),
             UiAction::StartBrowserRename => self.controller.start_browser_rename(),
             UiAction::ConfirmBrowserRename => self.controller.apply_pending_browser_rename(),
             UiAction::CancelBrowserRename => self.controller.cancel_browser_rename(),
-            UiAction::TagBrowserSelection { target } => self.tag_browser_selection(target),
-            UiAction::DeleteBrowserSelection => self.delete_browser_selection(),
-            UiAction::ConfirmPrompt => self.confirm_active_prompt(),
-            UiAction::CancelPrompt => self.cancel_active_prompt(),
+            UiAction::TagBrowserSelection { target } => {
+                let target = match target {
+                    BrowserTagTarget::Trash => AppBrowserTagTarget::Trash,
+                    BrowserTagTarget::Neutral => AppBrowserTagTarget::Neutral,
+                    BrowserTagTarget::Keep => AppBrowserTagTarget::Keep,
+                };
+                self.controller.tag_selected_browser_target(target);
+            }
+            UiAction::DeleteBrowserSelection => {
+                self.controller.delete_active_browser_selection_action()
+            }
+            UiAction::ConfirmPrompt => self.controller.confirm_active_prompt_action(),
+            UiAction::CancelPrompt => self.controller.cancel_active_prompt_action(),
             UiAction::CancelProgress => self.controller.request_progress_cancel(),
             UiAction::ToggleLoopPlayback => self.controller.toggle_loop(),
             UiAction::SeekWaveform { position_milli } => {
