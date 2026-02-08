@@ -5,6 +5,9 @@
 //! module paths while the legacy controller internals are incrementally
 //! extracted.
 
+/// Transitional UI state alias used by migration-facing projection code.
+pub type UiState = crate::app::state::UiState;
+
 /// Bounds used to query visible points in the map projection.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MapQueryBounds {

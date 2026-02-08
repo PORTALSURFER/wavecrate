@@ -6,9 +6,8 @@
 
 use super::controller::AppController;
 use crate::app_core::state::{
-    MapQueryBounds, MapRenderMode, SampleBrowserTab, TriageFlagColumn, UpdateStatus,
+    MapQueryBounds, MapRenderMode, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
 };
-use crate::app::state::UiState;
 use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
 use radiant::app::{
     AppModel, BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,

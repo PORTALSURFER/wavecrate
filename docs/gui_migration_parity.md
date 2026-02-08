@@ -86,7 +86,8 @@ to `radiant` (`native_vello`) as the only runtime path.
   confined to legacy app internals.
 - `app_core::state` now owns migration-facing enums for browser tab, triage
   column, update status, and map render mode, with explicit conversion bridges
-  to legacy `app::state` enums at runtime boundaries.
+  to legacy `app::state` enums at runtime boundaries, plus a migration-facing
+  `UiState` alias for projection internals.
 - Native runtime-facing projection/view constants now consume migration-facing
   `app_core::{view_model,ui}` aliases instead of direct `app` module paths.
 - `app_core::view_model` now exposes a narrowed migration-facing helper surface
