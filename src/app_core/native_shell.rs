@@ -9,9 +9,7 @@ use crate::app_core::state::{
     MapQueryBounds, MapRenderMode, SampleBrowserTab, TriageFlagColumn, UpdateStatus,
 };
 use crate::app::state::UiState;
-use crate::{
-    analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model, selection::SelectionRange,
-};
+use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
 use radiant::app::{
     AppModel, BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
     ColumnModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, FolderActionsModel,
@@ -508,17 +506,6 @@ pub(crate) fn selected_column_index(ui: &UiState) -> usize {
         .unwrap_or(1)
 }
 
-pub(crate) fn normalized_from_milli(value: u16) -> f32 {
-    (value.min(1000) as f32) / 1000.0
-}
-
-pub(crate) fn selection_range_from_milli(start_milli: u16, end_milli: u16) -> SelectionRange {
-    SelectionRange::new(
-        normalized_from_milli(start_milli),
-        normalized_from_milli(end_milli),
-    )
-}
-
 fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
     let focused_folder = ui
         .sources
@@ -882,13 +869,6 @@ mod tests {
     }
 
     #[test]
-    fn normalized_from_milli_clamps_bounds() {
-        assert_eq!(normalized_from_milli(0), 0.0);
-        assert_eq!(normalized_from_milli(455), 0.455);
-        assert_eq!(normalized_from_milli(2000), 1.0);
-    }
-
-    #[test]
     fn browser_render_window_limits_to_target_size() {
         let (start, len) = browser_render_window(500, None, None);
         assert_eq!(start, 0);
@@ -1058,17 +1038,6 @@ mod tests {
         assert!(projected.hover_label.contains("Hover:"));
         assert!(projected.cluster_label.starts_with("Clusters:"));
         assert_eq!(projected.viewport_label, "zoom 1.75x | pan (12, -8)");
-    }
-
-    #[test]
-    fn selection_range_from_milli_clamps_and_orders_bounds() {
-        let range = selection_range_from_milli(750, 250);
-        assert_eq!(range.start(), 0.25);
-        assert_eq!(range.end(), 0.75);
-
-        let range = selection_range_from_milli(2000, 0);
-        assert_eq!(range.start(), 0.0);
-        assert_eq!(range.end(), 1.0);
     }
 
     #[test]

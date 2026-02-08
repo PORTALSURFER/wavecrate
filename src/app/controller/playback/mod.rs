@@ -164,6 +164,26 @@ impl EguiController {
         transport::seek_to(self, position);
     }
 
+    /// Seek waveform/playback using a 0..=1000 milli position from UI actions.
+    pub fn seek_waveform_milli(&mut self, position_milli: u16) {
+        let normalized = normalized_from_milli(position_milli);
+        self.seek_to(normalized);
+        self.set_waveform_cursor(normalized);
+        self.focus_waveform();
+    }
+
+    /// Set waveform cursor using a 0..=1000 milli position from UI actions.
+    pub fn set_waveform_cursor_milli(&mut self, position_milli: u16) {
+        self.set_waveform_cursor(normalized_from_milli(position_milli));
+        self.focus_waveform();
+    }
+
+    /// Set waveform selection range using 0..=1000 milli positions from UI actions.
+    pub fn set_waveform_selection_range_milli(&mut self, start_milli: u16, end_milli: u16) {
+        self.set_selection_range(selection_range_from_milli(start_milli, end_milli));
+        self.focus_waveform();
+    }
+
     /// Restart playback from the last recorded start position.
     pub fn replay_from_last_start(&mut self) -> bool {
         transport::replay_from_last_start(self)
@@ -398,6 +418,17 @@ impl EguiController {
     }
 }
 
+fn normalized_from_milli(value: u16) -> f32 {
+    (value.min(1000) as f32) / 1000.0
+}
+
+fn selection_range_from_milli(start_milli: u16, end_milli: u16) -> SelectionRange {
+    SelectionRange::new(
+        normalized_from_milli(start_milli),
+        normalized_from_milli(end_milli),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -445,5 +476,23 @@ mod tests {
 
         assert!(!controller.ui.waveform.playhead.visible);
         assert!(controller.ui.waveform.playhead.active_span_end.is_none());
+    }
+
+    #[test]
+    fn normalized_from_milli_clamps_bounds() {
+        assert_eq!(normalized_from_milli(0), 0.0);
+        assert_eq!(normalized_from_milli(455), 0.455);
+        assert_eq!(normalized_from_milli(2000), 1.0);
+    }
+
+    #[test]
+    fn selection_range_from_milli_clamps_and_orders_bounds() {
+        let range = selection_range_from_milli(750, 250);
+        assert_eq!(range.start(), 0.25);
+        assert_eq!(range.end(), 0.75);
+
+        let range = selection_range_from_milli(2000, 0);
+        assert_eq!(range.start(), 0.0);
+        assert_eq!(range.end(), 1.0);
     }
 }

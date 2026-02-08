@@ -2,9 +2,7 @@
 
 use crate::{
     app_core::controller::AppController,
-    app_core::native_shell::{
-        normalized_from_milli, project_app_model, selection_range_from_milli,
-    },
+    app_core::native_shell::project_app_model,
     audio::AudioPlayer,
     waveform::WaveformRenderer,
 };
@@ -164,23 +162,17 @@ impl NativeAppBridge for SempalNativeBridge {
             UiAction::CancelProgress => self.controller.request_progress_cancel(),
             UiAction::ToggleLoopPlayback => self.controller.toggle_loop(),
             UiAction::SeekWaveform { position_milli } => {
-                let normalized = normalized_from_milli(position_milli);
-                self.controller.seek_to(normalized);
-                self.controller.set_waveform_cursor(normalized);
-                self.controller.focus_waveform();
+                self.controller.seek_waveform_milli(position_milli);
             }
             UiAction::SetWaveformCursor { position_milli } => {
-                self.controller
-                    .set_waveform_cursor(normalized_from_milli(position_milli));
-                self.controller.focus_waveform();
+                self.controller.set_waveform_cursor_milli(position_milli);
             }
             UiAction::SetWaveformSelectionRange {
                 start_milli,
                 end_milli,
             } => {
                 self.controller
-                    .set_selection_range(selection_range_from_milli(start_milli, end_milli));
-                self.controller.focus_waveform();
+                    .set_waveform_selection_range_milli(start_milli, end_milli);
             }
             UiAction::ClearWaveformSelection => {
                 self.controller.clear_selection();
