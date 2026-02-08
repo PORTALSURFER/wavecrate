@@ -173,8 +173,6 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
   under `#![deny(warnings)]`; reducing this visibility currently trips extensive
   legacy `dead_code` failures and should be done together with legacy module
   removal.
-- Top-level docs still include legacy-specific references (`docs/egui_layout.md`)
-  that should be retired or re-scoped once the legacy UI path is fully removed.
 
 ## Legacy Removal Checklist
 
@@ -186,8 +184,8 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
   keeping `EguiController` as a compatibility alias during migration.
 - [ ] Remove public crate exposure of legacy module surface (`pub mod app` in
   `src/lib.rs`) once migration consumers no longer require it.
-- [ ] Delete legacy layout-only docs (`docs/egui_layout.md`) after porting any
-  remaining actionable guidance into native-shell docs.
+- [x] Delete legacy layout-only docs (`docs/egui_layout.md`) after porting
+  remaining actionable guidance into native-shell migration docs.
 
 ## Source Management Polish Checklist
 
