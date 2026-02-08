@@ -5,6 +5,8 @@
 //! module paths while the legacy controller internals are incrementally
 //! extracted.
 
+use crate::app_core::actions::NativeBrowserTagTarget;
+
 /// Transitional UI state alias used by migration-facing projection code.
 pub type UiState = crate::app::state::UiState;
 
@@ -80,12 +82,12 @@ pub enum BrowserTagTarget {
     Keep,
 }
 
-impl From<radiant::app::BrowserTagTarget> for BrowserTagTarget {
-    fn from(value: radiant::app::BrowserTagTarget) -> Self {
+impl From<NativeBrowserTagTarget> for BrowserTagTarget {
+    fn from(value: NativeBrowserTagTarget) -> Self {
         match value {
-            radiant::app::BrowserTagTarget::Trash => Self::Trash,
-            radiant::app::BrowserTagTarget::Neutral => Self::Neutral,
-            radiant::app::BrowserTagTarget::Keep => Self::Keep,
+            NativeBrowserTagTarget::Trash => Self::Trash,
+            NativeBrowserTagTarget::Neutral => Self::Neutral,
+            NativeBrowserTagTarget::Keep => Self::Keep,
         }
     }
 }

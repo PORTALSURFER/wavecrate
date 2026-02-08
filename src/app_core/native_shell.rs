@@ -5,17 +5,26 @@
 //! back into controller-domain selection math.
 
 use super::controller::AppController;
+use crate::app_core::actions::{
+    NativeAppModel as AppModel, NativeBrowserActionsModel as BrowserActionsModel,
+    NativeBrowserChromeModel as BrowserChromeModel, NativeBrowserPanelModel as BrowserPanelModel,
+    NativeBrowserRowModel as BrowserRowModel, NativeColumnModel as ColumnModel,
+    NativeConfirmPromptKind as ConfirmPromptKind, NativeConfirmPromptModel as ConfirmPromptModel,
+    NativeDragOverlayModel as DragOverlayModel, NativeFolderActionsModel as FolderActionsModel,
+    NativeFolderRecoveryModel as FolderRecoveryModel, NativeFolderRowModel as FolderRowModel,
+    NativeMapPanelModel as MapPanelModel, NativeMapPointModel as MapPointModel,
+    NativeMapRenderModeModel as MapRenderModeModel,
+    NativeNormalizedRangeModel as NormalizedRangeModel,
+    NativeProgressOverlayModel as ProgressOverlayModel, NativeSourceRowModel as SourceRowModel,
+    NativeSourcesPanelModel as SourcesPanelModel, NativeStatusBarModel as StatusBarModel,
+    NativeUpdatePanelModel as UpdatePanelModel, NativeUpdateStatusModel as UpdateStatusModel,
+    NativeWaveformChromeModel as WaveformChromeModel,
+    NativeWaveformPanelModel as WaveformPanelModel,
+};
 use crate::app_core::state::{
     MapQueryBounds, MapRenderMode, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
 };
 use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
-use radiant::app::{
-    AppModel, BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
-    ColumnModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, FolderActionsModel,
-    FolderRecoveryModel, FolderRowModel, MapPanelModel, MapPointModel, MapRenderModeModel,
-    NormalizedRangeModel, ProgressOverlayModel, SourceRowModel, SourcesPanelModel, StatusBarModel,
-    UpdatePanelModel, UpdateStatusModel, WaveformChromeModel, WaveformPanelModel,
-};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
