@@ -91,6 +91,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - `app_core::state` now routes legacy state conversions through a single
   `legacy_state` module alias, reducing repeated direct legacy module paths in
   migration-facing state glue.
+- `app_core::{controller,view_model}` now route legacy references through
+  module aliases (`legacy_controller`, `legacy_view_model`) so migration-facing
+  glue no longer repeats direct legacy module paths.
 - `app_core::actions` now owns migration-facing native runtime aliases
   (`NativeUiAction`, `NativeAppModel`, `NativeFrameBuildResult`,
   `NativeAppBridge`) so runtime bridge/controller glue no longer imports
