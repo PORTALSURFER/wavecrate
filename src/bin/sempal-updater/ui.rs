@@ -1,8 +1,17 @@
-use radiant::app::{
-    AppModel, BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
-    NativeAppBridge, SourceRowModel, StatusBarModel, UiAction, UpdatePanelModel, UpdateStatusModel,
-};
 use sempal::{
+    app_core::actions::{
+        NativeAppBridge,
+        NativeAppModel as AppModel,
+        NativeBrowserActionsModel as BrowserActionsModel,
+        NativeBrowserChromeModel as BrowserChromeModel,
+        NativeBrowserPanelModel as BrowserPanelModel,
+        NativeBrowserRowModel as BrowserRowModel,
+        NativeSourceRowModel as SourceRowModel,
+        NativeStatusBarModel as StatusBarModel,
+        NativeUiAction as UiAction,
+        NativeUpdatePanelModel as UpdatePanelModel,
+        NativeUpdateStatusModel as UpdateStatusModel,
+    },
     gui_runtime::{NativeRunOptions, run_native_vello_app},
     updater::{
         APP_NAME, ApplyPlan, ReleaseSummary, UpdateChannel, UpdateProgress, UpdaterRunArgs,
