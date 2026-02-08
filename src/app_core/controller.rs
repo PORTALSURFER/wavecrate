@@ -21,3 +21,32 @@ impl AppControllerStatusExt for AppController {
         AppController::set_error_status(self, message);
     }
 }
+
+/// Backend-neutral native-runtime orchestration helpers.
+pub trait AppControllerNativeRuntimeExt {
+    /// Apply per-frame controller maintenance before projecting the UI model.
+    fn prepare_native_frame(&mut self);
+
+    /// Project the current controller state into a native runtime app model.
+    fn project_native_app_model(&mut self) -> radiant::app::AppModel;
+
+    /// Persist full configuration during native runtime shutdown.
+    fn persist_native_exit_config(&self) -> Result<(), String>;
+}
+
+impl AppControllerNativeRuntimeExt for AppController {
+    fn prepare_native_frame(&mut self) {
+        self.tick_playhead();
+        self.poll_background_jobs();
+        self.update_performance_governor(false);
+    }
+
+    fn project_native_app_model(&mut self) -> radiant::app::AppModel {
+        crate::app_core::native_shell::project_app_model(self)
+    }
+
+    fn persist_native_exit_config(&self) -> Result<(), String> {
+        self.save_full_config()
+            .map_err(|err| format!("Failed to persist config on native runtime exit: {err}"))
+    }
+}

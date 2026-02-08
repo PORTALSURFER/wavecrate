@@ -73,6 +73,16 @@ impl EguiController {
         true
     }
 
+    /// Extend browser selection range from focused row, replacing current selection.
+    pub fn extend_browser_selection_from_focus_action(&mut self, delta: i8) {
+        let _ = self.extend_browser_selection_delta(delta, false);
+    }
+
+    /// Extend browser selection range from focused row, adding to current selection.
+    pub fn add_range_browser_selection_from_focus_action(&mut self, delta: i8) {
+        let _ = self.extend_browser_selection_delta(delta, true);
+    }
+
     pub(crate) fn visible_row_for_path(&mut self, path: &Path) -> Option<usize> {
         let entry_index = self.wav_index_for_path(path)?;
         match &self.ui.browser.visible {

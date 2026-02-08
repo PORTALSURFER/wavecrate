@@ -1,8 +1,7 @@
 //! Native runtime bridge between sempal controller state and `radiant`.
 
 use crate::{
-    app_core::controller::AppController,
-    app_core::native_shell::project_app_model,
+    app_core::controller::{AppController, AppControllerNativeRuntimeExt},
     app_core::state::BrowserTagTarget as AppBrowserTagTarget,
     audio::AudioPlayer,
     waveform::WaveformRenderer,
@@ -35,17 +34,12 @@ impl SempalNativeBridge {
         Ok(Self { controller })
     }
 
-    fn project_model(&mut self) -> AppModel {
-        project_app_model(&mut self.controller)
-    }
 }
 
 impl NativeAppBridge for SempalNativeBridge {
     fn pull_model(&mut self) -> AppModel {
-        self.controller.tick_playhead();
-        self.controller.poll_background_jobs();
-        self.controller.update_performance_governor(false);
-        self.project_model()
+        self.controller.prepare_native_frame();
+        self.controller.project_native_app_model()
     }
 
     fn on_action(&mut self, action: UiAction) {
@@ -88,10 +82,11 @@ impl NativeAppBridge for SempalNativeBridge {
                 self.controller.add_range_browser_selection(visible_row)
             }
             UiAction::ExtendBrowserSelectionFromFocus { delta } => {
-                let _ = self.controller.extend_browser_selection_delta(delta, false);
+                self.controller.extend_browser_selection_from_focus_action(delta);
             }
             UiAction::AddRangeBrowserSelectionFromFocus { delta } => {
-                let _ = self.controller.extend_browser_selection_delta(delta, true);
+                self.controller
+                    .add_range_browser_selection_from_focus_action(delta);
             }
             UiAction::ToggleFocusedBrowserRowSelection => {
                 self.controller.toggle_focused_selection()
@@ -158,8 +153,8 @@ impl NativeAppBridge for SempalNativeBridge {
     fn on_frame_result(&mut self, _result: FrameBuildResult) {}
 
     fn on_exit(&mut self) {
-        if let Err(err) = self.controller.save_full_config() {
-            eprintln!("Failed to persist config on native runtime exit: {err}");
+        if let Err(err) = self.controller.persist_native_exit_config() {
+            eprintln!("{err}");
         }
     }
 }
