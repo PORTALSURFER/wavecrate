@@ -37,12 +37,12 @@ pub const DEFAULT_VIEWPORT_SIZE: [f32; 2] = [960.0, 560.0];
 /// Minimum viewport size for the app window.
 pub const MIN_VIEWPORT_SIZE: [f32; 2] = [640.0, 400.0];
 
-use crate::{audio::AudioPlayer, app::controller::EguiController, waveform::WaveformRenderer};
+use crate::{audio::AudioPlayer, app::controller::AppController, waveform::WaveformRenderer};
 use eframe::egui::{self, TextureHandle};
 
 /// Renders the egui UI using the shared controller state.
-pub struct EguiApp {
-    pub(crate) controller: EguiController,
+pub struct App {
+    pub(crate) controller: AppController,
     visuals_set: bool,
     waveform_tex: Option<TextureHandle>,
     #[allow(dead_code)]
@@ -100,7 +100,10 @@ enum SliceDragKind {
     },
 }
 
-impl EguiApp {
+/// Backward-compatible legacy alias kept while migration references are removed.
+pub type EguiApp = App;
+
+impl App {
     /// Create a new egui app, loading persisted configuration.
     pub fn new(
         renderer: WaveformRenderer,
@@ -108,7 +111,7 @@ impl EguiApp {
     ) -> Result<Self, String> {
         let cfg = crate::sample_sources::config::load_or_default()
             .map_err(|err| format!("Failed to load config: {err}"))?;
-        let mut controller = EguiController::new_with_job_message_queue_capacity(
+        let mut controller = AppController::new_with_job_message_queue_capacity(
             renderer,
             player,
             cfg.core.job_message_queue_capacity as usize,

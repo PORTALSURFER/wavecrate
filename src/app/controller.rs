@@ -52,7 +52,7 @@ pub(crate) const UNDO_LIMIT: usize = 20;
 pub(crate) const STATUS_LOG_LIMIT: usize = 200;
 
 /// Maintains app state and bridges core logic to the egui UI.
-pub struct EguiController {
+pub struct AppController {
     /// Mutable UI state shared with egui rendering.
     pub ui: UiState,
     audio: ControllerAudioState,
@@ -69,10 +69,10 @@ pub struct EguiController {
     drag_hwnd: Option<windows::Win32::Foundation::HWND>,
 }
 
-/// Public controller alias used by migration-facing runtime modules.
-pub type AppController = EguiController;
+/// Backward-compatible legacy alias kept while migration references are removed.
+pub type EguiController = AppController;
 
-impl EguiController {
+impl AppController {
     /// Create a controller with shared renderer and optional audio player.
     pub fn new(renderer: WaveformRenderer, player: Option<Rc<RefCell<AudioPlayer>>>) -> Self {
         let default_capacity = crate::sample_sources::config::AppSettingsCore::default()
