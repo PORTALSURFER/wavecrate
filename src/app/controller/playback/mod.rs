@@ -184,6 +184,37 @@ impl EguiController {
         self.focus_waveform();
     }
 
+    /// Clear waveform selection and keep waveform focus active.
+    pub fn clear_waveform_selection_with_focus(&mut self) {
+        self.clear_selection();
+        self.focus_waveform();
+    }
+
+    /// Zoom waveform from UI actions using clamped step counts and focus retention.
+    pub fn zoom_waveform_steps_from_ui(&mut self, zoom_in: bool, steps: u8) {
+        self.zoom_waveform_steps_with_factor(
+            zoom_in,
+            zoom_steps_from_ui(steps),
+            None,
+            None,
+            true,
+            true,
+        );
+        self.focus_waveform();
+    }
+
+    /// Zoom waveform to current selection while preserving waveform focus.
+    pub fn zoom_waveform_to_selection_with_focus(&mut self) {
+        self.zoom_waveform_to_selection();
+        self.focus_waveform();
+    }
+
+    /// Reset waveform zoom to full range while preserving waveform focus.
+    pub fn zoom_waveform_full_with_focus(&mut self) {
+        self.zoom_waveform_full();
+        self.focus_waveform();
+    }
+
     /// Restart playback from the last recorded start position.
     pub fn replay_from_last_start(&mut self) -> bool {
         transport::replay_from_last_start(self)
@@ -429,6 +460,10 @@ fn selection_range_from_milli(start_milli: u16, end_milli: u16) -> SelectionRang
     )
 }
 
+fn zoom_steps_from_ui(steps: u8) -> u32 {
+    u32::from(steps.max(1))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -494,5 +529,12 @@ mod tests {
         let range = selection_range_from_milli(2000, 0);
         assert_eq!(range.start(), 0.0);
         assert_eq!(range.end(), 1.0);
+    }
+
+    #[test]
+    fn zoom_steps_from_ui_clamps_to_at_least_one() {
+        assert_eq!(zoom_steps_from_ui(0), 1);
+        assert_eq!(zoom_steps_from_ui(1), 1);
+        assert_eq!(zoom_steps_from_ui(12), 12);
     }
 }

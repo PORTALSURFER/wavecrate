@@ -175,27 +175,16 @@ impl NativeAppBridge for SempalNativeBridge {
                     .set_waveform_selection_range_milli(start_milli, end_milli);
             }
             UiAction::ClearWaveformSelection => {
-                self.controller.clear_selection();
-                self.controller.focus_waveform();
+                self.controller.clear_waveform_selection_with_focus();
             }
             UiAction::ZoomWaveform { zoom_in, steps } => {
-                self.controller.zoom_waveform_steps_with_factor(
-                    zoom_in,
-                    u32::from(steps.max(1)),
-                    None,
-                    None,
-                    true,
-                    true,
-                );
-                self.controller.focus_waveform();
+                self.controller.zoom_waveform_steps_from_ui(zoom_in, steps);
             }
             UiAction::ZoomWaveformToSelection => {
-                self.controller.zoom_waveform_to_selection();
-                self.controller.focus_waveform();
+                self.controller.zoom_waveform_to_selection_with_focus();
             }
             UiAction::ZoomWaveformFull => {
-                self.controller.zoom_waveform_full();
-                self.controller.focus_waveform();
+                self.controller.zoom_waveform_full_with_focus();
             }
             UiAction::Undo => self.controller.undo(),
             UiAction::Redo => self.controller.redo(),
