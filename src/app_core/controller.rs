@@ -34,21 +34,6 @@ pub fn build_native_app_controller(
     Ok(controller)
 }
 
-/// Backend-neutral status helpers for migration-facing runtime code.
-pub trait AppControllerStatusExt {
-    /// Set an error status message on the controller.
-    ///
-    /// This keeps native-bridge code independent from legacy UI style enums
-    /// while migration is in progress.
-    fn set_error_status(&mut self, message: impl Into<String>);
-}
-
-impl AppControllerStatusExt for AppController {
-    fn set_error_status(&mut self, message: impl Into<String>) {
-        AppController::set_error_status(self, message);
-    }
-}
-
 /// Backend-neutral native-runtime orchestration helpers.
 pub trait AppControllerNativeRuntimeExt {
     /// Apply per-frame controller maintenance before projecting the UI model.

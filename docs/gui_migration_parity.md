@@ -99,10 +99,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - `app_core::ui` now owns native viewport baseline constants directly
   (960x560 default, 640x400 minimum) so runtime entrypoints no longer depend on
   legacy `app::ui` constant definitions.
-- Native bridge status updates now route through `app_core::controller`
-  extension helpers backed by a dedicated legacy-controller
-  `set_error_status` shim, removing migration-facing `StatusTone` coupling to
-  `app::ui::style` enums in `app_core`.
+- Native bridge status flows now route directly through
+  `app::controller::AppController` methods in `app_core` runtime glue,
+  without a separate `set_error_status` migration shim.
 - Sempal runtime options now use a sempal-owned `NativeRunOptions` surface in
   `src/gui_runtime/mod.rs` with conversion wrappers into radiant internals,
   removing legacy `EguiRunOptions` naming from sempal's public runtime API.
