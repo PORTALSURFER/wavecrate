@@ -23,7 +23,13 @@ use crate::app_core::actions::{
 };
 use crate::app_core::state::{
     DestructiveEditPrompt, DragTarget, FolderActionPrompt, MapQueryBounds, MapRenderMode,
-    SampleBrowserActionPrompt, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
+    SampleBrowserActionPrompt, SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, UiState,
+    UpdateStatus, VisibleRows,
+};
+#[cfg(test)]
+use crate::app_core::state::{
+    DestructiveSelectionEdit, FolderDeleteRecoveryAction, FolderDeleteRecoveryEntry,
+    FolderDeleteRecoveryStatus, FolderRowView, InlineFolderCreation,
 };
 use crate::app_core::ui::{MAX_RENDERED_BROWSER_ROWS, MAX_RENDERED_MAP_POINTS};
 use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
@@ -580,14 +586,14 @@ fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
 }
 
 fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
-    let visible = crate::app_core::state::VisibleRows::from(controller.ui.browser.visible.clone());
+    let visible = VisibleRows::from(controller.ui.browser.visible.clone());
     let selected_visible_row = controller.ui.browser.selected_visible;
     let selected_path_count = controller.ui.browser.selected_paths.len();
     let search_query = controller.ui.browser.search_query.clone();
     let search_placeholder = Some(String::from("Search samples (Ctrl+F)"));
     let busy = controller.ui.browser.search_busy;
     let sort_label = Some(
-        browser_sort_label(crate::app_core::state::SampleBrowserSort::from(
+        browser_sort_label(SampleBrowserSort::from(
             controller.ui.browser.sort,
         ))
         .to_owned(),
@@ -668,7 +674,7 @@ fn project_browser_chrome_model(ui: &UiState, visible_count: usize) -> BrowserCh
         activity_ready_label: String::from("Ready"),
         activity_busy_label: String::from("Filtering"),
         sort_prefix_label: String::from("Sort"),
-        sort_order_label: browser_sort_label(crate::app_core::state::SampleBrowserSort::from(
+        sort_order_label: browser_sort_label(SampleBrowserSort::from(
             ui.browser.sort,
         ))
         .to_owned(),
@@ -778,8 +784,7 @@ fn format_bpm_badge_label(bpm: f32) -> String {
     }
 }
 
-fn browser_sort_label(sort: crate::app_core::state::SampleBrowserSort) -> &'static str {
-    use crate::app_core::state::SampleBrowserSort;
+fn browser_sort_label(sort: SampleBrowserSort) -> &'static str {
     match sort {
         SampleBrowserSort::ListOrder => "List order",
         SampleBrowserSort::Similarity => "Similarity",
@@ -788,7 +793,7 @@ fn browser_sort_label(sort: crate::app_core::state::SampleBrowserSort) -> &'stat
     }
 }
 
-fn browser_tab_label(tab: crate::app_core::state::SampleBrowserTab) -> &'static str {
+fn browser_tab_label(tab: SampleBrowserTab) -> &'static str {
     match tab {
         SampleBrowserTab::List => "Samples",
         SampleBrowserTab::Map => "Similarity map",
@@ -935,8 +940,8 @@ mod tests {
         let mut controller =
             AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
         controller.ui.browser.sort =
-            crate::app_core::state::SampleBrowserSort::PlaybackAgeDesc.into();
-        controller.ui.browser.active_tab = crate::app_core::state::SampleBrowserTab::Map.into();
+            SampleBrowserSort::PlaybackAgeDesc.into();
+        controller.ui.browser.active_tab = SampleBrowserTab::Map.into();
         let projected = project_browser_model(&mut controller);
         assert_eq!(
             projected.search_placeholder.as_deref(),
@@ -952,7 +957,7 @@ mod tests {
     #[test]
     fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
         let mut ui = UiState::default();
-        ui.browser.sort = crate::app_core::state::SampleBrowserSort::Similarity.into();
+        ui.browser.sort = SampleBrowserSort::Similarity.into();
         ui.browser.similarity_sort_follow_loaded = true;
         let projected = project_browser_chrome_model(&ui, 1437);
         assert_eq!(projected.samples_tab_label, "Samples");
@@ -1031,7 +1036,7 @@ mod tests {
     fn map_projection_exposes_legend_selection_and_viewport_labels() {
         let mut controller =
             AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-        controller.ui.browser.active_tab = crate::app_core::state::SampleBrowserTab::Map.into();
+        controller.ui.browser.active_tab = SampleBrowserTab::Map.into();
         controller.ui.map.zoom = 1.75;
         controller.ui.map.pan.x = 12.0;
         controller.ui.map.pan.y = -8.0;
@@ -1074,7 +1079,7 @@ mod tests {
         );
         ui.waveform.pending_destructive = Some(
             DestructiveEditPrompt {
-                edit: crate::app_core::state::DestructiveSelectionEdit::TrimSelection,
+                edit: DestructiveSelectionEdit::TrimSelection,
                 title: String::from("Trim selection"),
                 message: String::from("Apply trim?"),
             }
@@ -1089,7 +1094,7 @@ mod tests {
     fn confirm_prompt_projects_folder_create_inline_state() {
         let mut ui = UiState::default();
         ui.sources.folders.new_folder = Some(
-            crate::app_core::state::InlineFolderCreation {
+            InlineFolderCreation {
                 parent: std::path::PathBuf::from("drums"),
                 name: String::from("kicks"),
                 focus_requested: true,
@@ -1114,7 +1119,7 @@ mod tests {
             .folders
             .rows
             .push(
-                crate::app_core::state::FolderRowView {
+                FolderRowView {
                     path: std::path::PathBuf::from("drums/existing"),
                     name: String::from("existing"),
                     depth: 1,
@@ -1129,7 +1134,7 @@ mod tests {
                 .into(),
             );
         ui.sources.folders.new_folder = Some(
-            crate::app_core::state::InlineFolderCreation {
+            InlineFolderCreation {
                 parent: std::path::PathBuf::from("drums"),
                 name: String::from("existing"),
                 focus_requested: true,
@@ -1159,7 +1164,7 @@ mod tests {
             .folders
             .rows
             .push(
-                crate::app_core::state::FolderRowView {
+                FolderRowView {
                     path: std::path::PathBuf::from("drums"),
                     name: String::from("drums"),
                     depth: 1,
@@ -1177,7 +1182,7 @@ mod tests {
             .folders
             .rows
             .push(
-                crate::app_core::state::FolderRowView {
+                FolderRowView {
                     path: std::path::PathBuf::from("kicks"),
                     name: String::from("kicks"),
                     depth: 1,
@@ -1245,7 +1250,7 @@ mod tests {
             .folders
             .rows
             .push(
-                crate::app_core::state::FolderRowView {
+                FolderRowView {
                     path: std::path::PathBuf::new(),
                     name: String::from("Root"),
                     depth: 0,
@@ -1270,7 +1275,7 @@ mod tests {
             .folders
             .rows
             .push(
-                crate::app_core::state::FolderRowView {
+                FolderRowView {
                     path: std::path::PathBuf::from("drums"),
                     name: String::from("drums"),
                     depth: 1,
@@ -1294,11 +1299,11 @@ mod tests {
     fn folder_actions_disable_recovery_clear_while_recovery_is_running() {
         let mut ui = UiState::default();
         ui.sources.folders.delete_recovery.entries.push(
-            crate::app_core::state::FolderDeleteRecoveryEntry {
+            FolderDeleteRecoveryEntry {
                 source_label: String::from("source"),
                 relative_path: std::path::PathBuf::from("drums"),
-                action: crate::app_core::state::FolderDeleteRecoveryAction::Restore,
-                status: crate::app_core::state::FolderDeleteRecoveryStatus::Completed,
+                action: FolderDeleteRecoveryAction::Restore,
+                status: FolderDeleteRecoveryStatus::Completed,
                 detail: None,
             }
             .into(),
