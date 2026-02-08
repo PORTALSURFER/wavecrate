@@ -1,5 +1,7 @@
 //! Shared GUI runtime host implementations re-exported from `radiant`.
 
+use crate::app_core::actions::NativeAppBridge;
+
 /// RGBA icon payload used by native runtime hosts.
 #[derive(Clone, Debug)]
 pub struct WindowIconRgba {
@@ -48,7 +50,7 @@ impl From<WindowIconRgba> for radiant::gui_runtime::WindowIconRgba {
 }
 
 /// Run the native Vello backend with a host-provided app bridge.
-pub fn run_native_vello_app<B: radiant::app::NativeAppBridge>(
+pub fn run_native_vello_app<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> Result<(), String> {

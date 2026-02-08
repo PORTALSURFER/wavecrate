@@ -11,3 +11,6 @@ pub type NativeAppModel = radiant::app::AppModel;
 
 /// Native runtime frame build result payload.
 pub type NativeFrameBuildResult = radiant::app::FrameBuildResult;
+
+/// Native runtime bridge trait used by host launchers.
+pub use radiant::app::NativeAppBridge;

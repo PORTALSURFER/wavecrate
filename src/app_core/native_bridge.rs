@@ -5,13 +5,13 @@
 
 use crate::{
     app_core::actions::{NativeAppModel, NativeFrameBuildResult, NativeUiAction},
+    app_core::actions::NativeAppBridge,
     app_core::controller::{
         AppController, AppControllerNativeRuntimeExt, build_native_app_controller,
     },
     audio::AudioPlayer,
     waveform::WaveformRenderer,
 };
-use radiant::app::NativeAppBridge;
 use std::{cell::RefCell, rc::Rc};
 
 /// Host bridge used by the native `radiant` runtime.
