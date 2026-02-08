@@ -77,6 +77,16 @@ pub enum BrowserTagTarget {
     Keep,
 }
 
+impl From<radiant::app::BrowserTagTarget> for BrowserTagTarget {
+    fn from(value: radiant::app::BrowserTagTarget) -> Self {
+        match value {
+            radiant::app::BrowserTagTarget::Trash => Self::Trash,
+            radiant::app::BrowserTagTarget::Neutral => Self::Neutral,
+            radiant::app::BrowserTagTarget::Keep => Self::Keep,
+        }
+    }
+}
+
 /// Browser triage columns used in migration-facing drag/drop projection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TriageFlagColumn {
