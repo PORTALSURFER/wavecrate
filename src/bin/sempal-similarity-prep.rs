@@ -1,6 +1,6 @@
 //! CLI tool to run similarity preparation workflows.
 
-use sempal::app_core::controller::AppController;
+use sempal::app_core::controller::build_native_app_controller;
 use sempal::waveform::WaveformRenderer;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -29,12 +29,14 @@ fn main() {
     };
 
     let renderer = WaveformRenderer::new(1, 1);
-    let mut controller = AppController::new(renderer, None);
+    let mut controller = match build_native_app_controller(renderer, None) {
+        Ok(controller) => controller,
+        Err(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
+    };
     controller.set_analysis_worker_allowed_sources(Some(Vec::new()));
-    if let Err(err) = controller.load_configuration() {
-        eprintln!("Failed to load config: {err}");
-        std::process::exit(1);
-    }
 
     if let Some(workers) = opts.worker_count {
         controller.set_analysis_worker_count(workers);
