@@ -6,9 +6,10 @@
 //! extracted.
 
 use crate::app_core::actions::NativeBrowserTagTarget;
+use crate::app::state as legacy_state;
 
 /// Transitional UI state alias used by migration-facing projection code.
-pub type UiState = crate::app::state::UiState;
+pub type UiState = legacy_state::UiState;
 
 /// Bounds used to query visible points in the map projection.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -23,8 +24,8 @@ pub struct MapQueryBounds {
     pub max_y: f32,
 }
 
-impl From<crate::app::state::MapQueryBounds> for MapQueryBounds {
-    fn from(value: crate::app::state::MapQueryBounds) -> Self {
+impl From<legacy_state::MapQueryBounds> for MapQueryBounds {
+    fn from(value: legacy_state::MapQueryBounds) -> Self {
         Self {
             min_x: value.min_x,
             max_x: value.max_x,
@@ -34,7 +35,7 @@ impl From<crate::app::state::MapQueryBounds> for MapQueryBounds {
     }
 }
 
-impl From<MapQueryBounds> for crate::app::state::MapQueryBounds {
+impl From<MapQueryBounds> for legacy_state::MapQueryBounds {
     fn from(value: MapQueryBounds) -> Self {
         Self {
             min_x: value.min_x,
@@ -53,16 +54,16 @@ pub enum SampleBrowserTab {
     Map,
 }
 
-impl From<crate::app::state::SampleBrowserTab> for SampleBrowserTab {
-    fn from(value: crate::app::state::SampleBrowserTab) -> Self {
+impl From<legacy_state::SampleBrowserTab> for SampleBrowserTab {
+    fn from(value: legacy_state::SampleBrowserTab) -> Self {
         match value {
-            crate::app::state::SampleBrowserTab::List => Self::List,
-            crate::app::state::SampleBrowserTab::Map => Self::Map,
+            legacy_state::SampleBrowserTab::List => Self::List,
+            legacy_state::SampleBrowserTab::Map => Self::Map,
         }
     }
 }
 
-impl From<SampleBrowserTab> for crate::app::state::SampleBrowserTab {
+impl From<SampleBrowserTab> for legacy_state::SampleBrowserTab {
     fn from(value: SampleBrowserTab) -> Self {
         match value {
             SampleBrowserTab::List => Self::List,
@@ -103,17 +104,17 @@ pub enum TriageFlagColumn {
     Keep,
 }
 
-impl From<crate::app::state::TriageFlagColumn> for TriageFlagColumn {
-    fn from(value: crate::app::state::TriageFlagColumn) -> Self {
+impl From<legacy_state::TriageFlagColumn> for TriageFlagColumn {
+    fn from(value: legacy_state::TriageFlagColumn) -> Self {
         match value {
-            crate::app::state::TriageFlagColumn::Trash => Self::Trash,
-            crate::app::state::TriageFlagColumn::Neutral => Self::Neutral,
-            crate::app::state::TriageFlagColumn::Keep => Self::Keep,
+            legacy_state::TriageFlagColumn::Trash => Self::Trash,
+            legacy_state::TriageFlagColumn::Neutral => Self::Neutral,
+            legacy_state::TriageFlagColumn::Keep => Self::Keep,
         }
     }
 }
 
-impl From<TriageFlagColumn> for crate::app::state::TriageFlagColumn {
+impl From<TriageFlagColumn> for legacy_state::TriageFlagColumn {
     fn from(value: TriageFlagColumn) -> Self {
         match value {
             TriageFlagColumn::Trash => Self::Trash,
@@ -136,18 +137,18 @@ pub enum UpdateStatus {
     Error,
 }
 
-impl From<crate::app::state::UpdateStatus> for UpdateStatus {
-    fn from(value: crate::app::state::UpdateStatus) -> Self {
+impl From<legacy_state::UpdateStatus> for UpdateStatus {
+    fn from(value: legacy_state::UpdateStatus) -> Self {
         match value {
-            crate::app::state::UpdateStatus::Idle => Self::Idle,
-            crate::app::state::UpdateStatus::Checking => Self::Checking,
-            crate::app::state::UpdateStatus::UpdateAvailable => Self::UpdateAvailable,
-            crate::app::state::UpdateStatus::Error => Self::Error,
+            legacy_state::UpdateStatus::Idle => Self::Idle,
+            legacy_state::UpdateStatus::Checking => Self::Checking,
+            legacy_state::UpdateStatus::UpdateAvailable => Self::UpdateAvailable,
+            legacy_state::UpdateStatus::Error => Self::Error,
         }
     }
 }
 
-impl From<UpdateStatus> for crate::app::state::UpdateStatus {
+impl From<UpdateStatus> for legacy_state::UpdateStatus {
     fn from(value: UpdateStatus) -> Self {
         match value {
             UpdateStatus::Idle => Self::Idle,
@@ -167,16 +168,16 @@ pub enum MapRenderMode {
     Points,
 }
 
-impl From<crate::app::state::MapRenderMode> for MapRenderMode {
-    fn from(value: crate::app::state::MapRenderMode) -> Self {
+impl From<legacy_state::MapRenderMode> for MapRenderMode {
+    fn from(value: legacy_state::MapRenderMode) -> Self {
         match value {
-            crate::app::state::MapRenderMode::Heatmap => Self::Heatmap,
-            crate::app::state::MapRenderMode::Points => Self::Points,
+            legacy_state::MapRenderMode::Heatmap => Self::Heatmap,
+            legacy_state::MapRenderMode::Points => Self::Points,
         }
     }
 }
 
-impl From<MapRenderMode> for crate::app::state::MapRenderMode {
+impl From<MapRenderMode> for legacy_state::MapRenderMode {
     fn from(value: MapRenderMode) -> Self {
         match value {
             MapRenderMode::Heatmap => Self::Heatmap,
@@ -196,17 +197,17 @@ pub enum SampleBrowserActionPrompt {
     },
 }
 
-impl From<crate::app::state::SampleBrowserActionPrompt> for SampleBrowserActionPrompt {
-    fn from(value: crate::app::state::SampleBrowserActionPrompt) -> Self {
+impl From<legacy_state::SampleBrowserActionPrompt> for SampleBrowserActionPrompt {
+    fn from(value: legacy_state::SampleBrowserActionPrompt) -> Self {
         match value {
-            crate::app::state::SampleBrowserActionPrompt::Rename { target, name } => {
+            legacy_state::SampleBrowserActionPrompt::Rename { target, name } => {
                 Self::Rename { target, name }
             }
         }
     }
 }
 
-impl From<SampleBrowserActionPrompt> for crate::app::state::SampleBrowserActionPrompt {
+impl From<SampleBrowserActionPrompt> for legacy_state::SampleBrowserActionPrompt {
     fn from(value: SampleBrowserActionPrompt) -> Self {
         match value {
             SampleBrowserActionPrompt::Rename { target, name } => Self::Rename { target, name },
@@ -226,17 +227,17 @@ pub enum FolderActionPrompt {
     },
 }
 
-impl From<crate::app::state::FolderActionPrompt> for FolderActionPrompt {
-    fn from(value: crate::app::state::FolderActionPrompt) -> Self {
+impl From<legacy_state::FolderActionPrompt> for FolderActionPrompt {
+    fn from(value: legacy_state::FolderActionPrompt) -> Self {
         match value {
-            crate::app::state::FolderActionPrompt::Rename { target, name } => {
+            legacy_state::FolderActionPrompt::Rename { target, name } => {
                 Self::Rename { target, name }
             }
         }
     }
 }
 
-impl From<FolderActionPrompt> for crate::app::state::FolderActionPrompt {
+impl From<FolderActionPrompt> for legacy_state::FolderActionPrompt {
     fn from(value: FolderActionPrompt) -> Self {
         match value {
             FolderActionPrompt::Rename { target, name } => Self::Rename { target, name },
@@ -268,23 +269,23 @@ pub enum DragTarget {
     External,
 }
 
-impl From<crate::app::state::DragTarget> for DragTarget {
-    fn from(value: crate::app::state::DragTarget) -> Self {
+impl From<legacy_state::DragTarget> for DragTarget {
+    fn from(value: legacy_state::DragTarget) -> Self {
         match value {
-            crate::app::state::DragTarget::None => Self::None,
-            crate::app::state::DragTarget::BrowserTriage(column) => {
+            legacy_state::DragTarget::None => Self::None,
+            legacy_state::DragTarget::BrowserTriage(column) => {
                 Self::BrowserTriage(column.into())
             }
-            crate::app::state::DragTarget::SourcesRow(id) => Self::SourcesRow(id),
-            crate::app::state::DragTarget::FolderPanel { folder } => Self::FolderPanel { folder },
-            crate::app::state::DragTarget::DropTarget { path } => Self::DropTarget { path },
-            crate::app::state::DragTarget::DropTargetsPanel => Self::DropTargetsPanel,
-            crate::app::state::DragTarget::External => Self::External,
+            legacy_state::DragTarget::SourcesRow(id) => Self::SourcesRow(id),
+            legacy_state::DragTarget::FolderPanel { folder } => Self::FolderPanel { folder },
+            legacy_state::DragTarget::DropTarget { path } => Self::DropTarget { path },
+            legacy_state::DragTarget::DropTargetsPanel => Self::DropTargetsPanel,
+            legacy_state::DragTarget::External => Self::External,
         }
     }
 }
 
-impl From<DragTarget> for crate::app::state::DragTarget {
+impl From<DragTarget> for legacy_state::DragTarget {
     fn from(value: DragTarget) -> Self {
         match value {
             DragTarget::None => Self::None,
@@ -310,18 +311,18 @@ pub enum SampleBrowserSort {
     PlaybackAgeDesc,
 }
 
-impl From<crate::app::state::SampleBrowserSort> for SampleBrowserSort {
-    fn from(value: crate::app::state::SampleBrowserSort) -> Self {
+impl From<legacy_state::SampleBrowserSort> for SampleBrowserSort {
+    fn from(value: legacy_state::SampleBrowserSort) -> Self {
         match value {
-            crate::app::state::SampleBrowserSort::ListOrder => Self::ListOrder,
-            crate::app::state::SampleBrowserSort::Similarity => Self::Similarity,
-            crate::app::state::SampleBrowserSort::PlaybackAgeAsc => Self::PlaybackAgeAsc,
-            crate::app::state::SampleBrowserSort::PlaybackAgeDesc => Self::PlaybackAgeDesc,
+            legacy_state::SampleBrowserSort::ListOrder => Self::ListOrder,
+            legacy_state::SampleBrowserSort::Similarity => Self::Similarity,
+            legacy_state::SampleBrowserSort::PlaybackAgeAsc => Self::PlaybackAgeAsc,
+            legacy_state::SampleBrowserSort::PlaybackAgeDesc => Self::PlaybackAgeDesc,
         }
     }
 }
 
-impl From<SampleBrowserSort> for crate::app::state::SampleBrowserSort {
+impl From<SampleBrowserSort> for legacy_state::SampleBrowserSort {
     fn from(value: SampleBrowserSort) -> Self {
         match value {
             SampleBrowserSort::ListOrder => Self::ListOrder,
@@ -362,16 +363,16 @@ impl VisibleRows {
     }
 }
 
-impl From<crate::app::state::VisibleRows> for VisibleRows {
-    fn from(value: crate::app::state::VisibleRows) -> Self {
+impl From<legacy_state::VisibleRows> for VisibleRows {
+    fn from(value: legacy_state::VisibleRows) -> Self {
         match value {
-            crate::app::state::VisibleRows::All { total } => Self::All { total },
-            crate::app::state::VisibleRows::List(rows) => Self::List(rows),
+            legacy_state::VisibleRows::All { total } => Self::All { total },
+            legacy_state::VisibleRows::List(rows) => Self::List(rows),
         }
     }
 }
 
-impl From<VisibleRows> for crate::app::state::VisibleRows {
+impl From<VisibleRows> for legacy_state::VisibleRows {
     fn from(value: VisibleRows) -> Self {
         match value {
             VisibleRows::All { total } => Self::All { total },
@@ -402,23 +403,23 @@ pub enum DestructiveSelectionEdit {
     ClickRemoval,
 }
 
-impl From<crate::app::state::DestructiveSelectionEdit> for DestructiveSelectionEdit {
-    fn from(value: crate::app::state::DestructiveSelectionEdit) -> Self {
+impl From<legacy_state::DestructiveSelectionEdit> for DestructiveSelectionEdit {
+    fn from(value: legacy_state::DestructiveSelectionEdit) -> Self {
         match value {
-            crate::app::state::DestructiveSelectionEdit::CropSelection => Self::CropSelection,
-            crate::app::state::DestructiveSelectionEdit::TrimSelection => Self::TrimSelection,
-            crate::app::state::DestructiveSelectionEdit::ReverseSelection => Self::ReverseSelection,
-            crate::app::state::DestructiveSelectionEdit::FadeLeftToRight => Self::FadeLeftToRight,
-            crate::app::state::DestructiveSelectionEdit::FadeRightToLeft => Self::FadeRightToLeft,
-            crate::app::state::DestructiveSelectionEdit::ShortEdgeFades => Self::ShortEdgeFades,
-            crate::app::state::DestructiveSelectionEdit::MuteSelection => Self::MuteSelection,
-            crate::app::state::DestructiveSelectionEdit::NormalizeSelection => Self::NormalizeSelection,
-            crate::app::state::DestructiveSelectionEdit::ClickRemoval => Self::ClickRemoval,
+            legacy_state::DestructiveSelectionEdit::CropSelection => Self::CropSelection,
+            legacy_state::DestructiveSelectionEdit::TrimSelection => Self::TrimSelection,
+            legacy_state::DestructiveSelectionEdit::ReverseSelection => Self::ReverseSelection,
+            legacy_state::DestructiveSelectionEdit::FadeLeftToRight => Self::FadeLeftToRight,
+            legacy_state::DestructiveSelectionEdit::FadeRightToLeft => Self::FadeRightToLeft,
+            legacy_state::DestructiveSelectionEdit::ShortEdgeFades => Self::ShortEdgeFades,
+            legacy_state::DestructiveSelectionEdit::MuteSelection => Self::MuteSelection,
+            legacy_state::DestructiveSelectionEdit::NormalizeSelection => Self::NormalizeSelection,
+            legacy_state::DestructiveSelectionEdit::ClickRemoval => Self::ClickRemoval,
         }
     }
 }
 
-impl From<DestructiveSelectionEdit> for crate::app::state::DestructiveSelectionEdit {
+impl From<DestructiveSelectionEdit> for legacy_state::DestructiveSelectionEdit {
     fn from(value: DestructiveSelectionEdit) -> Self {
         match value {
             DestructiveSelectionEdit::CropSelection => Self::CropSelection,
@@ -445,8 +446,8 @@ pub struct DestructiveEditPrompt {
     pub message: String,
 }
 
-impl From<crate::app::state::DestructiveEditPrompt> for DestructiveEditPrompt {
-    fn from(value: crate::app::state::DestructiveEditPrompt) -> Self {
+impl From<legacy_state::DestructiveEditPrompt> for DestructiveEditPrompt {
+    fn from(value: legacy_state::DestructiveEditPrompt) -> Self {
         Self {
             edit: value.edit.into(),
             title: value.title,
@@ -455,7 +456,7 @@ impl From<crate::app::state::DestructiveEditPrompt> for DestructiveEditPrompt {
     }
 }
 
-impl From<DestructiveEditPrompt> for crate::app::state::DestructiveEditPrompt {
+impl From<DestructiveEditPrompt> for legacy_state::DestructiveEditPrompt {
     fn from(value: DestructiveEditPrompt) -> Self {
         Self {
             edit: value.edit.into(),
@@ -474,16 +475,16 @@ pub enum RootFolderFilterMode {
     RootOnly,
 }
 
-impl From<crate::app::state::RootFolderFilterMode> for RootFolderFilterMode {
-    fn from(value: crate::app::state::RootFolderFilterMode) -> Self {
+impl From<legacy_state::RootFolderFilterMode> for RootFolderFilterMode {
+    fn from(value: legacy_state::RootFolderFilterMode) -> Self {
         match value {
-            crate::app::state::RootFolderFilterMode::AllDescendants => Self::AllDescendants,
-            crate::app::state::RootFolderFilterMode::RootOnly => Self::RootOnly,
+            legacy_state::RootFolderFilterMode::AllDescendants => Self::AllDescendants,
+            legacy_state::RootFolderFilterMode::RootOnly => Self::RootOnly,
         }
     }
 }
 
-impl From<RootFolderFilterMode> for crate::app::state::RootFolderFilterMode {
+impl From<RootFolderFilterMode> for legacy_state::RootFolderFilterMode {
     fn from(value: RootFolderFilterMode) -> Self {
         match value {
             RootFolderFilterMode::AllDescendants => Self::AllDescendants,
@@ -517,8 +518,8 @@ pub struct FolderRowView {
     pub root_filter_mode: Option<RootFolderFilterMode>,
 }
 
-impl From<crate::app::state::FolderRowView> for FolderRowView {
-    fn from(value: crate::app::state::FolderRowView) -> Self {
+impl From<legacy_state::FolderRowView> for FolderRowView {
+    fn from(value: legacy_state::FolderRowView) -> Self {
         Self {
             path: value.path,
             name: value.name,
@@ -534,7 +535,7 @@ impl From<crate::app::state::FolderRowView> for FolderRowView {
     }
 }
 
-impl From<FolderRowView> for crate::app::state::FolderRowView {
+impl From<FolderRowView> for legacy_state::FolderRowView {
     fn from(value: FolderRowView) -> Self {
         Self {
             path: value.path,
@@ -562,8 +563,8 @@ pub struct InlineFolderCreation {
     pub focus_requested: bool,
 }
 
-impl From<crate::app::state::InlineFolderCreation> for InlineFolderCreation {
-    fn from(value: crate::app::state::InlineFolderCreation) -> Self {
+impl From<legacy_state::InlineFolderCreation> for InlineFolderCreation {
+    fn from(value: legacy_state::InlineFolderCreation) -> Self {
         Self {
             parent: value.parent,
             name: value.name,
@@ -572,7 +573,7 @@ impl From<crate::app::state::InlineFolderCreation> for InlineFolderCreation {
     }
 }
 
-impl From<InlineFolderCreation> for crate::app::state::InlineFolderCreation {
+impl From<InlineFolderCreation> for legacy_state::InlineFolderCreation {
     fn from(value: InlineFolderCreation) -> Self {
         Self {
             parent: value.parent,
@@ -591,16 +592,16 @@ pub enum FolderDeleteRecoveryAction {
     Finalize,
 }
 
-impl From<crate::app::state::FolderDeleteRecoveryAction> for FolderDeleteRecoveryAction {
-    fn from(value: crate::app::state::FolderDeleteRecoveryAction) -> Self {
+impl From<legacy_state::FolderDeleteRecoveryAction> for FolderDeleteRecoveryAction {
+    fn from(value: legacy_state::FolderDeleteRecoveryAction) -> Self {
         match value {
-            crate::app::state::FolderDeleteRecoveryAction::Restore => Self::Restore,
-            crate::app::state::FolderDeleteRecoveryAction::Finalize => Self::Finalize,
+            legacy_state::FolderDeleteRecoveryAction::Restore => Self::Restore,
+            legacy_state::FolderDeleteRecoveryAction::Finalize => Self::Finalize,
         }
     }
 }
 
-impl From<FolderDeleteRecoveryAction> for crate::app::state::FolderDeleteRecoveryAction {
+impl From<FolderDeleteRecoveryAction> for legacy_state::FolderDeleteRecoveryAction {
     fn from(value: FolderDeleteRecoveryAction) -> Self {
         match value {
             FolderDeleteRecoveryAction::Restore => Self::Restore,
@@ -618,16 +619,16 @@ pub enum FolderDeleteRecoveryStatus {
     Failed,
 }
 
-impl From<crate::app::state::FolderDeleteRecoveryStatus> for FolderDeleteRecoveryStatus {
-    fn from(value: crate::app::state::FolderDeleteRecoveryStatus) -> Self {
+impl From<legacy_state::FolderDeleteRecoveryStatus> for FolderDeleteRecoveryStatus {
+    fn from(value: legacy_state::FolderDeleteRecoveryStatus) -> Self {
         match value {
-            crate::app::state::FolderDeleteRecoveryStatus::Completed => Self::Completed,
-            crate::app::state::FolderDeleteRecoveryStatus::Failed => Self::Failed,
+            legacy_state::FolderDeleteRecoveryStatus::Completed => Self::Completed,
+            legacy_state::FolderDeleteRecoveryStatus::Failed => Self::Failed,
         }
     }
 }
 
-impl From<FolderDeleteRecoveryStatus> for crate::app::state::FolderDeleteRecoveryStatus {
+impl From<FolderDeleteRecoveryStatus> for legacy_state::FolderDeleteRecoveryStatus {
     fn from(value: FolderDeleteRecoveryStatus) -> Self {
         match value {
             FolderDeleteRecoveryStatus::Completed => Self::Completed,
@@ -651,8 +652,8 @@ pub struct FolderDeleteRecoveryEntry {
     pub detail: Option<String>,
 }
 
-impl From<crate::app::state::FolderDeleteRecoveryEntry> for FolderDeleteRecoveryEntry {
-    fn from(value: crate::app::state::FolderDeleteRecoveryEntry) -> Self {
+impl From<legacy_state::FolderDeleteRecoveryEntry> for FolderDeleteRecoveryEntry {
+    fn from(value: legacy_state::FolderDeleteRecoveryEntry) -> Self {
         Self {
             source_label: value.source_label,
             relative_path: value.relative_path,
@@ -663,7 +664,7 @@ impl From<crate::app::state::FolderDeleteRecoveryEntry> for FolderDeleteRecovery
     }
 }
 
-impl From<FolderDeleteRecoveryEntry> for crate::app::state::FolderDeleteRecoveryEntry {
+impl From<FolderDeleteRecoveryEntry> for legacy_state::FolderDeleteRecoveryEntry {
     fn from(value: FolderDeleteRecoveryEntry) -> Self {
         Self {
             source_label: value.source_label,
