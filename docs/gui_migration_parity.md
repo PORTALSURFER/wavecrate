@@ -76,8 +76,10 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Browser projection/render windows now target larger native-shell stress sets
   (`MAX_RENDERED_BROWSER_ROWS` 512 in host projection and higher per-tier native row caps),
   with explicit tests for tail clamping, focus preservation, and deterministic large-dataset frames.
-- Installer/updater binaries now run on the native radiant host path (`run_native_vello_app`);
-  dependency cleanup for legacy `app` modules remains a follow-up task.
+- Installer/updater binaries now run on the native radiant host path (`run_native_vello_app`).
+- Remaining legacy `app` module dependencies in migration-facing runtime glue are now centralized
+  behind `app_core::legacy` aliases (`controller/state/view_model`) instead of being imported
+  directly across multiple `app_core` modules.
 - App-core native-shell projection and native bridge prompt/tab routing now consume
   migration-facing `app_core::{controller,state}` aliases instead of direct
   `app::state` paths in host integration code.

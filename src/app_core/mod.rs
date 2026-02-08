@@ -10,6 +10,8 @@ pub mod actions;
 /// Native runtime bridge implementations for migration-facing runtimes.
 pub mod native_bridge;
 pub(crate) mod native_shell;
+/// Centralized aliases for remaining legacy `app` module dependencies.
+pub(crate) mod legacy;
 /// Transitional state aliases used by migration-facing runtimes and CLIs.
 pub mod state;
 /// Transitional view-model helpers used by migration-facing projections.
