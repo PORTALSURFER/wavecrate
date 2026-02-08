@@ -5,6 +5,69 @@ use crate::app::view_model;
 use std::path::Path;
 
 impl EguiController {
+    /// Move browser column selection to the requested triage-column index.
+    pub fn select_column_by_index(&mut self, target_index: usize) {
+        let target_index = target_index.min(2);
+        let current_index = self
+            .ui
+            .browser
+            .selected
+            .map(|selected| match selected.column {
+                crate::app::state::TriageFlagColumn::Trash => 0,
+                crate::app::state::TriageFlagColumn::Neutral => 1,
+                crate::app::state::TriageFlagColumn::Keep => 2,
+            })
+            .unwrap_or(1);
+        let delta = target_index as isize - current_index as isize;
+        if delta != 0 {
+            self.move_selection_column(delta);
+        }
+    }
+
+    /// Focus the browser row at `delta` offset from the current focus.
+    ///
+    /// Returns `true` when a row was focused, or `false` when the browser has no visible rows.
+    pub fn focus_browser_delta(&mut self, delta: i8) -> bool {
+        let visible_count = self.ui.browser.visible.len();
+        if visible_count == 0 {
+            return false;
+        }
+        let base = self
+            .ui
+            .browser
+            .selected_visible
+            .unwrap_or(0)
+            .min(visible_count - 1);
+        let target = (base as isize + delta as isize).clamp(0, visible_count as isize - 1) as usize;
+        self.focus_browser_row(target);
+        true
+    }
+
+    /// Extend browser selection by `delta` rows from the current focus.
+    ///
+    /// When `additive` is `false`, this replaces the selection range.
+    /// When `additive` is `true`, this adds the range to the current selection.
+    /// Returns `true` when selection changed, or `false` when no rows are visible.
+    pub fn extend_browser_selection_delta(&mut self, delta: i8, additive: bool) -> bool {
+        let visible_count = self.ui.browser.visible.len();
+        if visible_count == 0 {
+            return false;
+        }
+        let base = self
+            .ui
+            .browser
+            .selected_visible
+            .unwrap_or(0)
+            .min(visible_count - 1);
+        let target = (base as isize + delta as isize).clamp(0, visible_count as isize - 1) as usize;
+        if additive {
+            self.add_range_browser_selection(target);
+        } else {
+            self.extend_browser_selection_to_row(target);
+        }
+        true
+    }
+
     pub(crate) fn visible_row_for_path(&mut self, path: &Path) -> Option<usize> {
         let entry_index = self.wav_index_for_path(path)?;
         match &self.ui.browser.visible {

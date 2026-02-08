@@ -3,8 +3,7 @@
 use crate::{
     app_core::controller::{AppController, AppControllerStatusExt},
     app_core::native_shell::{
-        browser_focus_target, normalized_from_milli, project_app_model, selected_column_index,
-        selection_range_from_milli,
+        normalized_from_milli, project_app_model, selection_range_from_milli,
     },
     audio::AudioPlayer,
     waveform::WaveformRenderer,
@@ -42,19 +41,11 @@ impl SempalNativeBridge {
     }
 
     fn on_select_column(&mut self, target_index: usize) {
-        let target_index = target_index.min(2);
-        let current_index = selected_column_index(&self.controller.ui);
-        let delta = target_index as isize - current_index as isize;
-        if delta != 0 {
-            self.controller.move_selection_column(delta);
-        }
+        self.controller.select_column_by_index(target_index);
     }
 
     fn move_browser_focus(&mut self, delta: i8) {
-        let Some(target) = browser_focus_target(&self.controller.ui, delta) else {
-            return;
-        };
-        self.controller.focus_browser_row(target);
+        let _ = self.controller.focus_browser_delta(delta);
     }
 
     fn delete_browser_selection(&mut self) {
@@ -171,14 +162,10 @@ impl NativeAppBridge for SempalNativeBridge {
                 self.controller.add_range_browser_selection(visible_row)
             }
             UiAction::ExtendBrowserSelectionFromFocus { delta } => {
-                if let Some(target) = browser_focus_target(&self.controller.ui, delta) {
-                    self.controller.extend_browser_selection_to_row(target);
-                }
+                let _ = self.controller.extend_browser_selection_delta(delta, false);
             }
             UiAction::AddRangeBrowserSelectionFromFocus { delta } => {
-                if let Some(target) = browser_focus_target(&self.controller.ui, delta) {
-                    self.controller.add_range_browser_selection(target);
-                }
+                let _ = self.controller.extend_browser_selection_delta(delta, true);
             }
             UiAction::ToggleFocusedBrowserRowSelection => {
                 self.controller.toggle_focused_selection()

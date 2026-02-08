@@ -508,19 +508,6 @@ pub(crate) fn selected_column_index(ui: &UiState) -> usize {
         .unwrap_or(1)
 }
 
-pub(crate) fn browser_focus_target(ui: &UiState, delta: i8) -> Option<usize> {
-    let visible_count = ui.browser.visible.len();
-    if visible_count == 0 {
-        return None;
-    }
-    let base = ui
-        .browser
-        .selected_visible
-        .unwrap_or(0)
-        .min(visible_count - 1);
-    Some((base as isize + delta as isize).clamp(0, visible_count as isize - 1) as usize)
-}
-
 pub(crate) fn normalized_from_milli(value: u16) -> f32 {
     (value.min(1000) as f32) / 1000.0
 }
@@ -899,17 +886,6 @@ mod tests {
         assert_eq!(normalized_from_milli(0), 0.0);
         assert_eq!(normalized_from_milli(455), 0.455);
         assert_eq!(normalized_from_milli(2000), 1.0);
-    }
-
-    #[test]
-    fn browser_focus_target_clamps_to_visible_window() {
-        let mut ui = UiState::default();
-        ui.browser.visible = crate::app_core::state::VisibleRows::List(vec![0, 1, 2, 3]).into();
-        ui.browser.selected_visible = Some(1);
-
-        assert_eq!(browser_focus_target(&ui, -8), Some(0));
-        assert_eq!(browser_focus_target(&ui, 1), Some(2));
-        assert_eq!(browser_focus_target(&ui, 99), Some(3));
     }
 
     #[test]
