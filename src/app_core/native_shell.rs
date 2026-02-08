@@ -22,7 +22,8 @@ use crate::app_core::actions::{
     NativeWaveformPanelModel as WaveformPanelModel,
 };
 use crate::app_core::state::{
-    MapQueryBounds, MapRenderMode, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
+    DestructiveEditPrompt, DragTarget, FolderActionPrompt, MapQueryBounds, MapRenderMode,
+    SampleBrowserActionPrompt, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
 };
 use crate::app_core::ui::{MAX_RENDERED_BROWSER_ROWS, MAX_RENDERED_MAP_POINTS};
 use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
@@ -354,11 +355,11 @@ fn project_progress_overlay_model(ui: &UiState) -> ProgressOverlayModel {
 }
 
 fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
-    if let Some(crate::app_core::state::SampleBrowserActionPrompt::Rename { target, name }) = ui
+    if let Some(SampleBrowserActionPrompt::Rename { target, name }) = ui
         .browser
         .pending_action
         .clone()
-        .map(crate::app_core::state::SampleBrowserActionPrompt::from)
+        .map(SampleBrowserActionPrompt::from)
     {
         let input_value = Some(name);
         return ConfirmPromptModel {
@@ -374,12 +375,12 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             input_error: None,
         };
     }
-    if let Some(crate::app_core::state::FolderActionPrompt::Rename { target, name }) = ui
+    if let Some(FolderActionPrompt::Rename { target, name }) = ui
         .sources
         .folders
         .pending_action
         .clone()
-        .map(crate::app_core::state::FolderActionPrompt::from)
+        .map(FolderActionPrompt::from)
     {
         let input_value = Some(name);
         let input_error = input_value
@@ -422,7 +423,7 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
         .waveform
         .pending_destructive
         .clone()
-        .map(crate::app_core::state::DestructiveEditPrompt::from)
+        .map(DestructiveEditPrompt::from)
     {
         return ConfirmPromptModel {
             visible: true,
@@ -445,30 +446,30 @@ fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
     if !active {
         return DragOverlayModel::default();
     }
-    let active_target = crate::app_core::state::DragTarget::from(ui.drag.active_target.clone());
+    let active_target = DragTarget::from(ui.drag.active_target.clone());
     let target_label = match &active_target {
-        crate::app_core::state::DragTarget::None => String::from("No target"),
-        crate::app_core::state::DragTarget::BrowserTriage(column) => match TriageFlagColumn::from(*column) {
+        DragTarget::None => String::from("No target"),
+        DragTarget::BrowserTriage(column) => match TriageFlagColumn::from(*column) {
             TriageFlagColumn::Trash => String::from("Trash column"),
             TriageFlagColumn::Neutral => String::from("Neutral column"),
             TriageFlagColumn::Keep => String::from("Keep column"),
         },
-        crate::app_core::state::DragTarget::SourcesRow(_) => String::from("Sources list"),
-        crate::app_core::state::DragTarget::FolderPanel { folder } => folder
+        DragTarget::SourcesRow(_) => String::from("Sources list"),
+        DragTarget::FolderPanel { folder } => folder
             .as_ref()
             .map(|path| format!("Folder: {}", path.display()))
             .unwrap_or_else(|| String::from("Folder panel")),
-        crate::app_core::state::DragTarget::DropTarget { path } => {
+        DragTarget::DropTarget { path } => {
             format!("Drop target: {}", path.display())
         }
-        crate::app_core::state::DragTarget::DropTargetsPanel => String::from("Drop targets"),
-        crate::app_core::state::DragTarget::External => String::from("External target"),
+        DragTarget::DropTargetsPanel => String::from("Drop targets"),
+        DragTarget::External => String::from("External target"),
     };
     DragOverlayModel {
         active,
         label: ui.drag.label.clone(),
         target_label,
-        valid_target: !matches!(active_target, crate::app_core::state::DragTarget::None),
+        valid_target: !matches!(active_target, DragTarget::None),
     }
 }
 
@@ -1065,14 +1066,14 @@ mod tests {
     fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
         let mut ui = UiState::default();
         ui.browser.pending_action = Some(
-            crate::app_core::state::SampleBrowserActionPrompt::Rename {
+            SampleBrowserActionPrompt::Rename {
                 target: std::path::PathBuf::from("kick.wav"),
                 name: String::from("kick"),
             }
             .into(),
         );
         ui.waveform.pending_destructive = Some(
-            crate::app_core::state::DestructiveEditPrompt {
+            DestructiveEditPrompt {
                 edit: crate::app_core::state::DestructiveSelectionEdit::TrimSelection,
                 title: String::from("Trim selection"),
                 message: String::from("Apply trim?"),
@@ -1191,7 +1192,7 @@ mod tests {
                 .into(),
             );
         ui.sources.folders.pending_action = Some(
-            crate::app_core::state::FolderActionPrompt::Rename {
+            FolderActionPrompt::Rename {
                 target: std::path::PathBuf::from("drums"),
                 name: String::from("kicks"),
             }
@@ -1204,7 +1205,7 @@ mod tests {
         );
 
         ui.sources.folders.pending_action = Some(
-            crate::app_core::state::FolderActionPrompt::Rename {
+            FolderActionPrompt::Rename {
                 target: std::path::PathBuf::from("drums"),
                 name: String::from("../bad"),
             }
