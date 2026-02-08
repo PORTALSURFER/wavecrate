@@ -1,7 +1,9 @@
 //! Native runtime bridge between sempal controller state and `radiant`.
 
 use crate::{
-    app_core::controller::{AppController, AppControllerNativeRuntimeExt},
+    app_core::controller::{
+        AppController, AppControllerNativeRuntimeExt, build_native_app_controller,
+    },
     audio::AudioPlayer,
     waveform::WaveformRenderer,
 };
@@ -19,20 +21,9 @@ impl SempalNativeBridge {
         renderer: WaveformRenderer,
         player: Option<Rc<RefCell<AudioPlayer>>>,
     ) -> Result<Self, String> {
-        let cfg = crate::sample_sources::config::load_or_default()
-            .map_err(|err| format!("Failed to load config: {err}"))?;
-        let mut controller = AppController::new_with_job_message_queue_capacity(
-            renderer,
-            player,
-            cfg.core.job_message_queue_capacity as usize,
-        );
-        controller
-            .apply_configuration(cfg)
-            .map_err(|err| format!("Failed to load config: {err}"))?;
-        controller.select_first_source();
+        let controller = build_native_app_controller(renderer, player)?;
         Ok(Self { controller })
     }
-
 }
 
 impl NativeAppBridge for SempalNativeBridge {

@@ -8,6 +8,31 @@
 pub type AppController = crate::app::controller::LegacyAppController;
 
 use radiant::app::{AppModel, UiAction};
+use std::{cell::RefCell, rc::Rc};
+
+use crate::{audio::AudioPlayer, waveform::WaveformRenderer};
+
+/// Build a configured migration-facing controller for native runtime hosts.
+///
+/// This centralizes config load/apply/initial source selection so native
+/// runtime entrypoints do not depend on legacy `app` module paths.
+pub fn build_native_app_controller(
+    renderer: WaveformRenderer,
+    player: Option<Rc<RefCell<AudioPlayer>>>,
+) -> Result<AppController, String> {
+    let cfg = crate::sample_sources::config::load_or_default()
+        .map_err(|err| format!("Failed to load config: {err}"))?;
+    let mut controller = AppController::new_with_job_message_queue_capacity(
+        renderer,
+        player,
+        cfg.core.job_message_queue_capacity as usize,
+    );
+    controller
+        .apply_configuration(cfg)
+        .map_err(|err| format!("Failed to load config: {err}"))?;
+    controller.select_first_source();
+    Ok(controller)
+}
 
 /// Backend-neutral status helpers for migration-facing runtime code.
 pub trait AppControllerStatusExt {
