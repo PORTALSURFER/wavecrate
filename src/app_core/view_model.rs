@@ -6,7 +6,7 @@
 //! migration-facing modules.
 
 use std::path::Path;
-use crate::app_core::legacy::view_model as legacy_view_model;
+use crate::app::view_model as legacy_view_model;
 
 /// Build a human-readable label for a sample path.
 pub fn sample_display_label(path: &Path) -> String {

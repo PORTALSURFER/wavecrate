@@ -1,13 +1,11 @@
 //! Backend-neutral controller aliases for migration consumers.
 //!
-//! The GUI migration still uses the legacy controller implementation internally,
+//! The GUI migration still uses the internal `app` controller implementation,
 //! but exposing it through `app_core` gives runtimes and tooling a stable path
-//! that remains valid while `app` internals are retired.
-
-use crate::app_core::legacy::controller as legacy_controller;
+//! that remains valid while internals are retired.
 
 /// Transitional controller type used by native runtime bridges and migration CLIs.
-pub type AppController = legacy_controller::AppController;
+pub type AppController = crate::app::controller::AppController;
 
 use std::{cell::RefCell, rc::Rc};
 
