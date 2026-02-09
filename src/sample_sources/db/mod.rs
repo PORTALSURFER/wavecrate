@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Persistent file operation journal for crash recovery.
-#[cfg(feature = "legacy-egui-runtime")]
 pub mod file_ops_journal;
 /// Read-only database queries for sample sources.
 pub mod read;

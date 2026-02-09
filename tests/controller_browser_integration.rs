@@ -5,7 +5,7 @@ mod support;
 use support::{sempal_env::SempalEnvGuard, wav::write_test_wav};
 
 use sempal::{
-    egui_app::controller::EguiController, sample_sources::Rating, waveform::WaveformRenderer,
+    app_core::controller::AppController, sample_sources::Rating, waveform::WaveformRenderer,
 };
 use std::{path::PathBuf, time::Duration};
 use tempfile::TempDir;
@@ -13,7 +13,7 @@ use tempfile::TempDir;
 struct ControllerHarness {
     _config: SempalEnvGuard,
     _temp: TempDir,
-    pub controller: EguiController,
+    pub controller: AppController,
 }
 
 impl ControllerHarness {
@@ -30,7 +30,7 @@ impl ControllerHarness {
         }
 
         let renderer = WaveformRenderer::new(32, 16);
-        let mut controller = EguiController::new(renderer, None);
+        let mut controller = AppController::new(renderer, None);
         controller
             .add_source_from_path(source_root.clone())
             .expect("add source");
@@ -53,7 +53,7 @@ impl ControllerHarness {
     }
 }
 
-fn visible_path(controller: &mut EguiController, visible_row: usize) -> PathBuf {
+fn visible_path(controller: &mut AppController, visible_row: usize) -> PathBuf {
     let entry_index = controller
         .visible_browser_index(visible_row)
         .expect("visible row exists");

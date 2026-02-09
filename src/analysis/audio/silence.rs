@@ -60,7 +60,7 @@ pub(super) fn trim_silence_with_hysteresis(samples: &[f32], sample_rate: u32) ->
 }
 
 /// Identify contiguous non-silent ranges using RMS hysteresis thresholds.
-#[cfg(feature = "legacy-egui-runtime")]
+#[allow(dead_code)]
 pub(crate) fn detect_non_silent_ranges(samples: &[f32], sample_rate: u32) -> Vec<(usize, usize)> {
     if samples.is_empty() || sample_rate == 0 {
         return Vec::new();
@@ -74,7 +74,7 @@ pub(crate) fn detect_non_silent_ranges(samples: &[f32], sample_rate: u32) -> Vec
     expand_and_merge_ranges(samples.len(), ranges, &params)
 }
 
-#[cfg(feature = "legacy-egui-runtime")]
+#[allow(dead_code)]
 struct SilenceParams {
     threshold_on: f32,
     threshold_off: f32,
@@ -83,7 +83,7 @@ struct SilenceParams {
     hop: usize,
 }
 
-#[cfg(feature = "legacy-egui-runtime")]
+#[allow(dead_code)]
 impl SilenceParams {
     fn new(sample_rate: u32, window_size: usize) -> Self {
         Self {
@@ -100,7 +100,7 @@ impl SilenceParams {
     }
 }
 
-#[cfg(feature = "legacy-egui-runtime")]
+#[allow(dead_code)]
 fn collect_active_ranges(
     samples: &[f32],
     window_size: usize,
@@ -136,7 +136,7 @@ fn collect_active_ranges(
     ranges
 }
 
-#[cfg(feature = "legacy-egui-runtime")]
+#[allow(dead_code)]
 fn expand_and_merge_ranges(
     sample_len: usize,
     ranges: Vec<(usize, usize)>,
@@ -156,7 +156,7 @@ fn expand_and_merge_ranges(
     merge_overlapping_ranges(expanded)
 }
 
-#[cfg(feature = "legacy-egui-runtime")]
+#[allow(dead_code)]
 fn merge_overlapping_ranges(ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
     let mut merged: Vec<(usize, usize)> = Vec::new();
     for (start, end) in ranges {
@@ -199,7 +199,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "legacy-egui-runtime")]
     fn detect_non_silent_ranges_splits_on_silence() {
         let sample_rate = 1000;
         let window_size = (sample_rate as f32 * 0.02).round() as usize;

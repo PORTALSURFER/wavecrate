@@ -80,14 +80,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Remaining legacy `app` module dependencies in migration-facing runtime glue are now centralized
   behind `app_core::legacy` adapters (`controller/state/view_model`) instead of being imported
   directly across multiple `app_core` modules (`src/app_core/legacy/*`).
-- Legacy runtime compatibility now flows through crate-internal
-  `src/legacy_runtime/mod.rs`, so migration adapters no longer depend directly
-  on `crate::app::*` paths.
-- `app_core::{controller,state,view_model}` now provide explicit
-  `--no-default-features` fallback stubs (`controller_stub.rs`,
-  `state_stub.rs`, `view_model_stub.rs`) and gate legacy-backed modules
-  (`app_core::legacy`, `app_core::native_shell`) behind
-  `legacy-egui-runtime`.
+- `app_core::{controller,state,view_model}` now resolve through
+  `app_core::legacy` adapters directly, without `legacy-egui-runtime` feature
+  gates or fallback stub modules.
 - App-core native-shell projection and native bridge prompt/tab routing now consume
   migration-facing `app_core::{controller,state}` aliases instead of direct
   `app::state` paths in host integration code.
@@ -169,20 +164,19 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
 - `src/app/controller.rs` still exposes legacy naming (`EguiController`) that is
   intentionally confined to legacy internals; a final rename/extraction pass is
   still pending.
-- `src/lib.rs` still publicly exports `app` when `legacy-egui-runtime` is
-  explicitly enabled; removing this remaining public legacy surface requires
-  final legacy module deletion to avoid `dead_code` failures under
-  `#![deny(warnings)]`.
+- Legacy `egui` runtime dependencies remain in `Cargo.toml` and are still
+  required while `src/app/**` is present.
 
 ## Legacy Removal Checklist
 
 - [x] Add `--no-default-features` compile path for migration-facing `app_core`
-  via fallback stubs while preserving default native runtime behavior.
-- [x] Gate legacy runtime modules (`src/app/**`) behind `legacy-egui-runtime`
-  and switch crate defaults to native-only (`default = []`).
+  during transition, then remove fallback stubs after native runtime became
+  default.
+- [x] Switch crate defaults to native-only (`default = []`) and remove the
+  `legacy-egui-runtime` feature gate.
 - [x] Promote backend-neutral primary controller naming (`AppController`) while
   keeping `EguiController` as a compatibility alias during migration.
-- [ ] Remove public crate exposure of legacy module surface (`pub mod app` in
+- [x] Remove public crate exposure of legacy module surface (`pub mod app` in
   `src/lib.rs`) once migration consumers no longer require it.
 - [x] Delete legacy layout-only docs (`docs/egui_layout.md`) after porting
   remaining actionable guidance into native-shell migration docs.

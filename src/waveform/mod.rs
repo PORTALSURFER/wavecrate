@@ -2,7 +2,6 @@ mod decode;
 mod error;
 mod render;
 mod sampling;
-#[cfg(feature = "legacy-egui-runtime")]
 pub(crate) mod transients;
 mod zoom_cache;
 
@@ -160,7 +159,6 @@ impl DecodedWaveform {
         }
     }
 
-    #[cfg(any(test, feature = "legacy-egui-runtime"))]
     pub(crate) fn max_abs_in_span(&self, start: f32, end: f32) -> Option<f32> {
         if !start.is_finite() || !end.is_finite() {
             return None;
@@ -181,7 +179,6 @@ impl DecodedWaveform {
     }
 }
 
-#[cfg(any(test, feature = "legacy-egui-runtime"))]
 fn max_abs_from_samples(samples: &[f32], channels: usize, start: f32, end: f32) -> Option<f32> {
     if samples.is_empty() {
         return None;
@@ -207,7 +204,6 @@ fn max_abs_from_samples(samples: &[f32], channels: usize, start: f32, end: f32) 
     Some(peak)
 }
 
-#[cfg(any(test, feature = "legacy-egui-runtime"))]
 fn max_abs_from_peaks(peaks: &WaveformPeaks, start: f32, end: f32) -> Option<f32> {
     let total_frames = peaks.total_frames.max(1);
     let bucket_size = peaks.bucket_size_frames.max(1);

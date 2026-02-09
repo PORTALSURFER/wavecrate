@@ -11,14 +11,8 @@ pub mod app_core;
 pub mod app_dirs;
 /// Audio playback utilities.
 pub mod audio;
-/// Shared legacy UI modules.
-///
-/// This remains enabled by default via the `legacy-egui-runtime` feature while
-/// migration completes.
-#[cfg(feature = "legacy-egui-runtime")]
-pub mod app;
-/// Internal namespace for legacy runtime adapters used during migration.
-pub(crate) mod legacy_runtime;
+#[allow(dead_code)]
+mod app;
 /// Platform helpers for copying files to the clipboard.
 pub mod external_clipboard;
 /// Platform helpers for external drag-and-drop.

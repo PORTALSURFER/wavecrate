@@ -10,7 +10,6 @@ missing_docs = "deny"
 
 [features]
 default = []
-legacy-egui-runtime = []
 sqlite-ext-unsafe = []
 
 [dependencies]
