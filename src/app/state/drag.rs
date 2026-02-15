@@ -1,7 +1,7 @@
 use super::browser::TriageFlagColumn;
+use super::UiPoint;
 use crate::sample_sources::SourceId;
 use crate::selection::SelectionRange;
-use egui::Pos2;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -140,7 +140,7 @@ pub struct DragState {
     /// Display label for the drag.
     pub label: String,
     /// Cursor position in UI coordinates.
-    pub position: Option<Pos2>,
+    pub position: Option<UiPoint>,
     /// Originating source panel.
     pub origin_source: Option<DragSource>,
     targets: HashMap<DragSource, DragTarget>,
@@ -172,7 +172,7 @@ pub struct DragState {
     /// True only on the frame the OS transitions the left mouse button from down -> up.
     pub os_left_mouse_released: bool,
     /// OS cursor position in client points (Windows-only; best-effort).
-    pub os_cursor_pos: Option<Pos2>,
+    pub os_cursor_pos: Option<UiPoint>,
     os_left_mouse_down_last: bool,
 }
 
@@ -209,7 +209,7 @@ pub struct PendingOsDragStart {
     /// Display label for the drag.
     pub label: String,
     /// Origin cursor position.
-    pub origin: Pos2,
+    pub origin: UiPoint,
 }
 
 impl DragState {

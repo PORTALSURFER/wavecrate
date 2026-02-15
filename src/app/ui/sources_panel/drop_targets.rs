@@ -4,7 +4,8 @@ use super::helpers::{
     external_hover_has_audio, list_row_height, render_list_row,
 };
 use super::style;
-use crate::app::state::{DragPayload, DragSource, DragTarget};
+use crate::app::controller::EguiController;
+use crate::app::state::{DragPayload, DragSource, DragTarget, UiPoint};
 use crate::app::ui::drag_targets::{handle_drop_zone, handle_sample_row_drag};
 use crate::app::ui::helpers;
 use crate::sample_sources::config::DropTargetColor;
@@ -47,6 +48,7 @@ impl EguiApp {
         let drop_target_drag_active =
             matches!(drag_payload, Some(DragPayload::DropTargetReorder { .. }));
         let external_pointer_pos = pointer_pos.or(self.external_drop_hover_pos);
+        let drag_pointer_pos = pointer_pos.map(|pos| UiPoint::new(pos.x, pos.y));
         let external_drop_ready = external_hover_has_audio(ui.ctx());
         let external_drop_paths = external_dropped_paths(ui.ctx());
         let mut external_drop_paths = if external_drop_paths.is_empty() {
@@ -135,56 +137,56 @@ impl EguiApp {
                                 StrokeKind::Inside,
                             );
                         }
-                        handle_sample_row_drag(
-                            ui,
-                            &response,
-                            drag_active,
-                            &mut self.controller,
-                            DragSource::DropTargets,
-                            DragTarget::DropTarget {
-                                path: row.path.clone(),
-                            },
-                            move |pos, controller| {
-                                controller.start_drop_target_drag(
-                                    row.path.clone(),
-                                    row.drag_label.clone(),
-                                    pos,
-                                );
-                            },
-                            move |pos, _controller| {
-                                Some(crate::app::state::PendingOsDragStart {
-                                    payload: DragPayload::DropTargetReorder {
-                                        path: row.path.clone(),
-                                    },
-                                    label: row.drag_label.clone(),
-                                    origin: pos,
-                                })
-                            },
-                            move |pending| match &pending.payload {
-                                DragPayload::DropTargetReorder { path } => *path == row.path,
-                                DragPayload::Sample { .. } => false,
-                                DragPayload::Samples { .. } => false,
-                                DragPayload::Folder { .. } => false,
-                                DragPayload::Selection { .. } => false,
-                            },
-                        );
+                            handle_sample_row_drag(
+                                ui,
+                                &response,
+                                drag_active,
+                                &mut self.controller,
+                                DragSource::DropTargets,
+                                DragTarget::DropTarget {
+                                    path: row.path.clone(),
+                                },
+                                move |pos: UiPoint, controller: &mut EguiController| {
+                                    controller.start_drop_target_drag(
+                                        row.path.clone(),
+                                        row.drag_label.clone(),
+                                        pos,
+                                    );
+                                },
+                                move |pos: UiPoint, _controller: &EguiController| {
+                                    Some(crate::app::state::PendingOsDragStart {
+                                        payload: DragPayload::DropTargetReorder {
+                                            path: row.path.clone(),
+                                        },
+                                        label: row.drag_label.clone(),
+                                        origin: pos,
+                                    })
+                                },
+                                move |pending| match &pending.payload {
+                                    DragPayload::DropTargetReorder { path } => *path == row.path,
+                                    DragPayload::Sample { .. } => false,
+                                    DragPayload::Samples { .. } => false,
+                                    DragPayload::Folder { .. } => false,
+                                    DragPayload::Selection { .. } => false,
+                                },
+                            );
                         if response.clicked() {
                             self.controller.select_drop_target_by_index(index);
                         }
                         let drop_target = DragTarget::DropTarget {
                             path: row.path.clone(),
                         };
-                        if sample_drag_active {
-                            handle_drop_zone(
-                                ui,
-                                &mut self.controller,
-                                sample_drag_active,
-                                pointer_pos,
-                                response.rect,
-                                DragSource::DropTargets,
-                                drop_target.clone(),
-                                style::drag_target_stroke(),
-                                egui::StrokeKind::Inside,
+                            if sample_drag_active {
+                                handle_drop_zone(
+                                    ui,
+                                    &mut self.controller,
+                                    sample_drag_active,
+                                    drag_pointer_pos,
+                                    response.rect,
+                                    DragSource::DropTargets,
+                                    drop_target.clone(),
+                                    style::drag_target_stroke(),
+                                    egui::StrokeKind::Inside,
                             );
                         }
                         if drop_target_drag_active {
@@ -192,7 +194,7 @@ impl EguiApp {
                                 ui,
                                 &mut self.controller,
                                 drop_target_drag_active,
-                                pointer_pos,
+                                drag_pointer_pos,
                                 response.rect,
                                 DragSource::DropTargets,
                                 drop_target,
@@ -251,7 +253,7 @@ impl EguiApp {
             ui,
             &mut self.controller,
             folder_drag_active,
-            pointer_pos,
+            drag_pointer_pos,
             frame_response.response.rect,
             DragSource::DropTargets,
             DragTarget::DropTargetsPanel,
@@ -262,7 +264,7 @@ impl EguiApp {
             ui,
             &mut self.controller,
             drop_target_drag_active,
-            pointer_pos,
+            drag_pointer_pos,
             frame_response.response.rect,
             DragSource::DropTargets,
             DragTarget::DropTargetsPanel,

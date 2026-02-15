@@ -26,7 +26,7 @@ fn waveform_image_resizes_to_view() {
         .unwrap();
     controller.update_waveform_size(24, 8);
 
-    let size = controller.ui.waveform.image.as_ref().unwrap().image.size;
+    let size = controller.ui.waveform.image.as_ref().unwrap().size;
     assert_eq!(size, [24, 8]);
 }
 
@@ -122,7 +122,7 @@ fn cropping_selection_overwrites_file() {
         .collect();
     assert_eq!(samples, vec![0.2, 0.3]);
     assert!(controller.ui.waveform.selection.is_none());
-    assert_eq!(controller.ui.status.badge_label, "Info");
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Info);
 }
 
 #[test]
@@ -207,7 +207,7 @@ fn click_removal_interpolates_selected_span() {
     assert_eq!(controller.ui.waveform.selection, Some(selection));
     assert!((controller.ui.waveform.view.start - preserved_view.start).abs() < 1e-6);
     assert!((controller.ui.waveform.view.end - preserved_view.end).abs() < 1e-6);
-    assert_eq!(controller.ui.status.badge_label, "Info");
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Info);
 }
 
 #[test]

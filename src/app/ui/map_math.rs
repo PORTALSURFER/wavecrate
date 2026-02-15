@@ -1,10 +1,11 @@
 use eframe::egui;
+use crate::app::state::UiPoint;
 
 pub(crate) fn world_bounds_from_view(
     rect: egui::Rect,
     center: egui::Pos2,
     scale: f32,
-    pan: egui::Vec2,
+    pan: UiPoint,
 ) -> crate::app::state::MapQueryBounds {
     let to_world = |pos: egui::Pos2| {
         let dx = (pos.x - rect.center().x - pan.x) / scale;

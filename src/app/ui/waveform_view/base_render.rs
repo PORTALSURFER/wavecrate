@@ -24,15 +24,16 @@ pub(super) fn render_waveform_base(
     }
 
     let tex_id = if let Some(image) = &app.controller.ui.waveform.image {
-        let new_size = image.image.size;
+        let egui_image = waveform_image_to_egui(image);
+        let new_size = egui_image.size;
         if let Some(tex) = app.waveform_tex.as_mut() {
             if tex.size() == new_size {
-                tex.set(image.image.clone(), TextureOptions::LINEAR);
+                tex.set(egui_image.clone(), TextureOptions::LINEAR);
                 Some(tex.id())
             } else {
                 let tex = ui.ctx().load_texture(
                     "waveform_texture",
-                    image.image.clone(),
+                    egui_image,
                     TextureOptions::LINEAR,
                 );
                 let id = tex.id();
@@ -42,7 +43,7 @@ pub(super) fn render_waveform_base(
         } else {
             let tex = ui.ctx().load_texture(
                 "waveform_texture",
-                image.image.clone(),
+                egui_image,
                 TextureOptions::LINEAR,
             );
             let id = tex.id();
@@ -86,6 +87,24 @@ pub(super) fn render_waveform_base(
     }
 
     true
+}
+
+fn waveform_image_to_egui(
+    image: &crate::waveform::WaveformImage,
+) -> egui::ColorImage {
+    let pixels = image
+        .pixels
+        .iter()
+        .map(|pixel| {
+            egui::Color32::from_rgba_unmultiplied(
+                pixel.r(),
+                pixel.g(),
+                pixel.b(),
+                pixel.a(),
+            )
+        })
+        .collect();
+    egui::ColorImage::new(image.size, pixels)
 }
 
 fn waveform_loading_fill(

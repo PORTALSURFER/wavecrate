@@ -1,12 +1,13 @@
 use crate::app::controller::EguiController;
-use crate::app::state::{DragPayload, DragSource, DragTarget, PendingOsDragStart};
+use crate::app::state::{DragPayload, DragSource, DragTarget, PendingOsDragStart, UiPoint};
 use eframe::egui::{self, StrokeKind};
 
 pub(super) fn pointer_pos_for_drag(
     ui: &egui::Ui,
-    drag_position: Option<egui::Pos2>,
-) -> Option<egui::Pos2> {
+    drag_position: Option<UiPoint>,
+) -> Option<UiPoint> {
     ui.input(|i| i.pointer.hover_pos().or_else(|| i.pointer.interact_pos()))
+        .map(|pos| UiPoint::new(pos.x, pos.y))
         .or(drag_position)
 }
 
@@ -14,7 +15,7 @@ pub(super) fn handle_drop_zone(
     ui: &egui::Ui,
     controller: &mut EguiController,
     drag_active: bool,
-    pointer_pos: Option<egui::Pos2>,
+    pointer_pos: Option<UiPoint>,
     target_rect: egui::Rect,
     drag_source: DragSource,
     drag_target: DragTarget,
@@ -27,7 +28,7 @@ pub(super) fn handle_drop_zone(
     let Some(pointer) = pointer_pos else {
         return false;
     };
-    if !target_rect.contains(pointer) {
+    if !target_rect.contains(egui::pos2(pointer.x, pointer.y)) {
         return false;
     }
     let shift_down = ui.input(|i| i.modifiers.shift);
@@ -49,8 +50,8 @@ pub(super) fn handle_sample_row_drag<StartDrag, BuildPending, PendingMatch>(
     build_pending: BuildPending,
     matches_pending: PendingMatch,
 ) where
-    StartDrag: FnOnce(egui::Pos2, &mut EguiController),
-    BuildPending: FnOnce(egui::Pos2, &EguiController) -> Option<PendingOsDragStart>,
+    StartDrag: FnOnce(UiPoint, &mut EguiController),
+    BuildPending: FnOnce(UiPoint, &EguiController) -> Option<PendingOsDragStart>,
     PendingMatch: Fn(&PendingOsDragStart) -> bool,
 {
     let should_start_drag = response.drag_started() || (!drag_active && response.dragged());
@@ -58,8 +59,12 @@ pub(super) fn handle_sample_row_drag<StartDrag, BuildPending, PendingMatch>(
         controller.ui.drag.pending_os_drag = None;
         let start_pos = response
             .interact_pointer_pos()
+            .map(|pos| UiPoint::new(pos.x, pos.y))
             .or_else(|| pointer_pos_for_drag(ui, controller.ui.drag.position))
-            .or_else(|| Some(response.rect.center()));
+            .or_else(|| {
+                let center = response.rect.center();
+                Some(UiPoint::new(center.x, center.y))
+            });
         if let Some(pos) = start_pos {
             start_drag(pos, controller);
         }
@@ -72,7 +77,7 @@ pub(super) fn handle_sample_row_drag<StartDrag, BuildPending, PendingMatch>(
     {
         let pointer_pos = cursor_pos_for_pending(ui, controller);
         if let Some(pos) = pointer_pos {
-            if !response.rect.contains(pos) {
+            if !response.rect.contains(egui::pos2(pos.x, pos.y)) {
                 return;
             }
             if let Some(pending) = build_pending(pos, controller) {
@@ -89,7 +94,9 @@ pub(super) fn handle_sample_row_drag<StartDrag, BuildPending, PendingMatch>(
     {
         let pointer_pos = cursor_pos_for_pending(ui, controller);
         if let Some(pos) = pointer_pos {
-            let moved_sq = (pos - pending.origin).length_sq();
+            let dx = pos.x - pending.origin.x;
+            let dy = pos.y - pending.origin.y;
+            let moved_sq = dx.powi(2) + dy.powi(2);
             const START_DRAG_DISTANCE_SQ: f32 = 4.0 * 4.0;
             if moved_sq >= START_DRAG_DISTANCE_SQ {
                 controller.ui.drag.pending_os_drag = None;
@@ -101,6 +108,7 @@ pub(super) fn handle_sample_row_drag<StartDrag, BuildPending, PendingMatch>(
     if drag_active && response.dragged() {
         if let Some(pos) = response
             .interact_pointer_pos()
+            .map(|pos| UiPoint::new(pos.x, pos.y))
             .or_else(|| pointer_pos_for_drag(ui, controller.ui.drag.position))
         {
             let shift_down = ui.input(|i| i.modifiers.shift);
@@ -120,15 +128,16 @@ pub(super) fn handle_sample_row_drag<StartDrag, BuildPending, PendingMatch>(
     }
 }
 
-fn cursor_pos_for_pending(ui: &egui::Ui, controller: &EguiController) -> Option<egui::Pos2> {
+fn cursor_pos_for_pending(ui: &egui::Ui, controller: &EguiController) -> Option<UiPoint> {
     ui.input(|i| i.pointer.hover_pos().or_else(|| i.pointer.interact_pos()))
+        .map(|pos| UiPoint::new(pos.x, pos.y))
         .or(controller.ui.drag.os_cursor_pos)
 }
 
 fn start_drag_from_pending(
     controller: &mut EguiController,
     pending: PendingOsDragStart,
-    pos: egui::Pos2,
+    pos: UiPoint,
 ) {
     match pending.payload {
         DragPayload::Sample {

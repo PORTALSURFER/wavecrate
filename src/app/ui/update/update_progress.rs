@@ -4,6 +4,7 @@ use winit::window::Window;
 #[cfg(target_os = "windows")]
 use super::super::platform;
 use super::super::EguiApp;
+use crate::app::state::UiPoint;
 
 impl EguiApp {
     pub(super) fn prepare_frame(&mut self, ctx: &egui::Context, window: &Window) {
@@ -34,7 +35,7 @@ impl EguiApp {
                 let shift_down = ctx.input(|i| i.modifiers.shift);
                 let alt_down = ctx.input(|i| i.modifiers.alt);
                 self.controller
-                    .refresh_drag_position(pos, shift_down, alt_down);
+                    .refresh_drag_position(UiPoint::new(pos.x, pos.y), shift_down, alt_down);
             }
         } else {
             self.controller.ui.drag.position = None;

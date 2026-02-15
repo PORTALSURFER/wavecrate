@@ -6,7 +6,7 @@ use eframe::egui::{
 };
 
 /// Status tone variants used to pick badge colours.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum StatusTone {
     /// Idle/neutral status.
     Idle,

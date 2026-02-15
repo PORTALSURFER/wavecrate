@@ -1,15 +1,12 @@
-use crate::app::ui::style;
-use egui::Color32;
+use crate::app::ui::style::StatusTone;
 
 /// Status badge + text shown in the footer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatusBarState {
     /// Main status message text.
     pub text: String,
-    /// Badge label shown next to the status.
-    pub badge_label: String,
-    /// Badge color.
-    pub badge_color: Color32,
+    /// Current status tone used to format the status badge.
+    pub status_tone: StatusTone,
     /// Rolling status log entries.
     pub log: Vec<String>,
 }
@@ -19,8 +16,7 @@ impl StatusBarState {
     pub fn idle() -> Self {
         Self {
             text: "Add a sample source to get started".into(),
-            badge_label: "Idle".into(),
-            badge_color: style::status_badge_color(style::StatusTone::Idle),
+            status_tone: StatusTone::Idle,
             log: Vec::new(),
         }
     }

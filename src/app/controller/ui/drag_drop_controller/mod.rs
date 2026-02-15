@@ -12,5 +12,4 @@ pub(crate) use drag_state::DragDropController;
 use super::*;
 use crate::app::controller::library::wav_io::file_metadata;
 use crate::app::state::{DragPayload, DragSource, DragTarget};
-use egui::Pos2;
 use tracing::{debug, info};

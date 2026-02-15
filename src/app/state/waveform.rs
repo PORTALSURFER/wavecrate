@@ -1,7 +1,6 @@
-use super::controls::DestructiveEditPrompt;
+use super::{controls::DestructiveEditPrompt, UiPoint};
 use crate::selection::SelectionRange;
-use crate::waveform::WaveformChannelView;
-use egui;
+use crate::waveform::{WaveformChannelView, WaveformImage};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -70,13 +69,13 @@ pub struct WaveformState {
     /// Last moment the waveform cursor was moved via keyboard/navigation.
     pub cursor_last_navigation_at: Option<std::time::Instant>,
     /// Last pointer position seen over the waveform (screen space).
-    pub hover_pointer_pos: Option<egui::Pos2>,
+    pub hover_pointer_pos: Option<UiPoint>,
     /// Timestamp of the last time the pointer moved over the waveform.
     pub hover_pointer_last_moved_at: Option<std::time::Instant>,
     /// When true, hover should not override the cursor until the pointer moves.
     pub suppress_hover_cursor: bool,
     /// Last pointer position used for middle-button waveform panning.
-    pub pan_drag_pos: Option<egui::Pos2>,
+    pub pan_drag_pos: Option<UiPoint>,
     /// Start time for the current waveform copy flash.
     pub copy_flash_at: Option<Instant>,
 }
@@ -121,17 +120,6 @@ impl Default for WaveformState {
             copy_flash_at: None,
         }
     }
-}
-
-/// Raw pixels ready to upload to an egui texture.
-#[derive(Clone, Debug)]
-pub struct WaveformImage {
-    /// Pixel data for the waveform texture.
-    pub image: egui::ColorImage,
-    /// View start used for rendering, normalized.
-    pub view_start: f64,
-    /// View end used for rendering, normalized.
-    pub view_end: f64,
 }
 
 /// Normalized bounds describing the visible region of the waveform.

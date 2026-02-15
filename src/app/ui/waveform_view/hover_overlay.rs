@@ -1,5 +1,6 @@
 use super::style;
 use super::*;
+use crate::app::state::UiPoint;
 use eframe::egui::{self, Color32, Stroke, StrokeKind, TextStyle, text::LayoutJob};
 
 pub(super) fn render_hover_overlay(
@@ -22,9 +23,9 @@ pub(super) fn render_hover_overlay(
             .ui
             .waveform
             .hover_pointer_pos
-            .map_or(true, |prev| prev.distance(pos) > 0.5);
+            .map_or(true, |prev: UiPoint| prev.distance_sq(UiPoint::new(pos.x, pos.y)) > 0.25);
         if moved {
-            app.controller.ui.waveform.hover_pointer_pos = Some(pos);
+            app.controller.ui.waveform.hover_pointer_pos = Some(UiPoint::new(pos.x, pos.y));
             app.controller.ui.waveform.hover_pointer_last_moved_at = Some(now);
             app.controller.ui.waveform.suppress_hover_cursor = false;
         }

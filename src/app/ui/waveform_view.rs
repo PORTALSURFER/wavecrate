@@ -1,5 +1,6 @@
 use super::style;
 use super::*;
+use crate::app::state::UiPoint;
 use crate::app::state::DragSource;
 use crate::app::view_model;
 use eframe::egui::{self, StrokeKind, Ui};
@@ -373,6 +374,7 @@ fn handle_waveform_drag_handle_interactions(
         let Some(pos) = response.interact_pointer_pos() else {
             return;
         };
+        let pos = UiPoint::new(pos.x, pos.y);
         let Some(source) = app.controller.current_source() else {
             app.controller.set_status(
                 "Select a source before dragging",
@@ -394,7 +396,7 @@ fn handle_waveform_drag_handle_interactions(
             let shift_down = ui.input(|i| i.modifiers.shift);
             let alt_down = ui.input(|i| i.modifiers.alt);
             app.controller
-                .refresh_drag_position(pos, shift_down, alt_down);
+                .refresh_drag_position(UiPoint::new(pos.x, pos.y), shift_down, alt_down);
         }
     } else if response.drag_stopped() {
         app.controller.finish_active_drag();

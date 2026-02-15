@@ -139,7 +139,8 @@ impl EguiApp {
             }
             let input_pointer_pos =
                 ui.input(|i| i.pointer.hover_pos().or_else(|| i.pointer.interact_pos()));
-            let pointer_pos = input_pointer_pos.or(self.controller.ui.drag.position);
+            let pointer_pos = input_pointer_pos
+                .or(self.controller.ui.drag.position.map(|pos| egui::pos2(pos.x, pos.y)));
             let panel_pointer_pos = input_pointer_pos.filter(|pos| panel_rect.contains(*pos));
             if drag_payload.is_some() && panel_pointer_pos.is_none() {
                 self.controller

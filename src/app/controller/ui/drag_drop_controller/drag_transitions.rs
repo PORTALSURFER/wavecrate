@@ -1,4 +1,5 @@
-use super::{DragDropController, DragPayload, Pos2};
+use super::{DragDropController, DragPayload};
+use crate::app::state::UiPoint;
 
 impl DragDropController<'_> {
     pub(crate) fn reset_drag(&mut self) {
@@ -15,7 +16,7 @@ impl DragDropController<'_> {
         self.ui.drag.origin_source = None;
     }
 
-    pub(crate) fn begin_drag(&mut self, payload: DragPayload, label: String, pos: Pos2) {
+    pub(crate) fn begin_drag(&mut self, payload: DragPayload, label: String, pos: UiPoint) {
         self.ui.drag.payload = Some(payload);
         self.ui.drag.label = label;
         self.ui.drag.position = Some(pos);

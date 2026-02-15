@@ -1,7 +1,7 @@
 use super::EguiApp;
 use super::helpers::{RowBackground, clamp_label_for_width, list_row_height, render_list_row};
 use super::style;
-use crate::app::state::{DragPayload, DragSource, DragTarget, FocusContext};
+use crate::app::state::{DragPayload, DragSource, DragTarget, FocusContext, UiPoint};
 use crate::app::ui::drag_targets::handle_drop_zone;
 use crate::app::ui::helpers;
 use eframe::egui::{self, RichText, Ui};
@@ -71,6 +71,7 @@ impl EguiApp {
                             "This folder is indexed in your library. Right-click to manage sync settings, re-analyze similarity, or open in File Explorer.",
                             tooltip_mode,
                         );
+                        let drag_pointer_pos = pointer_pos.map(|pos| UiPoint::new(pos.x, pos.y));
                         if response.clicked() {
                             self.controller.select_source_by_index(index);
                             self.controller
@@ -80,7 +81,7 @@ impl EguiApp {
                             ui,
                             &mut self.controller,
                             drag_active,
-                            pointer_pos,
+                            drag_pointer_pos,
                             response.rect,
                             DragSource::Sources,
                             DragTarget::SourcesRow(row.id.clone()),

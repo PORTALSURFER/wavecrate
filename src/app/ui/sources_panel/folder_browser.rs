@@ -6,7 +6,7 @@ use super::helpers::{
 use super::style;
 use super::utils::{folder_row_label, sample_housing_folders};
 use crate::app::controller::hotkeys;
-use crate::app::state::{DragSource, DragTarget, FocusContext, RootFolderFilterMode};
+use crate::app::state::{DragSource, DragTarget, FocusContext, RootFolderFilterMode, UiPoint};
 use crate::gui::input::KeyCode;
 use eframe::egui::{self, Align, Align2, Layout, RichText, StrokeKind, TextStyle, Ui};
 use std::collections::HashSet;
@@ -228,7 +228,7 @@ impl EguiApp {
                         let shift_down = ui.input(|i| i.modifiers.shift);
                         let alt_down = ui.input(|i| i.modifiers.alt);
                         self.controller.update_active_drag(
-                            pointer,
+                            UiPoint::new(pointer.x, pointer.y),
                             DragSource::Folders,
                             DragTarget::FolderPanel {
                                 folder: Some(root_row.path.clone()),
@@ -402,7 +402,7 @@ impl EguiApp {
                                     source.id.clone(),
                                     row.path.clone(),
                                     row.name.clone(),
-                                    pos,
+                                    UiPoint::new(pos.x, pos.y),
                                 );
                             } else {
                                 self.controller.set_status(
@@ -451,8 +451,8 @@ impl EguiApp {
                             hovered_folder = Some(row.path.clone());
                             let shift_down = ui.input(|i| i.modifiers.shift);
                             let alt_down = ui.input(|i| i.modifiers.alt);
-                            self.controller.update_active_drag(
-                                pointer,
+                        self.controller.update_active_drag(
+                                UiPoint::new(pointer.x, pointer.y),
                                 DragSource::Folders,
                                 DragTarget::FolderPanel {
                                     folder: Some(row.path.clone()),
@@ -538,7 +538,7 @@ impl EguiApp {
                         let shift_down = ui.input(|i| i.modifiers.shift);
                         let alt_down = ui.input(|i| i.modifiers.alt);
                         self.controller.update_active_drag(
-                            pointer,
+                            UiPoint::new(pointer.x, pointer.y),
                             DragSource::Folders,
                             DragTarget::FolderPanel { folder: None },
                             shift_down,
@@ -564,7 +564,7 @@ impl EguiApp {
                     let shift_down = ui.input(|i| i.modifiers.shift);
                     let alt_down = ui.input(|i| i.modifiers.alt);
                     self.controller.update_active_drag(
-                        pointer,
+                        UiPoint::new(pointer.x, pointer.y),
                         DragSource::Folders,
                         DragTarget::FolderPanel { folder: None },
                         shift_down,
@@ -575,7 +575,7 @@ impl EguiApp {
                 let shift_down = ui.input(|i| i.modifiers.shift);
                 let alt_down = ui.input(|i| i.modifiers.alt);
                 self.controller.update_active_drag(
-                    pointer,
+                    UiPoint::new(pointer.x, pointer.y),
                     DragSource::Folders,
                     DragTarget::None,
                     shift_down,

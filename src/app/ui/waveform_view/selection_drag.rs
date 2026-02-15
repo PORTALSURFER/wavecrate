@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::state::{DragSource, WaveformView};
+use crate::app::state::UiPoint;
 use crate::selection::{SelectionEdge, SelectionRange};
 use eframe::egui::{self, CursorIcon};
 
@@ -13,13 +14,14 @@ pub(super) fn handle_selection_handle_drag(
     if handle_response.drag_started() && primary_down {
         if let Some(pos) = handle_response.interact_pointer_pos() {
             app.controller
-                .start_selection_drag_payload(selection, pos, true);
+                .start_selection_drag_payload(selection, UiPoint::new(pos.x, pos.y), true);
             app.controller.ui.drag.origin_source = Some(DragSource::Waveform);
         }
     } else if handle_response.dragged_by(egui::PointerButton::Primary) {
         if let Some(pos) = handle_response.interact_pointer_pos() {
             let alt_down = ui.input(|i| i.modifiers.alt);
-            app.controller.refresh_drag_position(pos, false, alt_down);
+            app.controller
+                .refresh_drag_position(UiPoint::new(pos.x, pos.y), false, alt_down);
         }
     } else if handle_response.drag_stopped() && !primary_down {
         app.controller.finish_active_drag();

@@ -3,6 +3,7 @@ use super::super::*;
 use crate::app::state::WaveformView;
 use crate::app::ui::style::StatusTone;
 use eframe::egui::{self, Ui};
+use crate::app::state::UiPoint;
 
 pub(in super::super) fn handle_waveform_pointer_interactions(
     app: &mut EguiApp,
@@ -47,7 +48,10 @@ pub(in super::super) fn handle_waveform_pointer_interactions(
     let modifiers = ui.input(|i| i.modifiers);
     let slide_modifiers = modifiers.ctrl && modifiers.shift && modifiers.alt;
     if middle_down {
-        let Some(pos) = pointer_pos.or_else(|| response.interact_pointer_pos()) else {
+        let Some(pos) = pointer_pos
+            .or_else(|| response.interact_pointer_pos())
+            .map(|pos| UiPoint::new(pos.x, pos.y))
+        else {
             app.controller.ui.waveform.pan_drag_pos = None;
             return;
         };

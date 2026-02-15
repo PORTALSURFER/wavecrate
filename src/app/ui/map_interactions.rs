@@ -1,12 +1,13 @@
 use super::map_view::map_render;
 use eframe::egui;
+use crate::app::state::UiPoint;
 
 pub(crate) fn find_hover_point(
     points: &[crate::app::state::MapPoint],
     rect: egui::Rect,
     center: egui::Pos2,
     scale: f32,
-    pan: egui::Vec2,
+    pan: UiPoint,
     pointer: Option<egui::Pos2>,
 ) -> Option<(crate::app::state::MapPoint, egui::Pos2)> {
     let pointer = pointer?;

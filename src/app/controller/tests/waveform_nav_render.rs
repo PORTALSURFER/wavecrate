@@ -34,8 +34,14 @@ fn waveform_refresh_respects_view_slice_and_caps_width() {
         .image
         .as_ref()
         .expect("waveform image");
-    assert!((image.view_start - 0.25).abs() < 1e-6);
-    assert!((image.view_end - 0.5).abs() < 1e-6);
+    let render_meta = controller
+        .sample_view
+        .waveform
+        .render_meta
+        .as_ref()
+        .expect("render metadata");
+    assert!((render_meta.view_start - 0.25).abs() < 1e-6);
+    assert!((render_meta.view_end - 0.5).abs() < 1e-6);
     let expected_width = (controller.sample_view.waveform.size[0] as f32)
         .min(crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH as f32)
         .ceil() as usize;
@@ -47,8 +53,8 @@ fn waveform_refresh_respects_view_slice_and_caps_width() {
         .min(crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH)
         as usize;
     let clamped = expected_width.min(upper).max(lower);
-    assert_eq!(image.image.size[0], clamped);
-    assert_eq!(image.image.size[1], 10);
+    assert_eq!(image.size[0], clamped);
+    assert_eq!(image.size[1], 10);
 }
 
 #[test]
@@ -109,7 +115,6 @@ fn waveform_rerenders_after_same_length_edit() {
         .image
         .as_ref()
         .expect("waveform image")
-        .image
         .clone();
 
     write_test_wav(&path, &[1.0, -1.0, 1.0, -1.0]);
@@ -120,7 +125,6 @@ fn waveform_rerenders_after_same_length_edit() {
         .image
         .as_ref()
         .expect("refreshed waveform image")
-        .image
         .clone();
 
     assert_ne!(before.pixels, after.pixels);

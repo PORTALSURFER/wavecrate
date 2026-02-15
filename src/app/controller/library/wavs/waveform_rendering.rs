@@ -9,17 +9,6 @@ const MIN_VIEW_WIDTH_BASE: f64 = 1e-9;
 const MIN_SAMPLES_PER_PIXEL: f32 = 1.0;
 pub(crate) const DEFAULT_TRANSIENT_SENSITIVITY: f32 = 0.6;
 
-fn waveform_image_to_egui(image: crate::waveform::WaveformImage) -> egui::ColorImage {
-    let pixels = image
-        .pixels
-        .into_iter()
-        .map(|pixel| {
-            egui::Color32::from_rgba_unmultiplied(pixel.r(), pixel.g(), pixel.b(), pixel.a())
-        })
-        .collect();
-    egui::ColorImage::new(image.size, pixels)
-}
-
 fn min_view_width_for_frames(frame_count: usize, width_px: u32) -> f64 {
     if frame_count == 0 {
         return 1.0;
@@ -216,30 +205,8 @@ impl EguiController {
                 height,
                 desired_meta.edit_fade,
             );
-        let color_image = waveform_image_to_egui(color_image);
-        let (view_start, view_end) = self
-            .sample_view
-            .renderer
-            .cached_view_window(decoded, view.start as f32, view.end as f32, effective_width)
-            .map(|(s, e)| (s as f64, e as f64))
-            .unwrap_or((view.start, view.end));
-        // Store the actual rendered view bounds in the image
-        // but DON'T modify self.ui.waveform.view to preserve f64 precision
-        if self.is_waveform_circular_slide_active() {
-            self.ui.waveform.image = Some(WaveformImage {
-                image: color_image,
-                view_start: view.start,
-                view_end: view.end,
-            });
-        } else {
-            self.ui.waveform.image = Some(WaveformImage {
-                image: color_image,
-                view_start,
-                view_end,
-            });
-            // Don't snap the view - this causes precision loss and desync at deep zoom
-            // self.ui.waveform.view = snapped_view;
-        }
+        // Keep waveform image metadata in the renderer to preserve precision.
+        self.ui.waveform.image = Some(color_image);
         self.sample_view.waveform.render_meta = Some(desired_meta);
     }
 

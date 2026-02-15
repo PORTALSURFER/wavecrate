@@ -5,6 +5,7 @@ use super::helpers::{self, external_dropped_paths, external_hover_has_audio};
 use super::sample_browser_row::{SampleBrowserRowContext, render_sample_browser_row};
 use super::style;
 use crate::app::state::{FocusContext, SampleBrowserTab, TriageFlagColumn};
+use crate::app::state::UiPoint;
 use eframe::egui::{self, StrokeKind, Ui};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -22,8 +23,8 @@ struct SampleBrowserRenderState {
 struct SampleBrowserListState {
     list_height: f32,
     drag_active: bool,
-    pointer_pos: Option<egui::Pos2>,
-    external_pointer_pos: Option<egui::Pos2>,
+    pointer_pos: Option<UiPoint>,
+    external_pointer_pos: Option<UiPoint>,
     external_drop_ready: bool,
     autoscroll_to: Option<usize>,
     total_rows: usize,
@@ -120,7 +121,10 @@ fn prepare_sample_browser_list_state(
     let list_height = ui.available_height().max(0.0);
     let drag_active = app.controller.ui.drag.payload.is_some();
     let pointer_pos = drag_targets::pointer_pos_for_drag(ui, app.controller.ui.drag.position);
-    let external_pointer_pos = pointer_pos.or(app.external_drop_hover_pos);
+    let external_pointer_pos = pointer_pos.or_else(|| {
+        app.external_drop_hover_pos
+            .map(|pos| UiPoint::new(pos.x, pos.y))
+    });
     let external_drop_ready = external_hover_has_audio(ui.ctx());
     let autoscroll_enabled = app.controller.ui.browser.autoscroll;
     let total_rows = app.controller.visible_browser_len();
@@ -150,7 +154,7 @@ fn render_sample_browser_list(
         selected_row: state.selected_row,
         loaded_row: state.loaded_row,
         drag_active: list_state.drag_active,
-        pointer_pos: list_state.pointer_pos,
+        pointer_pos: list_state.pointer_pos.map(|pos| egui::pos2(pos.x, pos.y)),
         drop_target: state.drop_target,
         flash_alpha: state.flash_alpha,
         flash_paths: &state.flash_paths,
@@ -222,12 +226,12 @@ fn render_sample_browser_external_drop(
     list_state: &SampleBrowserListState,
     list_response: &FlatItemsListResponse,
 ) {
-    if !app.external_drop_handled {
+        if !app.external_drop_handled {
         let dropped_paths = external_dropped_paths(ui.ctx());
         if !dropped_paths.is_empty()
             && list_state
                 .external_pointer_pos
-                .is_some_and(|pos| list_response.frame_rect.contains(pos))
+                .is_some_and(|pos| list_response.frame_rect.contains(egui::pos2(pos.x, pos.y)))
         {
             app.external_drop_handled = true;
             app.controller
@@ -237,7 +241,7 @@ fn render_sample_browser_external_drop(
     if list_state.external_drop_ready
         && list_state
             .external_pointer_pos
-            .is_some_and(|pos| list_response.frame_rect.contains(pos))
+            .is_some_and(|pos| list_response.frame_rect.contains(egui::pos2(pos.x, pos.y)))
     {
         let highlight = style::with_alpha(style::semantic_palette().drag_highlight, 32);
         ui.painter()

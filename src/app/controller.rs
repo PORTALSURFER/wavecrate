@@ -19,14 +19,13 @@ pub(crate) use crate::app::ui::style::StatusTone;
 use crate::{
     audio::AudioPlayer,
     app::state::UiState,
-    app::{ui::style, view_model},
+    app::{view_model},
     gui::repaint::RepaintSignal,
     sample_sources::{SampleSource, SourceDatabase, SourceDbError, SourceId, WavEntry},
     selection::SelectionRange,
     waveform::WaveformRenderer,
 };
 pub(crate) use controller_state::*;
-use egui::Color32;
 pub(in crate::app::controller) use library::analysis_jobs::AnalysisJobMessage;
 use library::analysis_jobs::AnalysisWorkerPool;
 use open;
@@ -201,12 +200,10 @@ impl AppController {
     }
 
     pub(crate) fn set_status(&mut self, text: impl Into<String>, tone: StatusTone) {
-        let (label, color) = status_badge(tone);
         let text = text.into();
         self.ui.status.text = text.clone();
-        self.ui.status.badge_label = label;
-        self.ui.status.badge_color = color;
-        let entry = format!("[{}] {}", self.ui.status.badge_label, text);
+        self.ui.status.status_tone = tone;
+        let entry = format!("[{}] {}", status_prefix(tone), text);
         if self.ui.status.log.last().is_some_and(|last| last == &entry) {
             return;
         }
@@ -399,20 +396,14 @@ fn log_status_entry(tone: StatusTone, entry: &str) {
     }
 }
 
-/// UI status tone for badge coloring.
-fn status_badge(tone: StatusTone) -> (String, Color32) {
+/// Return the status badge prefix text for a status tone.
+fn status_prefix(tone: StatusTone) -> &'static str {
     match tone {
-        StatusTone::Idle => ("Idle".into(), style::status_badge_color(StatusTone::Idle)),
-        StatusTone::Busy => (
-            "Working".into(),
-            style::status_badge_color(StatusTone::Busy),
-        ),
-        StatusTone::Info => ("Info".into(), style::status_badge_color(StatusTone::Info)),
-        StatusTone::Warning => (
-            "Warning".into(),
-            style::status_badge_color(StatusTone::Warning),
-        ),
-        StatusTone::Error => ("Error".into(), style::status_badge_color(StatusTone::Error)),
+        StatusTone::Idle => "Idle",
+        StatusTone::Busy => "Working",
+        StatusTone::Info => "Info",
+        StatusTone::Warning => "Warning",
+        StatusTone::Error => "Error",
     }
 }
 

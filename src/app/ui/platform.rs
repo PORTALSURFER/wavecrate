@@ -10,6 +10,8 @@ use windows::Win32::Graphics::Gdi::ScreenToClient;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetWindowRect};
+#[cfg(target_os = "windows")]
+use crate::app::state::UiPoint;
 
 #[cfg(target_os = "windows")]
 pub(super) fn hwnd_from_window(window: &winit::window::Window) -> Option<HWND> {
@@ -46,7 +48,7 @@ pub(super) fn left_mouse_button_down() -> bool {
 }
 
 #[cfg(target_os = "windows")]
-pub(super) fn cursor_pos_in_client_points(hwnd: HWND, pixels_per_point: f32) -> Option<egui::Pos2> {
+pub(super) fn cursor_pos_in_client_points(hwnd: HWND, pixels_per_point: f32) -> Option<UiPoint> {
     unsafe {
         let mut cursor = POINT::default();
         if GetCursorPos(&mut cursor).is_err() {
@@ -55,7 +57,7 @@ pub(super) fn cursor_pos_in_client_points(hwnd: HWND, pixels_per_point: f32) -> 
         if !ScreenToClient(hwnd, &mut cursor).as_bool() {
             return None;
         }
-        Some(egui::pos2(
+        Some(UiPoint::new(
             cursor.x as f32 / pixels_per_point,
             cursor.y as f32 / pixels_per_point,
         ))

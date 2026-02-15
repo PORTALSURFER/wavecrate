@@ -1,4 +1,4 @@
-use crate::app::state::MapRenderMode;
+use crate::app::state::{MapRenderMode, UiPoint};
 use eframe::egui;
 
 pub(crate) fn map_to_screen(
@@ -7,8 +7,9 @@ pub(crate) fn map_to_screen(
     rect: egui::Rect,
     center: egui::Pos2,
     scale: f32,
-    pan: egui::Vec2,
+    pan: UiPoint,
 ) -> egui::Pos2 {
+    let pan = egui::vec2(pan.x, pan.y);
     let dx = (x - center.x) * scale;
     let dy = (y - center.y) * scale;
     egui::pos2(rect.center().x + dx + pan.x, rect.center().y + dy + pan.y)
@@ -20,7 +21,7 @@ pub(crate) fn render_heatmap(
     points: &[crate::app::state::MapPoint],
     center: egui::Pos2,
     scale: f32,
-    pan: egui::Vec2,
+    pan: UiPoint,
     bins: usize,
 ) -> usize {
     render_heatmap_with_color(painter, rect, points, center, scale, pan, bins, |_point| {
@@ -34,7 +35,7 @@ pub(crate) fn render_heatmap_with_color<F>(
     points: &[crate::app::state::MapPoint],
     center: egui::Pos2,
     scale: f32,
-    pan: egui::Vec2,
+    pan: UiPoint,
     bins: usize,
     color_for_point: F,
 ) -> usize
@@ -69,7 +70,7 @@ pub(super) fn render_points(
     points: &[crate::app::state::MapPoint],
     center: egui::Pos2,
     scale: f32,
-    pan: egui::Vec2,
+    pan: UiPoint,
     zoom: f32,
     focused_sample_id: Option<&str>,
     cluster_overlay: bool,
@@ -117,7 +118,7 @@ fn heatmap_bin_index(
     rect: egui::Rect,
     center: egui::Pos2,
     scale: f32,
-    pan: egui::Vec2,
+    pan: UiPoint,
     width: f32,
     height: f32,
     bins: usize,

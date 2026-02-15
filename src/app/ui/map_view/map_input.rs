@@ -2,6 +2,7 @@ use super::EguiApp;
 use super::map_interactions;
 use super::style;
 use eframe::egui::{self};
+use crate::app::state::UiPoint;
 
 pub(super) fn handle_zoom(app: &mut EguiApp, ui: &egui::Ui, response: &egui::Response) {
     let scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
@@ -19,6 +20,7 @@ pub(super) fn handle_pan(
 ) {
     if response.dragged_by(egui::PointerButton::Secondary) {
         if let Some(pos) = pointer {
+            let pos = UiPoint::new(pos.x, pos.y);
             let last = app.controller.ui.map.last_drag_pos.unwrap_or(pos);
             let delta = pos - last;
             app.controller.ui.map.pan += delta;
@@ -74,7 +76,7 @@ pub(super) fn handle_focus_request(
         if let Some((x, y)) = target_point {
             let dx = (x - center.x) * scale;
             let dy = (y - center.y) * scale;
-            app.controller.ui.map.pan = egui::vec2(-dx, -dy);
+            app.controller.ui.map.pan = UiPoint::new(-dx, -dy);
             app.controller.ui.map.last_query = None;
         } else {
             app.controller.set_status(
@@ -93,7 +95,7 @@ pub(super) fn resolve_hover(
     rect: egui::Rect,
     center: egui::Pos2,
     scale: f32,
-    pan: egui::Vec2,
+    pan: UiPoint,
     pointer: Option<egui::Pos2>,
 ) -> Option<(crate::app::state::MapPoint, egui::Pos2)> {
     let display_points = &app.controller.ui.map.cached_filtered_points;

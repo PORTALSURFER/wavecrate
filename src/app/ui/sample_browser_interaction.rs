@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::state::{DragPayload, DragSample, DragSource, DragTarget};
+use crate::app::state::UiPoint;
 use crate::app::ui::style::StatusTone;
 use crate::app::view_model;
 use eframe::egui::{self, RichText};
@@ -57,7 +58,7 @@ impl EguiApp {
             &mut self.controller,
             drag_source,
             drop_target,
-            move |pos, controller| {
+            move |pos: UiPoint, controller: &mut crate::app::controller::EguiController| {
                 if let Some(source) = controller.current_source() {
                     if is_multi_drag {
                         let samples = selected_paths
@@ -79,7 +80,7 @@ impl EguiApp {
                     controller.set_status("Select a source before dragging", StatusTone::Warning);
                 }
             },
-            move |pos, controller| {
+            move |pos: UiPoint, controller: &crate::app::controller::EguiController| {
                 let source = controller.current_source()?;
                 let payload = if pending_selected.len() > 1 {
                     DragPayload::Samples {

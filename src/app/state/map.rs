@@ -1,4 +1,4 @@
-use eframe::egui::{Pos2, Vec2};
+use super::UiPoint;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -8,11 +8,11 @@ pub struct MapUiState {
     /// Whether the map panel is open.
     pub open: bool,
     /// Current pan offset in screen space.
-    pub pan: Vec2,
+    pub pan: UiPoint,
     /// Current zoom level.
     pub zoom: f32,
     /// Last drag position for panning.
-    pub last_drag_pos: Option<Pos2>,
+    pub last_drag_pos: Option<UiPoint>,
     /// Cached data bounds for the current layout.
     pub bounds: Option<MapBounds>,
     /// Bounds used for the most recent query.
@@ -73,7 +73,7 @@ impl Default for MapUiState {
     fn default() -> Self {
         Self {
             open: false,
-            pan: Vec2::ZERO,
+            pan: UiPoint::ZERO,
             zoom: 1.0,
             last_drag_pos: None,
             bounds: None,

@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::state::{DragSample, DragSource};
+use crate::app::state::UiPoint;
 #[cfg(any(target_os = "windows", test))]
 use std::time::{Duration, Instant};
 
@@ -9,33 +10,33 @@ pub(crate) trait DragDropActions {
         source_id: SourceId,
         relative_path: PathBuf,
         label: String,
-        pos: Pos2,
+        pos: UiPoint,
     );
-    fn start_samples_drag(&mut self, samples: Vec<DragSample>, label: String, pos: Pos2);
+    fn start_samples_drag(&mut self, samples: Vec<DragSample>, label: String, pos: UiPoint);
     fn start_folder_drag(
         &mut self,
         source_id: SourceId,
         relative_path: PathBuf,
         label: String,
-        pos: Pos2,
+        pos: UiPoint,
     );
     fn start_selection_drag_payload(
         &mut self,
         bounds: SelectionRange,
-        pos: Pos2,
+        pos: UiPoint,
         keep_source_focused: bool,
     );
     /// Begin dragging a drop target row to reorder the sidebar list.
-    fn start_drop_target_drag(&mut self, path: PathBuf, label: String, pos: Pos2);
+    fn start_drop_target_drag(&mut self, path: PathBuf, label: String, pos: UiPoint);
     fn update_active_drag(
         &mut self,
-        pos: Pos2,
+        pos: UiPoint,
         source: DragSource,
         target: DragTarget,
         shift_down: bool,
         alt_down: bool,
     );
-    fn refresh_drag_position(&mut self, pos: Pos2, shift_down: bool, alt_down: bool);
+    fn refresh_drag_position(&mut self, pos: UiPoint, shift_down: bool, alt_down: bool);
     fn finish_active_drag(&mut self);
 }
 
@@ -45,7 +46,7 @@ impl DragDropActions for DragDropController<'_> {
         source_id: SourceId,
         relative_path: PathBuf,
         label: String,
-        pos: Pos2,
+        pos: UiPoint,
     ) {
         self.begin_drag(
             DragPayload::Sample {
@@ -57,7 +58,7 @@ impl DragDropActions for DragDropController<'_> {
         );
     }
 
-    fn start_samples_drag(&mut self, samples: Vec<DragSample>, label: String, pos: Pos2) {
+    fn start_samples_drag(&mut self, samples: Vec<DragSample>, label: String, pos: UiPoint) {
         self.begin_drag(DragPayload::Samples { samples }, label, pos);
     }
 
@@ -66,7 +67,7 @@ impl DragDropActions for DragDropController<'_> {
         source_id: SourceId,
         relative_path: PathBuf,
         label: String,
-        pos: Pos2,
+        pos: UiPoint,
     ) {
         self.begin_drag(
             DragPayload::Folder {
@@ -81,7 +82,7 @@ impl DragDropActions for DragDropController<'_> {
     fn start_selection_drag_payload(
         &mut self,
         bounds: SelectionRange,
-        pos: Pos2,
+        pos: UiPoint,
         keep_source_focused: bool,
     ) {
         if bounds.width() < MIN_SELECTION_WIDTH {
@@ -104,13 +105,13 @@ impl DragDropActions for DragDropController<'_> {
         self.begin_drag(payload, label, pos);
     }
 
-    fn start_drop_target_drag(&mut self, path: PathBuf, label: String, pos: Pos2) {
+    fn start_drop_target_drag(&mut self, path: PathBuf, label: String, pos: UiPoint) {
         self.begin_drag(DragPayload::DropTargetReorder { path }, label, pos);
     }
 
     fn update_active_drag(
         &mut self,
-        pos: Pos2,
+        pos: UiPoint,
         source: DragSource,
         target: DragTarget,
         shift_down: bool,
@@ -142,7 +143,7 @@ impl DragDropActions for DragDropController<'_> {
         }
     }
 
-    fn refresh_drag_position(&mut self, pos: Pos2, shift_down: bool, alt_down: bool) {
+    fn refresh_drag_position(&mut self, pos: UiPoint, shift_down: bool, alt_down: bool) {
         if self.ui.drag.payload.is_some() {
             if self.ui.drag.pointer_left_window {
                 return;

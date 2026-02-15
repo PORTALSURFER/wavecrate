@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::state::DragSample;
+use crate::app::state::{DragSample, UiPoint};
 
 impl EguiController {
     /// Begin dragging a sample row from the UI.
@@ -8,14 +8,14 @@ impl EguiController {
         source_id: SourceId,
         relative_path: PathBuf,
         label: String,
-        pos: Pos2,
+        pos: UiPoint,
     ) {
         self.drag_drop()
             .start_sample_drag(source_id, relative_path, label, pos);
     }
 
     /// Begin dragging multiple sample rows from the UI.
-    pub fn start_samples_drag(&mut self, samples: Vec<DragSample>, label: String, pos: Pos2) {
+    pub fn start_samples_drag(&mut self, samples: Vec<DragSample>, label: String, pos: UiPoint) {
         self.drag_drop().start_samples_drag(samples, label, pos);
     }
 
@@ -31,7 +31,7 @@ impl EguiController {
         source_id: SourceId,
         relative_path: PathBuf,
         label: String,
-        pos: Pos2,
+        pos: UiPoint,
     ) {
         self.drag_drop()
             .start_folder_drag(source_id, relative_path, label, pos);
@@ -41,7 +41,7 @@ impl EguiController {
     pub fn start_selection_drag_payload(
         &mut self,
         bounds: SelectionRange,
-        pos: Pos2,
+        pos: UiPoint,
         keep_source_focused: bool,
     ) {
         self.drag_drop()
@@ -49,14 +49,14 @@ impl EguiController {
     }
 
     /// Begin dragging a drop target row to reorder the list.
-    pub fn start_drop_target_drag(&mut self, path: PathBuf, label: String, pos: Pos2) {
+    pub fn start_drop_target_drag(&mut self, path: PathBuf, label: String, pos: UiPoint) {
         self.drag_drop().start_drop_target_drag(path, label, pos);
     }
 
     /// Update the active drag state with a new pointer position and target.
     pub fn update_active_drag(
         &mut self,
-        pos: Pos2,
+        pos: UiPoint,
         source: DragSource,
         target: DragTarget,
         shift_down: bool,
@@ -67,7 +67,7 @@ impl EguiController {
     }
 
     /// Update the stored drag pointer position (used when egui pointer positions are missing).
-    pub fn refresh_drag_position(&mut self, pos: Pos2, shift_down: bool, alt_down: bool) {
+    pub fn refresh_drag_position(&mut self, pos: UiPoint, shift_down: bool, alt_down: bool) {
         self.drag_drop()
             .refresh_drag_position(pos, shift_down, alt_down);
     }

@@ -1,7 +1,7 @@
 use super::overlay_layers::OverlayLayer;
 use super::style;
 use super::*;
-use eframe::egui::{self, Align2, Area, Frame, RichText, Stroke, Vec2};
+use eframe::egui::{self, Align2, Area, Frame, RichText, Stroke};
 
 impl EguiApp {
     /// Render the drag preview overlay when a drag payload is active.
@@ -13,10 +13,11 @@ impl EguiApp {
             } else {
                 self.controller.ui.drag.label.clone()
             };
+            let anchored_pos = egui::pos2(pos.x + 16.0, pos.y + 16.0);
             Area::new("drag_preview".into())
                 .order(OverlayLayer::Overlay.order())
                 .pivot(Align2::CENTER_CENTER)
-                .current_pos(pos + Vec2::new(16.0, 16.0))
+                .current_pos(anchored_pos)
                 .show(ctx, |ui| {
                     Frame::new()
                         .fill(style::with_alpha(palette.bg_tertiary, 220))
