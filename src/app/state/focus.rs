@@ -13,7 +13,7 @@ pub enum FocusContext {
     SourcesList,
 }
 
-/// Focus metadata shared between the controller and egui renderer.
+/// Focus metadata shared between the controller and runtime host renderers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UiFocusState {
     /// Current focus context.

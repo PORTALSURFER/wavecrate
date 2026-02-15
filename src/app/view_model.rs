@@ -1,5 +1,5 @@
-//! Helpers to convert domain data into egui-facing view structs.
-// Transitional helpers; wiring into the egui renderer will consume these.
+//! Helpers to convert domain data into runtime-facing view structs.
+// Transitional helpers; host runtimes consume these view models as a projection layer.
 
 use crate::app::state::{DropTargetRowView, SourceRowView};
 use crate::sample_sources::config::DropTargetColor;

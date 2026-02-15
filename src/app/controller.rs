@@ -191,7 +191,7 @@ impl AppController {
 
     #[cfg(target_os = "windows")]
     /// Store the HWND used for initiating external drag-and-drop operations on Windows.
-    /// This is populated from the egui frame when available.
+    /// This is populated from the active host frame when available.
     pub fn set_drag_hwnd(&mut self, hwnd: Option<windows::Win32::Foundation::HWND>) {
         self.drag_hwnd = hwnd;
     }

@@ -158,13 +158,7 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
 
 ## Remaining migration blockers
 
-- Legacy `egui` UI implementation still exists under `src/app/ui/**` and remains
-  tied to the legacy runtime/controller internals.
-- `src/app/controller.rs` still exposes legacy naming (`EguiController`) that is
-  intentionally confined to legacy internals; a final rename/extraction pass is
-  still pending.
-- Legacy `egui` runtime dependencies remain in `Cargo.toml` and are still
-  required while `src/app/**` is present.
+- No remaining blockers tracked in this pass.
 
 ## Legacy Removal Checklist
 

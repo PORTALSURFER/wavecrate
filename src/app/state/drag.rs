@@ -159,8 +159,8 @@ pub struct DragState {
     /// Best-effort signal that the cursor has left the app window mid-drag (Windows-only use).
     ///
     /// Some platforms/input backends stop sending pointer positions once the cursor leaves the
-    /// window. We latch this on `egui::Event::PointerGone` and clear it when pointer movement
-    /// resumes.
+    /// window. We latch this when pointer tracking is interrupted and clear it when pointer
+    /// movement resumes.
     pub pointer_left_window: bool,
     /// When Windows doesn't deliver a reliable press event (e.g. after an external drag/drop),
     /// we use OS-level mouse state to synthesize drag starts on hovered widgets.

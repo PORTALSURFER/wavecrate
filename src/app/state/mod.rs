@@ -1,5 +1,6 @@
-//! Shared state types for the egui UI.
-//! Temporary while the egui UI is being wired; types will be exercised by the renderer next.
+//! Shared state types for the application UI layer.
+//! These types are consumed by runtime-integrated renderers and migration-facing
+//! projection glue.
 
 mod audio;
 mod browser;
@@ -35,7 +36,7 @@ pub use waveform::*;
 
 use std::path::PathBuf;
 
-/// Top-level UI model consumed by the egui renderer.
+/// Top-level UI model consumed by host and migration-facing projection surfaces.
 #[derive(Clone, Debug)]
 pub struct UiState {
     /// Status bar and status log state.
