@@ -2,10 +2,8 @@ mod actions;
 mod format;
 mod types;
 
-#[allow(unused_imports)]
-pub(crate) use format::format_keypress;
-#[allow(unused_imports)]
-pub(crate) use types::{HotkeyAction, HotkeyCommand, HotkeyGesture, HotkeyScope, KeyPress};
+use types::HotkeyScope;
+pub(crate) use types::{HotkeyAction, HotkeyCommand};
 
 use crate::app::state::FocusContext;
 use actions::HOTKEY_ACTIONS;
