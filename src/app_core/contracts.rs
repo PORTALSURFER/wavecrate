@@ -12,10 +12,10 @@ pub(crate) mod controller {
 
 /// Legacy state module used by migration-facing projection and conversion code.
 pub(crate) mod state {
-    pub(crate) use crate::app::state;
+    pub(crate) use crate::app::state::*;
 }
 
 /// Legacy view-model helpers used by migration-facing formatting glue.
 pub(crate) mod view_model {
-    pub(crate) use crate::app::view_model;
+    pub(crate) use crate::app::view_model::*;
 }
