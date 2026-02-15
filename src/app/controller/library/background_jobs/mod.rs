@@ -13,7 +13,7 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 use trash_move::TrashMoveMessage;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn poll_background_jobs(&mut self) {
         if self.ui.progress.cancel_requested {
             match self.ui.progress.task {

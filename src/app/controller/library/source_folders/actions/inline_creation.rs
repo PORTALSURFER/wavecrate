@@ -4,7 +4,7 @@ use crate::app::state::InlineFolderCreation;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-impl EguiController {
+impl AppController {
     pub(crate) fn start_new_folder(&mut self) {
         if self.current_source().is_none() {
             self.set_status("Add a source before creating folders", StatusTone::Info);

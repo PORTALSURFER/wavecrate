@@ -1,5 +1,5 @@
 use super::*;
-pub(crate) use super::{BPM_MIN_SELECTION_DIVISOR, EguiController, StatusTone};
+pub(crate) use super::{BPM_MIN_SELECTION_DIVISOR, AppController, StatusTone};
 pub(crate) use crate::sample_sources::*;
 pub(crate) use crate::selection::SelectionRange;
 
@@ -32,7 +32,7 @@ const SHOULD_PLAY_RANDOM_SAMPLE: bool = false;
 const SHOULD_PLAY_RANDOM_SAMPLE: bool = true;
 const PLAYHEAD_COMPLETION_EPSILON: f32 = 0.001;
 
-fn selection_meets_bpm_min(controller: &EguiController, range: SelectionRange) -> bool {
+fn selection_meets_bpm_min(controller: &AppController, range: SelectionRange) -> bool {
     if !controller.ui.waveform.bpm_snap_enabled {
         return true;
     }
@@ -53,7 +53,7 @@ fn selection_meets_bpm_min(controller: &EguiController, range: SelectionRange) -
     selection_seconds + epsilon >= min_seconds
 }
 
-pub(crate) fn bpm_min_selection_seconds(controller: &EguiController) -> Option<f32> {
+pub(crate) fn bpm_min_selection_seconds(controller: &AppController) -> Option<f32> {
     if !controller.ui.waveform.bpm_snap_enabled {
         return None;
     }
@@ -71,7 +71,7 @@ pub(crate) fn bpm_min_selection_seconds(controller: &EguiController) -> Option<f
 }
 
 pub(crate) fn selection_meets_bpm_min_for_playback(
-    controller: &EguiController,
+    controller: &AppController,
     range: SelectionRange,
 ) -> bool {
     selection_meets_bpm_min(controller, range)
@@ -84,7 +84,7 @@ fn now_epoch_seconds() -> i64 {
         .as_secs() as i64
 }
 
-impl EguiController {
+impl AppController {
     /// Begin a selection drag gesture at the given position.
     pub fn start_selection_drag(&mut self, position: f32) {
         transport::start_selection_drag(self, position);

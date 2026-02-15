@@ -4,7 +4,7 @@ use crate::waveform::DecodedWaveform;
 use hound::SampleFormat;
 use std::sync::Arc;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn align_waveform_start_to_last_marker(&mut self) -> Result<(), String> {
         if self.is_waveform_circular_slide_active() {
             return Err("Finish the current waveform slide first".to_string());

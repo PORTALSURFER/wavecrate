@@ -1,9 +1,9 @@
-use crate::app::controller::EguiController;
+use crate::app::controller::AppController;
 use crate::app::controller::jobs;
 use crate::app::controller::ui::status_message::StatusMessage;
 use crate::sample_sources::SampleSource;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn show_similarity_prep_start(&mut self, source: &SampleSource) {
         self.runtime.similarity_prep_last_error = None;
         self.set_status_message(StatusMessage::PreparingSimilarity {

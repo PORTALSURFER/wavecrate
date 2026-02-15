@@ -10,17 +10,17 @@ pub(crate) trait HotkeysActions {
 }
 
 pub(crate) struct HotkeysController<'a> {
-    controller: &'a mut EguiController,
+    controller: &'a mut AppController,
 }
 
 impl<'a> HotkeysController<'a> {
-    pub(crate) fn new(controller: &'a mut EguiController) -> Self {
+    pub(crate) fn new(controller: &'a mut AppController) -> Self {
         Self { controller }
     }
 }
 
 impl std::ops::Deref for HotkeysController<'_> {
-    type Target = EguiController;
+    type Target = AppController;
 
     fn deref(&self) -> &Self::Target {
         self.controller
@@ -183,7 +183,7 @@ impl HotkeysController<'_> {
     }
 }
 
-impl EguiController {
+impl AppController {
     pub(crate) fn handle_hotkey(&mut self, action: HotkeyAction, focus: FocusContext) {
         self.hotkeys_ctrl().handle_hotkey(action, focus);
     }
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn browser_hotkey_respects_focus() {
         let renderer = crate::waveform::WaveformRenderer::new(4, 4);
-        let mut controller = EguiController::new(renderer, None);
+        let mut controller = AppController::new(renderer, None);
         let action = action_for(HotkeyCommand::FocusBrowserSearch);
 
         controller.handle_hotkey(action, FocusContext::SampleBrowser);

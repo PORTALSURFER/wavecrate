@@ -4,7 +4,7 @@ use crate::updater::{
     RuntimeIdentity, UpdateChannel, UpdateCheckOutcome, UpdateCheckRequest, check_for_updates,
 };
 
-impl EguiController {
+impl AppController {
     pub(super) fn maybe_check_for_updates_on_startup(&mut self) {
         if !self.settings.updates.check_on_startup {
             return;

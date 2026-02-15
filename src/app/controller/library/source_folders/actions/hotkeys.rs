@@ -3,7 +3,7 @@ use super::*;
 use crate::app::state::{DragSample, FocusContext};
 use std::path::{Path, PathBuf};
 
-impl EguiController {
+impl AppController {
     pub(crate) fn bind_folder_hotkey(&mut self, folder: &Path, hotkey: Option<u8>) {
         let Some(source) = self.current_source() else {
             self.set_status("Select a source first", StatusTone::Info);

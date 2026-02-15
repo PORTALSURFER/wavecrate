@@ -2,7 +2,7 @@ use super::*;
 use crate::app::state::ProgressTaskKind;
 
 pub(crate) fn ensure_progress_visible(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     task: ProgressTaskKind,
     label: &str,
     total: usize,
@@ -14,7 +14,7 @@ pub(crate) fn ensure_progress_visible(
 }
 
 pub(crate) fn update_progress_detail(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     task: ProgressTaskKind,
     completed: usize,
     detail: Option<String>,
@@ -29,7 +29,7 @@ pub(crate) fn update_progress_detail(
 }
 
 pub(crate) fn update_progress_totals(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     task: ProgressTaskKind,
     total: usize,
     completed: usize,

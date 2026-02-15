@@ -44,7 +44,7 @@ pub(crate) enum SelectionEditRequest {
     Prompted,
 }
 
-impl EguiController {
+impl AppController {
     /// Request a destructive edit, showing a confirmation unless yolo mode is enabled.
     pub(crate) fn request_destructive_selection_edit(
         &mut self,

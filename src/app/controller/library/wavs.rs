@@ -26,7 +26,7 @@ pub(crate) use waveform_rendering::WaveformRenderMeta;
 /// Upper bound for waveform texture width to stay within GPU limits.
 pub(crate) const MAX_TEXTURE_WIDTH: u32 = 16_384;
 
-impl EguiController {
+impl AppController {
     /// Reset all waveform and playback visuals.
     pub(crate) fn clear_waveform_view(&mut self) {
         waveform_view::clear_waveform_view(self);

@@ -9,7 +9,7 @@ pub(crate) struct ResolvedSimilarity {
 }
 
 pub(crate) fn resolve_sample_id_for_visible_row(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     visible_row: usize,
 ) -> Result<(String, usize), String> {
     let source_id = resolve_selected_source(controller)?;
@@ -18,7 +18,7 @@ pub(crate) fn resolve_sample_id_for_visible_row(
     Ok((sample_id, entry_index))
 }
 
-fn resolve_selected_source(controller: &EguiController) -> Result<SourceId, String> {
+fn resolve_selected_source(controller: &AppController) -> Result<SourceId, String> {
     controller
         .selection_state
         .ctx
@@ -28,7 +28,7 @@ fn resolve_selected_source(controller: &EguiController) -> Result<SourceId, Stri
 }
 
 fn resolve_visible_row_index(
-    controller: &EguiController,
+    controller: &AppController,
     visible_row: usize,
 ) -> Result<usize, String> {
     controller
@@ -40,7 +40,7 @@ fn resolve_visible_row_index(
 }
 
 fn resolve_sample_id_for_entry(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     source_id: &SourceId,
     entry_index: usize,
 ) -> Result<String, String> {
@@ -54,7 +54,7 @@ fn resolve_sample_id_for_entry(
 }
 
 pub(crate) fn resolve_similarity_for_sample_id(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     sample_id: &str,
     score_cutoff: Option<f32>,
 ) -> Result<ResolvedSimilarity, String> {
@@ -97,7 +97,7 @@ pub(crate) fn resolve_similarity_for_sample_id(
 }
 
 pub(crate) fn open_source_db_for_id(
-    controller: &EguiController,
+    controller: &AppController,
     source_id: &SourceId,
 ) -> Result<rusqlite::Connection, String> {
     let source = controller
@@ -276,7 +276,7 @@ fn filter_ranked_candidates(
 }
 
 fn maybe_enqueue_full_analysis(
-    controller: &EguiController,
+    controller: &AppController,
     conn: &mut rusqlite::Connection,
     sample_id: &str,
 ) -> Result<(), String> {

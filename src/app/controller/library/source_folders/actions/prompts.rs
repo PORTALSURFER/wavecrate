@@ -3,7 +3,7 @@ use crate::app::state::FolderActionPrompt;
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::path::Path;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn open_folder_in_file_explorer(&mut self, relative_folder: &Path) {
         let Some(source) = self.current_source() else {
             self.set_status("Select a source first", StatusTone::Info);

@@ -11,7 +11,7 @@ fn waveform_sample_drop_copies_and_registers() {
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).unwrap();
     let renderer = WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -46,7 +46,7 @@ fn waveform_sample_drop_reports_missing_source_file() {
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).unwrap();
     let renderer = WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());

@@ -10,7 +10,7 @@ pub(crate) struct DropTargetLocation {
     pub(crate) relative_folder: PathBuf,
 }
 
-impl EguiController {
+impl AppController {
     /// Open a folder picker and add the chosen directory as a drop target.
     pub fn add_drop_target_via_dialog(&mut self) {
         let Some(path) = FileDialog::new().pick_folder() else {

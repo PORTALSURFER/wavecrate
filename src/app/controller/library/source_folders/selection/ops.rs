@@ -42,7 +42,7 @@ enum FolderSelectMode {
     Toggle,
 }
 
-impl EguiController {
+impl AppController {
     pub(crate) fn replace_folder_selection(&mut self, row_index: usize) {
         self.clear_drop_target_selection();
         self.apply_folder_selection(row_index, FolderSelectMode::Replace);

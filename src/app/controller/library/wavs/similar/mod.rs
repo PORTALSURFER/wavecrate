@@ -16,7 +16,7 @@ const FEATURE_RMS_INDEX: usize = 2;
 const MISSING_SIMILARITY_SCORE: f32 = -2.0;
 
 pub(crate) fn find_similar_for_visible_row(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     visible_row: usize,
 ) -> Result<(), String> {
     let (sample_id, entry_index) =
@@ -32,7 +32,7 @@ pub(crate) fn find_similar_for_visible_row(
 }
 
 pub(crate) fn find_duplicates_for_visible_row(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     visible_row: usize,
 ) -> Result<(), String> {
     let (sample_id, entry_index) =
@@ -48,7 +48,7 @@ pub(crate) fn find_duplicates_for_visible_row(
 }
 
 pub(crate) fn find_similar_for_sample_id(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     sample_id: &str,
 ) -> Result<(), String> {
     apply_similarity_for_sample_id(
@@ -61,13 +61,13 @@ pub(crate) fn find_similar_for_sample_id(
     )
 }
 
-pub(crate) fn clear_similar_filter(controller: &mut EguiController) {
+pub(crate) fn clear_similar_filter(controller: &mut AppController) {
     apply::clear_similar_filter(controller);
 }
 
 /// Build the near-duplicate highlight set for a focused sample id.
 pub(crate) fn build_focused_similarity_highlight(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     sample_id: &str,
     anchor_index: Option<usize>,
 ) -> Result<Option<FocusedSimilarity>, String> {
@@ -80,7 +80,7 @@ pub(crate) fn build_focused_similarity_highlight(
 }
 
 fn apply_similarity_for_sample_id(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     sample_id: &str,
     score_cutoff: Option<f32>,
     label_builder: impl FnOnce(&Path) -> String,
@@ -100,7 +100,7 @@ fn apply_similarity_for_sample_id(
 }
 
 pub(crate) fn find_similar_for_audio_path(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     path: &Path,
 ) -> Result<(), String> {
     let query = query::build_similarity_query_for_audio_path(controller, path)?;
@@ -108,14 +108,14 @@ pub(crate) fn find_similar_for_audio_path(
     Ok(())
 }
 
-pub(crate) fn enable_loaded_similarity_sort(controller: &mut EguiController) -> Result<(), String> {
+pub(crate) fn enable_loaded_similarity_sort(controller: &mut AppController) -> Result<(), String> {
     let query = query::build_similarity_query_for_loaded_sample(controller)?;
     apply::apply_similarity_query(controller, query);
     controller.ui.browser.similarity_sort_follow_loaded = true;
     Ok(())
 }
 
-pub(crate) fn disable_similarity_sort(controller: &mut EguiController) {
+pub(crate) fn disable_similarity_sort(controller: &mut AppController) {
     apply::disable_similarity_sort(controller);
 }
 
@@ -148,7 +148,7 @@ fn focused_similarity_from_resolved(
 }
 
 pub(crate) fn refresh_similarity_sort_for_loaded(
-    controller: &mut EguiController,
+    controller: &mut AppController,
 ) -> Result<(), String> {
     if !controller.ui.browser.similarity_sort_follow_loaded {
         return Ok(());

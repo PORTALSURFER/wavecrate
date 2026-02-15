@@ -2,7 +2,7 @@ use super::*;
 use crate::app::controller::playback::audio_cache::CacheKey;
 use std::path::Path;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn handle_audio_loaded(&mut self, pending: PendingAudio, outcome: AudioLoadOutcome) {
         let source = SampleSource {
             id: pending.source_id.clone(),

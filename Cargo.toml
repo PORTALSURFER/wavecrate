@@ -26,10 +26,6 @@ thiserror = "2.0.17"
 regex = "1.12.2"
 directories = "6.0.0"
 rfd = "0.16.0"
-egui = "0.33.2"
-eframe = { version = "0.33.2", default-features = true }
-egui-wgpu = { version = "0.33.3", features = ["winit"] }
-egui-winit = "0.33.3"
 winit = "0.30.12"
 pollster = "0.4.0"
 vello = "0.7.0"

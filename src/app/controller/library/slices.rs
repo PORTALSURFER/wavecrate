@@ -1,4 +1,4 @@
-use super::EguiController;
+use super::AppController;
 use super::MIN_SELECTION_WIDTH;
 use crate::analysis::audio::{detect_non_silent_ranges, downmix_to_mono_into};
 use crate::app::controller::playback::audio_samples::{
@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 mod ops;
 
-impl EguiController {
+impl AppController {
     /// Detect non-silent slice ranges for the loaded waveform and store them in UI state.
     pub(crate) fn detect_waveform_slices_from_silence(&mut self) -> Result<usize, String> {
         let audio = self

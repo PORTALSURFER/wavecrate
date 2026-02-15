@@ -162,7 +162,7 @@ fn remove_dead_links_rebuilds_missing_state() -> Result<(), String> {
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).unwrap();
     let renderer = WaveformRenderer::new(10, 10);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -224,7 +224,7 @@ fn mark_missing_updates_cache_db_and_missing_set_when_inactive() {
     std::fs::create_dir_all(&root).unwrap();
     std::fs::create_dir_all(&other_root).unwrap();
     let renderer = WaveformRenderer::new(10, 10);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     let other = SampleSource::new(other_root);
     controller.library.sources.push(source.clone());
@@ -288,7 +288,7 @@ fn mark_missing_updates_db_and_missing_set_without_cache() {
     std::fs::create_dir_all(&root).unwrap();
     std::fs::create_dir_all(&other_root).unwrap();
     let renderer = WaveformRenderer::new(10, 10);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     let other = SampleSource::new(other_root);
     controller.library.sources.push(source.clone());

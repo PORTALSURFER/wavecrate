@@ -19,7 +19,7 @@ pub(crate) struct UmapPoint {
     pub cluster_id: Option<i32>,
 }
 
-impl EguiController {
+impl AppController {
     /// Switch between browser list/map tabs and keep map visibility in sync.
     pub fn set_browser_tab(&mut self, map: bool) {
         self.ui.browser.active_tab = if map {
@@ -202,7 +202,7 @@ pub(crate) fn run_umap_cluster_build(
 }
 
 fn open_source_db(
-    controller: &EguiController,
+    controller: &AppController,
     source_id: Option<&SourceId>,
 ) -> Result<Connection, String> {
     let source_id = source_id.ok_or_else(|| "No source selected".to_string())?;

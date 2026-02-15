@@ -1,6 +1,6 @@
 use super::*;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn open_feedback_issue_prompt(&mut self) {
         self.ui.feedback_issue.open = true;
         self.ui.feedback_issue.focus_title_requested = true;

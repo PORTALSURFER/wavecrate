@@ -1,8 +1,8 @@
 use super::*;
 use crate::app::state::FocusContext;
-use crate::app::ui::style::StatusTone;
+use crate::app::controller::StatusTone;
 
-impl EguiController {
+impl AppController {
     /// Mark the sample browser as the active focus surface.
     pub(crate) fn focus_browser_context(&mut self) {
         self.set_focus_context(FocusContext::SampleBrowser);

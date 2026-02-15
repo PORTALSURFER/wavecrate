@@ -4,7 +4,7 @@ use crate::app::controller::jobs::{
     IssueTokenSaveResult,
 };
 
-pub(crate) fn handle_update_checked(controller: &mut EguiController, message: UpdateCheckResult) {
+pub(crate) fn handle_update_checked(controller: &mut AppController, message: UpdateCheckResult) {
     controller.runtime.jobs.clear_update_check();
     match message.result {
         Ok(outcome) => controller.apply_update_check_result(outcome),
@@ -13,7 +13,7 @@ pub(crate) fn handle_update_checked(controller: &mut EguiController, message: Up
 }
 
 pub(crate) fn handle_issue_gateway_created(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     message: IssueGatewayCreateResult,
 ) {
     controller.runtime.jobs.clear_issue_gateway_create();
@@ -28,14 +28,14 @@ pub(crate) fn handle_issue_gateway_created(
                 controller.ui.feedback_issue.focus_title_requested = true;
                 controller.set_status(
                     format!("Created GitHub issue #{}", outcome.number),
-                    crate::app::ui::style::StatusTone::Info,
+                    crate::app::controller::StatusTone::Info,
                 );
             } else {
                 controller.ui.feedback_issue.last_error =
                     Some("Issue creation failed.".to_string());
                 controller.set_status(
                     "Failed to create issue".to_string(),
-                    crate::app::ui::style::StatusTone::Error,
+                    crate::app::controller::StatusTone::Error,
                 );
             }
         }
@@ -55,14 +55,14 @@ pub(crate) fn handle_issue_gateway_created(
             }
             controller.set_status(
                 format!("Failed to create issue: {err}"),
-                crate::app::ui::style::StatusTone::Error,
+                crate::app::controller::StatusTone::Error,
             );
         }
     }
 }
 
 pub(crate) fn handle_issue_gateway_authed(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     message: IssueGatewayAuthResult,
 ) {
     controller.runtime.jobs.clear_issue_gateway_auth();
@@ -71,7 +71,7 @@ pub(crate) fn handle_issue_gateway_authed(
 
 /// Apply token load results to the feedback issue UI state.
 pub(crate) fn handle_issue_token_loaded(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     message: IssueTokenLoadResult,
 ) {
     controller.runtime.jobs.clear_issue_token_load();
@@ -101,7 +101,7 @@ pub(crate) fn handle_issue_token_loaded(
 
 /// Apply token save results to the feedback issue UI state.
 pub(crate) fn handle_issue_token_saved(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     message: IssueTokenSaveResult,
 ) {
     controller.runtime.jobs.clear_issue_token_save();
@@ -116,7 +116,7 @@ pub(crate) fn handle_issue_token_saved(
             controller.ui.feedback_issue.token_autofill_last = None;
             controller.set_status(
                 "GitHub connected for issue reporting".to_string(),
-                crate::app::ui::style::StatusTone::Info,
+                crate::app::controller::StatusTone::Info,
             );
         }
         Err(err) => {
@@ -133,7 +133,7 @@ pub(crate) fn handle_issue_token_saved(
 
 /// Apply token delete results to the feedback issue UI state.
 pub(crate) fn handle_issue_token_deleted(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     message: IssueTokenDeleteResult,
 ) {
     controller.runtime.jobs.clear_issue_token_delete();
@@ -145,7 +145,7 @@ pub(crate) fn handle_issue_token_deleted(
                 crate::app::state::IssueTokenStatus::NotConnected;
             controller.set_status(
                 "GitHub disconnected".to_string(),
-                crate::app::ui::style::StatusTone::Info,
+                crate::app::controller::StatusTone::Info,
             );
         }
         Err(err) => {

@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::state::FocusContext;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn rebuild_browser_lists(&mut self) {
         self.prune_browser_selection();
         let allow_highlight = matches!(

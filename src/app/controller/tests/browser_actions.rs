@@ -257,7 +257,7 @@ fn exporting_selection_updates_entries_and_db() {
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).unwrap();
     let renderer = WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());

@@ -65,7 +65,7 @@ impl FolderBrowserModel {
     }
 }
 
-impl EguiController {
+impl AppController {
     /// Apply a completed disk scan result to the folder browser cache.
     pub(crate) fn apply_folder_scan_result(
         &mut self,

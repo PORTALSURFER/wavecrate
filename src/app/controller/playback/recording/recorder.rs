@@ -4,16 +4,16 @@ use super::*;
 use crate::audio::{AudioRecorder, InputMonitor, RecordingOutcome};
 use std::time::Instant;
 
-pub(crate) fn is_recording(controller: &EguiController) -> bool {
+pub(crate) fn is_recording(controller: &AppController) -> bool {
     controller.audio.recorder.is_some()
 }
 
-pub(crate) fn start_recording(controller: &mut EguiController) -> Result<(), String> {
+pub(crate) fn start_recording(controller: &mut AppController) -> Result<(), String> {
     start_recording_in_current_source(controller)
 }
 
 pub(crate) fn start_recording_in_current_source(
-    controller: &mut EguiController,
+    controller: &mut AppController,
 ) -> Result<(), String> {
     if is_recording(controller) {
         return Ok(());
@@ -50,7 +50,7 @@ pub(crate) fn start_recording_in_current_source(
 }
 
 pub(crate) fn stop_recording(
-    controller: &mut EguiController,
+    controller: &mut AppController,
 ) -> Result<Option<RecordingOutcome>, String> {
     let target = controller.audio.recording_target.clone();
     stop_input_monitor(controller);
@@ -98,12 +98,12 @@ pub(crate) fn stop_recording(
     Ok(Some(outcome))
 }
 
-pub(crate) fn stop_recording_and_load(controller: &mut EguiController) -> Result<(), String> {
+pub(crate) fn stop_recording_and_load(controller: &mut AppController) -> Result<(), String> {
     let _ = stop_recording(controller)?;
     Ok(())
 }
 
-pub(crate) fn refresh_output_after_recording(controller: &mut EguiController) {
+pub(crate) fn refresh_output_after_recording(controller: &mut AppController) {
     if !output_host_is_asio(controller) {
         return;
     }
@@ -115,7 +115,7 @@ pub(crate) fn refresh_output_after_recording(controller: &mut EguiController) {
     }
 }
 
-fn output_host_is_asio(controller: &EguiController) -> bool {
+fn output_host_is_asio(controller: &AppController) -> bool {
     let host_id = controller
         .audio
         .player
@@ -127,7 +127,7 @@ fn output_host_is_asio(controller: &EguiController) -> bool {
         .is_some_and(|host| host.eq_ignore_ascii_case("asio"))
 }
 
-pub(crate) fn refresh_recording_waveform(controller: &mut EguiController) {
+pub(crate) fn refresh_recording_waveform(controller: &mut AppController) {
     if !is_recording(controller) {
         controller.audio.recording_target = None;
         controller.runtime.jobs.set_pending_recording_waveform(None);
@@ -179,7 +179,7 @@ pub(crate) fn refresh_recording_waveform(controller: &mut EguiController) {
     }
 }
 
-pub(crate) fn start_input_monitor(controller: &mut EguiController, recorder: &AudioRecorder) {
+pub(crate) fn start_input_monitor(controller: &mut AppController, recorder: &AudioRecorder) {
     if !controller.settings.controls.input_monitoring_enabled {
         return;
     }
@@ -203,7 +203,7 @@ pub(crate) fn start_input_monitor(controller: &mut EguiController, recorder: &Au
     controller.audio.input_monitor = Some(monitor);
 }
 
-pub(crate) fn stop_input_monitor(controller: &mut EguiController) {
+pub(crate) fn stop_input_monitor(controller: &mut AppController) {
     if let Some(recorder) = controller.audio.recorder.as_ref() {
         recorder.detach_monitor();
     }

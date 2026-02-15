@@ -17,7 +17,7 @@ use trash_move::run_trash_move_task;
 #[cfg(test)]
 use trash_move::run_trash_move_task_with_progress;
 
-impl EguiController {
+impl AppController {
     /// Open a folder picker and persist the chosen trash folder.
     pub fn pick_trash_folder(&mut self) {
         let Some(path) = FileDialog::new().pick_folder() else {

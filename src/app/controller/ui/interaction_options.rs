@@ -36,7 +36,7 @@ fn wheel_zoom_factor_to_speed(factor: f32) -> f32 {
     clamp_wheel_zoom_speed(factor.ln() / WHEEL_ZOOM_ANCHOR_FACTOR.ln())
 }
 
-impl EguiController {
+impl AppController {
     /// Set and persist waveform scroll speed (clamped).
     pub fn set_waveform_scroll_speed(&mut self, speed: f32) {
         let clamped = clamp_scroll_speed(speed);

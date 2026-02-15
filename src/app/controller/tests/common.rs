@@ -12,7 +12,7 @@ pub(super) fn max_sample_amplitude(path: &Path) -> f32 {
 }
 
 pub(super) fn prepare_browser_sample(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     source: &SampleSource,
     name: &str,
 ) {
@@ -25,7 +25,7 @@ pub(super) fn prepare_browser_sample(
     controller.rebuild_browser_lists();
 }
 
-pub(super) fn visible_indices(controller: &EguiController) -> Vec<usize> {
+pub(super) fn visible_indices(controller: &AppController) -> Vec<usize> {
     (0..controller.visible_browser_len())
         .filter_map(|row| controller.visible_browser_index(row))
         .collect()

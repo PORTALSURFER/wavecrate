@@ -6,7 +6,7 @@ use crate::app::state::{LoopCrossfadePrompt, LoopCrossfadeSettings, LoopCrossfad
 use hound::SampleFormat;
 use std::path::{Path, PathBuf};
 
-impl EguiController {
+impl AppController {
     /// Open the loop crossfade prompt for a visible browser row.
     pub fn request_loop_crossfade_prompt_for_browser_row(
         &mut self,
@@ -95,7 +95,7 @@ impl EguiController {
 }
 
 fn loop_crossfade_source(
-    controller: &EguiController,
+    controller: &AppController,
     source_id: &SourceId,
 ) -> Result<SampleSource, String> {
     controller
@@ -284,7 +284,7 @@ fn write_loop_crossfade_wav(
 }
 
 fn register_loop_crossfade_entry(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     source: &SampleSource,
     relative_path: &Path,
     absolute_path: &Path,
@@ -316,7 +316,7 @@ fn register_loop_crossfade_entry(
 }
 
 fn maybe_capture_loop_crossfade_undo(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     source: &SampleSource,
     relative_path: &Path,
     absolute_path: &Path,
@@ -344,7 +344,7 @@ fn loop_crossfade_undo_entry(
     absolute_path: PathBuf,
     tag: crate::sample_sources::Rating,
     backup: undo::OverwriteBackup,
-) -> undo::UndoEntry<EguiController> {
+) -> undo::UndoEntry<AppController> {
     let after = backup.after.clone();
     let backup_dir = backup.dir.clone();
     let undo_source_id = source_id.clone();
@@ -353,9 +353,9 @@ fn loop_crossfade_undo_entry(
     let redo_relative = relative_path;
     let undo_absolute = absolute_path.clone();
     let redo_absolute = absolute_path;
-    undo::UndoEntry::<EguiController>::new(
+    undo::UndoEntry::<AppController>::new(
         label,
-        move |controller: &mut EguiController| {
+        move |controller: &mut AppController| {
             let source = loop_crossfade_source(controller, &undo_source_id)?;
             Ok(undo::UndoExecution::Deferred(UndoFileJob::RemoveSample {
                 source_id: undo_source_id.clone(),
@@ -364,7 +364,7 @@ fn loop_crossfade_undo_entry(
                 absolute_path: undo_absolute.clone(),
             }))
         },
-        move |controller: &mut EguiController| {
+        move |controller: &mut AppController| {
             let source = loop_crossfade_source(controller, &redo_source_id)?;
             Ok(undo::UndoExecution::Deferred(UndoFileJob::RestoreSample {
                 source_id: redo_source_id.clone(),

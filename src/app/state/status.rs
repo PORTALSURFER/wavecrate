@@ -1,4 +1,17 @@
-use crate::app::ui::style::StatusTone;
+/// Status tone variants used to indicate operation outcome in the status bar.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum StatusTone {
+    /// Idle/neutral status.
+    Idle,
+    /// Busy/working status.
+    Busy,
+    /// Informational status.
+    Info,
+    /// Warning status.
+    Warning,
+    /// Error status.
+    Error,
+}
 
 /// Status badge + text shown in the footer.
 #[derive(Clone, Debug, PartialEq)]

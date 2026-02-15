@@ -2,7 +2,7 @@ use super::super::*;
 use crate::app::state::RootFolderFilterMode;
 use std::collections::BTreeSet;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn folder_selection_for_filter(&self) -> Option<&BTreeSet<PathBuf>> {
         let id = self.selection_state.ctx.selected_source.as_ref()?;
         self.ui_cache

@@ -1,6 +1,6 @@
 use super::super::*;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn set_folder_search(&mut self, query: String) {
         if self.selection_state.ctx.selected_source.is_none() {
             self.ui.sources.folders.search_query = query;

@@ -1,6 +1,6 @@
 use super::super::{DragDropController, file_metadata};
 use crate::app::state::DragSample;
-use crate::app::ui::style::StatusTone;
+use crate::app::controller::StatusTone;
 use crate::sample_sources::{Rating, SourceId, WavEntry};
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};

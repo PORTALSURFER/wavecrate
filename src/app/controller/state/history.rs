@@ -6,9 +6,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
 pub(crate) struct ControllerHistoryState {
-    pub(crate) undo_stack: undo::UndoStack<super::super::EguiController>,
+    pub(crate) undo_stack: undo::UndoStack<super::super::AppController>,
     /// Deferred undo/redo action awaiting filesystem completion.
-    pub(crate) pending_undo: Option<undo::DeferredUndo<super::super::EguiController>>,
+    pub(crate) pending_undo: Option<undo::DeferredUndo<super::super::AppController>>,
     pub(crate) random_history: RandomHistoryState,
     pub(crate) focus_history: FocusHistoryState,
 }

@@ -1,6 +1,6 @@
 //! Crash recovery support for staged folder deletes.
 
-use crate::app::controller::EguiController;
+use crate::app::controller::AppController;
 use crate::app::controller::jobs::JobMessage;
 use crate::app::controller::library::source_cache_invalidator;
 use crate::app::state::{
@@ -201,7 +201,7 @@ pub(crate) fn recover_staged_deletes(sources: &[SampleSource]) -> DeleteRecovery
     report
 }
 
-impl EguiController {
+impl AppController {
     /// Start background recovery for staged folder deletes after the UI is ready.
     pub(crate) fn start_folder_delete_recovery_if_needed(&mut self) {
         if self.runtime.delete_recovery_started {
@@ -290,9 +290,9 @@ impl EguiController {
                 message.push_str(&format!(" ({} error(s))", error_count));
             }
             let tone = if failed > 0 || !report.errors.is_empty() {
-                crate::app::ui::style::StatusTone::Warning
+                crate::app::controller::StatusTone::Warning
             } else {
-                crate::app::ui::style::StatusTone::Info
+                crate::app::controller::StatusTone::Info
             };
             self.set_status(message, tone);
         } else if !report.errors.is_empty() {
@@ -301,7 +301,7 @@ impl EguiController {
                     "Delete recovery encountered {} error(s)",
                     report.errors.len()
                 ),
-                crate::app::ui::style::StatusTone::Warning,
+                crate::app::controller::StatusTone::Warning,
             );
         }
         for err in report.errors {

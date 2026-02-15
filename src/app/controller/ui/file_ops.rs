@@ -9,7 +9,7 @@ use crate::app::controller::undo::{DeferredUndo, UndoDirection};
 use crate::app::controller::undo_jobs;
 use std::sync::{Arc, atomic::AtomicBool};
 
-impl EguiController {
+impl AppController {
     /// Apply a completed background file operation to controller state.
     pub(crate) fn apply_file_op_result(&mut self, result: FileOpResult) {
         match result {
@@ -128,7 +128,7 @@ impl EguiController {
     }
 
     /// Start a deferred undo/redo job and track its completion.
-    pub(crate) fn begin_deferred_undo_job(&mut self, pending: DeferredUndo<EguiController>) {
+    pub(crate) fn begin_deferred_undo_job(&mut self, pending: DeferredUndo<AppController>) {
         let label = pending.entry.label.clone();
         let direction = pending.direction;
         let job = pending.job.clone();
@@ -240,7 +240,7 @@ impl EguiController {
         }
     }
 
-    fn commit_deferred_entry(&mut self, pending: DeferredUndo<EguiController>) {
+    fn commit_deferred_entry(&mut self, pending: DeferredUndo<AppController>) {
         match pending.direction {
             UndoDirection::Undo => {
                 let label = pending.entry.label.clone();
@@ -255,7 +255,7 @@ impl EguiController {
         }
     }
 
-    fn restore_deferred_entry(&mut self, pending: DeferredUndo<EguiController>) {
+    fn restore_deferred_entry(&mut self, pending: DeferredUndo<AppController>) {
         match pending.direction {
             UndoDirection::Undo => {
                 self.history.undo_stack.restore_undo_entry(pending.entry);

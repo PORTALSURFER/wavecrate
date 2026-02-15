@@ -1,6 +1,6 @@
 use super::*;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn focus_waveform(&mut self) {
         self.waveform().focus_waveform();
     }

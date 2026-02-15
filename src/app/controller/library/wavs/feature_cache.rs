@@ -8,7 +8,7 @@ use std::path::Path;
 
 const ANALYSIS_JOB_TYPE: &str = "wav_metadata_v1";
 
-impl EguiController {
+impl AppController {
     pub(crate) fn prepare_feature_cache_for_browser(&mut self) {
         let Some(source_id) = self.selection_state.ctx.selected_source.clone() else {
             return;
@@ -17,7 +17,7 @@ impl EguiController {
             self.ui_cache.browser.features.remove(&source_id);
             self.set_status(
                 format!("Failed to load analysis metadata: {err}"),
-                crate::app::ui::style::StatusTone::Error,
+                crate::app::controller::StatusTone::Error,
             );
         }
     }
@@ -209,7 +209,7 @@ impl EguiController {
     }
 }
 
-impl EguiController {
+impl AppController {
     /// Update the cached long-sample marker for a sample if the feature cache is live.
     pub(crate) fn update_cached_long_mark_for_path(
         &mut self,

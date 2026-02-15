@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 const WATCHER_SYNC_INTERVAL: Duration = Duration::from_secs(2);
 
-impl EguiController {
+impl AppController {
     /// Trigger a quick sync (incremental scan) of the selected source.
     pub fn request_quick_sync(&mut self) {
         self.request_scan_with_mode(ScanMode::Quick, ScanKind::Manual);

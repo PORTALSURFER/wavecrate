@@ -1,5 +1,5 @@
 use super::super::{DragDropController, file_metadata};
-use crate::app::ui::style::StatusTone;
+use crate::app::controller::StatusTone;
 use crate::sample_sources::SourceId;
 use std::fs;
 use std::path::PathBuf;

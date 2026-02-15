@@ -12,7 +12,7 @@ const RECORDING_REFRESH_INTERVAL: Duration = Duration::from_millis(60);
 const RECORDING_MAX_FULL_FRAMES: usize = 2_500_000;
 const RECORDING_MAX_PEAK_BUCKETS: usize = 1_000_000;
 
-impl EguiController {
+impl AppController {
     /// Return true if a recording session is active.
     pub fn is_recording(&self) -> bool {
         recorder::is_recording(self)

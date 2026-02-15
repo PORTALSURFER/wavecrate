@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::state::ProgressTaskKind;
 
-impl EguiController {
+impl AppController {
     /// Show status-bar progress without the modal overlay.
     pub(crate) fn show_status_progress(
         &mut self,

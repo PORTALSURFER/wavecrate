@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) fn tag_selected(controller: &mut EguiController, target: crate::sample_sources::Rating) {
+pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample_sources::Rating) {
     let Some(selected_index) = controller.selected_row_index() else {
         return;
     };
@@ -62,9 +62,9 @@ pub(crate) fn tag_selected(controller: &mut EguiController, target: crate::sampl
             .map(|(source_id, path, _)| (source_id.clone(), path.clone(), target))
             .collect();
         let refocus_path_undo = refocus_path.clone();
-        controller.push_undo_entry(super::undo::UndoEntry::<EguiController>::new(
+        controller.push_undo_entry(super::undo::UndoEntry::<AppController>::new(
             label,
-            move |controller: &mut EguiController| {
+            move |controller: &mut AppController| {
                 for (source_id, path, tag) in applied.iter() {
                     let source = controller
                         .library
@@ -83,7 +83,7 @@ pub(crate) fn tag_selected(controller: &mut EguiController, target: crate::sampl
                 }
                 Ok(super::undo::UndoExecution::Applied)
             },
-            move |controller: &mut EguiController| {
+            move |controller: &mut AppController| {
                 for (source_id, path, tag) in redo_updates.iter() {
                     let source = controller
                         .library
@@ -117,7 +117,7 @@ pub(crate) fn tag_selected(controller: &mut EguiController, target: crate::sampl
     }
 }
 
-pub(crate) fn move_selection_column(controller: &mut EguiController, delta: isize) {
+pub(crate) fn move_selection_column(controller: &mut AppController, delta: isize) {
     use crate::app::state::TriageFlagFilter::*;
     let filters = [All, Keep, Trash, Untagged];
     let current = controller.ui.browser.filter;
@@ -127,7 +127,7 @@ pub(crate) fn move_selection_column(controller: &mut EguiController, delta: isiz
     controller.set_browser_filter(target);
 }
 
-pub(crate) fn tag_selected_left(controller: &mut EguiController) {
+pub(crate) fn tag_selected_left(controller: &mut AppController) {
     let target = match controller.selected_tag() {
         Some(tag) if tag.is_keep() => crate::sample_sources::Rating::NEUTRAL,
         _ => crate::sample_sources::Rating::TRASH_3,
@@ -135,7 +135,7 @@ pub(crate) fn tag_selected_left(controller: &mut EguiController) {
     controller.tag_selected(target);
 }
 
-pub(crate) fn adjust_selected_rating(controller: &mut EguiController, delta: i8) {
+pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) {
     let Some(selected_index) = controller.selected_row_index() else {
         return;
     };
@@ -222,9 +222,9 @@ pub(crate) fn adjust_selected_rating(controller: &mut EguiController, delta: i8)
         let undo_values = previous_values;
         let refocus_path_undo = refocus_path.clone();
 
-        controller.push_undo_entry(super::undo::UndoEntry::<EguiController>::new(
+        controller.push_undo_entry(super::undo::UndoEntry::<AppController>::new(
             label,
-            move |controller: &mut EguiController| {
+            move |controller: &mut AppController| {
                 for (source_id, path, tag) in undo_values.iter() {
                     let source = controller
                         .library
@@ -243,7 +243,7 @@ pub(crate) fn adjust_selected_rating(controller: &mut EguiController, delta: i8)
                 }
                 Ok(super::undo::UndoExecution::Applied)
             },
-            move |controller: &mut EguiController| {
+            move |controller: &mut AppController| {
                 for (source_id, path, tag) in redo_updates.iter() {
                     let source = controller
                         .library

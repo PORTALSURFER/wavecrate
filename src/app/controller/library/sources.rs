@@ -2,7 +2,7 @@ use super::*;
 use std::fs;
 use std::path::Path;
 
-impl EguiController {
+impl AppController {
     /// Select the first available source or refresh the current one.
     pub fn select_first_source(&mut self) {
         if self.selection_state.ctx.selected_source.is_none() {

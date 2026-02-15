@@ -12,7 +12,7 @@ fn sample_drop_to_folder_moves_and_updates_state() {
     let root = temp.path().join("source");
     std::fs::create_dir_all(root.join("dest")).unwrap();
     let renderer = WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -67,7 +67,7 @@ fn sample_drop_to_folder_rejects_conflicts() {
     write_test_wav(&root.join("one.wav"), &[0.1, 0.2]);
     write_test_wav(&dest.join("one.wav"), &[0.3, 0.4]);
     let renderer = WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());

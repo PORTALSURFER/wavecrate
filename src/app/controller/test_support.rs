@@ -3,9 +3,9 @@ use hound::{SampleFormat, WavSpec, WavWriter};
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
-pub(super) fn dummy_controller() -> (EguiController, SampleSource) {
+pub(super) fn dummy_controller() -> (AppController, SampleSource) {
     let renderer = WaveformRenderer::new(10, 10);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let dir = tempdir().unwrap();
     let root_dir = dir.path().to_path_buf();
     let root = root_dir.join("source");
@@ -32,7 +32,7 @@ pub(super) fn sample_entry(name: &str, tag: crate::sample_sources::Rating) -> Wa
 
 pub(super) fn prepare_with_source_and_wav_entries(
     entries: Vec<WavEntry>,
-) -> (EguiController, SampleSource) {
+) -> (AppController, SampleSource) {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.cache_db(&source).unwrap();
@@ -43,7 +43,7 @@ pub(super) fn prepare_with_source_and_wav_entries(
 }
 
 pub(super) fn load_waveform_selection(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     source: &SampleSource,
     filename: &str,
     samples: &[f32],

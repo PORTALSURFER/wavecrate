@@ -2,7 +2,7 @@ use super::*;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-impl EguiController {
+impl AppController {
     /// Copy either the current waveform selection (as a new wav file) or the currently selected
     /// samples to the system clipboard as file drops.
     pub fn copy_selection_to_clipboard(&mut self) {
@@ -160,7 +160,7 @@ mod tests {
         std::fs::create_dir_all(&source_root).unwrap();
 
         let renderer = crate::waveform::WaveformRenderer::new(12, 12);
-        let mut controller = EguiController::new(renderer, None);
+        let mut controller = AppController::new(renderer, None);
         let source = SampleSource::new(source_root.clone());
         controller.library.sources.push(source.clone());
         controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -191,7 +191,7 @@ mod tests {
     #[test]
     fn copy_flash_paths_prefers_browser_selection() {
         let renderer = crate::waveform::WaveformRenderer::new(8, 8);
-        let mut controller = EguiController::new(renderer, None);
+        let mut controller = AppController::new(renderer, None);
         controller.ui.browser.selected_paths =
             vec![PathBuf::from("alpha.wav"), PathBuf::from("beta.wav")];
         controller.sample_view.wav.selected_wav = Some(PathBuf::from("fallback.wav"));

@@ -15,7 +15,7 @@ fn drop_target_copy_duplicates_sample() {
     let dest = root.join("dest");
     std::fs::create_dir_all(&dest).unwrap();
     let renderer = WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -67,7 +67,7 @@ fn drop_target_panel_accepts_folder_drag() {
     let target = root.join("targets");
     std::fs::create_dir_all(&target).unwrap();
     let renderer = WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source.clone());
 
@@ -100,7 +100,7 @@ fn drop_target_drag_reorders_list() {
     std::fs::create_dir_all(&b).unwrap();
     std::fs::create_dir_all(&c).unwrap();
     let renderer = WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source);
     controller.settings.drop_targets = vec![

@@ -1,4 +1,4 @@
-use crate::app::controller::EguiController;
+use crate::app::controller::AppController;
 use crate::app::controller::test_support::write_test_wav;
 use crate::sample_sources::SampleSource;
 use crate::selection::SelectionRange;
@@ -13,7 +13,7 @@ fn next_slice_path_in_dir_skips_existing_suffixes() {
     std::fs::write(root.join("clip_slice002.wav"), b"").unwrap();
 
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.to_path_buf());
     controller.library.sources.push(source.clone());
 
@@ -29,7 +29,7 @@ fn accept_waveform_slices_exports_files() {
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).unwrap();
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source.clone());
     controller.cache_db(&source).unwrap();
@@ -55,7 +55,7 @@ fn detect_waveform_slices_uses_transients_when_enabled() {
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).unwrap();
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source.clone());
     controller.cache_db(&source).unwrap();
@@ -82,7 +82,7 @@ fn detect_waveform_slices_uses_transients_when_enabled() {
 #[test]
 fn apply_painted_slice_cuts_existing_ranges() {
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     controller.ui.waveform.slices = vec![SelectionRange::new(0.2, 0.8)];
 
     let added = controller.apply_painted_slice(SelectionRange::new(0.4, 0.6));
@@ -109,7 +109,7 @@ fn detect_waveform_slices_skips_silent_segments_with_transients() {
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).unwrap();
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source.clone());
     controller.cache_db(&source).unwrap();
@@ -140,7 +140,7 @@ fn detect_waveform_slices_skips_silent_segments_with_transients() {
 #[test]
 fn delete_selected_slices_removes_marked_ranges() {
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     controller.ui.waveform.slices = vec![
         SelectionRange::new(0.0, 0.2),
         SelectionRange::new(0.3, 0.4),
@@ -162,7 +162,7 @@ fn delete_selected_slices_removes_marked_ranges() {
 #[test]
 fn merge_selected_slices_spans_between_markers() {
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     controller.ui.waveform.slices = vec![
         SelectionRange::new(0.1, 0.2),
         SelectionRange::new(0.35, 0.45),

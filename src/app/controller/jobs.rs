@@ -1283,7 +1283,7 @@ impl ControllerJobs {
         let tx = self.message_tx.clone();
         let signal = self.repaint_signal.clone();
         thread::spawn(move || {
-            // We need a way to call the normalization logic without the EguiController instance
+            // We need a way to call the normalization logic without the AppController instance
             // since that's not thread-safe. The core logic is in analysis::audio.
             // But we also need database access for tags.
             let source_id = job.source.id.clone();
@@ -1313,7 +1313,7 @@ impl ControllerJobs {
                 let (file_size, modified_ns) =
                     super::library::wav_io::file_metadata(&job.absolute_path)?;
 
-                // For the tag, we'll need to open the DB again since we don't have EguiController.
+                // For the tag, we'll need to open the DB again since we don't have AppController.
                 let db = job
                     .source
                     .open_db()

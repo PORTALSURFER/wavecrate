@@ -12,7 +12,7 @@ use std::sync::{
     mpsc::Sender,
 };
 
-impl EguiController {
+impl AppController {
     /// Paste file paths from the system clipboard into the active source.
     pub fn paste_files_from_clipboard(&mut self) -> bool {
         let paths = match read_clipboard_paths() {
@@ -96,7 +96,7 @@ impl EguiController {
 }
 
 #[cfg(test)]
-impl EguiController {
+impl AppController {
     /// Import external audio files synchronously for tests without spawning background jobs.
     pub(crate) fn import_external_files_to_source_folder_for_tests(
         &mut self,
@@ -164,7 +164,7 @@ fn read_clipboard_paths() -> Result<Option<Vec<PathBuf>>, String> {
     }
 }
 
-impl EguiController {
+impl AppController {
     fn begin_clipboard_paste_job(&mut self, job: ClipboardPasteJob, title: &str) {
         if job.paths.is_empty() {
             self.set_status(

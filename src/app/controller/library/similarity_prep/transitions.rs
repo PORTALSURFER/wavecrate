@@ -1,6 +1,6 @@
 use super::state;
 use super::store::{DbSimilarityPrepStore, SimilarityPrepStore};
-use crate::app::controller::{EguiController, jobs, library::analysis_jobs};
+use crate::app::controller::{AppController, jobs, library::analysis_jobs};
 use crate::app::state::ProgressTaskKind;
 use crate::sample_sources::SourceId;
 use state::SimilarityPrepStage;
@@ -25,7 +25,7 @@ fn matches_similarity_stage(
         .is_some_and(|entry| entry.source_id == *source_id && entry.stage == stage)
 }
 
-impl EguiController {
+impl AppController {
     pub(crate) fn handle_similarity_scan_finished(
         &mut self,
         source_id: &SourceId,

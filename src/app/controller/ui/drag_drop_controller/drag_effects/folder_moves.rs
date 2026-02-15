@@ -4,7 +4,7 @@ use crate::app::controller::jobs::{
     FolderSampleMoveRequest, FolderSampleMoveResult,
 };
 use crate::app::state::{DragSample, ProgressTaskKind};
-use crate::app::ui::style::StatusTone;
+use crate::app::controller::StatusTone;
 use crate::sample_sources::db::file_ops_journal;
 use crate::sample_sources::{SourceDatabase, SourceId, WavEntry};
 use std::path::{Path, PathBuf};

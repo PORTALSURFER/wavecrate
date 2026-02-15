@@ -2,7 +2,7 @@ use super::*;
 use std::collections::HashSet;
 use std::path::Path;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn sync_missing_from_db(&mut self, source_id: &SourceId) {
         let Some(source) = self
             .library

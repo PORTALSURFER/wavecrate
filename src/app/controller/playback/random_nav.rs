@@ -4,23 +4,23 @@ use rand::seq::IteratorRandom;
 #[cfg(test)]
 use rand::{SeedableRng, rngs::StdRng};
 
-pub(crate) fn play_random_visible_sample(controller: &mut EguiController) {
+pub(crate) fn play_random_visible_sample(controller: &mut AppController) {
     let mut rng = rand::rng();
     play_random_visible_sample_internal(controller, &mut rng, super::SHOULD_PLAY_RANDOM_SAMPLE);
 }
 
 #[cfg(test)]
-pub(crate) fn play_random_visible_sample_with_seed(controller: &mut EguiController, seed: u64) {
+pub(crate) fn play_random_visible_sample_with_seed(controller: &mut AppController, seed: u64) {
     let mut rng = StdRng::seed_from_u64(seed);
     play_random_visible_sample_internal(controller, &mut rng, false);
 }
 
-pub(crate) fn focus_random_visible_sample(controller: &mut EguiController) {
+pub(crate) fn focus_random_visible_sample(controller: &mut AppController) {
     let mut rng = rand::rng();
     play_random_visible_sample_internal(controller, &mut rng, false);
 }
 
-pub(crate) fn play_previous_random_sample(controller: &mut EguiController) {
+pub(crate) fn play_previous_random_sample(controller: &mut AppController) {
     if controller.history.random_history.entries.is_empty() {
         controller.set_status_message(StatusMessage::RandomHistoryEmpty);
         return;
@@ -51,7 +51,7 @@ pub(crate) fn play_previous_random_sample(controller: &mut EguiController) {
     }
 }
 
-pub(crate) fn toggle_random_navigation_mode(controller: &mut EguiController) {
+pub(crate) fn toggle_random_navigation_mode(controller: &mut AppController) {
     controller.ui.browser.random_navigation_mode = !controller.ui.browser.random_navigation_mode;
     if controller.ui.browser.random_navigation_mode {
         controller.set_status_message(StatusMessage::custom(
@@ -63,12 +63,12 @@ pub(crate) fn toggle_random_navigation_mode(controller: &mut EguiController) {
     }
 }
 
-pub(crate) fn random_navigation_mode_enabled(controller: &EguiController) -> bool {
+pub(crate) fn random_navigation_mode_enabled(controller: &AppController) -> bool {
     controller.ui.browser.random_navigation_mode
 }
 
 fn play_random_visible_sample_internal<R: Rng + ?Sized>(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     rng: &mut R,
     start_playback: bool,
 ) {
@@ -138,7 +138,7 @@ fn play_random_visible_sample_internal<R: Rng + ?Sized>(
 }
 
 fn push_random_history(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     source_id: SourceId,
     relative_path: PathBuf,
 ) {
@@ -175,7 +175,7 @@ fn push_random_history(
     );
 }
 
-fn play_random_history_entry(controller: &mut EguiController, entry: RandomHistoryEntry) {
+fn play_random_history_entry(controller: &mut AppController, entry: RandomHistoryEntry) {
     if controller.selection_state.ctx.selected_source.as_ref() != Some(&entry.source_id) {
         controller
             .runtime

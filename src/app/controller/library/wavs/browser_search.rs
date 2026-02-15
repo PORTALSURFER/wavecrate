@@ -24,7 +24,7 @@ impl BrowserSearchCache {
     }
 }
 
-impl EguiController {
+impl AppController {
     pub(crate) fn build_visible_rows(
         &mut self,
         focused_index: Option<usize>,
@@ -377,7 +377,7 @@ impl EguiController {
     }
 }
 
-pub(crate) fn set_browser_filter(controller: &mut EguiController, filter: TriageFlagFilter) {
+pub(crate) fn set_browser_filter(controller: &mut AppController, filter: TriageFlagFilter) {
     if controller.ui.browser.filter != filter {
         controller.ui.browser.filter = filter;
         controller.rebuild_browser_lists();
@@ -386,7 +386,7 @@ pub(crate) fn set_browser_filter(controller: &mut EguiController, filter: Triage
 
 /// Update the browser rating filter selection.
 pub(crate) fn set_browser_rating_filter(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     level: i8,
     additive: bool,
 ) {
@@ -414,7 +414,7 @@ pub(crate) fn set_browser_rating_filter(
 }
 
 /// Clear all browser rating filters.
-pub(crate) fn clear_browser_rating_filter(controller: &mut EguiController) {
+pub(crate) fn clear_browser_rating_filter(controller: &mut AppController) {
     if controller.ui.browser.rating_filter.is_empty() {
         return;
     }
@@ -422,7 +422,7 @@ pub(crate) fn clear_browser_rating_filter(controller: &mut EguiController) {
     controller.rebuild_browser_lists();
 }
 
-pub(crate) fn set_browser_sort(controller: &mut EguiController, sort: SampleBrowserSort) {
+pub(crate) fn set_browser_sort(controller: &mut AppController, sort: SampleBrowserSort) {
     if controller.ui.browser.sort != sort {
         controller.ui.browser.sort = sort;
         if sort != SampleBrowserSort::Similarity {
@@ -432,12 +432,12 @@ pub(crate) fn set_browser_sort(controller: &mut EguiController, sort: SampleBrow
     }
 }
 
-pub(crate) fn focus_browser_search(controller: &mut EguiController) {
+pub(crate) fn focus_browser_search(controller: &mut AppController) {
     controller.ui.browser.search_focus_requested = true;
     controller.focus_browser_context();
 }
 
-pub(crate) fn set_browser_search(controller: &mut EguiController, query: impl Into<String>) {
+pub(crate) fn set_browser_search(controller: &mut AppController, query: impl Into<String>) {
     let query = query.into();
     if controller.ui.browser.search_query == query {
         return;
@@ -450,7 +450,7 @@ pub(crate) fn set_browser_search(controller: &mut EguiController, query: impl In
 }
 
 fn sort_visible_by_playback_age(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     visible: &mut Vec<usize>,
     ascending: bool,
 ) {

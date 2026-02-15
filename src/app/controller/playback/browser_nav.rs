@@ -1,6 +1,6 @@
 use super::*;
 
-pub(crate) fn nudge_selection(controller: &mut EguiController, offset: isize) {
+pub(crate) fn nudge_selection(controller: &mut AppController, offset: isize) {
     let list_len = controller.visible_browser_len();
     if list_len == 0 {
         return;
@@ -10,7 +10,7 @@ pub(crate) fn nudge_selection(controller: &mut EguiController, offset: isize) {
     let _ = controller.play_audio(controller.ui.waveform.loop_enabled, None);
 }
 
-pub(crate) fn grow_selection(controller: &mut EguiController, offset: isize) {
+pub(crate) fn grow_selection(controller: &mut AppController, offset: isize) {
     let list_len = controller.visible_browser_len();
     if list_len == 0 {
         return;
@@ -21,7 +21,7 @@ pub(crate) fn grow_selection(controller: &mut EguiController, offset: isize) {
 }
 
 fn visible_row_after_offset(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     offset: isize,
     list_len: usize,
 ) -> usize {

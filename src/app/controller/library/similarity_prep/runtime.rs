@@ -1,14 +1,14 @@
 use super::DEFAULT_CLUSTER_MIN_SIZE;
 use super::store::{DbSimilarityPrepStore, SimilarityPrepStore};
 use crate::analysis::hdbscan::{HdbscanConfig, HdbscanMethod};
-use crate::app::controller::EguiController;
+use crate::app::controller::AppController;
 use crate::app::controller::jobs;
 use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::{SampleSource, SourceId};
 use std::thread;
 use tracing::info;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn apply_similarity_prep_duration_cap(&mut self) {
         let max_duration = if self.similarity_prep_duration_cap_enabled() {
             self.settings.analysis.max_analysis_duration_seconds

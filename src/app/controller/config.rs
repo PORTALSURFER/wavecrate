@@ -1,7 +1,7 @@
 use super::ui::interaction_options::{clamp_scroll_speed, clamp_zoom_factor};
 use super::*;
 
-impl EguiController {
+impl AppController {
     /// Load persisted configuration and populate initial UI state.
     pub fn load_configuration(&mut self) -> Result<(), crate::sample_sources::config::ConfigError> {
         let cfg = crate::sample_sources::config::load_or_default()?;

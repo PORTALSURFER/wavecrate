@@ -3,7 +3,7 @@ use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::library::wav_entries_loader;
 use crate::app::controller::{LoadEntriesError, WavLoadJob};
 use crate::sample_sources::WavEntry;
-impl EguiController {
+impl AppController {
     pub(crate) fn sync_after_wav_entries_changed(&mut self) {
         self.rebuild_wav_lookup();
         self.ui_cache.browser.search.invalidate();

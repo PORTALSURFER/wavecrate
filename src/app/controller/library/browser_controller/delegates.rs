@@ -2,7 +2,7 @@ use super::*;
 use crate::app::state::LoopCrossfadeSettings;
 use tracing::warn;
 
-impl EguiController {
+impl AppController {
     /// Apply a keep/trash/neutral tag to a single visible browser row.
     pub fn tag_browser_sample(
         &mut self,

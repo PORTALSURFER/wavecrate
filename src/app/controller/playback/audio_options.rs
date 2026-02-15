@@ -89,7 +89,7 @@ pub(crate) fn normalize_audio_options(
     }
 }
 
-impl EguiController {
+impl AppController {
     /// Refresh available audio hosts/devices and normalize the selected configuration.
     pub(crate) fn refresh_audio_options(&mut self, probe_rates: bool) {
         let previous = self.ui.audio.selected.clone();

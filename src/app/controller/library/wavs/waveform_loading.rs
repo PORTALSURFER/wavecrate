@@ -4,7 +4,7 @@ use crate::app::controller::playback::audio_samples::{
 };
 use crate::app::state::WaveformView;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn load_waveform_for_selection(
         &mut self,
         source: &SampleSource,

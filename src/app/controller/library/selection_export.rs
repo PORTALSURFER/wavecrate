@@ -9,7 +9,7 @@ use crate::app::controller::playback::audio_samples::{
 };
 use rusqlite::params;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn export_selection_clip(
         &mut self,
         source_id: &SourceId,

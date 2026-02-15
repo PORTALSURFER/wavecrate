@@ -2,17 +2,17 @@ use super::*;
 use crate::app::controller::jobs::NormalizationJob;
 
 pub(crate) struct BrowserController<'a> {
-    controller: &'a mut EguiController,
+    controller: &'a mut AppController,
 }
 
 impl<'a> BrowserController<'a> {
-    pub(crate) fn new(controller: &'a mut EguiController) -> Self {
+    pub(crate) fn new(controller: &'a mut AppController) -> Self {
         Self { controller }
     }
 }
 
 impl std::ops::Deref for BrowserController<'_> {
-    type Target = EguiController;
+    type Target = AppController;
 
     fn deref(&self) -> &Self::Target {
         self.controller

@@ -14,7 +14,7 @@ fn export_selection_clip_to_root_can_flatten_name_hint() {
     std::fs::create_dir_all(&clip_root).unwrap();
 
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(source_root.clone());
     controller.library.sources.push(source.clone());
 
@@ -52,7 +52,7 @@ fn next_selection_path_in_dir_strips_existing_suffix() {
     std::fs::write(root.join("clip_sel.wav"), b"").unwrap();
 
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
-    let controller = EguiController::new(renderer, None);
+    let controller = AppController::new(renderer, None);
     let candidate = controller.next_selection_path_in_dir(root, Path::new("clip_sel.wav"));
 
     assert_eq!(candidate, PathBuf::from("clip_sel_2.wav"));
@@ -65,7 +65,7 @@ fn export_selection_clip_marks_loop_and_bpm_when_looping() {
     std::fs::create_dir_all(&source_root).unwrap();
 
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(source_root.clone());
     controller.library.sources.push(source.clone());
 
@@ -107,7 +107,7 @@ fn export_selection_clip_applies_short_edge_fades_when_enabled() {
     std::fs::create_dir_all(&source_root).unwrap();
 
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
-    let mut controller = EguiController::new(renderer, None);
+    let mut controller = AppController::new(renderer, None);
     let source = SampleSource::new(source_root.clone());
     controller.library.sources.push(source.clone());
     controller

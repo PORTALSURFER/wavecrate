@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::state::{DragSample, UiPoint};
 
-impl EguiController {
+impl AppController {
     /// Begin dragging a sample row from the UI.
     pub fn start_sample_drag(
         &mut self,

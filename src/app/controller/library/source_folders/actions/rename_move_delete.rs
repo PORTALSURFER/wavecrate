@@ -4,7 +4,7 @@ use super::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-impl EguiController {
+impl AppController {
     pub(crate) fn delete_focused_folder(&mut self) {
         let Some(target) = self.focused_folder_path() else {
             self.set_status("Focus a folder to delete it", StatusTone::Info);

@@ -5,7 +5,7 @@ use crate::app::state::RunningJobSnapshot;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) fn handle_analysis_message(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     message: AnalysisJobMessage,
 ) {
     match message {

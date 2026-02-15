@@ -6,7 +6,7 @@ use rusqlite::params;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
-fn setup_looping_controller(selection: SelectionRange) -> Option<EguiController> {
+fn setup_looping_controller(selection: SelectionRange) -> Option<AppController> {
     let Some(mut player) = crate::audio::AudioPlayer::playing_for_tests() else {
         return None;
     };

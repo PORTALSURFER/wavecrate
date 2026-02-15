@@ -1,6 +1,6 @@
 use super::super::*;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn drop_folder_focus(&mut self) {
         self.ui.sources.folders.focused = None;
         self.ui.sources.folders.scroll_to = None;

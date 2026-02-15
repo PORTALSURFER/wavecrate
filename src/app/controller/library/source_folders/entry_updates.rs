@@ -2,7 +2,7 @@ use super::*;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-impl EguiController {
+impl AppController {
     pub(crate) fn folder_entries(&mut self, folder: &Path) -> Vec<WavEntry> {
         let mut entries = Vec::new();
         for index in 0..self.wav_entries_len() {

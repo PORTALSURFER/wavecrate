@@ -4,7 +4,7 @@ use crate::app::controller::jobs::{
 };
 use crate::app::controller::library::wav_io::file_metadata;
 use crate::app::state::DragSample;
-use crate::app::ui::style::StatusTone;
+use crate::app::controller::StatusTone;
 use crate::sample_sources::db::file_ops_journal;
 use crate::sample_sources::{Rating, SourceDatabase, SourceId, WavEntry};
 use std::collections::{HashMap, HashSet};
@@ -630,7 +630,7 @@ fn report_progress(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::controller::EguiController;
+    use crate::app::controller::AppController;
     use crate::app::controller::test_support::{sample_entry, write_test_wav};
     use crate::sample_sources::{Rating, SampleSource};
     use crate::waveform::WaveformRenderer;
@@ -646,7 +646,7 @@ mod tests {
         let source = SampleSource::new(source_root);
         let target = SampleSource::new(target_root);
         let renderer = WaveformRenderer::new(10, 10);
-        let mut controller = EguiController::new(renderer, None);
+        let mut controller = AppController::new(renderer, None);
         controller.library.sources.push(source.clone());
         controller.library.sources.push(target.clone());
         controller.selection_state.ctx.selected_source = Some(source.id.clone());

@@ -1,6 +1,6 @@
-//! Controller is being integrated incrementally with the egui renderer.
+//! Controller logic shared by the active native runtime.
 //! This module now delegates responsibilities into focused submodules to
-//! keep files small and behaviour easy to reason about.
+//! keep files small and behavior easy to reason about.
 
 mod library;
 mod playback;
@@ -15,7 +15,7 @@ pub(crate) mod undo;
 mod undo_jobs;
 pub(crate) mod updates;
 
-pub(crate) use crate::app::ui::style::StatusTone;
+pub(crate) use crate::app_core::state::StatusTone;
 use crate::{
     audio::AudioPlayer,
     app::state::UiState,
@@ -50,9 +50,9 @@ pub(crate) const FOCUS_HISTORY_LIMIT: usize = 100;
 pub(crate) const UNDO_LIMIT: usize = 20;
 pub(crate) const STATUS_LOG_LIMIT: usize = 200;
 
-/// Maintains app state and bridges core logic to the egui UI.
+/// Maintains app state and bridges core logic to the active GUI runtime.
 pub struct AppController {
-    /// Mutable UI state shared with egui rendering.
+    /// Mutable UI state shared with native rendering.
     pub ui: UiState,
     audio: ControllerAudioState,
     sample_view: ControllerSampleViewState,
@@ -67,9 +67,6 @@ pub struct AppController {
     #[cfg(target_os = "windows")]
     drag_hwnd: Option<windows::Win32::Foundation::HWND>,
 }
-
-/// Backward-compatible legacy alias kept while migration references are removed.
-pub type EguiController = AppController;
 
 impl AppController {
     /// Create a controller with shared renderer and optional audio player.
@@ -302,7 +299,7 @@ impl AppController {
         }
     }
 
-    pub(crate) fn push_undo_entry(&mut self, entry: undo::UndoEntry<EguiController>) {
+    pub(crate) fn push_undo_entry(&mut self, entry: undo::UndoEntry<AppController>) {
         self.history.undo_stack.push(entry);
     }
 
@@ -343,7 +340,7 @@ impl AppController {
             return;
         }
         let label = label.into();
-        self.push_undo_entry(undo::UndoEntry::<EguiController>::new(
+        self.push_undo_entry(undo::UndoEntry::<AppController>::new(
             label,
             move |controller| {
                 controller.selection_state.range.set_range(before);

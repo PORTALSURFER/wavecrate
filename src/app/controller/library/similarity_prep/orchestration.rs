@@ -1,11 +1,11 @@
 use super::plan::plan_similarity_prep_start;
 use super::state::SimilarityPrepStage;
 use super::store::DbSimilarityPrepStore;
-use crate::app::controller::EguiController;
+use crate::app::controller::AppController;
 use crate::app::controller::ui::status_message::StatusMessage;
-use crate::app::ui::style::StatusTone;
+use crate::app::controller::StatusTone;
 
-impl EguiController {
+impl AppController {
     /// Run similarity prep for the selected source using current settings.
     pub fn prepare_similarity_for_selected_source(&mut self) {
         let force_full_analysis = self.runtime.similarity_prep_force_full_analysis_next;

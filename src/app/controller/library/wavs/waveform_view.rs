@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::state::WaveformView;
 
-pub(crate) fn clear_waveform_view(controller: &mut EguiController) {
+pub(crate) fn clear_waveform_view(controller: &mut AppController) {
     controller.ui.waveform.image = None;
     controller.ui.waveform.notice = None;
     controller.ui.waveform.loading = None;

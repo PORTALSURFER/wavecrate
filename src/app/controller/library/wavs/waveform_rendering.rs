@@ -76,7 +76,7 @@ fn edit_fade_matches(
     }
 }
 
-impl EguiController {
+impl AppController {
     pub(crate) fn min_view_width(&self) -> f64 {
         if let Some(decoded) = self.sample_view.waveform.decoded.as_ref() {
             min_view_width_for_frames(decoded.frame_count(), self.sample_view.waveform.size[0])

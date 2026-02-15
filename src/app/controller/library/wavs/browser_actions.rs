@@ -1,10 +1,10 @@
 use super::*;
 use crate::app::state::{FocusContext, SampleBrowserActionPrompt};
-use crate::app::ui::style::StatusTone;
+use crate::app::controller::StatusTone;
 use crate::app::view_model;
 use std::path::Path;
 
-impl EguiController {
+impl AppController {
     /// Move browser column selection to the requested triage-column index.
     pub fn select_column_by_index(&mut self, target_index: usize) {
         let target_index = target_index.min(2);

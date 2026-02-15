@@ -3,7 +3,7 @@ use super::*;
 use crate::app::state::ProgressTaskKind;
 
 pub(crate) fn handle_scan_progress(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     completed: usize,
     detail: Option<String>,
 ) {
@@ -16,7 +16,7 @@ pub(crate) fn handle_scan_progress(
     progress::update_progress_detail(controller, ProgressTaskKind::Scan, completed, Some(detail));
 }
 
-pub(crate) fn handle_scan_finished(controller: &mut EguiController, result: ScanResult) {
+pub(crate) fn handle_scan_finished(controller: &mut AppController, result: ScanResult) {
     controller.runtime.jobs.clear_scan();
     if controller.ui.progress.task == Some(ProgressTaskKind::Scan) {
         controller.clear_progress();

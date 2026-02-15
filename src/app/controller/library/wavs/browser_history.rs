@@ -1,7 +1,7 @@
 use super::*;
 use std::path::Path;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn focus_previous_sample_history(&mut self) {
         if self.history.focus_history.entries.is_empty() {
             return;
@@ -83,7 +83,7 @@ impl EguiController {
     }
 }
 
-fn focus_history_entry(controller: &mut EguiController, entry: FocusHistoryEntry) {
+fn focus_history_entry(controller: &mut AppController, entry: FocusHistoryEntry) {
     controller.history.focus_history.suspend_push = true;
     controller.focus_browser_context();
     if controller.selection_state.ctx.selected_source.as_ref() != Some(&entry.source_id) {

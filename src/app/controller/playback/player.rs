@@ -2,7 +2,7 @@ use super::*;
 use std::time::{Duration, Instant};
 
 pub(crate) fn play_audio(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     looped: bool,
     start_override: Option<f32>,
 ) -> Result<(), String> {
@@ -132,7 +132,7 @@ pub(crate) fn play_audio(
     Ok(())
 }
 
-fn normalized_audition_gain(controller: &EguiController, start: f32, end: f32) -> f32 {
+fn normalized_audition_gain(controller: &AppController, start: f32, end: f32) -> f32 {
     if !controller.ui.waveform.normalized_audition_enabled {
         return 1.0;
     }
@@ -148,7 +148,7 @@ fn normalized_audition_gain(controller: &EguiController, start: f32, end: f32) -
     1.0 / peak
 }
 
-pub(crate) fn is_playing(controller: &EguiController) -> bool {
+pub(crate) fn is_playing(controller: &AppController) -> bool {
     controller
         .audio
         .player
@@ -157,7 +157,7 @@ pub(crate) fn is_playing(controller: &EguiController) -> bool {
         .unwrap_or(false)
 }
 
-pub(crate) fn tick_playhead(controller: &mut EguiController) {
+pub(crate) fn tick_playhead(controller: &mut AppController) {
     controller.poll_background_jobs();
     let Some(player) = controller.audio.player.as_ref().cloned() else {
         if controller.sample_view.waveform.decoded.is_none() {
@@ -195,7 +195,7 @@ pub(crate) fn tick_playhead(controller: &mut EguiController) {
 }
 
 pub(crate) fn update_playhead_from_progress(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     progress: Option<f32>,
     is_looping: bool,
     is_playing: bool,
@@ -220,7 +220,7 @@ pub(crate) fn update_playhead_from_progress(
     }
 }
 
-fn playhead_completed_span(controller: &EguiController, progress: f32, is_looping: bool) -> bool {
+fn playhead_completed_span(controller: &AppController, progress: f32, is_looping: bool) -> bool {
     if is_looping {
         return false;
     }
@@ -234,7 +234,7 @@ fn playhead_completed_span(controller: &EguiController, progress: f32, is_loopin
     progress + playhead_completion_epsilon(controller) >= target
 }
 
-fn playhead_completion_epsilon(controller: &EguiController) -> f32 {
+fn playhead_completion_epsilon(controller: &AppController) -> f32 {
     let Some(audio) = controller.sample_view.wav.loaded_audio.as_ref() else {
         return super::PLAYHEAD_COMPLETION_EPSILON;
     };
@@ -278,7 +278,7 @@ fn smooth_progress_after_seek(
     seek.position + (progress - seek.position) * eased
 }
 
-pub(crate) fn hide_waveform_playhead(controller: &mut EguiController) {
+pub(crate) fn hide_waveform_playhead(controller: &mut AppController) {
     super::playhead_trail::stash_active_trail(&mut controller.ui.waveform.playhead);
     controller.ui.waveform.playhead.visible = false;
     controller.ui.waveform.playhead.active_span_end = None;
@@ -287,7 +287,7 @@ pub(crate) fn hide_waveform_playhead(controller: &mut EguiController) {
 
 #[cfg(test)]
 pub(crate) fn playhead_completed_span_for_tests(
-    controller: &EguiController,
+    controller: &AppController,
     progress: f32,
     is_looping: bool,
 ) -> bool {
@@ -295,7 +295,7 @@ pub(crate) fn playhead_completed_span_for_tests(
 }
 
 #[cfg(test)]
-pub(crate) fn hide_waveform_playhead_for_tests(controller: &mut EguiController) {
+pub(crate) fn hide_waveform_playhead_for_tests(controller: &mut AppController) {
     hide_waveform_playhead(controller);
 }
 
@@ -329,14 +329,14 @@ mod tests {
 }
 
 /// Update the active playback selection and its cached duration label.
-pub(crate) fn apply_selection(controller: &mut EguiController, range: Option<SelectionRange>) {
+pub(crate) fn apply_selection(controller: &mut AppController, range: Option<SelectionRange>) {
     let label = range.and_then(|selection| selection_duration_label(controller, selection));
     controller.ui.waveform.selection = range;
     controller.ui.waveform.selection_duration = label;
 }
 
 /// Update the edit selection and synchronize edit-fade preview state.
-pub(crate) fn apply_edit_selection(controller: &mut EguiController, range: Option<SelectionRange>) {
+pub(crate) fn apply_edit_selection(controller: &mut AppController, range: Option<SelectionRange>) {
     let previous = controller.ui.waveform.edit_selection;
     controller.ui.waveform.edit_selection = range;
     if let Some(player) = controller.audio.player.as_ref() {
@@ -349,7 +349,7 @@ pub(crate) fn apply_edit_selection(controller: &mut EguiController, range: Optio
     }
 }
 
-pub(crate) fn update_waveform_hover_time(controller: &mut EguiController, position: Option<f32>) {
+pub(crate) fn update_waveform_hover_time(controller: &mut AppController, position: Option<f32>) {
     if let (Some(position), Some(audio)) =
         (position, controller.sample_view.wav.loaded_audio.as_ref())
     {
@@ -362,7 +362,7 @@ pub(crate) fn update_waveform_hover_time(controller: &mut EguiController, positi
 }
 
 pub(crate) fn selection_duration_label(
-    controller: &EguiController,
+    controller: &AppController,
     range: SelectionRange,
 ) -> Option<String> {
     let audio = controller.sample_view.wav.loaded_audio.as_ref()?;
@@ -370,7 +370,7 @@ pub(crate) fn selection_duration_label(
     Some(format_selection_duration(seconds))
 }
 
-pub(crate) fn apply_volume(controller: &mut EguiController, volume: f32) {
+pub(crate) fn apply_volume(controller: &mut AppController, volume: f32) {
     let clamped = volume.clamp(0.0, 1.0);
     controller.ui.volume = clamped;
     if let Some(player) = controller.audio.player.as_ref() {
@@ -379,7 +379,7 @@ pub(crate) fn apply_volume(controller: &mut EguiController, volume: f32) {
 }
 
 pub(crate) fn ensure_player(
-    controller: &mut EguiController,
+    controller: &mut AppController,
 ) -> Result<Option<Rc<RefCell<AudioPlayer>>>, String> {
     if controller.audio.player.is_none() {
         let mut created = AudioPlayer::from_config(&controller.settings.audio_output)
@@ -396,7 +396,7 @@ pub(crate) fn ensure_player(
 }
 
 pub(crate) fn defer_loop_disable_after_cycle(
-    controller: &mut EguiController,
+    controller: &mut AppController,
 ) -> Result<(), String> {
     controller.audio.pending_loop_disable_at = None;
     let Some(player_rc) = controller.ensure_player()? else {

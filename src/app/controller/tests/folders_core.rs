@@ -5,7 +5,7 @@ use crate::app::controller::library::source_folders::delete_recovery;
 use crate::app::state::FocusContext;
 use std::path::{Path, PathBuf};
 
-fn visible_paths(controller: &mut EguiController) -> Vec<PathBuf> {
+fn visible_paths(controller: &mut AppController) -> Vec<PathBuf> {
     (0..controller.visible_browser_len())
         .filter_map(|row| controller.browser_path_for_visible(row))
         .collect()

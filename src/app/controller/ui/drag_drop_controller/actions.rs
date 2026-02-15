@@ -424,7 +424,7 @@ mod external_drag_tests {
     #[test]
     fn external_drag_arms_and_resets_when_pointer_returns() {
         let renderer = WaveformRenderer::new(12, 12);
-        let mut controller = EguiController::new(renderer, None);
+        let mut controller = AppController::new(renderer, None);
         let mut drag = DragDropController::new(&mut controller);
         drag.ui.drag.payload = Some(DragPayload::Sample {
             source_id: SourceId::new(),
@@ -442,7 +442,7 @@ mod external_drag_tests {
     #[test]
     fn external_drag_requires_outside_dwell_time() {
         let renderer = WaveformRenderer::new(12, 12);
-        let mut controller = EguiController::new(renderer, None);
+        let mut controller = AppController::new(renderer, None);
         let mut drag = DragDropController::new(&mut controller);
         drag.ui.drag.payload = Some(DragPayload::Sample {
             source_id: SourceId::new(),
@@ -466,7 +466,7 @@ mod external_drag_tests {
     #[test]
     fn external_drag_arms_on_pointer_gone_then_launches_after_dwell_time() {
         let renderer = WaveformRenderer::new(12, 12);
-        let mut controller = EguiController::new(renderer, None);
+        let mut controller = AppController::new(renderer, None);
         let mut drag = DragDropController::new(&mut controller);
         drag.ui.drag.payload = Some(DragPayload::Sample {
             source_id: SourceId::new(),

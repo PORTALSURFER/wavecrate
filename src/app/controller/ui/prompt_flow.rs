@@ -1,6 +1,6 @@
 use super::*;
 
-impl EguiController {
+impl AppController {
     /// Apply prompt input to the active prompt slot (browser rename, folder rename, or new folder).
     pub fn set_active_prompt_input(&mut self, value: String) {
         if self.set_browser_rename_input(value.clone()) {

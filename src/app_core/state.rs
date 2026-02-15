@@ -185,6 +185,10 @@ impl From<MapRenderMode> for legacy_state::MapRenderMode {
         }
     }
 }
+
+/// Status tone surfaced through migration-facing state projections.
+pub type StatusTone = legacy_state::StatusTone;
+
 /// Pending inline action for the sample browser.
 #[derive(Clone, Debug)]
 pub enum SampleBrowserActionPrompt {

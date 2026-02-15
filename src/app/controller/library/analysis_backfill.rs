@@ -1,7 +1,7 @@
 use super::*;
 use std::path::Path;
 
-impl EguiController {
+impl AppController {
     /// Enqueue analysis for a newly created sample so similarity search stays fresh.
     pub(crate) fn enqueue_similarity_for_new_sample(
         &mut self,

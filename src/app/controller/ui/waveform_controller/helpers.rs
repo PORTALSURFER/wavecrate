@@ -1,17 +1,17 @@
 use super::*;
 
 pub(crate) struct WaveformController<'a> {
-    controller: &'a mut EguiController,
+    controller: &'a mut AppController,
 }
 
 impl<'a> WaveformController<'a> {
-    pub(crate) fn new(controller: &'a mut EguiController) -> Self {
+    pub(crate) fn new(controller: &'a mut AppController) -> Self {
         Self { controller }
     }
 }
 
 impl std::ops::Deref for WaveformController<'_> {
-    type Target = EguiController;
+    type Target = AppController;
 
     fn deref(&self) -> &Self::Target {
         self.controller

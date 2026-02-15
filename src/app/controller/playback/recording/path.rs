@@ -5,7 +5,7 @@ use time::format_description::FormatItem;
 use time::macros::format_description;
 
 pub(crate) fn next_recording_path_in_source(
-    controller: &mut EguiController,
+    controller: &mut AppController,
 ) -> Result<(SampleSource, PathBuf, PathBuf), String> {
     let source = controller
         .current_source()
@@ -33,7 +33,7 @@ pub(crate) fn next_recording_path_in_source(
 }
 
 pub(crate) fn resolve_recording_target(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     target: Option<&RecordingTarget>,
     recording_path: &PathBuf,
 ) -> Result<(SampleSource, PathBuf), String> {
@@ -53,7 +53,7 @@ pub(crate) fn resolve_recording_target(
 }
 
 pub(crate) fn register_recording_in_browser(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     target: Option<&RecordingTarget>,
     recording_path: &PathBuf,
 ) -> Result<(), String> {
@@ -78,7 +78,7 @@ pub(crate) fn register_recording_in_browser(
 }
 
 fn ensure_recordings_source(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     recording_path: &PathBuf,
 ) -> Result<SampleSource, String> {
     let root = recording_path
@@ -153,7 +153,7 @@ fn formatted_timestamp() -> String {
     now.format(&FORMAT).unwrap_or_else(|_| "unknown".into())
 }
 
-fn source_by_id(controller: &EguiController, source_id: &SourceId) -> Option<SampleSource> {
+fn source_by_id(controller: &AppController, source_id: &SourceId) -> Option<SampleSource> {
     controller
         .library
         .sources

@@ -21,7 +21,7 @@ pub(crate) fn clamp_long_sample_threshold_seconds(seconds: f32) -> f32 {
     )
 }
 
-impl EguiController {
+impl AppController {
     /// Return the maximum analysis duration in seconds.
     pub fn max_analysis_duration_seconds(&self) -> f32 {
         self.settings.analysis.max_analysis_duration_seconds

@@ -1,9 +1,9 @@
 use super::{DbSimilarityPrepStore, SimilarityPrepStore, state::SimilarityPrepStage};
-use crate::app::controller::EguiController;
+use crate::app::controller::AppController;
 use crate::app::state::AnalysisProgressSnapshot;
 use tracing::info;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn refresh_similarity_prep_progress(&mut self) {
         let Some(state) = self.runtime.similarity_prep.as_ref() else {
             return;

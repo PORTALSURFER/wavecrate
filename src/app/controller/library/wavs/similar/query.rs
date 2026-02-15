@@ -9,7 +9,7 @@ use rusqlite::params;
 use std::collections::HashMap;
 
 pub(crate) fn build_similar_query_for_sample_id(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     sample_id: &str,
     score_cutoff: Option<f32>,
     label_builder: impl FnOnce(&Path) -> String,
@@ -29,7 +29,7 @@ pub(crate) fn build_similar_query_for_sample_id(
 }
 
 pub(crate) fn build_similarity_query_for_loaded_sample(
-    controller: &mut EguiController,
+    controller: &mut AppController,
 ) -> Result<SimilarQuery, String> {
     let loaded_audio = controller
         .sample_view
@@ -130,7 +130,7 @@ pub(crate) fn build_similarity_query_for_loaded_sample(
 }
 
 pub(crate) fn build_similarity_query_for_audio_path(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     path: &Path,
 ) -> Result<SimilarQuery, String> {
     let source_id = controller
@@ -184,7 +184,7 @@ pub(crate) fn build_similarity_query_for_audio_path(
 }
 
 fn build_similar_query_from_resolved(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     resolved: ResolvedSimilarity,
     label_builder: impl FnOnce(&Path) -> String,
     anchor_override: Option<usize>,
@@ -199,7 +199,7 @@ fn build_similar_query_from_resolved(
 }
 
 fn resolve_anchor_index(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     relative_path: &Path,
     anchor_override: Option<usize>,
 ) -> Option<usize> {

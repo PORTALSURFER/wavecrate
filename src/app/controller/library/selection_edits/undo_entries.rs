@@ -3,7 +3,7 @@ use super::super::*;
 use crate::app::controller::jobs::UndoFileJob;
 use std::path::PathBuf;
 
-impl EguiController {
+impl AppController {
     pub(crate) fn selection_edit_undo_entry(
         &self,
         label: String,
@@ -11,7 +11,7 @@ impl EguiController {
         relative_path: PathBuf,
         absolute_path: PathBuf,
         backup: undo::OverwriteBackup,
-    ) -> undo::UndoEntry<EguiController> {
+    ) -> undo::UndoEntry<AppController> {
         let before = backup.before.clone();
         let after = backup.after.clone();
         let backup_dir = backup.dir.clone();
@@ -21,9 +21,9 @@ impl EguiController {
         let redo_relative = relative_path;
         let undo_absolute = absolute_path.clone();
         let redo_absolute = absolute_path;
-        undo::UndoEntry::<EguiController>::new(
+        undo::UndoEntry::<AppController>::new(
             label,
-            move |controller: &mut EguiController| {
+            move |controller: &mut AppController| {
                 let source = controller
                     .library
                     .sources
@@ -39,7 +39,7 @@ impl EguiController {
                     backup_path: before.clone(),
                 }))
             },
-            move |controller: &mut EguiController| {
+            move |controller: &mut AppController| {
                 let source = controller
                     .library
                     .sources
@@ -67,7 +67,7 @@ impl EguiController {
         absolute_path: PathBuf,
         tag: crate::sample_sources::Rating,
         backup: undo::OverwriteBackup,
-    ) -> undo::UndoEntry<EguiController> {
+    ) -> undo::UndoEntry<AppController> {
         let after = backup.after.clone();
         let backup_dir = backup.dir.clone();
         let undo_source_id = source_id.clone();
@@ -76,9 +76,9 @@ impl EguiController {
         let redo_relative = relative_path;
         let undo_absolute = absolute_path.clone();
         let redo_absolute = absolute_path;
-        undo::UndoEntry::<EguiController>::new(
+        undo::UndoEntry::<AppController>::new(
             label,
-            move |controller: &mut EguiController| {
+            move |controller: &mut AppController| {
                 let source = controller
                     .library
                     .sources
@@ -93,7 +93,7 @@ impl EguiController {
                     absolute_path: undo_absolute.clone(),
                 }))
             },
-            move |controller: &mut EguiController| {
+            move |controller: &mut AppController| {
                 let source = controller
                     .library
                     .sources

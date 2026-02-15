@@ -1,17 +1,17 @@
-use super::EguiController;
+use super::AppController;
 
 pub(crate) struct DragDropController<'a> {
-    controller: &'a mut EguiController,
+    controller: &'a mut AppController,
 }
 
 impl<'a> DragDropController<'a> {
-    pub(crate) fn new(controller: &'a mut EguiController) -> Self {
+    pub(crate) fn new(controller: &'a mut AppController) -> Self {
         Self { controller }
     }
 }
 
 impl std::ops::Deref for DragDropController<'_> {
-    type Target = EguiController;
+    type Target = AppController;
 
     fn deref(&self) -> &Self::Target {
         self.controller

@@ -3,12 +3,12 @@ use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::Rating;
 use tracing::{debug, warn};
 
-pub(crate) fn select_wav_by_path(controller: &mut EguiController, path: &Path) {
+pub(crate) fn select_wav_by_path(controller: &mut AppController, path: &Path) {
     select_wav_by_path_with_rebuild(controller, path, true);
 }
 
 pub(crate) fn select_wav_by_path_with_rebuild(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     path: &Path,
     rebuild: bool,
 ) {
@@ -125,7 +125,7 @@ pub(crate) fn select_wav_by_path_with_rebuild(
     }
 }
 
-pub(crate) fn select_wav_by_index(controller: &mut EguiController, index: usize) {
+pub(crate) fn select_wav_by_index(controller: &mut AppController, index: usize) {
     let path = match controller.wav_entry(index) {
         Some(entry) => entry.relative_path.clone(),
         None => return,
@@ -133,12 +133,12 @@ pub(crate) fn select_wav_by_index(controller: &mut EguiController, index: usize)
     select_wav_by_path(controller, &path);
 }
 
-pub(crate) fn select_from_browser(controller: &mut EguiController, path: &Path) {
+pub(crate) fn select_from_browser(controller: &mut AppController, path: &Path) {
     controller.focus_browser_context();
     select_wav_by_path(controller, path);
 }
 
-pub(crate) fn triage_flag_drop_target(controller: &EguiController) -> TriageFlagColumn {
+pub(crate) fn triage_flag_drop_target(controller: &AppController) -> TriageFlagColumn {
     match controller.ui.browser.filter {
         TriageFlagFilter::All | TriageFlagFilter::Untagged => TriageFlagColumn::Neutral,
         TriageFlagFilter::Keep => TriageFlagColumn::Keep,
@@ -146,14 +146,14 @@ pub(crate) fn triage_flag_drop_target(controller: &EguiController) -> TriageFlag
     }
 }
 
-pub(crate) fn selected_tag(controller: &mut EguiController) -> Option<Rating> {
+pub(crate) fn selected_tag(controller: &mut AppController) -> Option<Rating> {
     controller
         .selected_row_index()
         .and_then(|idx| controller.wav_entry(idx))
         .map(|entry| entry.tag)
 }
 
-pub(crate) fn rebuild_wav_lookup(controller: &mut EguiController) {
+pub(crate) fn rebuild_wav_lookup(controller: &mut AppController) {
     controller.wav_entries.lookup.clear();
     let mut entries = Vec::new();
     for (page_index, page) in controller.wav_entries.pages.iter() {
@@ -168,7 +168,7 @@ pub(crate) fn rebuild_wav_lookup(controller: &mut EguiController) {
 }
 
 pub(crate) fn invalidate_cached_audio_for_entry_updates(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     source_id: &SourceId,
     updates: &[(WavEntry, WavEntry)],
 ) {
@@ -179,7 +179,7 @@ pub(crate) fn invalidate_cached_audio_for_entry_updates(
 }
 
 pub(crate) fn set_sample_tag(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     path: &Path,
     column: TriageFlagColumn,
 ) -> Result<(), String> {
@@ -192,7 +192,7 @@ pub(crate) fn set_sample_tag(
 }
 
 pub(crate) fn set_sample_tag_value(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     path: &Path,
     target_tag: Rating,
 ) -> Result<(), String> {
@@ -203,7 +203,7 @@ pub(crate) fn set_sample_tag_value(
 }
 
 pub(crate) fn set_sample_tag_for_source(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     source: &SampleSource,
     path: &Path,
     target_tag: Rating,
@@ -276,7 +276,7 @@ pub(crate) fn set_sample_tag_for_source(
 }
 
 pub(crate) fn set_sample_looped_for_source(
-    controller: &mut EguiController,
+    controller: &mut AppController,
     source: &SampleSource,
     path: &Path,
     looped: bool,
