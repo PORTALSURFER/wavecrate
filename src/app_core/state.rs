@@ -6,7 +6,7 @@
 //! extracted.
 
 use crate::app_core::actions::NativeBrowserTagTarget;
-use crate::app::state as legacy_state;
+use crate::app_core::legacy::state as legacy_state;
 
 /// Transitional UI state alias used by migration-facing projection code.
 pub type UiState = legacy_state::UiState;

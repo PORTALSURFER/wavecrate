@@ -5,6 +5,7 @@
 
 /// Transitional controller aliases used by migration-facing runtimes and CLIs.
 pub mod controller;
+mod legacy;
 /// Native runtime action/model aliases for migration-facing glue code.
 pub mod actions;
 /// Native runtime bridge implementations for migration-facing runtimes.

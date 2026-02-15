@@ -4,8 +4,10 @@
 //! but exposing it through `app_core` gives runtimes and tooling a stable path
 //! that remains valid while internals are retired.
 
+use crate::app_core::legacy::controller::AppController as LegacyAppController;
+
 /// Transitional controller type used by native runtime bridges and migration CLIs.
-pub type AppController = crate::app::controller::AppController;
+pub type AppController = LegacyAppController;
 
 use std::{cell::RefCell, rc::Rc};
 
