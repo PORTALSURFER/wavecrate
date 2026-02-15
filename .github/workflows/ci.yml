@@ -50,6 +50,9 @@ jobs:
           "CPAL_ASIO_DIR=$sdkDir" >> $env:GITHUB_ENV
       - name: Check formatting
         run: cargo fmt --all -- --check
+      - name: Check migration boundary
+        shell: bash
+        run: ./scripts/check_migration_boundary.sh
       - name: Lint (clippy)
         run: cargo clippy --all-targets
       - name: Run tests

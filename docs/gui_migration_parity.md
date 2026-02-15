@@ -84,6 +84,9 @@ to `radiant` (`native_vello`) as the only runtime path.
 - `app_core::{controller,state,view_model}` now resolve through a dedicated
   internal `app_core::legacy` boundary while continuing to consume internal
   `app` controller/state/view-model modules.
+- Migration-boundary enforcement is now centralized in
+  `scripts/check_migration_boundary.sh`, and CI fails if `app_core` imports
+  direct legacy `crate::app::` paths outside `app_core::legacy`.
 - App-core native-shell projection and native bridge prompt/tab routing now consume
   migration-facing `app_core::{controller,state}` aliases instead of direct
   `app::state` paths in host integration code.
@@ -175,6 +178,9 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
   `src/lib.rs`) once migration consumers no longer require it.
 - [x] Delete legacy layout-only docs (`docs/egui_layout.md`) after porting
   remaining actionable guidance into native-shell migration docs.
+- [x] Enforce direct `crate::app::` references in `app_core` through
+  `scripts/check_migration_boundary.sh` in CI so the migration shim boundary
+  remains explicit.
 - [ ] Remove `app_core::legacy` boundary module after all migration-facing callers stop
   importing `crate::app` directly and no host/runtime entrypoint uses legacy
   module paths.
