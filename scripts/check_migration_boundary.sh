@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_CORE_DIR="$ROOT_DIR/src/app_core"
-ALLOWED_FILE="$APP_CORE_DIR/legacy.rs"
+ALLOWED_FILE="$APP_CORE_DIR/contracts.rs"
 
 mapfile -t matches < <(rg -n "crate::app::" "$APP_CORE_DIR" || true)
 
@@ -21,7 +21,7 @@ for match in "${matches[@]}"; do
   fi
 
   if ((violations == 0)); then
-    echo "Migration boundary check failed: direct crate::app references were found outside app_core::legacy."
+    echo "Migration boundary check failed: direct crate::app references were found outside app_core::contracts."
   fi
 
   echo " - $match"
