@@ -38,7 +38,6 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-pub(crate) use ui::hotkeys;
 pub(crate) use ui::status_message::StatusMessage;
 
 pub(crate) const MIN_SELECTION_WIDTH: f32 = 0.001;
