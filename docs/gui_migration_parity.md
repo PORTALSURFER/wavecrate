@@ -79,14 +79,14 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Installer/updater binaries now run on the native radiant host path (`run_native_vello_app`).
 - Remaining legacy `app` module dependencies in migration-facing runtime glue now flow
   through direct internal aliases in `app_core::{controller,state,view_model}`.
-- New `app_core::contracts` namespace now centralizes migration-facing aliases for
+- New `app_core::legacy_bridge` namespace now centralizes migration-facing aliases for
   legacy controller/state/view-model modules.
 - `app_core::{controller,state,view_model}` now resolve through a dedicated
-  internal `app_core::contracts` boundary while continuing to consume internal
+  internal `app_core::legacy_bridge` boundary while continuing to consume internal
   `app` controller/state/view-model modules.
 - Migration-boundary enforcement is now centralized in
   `scripts/check_migration_boundary.sh`, and CI fails if `app_core` imports
-  direct legacy `crate::app::` paths outside `app_core::contracts`.
+  direct legacy `crate::app::` paths outside `app_core::legacy_bridge`.
 - App-core native-shell projection and native bridge prompt/tab routing now consume
   migration-facing `app_core::{controller,state}` aliases instead of direct
   `app::state` paths in host integration code.
@@ -181,10 +181,10 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
 - [x] Enforce direct `crate::app::` references in `app_core` through
   `scripts/check_migration_boundary.sh` in CI so the migration shim boundary
   remains explicit.
-- [x] Remove `app_core::legacy` boundary module after all migration-facing callers
+- [x] Remove migration-facing legacy boundary module after all migration-facing callers
   stopped importing `crate::app` directly and no host/runtime entrypoint uses
   legacy module paths (migration now routes through
-  `app_core::contracts::{controller,state,view_model}`).
+  `app_core::legacy_bridge::{controller,state,view_model}`).
 
 ## Source Management Polish Checklist
 
