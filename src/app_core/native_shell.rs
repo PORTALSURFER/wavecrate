@@ -529,9 +529,11 @@ fn project_status_model(controller: &AppController, selected_column: usize) -> S
         "rows: {} | selected: {} | anchor: {} | search: {}{}",
         controller.ui.browser.visible.len(),
         controller.ui.browser.selected_paths.len(),
-        controller.ui
+        controller
+            .ui
+            .browser
             .selection_anchor_visible
-            .map(|row| row.to_string())
+            .map(|row: usize| row.to_string())
             .unwrap_or_else(|| String::from("—")),
         if controller.ui.browser.search_query.is_empty() {
             "—"
@@ -544,15 +546,18 @@ fn project_status_model(controller: &AppController, selected_column: usize) -> S
             ""
         }
     );
-    let right = if let Some(avg_fps) = controller.average_fps() {
-        format!("fps: {avg_fps:.1} | col: {}/3", selected_column + 1)
-    } else {
-        format!("col: {}/3", selected_column + 1)
-    };
+    let right = status_bar_right_text(selected_column, controller.average_fps());
     StatusBarModel {
         left,
         center,
         right,
+    }
+}
+
+fn status_bar_right_text(selected_column: usize, avg_fps: Option<f64>) -> String {
+    match avg_fps {
+        Some(avg_fps) => format!("fps: {avg_fps:.1} | col: {}/3", selected_column + 1),
+        None => format!("col: {}/3", selected_column + 1),
     }
 }
 
@@ -1359,5 +1364,18 @@ mod tests {
         ui.sources.folders.delete_recovery.in_progress = true;
         let projected = project_sources_model(&ui);
         assert!(!projected.folder_actions.can_clear_recovery_log);
+    }
+
+    #[test]
+    fn status_bar_right_text_includes_fps_when_present() {
+        assert_eq!(
+            status_bar_right_text(0, Some(59.9)),
+            "fps: 59.9 | col: 1/3"
+        );
+    }
+
+    #[test]
+    fn status_bar_right_text_defaults_to_column_only_without_fps() {
+        assert_eq!(status_bar_right_text(2, None), "col: 3/3");
     }
 }

@@ -124,6 +124,12 @@ impl From<TriageFlagColumn> for legacy_state::TriageFlagColumn {
     }
 }
 
+/// Browser triage filters used by migration-facing APIs.
+///
+/// This preserves the legacy filtering enum in a migration-facing module to avoid
+/// calling into private `app` paths from consumers that depend on `app_core`.
+pub type TriageFlagFilter = legacy_state::TriageFlagFilter;
+
 /// Update status surfaced by migration-facing render projections.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UpdateStatus {

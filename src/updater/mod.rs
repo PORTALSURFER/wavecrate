@@ -242,10 +242,27 @@ fn ensure_child_path(dir: &Path, name: &str) -> Result<PathBuf, UpdateError> {
 fn ensure_no_symlink_path(path: &Path) -> Result<(), UpdateError> {
     let mut current = PathBuf::new();
     for component in path.components() {
-        current.push(component.as_os_str());
-        #[cfg(windows)]
-        if matches!(component, Component::Prefix(_) | Component::RootDir) {
-            continue;
+        match component {
+            #[cfg(windows)]
+            Component::Prefix(_) => {
+                current.push(component.as_os_str());
+                continue;
+            }
+            Component::RootDir => {
+                #[cfg(unix)]
+                {
+                    current.push(component.as_os_str());
+                    continue;
+                }
+                #[cfg(windows)]
+                {
+                    current.push(component.as_os_str());
+                    continue;
+                }
+            }
+            _ => {
+                current.push(component.as_os_str());
+            }
         }
         match symlink_metadata(&current) {
             Ok(metadata) => {

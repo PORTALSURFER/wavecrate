@@ -38,6 +38,11 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+
+#[cfg(test)]
+/// Re-export hotkey definitions for controller tests that use the bare `hotkeys`
+/// module path.
+pub(crate) use ui::hotkeys;
 pub(crate) use ui::status_message::StatusMessage;
 
 pub(crate) const MIN_SELECTION_WIDTH: f32 = 0.001;
@@ -221,6 +226,7 @@ impl AppController {
         self.set_status(text, tone);
     }
 
+    /// Current exponentially weighted average FPS estimated from recent frame intervals.
     pub(crate) fn average_fps(&self) -> Option<f64> {
         self.runtime.performance.average_fps()
     }
