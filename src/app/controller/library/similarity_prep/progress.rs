@@ -127,16 +127,16 @@ impl AppController {
                 self.ui
                     .progress
                     .set_analysis_snapshot(Some(AnalysisProgressSnapshot {
-                        pending: progress.pending,
-                        running: progress.running,
-                        failed: progress.failed,
-                        samples_completed,
-                        samples_total,
-                        running_jobs: Vec::new(),
-                        stale_after_secs: Some(
-                            crate::app::controller::library::analysis_jobs::stale_running_job_seconds(),
-                        ),
-                    }));
+                    pending: progress.pending,
+                    running: progress.running,
+                    failed: progress.failed,
+                    samples_completed,
+                    samples_total,
+                    running_jobs: Vec::new(),
+                    stale_after_secs: Some(
+                        crate::app::controller::library::analysis_jobs::stale_running_job_seconds(),
+                    ),
+                }));
             }
             SimilarityPrepStage::Finalizing => {
                 info!(

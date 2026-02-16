@@ -5,14 +5,14 @@
 extern crate alloc;
 /// Background analysis helpers.
 pub mod analysis;
+#[allow(dead_code)]
+mod app;
 /// Backend-neutral app-core projection and action helpers used during GUI migration.
 pub mod app_core;
 /// Application directory helpers.
 pub mod app_dirs;
 /// Audio playback utilities.
 pub mod audio;
-#[allow(dead_code)]
-mod app;
 /// Platform helpers for copying files to the clipboard.
 pub mod external_clipboard;
 /// Platform helpers for external drag-and-drop.

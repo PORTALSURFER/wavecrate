@@ -1,8 +1,6 @@
 use crate::app::controller::jobs::{JobMessage, JobMessageSender};
 use crate::app::controller::library::analysis_jobs::db;
-use crate::app::controller::library::analysis_jobs::types::{
-    AnalysisJobMessage, AnalysisProgress,
-};
+use crate::app::controller::library::analysis_jobs::types::{AnalysisJobMessage, AnalysisProgress};
 use crate::gui::repaint::SharedRepaintSignal;
 use rusqlite::Connection;
 use std::sync::{
@@ -228,8 +226,7 @@ pub(crate) fn spawn_progress_poller(
             if last_cleanup.elapsed() >= STALE_CLEANUP_INTERVAL {
                 last_cleanup = Instant::now();
                 let stale_before = now_epoch_seconds().saturating_sub(
-                    crate::app::controller::library::analysis_jobs::stale_running_job_seconds(
-                    ),
+                    crate::app::controller::library::analysis_jobs::stale_running_job_seconds(),
                 );
                 let _ =
                     cleanup_stale_jobs(&mut sources, stale_before, &progress_cache, &tx, &signal);

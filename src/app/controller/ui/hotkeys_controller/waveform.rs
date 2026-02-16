@@ -310,20 +310,21 @@ impl HotkeysController<'_> {
         };
 
         // Perform deletion
-        let ctx = crate::app::controller::library::browser_controller::helpers::TriageSampleContext {
-            source,
-            entry: WavEntry {
-                relative_path: relative_path.clone(),
-                file_size: 0, // Not strictly needed for deletion
-                modified_ns: 0,
-                content_hash: None,
-                tag: crate::sample_sources::Rating::NEUTRAL,
-                looped: false,
-                missing: false,
-                last_played_at: None,
-            },
-            absolute_path,
-        };
+        let ctx =
+            crate::app::controller::library::browser_controller::helpers::TriageSampleContext {
+                source,
+                entry: WavEntry {
+                    relative_path: relative_path.clone(),
+                    file_size: 0, // Not strictly needed for deletion
+                    modified_ns: 0,
+                    content_hash: None,
+                    tag: crate::sample_sources::Rating::NEUTRAL,
+                    looped: false,
+                    missing: false,
+                    last_played_at: None,
+                },
+                absolute_path,
+            };
 
         self.browser().try_delete_browser_sample_ctx(&ctx)?;
 

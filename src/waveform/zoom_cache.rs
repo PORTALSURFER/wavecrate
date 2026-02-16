@@ -169,7 +169,7 @@ impl CacheInner {
 mod tests {
     use super::*;
     use std::{
-        sync::{mpsc, Arc, Barrier},
+        sync::{Arc, Barrier, mpsc},
         thread,
         time::Duration,
     };

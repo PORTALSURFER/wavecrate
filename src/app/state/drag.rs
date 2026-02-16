@@ -1,5 +1,5 @@
-use super::browser::TriageFlagColumn;
 use super::UiPoint;
+use super::browser::TriageFlagColumn;
 use crate::sample_sources::SourceId;
 use crate::selection::SelectionRange;
 use std::collections::HashMap;

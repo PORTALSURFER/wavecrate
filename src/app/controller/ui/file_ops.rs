@@ -138,12 +138,7 @@ impl AppController {
         };
         self.history.pending_undo = Some(pending);
         self.set_status(format!("{title}..."), StatusTone::Busy);
-        self.show_status_progress(
-            crate::app::state::ProgressTaskKind::FileOps,
-            title,
-            1,
-            true,
-        );
+        self.show_status_progress(crate::app::state::ProgressTaskKind::FileOps, title, 1, true);
         let (tx, rx) = std::sync::mpsc::channel();
         let cancel = Arc::new(AtomicBool::new(false));
         self.runtime.jobs.start_file_ops(rx, cancel.clone());

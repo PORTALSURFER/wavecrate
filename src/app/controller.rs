@@ -17,9 +17,9 @@ pub(crate) mod updates;
 
 pub(crate) use crate::app_core::state::StatusTone;
 use crate::{
-    audio::AudioPlayer,
     app::state::UiState,
-    app::{view_model},
+    app::view_model,
+    audio::AudioPlayer,
     gui::repaint::RepaintSignal,
     sample_sources::{SampleSource, SourceDatabase, SourceDbError, SourceId, WavEntry},
     selection::SelectionRange,

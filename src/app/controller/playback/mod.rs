@@ -1,5 +1,5 @@
 use super::*;
-pub(crate) use super::{BPM_MIN_SELECTION_DIVISOR, AppController, StatusTone};
+pub(crate) use super::{AppController, BPM_MIN_SELECTION_DIVISOR, StatusTone};
 pub(crate) use crate::sample_sources::*;
 pub(crate) use crate::selection::SelectionRange;
 

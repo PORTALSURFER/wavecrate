@@ -1,6 +1,6 @@
 use super::*;
-use crate::app::state::FocusContext;
 use crate::app::controller::StatusTone;
+use crate::app::state::FocusContext;
 
 impl AppController {
     /// Mark the sample browser as the active focus surface.

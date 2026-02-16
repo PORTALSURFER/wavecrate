@@ -2,8 +2,8 @@ use super::plan::plan_similarity_prep_start;
 use super::state::SimilarityPrepStage;
 use super::store::DbSimilarityPrepStore;
 use crate::app::controller::AppController;
-use crate::app::controller::ui::status_message::StatusMessage;
 use crate::app::controller::StatusTone;
+use crate::app::controller::ui::status_message::StatusMessage;
 
 impl AppController {
     /// Run similarity prep for the selected source using current settings.
@@ -120,9 +120,7 @@ impl AppController {
         );
         if let Some(source) = self.find_source_by_id(&state.source_id)
             && let Ok(progress) =
-                crate::app::controller::library::analysis_jobs::current_progress_for_source(
-                    &source,
-                )
+                crate::app::controller::library::analysis_jobs::current_progress_for_source(&source)
         {
             out.push_str(&format!(" analysis_progress={progress}"));
         }

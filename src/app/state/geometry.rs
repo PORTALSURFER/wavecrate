@@ -89,4 +89,3 @@ impl Neg for UiPoint {
         Self::new(-self.x, -self.y)
     }
 }
-

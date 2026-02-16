@@ -1,6 +1,6 @@
 use super::*;
-use crate::app::state::{FocusContext, SampleBrowserActionPrompt};
 use crate::app::controller::StatusTone;
+use crate::app::state::{FocusContext, SampleBrowserActionPrompt};
 use crate::app::view_model;
 use std::path::Path;
 
@@ -242,7 +242,10 @@ impl AppController {
     }
 
     /// Apply a triage tag target to current browser selection from UI actions.
-    pub fn tag_selected_browser_target(&mut self, target: crate::app_core::state::BrowserTagTarget) {
+    pub fn tag_selected_browser_target(
+        &mut self,
+        target: crate::app_core::state::BrowserTagTarget,
+    ) {
         let rating = match target {
             crate::app_core::state::BrowserTagTarget::Trash => {
                 crate::sample_sources::Rating::TRASH_3

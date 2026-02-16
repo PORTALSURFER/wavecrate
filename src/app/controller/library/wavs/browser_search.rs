@@ -29,11 +29,7 @@ impl AppController {
         &mut self,
         focused_index: Option<usize>,
         loaded_index: Option<usize>,
-    ) -> (
-        crate::app::state::VisibleRows,
-        Option<usize>,
-        Option<usize>,
-    ) {
+    ) -> (crate::app::state::VisibleRows, Option<usize>, Option<usize>) {
         let filter = self.ui.browser.filter;
         let rating_filter = self.ui.browser.rating_filter.clone();
         let rating_filter_empty = rating_filter.is_empty();
@@ -385,11 +381,7 @@ pub(crate) fn set_browser_filter(controller: &mut AppController, filter: TriageF
 }
 
 /// Update the browser rating filter selection.
-pub(crate) fn set_browser_rating_filter(
-    controller: &mut AppController,
-    level: i8,
-    additive: bool,
-) {
+pub(crate) fn set_browser_rating_filter(controller: &mut AppController, level: i8, additive: bool) {
     if !(-3..=3).contains(&level) {
         return;
     }

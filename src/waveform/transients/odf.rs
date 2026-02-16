@@ -1,5 +1,5 @@
 use super::stats::RollingMedian;
-use crate::analysis::fft::{fft_radix2_inplace_with_plan, hann_window, Complex32, FftPlan};
+use crate::analysis::fft::{Complex32, FftPlan, fft_radix2_inplace_with_plan, hann_window};
 use crate::waveform::DecodedWaveform;
 
 const BAND_COUNT: usize = 24;

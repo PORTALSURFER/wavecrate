@@ -4,9 +4,9 @@
 //! depend on `app_core` instead of legacy runtime module paths.
 
 use crate::{
-    app_core::actions::{NativeAppModel, NativeFrameBuildResult, NativeUiAction},
-    app_core::actions::NativeMotionModel,
     app_core::actions::NativeAppBridge,
+    app_core::actions::NativeMotionModel,
+    app_core::actions::{NativeAppModel, NativeFrameBuildResult, NativeUiAction},
     app_core::controller::{
         AppController, AppControllerNativeRuntimeExt, build_native_app_controller,
     },

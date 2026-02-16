@@ -4,10 +4,7 @@ use crate::app::state::ProgressTaskKind;
 use crate::app::state::RunningJobSnapshot;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub(crate) fn handle_analysis_message(
-    controller: &mut AppController,
-    message: AnalysisJobMessage,
-) {
+pub(crate) fn handle_analysis_message(controller: &mut AppController, message: AnalysisJobMessage) {
     match message {
         AnalysisJobMessage::Progress {
             source_id,

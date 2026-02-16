@@ -10,11 +10,10 @@ use crate::app_core::actions::{
     NativeBrowserChromeModel as BrowserChromeModel, NativeBrowserPanelModel as BrowserPanelModel,
     NativeBrowserRowModel as BrowserRowModel, NativeColumnModel as ColumnModel,
     NativeConfirmPromptKind as ConfirmPromptKind, NativeConfirmPromptModel as ConfirmPromptModel,
-    NativeMotionModel as MotionModel,
     NativeDragOverlayModel as DragOverlayModel, NativeFolderActionsModel as FolderActionsModel,
     NativeFolderRecoveryModel as FolderRecoveryModel, NativeFolderRowModel as FolderRowModel,
     NativeMapPanelModel as MapPanelModel, NativeMapPointModel as MapPointModel,
-    NativeMapRenderModeModel as MapRenderModeModel,
+    NativeMapRenderModeModel as MapRenderModeModel, NativeMotionModel as MotionModel,
     NativeNormalizedRangeModel as NormalizedRangeModel,
     NativeProgressOverlayModel as ProgressOverlayModel, NativeSourceRowModel as SourceRowModel,
     NativeSourcesPanelModel as SourcesPanelModel, NativeStatusBarModel as StatusBarModel,
@@ -94,34 +93,36 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
             SampleBrowserTab::from(controller.ui.browser.active_tab),
             SampleBrowserTab::Map
         ),
-        waveform_selection_milli: controller
-            .ui
-            .waveform
-            .selection
-            .map(|selection| {
-                crate::app_core::actions::NativeNormalizedRangeModel::new(
-                    normalized_to_milli(selection.start()),
-                    normalized_to_milli(selection.end()),
-                )
-            }),
+        waveform_selection_milli: controller.ui.waveform.selection.map(|selection| {
+            crate::app_core::actions::NativeNormalizedRangeModel::new(
+                normalized_to_milli(selection.start()),
+                normalized_to_milli(selection.end()),
+            )
+        }),
         waveform_cursor_milli: controller.ui.waveform.cursor.map(normalized_to_milli),
-        waveform_playhead_milli: controller
-            .ui
-            .waveform
-            .playhead
-            .visible
-            .then_some(normalized_to_milli(controller.ui.waveform.playhead.position)),
+        waveform_playhead_milli: controller.ui.waveform.playhead.visible.then_some(
+            normalized_to_milli(controller.ui.waveform.playhead.position),
+        ),
         waveform_view_start_milli: normalized64_to_milli(controller.ui.waveform.view.start),
         waveform_view_end_milli: normalized64_to_milli(controller.ui.waveform.view.end),
-        waveform_tempo_label: controller.ui.waveform.bpm_value.map(|bpm| format!("{bpm:.1} BPM")),
+        waveform_tempo_label: controller
+            .ui
+            .waveform
+            .bpm_value
+            .map(|bpm| format!("{bpm:.1} BPM")),
         waveform_zoom_label: Some(format!(
             "{:.0}%",
-            (100.0 / (controller.ui.waveform.view.end - controller.ui.waveform.view.start)
-                .clamp(0.000_1, 1.0) as f32)
+            (100.0
+                / (controller.ui.waveform.view.end - controller.ui.waveform.view.start)
+                    .clamp(0.000_1, 1.0) as f32)
                 .round()
                 .clamp(100.0, 9999.0)
         )),
-        waveform_loaded_label: controller.ui.loaded_wav.as_deref().map(view_model::sample_display_label),
+        waveform_loaded_label: controller
+            .ui
+            .loaded_wav
+            .as_deref()
+            .map(view_model::sample_display_label),
         waveform_transport_hint: if controller.ui.waveform.loop_enabled {
             String::from("Loop enabled")
         } else {
@@ -645,13 +646,10 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
     let search_query = controller.ui.browser.search_query.clone();
     let search_placeholder = Some(String::from("Search samples (Ctrl+F)"));
     let busy = controller.ui.browser.search_busy;
-    let sort_label = Some(
-        browser_sort_label(SampleBrowserSort::from(
-            controller.ui.browser.sort,
-        ))
-        .to_owned(),
-    );
-    let active_tab_label = Some(browser_tab_label(controller.ui.browser.active_tab.into()).to_owned());
+    let sort_label =
+        Some(browser_sort_label(SampleBrowserSort::from(controller.ui.browser.sort)).to_owned());
+    let active_tab_label =
+        Some(browser_tab_label(controller.ui.browser.active_tab.into()).to_owned());
     let focused_sample_label = controller
         .ui
         .loaded_wav
@@ -727,10 +725,7 @@ fn project_browser_chrome_model(ui: &UiState, visible_count: usize) -> BrowserCh
         activity_ready_label: String::from("Ready"),
         activity_busy_label: String::from("Filtering"),
         sort_prefix_label: String::from("Sort"),
-        sort_order_label: browser_sort_label(SampleBrowserSort::from(
-            ui.browser.sort,
-        ))
-        .to_owned(),
+        sort_order_label: browser_sort_label(SampleBrowserSort::from(ui.browser.sort)).to_owned(),
         similarity_toggle_label: if ui.browser.similarity_sort_follow_loaded {
             String::from("follow loaded")
         } else {
@@ -992,8 +987,7 @@ mod tests {
     fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
         let mut controller =
             AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-        controller.ui.browser.sort =
-            SampleBrowserSort::PlaybackAgeDesc.into();
+        controller.ui.browser.sort = SampleBrowserSort::PlaybackAgeDesc.into();
         controller.ui.browser.active_tab = SampleBrowserTab::Map.into();
         let projected = project_browser_model(&mut controller);
         assert_eq!(
@@ -1168,24 +1162,21 @@ mod tests {
     #[test]
     fn confirm_prompt_projects_folder_create_validation_errors() {
         let mut ui = UiState::default();
-        ui.sources
-            .folders
-            .rows
-            .push(
-                FolderRowView {
-                    path: std::path::PathBuf::from("drums/existing"),
-                    name: String::from("existing"),
-                    depth: 1,
-                    has_children: false,
-                    expanded: false,
-                    selected: false,
-                    negated: false,
-                    hotkey: None,
-                    is_root: false,
-                    root_filter_mode: None,
-                }
-                .into(),
-            );
+        ui.sources.folders.rows.push(
+            FolderRowView {
+                path: std::path::PathBuf::from("drums/existing"),
+                name: String::from("existing"),
+                depth: 1,
+                has_children: false,
+                expanded: false,
+                selected: false,
+                negated: false,
+                hotkey: None,
+                is_root: false,
+                root_filter_mode: None,
+            }
+            .into(),
+        );
         ui.sources.folders.new_folder = Some(
             InlineFolderCreation {
                 parent: std::path::PathBuf::from("drums"),
@@ -1213,42 +1204,36 @@ mod tests {
     #[test]
     fn confirm_prompt_projects_folder_rename_validation_errors() {
         let mut ui = UiState::default();
-        ui.sources
-            .folders
-            .rows
-            .push(
-                FolderRowView {
-                    path: std::path::PathBuf::from("drums"),
-                    name: String::from("drums"),
-                    depth: 1,
-                    has_children: false,
-                    expanded: false,
-                    selected: true,
-                    negated: false,
-                    hotkey: None,
-                    is_root: false,
-                    root_filter_mode: None,
-                }
-                .into(),
-            );
-        ui.sources
-            .folders
-            .rows
-            .push(
-                FolderRowView {
-                    path: std::path::PathBuf::from("kicks"),
-                    name: String::from("kicks"),
-                    depth: 1,
-                    has_children: false,
-                    expanded: false,
-                    selected: false,
-                    negated: false,
-                    hotkey: None,
-                    is_root: false,
-                    root_filter_mode: None,
-                }
-                .into(),
-            );
+        ui.sources.folders.rows.push(
+            FolderRowView {
+                path: std::path::PathBuf::from("drums"),
+                name: String::from("drums"),
+                depth: 1,
+                has_children: false,
+                expanded: false,
+                selected: true,
+                negated: false,
+                hotkey: None,
+                is_root: false,
+                root_filter_mode: None,
+            }
+            .into(),
+        );
+        ui.sources.folders.rows.push(
+            FolderRowView {
+                path: std::path::PathBuf::from("kicks"),
+                name: String::from("kicks"),
+                depth: 1,
+                has_children: false,
+                expanded: false,
+                selected: false,
+                negated: false,
+                hotkey: None,
+                is_root: false,
+                root_filter_mode: None,
+            }
+            .into(),
+        );
         ui.sources.folders.pending_action = Some(
             FolderActionPrompt::Rename {
                 target: std::path::PathBuf::from("drums"),
@@ -1299,24 +1284,21 @@ mod tests {
     fn folder_actions_require_non_root_focus_for_destructive_actions() {
         let mut ui = UiState::default();
         ui.sources.selected = Some(0);
-        ui.sources
-            .folders
-            .rows
-            .push(
-                FolderRowView {
-                    path: std::path::PathBuf::new(),
-                    name: String::from("Root"),
-                    depth: 0,
-                    has_children: true,
-                    expanded: true,
-                    selected: false,
-                    negated: false,
-                    hotkey: None,
-                    is_root: true,
-                    root_filter_mode: None,
-                }
-                .into(),
-            );
+        ui.sources.folders.rows.push(
+            FolderRowView {
+                path: std::path::PathBuf::new(),
+                name: String::from("Root"),
+                depth: 0,
+                has_children: true,
+                expanded: true,
+                selected: false,
+                negated: false,
+                hotkey: None,
+                is_root: true,
+                root_filter_mode: None,
+            }
+            .into(),
+        );
         ui.sources.folders.focused = Some(0);
         let projected = project_sources_model(&ui);
         assert!(projected.folder_actions.can_create_folder);
@@ -1324,24 +1306,21 @@ mod tests {
         assert!(!projected.folder_actions.can_rename_folder);
         assert!(!projected.folder_actions.can_delete_folder);
 
-        ui.sources
-            .folders
-            .rows
-            .push(
-                FolderRowView {
-                    path: std::path::PathBuf::from("drums"),
-                    name: String::from("drums"),
-                    depth: 1,
-                    has_children: false,
-                    expanded: false,
-                    selected: true,
-                    negated: false,
-                    hotkey: None,
-                    is_root: false,
-                    root_filter_mode: None,
-                }
-                .into(),
-            );
+        ui.sources.folders.rows.push(
+            FolderRowView {
+                path: std::path::PathBuf::from("drums"),
+                name: String::from("drums"),
+                depth: 1,
+                has_children: false,
+                expanded: false,
+                selected: true,
+                negated: false,
+                hotkey: None,
+                is_root: false,
+                root_filter_mode: None,
+            }
+            .into(),
+        );
         ui.sources.folders.focused = Some(1);
         let projected = project_sources_model(&ui);
         assert!(projected.folder_actions.can_rename_folder);
@@ -1368,10 +1347,7 @@ mod tests {
 
     #[test]
     fn status_bar_right_text_includes_fps_when_present() {
-        assert_eq!(
-            status_bar_right_text(0, Some(59.9)),
-            "fps: 59.9 | col: 1/3"
-        );
+        assert_eq!(status_bar_right_text(0, Some(59.9)), "fps: 59.9 | col: 1/3");
     }
 
     #[test]

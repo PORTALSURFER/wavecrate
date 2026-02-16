@@ -1,7 +1,5 @@
 use super::*;
-use crate::app::controller::controller_state::{
-    AnalysisJobStatus, FeatureCache, FeatureStatus,
-};
+use crate::app::controller::controller_state::{AnalysisJobStatus, FeatureCache, FeatureStatus};
 use rusqlite::params;
 use std::collections::HashMap;
 use std::path::Path;

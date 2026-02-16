@@ -209,9 +209,7 @@ fn resolve_anchor_index(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::controller::test_support::{
-        prepare_with_source_and_wav_entries, sample_entry,
-    };
+    use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
 
     #[test]
     fn resolve_anchor_index_prefers_override() {

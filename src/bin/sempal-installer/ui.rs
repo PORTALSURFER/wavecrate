@@ -2,16 +2,12 @@ use std::{path::PathBuf, sync::mpsc, thread};
 
 use sempal::{
     app_core::actions::{
-        NativeAppBridge,
-        NativeAppModel as AppModel,
+        NativeAppBridge, NativeAppModel as AppModel,
         NativeBrowserActionsModel as BrowserActionsModel,
         NativeBrowserChromeModel as BrowserChromeModel,
-        NativeBrowserPanelModel as BrowserPanelModel,
-        NativeBrowserRowModel as BrowserRowModel,
-        NativeSourceRowModel as SourceRowModel,
-        NativeStatusBarModel as StatusBarModel,
-        NativeUiAction as UiAction,
-        NativeUpdatePanelModel as UpdatePanelModel,
+        NativeBrowserPanelModel as BrowserPanelModel, NativeBrowserRowModel as BrowserRowModel,
+        NativeSourceRowModel as SourceRowModel, NativeStatusBarModel as StatusBarModel,
+        NativeUiAction as UiAction, NativeUpdatePanelModel as UpdatePanelModel,
         NativeUpdateStatusModel as UpdateStatusModel,
     },
     gui_runtime::{NativeRunOptions, WindowIconRgba, run_native_vello_app},
@@ -217,7 +213,8 @@ impl InstallerNativeBridge {
             InstallStep::Done => {
                 model.status = UpdateStatusModel::Available;
                 model.status_label = String::from("Installation complete");
-                model.action_hint_label = String::from("Open=Folder | Install=Launch | Dismiss=Exit");
+                model.action_hint_label =
+                    String::from("Open=Folder | Install=Launch | Dismiss=Exit");
                 model.available_url = Some(String::from("internal://done"));
                 model.release_notes_label = format!(
                     "Open folder: {} | Launch app: {}",
@@ -238,13 +235,7 @@ impl InstallerNativeBridge {
     fn browser_rows(&self) -> Vec<BrowserRowModel> {
         match self.step {
             InstallStep::Welcome => vec![
-                BrowserRowModel::new(
-                    0,
-                    "Welcome to the SemPal installer",
-                    1,
-                    false,
-                    false,
-                ),
+                BrowserRowModel::new(0, "Welcome to the SemPal installer", 1, false, false),
                 BrowserRowModel::new(
                     1,
                     "Install includes app binaries and required ML assets",
@@ -313,8 +304,18 @@ impl InstallerNativeBridge {
         };
         model.browser_actions = BrowserActionsModel::default();
         model.sources.rows = vec![
-            SourceRowModel::new("Install dir", self.install_dir.display().to_string(), false, false),
-            SourceRowModel::new("Bundle dir", self.bundle_dir.display().to_string(), false, false),
+            SourceRowModel::new(
+                "Install dir",
+                self.install_dir.display().to_string(),
+                false,
+                false,
+            ),
+            SourceRowModel::new(
+                "Bundle dir",
+                self.bundle_dir.display().to_string(),
+                false,
+                false,
+            ),
         ];
         model.browser = BrowserPanelModel {
             visible_count: rows.len(),

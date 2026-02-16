@@ -101,7 +101,9 @@ impl PerformanceGovernorState {
             return;
         }
         const FRAME_RATE_ALPHA: f64 = 0.2;
-        self.avg_frame_ms = self.avg_frame_ms.mul_add(1.0 - FRAME_RATE_ALPHA, frame_ms * FRAME_RATE_ALPHA);
+        self.avg_frame_ms = self
+            .avg_frame_ms
+            .mul_add(1.0 - FRAME_RATE_ALPHA, frame_ms * FRAME_RATE_ALPHA);
         self.frame_sample_count = self.frame_sample_count.saturating_add(1);
     }
 

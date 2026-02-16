@@ -1,23 +1,23 @@
 //! Backend-neutral controller aliases for migration consumers.
 //!
-//! The GUI migration still uses the internal `app` controller implementation,
-//! but exposing it through `app_core` gives runtimes and tooling a stable path
-//! that remains valid while internals are retired.
+//! These aliases keep native runtime entrypoints stable while the runtime-agnostic
+//! controller API remains sourced from the legacy `app` implementation during
+//! migration.
 
-use crate::app_core::legacy_bridge::controller::AppController as LegacyAppController;
+use crate::app_core::app_api::controller::AppController as LegacyAppController;
 
-/// Transitional controller type used by native runtime bridges and migration CLIs.
+/// Runtime-facing app controller type used by migration hosts.
 pub type AppController = LegacyAppController;
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{audio::AudioPlayer, waveform::WaveformRenderer};
 use crate::app_core::actions::{NativeAppModel, NativeUiAction};
+use crate::{audio::AudioPlayer, waveform::WaveformRenderer};
 
 /// Build a configured migration-facing controller for native runtime hosts.
 ///
-/// This centralizes config load/apply/initial source selection so native
-/// runtime entrypoints do not depend on legacy `app` module paths.
+/// This centralizes controller creation and config loading so native hosts need not
+/// depend directly on legacy initialization details.
 pub fn build_native_app_controller(
     renderer: WaveformRenderer,
     player: Option<Rc<RefCell<AudioPlayer>>>,
@@ -44,7 +44,7 @@ pub trait AppControllerNativeRuntimeExt {
     /// Project the current controller state into a native runtime app model.
     fn project_native_app_model(&mut self) -> NativeAppModel;
 
-    /// Project motion-sensitive fields for incremental animation updates.
+    /// Project motion-only fields for incremental animation updates.
     fn project_native_motion_model(&mut self) -> crate::app_core::actions::NativeMotionModel;
 
     /// Persist full configuration during native runtime shutdown.

@@ -392,12 +392,11 @@ fn process_search_job(
         visible = scratch.into_iter().map(|(index, _)| index).collect();
     }
 
-    let has_folder_filters =
-        crate::app::controller::library::source_folders::folder_filters_active(
-            job.folder_selection.as_ref(),
-            job.folder_negated.as_ref(),
-            job.root_mode,
-        );
+    let has_folder_filters = crate::app::controller::library::source_folders::folder_filters_active(
+        job.folder_selection.as_ref(),
+        job.folder_negated.as_ref(),
+        job.root_mode,
+    );
     if !has_query
         && !has_folder_filters
         && job.filter == TriageFlagFilter::All
@@ -514,8 +513,7 @@ mod tests {
             .into_iter()
             .map(|e| {
                 let relative_path = e.relative_path.to_string_lossy().to_string();
-                let display_label =
-                    crate::app::view_model::sample_display_label(&e.relative_path);
+                let display_label = crate::app::view_model::sample_display_label(&e.relative_path);
                 CompactSearchEntry {
                     display_label: display_label.into_boxed_str(),
                     relative_path: relative_path.into_boxed_str(),

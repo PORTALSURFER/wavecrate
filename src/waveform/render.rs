@@ -3,7 +3,7 @@ mod paint;
 
 use super::WaveformImage;
 use super::{DecodedWaveform, WaveformChannelView, WaveformColumnView, WaveformRenderer};
-use crate::selection::{fade_gain_at_position, SelectionRange};
+use crate::selection::{SelectionRange, fade_gain_at_position};
 
 impl WaveformRenderer {
     /// Produce an empty waveform image buffer.

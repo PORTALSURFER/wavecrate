@@ -1,8 +1,8 @@
 mod analysis_throughput;
 mod feature_blob_decode;
+mod gui;
 mod options;
 mod report;
-mod gui;
 mod similarity_latency;
 mod stats;
 

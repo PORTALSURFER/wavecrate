@@ -1,6 +1,6 @@
 use super::super::DragDropController;
-use crate::app::state::TriageFlagColumn;
 use crate::app::controller::StatusTone;
+use crate::app::state::TriageFlagColumn;
 use crate::sample_sources::{Rating, SourceId};
 use crate::selection::SelectionRange;
 use std::path::{Path, PathBuf};

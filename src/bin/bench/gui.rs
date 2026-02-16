@@ -94,14 +94,17 @@ fn wait_for_rows(controller: &mut AppController, target: usize) -> Result<(), St
         model.columns[0].item_count,
         model.columns[1].item_count,
         model.columns[2].item_count,
-        model.browser.selected_visible_row.map_or_else(|| "none".to_string(), |row| row.to_string())
+        model
+            .browser
+            .selected_visible_row
+            .map_or_else(|| "none".to_string(), |row| row.to_string())
     ))
 }
 
 fn build_controller_with_db_rows(options: &BenchOptions) -> Result<BenchWorkspace, String> {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
-    let temp_root = tempfile::tempdir()
-        .map_err(|err| format!("Create temp source dir failed: {err}"))?;
+    let temp_root =
+        tempfile::tempdir().map_err(|err| format!("Create temp source dir failed: {err}"))?;
     let source_root = temp_root.path().join("gui-source");
     fs::create_dir_all(&source_root)
         .map_err(|err| format!("Create source dir {} failed: {err}", source_root.display()))?;
@@ -196,8 +199,7 @@ mod tests {
 
         let expected_queries = ["sample_", "sample_00", "sample_000", "sample_001"];
         for step in 0..6usize {
-            execute_interaction_step(&mut workspace.controller, step)
-                .expect("interaction step");
+            execute_interaction_step(&mut workspace.controller, step).expect("interaction step");
             let row = step % options.gui_rows.max(1);
             assert_eq!(
                 workspace.controller.ui.browser.search_query,

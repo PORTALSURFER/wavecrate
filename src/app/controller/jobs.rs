@@ -605,8 +605,7 @@ pub(crate) struct ControllerJobs {
     wav_loader: WavLoaderHandle,
     audio_loader: AudioLoaderHandle,
     recording_waveform_loader: RecordingWaveformWorkerHandle,
-    search_worker:
-        crate::app::controller::library::wavs::browser_search_worker::SearchWorkerHandle,
+    search_worker: crate::app::controller::library::wavs::browser_search_worker::SearchWorkerHandle,
     source_watcher: SourceWatcherHandle,
     forwarders: Option<JobForwarderHandles>,
     message_tx: JobMessageSender,

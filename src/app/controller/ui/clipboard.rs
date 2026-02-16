@@ -146,9 +146,9 @@ fn clipboard_copy_label(paths: &[PathBuf]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app_dirs::ConfigBaseGuard;
     use crate::app::controller::test_support::write_test_wav;
     use crate::app::state::FocusContext;
+    use crate::app_dirs::ConfigBaseGuard;
     use std::path::Path;
     use tempfile::tempdir;
 

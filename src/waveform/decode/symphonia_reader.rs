@@ -1,11 +1,11 @@
 use super::normalize::clamp_sample;
 use super::peaks;
-use crate::audio::decoder::SymphoniaDecoder;
 use crate::audio::Source;
+use crate::audio::decoder::SymphoniaDecoder;
 use crate::waveform::{DecodedWaveform, WaveformDecodeError, WaveformPeaks, WaveformRenderer};
+use std::sync::Arc;
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 
 #[cfg(test)]
 static SYMPHONIA_DECODE_COUNT: AtomicUsize = AtomicUsize::new(0);

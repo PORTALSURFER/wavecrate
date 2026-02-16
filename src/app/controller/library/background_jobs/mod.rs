@@ -219,10 +219,7 @@ impl AppController {
                     self.apply_folder_delete_recovery_report(report);
                 }
                 JobMessage::FileOps(message) => match message {
-                    crate::app::controller::jobs::FileOpMessage::Progress {
-                        completed,
-                        detail,
-                    } => {
+                    crate::app::controller::jobs::FileOpMessage::Progress { completed, detail } => {
                         progress::update_progress_detail(
                             self,
                             ProgressTaskKind::FileOps,

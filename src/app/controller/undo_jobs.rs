@@ -1,8 +1,6 @@
 //! Background job helpers for undo/redo file operations.
 
-use crate::app::controller::jobs::{
-    FileOpMessage, UndoFileJob, UndoFileOpResult, UndoFileOutcome,
-};
+use crate::app::controller::jobs::{FileOpMessage, UndoFileJob, UndoFileOpResult, UndoFileOutcome};
 use crate::app::controller::library::wav_io::file_metadata;
 use crate::sample_sources::SourceDatabase;
 use std::sync::{

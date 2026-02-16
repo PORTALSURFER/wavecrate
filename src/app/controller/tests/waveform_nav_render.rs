@@ -50,8 +50,7 @@ fn waveform_refresh_respects_view_slice_and_caps_width() {
         .min(crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH as usize)
         .max(1);
     let lower = controller.sample_view.waveform.size[0]
-        .min(crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH)
-        as usize;
+        .min(crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH) as usize;
     let clamped = expected_width.min(upper).max(lower);
     assert_eq!(image.size[0], clamped);
     assert_eq!(image.size[1], 10);

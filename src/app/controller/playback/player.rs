@@ -395,9 +395,7 @@ pub(crate) fn ensure_player(
     Ok(controller.audio.player.clone())
 }
 
-pub(crate) fn defer_loop_disable_after_cycle(
-    controller: &mut AppController,
-) -> Result<(), String> {
+pub(crate) fn defer_loop_disable_after_cycle(controller: &mut AppController) -> Result<(), String> {
     controller.audio.pending_loop_disable_at = None;
     let Some(player_rc) = controller.ensure_player()? else {
         return Ok(());

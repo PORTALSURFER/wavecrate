@@ -98,11 +98,7 @@ fn apply_args(options: &mut BenchOptions, args: &[String]) -> Result<(), String>
     Ok(())
 }
 
-fn apply_arg(
-    options: &mut BenchOptions,
-    args: &[String],
-    idx: &mut usize,
-) -> Result<bool, String> {
+fn apply_arg(options: &mut BenchOptions, args: &[String], idx: &mut usize) -> Result<bool, String> {
     let flag = args.get(*idx).map(String::as_str).unwrap_or_default();
     if flag == "-h" || flag == "--help" {
         println!("{}", help_text());
@@ -295,24 +291,32 @@ mod tests {
             "--no-gui".to_string(),
         ]);
         assert!(err.is_err());
-        assert!(err
-            .unwrap_err()
-            .contains("Nothing to benchmark: enable --analysis, --similarity, or --gui"));
+        assert!(
+            err.unwrap_err()
+                .contains("Nothing to benchmark: enable --analysis, --similarity, or --gui")
+        );
     }
 
     #[test]
     fn parse_args_rejects_invalid_argument_value() {
-        let err = parse_args(vec!["--analysis-samples".to_string(), "not-a-number".to_string()]);
+        let err = parse_args(vec![
+            "--analysis-samples".to_string(),
+            "not-a-number".to_string(),
+        ]);
         assert!(err.is_err());
-        assert!(err.unwrap_err().contains("Invalid --analysis-samples value: not-a-number"));
+        assert!(
+            err.unwrap_err()
+                .contains("Invalid --analysis-samples value: not-a-number")
+        );
     }
 
     #[test]
     fn parse_args_rejects_unknown_argument() {
         let err = parse_args(vec!["--does-not-exist".to_string()]);
         assert!(err.is_err());
-        assert!(err
-            .unwrap_err()
-            .contains("Unknown argument: --does-not-exist"));
+        assert!(
+            err.unwrap_err()
+                .contains("Unknown argument: --does-not-exist")
+        );
     }
 }

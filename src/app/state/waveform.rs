@@ -1,4 +1,4 @@
-use super::{controls::DestructiveEditPrompt, UiPoint};
+use super::{UiPoint, controls::DestructiveEditPrompt};
 use crate::selection::SelectionRange;
 use crate::waveform::{WaveformChannelView, WaveformImage};
 use std::collections::VecDeque;

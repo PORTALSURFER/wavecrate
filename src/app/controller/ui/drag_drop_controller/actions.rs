@@ -1,6 +1,6 @@
 use super::*;
-use crate::app::state::{DragSample, DragSource};
 use crate::app::state::UiPoint;
+use crate::app::state::{DragSample, DragSource};
 #[cfg(any(target_os = "windows", test))]
 use std::time::{Duration, Instant};
 

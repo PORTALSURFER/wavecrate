@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use std::path::Path;
 
+use crate::audio::Source;
+use crate::audio::decoder::SymphoniaDecoder;
 use std::fs::File;
 use std::time::Duration;
 use symphonia::core::io::MediaSourceStream;
-use crate::audio::decoder::SymphoniaDecoder;
-use crate::audio::Source;
 
 use super::analysis_prep::{downmix_to_mono_into, prepare_mono_for_analysis_from_slice};
 use super::resample::resample_linear_into;

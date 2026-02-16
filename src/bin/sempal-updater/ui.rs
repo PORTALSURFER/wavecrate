@@ -1,15 +1,11 @@
 use sempal::{
     app_core::actions::{
-        NativeAppBridge,
-        NativeAppModel as AppModel,
+        NativeAppBridge, NativeAppModel as AppModel,
         NativeBrowserActionsModel as BrowserActionsModel,
         NativeBrowserChromeModel as BrowserChromeModel,
-        NativeBrowserPanelModel as BrowserPanelModel,
-        NativeBrowserRowModel as BrowserRowModel,
-        NativeSourceRowModel as SourceRowModel,
-        NativeStatusBarModel as StatusBarModel,
-        NativeUiAction as UiAction,
-        NativeUpdatePanelModel as UpdatePanelModel,
+        NativeBrowserPanelModel as BrowserPanelModel, NativeBrowserRowModel as BrowserRowModel,
+        NativeSourceRowModel as SourceRowModel, NativeStatusBarModel as StatusBarModel,
+        NativeUiAction as UiAction, NativeUpdatePanelModel as UpdatePanelModel,
         NativeUpdateStatusModel as UpdateStatusModel,
     },
     gui_runtime::{NativeRunOptions, run_native_vello_app},
@@ -417,12 +413,7 @@ impl UpdateNativeBridge {
                 false,
                 false,
             ),
-            SourceRowModel::new(
-                "Target",
-                self.args.identity.target.clone(),
-                false,
-                false,
-            ),
+            SourceRowModel::new("Target", self.args.identity.target.clone(), false, false),
         ];
         model.update = self.update_panel_model();
         model

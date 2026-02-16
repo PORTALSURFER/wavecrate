@@ -7,10 +7,10 @@
     windows_subsystem = "windows"
 )]
 
-use sempal::audio::AudioPlayer;
 use sempal::app_core::native_bridge::new_native_bridge;
 use sempal::app_core::ui::MIN_VIEWPORT_SIZE;
-use sempal::gui_runtime::{run_native_vello_app, NativeRunOptions, WindowIconRgba};
+use sempal::audio::AudioPlayer;
+use sempal::gui_runtime::{NativeRunOptions, WindowIconRgba, run_native_vello_app};
 use sempal::logging;
 use sempal::waveform::WaveformRenderer;
 
@@ -51,8 +51,8 @@ fn enable_windows_console() {
         OPEN_EXISTING,
     };
     use windows::Win32::System::Console::{
-        AllocConsole, AttachConsole, SetStdHandle, ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE,
-        STD_OUTPUT_HANDLE,
+        ATTACH_PARENT_PROCESS, AllocConsole, AttachConsole, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE,
+        SetStdHandle,
     };
 
     unsafe {
