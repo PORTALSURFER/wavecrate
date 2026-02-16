@@ -44,7 +44,7 @@ pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
     let transport_running = controller.is_playing();
     let sources = project_sources_model(&controller.ui);
     let status_text = controller.ui.status.text.clone();
-    let status = project_status_model(&controller.ui, selected_column);
+    let status = project_status_model(controller, selected_column);
     let browser_actions = project_browser_actions_model(&controller.ui);
     let map = project_map_model(controller);
     let update = project_update_model(&controller.ui);
@@ -523,28 +523,32 @@ fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
     }
 }
 
-fn project_status_model(ui: &UiState, selected_column: usize) -> StatusBarModel {
-    let left = ui.status.text.clone();
+fn project_status_model(controller: &AppController, selected_column: usize) -> StatusBarModel {
+    let left = controller.ui.status.text.clone();
     let center = format!(
         "rows: {} | selected: {} | anchor: {} | search: {}{}",
-        ui.browser.visible.len(),
-        ui.browser.selected_paths.len(),
-        ui.browser
+        controller.ui.browser.visible.len(),
+        controller.ui.browser.selected_paths.len(),
+        controller.ui
             .selection_anchor_visible
             .map(|row| row.to_string())
             .unwrap_or_else(|| String::from("—")),
-        if ui.browser.search_query.is_empty() {
+        if controller.ui.browser.search_query.is_empty() {
             "—"
         } else {
-            ui.browser.search_query.as_str()
+            controller.ui.browser.search_query.as_str()
         },
-        if ui.browser.search_busy {
+        if controller.ui.browser.search_busy {
             " | filtering…"
         } else {
             ""
         }
     );
-    let right = format!("col: {}/3", selected_column + 1);
+    let right = if let Some(avg_fps) = controller.average_fps() {
+        format!("fps: {avg_fps:.1} | col: {}/3", selected_column + 1)
+    } else {
+        format!("col: {}/3", selected_column + 1)
+    };
     StatusBarModel {
         left,
         center,
