@@ -5,6 +5,7 @@
 
 use crate::{
     app_core::actions::{NativeAppModel, NativeFrameBuildResult, NativeUiAction},
+    app_core::actions::NativeMotionModel,
     app_core::actions::NativeAppBridge,
     app_core::controller::{
         AppController, AppControllerNativeRuntimeExt, build_native_app_controller,
@@ -34,6 +35,11 @@ impl NativeAppBridge for SempalNativeBridge {
     fn pull_model(&mut self) -> NativeAppModel {
         self.controller.prepare_native_frame();
         self.controller.project_native_app_model()
+    }
+
+    fn pull_motion_model(&mut self) -> Option<NativeMotionModel> {
+        self.controller.prepare_native_frame();
+        Some(self.controller.project_native_motion_model())
     }
 
     fn on_action(&mut self, action: NativeUiAction) {

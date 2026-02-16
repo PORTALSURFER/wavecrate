@@ -44,6 +44,9 @@ pub trait AppControllerNativeRuntimeExt {
     /// Project the current controller state into a native runtime app model.
     fn project_native_app_model(&mut self) -> NativeAppModel;
 
+    /// Project motion-sensitive fields for incremental animation updates.
+    fn project_native_motion_model(&mut self) -> crate::app_core::actions::NativeMotionModel;
+
     /// Persist full configuration during native runtime shutdown.
     fn persist_native_exit_config(&self) -> Result<(), String>;
 
@@ -60,6 +63,10 @@ impl AppControllerNativeRuntimeExt for AppController {
 
     fn project_native_app_model(&mut self) -> NativeAppModel {
         crate::app_core::native_shell::project_app_model(self)
+    }
+
+    fn project_native_motion_model(&mut self) -> crate::app_core::actions::NativeMotionModel {
+        crate::app_core::native_shell::project_motion_model(self)
     }
 
     fn persist_native_exit_config(&self) -> Result<(), String> {

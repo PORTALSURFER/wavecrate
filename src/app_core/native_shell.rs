@@ -10,6 +10,7 @@ use crate::app_core::actions::{
     NativeBrowserChromeModel as BrowserChromeModel, NativeBrowserPanelModel as BrowserPanelModel,
     NativeBrowserRowModel as BrowserRowModel, NativeColumnModel as ColumnModel,
     NativeConfirmPromptKind as ConfirmPromptKind, NativeConfirmPromptModel as ConfirmPromptModel,
+    NativeMotionModel as MotionModel,
     NativeDragOverlayModel as DragOverlayModel, NativeFolderActionsModel as FolderActionsModel,
     NativeFolderRecoveryModel as FolderRecoveryModel, NativeFolderRowModel as FolderRowModel,
     NativeMapPanelModel as MapPanelModel, NativeMapPointModel as MapPointModel,
@@ -83,6 +84,49 @@ pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
         waveform,
         waveform_chrome,
         update,
+    }
+}
+
+pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionModel {
+    MotionModel {
+        transport_running: controller.is_playing(),
+        map_active: matches!(
+            SampleBrowserTab::from(controller.ui.browser.active_tab),
+            SampleBrowserTab::Map
+        ),
+        waveform_selection_milli: controller
+            .ui
+            .waveform
+            .selection
+            .map(|selection| {
+                crate::app_core::actions::NativeNormalizedRangeModel::new(
+                    normalized_to_milli(selection.start()),
+                    normalized_to_milli(selection.end()),
+                )
+            }),
+        waveform_cursor_milli: controller.ui.waveform.cursor.map(normalized_to_milli),
+        waveform_playhead_milli: controller
+            .ui
+            .waveform
+            .playhead
+            .visible
+            .then_some(normalized_to_milli(controller.ui.waveform.playhead.position)),
+        waveform_view_start_milli: normalized64_to_milli(controller.ui.waveform.view.start),
+        waveform_view_end_milli: normalized64_to_milli(controller.ui.waveform.view.end),
+        waveform_tempo_label: controller.ui.waveform.bpm_value.map(|bpm| format!("{bpm:.1} BPM")),
+        waveform_zoom_label: Some(format!(
+            "{:.0}%",
+            (100.0 / (controller.ui.waveform.view.end - controller.ui.waveform.view.start)
+                .clamp(0.000_1, 1.0) as f32)
+                .round()
+                .clamp(100.0, 9999.0)
+        )),
+        waveform_loaded_label: controller.ui.loaded_wav.as_deref().map(view_model::sample_display_label),
+        waveform_transport_hint: if controller.ui.waveform.loop_enabled {
+            String::from("Loop enabled")
+        } else {
+            String::from("Loop disabled")
+        },
     }
 }
 
