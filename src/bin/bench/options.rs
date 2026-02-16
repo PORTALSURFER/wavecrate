@@ -7,6 +7,7 @@ pub(super) struct BenchOptions {
     pub(super) analysis: bool,
     pub(super) analysis_full: bool,
     pub(super) similarity: bool,
+    pub(super) gui: bool,
     pub(super) seed: u64,
     pub(super) warmup_iters: usize,
     pub(super) measure_iters: usize,
@@ -14,13 +15,14 @@ pub(super) struct BenchOptions {
     pub(super) analysis_duration_ms: u32,
     pub(super) analysis_sample_rate: u32,
     pub(super) similarity_rows: usize,
+    pub(super) gui_rows: usize,
 }
 
 pub(super) fn parse_args(args: Vec<String>) -> Result<Option<BenchOptions>, String> {
     let mut options = default_options();
     apply_args(&mut options, &args)?;
-    if !options.analysis && !options.similarity {
-        return Err("Nothing to benchmark: enable --analysis or --similarity".to_string());
+    if !options.analysis && !options.similarity && !options.gui {
+        return Err("Nothing to benchmark: enable --analysis, --similarity, or --gui".to_string());
     }
     Ok(Some(options))
 }
@@ -41,6 +43,7 @@ fn default_options() -> BenchOptions {
         analysis: true,
         analysis_full: false,
         similarity: true,
+        gui: true,
         seed: 1,
         warmup_iters: 5,
         measure_iters: 30,
@@ -48,6 +51,7 @@ fn default_options() -> BenchOptions {
         analysis_duration_ms: 500,
         analysis_sample_rate: 44_100,
         similarity_rows: 20_000,
+        gui_rows: 10_000,
     }
 }
 
@@ -85,6 +89,8 @@ fn apply_toggle(options: &mut BenchOptions, flag: &str) -> bool {
         "--analysis-lite" => options.analysis_full = false,
         "--similarity" => options.similarity = true,
         "--no-similarity" => options.similarity = false,
+        "--gui" => options.gui = true,
+        "--no-gui" => options.gui = false,
         _ => return false,
     }
     true
@@ -112,6 +118,9 @@ fn apply_value(
         }
         "--similarity-rows" => {
             options.similarity_rows = parse_usize(args, idx, "--similarity-rows")?;
+        }
+        "--gui-rows" => {
+            options.gui_rows = parse_usize(args, idx, "--gui-rows")?;
         }
         _ => return Ok(false),
     }
@@ -155,6 +164,7 @@ Options:\n\
   --analysis-full              Include embedding inference in analysis bench\n\
   --analysis-lite              Skip embedding inference (feature-only)\n\
   --similarity / --no-similarity Enable/disable ANN similarity bench (default: enabled)\n\
+  --gui / --no-gui               Enable/disable GUI frame/interaction bench (default: enabled)\n\
   --seed <u64>                 RNG seed for analysis fixtures (default: 1)\n\
   --warmup-iters <n>           Warmup iterations for each query (default: 5)\n\
   --measure-iters <n>          Measured iterations for each query (default: 30)\n\
@@ -162,5 +172,6 @@ Options:\n\
   --analysis-duration-ms <ms>  Synthetic wav duration (default: 500)\n\
   --analysis-sample-rate <hz>  Synthetic wav sample rate (default: 44100)\n\
   --similarity-rows <n>        Seed rows for similarity benchmark (default: 20000)\n\
+  --gui-rows <n>              Seed rows for GUI benchmark (default: 10000)\n\
   -h, --help                   Show this help\n"
 }

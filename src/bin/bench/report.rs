@@ -14,6 +14,7 @@ pub(super) struct BenchReport {
     pub(super) similarity: Option<super::similarity_latency::SimilarityBenchResult>,
     pub(super) feature_blob_decode:
         Option<super::feature_blob_decode::FeatureBlobDecodeBenchResult>,
+    pub(super) gui: Option<super::gui::GuiBenchResult>,
 }
 
 impl BenchReport {
@@ -31,6 +32,7 @@ impl BenchReport {
             analysis: None,
             similarity: None,
             feature_blob_decode: None,
+            gui: None,
         }
     }
 }

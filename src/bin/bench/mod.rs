@@ -2,6 +2,7 @@ mod analysis_throughput;
 mod feature_blob_decode;
 mod options;
 mod report;
+mod gui;
 mod similarity_latency;
 mod stats;
 
@@ -21,6 +22,9 @@ pub(super) fn run(args: Vec<String>) -> Result<(), String> {
     }
     if report.params.similarity {
         report.similarity = Some(similarity_latency::run(&report.params)?);
+    }
+    if report.params.gui {
+        report.gui = Some(gui::run(&report.params)?);
     }
     report.feature_blob_decode = Some(feature_blob_decode::run(&report.params)?);
     report.total_elapsed_ms = started_at.elapsed().as_millis() as u64;
