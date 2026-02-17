@@ -30,6 +30,20 @@ Audio sample triage tool built with Rust.
   - Native shell text rendering can use `SEMPAL_NATIVE_FONT_PATH=/path/to/font.ttf` if automatic system font discovery fails.
 - Windows (ASIO): If you want to build with ASIO support (or your build fails looking for the ASIO SDK), download the Steinberg ASIO SDK and set `CPAL_ASIO_DIR` to the SDK path (e.g. a folder named `ASIOSDK`) before running `cargo build`/`cargo run`.
 
+## Architecture
+
+- `vendor/radiant` owns GUI abstractions, widgets, layout, input handling, diff/update
+  logic, and rendering coordination.
+- `src/gui` contains the app-level GUI wiring for Sempal and consumes the `radiant` API.
+- `src/gui_app` and `src/gui_runtime` are the host-bridge layers between Sempal and `radiant`.
+- Core domain logic, sample indexing, playback, and persistence remain in `src/` modules
+  (`audio`, `analysis`, `sample_sources`, `updater`, etc.).
+- Rendering is performed by the `vello` backend through the `radiant` runtime path.
+
+In practice, `src` should declare UI intent through `radiant` and avoid duplicating
+GUI helpers, layout logic, hit-testing, and event routing logic that belongs in
+`radiant`.
+
 ## ML model setup (PANNs)
 
 - The app uses a PANNs model (burnpack) and requires the ONNX model to build the burnpack.
