@@ -14,6 +14,10 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
 ## Setup
 - Point a sample source at a folder with ~50k wav files (or duplicate a smaller corpus until the count is reached).
 - Start with a clean run so cached labels and entries rebuild once.
+- Enable renderer profiling only when needed:
+  - Build `radiant` with `--features gui-performance`.
+  - Set `SEMPAL_NATIVE_RENDER_PROFILE=1` before launch.
+  - Profiling prints averages every 240 native redraw frames to stderr; disable feature for normal runs to avoid collection overhead.
 
 ## Checklist
 - Launch app and select the large source.

@@ -848,7 +848,11 @@ fn project_waveform_model(controller: &mut AppController) -> WaveformPanelModel 
 fn project_waveform_image(
     controller: &mut AppController,
 ) -> Option<ImageRgba> {
-    if controller.projected_waveform_image_signature == controller.ui.waveform.waveform_image_signature {
+    let has_source_image = controller.ui.waveform.image.is_some();
+    let has_cached_image = controller.projected_waveform_image.is_some();
+    if controller.projected_waveform_image_signature == controller.ui.waveform.waveform_image_signature
+        && has_source_image == has_cached_image
+    {
         return controller.projected_waveform_image.clone();
     }
     let projected_waveform_image = project_waveform_image_data(&controller.ui.waveform.image);
