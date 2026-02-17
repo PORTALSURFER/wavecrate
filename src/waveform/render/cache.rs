@@ -5,6 +5,11 @@ use crate::waveform::zoom_cache::CachedColumns;
 
 impl WaveformRenderer {
     #[allow(dead_code)]
+    /// Return the normalized cached-column window for the current view, if valid.
+    ///
+    /// The cached columns are built for a potentially wider full-width pass than the
+    /// visible viewport to support smooth zoom/pan behavior. This helper maps
+    /// `view_start` into that wider coordinate space and returns start/end column indexes.
     pub(crate) fn cached_view_window(
         &self,
         decoded: &DecodedWaveform,
@@ -25,6 +30,11 @@ impl WaveformRenderer {
         Some((start, end))
     }
 
+    /// Try to render from the zoom cache for `decoded`.
+    ///
+    /// When a compatible cached window exists this method returns a fully rendered
+    /// image with the configured dimensions. On a cache miss it returns `None` and
+    /// allows the normal render path to compute the image directly.
     pub(super) fn render_cached_view(
         &self,
         decoded: &DecodedWaveform,
@@ -80,6 +90,10 @@ impl WaveformRenderer {
         Some(image)
     }
 
+    /// Compute the full-width column count used for cache reuse at this zoom level.
+    ///
+    /// This widens the computation window when zoomed in and caps it to prevent
+    /// unbounded memory growth. It always returns at least `width`.
     pub(super) fn cached_full_width(
         &self,
         width: u32,
@@ -92,6 +106,10 @@ impl WaveformRenderer {
         desired.min(frame_cap).min(MAX_CACHED_FULL_WIDTH).max(width)
     }
 
+    /// Convert a normalized `view_start` into cached column window indexes.
+    ///
+    /// Returns `(start_col, end_col)` covering exactly `width` columns within
+    /// `[0, full_width]`, or `None` if the request is invalid.
     pub(super) fn columns_window(
         &self,
         view_start: f32,
