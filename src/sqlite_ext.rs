@@ -212,10 +212,10 @@ fn env_flag_set(name: &str) -> bool {
     let Ok(value) = std::env::var(name) else {
         return false;
     };
-    match value.trim().to_ascii_lowercase().as_str() {
-        "1" | "true" | "yes" | "on" => true,
-        _ => false,
-    }
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }
 
 fn unsafe_mode_allowed() -> bool {
@@ -308,7 +308,7 @@ fn validate_extension_file(path: &Path) -> Result<(), String> {
         if mode & 0o022 != 0 {
             return Err("SQLite extension is writable by group or others".to_string());
         }
-        return Ok(());
+        Ok(())
     }
     #[cfg(windows)]
     {
