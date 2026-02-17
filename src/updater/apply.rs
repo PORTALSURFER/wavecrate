@@ -25,8 +25,7 @@ use helpers::{
 };
 
 #[cfg(test)]
-#[path = "apply_tests.rs"]
-mod apply_tests;
+mod tests;
 
 /// Parsed `update-manifest.json` embedded in release archives.
 #[derive(Debug, Clone, Deserialize)]
