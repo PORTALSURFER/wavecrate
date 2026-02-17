@@ -685,15 +685,33 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
         .as_deref()
         .map(view_model::sample_display_label);
     let anchor_visible_row = controller.ui.browser.selection_anchor_visible;
-    let mut rows = Vec::new();
     let visible_count = controller.ui.browser.visible.len();
+    if controller.ui.browser.active_tab == SampleBrowserTab::Map {
+        return BrowserPanelModel {
+            visible_count,
+            selected_visible_row,
+            selected_path_count,
+            search_query,
+            search_placeholder,
+            busy,
+            sort_label,
+            active_tab_label,
+            focused_sample_label,
+            anchor_visible_row,
+            rows: Vec::new(),
+        };
+    }
+    let mut rows = Vec::new();
     let (window_start, window_len) =
         browser_render_window(visible_count, selected_visible_row, anchor_visible_row);
-    for visible_row in window_start..(window_start + window_len) {
-        let Some(absolute_index) = controller.ui.browser.visible.get(visible_row) else {
-            continue;
-        };
-        let label = controller.label_for_ref(absolute_index).map(str::to_string);
+    let mut visible_rows = Vec::with_capacity(window_len);
+    controller
+        .ui
+        .browser
+        .visible
+        .copy_window_into(window_start, window_len, &mut visible_rows);
+    for (offset, absolute_index) in visible_rows.into_iter().enumerate() {
+        let visible_row = window_start + offset;
         let Some((entry_tag, relative_path)) = controller
             .wav_entry(absolute_index)
             .map(|entry| (entry.tag, entry.relative_path.clone()))
@@ -710,6 +728,7 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
             );
             continue;
         };
+        let label = controller.label_for_ref(absolute_index).map(str::to_string);
         let selected = controller
             .ui
             .browser
@@ -1050,6 +1069,7 @@ mod tests {
             AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
         controller.ui.browser.sort = SampleBrowserSort::PlaybackAgeDesc.into();
         controller.ui.browser.active_tab = SampleBrowserTab::Map.into();
+        controller.ui.browser.visible = crate::app::state::VisibleRows::All { total: 42 };
         let projected = project_browser_model(&mut controller);
         assert_eq!(
             projected.search_placeholder.as_deref(),
@@ -1060,6 +1080,8 @@ mod tests {
             projected.active_tab_label.as_deref(),
             Some("Similarity map")
         );
+        assert!(projected.rows.is_empty());
+        assert_eq!(projected.visible_count, 42);
     }
 
     #[test]

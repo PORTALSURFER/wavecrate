@@ -169,6 +169,37 @@ impl VisibleRows {
         }
     }
 
+    /// Copy a contiguous visible-window slice into `out`.
+    ///
+    /// The method clamps `start` and `len` to the valid range and clears
+    /// `out` before appending results, so callers can reuse a pre-allocated
+    /// buffer across frames.
+    pub fn copy_window_into(&self, start: usize, len: usize, out: &mut Vec<usize>) {
+        out.clear();
+        if len == 0 {
+            return;
+        }
+
+        match self {
+            VisibleRows::All { total } => {
+                if start >= *total {
+                    return;
+                }
+                let end = start.saturating_add(len).min(*total);
+                let count = end.saturating_sub(start);
+                out.reserve(count);
+                out.extend(start..end);
+            }
+            VisibleRows::List(rows) => {
+                let end = start.saturating_add(len).min(rows.len());
+                if start >= rows.len() {
+                    return;
+                }
+                out.extend_from_slice(&rows[start..end]);
+            }
+        }
+    }
+
     /// Map a visible row index to an absolute index.
     pub fn get(&self, row: usize) -> Option<usize> {
         match self {
@@ -264,4 +295,33 @@ pub enum SampleBrowserTab {
     List,
     /// Map view tab.
     Map,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::VisibleRows;
+
+    #[test]
+    fn visible_rows_all_copy_window_clamps_start_and_len() {
+        let rows = VisibleRows::All { total: 7 };
+        let mut out = Vec::new();
+        rows.copy_window_into(4, 5, &mut out);
+        assert_eq!(out, vec![4, 5, 6]);
+    }
+
+    #[test]
+    fn visible_rows_list_copy_window_is_sliced() {
+        let rows = VisibleRows::List(vec![10, 20, 30, 40, 50]);
+        let mut out = Vec::new();
+        rows.copy_window_into(1, 3, &mut out);
+        assert_eq!(out, vec![20, 30, 40]);
+    }
+
+    #[test]
+    fn visible_rows_list_copy_window_respects_limits() {
+        let rows = VisibleRows::List(vec![10, 20]);
+        let mut out = Vec::new();
+        rows.copy_window_into(3, 2, &mut out);
+        assert!(out.is_empty());
+    }
 }
