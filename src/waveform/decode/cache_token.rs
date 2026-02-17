@@ -3,13 +3,22 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_CACHE_TOKEN: AtomicU64 = AtomicU64::new(1);
 
+/// Return a monotonic token used to invalidate waveform-derived caches.
+///
+/// The token increments for each decode path invocation and helps distinguish
+/// stale cached payloads when source content changes.
 pub(crate) fn next_cache_token() -> u64 {
     NEXT_CACHE_TOKEN.fetch_add(1, Ordering::Relaxed)
 }
 
 impl WaveformRenderer {
+    /// Maximum number of full-precision samples to retain in-memory per file.
+    ///
+    /// Larger files fall back to a decimated analysis representation plus peak
+    /// envelopes to keep memory usage bounded.
     pub(super) const MAX_FULL_SAMPLE_FRAMES: usize = 2_500_000;
 
+    /// Decode bytes and return either full samples or a reduced analysis representation.
     pub(super) fn load_decoded(
         &self,
         bytes: &[u8],
@@ -17,6 +26,10 @@ impl WaveformRenderer {
         self.load_decoded_with_limit(bytes, Self::MAX_FULL_SAMPLE_FRAMES)
     }
 
+    /// Decode bytes with a configurable full-sample upper bound.
+    ///
+    /// If the file exceeds `max_frames`, the decoder emits peak/analysis data
+    /// instead of retaining every sample.
     fn load_decoded_with_limit(
         &self,
         bytes: &[u8],
@@ -30,6 +43,7 @@ impl WaveformRenderer {
     }
 
     #[cfg(test)]
+    /// Test hook that forces a specific full-sample threshold.
     pub(crate) fn load_decoded_with_max_frames(
         &self,
         bytes: &[u8],
