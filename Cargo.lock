@@ -3950,6 +3950,7 @@ version = "0.1.0"
 dependencies = [
  "pollster",
  "skrifa",
+ "tracing",
  "vello",
  "winit",
 ]
