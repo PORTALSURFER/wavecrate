@@ -112,7 +112,7 @@ mod tests {
     fn frame_aligned_floor_recovers_frame_counts_from_ceil_encoded_durations() {
         let sample_rate = 44_100u64;
         for target_frames in [1u64, 2, 3, 10, 100, 1_000] {
-            let nanos = (target_frames * 1_000_000_000 + sample_rate - 1) / sample_rate;
+            let nanos = (target_frames * 1_000_000_000).div_ceil(sample_rate);
             let duration = Duration::from_nanos(nanos);
             let samples = duration_to_samples_frame_aligned_floor(duration, sample_rate as u32, 2);
             assert_eq!(samples, (target_frames as usize) * 2);
