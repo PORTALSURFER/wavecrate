@@ -72,11 +72,9 @@ pub trait AppControllerNativeRuntimeExt {
 }
 
 impl AppControllerNativeRuntimeExt for AppController {
-    fn prepare_native_frame(&mut self, animation_only: bool) {
+    fn prepare_native_frame(&mut self, _animation_only: bool) {
         self.tick_playhead();
-        if !animation_only {
-            self.update_performance_governor(false);
-        }
+        self.update_performance_governor(false);
     }
 
     fn project_native_app_model(&mut self) -> NativeAppModel {
