@@ -62,6 +62,17 @@ Contract notes for contributors:
 For deterministic input behavior, keep event handling inside `radiant` entry points and
 avoid duplicate state mutation in UI callbacks.
 
+## Optional performance instrumentation
+
+- Native bridge profiling is opt-in via cargo feature:
+  - `native-bridge-metrics` (build with `--features native-bridge-metrics`)
+- Enable runtime logs by setting:
+  - `SEMPAL_NATIVE_BRIDGE_PROFILE=true`
+  - Accepts `1`, `true`, `on`, and `yes` (case-insensitive for `TRUE`/`On`/`ON` style variants)
+- Logging includes bridge prep/project timing, input-action timing, and frame-render
+  work counters from `NativeAppModel` and `NativeFrameBuildResult`.
+- Default builds keep all profiling call sites in the no-op fast path.
+
 ## ML model setup (PANNs)
 
 - The app uses a PANNs model (burnpack) and requires the ONNX model to build the burnpack.

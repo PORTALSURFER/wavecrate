@@ -4,9 +4,12 @@
 //! depend on `app_core` instead of legacy runtime module paths.
 //!
 //! Bridge profiling is opt-in and controlled by the `native-bridge-metrics`
-//! feature. When enabled, environment variable
-//! `SEMPAL_NATIVE_BRIDGE_PROFILE` (true/on/1/yes) enables periodic stats and
-//! action timing logs with zero-cost behavior when disabled.
+//! cargo feature. When enabled, setting `SEMPAL_NATIVE_BRIDGE_PROFILE`
+//! (`1`, `true`, `on`, or `yes`, case-insensitive) enables periodic logging
+//! of bridge execution timing and renderer work counts.
+//! 
+//! When the feature is disabled, all profiling calls are compiled out to keep
+//! default builds on the hot path with zero added overhead.
 
 use crate::{
     app_core::actions::NativeAppBridge,
@@ -371,7 +374,11 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 }
 
-/// Construct a native runtime bridge for the current sempal controller stack.
+/// Construct a native runtime bridge for the current `sempal` controller stack.
+///
+/// This is the application-facing constructor used by host integrations. It
+/// keeps bridge construction in `app_core` and returns a controller-backed
+/// implementation of `NativeAppBridge` that delegates all GUI work to `radiant`.
 pub fn new_native_bridge(
     renderer: WaveformRenderer,
     player: Option<Rc<RefCell<AudioPlayer>>>,
