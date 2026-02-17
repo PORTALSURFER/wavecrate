@@ -587,7 +587,6 @@ fn project_status_model(controller: &AppController, selected_column: usize) -> S
 
 fn status_bar_right_text(selected_column: usize) -> String {
     format!("col: {}/3", selected_column + 1)
-    }
 }
 
 pub(crate) fn selected_column_index(ui: &UiState) -> usize {
