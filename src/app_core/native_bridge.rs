@@ -2,6 +2,11 @@
 //!
 //! This module hosts the `radiant` bridge surface so runtime entrypoints can
 //! depend on `app_core` instead of legacy runtime module paths.
+//!
+//! Bridge profiling is opt-in and controlled by the `native-bridge-metrics`
+//! feature. When enabled, environment variable
+//! `SEMPAL_NATIVE_BRIDGE_PROFILE` (true/on/1/yes) enables periodic stats and
+//! action timing logs with zero-cost behavior when disabled.
 
 use crate::{
     app_core::actions::NativeAppBridge,
@@ -16,31 +21,51 @@ use crate::{
 use std::{
     cell::RefCell,
     rc::Rc,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        OnceLock,
-    },
     time::{Duration, Instant},
+};
+#[cfg(feature = "native-bridge-metrics")]
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    OnceLock,
 };
 use tracing::{error, info};
 
+#[cfg(feature = "native-bridge-metrics")]
 const BRIDGE_PROFILE_INTERVAL: u64 = 240;
+#[cfg(not(feature = "native-bridge-metrics"))]
+const BRIDGE_PROFILE_INTERVAL: u64 = 1;
+
+#[cfg(feature = "native-bridge-metrics")]
 const BRIDGE_PROFILE_ENV: &str = "SEMPAL_NATIVE_BRIDGE_PROFILE";
 
+#[cfg(feature = "native-bridge-metrics")]
 static PULL_MODEL_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static PULL_MODEL_PREP_NS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static PULL_MODEL_PROJECT_NS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static PULL_MOTION_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static PULL_MOTION_PREP_NS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static PULL_MOTION_PROJECT_NS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static ACTION_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static ACTION_DURATION_NS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static FRAME_RESULT_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static FRAME_RESULT_ANIMATION_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static FRAME_RESULT_PRIMITIVES_TOTAL: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static FRAME_RESULT_TEXT_RUNS_TOTAL: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static BRIDGE_PROFILE_ENABLED: OnceLock<bool> = OnceLock::new();
 
+#[cfg(feature = "native-bridge-metrics")]
 fn bridge_profiling_enabled() -> bool {
     *BRIDGE_PROFILE_ENABLED.get_or_init(|| {
         std::env::var(BRIDGE_PROFILE_ENV)
@@ -50,20 +75,25 @@ fn bridge_profiling_enabled() -> bool {
             })
     })
 }
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline]
+fn bridge_profiling_enabled() -> bool {
+    false
+}
 
+#[cfg(feature = "native-bridge-metrics")]
 fn saturating_add_duration(counter: &AtomicU64, duration: Duration) {
     let dur_ns = duration.as_nanos().min(u64::MAX as u128) as u64;
     counter.fetch_add(dur_ns, Ordering::Relaxed);
 }
 
+#[cfg(feature = "native-bridge-metrics")]
 fn ms_from_ns(ns: u64) -> f64 {
     ns as f64 / 1_000_000.0
 }
 
+#[cfg(feature = "native-bridge-metrics")]
 fn maybe_log_bridge_profile() {
-    if !bridge_profiling_enabled() {
-        return;
-    }
     let pull_model_count = PULL_MODEL_COUNT.load(Ordering::Relaxed);
     let pull_model_prep = PULL_MODEL_PREP_NS.load(Ordering::Relaxed);
     let pull_model_project = PULL_MODEL_PROJECT_NS.load(Ordering::Relaxed);
@@ -129,6 +159,100 @@ fn maybe_log_bridge_profile() {
         avg_text_runs_per_frame
     );
 }
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline]
+fn maybe_log_bridge_profile() {}
+
+#[cfg(feature = "native-bridge-metrics")]
+fn trace_pull_model_call() -> u64 {
+    PULL_MODEL_COUNT.fetch_add(1, Ordering::Relaxed) + 1
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+fn trace_pull_model_call() -> u64 {
+    1
+}
+
+#[cfg(feature = "native-bridge-metrics")]
+fn trace_pull_motion_call() -> u64 {
+    PULL_MOTION_COUNT.fetch_add(1, Ordering::Relaxed) + 1
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+fn trace_pull_motion_call() -> u64 {
+    1
+}
+
+#[cfg(feature = "native-bridge-metrics")]
+fn trace_action_call() -> u64 {
+    ACTION_COUNT.fetch_add(1, Ordering::Relaxed) + 1
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+fn trace_action_call() -> u64 {
+    1
+}
+
+#[cfg(feature = "native-bridge-metrics")]
+fn trace_frame_result(result: &NativeFrameBuildResult) -> u64 {
+    let frame_count = FRAME_RESULT_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+    if result.needs_animation {
+        FRAME_RESULT_ANIMATION_COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+    FRAME_RESULT_PRIMITIVES_TOTAL.fetch_add(result.primitive_count as u64, Ordering::Relaxed);
+    FRAME_RESULT_TEXT_RUNS_TOTAL.fetch_add(result.text_run_count as u64, Ordering::Relaxed);
+    frame_count
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+fn trace_frame_result(_result: &NativeFrameBuildResult) -> u64 {
+    1
+}
+
+#[cfg(feature = "native-bridge-metrics")]
+#[inline(always)]
+fn trace_pull_model_preparation(duration: Duration) {
+    saturating_add_duration(&PULL_MODEL_PREP_NS, duration);
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+fn trace_pull_model_preparation(_duration: Duration) {}
+
+#[cfg(feature = "native-bridge-metrics")]
+#[inline(always)]
+fn trace_pull_model_projection(duration: Duration) {
+    saturating_add_duration(&PULL_MODEL_PROJECT_NS, duration);
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+fn trace_pull_model_projection(_duration: Duration) {}
+
+#[cfg(feature = "native-bridge-metrics")]
+#[inline(always)]
+fn trace_pull_motion_preparation(duration: Duration) {
+    saturating_add_duration(&PULL_MOTION_PREP_NS, duration);
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+fn trace_pull_motion_preparation(_duration: Duration) {}
+
+#[cfg(feature = "native-bridge-metrics")]
+#[inline(always)]
+fn trace_pull_motion_projection(duration: Duration) {
+    saturating_add_duration(&PULL_MOTION_PROJECT_NS, duration);
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+fn trace_pull_motion_projection(_duration: Duration) {}
+
+#[cfg(feature = "native-bridge-metrics")]
+#[inline(always)]
+fn trace_action_duration(duration: Duration) {
+    saturating_add_duration(&ACTION_DURATION_NS, duration);
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+fn trace_action_duration(_duration: Duration) {}
 
 /// Host bridge used by the native `radiant` runtime.
 pub struct SempalNativeBridge {
@@ -153,7 +277,7 @@ impl SempalNativeBridge {
 
 impl NativeAppBridge for SempalNativeBridge {
     fn pull_model(&mut self) -> NativeAppModel {
-        let call = PULL_MODEL_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+        let call = trace_pull_model_call();
         let profiling = bridge_profiling_enabled();
         let prepare_start = profiling.then(Instant::now);
         if call <= 24 {
@@ -162,13 +286,13 @@ impl NativeAppBridge for SempalNativeBridge {
         self.controller.prepare_native_frame(false);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
-            saturating_add_duration(&PULL_MODEL_PREP_NS, prepare_duration);
+            trace_pull_model_preparation(prepare_duration);
         }
         let project_start = profiling.then(Instant::now);
         let model = self.controller.project_native_app_model();
         let project_duration = project_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
-            saturating_add_duration(&PULL_MODEL_PROJECT_NS, project_duration);
+            trace_pull_model_projection(project_duration);
         }
         if call <= 24 {
             info!(
@@ -186,7 +310,7 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     fn pull_motion_model(&mut self) -> Option<NativeMotionModel> {
-        let call = PULL_MOTION_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+        let call = trace_pull_motion_call();
         let profiling = bridge_profiling_enabled();
         let prepare_start = profiling.then(Instant::now);
         if call <= 24 {
@@ -195,13 +319,13 @@ impl NativeAppBridge for SempalNativeBridge {
         self.controller.prepare_native_frame(true);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
-            saturating_add_duration(&PULL_MOTION_PREP_NS, prepare_duration);
+            trace_pull_motion_preparation(prepare_duration);
         }
         let project_start = profiling.then(Instant::now);
         let model = Some(self.controller.project_native_motion_model());
         let project_duration = project_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
-            saturating_add_duration(&PULL_MOTION_PROJECT_NS, project_duration);
+            trace_pull_motion_projection(project_duration);
         }
         if call <= 24 {
             info!(call, "native bridge: pull_motion_model completed");
@@ -213,7 +337,7 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     fn on_action(&mut self, action: NativeUiAction) {
-        let call = ACTION_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+        let call = trace_action_call();
         let profiling = bridge_profiling_enabled();
         let action_start = profiling.then(Instant::now);
         if call <= 64 {
@@ -222,7 +346,7 @@ impl NativeAppBridge for SempalNativeBridge {
         self.controller.apply_native_ui_action(action);
         if profiling {
             let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
-            saturating_add_duration(&ACTION_DURATION_NS, action_duration);
+            trace_action_duration(action_duration);
         }
     }
 
@@ -231,16 +355,7 @@ impl NativeAppBridge for SempalNativeBridge {
         if !profiling {
             return;
         }
-        FRAME_RESULT_COUNT.fetch_add(1, Ordering::Relaxed);
-        if result.needs_animation {
-            FRAME_RESULT_ANIMATION_COUNT.fetch_add(1, Ordering::Relaxed);
-        }
-        FRAME_RESULT_PRIMITIVES_TOTAL.fetch_add(
-            result.primitive_count as u64,
-            Ordering::Relaxed,
-        );
-        FRAME_RESULT_TEXT_RUNS_TOTAL.fetch_add(result.text_run_count as u64, Ordering::Relaxed);
-        let frame_count = FRAME_RESULT_COUNT.load(Ordering::Relaxed);
+        let frame_count = trace_frame_result(&result);
         if frame_count % BRIDGE_PROFILE_INTERVAL == 0 {
             maybe_log_bridge_profile();
         }
