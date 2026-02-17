@@ -32,19 +32,14 @@ pub const REPO_SLUG: &str = "PORTALSURFER/sempal";
 pub(crate) const CHECKSUMS_PUBLIC_KEY_BASE64: &str = "8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=";
 
 /// Update channel selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum UpdateChannel {
     /// Stable release channel.
+    #[default]
     Stable,
     /// Nightly/pre-release channel.
     Nightly,
-}
-
-impl Default for UpdateChannel {
-    fn default() -> Self {
-        Self::Stable
-    }
 }
 
 /// Context for the running app used to validate manifests.
