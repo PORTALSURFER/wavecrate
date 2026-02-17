@@ -4,11 +4,11 @@ use super::{options::BenchOptions, stats};
 use sempal::app_core::actions::{NativeAppModel, NativeMotionModel};
 use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
 use sempal::app_core::state::{SampleBrowserSort, TriageFlagFilter};
-use sempal::sample_sources::SourceDatabase;
 use sempal::waveform::WaveformRenderer;
+use hound::{SampleFormat, WavSpec, WavWriter};
 use serde::Serialize;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
@@ -109,46 +109,49 @@ fn build_controller_with_db_rows(options: &BenchOptions) -> Result<BenchWorkspac
     fs::create_dir_all(&source_root)
         .map_err(|err| format!("Create source dir {} failed: {err}", source_root.display()))?;
 
-    let db = SourceDatabase::open(&source_root)
-        .map_err(|err| format!("Create benchmark source db failed: {err}"))?;
-    let target_rows = options.gui_rows.max(1);
-    {
-        let mut batch = db
-            .write_batch()
-            .map_err(|err| format!("Open DB write batch failed: {err}"))?;
-        for row in 0..target_rows {
-            let path = PathBuf::from(format!("sample_{row:06}.wav"));
-            batch
-                .upsert_file(&path, 1_024, row as i64 * 1_000_000)
-                .map_err(|err| format!("Seed DB row {row} failed: {err}"))?;
-        }
-        batch
-            .commit()
-            .map_err(|err| format!("Commit DB seed batch failed: {err}"))?;
+    for (row, file_name) in seeded_wav_filenames(options.gui_rows.max(1)).into_iter().enumerate() {
+        write_seed_wav(&source_root.join(&file_name), row as i64)
+            .map_err(|err| format!("Seed test audio failed: {err}"))?;
     }
     let source_dir = source_root.clone();
     controller
         .add_source_from_path(source_dir)
         .map_err(|err| format!("Add benchmark source failed: {err}"))?;
     controller.select_first_source();
-    controller
-        .refresh_wavs()
-        .map_err(|err| format!("Seed benchmark source wavs failed: {err}"))?;
+    controller.refresh_wavs().map_err(|err| format!("Refresh benchmark wavs failed: {err}"))?;
     Ok(BenchWorkspace {
         _temp_root: temp_root,
         controller,
     })
 }
 
+fn seeded_wav_filenames(target_rows: usize) -> Vec<PathBuf> {
+    (0..target_rows)
+        .map(|row| PathBuf::from(format!("sample_{row:06}.wav")))
+        .collect()
+}
+
+fn write_seed_wav(path: &Path, seed: i64) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("Create wav parent {} failed: {err}", parent.display()))?;
+    }
+    let spec = WavSpec {
+        channels: 1,
+        sample_rate: 8,
+        bits_per_sample: 32,
+        sample_format: SampleFormat::Float,
+    };
+    let sample = [seed as f32 % 1.0];
+    let mut writer = WavWriter::create(path, spec).map_err(|err| err.to_string())?;
+    writer.write_sample(sample[0]).map_err(|err| err.to_string())?;
+    writer.finalize().map_err(|err| err.to_string())?;
+    Ok(())
+}
+
 fn execute_interaction_step(controller: &mut AppController, step: usize) -> Result<(), String> {
     const SEARCH_QUERIES: [&str; 4] = ["sample_", "sample_00", "sample_000", "sample_001"];
-    let total_rows = controller.visible_browser_len();
-    if total_rows == 0 {
-        return Err("No GUI rows available for interaction bench".to_string());
-    }
-
-    let row = step % total_rows;
-    let query = SEARCH_QUERIES[row % SEARCH_QUERIES.len()];
+    let query = SEARCH_QUERIES[step % SEARCH_QUERIES.len()];
     controller.set_browser_search(query);
 
     let filter = if step % 3 == 0 {
@@ -166,13 +169,22 @@ fn execute_interaction_step(controller: &mut AppController, step: usize) -> Resu
         controller.set_browser_sort(SampleBrowserSort::PlaybackAgeDesc.into());
     }
 
-    controller.select_column_by_index(step % 3);
+    if controller.visible_browser_len() > 0 {
+        controller.select_column_by_index(step % 3);
+    }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn with_isolated_app_config() {
+        let config_root = tempfile::tempdir().expect("create isolated app config directory");
+        sempal::app_dirs::set_app_root_override(config_root.path().to_path_buf())
+            .expect("configure isolated app root");
+        std::mem::forget(config_root);
+    }
 
     fn tiny_options() -> BenchOptions {
         let mut options = BenchOptions::default();
@@ -185,6 +197,7 @@ mod tests {
     #[test]
     fn run_gui_benchmark_uses_one_row_when_gui_rows_is_zero() {
         let mut options = tiny_options();
+        let _config_scope = with_isolated_app_config();
         options.gui_rows = 0;
         let report = run(&options).expect("gui benchmark with minimum row count");
         assert_eq!(report.seeded_rows, 1);
@@ -194,16 +207,16 @@ mod tests {
     #[test]
     fn interaction_step_cycles_search_filter_and_sort() {
         let options = tiny_options();
+        let _config_scope = with_isolated_app_config();
         let mut workspace = build_controller_with_db_rows(&options).expect("build gui workspace");
         wait_for_rows(&mut workspace.controller, options.gui_rows).expect("rows seeded");
 
         let expected_queries = ["sample_", "sample_00", "sample_000", "sample_001"];
         for step in 0..6usize {
             execute_interaction_step(&mut workspace.controller, step).expect("interaction step");
-            let row = step % options.gui_rows.max(1);
             assert_eq!(
                 workspace.controller.ui.browser.search_query,
-                expected_queries[row % expected_queries.len()]
+                expected_queries[step % expected_queries.len()]
             );
             let expected_filter = match step % 3 {
                 0 => TriageFlagFilter::All,
