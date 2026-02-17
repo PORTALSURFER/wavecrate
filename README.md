@@ -44,6 +44,24 @@ In practice, `src` should declare UI intent through `radiant` and avoid duplicat
 GUI helpers, layout logic, hit-testing, and event routing logic that belongs in
 `radiant`.
 
+Radiant update/diff model:
+
+- App code builds declarative state for UI intents (`actions`, `projection`, and view
+  shape) and passes it through the host bridge.
+- `radiant` computes the structural diff between the current and next UI trees.
+- Only changed subtrees are invalidated and repainted.
+- Expensive rasterization and paint graph construction stay inside the `radiant`
+  runtime, while `src` only controls when new state should be scheduled.
+
+Event propagation model:
+
+- Input is normalized in `radiant` from native events into key/mouse tokens.
+- The framework performs deterministic hit-testing from layout bounds before routing.
+- Focus, pointer capture, keyboard shortcuts, and drag sequences are resolved by
+  `radiant`.
+- App-level callbacks receive action payloads and apply domain-level state updates in
+  response; they do not mutate widget internals.
+
 Contract notes for contributors:
 
 - `src` owns domain state and intent only:
