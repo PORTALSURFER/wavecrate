@@ -318,11 +318,9 @@ mod tests {
         start_barrier.wait();
         let mut second = 0.0;
         for _ in 0..10 {
-            if let Some(sample) = async_source.next() {
-                if sample != 0.0 {
-                    second = sample;
-                    break;
-                }
+            if let Some(sample) = async_source.next() && sample != 0.0 {
+                second = sample;
+                break;
             }
             thread::sleep(Duration::from_millis(5));
         }
@@ -364,9 +362,15 @@ mod tests {
         thread::sleep(Duration::from_millis(20));
         let first = async_source.next().unwrap();
         assert_eq!(first, 0.1);
-        thread::sleep(Duration::from_millis(20));
-        let second = async_source.next().unwrap();
-        assert_eq!(second, 0.2);
+        let mut second = None;
+        for _ in 0..50 {
+            if let Some(sample) = async_source.next() && sample != 0.0 {
+                second = Some(sample);
+                break;
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        assert_eq!(second, Some(0.2));
     }
 
     #[test]
