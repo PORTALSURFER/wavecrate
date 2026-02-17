@@ -662,10 +662,11 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
     let anchor_visible_row = controller.ui.browser.selection_anchor_visible;
     let mut rows = Vec::new();
     let visible_count = controller.ui.browser.visible.len();
+    let visible_rows: Vec<_> = controller.ui.browser.visible.to_vec();
     let (window_start, window_len) =
         browser_render_window(visible_count, selected_visible_row, anchor_visible_row);
     for visible_row in window_start..(window_start + window_len) {
-        let Some(absolute_index) = controller.ui.browser.visible.get(visible_row) else {
+        let Some(&absolute_index) = visible_rows.get(visible_row) else {
             continue;
         };
         let label = controller.label_for_ref(absolute_index).map(str::to_string);
