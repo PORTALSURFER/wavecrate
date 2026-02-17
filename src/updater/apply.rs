@@ -1,3 +1,9 @@
+//! Update apply transaction logic for staged patching and manifest validation.
+//!
+//! The functions in this module are intentionally deterministic: unpack and validate
+//! an update package, stage file changes through an atomic transaction, and report
+//! the final copy/replacement plan.
+
 use std::{
     collections::HashSet,
     fs,
@@ -97,6 +103,19 @@ pub struct StaleRemovalFailure {
     pub error: String,
 }
 
+/// Return type for `apply_files_and_dirs` to keep the tuple shape explicit.
+type ApplyFilesPlanResult = Result<
+    (
+        Vec<String>,
+        Vec<String>,
+        Vec<StaleRemovalFailure>,
+    ),
+    UpdateError,
+>;
+
+/// Apply the selected update payload into the installation directory.
+/// Returns an [`ApplyPlan`] describing copied files, replaced directories, and stale
+/// path cleanup failures.
 pub(super) fn apply_update_with_progress<F>(
     args: UpdaterRunArgs,
     mut progress: F,
@@ -241,7 +260,7 @@ fn apply_files_and_dirs(
     install_dir: &Path,
     root_dir: &Path,
     manifest: &UpdateManifest,
-) -> Result<(Vec<String>, Vec<String>, Vec<StaleRemovalFailure>), UpdateError> {
+) -> ApplyFilesPlanResult {
     let installed_manifest = load_installed_manifest(install_dir)?;
     let mut stale_files = match installed_manifest.as_ref() {
         Some(installed) => collect_stale_files(install_dir, installed, manifest)?,
@@ -351,39 +370,34 @@ fn remove_stale_paths(
         match fs::symlink_metadata(path) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
                 if let Err(err) = fs::remove_file(path) {
-                    failures.push(StaleRemovalFailure {
-                        path: path.clone(),
-                        error: err.to_string(),
-                    });
+                    failures.push(stale_removal_failure(path, err));
                 }
             }
             Ok(metadata) if metadata.is_dir() => {
                 if let Err(err) = fs::remove_dir_all(path) {
-                    failures.push(StaleRemovalFailure {
-                        path: path.clone(),
-                        error: err.to_string(),
-                    });
+                    failures.push(stale_removal_failure(path, err));
                 }
             }
             Ok(_) => {
                 if let Err(err) = fs::remove_file(path) {
-                    failures.push(StaleRemovalFailure {
-                        path: path.clone(),
-                        error: err.to_string(),
-                    });
+                    failures.push(stale_removal_failure(path, err));
                 }
             }
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
             Err(err) => {
-                failures.push(StaleRemovalFailure {
-                    path: path.clone(),
-                    error: format!("metadata error: {err}"),
-                });
+                failures.push(stale_removal_failure(path, format!("metadata error: {err}")));
             }
         }
         let _ = prune_empty_parents(install_dir, path);
     }
     Ok(failures)
+}
+
+fn stale_removal_failure(path: &Path, error: impl ToString) -> StaleRemovalFailure {
+    StaleRemovalFailure {
+        path: path.to_path_buf(),
+        error: error.to_string(),
+    }
 }
 
 fn prune_empty_parents(install_dir: &Path, path: &Path) -> Result<(), UpdateError> {
