@@ -1080,8 +1080,8 @@ mod tests {
     fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
         let mut controller =
             AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-        controller.ui.browser.sort = SampleBrowserSort::PlaybackAgeDesc.into();
-        controller.ui.browser.active_tab = SampleBrowserTab::Map.into();
+        controller.ui.browser.sort = SampleBrowserSort::PlaybackAgeDesc;
+        controller.ui.browser.active_tab = SampleBrowserTab::Map;
         controller.ui.browser.visible = crate::app::state::VisibleRows::All { total: 42 };
         let projected = project_browser_model(&mut controller);
         assert_eq!(
@@ -1100,7 +1100,7 @@ mod tests {
     #[test]
     fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
         let mut ui = UiState::default();
-        ui.browser.sort = SampleBrowserSort::Similarity.into();
+        ui.browser.sort = SampleBrowserSort::Similarity;
         ui.browser.similarity_sort_follow_loaded = true;
         let projected = project_browser_chrome_model(&ui, 1437);
         assert_eq!(projected.samples_tab_label, "Samples");
@@ -1175,7 +1175,7 @@ mod tests {
         assert_eq!(projected.action_hint_label, "Action: check");
         assert!(projected.release_notes_label.is_empty());
 
-        ui.update.status = UpdateStatus::UpdateAvailable.into();
+        ui.update.status = UpdateStatus::UpdateAvailable;
         ui.update.available_tag = Some(String::from("v20.1.0"));
         ui.update.available_url = Some(String::from("https://example.invalid/release"));
         ui.update.available_published_at = Some(String::from("2026-02-01T12:00:00Z"));
@@ -1191,7 +1191,7 @@ mod tests {
             "Release: v20.1.0 (2026-02-01T12:00:00Z)"
         );
 
-        ui.update.status = UpdateStatus::Error.into();
+        ui.update.status = UpdateStatus::Error;
         ui.update.last_error = Some(String::from("network timeout"));
         let projected = project_update_model(&ui);
         assert_eq!(projected.status, UpdateStatusModel::Error);
@@ -1207,7 +1207,7 @@ mod tests {
     fn map_projection_exposes_legend_selection_and_viewport_labels() {
         let mut controller =
             AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-        controller.ui.browser.active_tab = SampleBrowserTab::Map.into();
+        controller.ui.browser.active_tab = SampleBrowserTab::Map;
         controller.ui.map.zoom = 1.75;
         controller.ui.map.pan.x = 12.0;
         controller.ui.map.pan.y = -8.0;
@@ -1245,16 +1245,14 @@ mod tests {
             SampleBrowserActionPrompt::Rename {
                 target: std::path::PathBuf::from("kick.wav"),
                 name: String::from("kick"),
-            }
-            .into(),
+            },
         );
         ui.waveform.pending_destructive = Some(
             DestructiveEditPrompt {
                 edit: DestructiveSelectionEdit::TrimSelection,
                 title: String::from("Trim selection"),
                 message: String::from("Apply trim?"),
-            }
-            .into(),
+            },
         );
         let projected = project_confirm_prompt_model(&ui);
         assert!(projected.visible);
@@ -1269,8 +1267,7 @@ mod tests {
                 parent: std::path::PathBuf::from("drums"),
                 name: String::from("kicks"),
                 focus_requested: true,
-            }
-            .into(),
+            },
         );
         let projected = project_confirm_prompt_model(&ui);
         assert!(projected.visible);
@@ -1298,16 +1295,14 @@ mod tests {
                 hotkey: None,
                 is_root: false,
                 root_filter_mode: None,
-            }
-            .into(),
+            },
         );
         ui.sources.folders.new_folder = Some(
             InlineFolderCreation {
                 parent: std::path::PathBuf::from("drums"),
                 name: String::from("existing"),
                 focus_requested: true,
-            }
-            .into(),
+            },
         );
         let projected = project_confirm_prompt_model(&ui);
         assert_eq!(
@@ -1340,8 +1335,7 @@ mod tests {
                 hotkey: None,
                 is_root: false,
                 root_filter_mode: None,
-            }
-            .into(),
+            },
         );
         ui.sources.folders.rows.push(
             FolderRowView {
@@ -1355,15 +1349,13 @@ mod tests {
                 hotkey: None,
                 is_root: false,
                 root_filter_mode: None,
-            }
-            .into(),
+            },
         );
         ui.sources.folders.pending_action = Some(
             FolderActionPrompt::Rename {
                 target: std::path::PathBuf::from("drums"),
                 name: String::from("kicks"),
-            }
-            .into(),
+            },
         );
         let projected = project_confirm_prompt_model(&ui);
         assert_eq!(
@@ -1375,8 +1367,7 @@ mod tests {
             FolderActionPrompt::Rename {
                 target: std::path::PathBuf::from("drums"),
                 name: String::from("../bad"),
-            }
-            .into(),
+            },
         );
         let projected = project_confirm_prompt_model(&ui);
         assert_eq!(
@@ -1420,8 +1411,7 @@ mod tests {
                 hotkey: None,
                 is_root: true,
                 root_filter_mode: None,
-            }
-            .into(),
+            },
         );
         ui.sources.folders.focused = Some(0);
         let projected = project_sources_model(&ui);
@@ -1442,8 +1432,7 @@ mod tests {
                 hotkey: None,
                 is_root: false,
                 root_filter_mode: None,
-            }
-            .into(),
+            },
         );
         ui.sources.folders.focused = Some(1);
         let projected = project_sources_model(&ui);
@@ -1461,8 +1450,7 @@ mod tests {
                 action: FolderDeleteRecoveryAction::Restore,
                 status: FolderDeleteRecoveryStatus::Completed,
                 detail: None,
-            }
-            .into(),
+            },
         );
         ui.sources.folders.delete_recovery.in_progress = true;
         let projected = project_sources_model(&ui);
