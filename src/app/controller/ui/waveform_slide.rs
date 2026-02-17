@@ -43,7 +43,7 @@ impl AppController {
             .ui
             .waveform
             .bpm_stretch_enabled
-            .then(|| self.sample_view.waveform.decoded.as_ref())
+            .then_some(self.sample_view.waveform.decoded.as_ref())
             .flatten()
             .filter(|decoded| !decoded.samples.is_empty())
             .map(|decoded| WaveformSlidePreview {
