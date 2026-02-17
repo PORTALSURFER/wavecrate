@@ -1,6 +1,7 @@
 //! Shared GUI runtime host implementations re-exported from `radiant`.
 
 use crate::app_core::actions::NativeAppBridge;
+use tracing::{error, info};
 
 /// RGBA icon payload used by native runtime hosts.
 #[derive(Clone, Debug)]
@@ -57,7 +58,14 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> Result<(), String> {
-    radiant::gui_runtime::run_native_vello_app(options.into(), bridge)
+    info!("Launching radiant native Vello runtime");
+    let result = radiant::gui_runtime::run_native_vello_app(options.into(), bridge);
+    if let Err(err) = &result {
+        error!(err = %err, "radiant native Vello runtime returned error");
+    } else {
+        info!("Radiant native Vello runtime returned successfully");
+    }
+    result
 }
 
 /// Run the native Vello backend preview shell for backend smoke-testing.

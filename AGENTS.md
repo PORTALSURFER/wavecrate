@@ -1,6 +1,7 @@
 
 when building you will need asiosdk, you can find it at /mnt/e/lib/asiosdk/ASIOSDK, map this to CPAL_ASIO_DIR env var
 refer to `design_principles.md` when implementing change requests
+Windows logs can be found at `/mnt/c/Users/wanja.svasek/AppData/Roaming/.sempal/logs`.
 
 ## Codebase map (short)
 

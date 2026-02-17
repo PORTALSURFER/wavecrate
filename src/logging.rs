@@ -7,6 +7,8 @@
 use std::{
     fs::{self, OpenOptions},
     path::{Path, PathBuf},
+    panic,
+    backtrace::Backtrace,
     sync::OnceLock,
     time::SystemTime,
 };
@@ -106,6 +108,41 @@ pub fn init() -> Result<(), LoggingError> {
 
     tracing::info!("Logging initialized; log file at {}", log_path.display());
     Ok(())
+}
+
+/// Install a panic hook that writes panic context and backtrace to logs.
+///
+/// The hook preserves the previous panic handler so default panic rendering is still
+/// emitted for diagnostics outside tracing consumers.
+pub fn install_panic_hook() {
+    let previous_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        let thread = std::thread::current()
+            .name()
+            .unwrap_or("<unnamed>");
+        let payload = panic_info
+            .payload()
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| {
+                panic_info
+                    .payload()
+                    .downcast_ref::<String>()
+                    .map(String::as_str)
+            })
+            .unwrap_or("<non-string panic payload>");
+        match panic_info.location() {
+            Some(location) => tracing::error!(
+                "panic in thread={thread} at {file}:{line}:{column}: {payload}",
+                file = location.file(),
+                line = location.line(),
+                column = location.column()
+            ),
+            None => tracing::error!("panic in thread={thread}: {payload}"),
+        }
+        tracing::error!("panic backtrace:\n{:?}", Backtrace::force_capture());
+        previous_hook(panic_info);
+    }));
 }
 
 fn log_directory() -> Result<PathBuf, LoggingError> {

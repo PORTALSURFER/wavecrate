@@ -37,9 +37,24 @@ use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
+use tracing::info;
+
+static PROJECT_APP_MODEL_CALLS: AtomicU64 = AtomicU64::new(0);
 
 pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
+    let call = PROJECT_APP_MODEL_CALLS.fetch_add(1, Ordering::Relaxed) + 1;
+    if call <= 12 {
+        let status_len = controller.ui.status.text.len();
+        info!(
+            call,
+            selected_column = selected_column_index(&controller.ui),
+            status_len,
+            visible_browser_rows = controller.ui.browser.visible.len(),
+            "native shell: project_app_model start"
+        );
+    }
     let selected_column = selected_column_index(&controller.ui);
     let transport_running = controller.is_playing();
     let sources = project_sources_model(&controller.ui);
@@ -60,7 +75,7 @@ pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
     let browser = project_browser_model(controller);
     let browser_chrome = project_browser_chrome_model(&controller.ui, browser.visible_count);
     let waveform_chrome = project_waveform_chrome_model(&controller.ui);
-    AppModel {
+    let app_model = AppModel {
         title: String::from("Sempal"),
         backend_label: String::from("backend: native_vello"),
         sources_label: format!("Sources ({})", sources.rows.len()),
@@ -84,7 +99,17 @@ pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
         waveform,
         waveform_chrome,
         update,
+    };
+    if call <= 12 {
+        info!(
+            call,
+            browser_visible = app_model.browser.visible_count,
+            status_center_len = app_model.status.center.len(),
+            transport_running = app_model.transport_running,
+            "native shell: project_app_model complete"
+        );
     }
+    app_model
 }
 
 pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionModel {

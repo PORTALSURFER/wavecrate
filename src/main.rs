@@ -13,8 +13,12 @@ use sempal::audio::AudioPlayer;
 use sempal::gui_runtime::{NativeRunOptions, WindowIconRgba, run_native_vello_app};
 use sempal::logging;
 use sempal::waveform::WaveformRenderer;
+use std::{path::PathBuf, process, time::SystemTime};
+use tracing::{error, info};
 
 fn main() -> Result<(), String> {
+    logging::install_panic_hook();
+
     #[cfg(all(target_os = "windows", not(debug_assertions)))]
     if log_console_requested() {
         enable_windows_console();
@@ -23,6 +27,26 @@ fn main() -> Result<(), String> {
     if let Err(err) = logging::init() {
         eprintln!("Logging disabled: {err}");
     }
+    let exe = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.into_os_string().into_string().ok())
+        .unwrap_or_else(|| String::from("<unknown>"));
+    let cwd = std::env::current_dir()
+        .map(PathBuf::to_string_lossy)
+        .map(|cwd| cwd.to_string())
+        .unwrap_or_else(|_| String::from("<unknown>"));
+    let args: Vec<_> = std::env::args_os().collect();
+    let now = SystemTime::now();
+    info!(
+        pid = process::id(),
+        exe = exe,
+        cwd = cwd,
+        arg_count = args.len(),
+        timestamp = ?now,
+        debug = cfg!(debug_assertions),
+        "sempal startup: process metadata captured"
+    );
+    info!("sempal startup: logging initialized");
 
     let options = NativeRunOptions {
         title: String::from("Sempal"),
@@ -34,9 +58,20 @@ fn main() -> Result<(), String> {
     };
 
     let renderer = WaveformRenderer::new(680, 260);
+    info!("sempal startup: waveform renderer initialized");
     let player = None::<std::rc::Rc<std::cell::RefCell<AudioPlayer>>>;
-    let bridge = new_native_bridge(renderer, player)?;
-    run_native_vello_app(options, bridge)
+    let bridge = new_native_bridge(renderer, player).map_err(|err| {
+        error!(err = %err, "sempal startup: failed to construct native bridge");
+        err
+    })?;
+    info!("sempal startup: native bridge constructed");
+    let result = run_native_vello_app(options, bridge);
+    if let Err(err) = &result {
+        error!(err = %err, "sempal startup: runtime exited with error");
+    } else {
+        info!("sempal startup: native runtime exited normally");
+    }
+    result
 }
 
 #[cfg(all(target_os = "windows", not(debug_assertions)))]
