@@ -2,6 +2,10 @@ use super::WaveformRenderer;
 use crate::waveform::{WaveformImage, WaveformRgba};
 
 impl WaveformRenderer {
+    /// Render column-based waveform geometry with a density-adjusted thickness and alpha.
+    ///
+    /// The fill is computed with weighted anti-aliased vertical overlap so narrow
+    /// features stay visible at low width and dense regions stay smooth at larger zooms.
     pub(in crate::waveform::render) fn paint_color_image_for_size_with_density(
         columns: &[(f32, f32)],
         width: u32,
@@ -59,6 +63,10 @@ impl WaveformRenderer {
         image
     }
 
+    /// Render split-stereo waveforms by compositing top/bottom density passes.
+    ///
+    /// The left and right channel envelopes are rendered independently and copied into
+    /// separate bands, with optional spacing between them.
     pub(in crate::waveform::render) fn paint_split_color_image_with_density(
         left: &[(f32, f32)],
         right: &[(f32, f32)],
@@ -103,6 +111,10 @@ impl WaveformRenderer {
         image
     }
 
+    /// Compute stroke thickness for column rendering based on zoom density.
+    ///
+    /// As fewer samples map into each output column, stroke thickness increases
+    /// gradually, capped by image height to avoid overdraw.
     fn band_thickness(frames_per_column: f32, height: u32) -> f32 {
         if !frames_per_column.is_finite() || frames_per_column <= 1.0 {
             return 2.2;
@@ -112,6 +124,10 @@ impl WaveformRenderer {
         (2.2 + boost).min(max_thickness)
     }
 
+    /// Compute alpha boost to keep low-density waveforms visible.
+    ///
+    /// The boost is bounded and increases only once a zoom level starts losing
+    /// vertical detail in the density path.
     fn density_alpha_boost(frames_per_column: f32) -> f32 {
         if !frames_per_column.is_finite() || frames_per_column <= 1.0 {
             return 0.0;

@@ -60,6 +60,10 @@ impl WaveformRenderer {
         smoothed
     }
 
+    /// Copy a rendered source row band into a target image with vertical offset.
+    ///
+    /// Rows outside the destination bounds are clipped; valid source rows are copied
+    /// row-by-row into the destination with unchanged alpha and color values.
     pub(super) fn blit_image(target: &mut WaveformImage, source: &WaveformImage, y_offset: usize) {
         let width = target.size[0].min(source.size[0]);
         for y in 0..source.size[1] {
