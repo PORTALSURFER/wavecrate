@@ -4,9 +4,17 @@
 //! from `radiant` and avoids implementing widgets, layout policies, event semantics,
 //! or rendering orchestration.
 
-/// Input event primitives shared by UI code.
-pub use radiant::gui::input;
-/// Backend-neutral repaint signaling primitives used by runtimes and background jobs.
-pub use radiant::gui::repaint;
-/// Geometry and image buffer types shared by UI code.
-pub use radiant::gui::types;
+pub mod input {
+    //! Shared key, pointer, and modifier event values.
+    pub use radiant::gui::input::*;
+}
+
+pub mod repaint {
+    //! Signals used to request UI updates from background work.
+    pub use radiant::gui::repaint::*;
+}
+
+pub mod types {
+    //! Light-weight value types used by UI declarations and render payloads.
+    pub use radiant::gui::types::*;
+}
