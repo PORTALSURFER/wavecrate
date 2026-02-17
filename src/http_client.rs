@@ -63,6 +63,35 @@ pub(crate) fn read_response_bytes(
 ) -> Result<Vec<u8>, io::Error> {
     check_content_length(&response, max_bytes)?;
     let reader = response.into_reader();
+    read_response_reader(reader, max_bytes)
+}
+
+/// Stream a response to the provided writer, enforcing a maximum byte size.
+pub(crate) fn copy_response_to_writer(
+    response: ureq::Response,
+    writer: &mut impl Write,
+    max_bytes: usize,
+) -> Result<(), io::Error> {
+    check_content_length(&response, max_bytes)?;
+    let reader = response.into_reader();
+    copy_response_reader(reader, writer, max_bytes)
+}
+
+/// Read a UTF-8 response body into a string, enforcing a maximum byte size.
+pub(crate) fn read_response_text(
+    response: ureq::Response,
+    max_bytes: usize,
+) -> Result<String, io::Error> {
+    let bytes = read_response_bytes(response, max_bytes)?;
+    String::from_utf8(bytes).map_err(|err| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Response body is not valid UTF-8: {err}"),
+        )
+    })
+}
+
+fn read_response_reader(reader: impl Read, max_bytes: usize) -> Result<Vec<u8>, io::Error> {
     let mut limited = reader.take(max_bytes as u64 + 1);
     let mut bytes = Vec::new();
     limited.read_to_end(&mut bytes)?;
@@ -75,14 +104,11 @@ pub(crate) fn read_response_bytes(
     Ok(bytes)
 }
 
-/// Stream a response to the provided writer, enforcing a maximum byte size.
-pub(crate) fn copy_response_to_writer(
-    response: ureq::Response,
+fn copy_response_reader(
+    reader: impl Read,
     writer: &mut impl Write,
     max_bytes: usize,
 ) -> Result<(), io::Error> {
-    check_content_length(&response, max_bytes)?;
-    let reader = response.into_reader();
     let mut limited = reader.take(max_bytes as u64 + 1);
     let mut total = 0usize;
     let mut buf = [0u8; 64 * 1024];
@@ -110,6 +136,10 @@ fn check_content_length(response: &ureq::Response, max_bytes: usize) -> Result<(
     let Ok(length) = length.parse::<u64>() else {
         return Ok(());
     };
+    check_content_length_value(length, max_bytes)
+}
+
+fn check_content_length_value(length: u64, max_bytes: usize) -> Result<(), io::Error> {
     if length > max_bytes as u64 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -119,7 +149,8 @@ fn check_content_length(response: &ureq::Response, max_bytes: usize) -> Result<(
     Ok(())
 }
 
-fn backoff_delay(base: Duration, max: Duration, attempt: usize) -> Duration {
+/// Compute exponential backoff delay for the given attempt.
+pub(crate) fn backoff_delay(base: Duration, max: Duration, attempt: usize) -> Duration {
     let exponent = u32::try_from(attempt.saturating_sub(1)).unwrap_or(u32::MAX);
     let factor = 1u32.checked_shl(exponent).unwrap_or(u32::MAX);
     let delay = base.checked_mul(factor).unwrap_or(max);
@@ -129,59 +160,51 @@ fn backoff_delay(base: Duration, max: Duration, attempt: usize) -> Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::TcpListener;
-    use std::thread;
+    use std::io::Cursor;
 
-    fn serve_once(response: String) -> String {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
-        thread::spawn(move || {
-            if let Ok((mut stream, _)) = listener.accept() {
-                let mut buf = [0u8; 1024];
-                let _ = stream.read(&mut buf);
-                let _ = stream.write_all(response.as_bytes());
-            }
-        });
-        format!("http://{}", addr)
+    struct ChunkedReader {
+        inner: Cursor<Vec<u8>>,
+        chunk_size: usize,
+    }
+
+    impl Read for ChunkedReader {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            let max = buf.len().min(self.chunk_size);
+            self.inner.read(&mut buf[..max])
+        }
     }
 
     #[test]
     fn read_response_bytes_rejects_content_length_over_max() {
-        let response = concat!(
-            "HTTP/1.1 200 OK\r\n",
-            "Content-Length: 100\r\n",
-            "\r\n",
-            "ok"
-        )
-        .to_string();
-        let url = serve_once(response);
-        let response = agent().get(&url).call().unwrap();
-        let err = read_response_bytes(response, 10).unwrap_err();
+        let err = check_content_length_value(100, 10).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
     #[test]
     fn read_response_bytes_rejects_body_over_max() {
         let body = "a".repeat(32);
-        let response = format!("HTTP/1.0 200 OK\r\n\r\n{body}");
-        let url = serve_once(response);
-        let response = agent().get(&url).call().unwrap();
-        let err = read_response_bytes(response, 16).unwrap_err();
+        let err = read_response_reader(body.as_bytes(), 16).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
     #[test]
     fn read_response_bytes_accepts_under_limit() {
         let body = "hello";
-        let response = format!(
-            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
-            body.len(),
-            body
-        );
-        let url = serve_once(response);
-        let response = agent().get(&url).call().unwrap();
-        let bytes = read_response_bytes(response, 16).unwrap();
+        let bytes = read_response_reader(body.as_bytes(), 16).unwrap();
         assert_eq!(bytes, body.as_bytes());
+    }
+
+    #[test]
+    fn copy_response_reader_honors_max_bytes() {
+        let body = b"abcdef";
+        let mut output = Vec::new();
+        let reader = ChunkedReader {
+            inner: Cursor::new(body.to_vec()),
+            chunk_size: 2,
+        };
+        let err = copy_response_reader(reader, &mut output, 4).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(output, b"abcd".to_vec());
     }
 
     #[test]

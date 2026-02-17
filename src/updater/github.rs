@@ -126,7 +126,7 @@ fn retry_delay_for_error(
     let retry_after = retry_after_delay(err);
     match retry_after {
         Some(delay) => delay.min(config.max_delay),
-        None => backoff_delay(config.base_delay, config.max_delay, attempt),
+        None => http_client::backoff_delay(config.base_delay, config.max_delay, attempt),
     }
 }
 
@@ -154,13 +154,6 @@ fn parse_retry_after(value: &str) -> Option<Duration> {
     let secs = u64::try_from(delta.whole_seconds()).ok()?;
     let nanos = u32::try_from(delta.subsec_nanoseconds()).ok()?;
     Some(Duration::new(secs, nanos))
-}
-
-fn backoff_delay(base: Duration, max: Duration, attempt: usize) -> Duration {
-    let exponent = u32::try_from(attempt.saturating_sub(1)).unwrap_or(u32::MAX);
-    let factor = 1u32.checked_shl(exponent).unwrap_or(u32::MAX);
-    let delay = base.checked_mul(factor).unwrap_or(max);
-    if delay > max { max } else { delay }
 }
 
 fn map_github_error(err: ureq::Error) -> UpdateError {

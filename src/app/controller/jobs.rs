@@ -202,15 +202,6 @@ fn issue_gateway_poll_config() -> IssueGatewayPollConfig {
     }
 }
 
-fn backoff_delay(current: Duration, max_delay: Duration) -> Duration {
-    let doubled = current.checked_mul(2).unwrap_or(max_delay);
-    if doubled > max_delay {
-        max_delay
-    } else {
-        doubled
-    }
-}
-
 fn poll_issue_gateway_with_backoff(
     request_id: &str,
     cancel: &AtomicBool,
@@ -220,7 +211,6 @@ fn poll_issue_gateway_with_backoff(
 ) -> Option<IssueGatewayAuthResult> {
     let start = Instant::now();
     let mut attempts = 0u32;
-    let mut delay = config.initial_delay;
     loop {
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
             return None;
@@ -243,8 +233,13 @@ fn poll_issue_gateway_with_backoff(
                 }),
             });
         }
+
+        let delay = crate::http_client::backoff_delay(
+            config.initial_delay,
+            config.max_delay,
+            attempts as usize,
+        );
         sleep(delay);
-        delay = backoff_delay(delay, config.max_delay);
     }
 }
 

@@ -1,3 +1,4 @@
+//! Benchmarks for ANN index build and query behavior.
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use rusqlite::{Connection, params};
 use sempal::analysis::vector::encode_f32_le_blob;

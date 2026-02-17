@@ -374,16 +374,11 @@ mod tests {
     use std::sync::Mutex;
     use tempfile::tempdir;
 
-    #[cfg(windows)]
-    static ENV_VAR_LOCK: Mutex<()> = Mutex::new(());
-
-    #[cfg(windows)]
     struct EnvVarGuard {
         key: String,
         previous: Option<String>,
     }
 
-    #[cfg(windows)]
     impl EnvVarGuard {
         fn set(key: &str, value: &str) -> Self {
             let previous = std::env::var(key).ok();
@@ -397,7 +392,6 @@ mod tests {
         }
     }
 
-    #[cfg(windows)]
     impl Drop for EnvVarGuard {
         fn drop(&mut self) {
             if let Some(value) = self.previous.take() {
@@ -432,9 +426,6 @@ mod tests {
 
     #[test]
     fn ensure_child_path_allows_relative_path() {
-        #[cfg(windows)]
-        let _lock = ENV_VAR_LOCK.lock().expect("env var lock");
-        #[cfg(windows)]
         let _guard = EnvVarGuard::set("SEMPAL_UPDATER_ALLOW_SYMLINK_ERRORS", "1");
         let dir = tempdir().unwrap();
         let path = ensure_child_path(dir.path(), "./ok/file.txt").unwrap();

@@ -1,3 +1,4 @@
+//! Benchmarks for tagging and batch-rating sample operations.
 use std::path::PathBuf;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};

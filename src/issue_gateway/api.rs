@@ -110,8 +110,8 @@ pub fn fetch_issue_token() -> Result<String, IssueAuthError> {
     let response = match get_with_retry(AUTH_START_URL) {
         Ok(response) => response,
         Err(ureq::Error::Status(code, response)) => {
-            let body =
-                read_body_limited(response, MAX_AUTH_RESPONSE_BYTES).unwrap_or_else(|err| err);
+            let body = http_client::read_response_text(response, MAX_AUTH_RESPONSE_BYTES)
+                .unwrap_or_else(|err| err.to_string());
             return Err(IssueAuthError::ServerError(format!("HTTP {code}: {body}")));
         }
         Err(ureq::Error::Transport(err)) => {
@@ -119,8 +119,8 @@ pub fn fetch_issue_token() -> Result<String, IssueAuthError> {
         }
     };
 
-    let body = read_body_limited(response, MAX_AUTH_RESPONSE_BYTES)
-        .map_err(IssueAuthError::InvalidResponse)?;
+    let body = http_client::read_response_text(response, MAX_AUTH_RESPONSE_BYTES)
+        .map_err(|err| IssueAuthError::InvalidResponse(err.to_string()))?;
     parse_issue_token(&body)
 }
 
@@ -134,8 +134,8 @@ pub fn poll_issue_token(request_id: &str) -> Result<Option<String>, IssueAuthErr
         Ok(response) => response,
         Err(ureq::Error::Status(202, _)) => return Ok(None),
         Err(ureq::Error::Status(code, response)) => {
-            let body =
-                read_body_limited(response, MAX_AUTH_RESPONSE_BYTES).unwrap_or_else(|err| err);
+            let body = http_client::read_response_text(response, MAX_AUTH_RESPONSE_BYTES)
+                .unwrap_or_else(|err| err.to_string());
             return Err(IssueAuthError::ServerError(format!("HTTP {code}: {body}")));
         }
         Err(ureq::Error::Transport(err)) => {
@@ -143,8 +143,8 @@ pub fn poll_issue_token(request_id: &str) -> Result<Option<String>, IssueAuthErr
         }
     };
 
-    let body = read_body_limited(response, MAX_AUTH_RESPONSE_BYTES)
-        .map_err(IssueAuthError::InvalidResponse)?;
+    let body = http_client::read_response_text(response, MAX_AUTH_RESPONSE_BYTES)
+        .map_err(|err| IssueAuthError::InvalidResponse(err.to_string()))?;
 
     #[derive(Deserialize)]
     struct PollResponse {
@@ -191,8 +191,8 @@ fn create_issue_with_url(
     let response = match post_with_retry(&url, token, request, &idempotency_key) {
         Ok(response) => response,
         Err(ureq::Error::Status(code, response)) => {
-            let body =
-                read_body_limited(response, MAX_ISSUE_RESPONSE_BYTES).unwrap_or_else(|err| err);
+            let body = http_client::read_response_text(response, MAX_ISSUE_RESPONSE_BYTES)
+                .unwrap_or_else(|err| err.to_string());
             return Err(map_status_error(code, body));
         }
         Err(ureq::Error::Transport(err)) => {
@@ -200,8 +200,8 @@ fn create_issue_with_url(
         }
     };
 
-    let body =
-        read_body_limited(response, MAX_ISSUE_RESPONSE_BYTES).map_err(CreateIssueError::Json)?;
+    let body = http_client::read_response_text(response, MAX_ISSUE_RESPONSE_BYTES)
+        .map_err(|err| CreateIssueError::Json(err.to_string()))?;
     parse_create_issue_response(&body)
 }
 
@@ -301,12 +301,6 @@ fn parse_issue_token(body: &str) -> Result<String, IssueAuthError> {
 fn is_session_expired_message(message: &str) -> bool {
     let lowered = message.trim().to_ascii_lowercase();
     lowered.contains("session") && lowered.contains("expired")
-}
-
-fn read_body_limited(response: ureq::Response, max_bytes: usize) -> Result<String, String> {
-    let bytes =
-        http_client::read_response_bytes(response, max_bytes).map_err(|err| err.to_string())?;
-    String::from_utf8(bytes).map_err(|err| err.to_string())
 }
 
 fn get_with_retry(url: &str) -> Result<ureq::Response, ureq::Error> {
