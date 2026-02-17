@@ -2,6 +2,12 @@ use super::WaveformRenderer;
 use crate::waveform::{WaveformImage, WaveformRgba};
 
 impl WaveformRenderer {
+    /// Render a waveform line image for a single drawing pass.
+    ///
+    /// Uses per-column supersampling and anti-aliased line stepping so the rendered
+    /// waveform remains stable at high zoom. When `channel_index` is set, only that
+    /// channel is sampled; otherwise the channel with the largest absolute amplitude
+    /// is selected for each frame.
     pub(in crate::waveform::render) fn paint_line_image(
         samples: &[f32],
         channels: usize,
@@ -64,6 +70,10 @@ impl WaveformRenderer {
         image
     }
 
+    /// Render a split-stereo line image into a single RGBA buffer.
+    ///
+    /// Left and right channels are rendered separately and packed into top/bottom bands
+    /// with an optional separator gap. Transparent background pixels are preserved.
     pub(in crate::waveform::render) fn paint_split_line_image(
         samples: &[f32],
         channels: usize,
@@ -108,6 +118,10 @@ impl WaveformRenderer {
         image
     }
 
+    /// Sample a value at an interpolated frame position.
+    ///
+    /// The selected position is clamped to available samples. Channel selection uses
+    /// clamped indexing so malformed input channel requests remain safe.
     fn sample_at_frame(
         samples: &[f32],
         channels: usize,
@@ -159,6 +173,10 @@ impl WaveformRenderer {
         }
     }
 
+    /// Return a supersampled sample for a single output column.
+    ///
+    /// Uses a fixed 4-sample subdivision within each column and interpolates each
+    /// sample point before averaging to reduce aliasing.
     fn supersampled_frame(
         samples: &[f32],
         channels: usize,
@@ -181,6 +199,7 @@ impl WaveformRenderer {
         sum / sub_samples as f32
     }
 
+    /// Evaluate a Catmull-Rom cubic segment for interpolation.
     fn catmull_rom(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
         let t2 = t * t;
         let t3 = t2 * t;
@@ -190,6 +209,9 @@ impl WaveformRenderer {
             + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
     }
 
+    /// Blend one pixel with the requested foreground color.
+    ///
+    /// No write occurs for zero coverage; otherwise alpha is applied and clamped.
     fn blend_pixel(
         image: &mut WaveformImage,
         stride: usize,
@@ -210,6 +232,7 @@ impl WaveformRenderer {
         }
     }
 
+    /// Draw an anti-aliased line segment with steep-line and vertical-line handling.
     fn draw_line_aa(
         image: &mut WaveformImage,
         stride: usize,
@@ -360,6 +383,7 @@ impl WaveformRenderer {
         }
     }
 
+    /// Plot one anti-aliased pixel if it is inside bounds and has positive coverage.
     fn plot_aa(
         image: &mut WaveformImage,
         stride: usize,

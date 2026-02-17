@@ -5,6 +5,12 @@ use super::WaveformImage;
 use super::WaveformRenderer;
 
 impl WaveformRenderer {
+    /// Compute the smoothing radius for column-based waveform rendering.
+    ///
+    /// The radius is intentionally coarse and bounded to {0, 1, 2} to avoid
+    /// excessive work while still reducing stair-step artifacts at lower zoom.
+    /// A tiny width keeps rendering deterministic and avoids changing geometry at
+    /// high zoom where raw samples should be preserved.
     pub(super) fn smoothing_radius(frames_per_column: f32, width: u32) -> usize {
         if width < 3 {
             return 0;
@@ -18,6 +24,11 @@ impl WaveformRenderer {
         }
     }
 
+    /// Smooth a column envelope using a small triangular window.
+    ///
+    /// Each output envelope value is a local weighted average of neighboring
+    /// columns plus min/max clamping back toward the source extrema, which keeps
+    /// sharp transients visible while damping noise from downsampled rendering.
     pub(super) fn smooth_columns(columns: &[(f32, f32)], radius: usize) -> Vec<(f32, f32)> {
         if radius == 0 || columns.len() < 2 {
             return columns.to_vec();
