@@ -21,6 +21,7 @@ use crate::app_core::actions::{
     NativeWaveformChromeModel as WaveformChromeModel,
     NativeWaveformPanelModel as WaveformPanelModel,
 };
+use crate::gui::types::ImageRgba;
 use crate::app_core::state::{
     DestructiveEditPrompt, DragTarget, FolderActionPrompt, MapQueryBounds, MapRenderMode,
     SampleBrowserActionPrompt, SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, UiState,
@@ -118,6 +119,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
                 .round()
                 .clamp(100.0, 9999.0)
         )),
+        waveform_image_signature: project_waveform_image_signature(&controller.ui.waveform.image),
         waveform_loaded_label: controller
             .ui
             .loaded_wav
@@ -782,7 +784,48 @@ fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
         loop_enabled: ui.waveform.loop_enabled,
         tempo_label: ui.waveform.bpm_value.map(|bpm| format!("{bpm:.1} BPM")),
         zoom_label: Some(format!("{zoom_percent:.0}%")),
+        waveform_image: project_waveform_image(&ui.waveform.image),
     }
+}
+
+fn project_waveform_image_signature(
+    image: &Option<crate::waveform::WaveformImage>,
+) -> Option<u64> {
+    let image = image.as_ref()?;
+    if image.size[0] == 0 || image.size[1] == 0 {
+        return None;
+    }
+    let mut signature = 0xcbf2_9ce4_8422_325u64;
+    for dimension in image.size {
+        for byte in dimension.to_le_bytes() {
+            signature ^= u64::from(byte);
+            signature = signature.wrapping_mul(0x1_0000_0001_b3);
+        }
+    }
+    for pixel in &image.pixels {
+        for byte in [pixel.r(), pixel.g(), pixel.b(), pixel.a()] {
+            signature ^= u64::from(byte);
+            signature = signature.wrapping_mul(0x1_0000_0001_b3);
+        }
+    }
+    Some(signature)
+}
+
+fn project_waveform_image(
+    image: &Option<crate::waveform::WaveformImage>,
+) -> Option<ImageRgba> {
+    let image = image.as_ref()?;
+    if image.size[0] == 0 || image.size[1] == 0 {
+        return None;
+    }
+    let mut pixels = Vec::with_capacity(image.size[0].saturating_mul(image.size[1]).saturating_mul(4));
+    for pixel in &image.pixels {
+        pixels.push(pixel.r());
+        pixels.push(pixel.g());
+        pixels.push(pixel.b());
+        pixels.push(pixel.a());
+    }
+    ImageRgba::new(image.size[0], image.size[1], pixels)
 }
 
 fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel {
@@ -1028,6 +1071,50 @@ mod tests {
         let projected = project_waveform_model(&ui);
         assert_eq!(projected.tempo_label.as_deref(), Some("128.0 BPM"));
         assert_eq!(projected.zoom_label.as_deref(), Some("200%"));
+        assert!(projected.waveform_image.is_none());
+    }
+
+    #[test]
+    fn waveform_projection_passes_raster_image_payload() {
+        let mut ui = UiState::default();
+        ui.waveform.image = Some(crate::waveform::WaveformImage {
+            size: [2, 1],
+            pixels: vec![
+                crate::waveform::WaveformRgba::from_rgba_unmultiplied(10, 20, 30, 40),
+                crate::waveform::WaveformRgba::from_rgba_unmultiplied(11, 21, 31, 41),
+            ],
+        });
+        let projected = project_waveform_model(&ui);
+        let waveform_image = projected
+            .waveform_image
+            .as_ref()
+            .expect("waveform image should be projected");
+        assert_eq!(waveform_image.width, 2);
+        assert_eq!(waveform_image.height, 1);
+        assert_eq!(
+            waveform_image.pixels,
+            vec![10, 20, 30, 40, 11, 21, 31, 41]
+        );
+    }
+
+    #[test]
+    fn waveform_image_signature_tracks_pixel_changes() {
+        let mut image = crate::waveform::WaveformImage {
+            size: [2, 1],
+            pixels: vec![
+                crate::waveform::WaveformRgba::from_rgba_unmultiplied(10, 20, 30, 40),
+                crate::waveform::WaveformRgba::from_rgba_unmultiplied(11, 21, 31, 41),
+            ],
+        };
+        let first_signature = project_waveform_image_signature(&Some(image.clone())).unwrap();
+        image.pixels[0] = crate::waveform::WaveformRgba::from_rgba_unmultiplied(11, 20, 30, 40);
+        let changed_signature = project_waveform_image_signature(&Some(image)).unwrap();
+        assert_ne!(first_signature, changed_signature);
+    }
+
+    #[test]
+    fn waveform_image_signature_ignores_absent_image() {
+        assert_eq!(project_waveform_image_signature(&None), None);
     }
 
     #[test]
