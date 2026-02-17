@@ -44,6 +44,24 @@ In practice, `src` should declare UI intent through `radiant` and avoid duplicat
 GUI helpers, layout logic, hit-testing, and event routing logic that belongs in
 `radiant`.
 
+Contract notes for contributors:
+
+- `src` owns domain state and intent only:
+  - Construct state transitions and action payloads.
+  - Trigger domain operations (analysis, playback, persistence, etc.).
+  - Render intent is expressed via `radiant` types and projections.
+- `radiant` owns all GUI behavior:
+  - Widget behavior, layout policies, focus model, hit testing, and event propagation.
+  - Diff/update reconciliation and scene invalidation decisions.
+  - Scene/paint scheduling and Vello render orchestration.
+- Host bridges (`src/gui_app`, `src/gui_runtime`) are thin adapters:
+  - Convert app runtime options into `radiant` run-time options.
+  - Forward errors for diagnostics.
+  - Do not embed widget semantics or layout policy.
+
+For deterministic input behavior, keep event handling inside `radiant` entry points and
+avoid duplicate state mutation in UI callbacks.
+
 ## ML model setup (PANNs)
 
 - The app uses a PANNs model (burnpack) and requires the ONNX model to build the burnpack.
