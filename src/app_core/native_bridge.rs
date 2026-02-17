@@ -51,7 +51,7 @@ impl NativeAppBridge for SempalNativeBridge {
         if call <= 24 {
             info!(call, "native bridge: pull_model start");
         }
-        self.controller.prepare_native_frame();
+        self.controller.prepare_native_frame(false);
         let model = self.controller.project_native_app_model();
         if call <= 24 {
             info!(
@@ -70,7 +70,7 @@ impl NativeAppBridge for SempalNativeBridge {
         if call <= 24 {
             info!(call, "native bridge: pull_motion_model start");
         }
-        self.controller.prepare_native_frame();
+        self.controller.prepare_native_frame(true);
         let model = Some(self.controller.project_native_motion_model());
         if call <= 24 {
             info!(call, "native bridge: pull_motion_model completed");

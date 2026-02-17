@@ -53,7 +53,10 @@ pub fn build_native_app_controller(
 /// Backend-neutral native-runtime orchestration helpers.
 pub trait AppControllerNativeRuntimeExt {
     /// Apply per-frame controller maintenance before projecting the UI model.
-    fn prepare_native_frame(&mut self);
+    ///
+    /// `animation_only` allows skipping governor updates when only motion deltas are
+    /// required for rendering, which keeps animation frames focused on raster paths.
+    fn prepare_native_frame(&mut self, animation_only: bool);
 
     /// Project the current controller state into a native runtime app model.
     fn project_native_app_model(&mut self) -> NativeAppModel;
@@ -69,9 +72,11 @@ pub trait AppControllerNativeRuntimeExt {
 }
 
 impl AppControllerNativeRuntimeExt for AppController {
-    fn prepare_native_frame(&mut self) {
+    fn prepare_native_frame(&mut self, animation_only: bool) {
         self.tick_playhead();
-        self.update_performance_governor(false);
+        if !animation_only {
+            self.update_performance_governor(false);
+        }
     }
 
     fn project_native_app_model(&mut self) -> NativeAppModel {

@@ -38,12 +38,12 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
     let mut workspace = build_controller_with_db_rows(options)?;
     let seeded_rows = seed_rows(&mut workspace.controller, options.gui_rows)?;
     let app_model_projection = stats::bench_action(options, || {
-        workspace.controller.prepare_native_frame();
+        workspace.controller.prepare_native_frame(false);
         let _: NativeAppModel = workspace.controller.project_native_app_model();
         Ok(())
     })?;
     let motion_model_projection = stats::bench_action(options, || {
-        workspace.controller.prepare_native_frame();
+        workspace.controller.prepare_native_frame(true);
         let _: NativeMotionModel = workspace.controller.project_native_motion_model();
         Ok(())
     })?;
@@ -51,7 +51,7 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
     let interactive_projection = stats::bench_action(options, || {
         execute_interaction_step(&mut workspace.controller, interaction_step)?;
         interaction_step = interaction_step.saturating_add(1);
-        workspace.controller.prepare_native_frame();
+        workspace.controller.prepare_native_frame(false);
         let _: NativeAppModel = workspace.controller.project_native_app_model();
         let _: NativeMotionModel = workspace.controller.project_native_motion_model();
         Ok(())
@@ -76,7 +76,7 @@ fn wait_for_rows(controller: &mut AppController, target: usize) -> Result<(), St
         if controller.visible_browser_len() >= target {
             return Ok(());
         }
-        controller.prepare_native_frame();
+        controller.prepare_native_frame(false);
         std::thread::sleep(Duration::from_millis(5));
     }
     if controller.visible_browser_len() >= target {
