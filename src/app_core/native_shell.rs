@@ -88,6 +88,8 @@ pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
 }
 
 pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionModel {
+    let selected_column = selected_column_index(&controller.ui);
+    let status = project_status_model(controller, selected_column);
     MotionModel {
         transport_running: controller.is_playing(),
         map_active: matches!(
@@ -130,6 +132,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         } else {
             String::from("Loop disabled")
         },
+        status_right: status.right,
     }
 }
 
