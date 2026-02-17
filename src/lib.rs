@@ -17,9 +17,17 @@ pub mod audio;
 pub mod external_clipboard;
 /// Platform helpers for external drag-and-drop.
 pub mod external_drag;
-/// Backend-agnostic GUI primitives used during renderer migration.
+/// Backend-agnostic GUI façade for the `radiant`-based UI stack.
+///
+/// This crate exposes GUI declarations (`radiant` APIs) to application code while
+/// keeping widget behavior, layout policy, input semantics, and rendering inside
+/// the `radiant` crate.
 pub mod gui;
-/// Shared runtime abstractions for the GUI migration.
+/// Shared runtime host glue that starts native `radiant` hosts.
+///
+/// The runtime boundary only adapts launch options and forwards lifecycle/error
+/// events; it does not define UI widgets, input handling policies, or layout
+/// logic.
 pub mod gui_runtime;
 mod http_client;
 /// GitHub issue reporting via the Sempal gateway.
