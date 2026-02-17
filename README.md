@@ -26,7 +26,7 @@ Audio sample triage tool built with Rust.
 - Playback uses your default audio output device.
 - GUI backend:
   - Main app uses `native_vello` (radiant runtime path) by default and no longer exposes a legacy backend switch.
-  - Migration parity tracker: `docs/gui_migration_parity.md`.
+  - Migration parity tracker: `manual/gui_migration_parity.md`.
   - Native shell text rendering can use `SEMPAL_NATIVE_FONT_PATH=/path/to/font.ttf` if automatic system font discovery fails.
 - Windows (ASIO): If you want to build with ASIO support (or your build fails looking for the ASIO SDK), download the Steinberg ASIO SDK and set `CPAL_ASIO_DIR` to the SDK path (e.g. a folder named `ASIOSDK`) before running `cargo build`/`cargo run`.
 
@@ -80,4 +80,4 @@ Audio sample triage tool built with Rust.
 
 ## Documentation
 
-- [Usage guide](docs/usage.md)
+- [Usage guide](manual/usage.md)

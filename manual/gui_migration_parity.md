@@ -60,7 +60,7 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Native browser/waveform chrome text now comes from projected host models
   (`BrowserChromeModel`, `WaveformChromeModel`) instead of renderer-local hardcoded labels.
 - Baseline geometry/copy target for legacy parity is documented in
-  `docs/native_shell_legacy_baseline.md`.
+  `manual/native_shell_legacy_baseline.md`.
 - Native layout guard rails now come from sizing tokens (viewport clamp, top-bar split,
   waveform/browser minimum split, browser footer/tabs/header minima) and are validated through
   `ShellLayout::contract_snapshot(...)` assertions in native-shell tests.
@@ -176,7 +176,7 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
   keeping `EguiController` as a compatibility alias during migration.
 - [x] Remove public crate exposure of legacy module surface (`pub mod app` in
   `src/lib.rs`) once migration consumers no longer require it.
-- [x] Delete legacy layout-only docs (`docs/egui_layout.md`) after porting
+- [x] Delete legacy layout-only docs (`manual/egui_layout.md`) after porting
   remaining actionable guidance into native-shell migration docs.
 - [x] Enforce direct `crate::app::` references in `app_core` through
   `scripts/check_migration_boundary.sh` in CI so the migration shim boundary
