@@ -270,15 +270,13 @@ impl HotkeysController<'_> {
                 let mut attempts = 0;
                 let mut found = None;
                 while attempts < 10 {
-                    if let Some(row) = (0..total).choose(&mut rng) {
-                        if let Some(idx) = self.visible_browser_index(row) {
-                            if let Some(entry) = self.wav_entry(idx) {
-                                if entry.relative_path != relative_path {
-                                    found = Some(entry.relative_path.clone());
-                                    break;
-                                }
-                            }
-                        }
+                    if let Some(row) = (0..total).choose(&mut rng)
+                        && let Some(idx) = self.visible_browser_index(row)
+                        && let Some(entry) = self.wav_entry(idx)
+                        && entry.relative_path != relative_path
+                    {
+                        found = Some(entry.relative_path.clone());
+                        break;
                     }
                     attempts += 1;
                 }
