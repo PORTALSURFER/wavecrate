@@ -82,13 +82,13 @@ avoid duplicate state mutation in UI callbacks.
 
 ## Optional performance instrumentation
 
-- Native bridge profiling is opt-in via cargo feature:
-  - `native-bridge-metrics` (build with `--features native-bridge-metrics`)
+- Rendering instrumentation is opt-in via cargo feature:
+  - `gui-performance` (build with `--features gui-performance`)
 - Enable runtime logs by setting:
-  - `SEMPAL_NATIVE_BRIDGE_PROFILE=true`
+  - `SEMPAL_NATIVE_RENDER_PROFILE=true`
   - Accepts `1`, `true`, `on`, and `yes` (case-insensitive for `TRUE`/`On`/`ON` style variants)
-- Logging includes bridge prep/project timing, input-action timing, and frame-render
-  work counters from `NativeAppModel` and `NativeFrameBuildResult`.
+- Logging includes frame build, model access, motion overlay, and frame-submit timing
+  plus per-frame scene/motion/static rebuild and text cache counters.
 - Default builds keep all profiling call sites in the no-op fast path.
 
 ## ML model setup (PANNs)
