@@ -241,3 +241,33 @@ pub struct PlayheadTrailSample {
     /// Monotonic timestamp for trail aging.
     pub time: Instant,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::waveform_image_signature;
+    use crate::waveform::{WaveformImage, WaveformRgba};
+
+    #[test]
+    fn waveform_image_signature_tracks_pixel_changes() {
+        let mut image = WaveformImage {
+            size: [2, 1],
+            pixels: vec![
+                WaveformRgba::from_rgba_unmultiplied(10, 20, 30, 40),
+                WaveformRgba::from_rgba_unmultiplied(11, 21, 31, 41),
+            ],
+        };
+        let first_signature = waveform_image_signature(&image).unwrap();
+        image.pixels[0] = WaveformRgba::from_rgba_unmultiplied(11, 20, 30, 40);
+        let changed_signature = waveform_image_signature(&image).unwrap();
+        assert_ne!(first_signature, changed_signature);
+    }
+
+    #[test]
+    fn waveform_image_signature_ignores_empty_image() {
+        let image = WaveformImage {
+            size: [0, 1],
+            pixels: Vec::new(),
+        };
+        assert_eq!(waveform_image_signature(&image), None);
+    }
+}

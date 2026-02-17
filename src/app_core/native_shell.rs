@@ -792,29 +792,6 @@ fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
     }
 }
 
-fn project_waveform_image_signature(
-    image: &Option<crate::waveform::WaveformImage>,
-) -> Option<u64> {
-    let image = image.as_ref()?;
-    if image.size[0] == 0 || image.size[1] == 0 {
-        return None;
-    }
-    let mut signature = 0xcbf2_9ce4_8422_325u64;
-    for dimension in image.size {
-        for byte in dimension.to_le_bytes() {
-            signature ^= u64::from(byte);
-            signature = signature.wrapping_mul(0x1_0000_0001_b3);
-        }
-    }
-    for pixel in &image.pixels {
-        for byte in [pixel.r(), pixel.g(), pixel.b(), pixel.a()] {
-            signature ^= u64::from(byte);
-            signature = signature.wrapping_mul(0x1_0000_0001_b3);
-        }
-    }
-    Some(signature)
-}
-
 fn project_waveform_image(
     image: &Option<crate::waveform::WaveformImage>,
 ) -> Option<ImageRgba> {
@@ -1099,26 +1076,6 @@ mod tests {
             waveform_image.pixels,
             vec![10, 20, 30, 40, 11, 21, 31, 41]
         );
-    }
-
-    #[test]
-    fn waveform_image_signature_tracks_pixel_changes() {
-        let mut image = crate::waveform::WaveformImage {
-            size: [2, 1],
-            pixels: vec![
-                crate::waveform::WaveformRgba::from_rgba_unmultiplied(10, 20, 30, 40),
-                crate::waveform::WaveformRgba::from_rgba_unmultiplied(11, 21, 31, 41),
-            ],
-        };
-        let first_signature = project_waveform_image_signature(&Some(image.clone())).unwrap();
-        image.pixels[0] = crate::waveform::WaveformRgba::from_rgba_unmultiplied(11, 20, 30, 40);
-        let changed_signature = project_waveform_image_signature(&Some(image)).unwrap();
-        assert_ne!(first_signature, changed_signature);
-    }
-
-    #[test]
-    fn waveform_image_signature_ignores_absent_image() {
-        assert_eq!(project_waveform_image_signature(&None), None);
     }
 
     #[test]
