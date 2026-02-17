@@ -17,10 +17,10 @@ impl WaveformRenderer {
     /// Decode wav bytes into samples and duration without rendering.
     pub fn decode_from_bytes(&self, bytes: &[u8]) -> Result<DecodedWaveform, WaveformDecodeError> {
         let key = cache::hash_bytes(bytes);
-        if let Ok(mut cache) = self.decode_cache.lock() {
-            if let Some(cached) = cache.get(&key) {
-                return Ok((*cached).clone());
-            }
+        if let Ok(mut cache) = self.decode_cache.lock()
+            && let Some(cached) = cache.get(&key)
+        {
+            return Ok((*cached).clone());
         }
 
         let decoded = self.load_decoded(bytes)?;
