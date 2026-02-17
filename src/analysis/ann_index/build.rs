@@ -9,7 +9,7 @@ use crate::analysis::decode_f32_le_blob;
 use hnsw_rs::hnswio::HnswIo;
 use hnsw_rs::prelude::*;
 use rusqlite::{Connection, params};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 use tempfile::Builder;
 
@@ -19,18 +19,17 @@ const TEMP_UNPACK_BASENAME: &str = "ann_unpack";
 pub(crate) fn load_or_build_index(conn: &Connection) -> Result<AnnIndexState, String> {
     let params = default_params();
     let meta = read_meta(conn, &params.model_id)?;
-    if let Some(meta_row) = meta.as_ref() {
-        if meta_row.params == params {
-            if let Some(outcome) = load_index_from_disk(conn, meta_row)? {
-                let mut state = outcome.state;
-                if outcome.needs_migration {
-                    super::update::flush_index(conn, &mut state)?;
-                } else if outcome.needs_meta_update {
-                    super::storage::upsert_meta(conn, &state)?;
-                }
-                return Ok(state);
-            }
+    if let Some(meta_row) = meta.as_ref()
+        && meta_row.params == params
+        && let Some(outcome) = load_index_from_disk(conn, meta_row)?
+    {
+        let mut state = outcome.state;
+        if outcome.needs_migration {
+            super::update::flush_index(conn, &mut state)?;
+        } else if outcome.needs_meta_update {
+            super::storage::upsert_meta(conn, &state)?;
         }
+        return Ok(state);
     }
     let index_path = default_index_path(conn)?;
     let mut state = build_index_from_db(conn, params, index_path)?;
@@ -150,7 +149,7 @@ impl LoadOutcome {
 }
 
 fn load_container_index(
-    index_path: &PathBuf,
+    index_path: &Path,
     params: &AnnIndexParams,
 ) -> Result<Option<AnnIndexState>, String> {
     if !index_path.is_file() {
@@ -169,11 +168,11 @@ fn load_container_index(
         Ok(hnsw) => hnsw,
         Err(_) => return Ok(None),
     };
-    build_loaded_state(hnsw, unpack.id_map, params, index_path.clone())
+    build_loaded_state(hnsw, unpack.id_map, params, index_path.to_path_buf())
 }
 
 fn load_legacy_index(
-    index_path: &PathBuf,
+    index_path: &Path,
     params: &AnnIndexParams,
 ) -> Result<Option<AnnIndexState>, String> {
     let (graph_path, data_path) = hnsw_dump_paths(index_path)?;
@@ -192,7 +191,7 @@ fn load_legacy_index(
         Ok(hnsw) => hnsw,
         Err(_) => return Ok(None),
     };
-    build_loaded_state(hnsw, id_map, params, index_path.clone())
+    build_loaded_state(hnsw, id_map, params, index_path.to_path_buf())
 }
 
 fn load_hnsw(
@@ -206,7 +205,7 @@ fn load_hnsw(
         .map_err(|_| "Failed to read ANN index".to_string())
 }
 
-fn load_hnsw_from_path(index_path: &PathBuf) -> Result<Hnsw<'static, f32, DistCosine>, String> {
+fn load_hnsw_from_path(index_path: &Path) -> Result<Hnsw<'static, f32, DistCosine>, String> {
     let basename = index_path
         .file_name()
         .and_then(|name| name.to_str())
@@ -219,7 +218,7 @@ fn load_hnsw_from_path(index_path: &PathBuf) -> Result<Hnsw<'static, f32, DistCo
 
 fn load_container_outcome(
     meta: &AnnIndexMetaRow,
-    container_path: &PathBuf,
+    container_path: &Path,
 ) -> Result<Option<LoadOutcome>, String> {
     if let Some(state) = load_container_index(&meta.index_path, &meta.params)? {
         let needs_migration = meta.index_path != *container_path;
@@ -230,10 +229,9 @@ fn load_container_outcome(
             needs_migration,
         )));
     }
-    if meta.index_path != *container_path {
-        if let Some(state) = load_container_index(container_path, &meta.params)? {
-            return Ok(Some(LoadOutcome::new(state, false, true)));
-        }
+    if meta.index_path != *container_path && let Some(state) = load_container_index(container_path, &meta.params)?
+    {
+        return Ok(Some(LoadOutcome::new(state, false, true)));
     }
     Ok(None)
 }
@@ -241,7 +239,7 @@ fn load_container_outcome(
 fn load_legacy_outcome(
     conn: &Connection,
     meta: &AnnIndexMetaRow,
-    container_path: &PathBuf,
+    container_path: &Path,
 ) -> Result<Option<LoadOutcome>, String> {
     if let Some(state) = load_legacy_index(&meta.index_path, &meta.params)? {
         return Ok(Some(LoadOutcome::new(
@@ -250,22 +248,22 @@ fn load_legacy_outcome(
             true,
         )));
     }
-    if meta.index_path != *container_path {
-        let legacy_path = super::storage::legacy_index_path(conn)?;
-        if let Some(state) = load_legacy_index(&legacy_path, &meta.params)? {
-            return Ok(Some(LoadOutcome::new(
-                update_index_path(state, container_path, true),
-                true,
-                true,
-            )));
-        }
+    let legacy_path = super::storage::legacy_index_path(conn)?;
+    if meta.index_path != *container_path
+        && let Some(state) = load_legacy_index(&legacy_path, &meta.params)?
+    {
+        return Ok(Some(LoadOutcome::new(
+            update_index_path(state, container_path, true),
+            true,
+            true,
+        )));
     }
     Ok(None)
 }
 
-fn update_index_path(mut state: AnnIndexState, index_path: &PathBuf, force: bool) -> AnnIndexState {
+fn update_index_path(mut state: AnnIndexState, index_path: &Path, force: bool) -> AnnIndexState {
     if force {
-        state.index_path = index_path.clone();
+        state.index_path = index_path.to_path_buf();
     }
     state
 }

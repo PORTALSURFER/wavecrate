@@ -370,8 +370,8 @@ fn sanitize_relative_path(name: &str) -> Result<PathBuf, UpdateError> {
 mod tests {
     use super::*;
     use std::io;
-    #[cfg(windows)]
     use std::sync::Mutex;
+    use std::sync::OnceLock;
     use tempfile::tempdir;
 
     struct EnvVarGuard {
@@ -392,6 +392,11 @@ mod tests {
         }
     }
 
+    fn updater_test_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
     impl Drop for EnvVarGuard {
         fn drop(&mut self) {
             if let Some(value) = self.previous.take() {
@@ -408,6 +413,7 @@ mod tests {
 
     #[test]
     fn ensure_child_path_rejects_parent_dir() {
+        let _lock = updater_test_lock().lock().expect("updater test lock");
         let dir = tempdir().unwrap();
         let err = ensure_child_path(dir.path(), "../evil.txt").unwrap_err();
         assert!(err.to_string().contains("Invalid update path"));
@@ -415,6 +421,7 @@ mod tests {
 
     #[test]
     fn ensure_child_path_rejects_absolute_path() {
+        let _lock = updater_test_lock().lock().expect("updater test lock");
         let dir = tempdir().unwrap();
         #[cfg(windows)]
         let name = "C:\\evil.txt";
@@ -426,6 +433,7 @@ mod tests {
 
     #[test]
     fn ensure_child_path_allows_relative_path() {
+        let _lock = updater_test_lock().lock().expect("updater test lock");
         let _guard = EnvVarGuard::set("SEMPAL_UPDATER_ALLOW_SYMLINK_ERRORS", "1");
         let dir = tempdir().unwrap();
         let path = ensure_child_path(dir.path(), "./ok/file.txt").unwrap();
@@ -439,6 +447,7 @@ mod tests {
     fn ensure_child_path_rejects_symlinked_component() {
         use std::os::unix::fs::symlink;
 
+        let _lock = updater_test_lock().lock().expect("updater test lock");
         let dir = tempdir().unwrap();
         let install = dir.path().join("install");
         let external = dir.path().join("external");
@@ -453,6 +462,7 @@ mod tests {
 
     #[test]
     fn ensure_child_path_fails_on_symlink_metadata_error() {
+        let _lock = updater_test_lock().lock().expect("updater test lock");
         fn fail_metadata(_: &Path) -> io::Result<fs::Metadata> {
             Err(io::Error::new(
                 ErrorKind::PermissionDenied,
