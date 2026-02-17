@@ -139,9 +139,10 @@ fn hann_window(size: usize) -> Vec<f32> {
 }
 
 fn mono_from_interleaved(samples: &[f32], channels: usize) -> Vec<f32> {
-    let frames = samples.len() / channels.max(1);
+    let channels = channels.max(1);
+    let frames = samples.len() / channels;
     let mut mono = vec![0.0; frames];
-    for (frame, mono_slot) in mono.iter_mut().enumerate().take(frames) {
+    for (frame, mono_slot) in mono.iter_mut().enumerate() {
         let mut sum = 0.0f32;
         let base = frame * channels;
         for ch in 0..channels {
@@ -183,5 +184,17 @@ mod tests {
             .iter()
             .fold(0.0f32, |acc, sample| acc.max(sample.abs()));
         assert!(max <= 1e-6);
+    }
+
+    #[test]
+    fn mono_from_interleaved_averages_channels() {
+        let samples = [1.0f32, 3.0, 5.0, 7.0];
+        assert_eq!(mono_from_interleaved(&samples, 2), vec![2.0, 6.0]);
+    }
+
+    #[test]
+    fn mono_from_interleaved_treats_zero_channels_as_mono() {
+        let samples = [1.0f32, 2.0, 3.0];
+        assert_eq!(mono_from_interleaved(&samples, 0), samples.to_vec());
     }
 }
