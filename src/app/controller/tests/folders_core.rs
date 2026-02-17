@@ -388,7 +388,7 @@ fn staged_delete_recovery_restores_after_crash() -> Result<(), String> {
     assert!(staging_root.exists());
     assert!(!target.exists());
 
-    let report = delete_recovery::recover_staged_deletes(&[source.clone()]);
+    let report = delete_recovery::recover_staged_deletes(std::slice::from_ref(&source));
 
     assert!(target.exists());
     assert!(!staging_root.exists());
@@ -432,7 +432,7 @@ fn staged_delete_recovery_finalizes_after_db_commit_crash() -> Result<(), String
     assert!(staging_root.exists());
     assert!(!target.exists());
 
-    let report = delete_recovery::recover_staged_deletes(&[source.clone()]);
+    let report = delete_recovery::recover_staged_deletes(std::slice::from_ref(&source));
 
     assert!(!staging_root.exists());
     assert!(!target.exists());

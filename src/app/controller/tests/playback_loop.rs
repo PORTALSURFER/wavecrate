@@ -7,9 +7,7 @@ use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
 fn setup_looping_controller(selection: SelectionRange) -> Option<AppController> {
-    let Some(mut player) = crate::audio::AudioPlayer::playing_for_tests() else {
-        return None;
-    };
+    let mut player = crate::audio::AudioPlayer::playing_for_tests()?;
     let dir = tempdir().ok()?;
     let wav_path = dir.path().join("loop_drag_test.wav");
     let long_samples = vec![0.1_f32; 240];

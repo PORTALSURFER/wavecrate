@@ -33,10 +33,10 @@ fn migrates_from_legacy_json() {
         },
     };
     let mut data = serde_json::to_value(&legacy).unwrap();
-    if let Some(core) = data.get_mut("core") {
-        if let Some(drop_targets) = core.get_mut("drop_targets") {
-            *drop_targets = serde_json::json!(["legacy_drop"]);
-        }
+    if let Some(core) = data.get_mut("core")
+        && let Some(drop_targets) = core.get_mut("drop_targets")
+    {
+        *drop_targets = serde_json::json!(["legacy_drop"]);
     }
     let data = serde_json::to_vec_pretty(&data).unwrap();
     std::fs::write(&legacy_path, data).unwrap();

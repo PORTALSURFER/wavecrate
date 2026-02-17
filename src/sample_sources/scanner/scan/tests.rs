@@ -1,6 +1,6 @@
 use super::*;
 use crate::sample_sources::{Rating, SourceDatabase};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -199,7 +199,7 @@ fn scan_detects_rename_and_preserves_tag() {
 
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].relative_path, PathBuf::from("two.wav"));
+    assert_eq!(rows[0].relative_path, Path::new("two.wav"));
     assert_eq!(rows[0].tag, Rating::KEEP_1);
     assert!(!rows[0].missing);
 }
@@ -238,7 +238,7 @@ fn quick_scan_reconciles_large_rename_and_preserves_tag() {
 
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].relative_path, PathBuf::from("two.wav"));
+    assert_eq!(rows[0].relative_path, Path::new("two.wav"));
     assert_eq!(rows[0].tag, Rating::KEEP_1);
     assert!(!rows[0].missing);
     assert!(rows[0].content_hash.is_none());
@@ -249,7 +249,7 @@ fn quick_scan_reconciles_large_rename_and_preserves_tag() {
 
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].relative_path, PathBuf::from("two.wav"));
+    assert_eq!(rows[0].relative_path, Path::new("two.wav"));
     assert_eq!(rows[0].tag, Rating::KEEP_1);
     assert!(!rows[0].missing);
     assert!(rows[0].content_hash.is_some());
@@ -289,10 +289,10 @@ fn quick_scan_avoids_ambiguous_large_rename() {
     let mut keep_row = None;
     let mut new_row = None;
     for row in &rows {
-        if row.relative_path == PathBuf::from("one.wav") {
+        if row.relative_path == Path::new("one.wav") {
             keep_row = Some(row);
         }
-        if row.relative_path == PathBuf::from("three.wav") {
+        if row.relative_path == Path::new("three.wav") {
             new_row = Some(row);
         }
     }
@@ -340,7 +340,7 @@ fn hard_rescan_prunes_missing_without_touching_existing() {
 
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].relative_path, PathBuf::from("keep.wav"));
+    assert_eq!(rows[0].relative_path, Path::new("keep.wav"));
 }
 
 #[cfg(unix)]
@@ -369,7 +369,7 @@ fn scan_tolerates_vanishing_nested_directories() {
     let rows = db.list_files().unwrap();
     assert!(
         rows.iter()
-            .any(|row| row.relative_path == PathBuf::from("one.wav"))
+            .any(|row| row.relative_path == Path::new("one.wav"))
     );
 
     let _ = killer.join();
