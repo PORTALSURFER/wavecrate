@@ -132,11 +132,8 @@ impl AppController {
         }
     }
 
-    pub(crate) fn update_performance_governor(&mut self, user_active: bool) {
-        const ACTIVE_WINDOW: Duration = Duration::from_millis(300);
-        const IDLE_WINDOW: Duration = Duration::from_secs(2);
+    fn observe_frame_timing_for_fps(&mut self, now: Instant, user_active: bool) {
         const SLOW_FRAME_THRESHOLD: Duration = Duration::from_millis(40);
-        let now = Instant::now();
         if let Some(last_frame) = self.runtime.performance.last_frame_at {
             let frame_delta = now.saturating_duration_since(last_frame);
             self.runtime.performance.observe_frame_interval(frame_delta);
@@ -148,6 +145,13 @@ impl AppController {
         if user_active {
             self.runtime.performance.last_user_activity_at = Some(now);
         }
+    }
+
+    pub(crate) fn update_performance_governor(&mut self, user_active: bool) {
+        const ACTIVE_WINDOW: Duration = Duration::from_millis(300);
+        const IDLE_WINDOW: Duration = Duration::from_secs(2);
+        let now = Instant::now();
+        self.observe_frame_timing_for_fps(now, user_active);
         let recent_input = self
             .runtime
             .performance
@@ -198,6 +202,12 @@ impl AppController {
             self.runtime.analysis.set_worker_count(target);
             self.runtime.performance.last_worker_count = Some(target);
         }
+    }
+
+    /// Record the latest inter-frame timing sample used by the FPS counter.
+    pub(crate) fn record_frame_timing_for_fps(&mut self) {
+        let now = Instant::now();
+        self.observe_frame_timing_for_fps(now, false);
     }
 
     #[cfg(target_os = "windows")]

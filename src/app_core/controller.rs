@@ -73,8 +73,11 @@ pub trait AppControllerNativeRuntimeExt {
 
 impl AppControllerNativeRuntimeExt for AppController {
     fn prepare_native_frame(&mut self, animation_only: bool) {
-        if animation_only && !self.is_playing() {
-            return;
+        if animation_only {
+            self.record_frame_timing_for_fps();
+            if !self.is_playing() {
+                return;
+            }
         }
         self.tick_playhead();
         if animation_only {
@@ -175,5 +178,26 @@ impl AppControllerNativeRuntimeExt for AppController {
             NativeUiAction::InstallUpdate => self.install_update_and_exit(),
             NativeUiAction::DismissUpdate => self.dismiss_update_notification(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AppController, AppControllerNativeRuntimeExt, WaveformRenderer};
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    #[test]
+    fn prepare_native_frame_animation_only_updates_fps_when_not_playing() {
+        let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+
+        assert!(controller.average_fps().is_none());
+        controller.prepare_native_frame(true);
+        assert!(controller.average_fps().is_none());
+
+        sleep(Duration::from_millis(2));
+        controller.prepare_native_frame(true);
+
+        assert!(controller.average_fps().is_some());
     }
 }
