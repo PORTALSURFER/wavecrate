@@ -1,10 +1,18 @@
 //! Shared GUI runtime host implementations re-exported from `radiant`.
 //!
-//! The runtime layer in `sempal` is intentionally thin: this module only
-//! translates and forwards runtime launch options to `radiant` and mirrors host-
-//! level errors to tracing for diagnostics.
-//! No widget state, layout rules, rendering commands, or input policies are
-//! implemented here.
+//! The runtime layer in `sempal` is intentionally minimal and has a strict
+//! contract:
+//!
+//! * it converts `sempal` launch options into `radiant`-native options,
+//! * it forwards those options to `radiant` runtime entry points,
+//! * it routes runtime errors into project logging.
+//!
+//! No widget state, layout rules, rendering command construction, event policy,
+//! diffing, or other GUI infrastructure is implemented here. Those
+//! responsibilities remain in `radiant`.
+//!
+//! This separation allows deterministic ownership of interaction and layout logic
+//! in one place while keeping host bootstrapping lightweight.
 
 use crate::app_core::actions::NativeAppBridge;
 use tracing::{error, info};
@@ -19,6 +27,7 @@ pub struct WindowIconRgba {
     /// Icon height in pixels.
     pub height: u32,
 }
+
 /// Native runtime launch options for Vello hosts.
 #[derive(Clone, Debug, Default)]
 pub struct NativeRunOptions {
@@ -36,6 +45,10 @@ pub struct NativeRunOptions {
     pub target_fps: u32,
 }
 
+/// Converts app-level Vello launch options into the hosted `radiant` representation.
+///
+/// Mapping is intentionally field-for-field to preserve behavior and avoid
+/// hidden launch-time mutations.
 impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
     fn from(value: NativeRunOptions) -> Self {
         Self {
@@ -49,6 +62,10 @@ impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
     }
 }
 
+/// Converts app-level icon payloads into `radiant` host icon payloads.
+///
+/// All pixel bytes are forwarded unchanged; callers remain responsible for
+/// supplying valid RGBA data and matching dimensions.
 impl From<WindowIconRgba> for radiant::gui_runtime::WindowIconRgba {
     fn from(value: WindowIconRgba) -> Self {
         Self {
@@ -67,6 +84,8 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> Result<(), String> {
+    // No additional state is touched by this adapter; all control flow and
+    // execution semantics remain in `radiant`.
     info!("Launching radiant native Vello runtime");
     let result =
         radiant::gui_runtime::run_native_vello_app(options.into(), bridge).map_err(|err| {
