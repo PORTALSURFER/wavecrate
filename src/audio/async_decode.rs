@@ -232,11 +232,11 @@ mod tests {
         type Item = f32;
 
         fn next(&mut self) -> Option<Self::Item> {
-            if !self.start_barrier_waited {
-                if let Some(barrier) = self.start_barrier.as_ref() {
-                    self.start_barrier_waited = true;
-                    barrier.wait();
-                }
+            if !self.start_barrier_waited
+                && let Some(barrier) = self.start_barrier.as_ref()
+            {
+                self.start_barrier_waited = true;
+                barrier.wait();
             }
             if self.delay > Duration::ZERO {
                 thread::sleep(self.delay);
