@@ -34,8 +34,8 @@ use rfd::FileDialog;
 use std::{
     cell::RefCell,
     path::{Path, PathBuf},
-    sync::Arc,
     rc::Rc,
+    sync::Arc,
     time::{Duration, Instant},
 };
 

@@ -229,7 +229,8 @@ fn load_container_outcome(
             needs_migration,
         )));
     }
-    if meta.index_path != *container_path && let Some(state) = load_container_index(container_path, &meta.params)?
+    if meta.index_path != *container_path
+        && let Some(state) = load_container_index(container_path, &meta.params)?
     {
         return Ok(Some(LoadOutcome::new(state, false, true)));
     }

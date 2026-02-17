@@ -1,11 +1,11 @@
 //! GUI-oriented benchmark scenarios for the native controller.
 
 use super::{options::BenchOptions, stats};
+use hound::{SampleFormat, WavSpec, WavWriter};
 use sempal::app_core::actions::{NativeAppModel, NativeMotionModel};
 use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
 use sempal::app_core::state::{SampleBrowserSort, TriageFlagFilter};
 use sempal::waveform::WaveformRenderer;
-use hound::{SampleFormat, WavSpec, WavWriter};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -109,7 +109,10 @@ fn build_controller_with_db_rows(options: &BenchOptions) -> Result<BenchWorkspac
     fs::create_dir_all(&source_root)
         .map_err(|err| format!("Create source dir {} failed: {err}", source_root.display()))?;
 
-    for (row, file_name) in seeded_wav_filenames(options.gui_rows.max(1)).into_iter().enumerate() {
+    for (row, file_name) in seeded_wav_filenames(options.gui_rows.max(1))
+        .into_iter()
+        .enumerate()
+    {
         write_seed_wav(&source_root.join(&file_name), row as i64)
             .map_err(|err| format!("Seed test audio failed: {err}"))?;
     }
@@ -118,7 +121,9 @@ fn build_controller_with_db_rows(options: &BenchOptions) -> Result<BenchWorkspac
         .add_source_from_path(source_dir)
         .map_err(|err| format!("Add benchmark source failed: {err}"))?;
     controller.select_first_source();
-    controller.refresh_wavs().map_err(|err| format!("Refresh benchmark wavs failed: {err}"))?;
+    controller
+        .refresh_wavs()
+        .map_err(|err| format!("Refresh benchmark wavs failed: {err}"))?;
     Ok(BenchWorkspace {
         _temp_root: temp_root,
         controller,
@@ -144,7 +149,9 @@ fn write_seed_wav(path: &Path, seed: i64) -> Result<(), String> {
     };
     let sample = [seed as f32 % 1.0];
     let mut writer = WavWriter::create(path, spec).map_err(|err| err.to_string())?;
-    writer.write_sample(sample[0]).map_err(|err| err.to_string())?;
+    writer
+        .write_sample(sample[0])
+        .map_err(|err| err.to_string())?;
     writer.finalize().map_err(|err| err.to_string())?;
     Ok(())
 }

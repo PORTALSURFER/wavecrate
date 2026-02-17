@@ -21,7 +21,6 @@ use crate::app_core::actions::{
     NativeWaveformChromeModel as WaveformChromeModel,
     NativeWaveformPanelModel as WaveformPanelModel,
 };
-use crate::gui::types::ImageRgba;
 use crate::app_core::state::{
     DestructiveEditPrompt, DragTarget, FolderActionPrompt, MapQueryBounds, MapRenderMode,
     SampleBrowserActionPrompt, SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, UiState,
@@ -33,6 +32,7 @@ use crate::app_core::state::{
     FolderDeleteRecoveryStatus, FolderRowView, InlineFolderCreation,
 };
 use crate::app_core::ui::{MAX_RENDERED_BROWSER_ROWS, MAX_RENDERED_MAP_POINTS};
+use crate::gui::types::ImageRgba;
 use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
 use std::{
     collections::HashSet,
@@ -845,12 +845,11 @@ fn project_waveform_model(controller: &mut AppController) -> WaveformPanelModel 
     }
 }
 
-fn project_waveform_image(
-    controller: &mut AppController,
-) -> Option<ImageRgba> {
+fn project_waveform_image(controller: &mut AppController) -> Option<ImageRgba> {
     let has_source_image = controller.ui.waveform.image.is_some();
     let has_cached_image = controller.projected_waveform_image.is_some();
-    if controller.projected_waveform_image_signature == controller.ui.waveform.waveform_image_signature
+    if controller.projected_waveform_image_signature
+        == controller.ui.waveform.waveform_image_signature
         && has_source_image == has_cached_image
     {
         return controller.projected_waveform_image.clone();
@@ -868,7 +867,11 @@ fn project_waveform_image_data(
     if image.size[0] == 0 || image.size[1] == 0 {
         return None;
     }
-    let mut pixels = Vec::with_capacity(image.size[0].saturating_mul(image.size[1]).saturating_mul(4));
+    let mut pixels = Vec::with_capacity(
+        image.size[0]
+            .saturating_mul(image.size[1])
+            .saturating_mul(4),
+    );
     for pixel in &image.pixels {
         pixels.push(pixel.r());
         pixels.push(pixel.g());
@@ -1121,7 +1124,8 @@ mod tests {
         ui.waveform.bpm_value = Some(128.0);
         ui.waveform.view.start = 0.25;
         ui.waveform.view.end = 0.75;
-        let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+        let mut controller =
+            AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
         controller.ui.waveform.bpm_value = Some(128.0);
         controller.ui.waveform.view.start = 0.25;
         controller.ui.waveform.view.end = 0.75;
@@ -1133,7 +1137,8 @@ mod tests {
 
     #[test]
     fn waveform_projection_passes_raster_image_payload() {
-        let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+        let mut controller =
+            AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
         controller.ui.waveform.image = Some(crate::waveform::WaveformImage {
             size: [2, 1],
             pixels: vec![
@@ -1148,10 +1153,7 @@ mod tests {
             .expect("waveform image should be projected");
         assert_eq!(waveform_image.width, 2);
         assert_eq!(waveform_image.height, 1);
-        assert_eq!(
-            waveform_image.pixels,
-            vec![10, 20, 30, 40, 11, 21, 31, 41]
-        );
+        assert_eq!(waveform_image.pixels, vec![10, 20, 30, 40, 11, 21, 31, 41]);
     }
 
     #[test]
@@ -1241,19 +1243,15 @@ mod tests {
     #[test]
     fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
         let mut ui = UiState::default();
-        ui.browser.pending_action = Some(
-            SampleBrowserActionPrompt::Rename {
-                target: std::path::PathBuf::from("kick.wav"),
-                name: String::from("kick"),
-            },
-        );
-        ui.waveform.pending_destructive = Some(
-            DestructiveEditPrompt {
-                edit: DestructiveSelectionEdit::TrimSelection,
-                title: String::from("Trim selection"),
-                message: String::from("Apply trim?"),
-            },
-        );
+        ui.browser.pending_action = Some(SampleBrowserActionPrompt::Rename {
+            target: std::path::PathBuf::from("kick.wav"),
+            name: String::from("kick"),
+        });
+        ui.waveform.pending_destructive = Some(DestructiveEditPrompt {
+            edit: DestructiveSelectionEdit::TrimSelection,
+            title: String::from("Trim selection"),
+            message: String::from("Apply trim?"),
+        });
         let projected = project_confirm_prompt_model(&ui);
         assert!(projected.visible);
         assert_eq!(projected.kind, Some(ConfirmPromptKind::BrowserRename));
@@ -1262,13 +1260,11 @@ mod tests {
     #[test]
     fn confirm_prompt_projects_folder_create_inline_state() {
         let mut ui = UiState::default();
-        ui.sources.folders.new_folder = Some(
-            InlineFolderCreation {
-                parent: std::path::PathBuf::from("drums"),
-                name: String::from("kicks"),
-                focus_requested: true,
-            },
-        );
+        ui.sources.folders.new_folder = Some(InlineFolderCreation {
+            parent: std::path::PathBuf::from("drums"),
+            name: String::from("kicks"),
+            focus_requested: true,
+        });
         let projected = project_confirm_prompt_model(&ui);
         assert!(projected.visible);
         assert_eq!(projected.kind, Some(ConfirmPromptKind::FolderCreate));
@@ -1283,27 +1279,23 @@ mod tests {
     #[test]
     fn confirm_prompt_projects_folder_create_validation_errors() {
         let mut ui = UiState::default();
-        ui.sources.folders.rows.push(
-            FolderRowView {
-                path: std::path::PathBuf::from("drums/existing"),
-                name: String::from("existing"),
-                depth: 1,
-                has_children: false,
-                expanded: false,
-                selected: false,
-                negated: false,
-                hotkey: None,
-                is_root: false,
-                root_filter_mode: None,
-            },
-        );
-        ui.sources.folders.new_folder = Some(
-            InlineFolderCreation {
-                parent: std::path::PathBuf::from("drums"),
-                name: String::from("existing"),
-                focus_requested: true,
-            },
-        );
+        ui.sources.folders.rows.push(FolderRowView {
+            path: std::path::PathBuf::from("drums/existing"),
+            name: String::from("existing"),
+            depth: 1,
+            has_children: false,
+            expanded: false,
+            selected: false,
+            negated: false,
+            hotkey: None,
+            is_root: false,
+            root_filter_mode: None,
+        });
+        ui.sources.folders.new_folder = Some(InlineFolderCreation {
+            parent: std::path::PathBuf::from("drums"),
+            name: String::from("existing"),
+            focus_requested: true,
+        });
         let projected = project_confirm_prompt_model(&ui);
         assert_eq!(
             projected.input_error.as_deref(),
@@ -1323,52 +1315,44 @@ mod tests {
     #[test]
     fn confirm_prompt_projects_folder_rename_validation_errors() {
         let mut ui = UiState::default();
-        ui.sources.folders.rows.push(
-            FolderRowView {
-                path: std::path::PathBuf::from("drums"),
-                name: String::from("drums"),
-                depth: 1,
-                has_children: false,
-                expanded: false,
-                selected: true,
-                negated: false,
-                hotkey: None,
-                is_root: false,
-                root_filter_mode: None,
-            },
-        );
-        ui.sources.folders.rows.push(
-            FolderRowView {
-                path: std::path::PathBuf::from("kicks"),
-                name: String::from("kicks"),
-                depth: 1,
-                has_children: false,
-                expanded: false,
-                selected: false,
-                negated: false,
-                hotkey: None,
-                is_root: false,
-                root_filter_mode: None,
-            },
-        );
-        ui.sources.folders.pending_action = Some(
-            FolderActionPrompt::Rename {
-                target: std::path::PathBuf::from("drums"),
-                name: String::from("kicks"),
-            },
-        );
+        ui.sources.folders.rows.push(FolderRowView {
+            path: std::path::PathBuf::from("drums"),
+            name: String::from("drums"),
+            depth: 1,
+            has_children: false,
+            expanded: false,
+            selected: true,
+            negated: false,
+            hotkey: None,
+            is_root: false,
+            root_filter_mode: None,
+        });
+        ui.sources.folders.rows.push(FolderRowView {
+            path: std::path::PathBuf::from("kicks"),
+            name: String::from("kicks"),
+            depth: 1,
+            has_children: false,
+            expanded: false,
+            selected: false,
+            negated: false,
+            hotkey: None,
+            is_root: false,
+            root_filter_mode: None,
+        });
+        ui.sources.folders.pending_action = Some(FolderActionPrompt::Rename {
+            target: std::path::PathBuf::from("drums"),
+            name: String::from("kicks"),
+        });
         let projected = project_confirm_prompt_model(&ui);
         assert_eq!(
             projected.input_error.as_deref(),
             Some("Folder already exists: kicks")
         );
 
-        ui.sources.folders.pending_action = Some(
-            FolderActionPrompt::Rename {
-                target: std::path::PathBuf::from("drums"),
-                name: String::from("../bad"),
-            },
-        );
+        ui.sources.folders.pending_action = Some(FolderActionPrompt::Rename {
+            target: std::path::PathBuf::from("drums"),
+            name: String::from("../bad"),
+        });
         let projected = project_confirm_prompt_model(&ui);
         assert_eq!(
             projected.input_error.as_deref(),
@@ -1399,20 +1383,18 @@ mod tests {
     fn folder_actions_require_non_root_focus_for_destructive_actions() {
         let mut ui = UiState::default();
         ui.sources.selected = Some(0);
-        ui.sources.folders.rows.push(
-            FolderRowView {
-                path: std::path::PathBuf::new(),
-                name: String::from("Root"),
-                depth: 0,
-                has_children: true,
-                expanded: true,
-                selected: false,
-                negated: false,
-                hotkey: None,
-                is_root: true,
-                root_filter_mode: None,
-            },
-        );
+        ui.sources.folders.rows.push(FolderRowView {
+            path: std::path::PathBuf::new(),
+            name: String::from("Root"),
+            depth: 0,
+            has_children: true,
+            expanded: true,
+            selected: false,
+            negated: false,
+            hotkey: None,
+            is_root: true,
+            root_filter_mode: None,
+        });
         ui.sources.folders.focused = Some(0);
         let projected = project_sources_model(&ui);
         assert!(projected.folder_actions.can_create_folder);
@@ -1420,20 +1402,18 @@ mod tests {
         assert!(!projected.folder_actions.can_rename_folder);
         assert!(!projected.folder_actions.can_delete_folder);
 
-        ui.sources.folders.rows.push(
-            FolderRowView {
-                path: std::path::PathBuf::from("drums"),
-                name: String::from("drums"),
-                depth: 1,
-                has_children: false,
-                expanded: false,
-                selected: true,
-                negated: false,
-                hotkey: None,
-                is_root: false,
-                root_filter_mode: None,
-            },
-        );
+        ui.sources.folders.rows.push(FolderRowView {
+            path: std::path::PathBuf::from("drums"),
+            name: String::from("drums"),
+            depth: 1,
+            has_children: false,
+            expanded: false,
+            selected: true,
+            negated: false,
+            hotkey: None,
+            is_root: false,
+            root_filter_mode: None,
+        });
         ui.sources.folders.focused = Some(1);
         let projected = project_sources_model(&ui);
         assert!(projected.folder_actions.can_rename_folder);
@@ -1443,15 +1423,17 @@ mod tests {
     #[test]
     fn folder_actions_disable_recovery_clear_while_recovery_is_running() {
         let mut ui = UiState::default();
-        ui.sources.folders.delete_recovery.entries.push(
-            FolderDeleteRecoveryEntry {
+        ui.sources
+            .folders
+            .delete_recovery
+            .entries
+            .push(FolderDeleteRecoveryEntry {
                 source_label: String::from("source"),
                 relative_path: std::path::PathBuf::from("drums"),
                 action: FolderDeleteRecoveryAction::Restore,
                 status: FolderDeleteRecoveryStatus::Completed,
                 detail: None,
-            },
-        );
+            });
         ui.sources.folders.delete_recovery.in_progress = true;
         let projected = project_sources_model(&ui);
         assert!(!projected.folder_actions.can_clear_recovery_log);

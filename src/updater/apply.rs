@@ -671,7 +671,7 @@ mod tests {
         let link_path = install_dir.join("stale-link");
         symlink(&outside_dir, &link_path).unwrap();
 
-        let failures = remove_stale_paths(&[link_path.clone()], &install_dir).unwrap();
+        let failures = remove_stale_paths(std::slice::from_ref(&link_path), &install_dir).unwrap();
 
         assert!(failures.is_empty());
         assert!(!link_path.exists());

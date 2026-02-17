@@ -296,12 +296,11 @@ fn allow_symlink_validation_errors() -> bool {
 
 #[cfg(test)]
 fn symlink_metadata(path: &Path) -> std::io::Result<fs::Metadata> {
-    if let Some(hook) = SYMLINK_METADATA_HOOK.get() {
-        if let Ok(guard) = hook.lock() {
-            if let Some(hook) = *guard {
-                return hook(path);
-            }
-        }
+    if let Some(hook) = SYMLINK_METADATA_HOOK.get()
+        && let Ok(guard) = hook.lock()
+        && let Some(hook) = *guard
+    {
+        return hook(path);
     }
     fs::symlink_metadata(path)
 }
@@ -312,17 +311,19 @@ fn symlink_metadata(path: &Path) -> std::io::Result<fs::Metadata> {
 }
 
 #[cfg(test)]
-static SYMLINK_METADATA_HOOK: OnceLock<Mutex<Option<fn(&Path) -> std::io::Result<fs::Metadata>>>> =
-    OnceLock::new();
+type SymlinkMetadataHook = fn(&Path) -> std::io::Result<fs::Metadata>;
+
+#[cfg(test)]
+static SYMLINK_METADATA_HOOK: OnceLock<Mutex<Option<SymlinkMetadataHook>>> = OnceLock::new();
 
 #[cfg(test)]
 struct SymlinkMetadataHookGuard {
-    prev: Option<fn(&Path) -> std::io::Result<fs::Metadata>>,
+    prev: Option<SymlinkMetadataHook>,
 }
 
 #[cfg(test)]
 impl SymlinkMetadataHookGuard {
-    fn new(hook: Option<fn(&Path) -> std::io::Result<fs::Metadata>>) -> Self {
+    fn new(hook: Option<SymlinkMetadataHook>) -> Self {
         let cell = SYMLINK_METADATA_HOOK.get_or_init(|| Mutex::new(None));
         let mut guard = cell.lock().expect("symlink metadata hook lock");
         let prev = std::mem::replace(&mut *guard, hook);

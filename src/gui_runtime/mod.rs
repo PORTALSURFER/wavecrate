@@ -68,8 +68,8 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
     bridge: B,
 ) -> Result<(), String> {
     info!("Launching radiant native Vello runtime");
-    let result = radiant::gui_runtime::run_native_vello_app(options.into(), bridge)
-        .map_err(|err| {
+    let result =
+        radiant::gui_runtime::run_native_vello_app(options.into(), bridge).map_err(|err| {
             error!(%err, "radiant native Vello runtime returned error");
             err
         });
@@ -87,11 +87,10 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
 /// full application bridge.
 pub fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String> {
     info!("Launching radiant native Vello preview runtime");
-    let result = radiant::gui_runtime::run_native_vello_preview(options.into())
-        .map_err(|err| {
-            error!(%err, "radiant native Vello preview returned error");
-            err
-        });
+    let result = radiant::gui_runtime::run_native_vello_preview(options.into()).map_err(|err| {
+        error!(%err, "radiant native Vello preview returned error");
+        err
+    });
 
     if result.is_ok() {
         info!("Radiant native Vello preview returned successfully");

@@ -7,7 +7,7 @@
 //! cargo feature. When enabled, setting `SEMPAL_NATIVE_BRIDGE_PROFILE`
 //! (`1`, `true`, `on`, or `yes`, case-insensitive) enables periodic logging
 //! of bridge execution timing and renderer work counts.
-//! 
+//!
 //! When the feature is disabled, all profiling calls are compiled out to keep
 //! default builds on the hot path with zero added overhead.
 
@@ -21,15 +21,15 @@ use crate::{
     audio::AudioPlayer,
     waveform::WaveformRenderer,
 };
+#[cfg(feature = "native-bridge-metrics")]
+use std::sync::{
+    OnceLock,
+    atomic::{AtomicU64, Ordering},
+};
 use std::{
     cell::RefCell,
     rc::Rc,
     time::{Duration, Instant},
-};
-#[cfg(feature = "native-bridge-metrics")]
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    OnceLock,
 };
 use tracing::{error, info};
 
