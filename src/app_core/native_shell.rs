@@ -25,7 +25,7 @@ use crate::gui::types::ImageRgba;
 use crate::app_core::state::{
     DestructiveEditPrompt, DragTarget, FolderActionPrompt, MapQueryBounds, MapRenderMode,
     SampleBrowserActionPrompt, SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, UiState,
-    UpdateStatus, VisibleRows,
+    UpdateStatus,
 };
 #[cfg(test)]
 use crate::app_core::state::{
@@ -646,7 +646,6 @@ fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
 }
 
 fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
-    let visible = &controller.ui.browser.visible;
     let selected_visible_row = controller.ui.browser.selected_visible;
     let selected_path_count = controller.ui.browser.selected_paths.len();
     let search_query = controller.ui.browser.search_query.clone();
@@ -662,39 +661,19 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
         .as_deref()
         .map(view_model::sample_display_label);
     let anchor_visible_row = controller.ui.browser.selection_anchor_visible;
-    let selected_paths: HashSet<_> = controller
-        .ui
-        .browser
-        .selected_paths
-        .iter()
-        .map(AsRef::as_ref)
-        .collect();
-
     let mut rows = Vec::new();
-    let visible_count = visible.len();
+    let visible_count = controller.ui.browser.visible.len();
     let (window_start, window_len) =
         browser_render_window(visible_count, selected_visible_row, anchor_visible_row);
     for visible_row in window_start..(window_start + window_len) {
-        let Some(absolute_index) = visible.get(visible_row) else {
+        let Some(absolute_index) = controller.ui.browser.visible.get(visible_row) else {
             continue;
         };
         let label = controller.label_for_ref(absolute_index).map(str::to_string);
-        if let Some(entry) = controller.wav_entry(absolute_index) {
-            let entry_tag = entry.tag;
-            let selected = selected_paths.contains(entry.relative_path.as_path());
-            let row_label = label.unwrap_or_else(|| view_model::sample_display_label(&entry.relative_path));
-            let bucket_label = browser_bucket_label(controller, &entry.relative_path, entry_tag);
-            rows.push(
-                BrowserRowModel::new(
-                    visible_row,
-                    row_label,
-                    browser_column_index(entry_tag),
-                    selected,
-                    selected_visible_row.is_some_and(|focused| focused == visible_row),
-                )
-                .with_bucket_label(bucket_label),
-            );
-        } else {
+        let Some((entry_tag, relative_path)) = controller
+            .wav_entry(absolute_index)
+            .map(|entry| (entry.tag, entry.relative_path.clone()))
+        else {
             rows.push(
                 BrowserRowModel::new(
                     visible_row,
@@ -705,7 +684,26 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
                 )
                 .with_bucket_label(String::from("SAMPLE")),
             );
-        }
+            continue;
+        };
+        let selected = controller
+            .ui
+            .browser
+            .selected_paths
+            .iter()
+            .any(|path| path == &relative_path);
+        let row_label = label.unwrap_or_else(|| view_model::sample_display_label(&relative_path));
+        let bucket_label = browser_bucket_label(controller, &relative_path, entry_tag);
+        rows.push(
+            BrowserRowModel::new(
+                visible_row,
+                row_label,
+                browser_column_index(entry_tag),
+                selected,
+                selected_visible_row.is_some_and(|focused| focused == visible_row),
+            )
+            .with_bucket_label(bucket_label),
+        );
     }
 
     BrowserPanelModel {
