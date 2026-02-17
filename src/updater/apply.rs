@@ -5,10 +5,8 @@
 //! the final copy/replacement plan.
 
 use std::{
-    collections::HashSet,
     fs,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use serde::Deserialize;
@@ -18,6 +16,17 @@ use super::{
     expected_checksums_name, expected_checksums_signature_name, expected_zip_asset_name, fs_ops,
     github,
 };
+
+mod helpers;
+
+use helpers::{
+    collect_stale_files, load_installed_manifest, relaunch_app, remove_stale_paths,
+    validate_root_dir,
+};
+
+#[cfg(test)]
+#[path = "apply_tests.rs"]
+mod apply_tests;
 
 /// Parsed `update-manifest.json` embedded in release archives.
 #[derive(Debug, Clone, Deserialize)]
@@ -104,14 +113,8 @@ pub struct StaleRemovalFailure {
 }
 
 /// Return type for `apply_files_and_dirs` to keep the tuple shape explicit.
-type ApplyFilesPlanResult = Result<
-    (
-        Vec<String>,
-        Vec<String>,
-        Vec<StaleRemovalFailure>,
-    ),
-    UpdateError,
->;
+type ApplyFilesPlanResult =
+    Result<(Vec<String>, Vec<String>, Vec<StaleRemovalFailure>), UpdateError>;
 
 /// Apply the selected update payload into the installation directory.
 /// Returns an [`ApplyPlan`] describing copied files, replaced directories, and stale
@@ -224,38 +227,6 @@ fn report(progress: &mut impl FnMut(UpdateProgress), message: impl Into<String>)
     progress(UpdateProgress::new(message));
 }
 
-fn validate_root_dir(unpack_dir: &Path, expected: &str) -> Result<PathBuf, UpdateError> {
-    let expected_root = unpack_dir.join(expected);
-    if expected_root.is_dir() {
-        return Ok(expected_root);
-    }
-    if unpack_dir.join("update-manifest.json").is_file() {
-        return Ok(unpack_dir.to_path_buf());
-    }
-    let entries = fs_ops::list_root_entries(unpack_dir)?;
-    let mut dirs = entries
-        .into_iter()
-        .filter(|p| p.is_dir())
-        .collect::<Vec<_>>();
-    if dirs.len() != 1 {
-        return Err(UpdateError::Invalid(
-            "Archive must contain exactly one root directory".into(),
-        ));
-    }
-    let root = dirs.pop().unwrap();
-    let Some(name) = root.file_name().and_then(|s| s.to_str()) else {
-        return Err(UpdateError::Invalid(
-            "Invalid archive root directory".into(),
-        ));
-    };
-    if name != expected {
-        return Err(UpdateError::Invalid(format!(
-            "Archive root directory must be '{expected}/', got '{name}/'"
-        )));
-    }
-    Ok(root)
-}
-
 fn apply_files_and_dirs(
     install_dir: &Path,
     root_dir: &Path,
@@ -292,403 +263,10 @@ fn apply_files_and_dirs(
 
     Ok((copied, replaced_dirs, stale_removal_failures))
 }
-fn load_installed_manifest(install_dir: &Path) -> Result<Option<UpdateManifest>, UpdateError> {
-    let manifest_path = install_dir.join("update-manifest.json");
-    if !manifest_path.is_file() {
-        return Ok(None);
-    }
-    let manifest_bytes = fs::read(&manifest_path)?;
-    let manifest: UpdateManifest = serde_json::from_slice(&manifest_bytes)?;
-    Ok(Some(manifest))
-}
-
-fn collect_stale_files(
-    install_dir: &Path,
-    installed: &UpdateManifest,
-    current: &UpdateManifest,
-) -> Result<Vec<PathBuf>, UpdateError> {
-    validate_installed_manifest(installed, current)?;
-    let current_files = current
-        .files
-        .iter()
-        .map(|file| file.as_str())
-        .collect::<HashSet<_>>();
-    let mut stale = Vec::new();
-    for file in installed.files.iter() {
-        if !current_files.contains(file.as_str()) {
-            stale.push(ensure_child_path(install_dir, file)?);
-        }
-    }
-    Ok(stale)
-}
-
-fn validate_installed_manifest(
-    installed: &UpdateManifest,
-    current: &UpdateManifest,
-) -> Result<(), UpdateError> {
-    if installed.app != current.app {
-        return Err(UpdateError::Invalid(format!(
-            "Installed manifest app mismatch: expected {}, got {}",
-            current.app, installed.app
-        )));
-    }
-    if installed.target != current.target {
-        return Err(UpdateError::Invalid(format!(
-            "Installed manifest target mismatch: expected {}, got {}",
-            current.target, installed.target
-        )));
-    }
-    if installed.platform != current.platform {
-        return Err(UpdateError::Invalid(format!(
-            "Installed manifest platform mismatch: expected {}, got {}",
-            current.platform, installed.platform
-        )));
-    }
-    if installed.arch != current.arch {
-        return Err(UpdateError::Invalid(format!(
-            "Installed manifest arch mismatch: expected {}, got {}",
-            current.arch, installed.arch
-        )));
-    }
-    if installed.files.is_empty() {
-        return Err(UpdateError::Invalid(
-            "Installed manifest files list is empty".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn remove_stale_paths(
-    paths: &[PathBuf],
-    install_dir: &Path,
-) -> Result<Vec<StaleRemovalFailure>, UpdateError> {
-    let mut failures = Vec::new();
-    for path in paths {
-        if !path.exists() {
-            continue;
-        }
-        match fs::symlink_metadata(path) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                if let Err(err) = fs::remove_file(path) {
-                    failures.push(stale_removal_failure(path, err));
-                }
-            }
-            Ok(metadata) if metadata.is_dir() => {
-                if let Err(err) = fs::remove_dir_all(path) {
-                    failures.push(stale_removal_failure(path, err));
-                }
-            }
-            Ok(_) => {
-                if let Err(err) = fs::remove_file(path) {
-                    failures.push(stale_removal_failure(path, err));
-                }
-            }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(err) => {
-                failures.push(stale_removal_failure(path, format!("metadata error: {err}")));
-            }
-        }
-        let _ = prune_empty_parents(install_dir, path);
-    }
-    Ok(failures)
-}
-
-fn stale_removal_failure(path: &Path, error: impl ToString) -> StaleRemovalFailure {
-    StaleRemovalFailure {
-        path: path.to_path_buf(),
-        error: error.to_string(),
-    }
-}
-
-fn prune_empty_parents(install_dir: &Path, path: &Path) -> Result<(), UpdateError> {
-    let mut current = path.parent();
-    while let Some(dir) = current {
-        if dir == install_dir {
-            break;
-        }
-        let metadata = fs::symlink_metadata(dir)?;
-        if metadata.file_type().is_symlink() || !metadata.is_dir() {
-            break;
-        }
-        if fs::read_dir(dir)?.next().is_some() {
-            break;
-        }
-        fs::remove_dir(dir)?;
-        current = dir.parent();
-    }
-    Ok(())
-}
-
-fn relaunch_app(
-    install_dir: &Path,
-    app: &str,
-    manifest: &UpdateManifest,
-) -> Result<(), UpdateError> {
-    let candidate = app_executable_name(app, manifest);
-    let exe = install_dir.join(&candidate);
-    if !exe.exists() {
-        return Err(UpdateError::Invalid(format!(
-            "Updated executable missing: {}",
-            exe.display()
-        )));
-    }
-    let exe_display = exe.display().to_string();
-    let mut cmd = Command::new(&exe);
-    cmd.spawn()
-        .map_err(|err| UpdateError::Invalid(format!("Failed to relaunch {exe_display}: {err}")))?;
-    Ok(())
-}
-
-fn app_executable_name(app: &str, manifest: &UpdateManifest) -> String {
-    let exe = format!("{app}.exe");
-    if manifest.files.iter().any(|f| f == &exe) {
-        return exe;
-    }
-    app.to_string()
-}
 
 fn channel_label(channel: UpdateChannel) -> &'static str {
     match channel {
         UpdateChannel::Stable => "stable",
         UpdateChannel::Nightly => "nightly",
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
-    use tempfile::tempdir;
-
-    #[test]
-    fn relaunch_app_errors_when_executable_missing() {
-        let tmp = tempdir().unwrap();
-        let manifest = UpdateManifest {
-            app: "sempal".to_string(),
-            channel: "stable".to_string(),
-            target: "target".to_string(),
-            platform: "linux".to_string(),
-            arch: "x86_64".to_string(),
-            files: Vec::new(),
-        };
-        let err = relaunch_app(tmp.path(), "sempal", &manifest).unwrap_err();
-        assert!(err.to_string().contains("Updated executable missing"));
-    }
-
-    #[test]
-    fn apply_files_and_dirs_keeps_running_executable_on_stage_failure() {
-        let tmp = tempdir().unwrap();
-        let install_dir = tmp.path().join("install");
-        let root_dir = tmp.path().join("root");
-        fs::create_dir_all(&install_dir).unwrap();
-        fs::create_dir_all(&root_dir).unwrap();
-
-        let running_name = std::env::current_exe()
-            .unwrap()
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .to_string();
-        let running_dest = install_dir.join(&running_name);
-        fs::write(&running_dest, "old-binary").unwrap();
-
-        let manifest = UpdateManifest {
-            app: "sempal".to_string(),
-            channel: "stable".to_string(),
-            target: "target".to_string(),
-            platform: "linux".to_string(),
-            arch: "x86_64".to_string(),
-            files: vec![running_name.clone()],
-        };
-
-        let _err = apply_files_and_dirs(&install_dir, &root_dir, &manifest).unwrap_err();
-        assert_eq!(fs::read_to_string(&running_dest).unwrap(), "old-binary");
-        assert!(!install_dir.join(format!("{running_name}.old")).exists());
-        assert!(!install_dir.join(format!("{running_name}.new")).exists());
-    }
-
-    #[test]
-    fn apply_files_and_dirs_removes_stale_files_from_prior_manifest() {
-        let tmp = tempdir().unwrap();
-        let install_dir = tmp.path().join("install");
-        let root_dir = tmp.path().join("root");
-        fs::create_dir_all(&install_dir).unwrap();
-        fs::create_dir_all(&root_dir).unwrap();
-
-        let installed_manifest_json = r#"{
-  "app": "sempal",
-  "channel": "stable",
-  "target": "target",
-  "platform": "linux",
-  "arch": "x86_64",
-  "files": ["update-manifest.json", "current.txt", "old.txt"]
-}
-"#;
-        fs::write(
-            install_dir.join("update-manifest.json"),
-            installed_manifest_json,
-        )
-        .unwrap();
-        fs::write(install_dir.join("current.txt"), "old-current").unwrap();
-        fs::write(install_dir.join("old.txt"), "old-stale").unwrap();
-
-        let next_manifest = UpdateManifest {
-            app: "sempal".to_string(),
-            channel: "stable".to_string(),
-            target: "target".to_string(),
-            platform: "linux".to_string(),
-            arch: "x86_64".to_string(),
-            files: vec![
-                "update-manifest.json".to_string(),
-                "current.txt".to_string(),
-            ],
-        };
-        fs::write(root_dir.join("update-manifest.json"), "new-manifest").unwrap();
-        fs::write(root_dir.join("current.txt"), "new-current").unwrap();
-
-        apply_files_and_dirs(&install_dir, &root_dir, &next_manifest).unwrap();
-
-        assert_eq!(
-            fs::read_to_string(install_dir.join("current.txt")).unwrap(),
-            "new-current"
-        );
-        assert!(!install_dir.join("old.txt").exists());
-    }
-
-    #[test]
-    fn apply_files_and_dirs_removes_stale_resources_dir() {
-        let tmp = tempdir().unwrap();
-        let install_dir = tmp.path().join("install");
-        let root_dir = tmp.path().join("root");
-        fs::create_dir_all(&install_dir).unwrap();
-        fs::create_dir_all(&root_dir).unwrap();
-
-        let installed_manifest_json = r#"{
-  "app": "sempal",
-  "channel": "stable",
-  "target": "target",
-  "platform": "linux",
-  "arch": "x86_64",
-  "files": ["update-manifest.json", "current.txt"]
-}
-"#;
-        fs::write(
-            install_dir.join("update-manifest.json"),
-            installed_manifest_json,
-        )
-        .unwrap();
-        fs::write(install_dir.join("current.txt"), "old-current").unwrap();
-
-        let resources_dir = install_dir.join("resources");
-        fs::create_dir_all(&resources_dir).unwrap();
-        fs::write(resources_dir.join("old.dat"), "resource").unwrap();
-
-        let next_manifest = UpdateManifest {
-            app: "sempal".to_string(),
-            channel: "stable".to_string(),
-            target: "target".to_string(),
-            platform: "linux".to_string(),
-            arch: "x86_64".to_string(),
-            files: vec![
-                "update-manifest.json".to_string(),
-                "current.txt".to_string(),
-            ],
-        };
-        fs::write(root_dir.join("update-manifest.json"), "new-manifest").unwrap();
-        fs::write(root_dir.join("current.txt"), "new-current").unwrap();
-
-        apply_files_and_dirs(&install_dir, &root_dir, &next_manifest).unwrap();
-
-        if install_dir.join("resources").exists() {
-            println!("WARN: resources dir not removed (likely os error 1 environmental issue)");
-        }
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn apply_files_and_dirs_reports_stale_removal_failures() {
-        let tmp = tempdir().unwrap();
-        let install_dir = tmp.path().join("install");
-        let root_dir = tmp.path().join("root");
-        fs::create_dir_all(&install_dir).unwrap();
-        fs::create_dir_all(&root_dir).unwrap();
-
-        let stale_dir = install_dir.join("stale");
-        fs::create_dir_all(&stale_dir).unwrap();
-        let stale_file = stale_dir.join("stale.txt");
-        fs::write(&stale_file, "old-stale").unwrap();
-
-        let mut perms = fs::metadata(&stale_dir).unwrap().permissions();
-        perms.set_mode(0o555);
-        fs::set_permissions(&stale_dir, perms).unwrap();
-
-        let installed_manifest_json = r#"{
-  "app": "sempal",
-  "channel": "stable",
-  "target": "target",
-  "platform": "linux",
-  "arch": "x86_64",
-  "files": ["update-manifest.json", "current.txt", "stale/stale.txt"]
-}
-"#;
-        fs::write(
-            install_dir.join("update-manifest.json"),
-            installed_manifest_json,
-        )
-        .unwrap();
-        fs::write(install_dir.join("current.txt"), "old-current").unwrap();
-
-        let next_manifest = UpdateManifest {
-            app: "sempal".to_string(),
-            channel: "stable".to_string(),
-            target: "target".to_string(),
-            platform: "linux".to_string(),
-            arch: "x86_64".to_string(),
-            files: vec![
-                "update-manifest.json".to_string(),
-                "current.txt".to_string(),
-            ],
-        };
-        fs::write(root_dir.join("update-manifest.json"), "new-manifest").unwrap();
-        fs::write(root_dir.join("current.txt"), "new-current").unwrap();
-
-        let (_copied, _replaced, failures) =
-            apply_files_and_dirs(&install_dir, &root_dir, &next_manifest).unwrap();
-
-        if stale_file.exists() {
-            assert!(failures.iter().any(|failure| failure.path == stale_file));
-        } else {
-            assert!(!failures.iter().any(|failure| failure.path == stale_file));
-        }
-
-        if stale_dir.exists() {
-            let mut perms = fs::metadata(&stale_dir).unwrap().permissions();
-            perms.set_mode(0o755);
-            fs::set_permissions(&stale_dir, perms).unwrap();
-        }
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn remove_stale_paths_removes_symlink_without_touching_target() {
-        use std::os::unix::fs::symlink;
-
-        let tmp = tempdir().unwrap();
-        let install_dir = tmp.path().join("install");
-        let outside_dir = tmp.path().join("outside");
-        fs::create_dir_all(&install_dir).unwrap();
-        fs::create_dir_all(&outside_dir).unwrap();
-        fs::write(outside_dir.join("keep.txt"), "keep").unwrap();
-
-        let link_path = install_dir.join("stale-link");
-        symlink(&outside_dir, &link_path).unwrap();
-
-        let failures = remove_stale_paths(std::slice::from_ref(&link_path), &install_dir).unwrap();
-
-        assert!(failures.is_empty());
-        assert!(!link_path.exists());
-        assert!(outside_dir.join("keep.txt").exists());
     }
 }

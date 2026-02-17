@@ -129,24 +129,24 @@ pub(crate) fn waveform_image_signature(image: &WaveformImage) -> Option<u64> {
     if image.size[0] == 0 || image.size[1] == 0 {
         return None;
     }
-    let mut signature = 0xcbf2_9ce4_8422_325u64;
+    let mut signature = 0x00cb_f29c_e482_2325_u64;
     for byte in (image.size[0] as u64).to_le_bytes() {
         signature ^= u64::from(byte);
-        signature = signature.wrapping_mul(0x1_0000_0001_b3);
+        signature = signature.wrapping_mul(0x0100_0000_01b3);
     }
     for byte in (image.size[1] as u64).to_le_bytes() {
         signature ^= u64::from(byte);
-        signature = signature.wrapping_mul(0x1_0000_0001_b3);
+        signature = signature.wrapping_mul(0x0100_0000_01b3);
     }
     for pixel in &image.pixels {
         signature ^= u64::from(pixel.r());
-        signature = signature.wrapping_mul(0x1_0000_0001_b3);
+        signature = signature.wrapping_mul(0x0100_0000_01b3);
         signature ^= u64::from(pixel.g());
-        signature = signature.wrapping_mul(0x1_0000_0001_b3);
+        signature = signature.wrapping_mul(0x0100_0000_01b3);
         signature ^= u64::from(pixel.b());
-        signature = signature.wrapping_mul(0x1_0000_0001_b3);
+        signature = signature.wrapping_mul(0x0100_0000_01b3);
         signature ^= u64::from(pixel.a());
-        signature = signature.wrapping_mul(0x1_0000_0001_b3);
+        signature = signature.wrapping_mul(0x0100_0000_01b3);
     }
     Some(signature)
 }
