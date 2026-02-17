@@ -577,7 +577,7 @@ fn project_status_model(controller: &AppController, selected_column: usize) -> S
             ""
         }
     );
-    let right = status_bar_right_text(selected_column, controller.average_fps());
+    let right = status_bar_right_text(selected_column);
     StatusBarModel {
         left,
         center,
@@ -585,10 +585,8 @@ fn project_status_model(controller: &AppController, selected_column: usize) -> S
     }
 }
 
-fn status_bar_right_text(selected_column: usize, avg_fps: Option<f64>) -> String {
-    match avg_fps {
-        Some(avg_fps) => format!("fps: {avg_fps:.1} | col: {}/3", selected_column + 1),
-        None => format!("col: {}/3", selected_column + 1),
+fn status_bar_right_text(selected_column: usize) -> String {
+    format!("col: {}/3", selected_column + 1)
     }
 }
 
@@ -1469,12 +1467,12 @@ mod tests {
     }
 
     #[test]
-    fn status_bar_right_text_includes_fps_when_present() {
-        assert_eq!(status_bar_right_text(0, Some(59.9)), "fps: 59.9 | col: 1/3");
+    fn status_bar_right_text_shows_column() {
+        assert_eq!(status_bar_right_text(0), "col: 1/3");
     }
 
     #[test]
-    fn status_bar_right_text_defaults_to_column_only_without_fps() {
-        assert_eq!(status_bar_right_text(2, None), "col: 3/3");
+    fn status_bar_right_text_is_stable_across_input() {
+        assert_eq!(status_bar_right_text(2), "col: 3/3");
     }
 }

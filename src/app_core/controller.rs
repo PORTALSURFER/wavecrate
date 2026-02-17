@@ -104,6 +104,7 @@ impl AppControllerNativeRuntimeExt for AppController {
             NativeUiAction::SelectColumn { index } => self.select_column_by_index(index),
             NativeUiAction::MoveColumn { delta } => self.move_selection_column(delta as isize),
             NativeUiAction::ToggleTransport => self.toggle_play_pause(),
+            NativeUiAction::HandleEscape => self.handle_escape(),
             NativeUiAction::FocusBrowserPanel => self.focus_browser_list(),
             NativeUiAction::FocusSourcesPanel => self.focus_sources_list(),
             NativeUiAction::FocusWaveformPanel => self.focus_waveform(),
