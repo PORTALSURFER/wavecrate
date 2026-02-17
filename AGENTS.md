@@ -1,6 +1,6 @@
 
 when building you will need asiosdk, you can find it at /mnt/e/lib/asiosdk/ASIOSDK, map this to CPAL_ASIO_DIR env var
-refer to /manual/design_principles.md when implementing change requests
+refer to `design_principles.md` when implementing change requests
 
 ## Codebase map (short)
 
@@ -38,27 +38,27 @@ refer to /manual/design_principles.md when implementing change requests
 - `tests/`: integration tests and behavior checks.
 - `assets/`: static runtime assets.
 - `scripts/`: build/dev helper scripts.
-- `manual/`: project documentation and design references.
-  - `manual/index.md` — project homepage content, overview, and documentation entry point.
-  - `manual/usage.md` — user-facing usage guide and feature walkthrough.
-  - `manual/design_principles.md` — architectural goals, constraints, and coding standards.
-  - `manual/performance_qa.md` — performance targets and QA checks for large datasets/views.
-  - `manual/gui_migration_parity.md` — parity matrix for legacy runtime vs `radiant`.
-  - `manual/native_shell_legacy_baseline.md` — baseline shell contracts for legacy/native parity.
-  - `manual/feature_vector.md` — feature-vector definition and ANN-related metadata.
-  - `manual/ann_index_container.md` — ANN index container format and storage design notes.
-  - `manual/updater-contract.md` — updater state machine and public contract surface.
-  - `manual/hints.md` — hint-of-the-day catalog and messaging patterns.
-  - `manual/icon_assets.md` — icon asset generation and asset conventions.
-  - `manual/styleguide.md` — GUI style direction and visual language definitions.
-  - `manual/plan.md` — ongoing implementation plan for single-file ANN container work.
-  - `manual/transient_plan.md` — transient detection improvement plan and milestones.
-  - `manual/transient_audit.md` — transient detection audit and current implementation status.
-  - `manual/todo.md` — tracked backlog and task list.
-  - `manual/_config.yml` — GitHub Pages/Jekyll documentation site configuration.
-  - `manual/_layouts/default.html` — docs site page shell and common header/footer layout.
-  - `manual/assets/theme.css` — documentation theme and layout styling.
-  - `manual/assets/screenshot.png` — brand/appearance reference image for docs.
+- `manual` docs map (project documentation and design references).
+  - `index.md` — project homepage content, overview, and documentation entry point.
+  - `usage.md` — user-facing usage guide and feature walkthrough.
+  - `design_principles.md` — architectural goals, constraints, and coding standards.
+  - `performance_qa.md` — performance targets and QA checks for large datasets/views.
+  - `gui_migration_parity.md` — parity matrix for legacy runtime vs `radiant`.
+  - `native_shell_legacy_baseline.md` — baseline shell contracts for legacy/native parity.
+  - `feature_vector.md` — feature-vector definition and ANN-related metadata.
+  - `ann_index_container.md` — ANN index container format and storage design notes.
+  - `updater-contract.md` — updater state machine and public contract surface.
+  - `hints.md` — hint-of-the-day catalog and messaging patterns.
+  - `icon_assets.md` — icon asset generation and asset conventions.
+  - `styleguide.md` — GUI style direction and visual language definitions.
+  - `plan.md` — ongoing implementation plan for single-file ANN container work.
+  - `transient_plan.md` — transient detection improvement plan and milestones.
+  - `transient_audit.md` — transient detection audit and current implementation status.
+  - `todo.md` — tracked backlog and task list.
+  - `_config.yml` — GitHub Pages/Jekyll documentation site configuration.
+  - `_layouts/default.html` — docs site page shell and common header/footer layout.
+  - `assets/theme.css` — documentation theme and layout styling.
+  - `assets/screenshot.png` — brand/appearance reference image for docs.
 
 ### Submodules
 
