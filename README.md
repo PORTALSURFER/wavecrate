@@ -26,9 +26,15 @@ Audio sample triage tool built with Rust.
 - Playback uses your default audio output device.
 - GUI backend:
   - Main app uses `native_vello` (radiant runtime path) by default and no longer exposes a legacy backend switch.
+  - `app_core` defines the domain action/projection layer that feeds `radiant` without owning widget behavior.
   - Migration parity tracker: `manual/gui_migration_parity.md`.
   - Native shell text rendering can use `SEMPAL_NATIVE_FONT_PATH=/path/to/font.ttf` if automatic system font discovery fails.
 - Windows (ASIO): If you want to build with ASIO support (or your build fails looking for the ASIO SDK), download the Steinberg ASIO SDK and set `CPAL_ASIO_DIR` to the SDK path (e.g. a folder named `ASIOSDK`) before running `cargo build`/`cargo run`.
+
+CI validation (per change) is currently:
+- `cargo build --all`
+- `cargo clippy --all-targets --all-features`
+- `cargo test --all`
 
 ## Architecture
 
@@ -36,6 +42,8 @@ Audio sample triage tool built with Rust.
   logic, and rendering coordination.
 - `src/gui` contains the app-level GUI wiring for Sempal and consumes the `radiant` API.
 - `src/gui_runtime` is the host-bridge layer between Sempal and `radiant`.
+- `src/app_core` is the stable application-core projection and state transition surface used by both GUI and other runtimes.
+- `src/legacy_runtime` remains for compatibility paths; new runtime behavior should be additive and routed through `radiant`.
 - Core domain logic, sample indexing, playback, and persistence remain in `src/` modules
   (`audio`, `analysis`, `sample_sources`, `updater`, etc.).
 - Rendering is performed by the `vello` backend through the `radiant` runtime path.
@@ -84,10 +92,12 @@ avoid duplicate state mutation in UI callbacks.
 
 - Rendering instrumentation is opt-in via cargo feature:
   - `gui-performance` (build with `--features gui-performance`)
+  - `native-bridge-metrics` (build with `--features native-bridge-metrics`) for host bridge timing
 - Enable runtime logs by setting:
   - `SEMPAL_NATIVE_RENDER_PROFILE=true`
+  - `SEMPAL_NATIVE_BRIDGE_PROFILE=true`
   - Accepts `1`, `true`, `on`, and `yes` (case-insensitive for `TRUE`/`On`/`ON` style variants)
-- Logging includes frame build, model access, motion overlay, and frame-submit timing
+- Logging includes frame build, model access, motion overlay, and frame-submit timing for render; bridge profiling also includes adapter transition and event-funnel timing.
   plus per-frame scene/motion/static rebuild and text cache counters.
 - Default builds keep all profiling call sites in the no-op fast path.
 
