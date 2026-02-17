@@ -38,7 +38,27 @@ refer to /docs/design_principles.md when implementing change requests
 - `tests/`: integration tests and behavior checks.
 - `assets/`: static runtime assets.
 - `scripts/`: build/dev helper scripts.
-- `docs/`: design/docs references and implementation notes.
+- `docs/`: project documentation and design references.
+  - `index.md` — project homepage content, overview, and documentation entry point.
+  - `usage.md` — user-facing usage guide and feature walkthrough.
+  - `design_principles.md` — architectural goals, constraints, and coding standards.
+  - `performance_qa.md` — performance targets and QA checks for large datasets/views.
+  - `gui_migration_parity.md` — parity matrix for legacy runtime vs `radiant`.
+  - `native_shell_legacy_baseline.md` — baseline shell contracts for legacy/native parity.
+  - `feature_vector.md` — feature-vector definition and ANN-related metadata.
+  - `ann_index_container.md` — ANN index container format and storage design notes.
+  - `updater-contract.md` — updater state machine and public contract surface.
+  - `hints.md` — hint-of-the-day catalog and messaging patterns.
+  - `icon_assets.md` — icon asset generation and asset conventions.
+  - `styleguide.md` — GUI style direction and visual language definitions.
+  - `plan.md` — ongoing implementation plan for single-file ANN container work.
+  - `transient_plan.md` — transient detection improvement plan and milestones.
+  - `transient_audit.md` — transient detection audit and current implementation status.
+  - `todo.md` — tracked backlog and task list.
+  - `_config.yml` — GitHub Pages/Jekyll documentation site configuration.
+  - `_layouts/default.html` — docs site page shell and common header/footer layout.
+  - `assets/theme.css` — documentation theme and layout styling.
+  - `assets/screenshot.png` — brand/appearance reference image for docs.
 
 ### Submodules
 
