@@ -702,6 +702,19 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
         };
     }
     let mut rows = Vec::new();
+    let selected_paths = if controller.ui.browser.selected_paths.is_empty() {
+        None
+    } else {
+        Some(
+            controller
+                .ui
+                .browser
+                .selected_paths
+                .iter()
+                .cloned()
+                .collect::<HashSet<_>>(),
+        )
+    };
     let (window_start, window_len) =
         browser_render_window(visible_count, selected_visible_row, anchor_visible_row);
     let mut visible_rows = Vec::with_capacity(window_len);
@@ -716,34 +729,33 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
             .wav_entry(absolute_index)
             .map(|entry| (entry.tag, entry.relative_path.clone()))
         else {
+            let focused = selected_visible_row.is_some_and(|focused| focused == visible_row);
             rows.push(
                 BrowserRowModel::new(
                     visible_row,
                     format!("row {}", visible_row + 1),
                     1,
                     false,
-                    selected_visible_row.is_some_and(|focused| focused == visible_row),
+                    focused,
                 )
                 .with_bucket_label(String::from("SAMPLE")),
             );
             continue;
         };
         let label = controller.label_for_ref(absolute_index).map(str::to_string);
-        let selected = controller
-            .ui
-            .browser
-            .selected_paths
-            .iter()
-            .any(|path| path == &relative_path);
+        let selected = selected_paths
+            .as_ref()
+            .is_some_and(|selected_paths| selected_paths.contains(&relative_path));
         let row_label = label.unwrap_or_else(|| view_model::sample_display_label(&relative_path));
         let bucket_label = browser_bucket_label(controller, &relative_path, entry_tag);
+        let focused = selected_visible_row.is_some_and(|focused| focused == visible_row);
         rows.push(
             BrowserRowModel::new(
                 visible_row,
                 row_label,
                 browser_column_index(entry_tag),
                 selected,
-                selected_visible_row.is_some_and(|focused| focused == visible_row),
+                focused,
             )
             .with_bucket_label(bucket_label),
         );
