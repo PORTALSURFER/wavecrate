@@ -18,6 +18,7 @@ pub(crate) mod updates;
 pub(crate) use crate::app_core::state::StatusTone;
 use crate::{
     app::state::UiState,
+    gui::types::ImageRgba,
     app::view_model,
     audio::AudioPlayer,
     gui::repaint::RepaintSignal,
@@ -63,6 +64,10 @@ pub struct AppController {
     library: LibraryState,
     cache: LibraryCacheState,
     ui_cache: ControllerUiCacheState,
+    /// Cached native projection payload for the currently rendered waveform image.
+    pub(crate) projected_waveform_image_signature: Option<u64>,
+    /// Cached native projection payload for the currently rendered waveform image.
+    pub(crate) projected_waveform_image: Option<Arc<ImageRgba>>,
     wav_entries: WavEntriesState,
     selection_state: ControllerSelectionState,
     pub(crate) settings: AppSettingsState,
@@ -116,6 +121,8 @@ impl AppController {
             library: LibraryState::new(),
             cache: LibraryCacheState::new(),
             ui_cache: ControllerUiCacheState::new(),
+            projected_waveform_image_signature: None,
+            projected_waveform_image: None,
             wav_entries: WavEntriesState::new(0, 1024),
             selection_state: ControllerSelectionState::new(),
             settings: AppSettingsState::new(),

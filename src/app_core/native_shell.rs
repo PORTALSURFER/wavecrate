@@ -37,6 +37,7 @@ use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
@@ -56,7 +57,7 @@ pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
         controller.ui.browser.neutral.len(),
         controller.ui.browser.keep.len(),
     ];
-    let waveform = project_waveform_model(&controller.ui);
+    let waveform = project_waveform_model(controller);
     let browser = project_browser_model(controller);
     let browser_chrome = project_browser_chrome_model(&controller.ui, browser.visible_count);
     let waveform_chrome = project_waveform_chrome_model(&controller.ui);
@@ -645,7 +646,7 @@ fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
 }
 
 fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
-    let visible = VisibleRows::from(controller.ui.browser.visible.clone());
+    let visible = &controller.ui.browser.visible;
     let selected_visible_row = controller.ui.browser.selected_visible;
     let selected_path_count = controller.ui.browser.selected_paths.len();
     let search_query = controller.ui.browser.search_query.clone();
@@ -666,7 +667,7 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
         .browser
         .selected_paths
         .iter()
-        .cloned()
+        .map(AsRef::as_ref)
         .collect();
 
     let mut rows = Vec::new();
@@ -677,15 +678,16 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
         let Some(absolute_index) = visible.get(visible_row) else {
             continue;
         };
+        let label = controller.label_for_ref(absolute_index).map(str::to_string);
         if let Some(entry) = controller.wav_entry(absolute_index) {
-            let relative_path = entry.relative_path.clone();
             let entry_tag = entry.tag;
-            let selected = selected_paths.contains(&entry.relative_path);
-            let bucket_label = browser_bucket_label(controller, &relative_path, entry_tag);
+            let selected = selected_paths.contains(entry.relative_path.as_path());
+            let row_label = label.unwrap_or_else(|| view_model::sample_display_label(&entry.relative_path));
+            let bucket_label = browser_bucket_label(controller, &entry.relative_path, entry_tag);
             rows.push(
                 BrowserRowModel::new(
                     visible_row,
-                    view_model::sample_display_label(&relative_path),
+                    row_label,
                     browser_column_index(entry_tag),
                     selected,
                     selected_visible_row.is_some_and(|focused| focused == visible_row),
@@ -762,7 +764,8 @@ fn browser_render_window(
     (window_start, window_len)
 }
 
-fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
+fn project_waveform_model(controller: &mut AppController) -> WaveformPanelModel {
+    let ui = &controller.ui;
     let view_span = (ui.waveform.view.end - ui.waveform.view.start).clamp(0.000_1, 1.0) as f32;
     let zoom_percent = (100.0 / view_span).round().clamp(100.0, 9999.0);
     WaveformPanelModel {
@@ -788,13 +791,25 @@ fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
         tempo_label: ui.waveform.bpm_value.map(|bpm| format!("{bpm:.1} BPM")),
         zoom_label: Some(format!("{zoom_percent:.0}%")),
         waveform_image_signature: ui.waveform.waveform_image_signature,
-        waveform_image: project_waveform_image(&ui.waveform.image),
+        waveform_image: project_waveform_image(controller),
     }
 }
 
 fn project_waveform_image(
+    controller: &mut AppController,
+) -> Option<Arc<ImageRgba>> {
+    if controller.projected_waveform_image_signature == controller.ui.waveform.waveform_image_signature {
+        return controller.projected_waveform_image.clone();
+    }
+    let projected_waveform_image = project_waveform_image_data(&controller.ui.waveform.image);
+    controller.projected_waveform_image_signature = controller.ui.waveform.waveform_image_signature;
+    controller.projected_waveform_image = projected_waveform_image.clone();
+    projected_waveform_image
+}
+
+fn project_waveform_image_data(
     image: &Option<crate::waveform::WaveformImage>,
-) -> Option<ImageRgba> {
+) -> Option<Arc<ImageRgba>> {
     let image = image.as_ref()?;
     if image.size[0] == 0 || image.size[1] == 0 {
         return None;
@@ -806,7 +821,7 @@ fn project_waveform_image(
         pixels.push(pixel.b());
         pixels.push(pixel.a());
     }
-    ImageRgba::new(image.size[0], image.size[1], pixels)
+    ImageRgba::new(image.size[0], image.size[1], pixels).map(Arc::new)
 }
 
 fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel {
@@ -1049,7 +1064,11 @@ mod tests {
         ui.waveform.bpm_value = Some(128.0);
         ui.waveform.view.start = 0.25;
         ui.waveform.view.end = 0.75;
-        let projected = project_waveform_model(&ui);
+        let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+        controller.ui.waveform.bpm_value = Some(128.0);
+        controller.ui.waveform.view.start = 0.25;
+        controller.ui.waveform.view.end = 0.75;
+        let projected = project_waveform_model(&mut controller);
         assert_eq!(projected.tempo_label.as_deref(), Some("128.0 BPM"));
         assert_eq!(projected.zoom_label.as_deref(), Some("200%"));
         assert!(projected.waveform_image.is_none());
@@ -1057,15 +1076,15 @@ mod tests {
 
     #[test]
     fn waveform_projection_passes_raster_image_payload() {
-        let mut ui = UiState::default();
-        ui.waveform.image = Some(crate::waveform::WaveformImage {
+        let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+        controller.ui.waveform.image = Some(crate::waveform::WaveformImage {
             size: [2, 1],
             pixels: vec![
                 crate::waveform::WaveformRgba::from_rgba_unmultiplied(10, 20, 30, 40),
                 crate::waveform::WaveformRgba::from_rgba_unmultiplied(11, 21, 31, 41),
             ],
         });
-        let projected = project_waveform_model(&ui);
+        let projected = project_waveform_model(&mut controller);
         let waveform_image = projected
             .waveform_image
             .as_ref()
