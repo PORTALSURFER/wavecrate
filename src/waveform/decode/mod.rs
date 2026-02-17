@@ -1,5 +1,5 @@
 mod cache;
-mod decode;
+mod cache_token;
 mod normalize;
 mod peaks;
 mod resample;
@@ -32,7 +32,7 @@ impl WaveformRenderer {
 }
 
 pub(crate) fn next_cache_token() -> u64 {
-    decode::next_cache_token()
+    cache_token::next_cache_token()
 }
 
 pub(super) fn default_decode_cache() -> Mutex<cache::DecodeCache> {
