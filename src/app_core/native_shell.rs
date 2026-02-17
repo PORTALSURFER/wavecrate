@@ -121,7 +121,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
                 .round()
                 .clamp(100.0, 9999.0)
         )),
-        waveform_image_signature: project_waveform_image_signature(&controller.ui.waveform.image),
+        waveform_image_signature: controller.ui.waveform.waveform_image_signature,
         waveform_loaded_label: controller
             .ui
             .loaded_wav
@@ -787,6 +787,7 @@ fn project_waveform_model(ui: &UiState) -> WaveformPanelModel {
         loop_enabled: ui.waveform.loop_enabled,
         tempo_label: ui.waveform.bpm_value.map(|bpm| format!("{bpm:.1} BPM")),
         zoom_label: Some(format!("{zoom_percent:.0}%")),
+        waveform_image_signature: ui.waveform.waveform_image_signature,
         waveform_image: project_waveform_image(&ui.waveform.image),
     }
 }

@@ -397,6 +397,7 @@ pub(crate) fn run_installer_app() -> Result<(), String> {
         inner_size: Some([860.0, 620.0]),
         min_inner_size: Some([640.0, 420.0]),
         maximized: false,
+        target_fps: 120,
         icon: load_installer_icon(),
     };
     run_native_vello_app(options, InstallerNativeBridge::new())

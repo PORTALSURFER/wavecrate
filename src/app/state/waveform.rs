@@ -10,6 +10,8 @@ use std::time::Instant;
 pub struct WaveformState {
     /// Cached rendered waveform image.
     pub image: Option<WaveformImage>,
+    /// Cached waveform image signature used to avoid full-frame hashing on motion ticks.
+    pub waveform_image_signature: Option<u64>,
     /// Playhead position and trail state.
     pub playhead: PlayheadState,
     /// Last play start position chosen by the user (normalized 0-1).
@@ -84,6 +86,7 @@ impl Default for WaveformState {
     fn default() -> Self {
         Self {
             image: None,
+            waveform_image_signature: None,
             playhead: PlayheadState::default(),
             last_start_marker: None,
             cursor: None,
@@ -120,6 +123,32 @@ impl Default for WaveformState {
             copy_flash_at: None,
         }
     }
+}
+
+pub(crate) fn waveform_image_signature(image: &WaveformImage) -> Option<u64> {
+    if image.size[0] == 0 || image.size[1] == 0 {
+        return None;
+    }
+    let mut signature = 0xcbf2_9ce4_8422_325u64;
+    for byte in (image.size[0] as u64).to_le_bytes() {
+        signature ^= u64::from(byte);
+        signature = signature.wrapping_mul(0x1_0000_0001_b3);
+    }
+    for byte in (image.size[1] as u64).to_le_bytes() {
+        signature ^= u64::from(byte);
+        signature = signature.wrapping_mul(0x1_0000_0001_b3);
+    }
+    for pixel in &image.pixels {
+        signature ^= u64::from(pixel.r());
+        signature = signature.wrapping_mul(0x1_0000_0001_b3);
+        signature ^= u64::from(pixel.g());
+        signature = signature.wrapping_mul(0x1_0000_0001_b3);
+        signature ^= u64::from(pixel.b());
+        signature = signature.wrapping_mul(0x1_0000_0001_b3);
+        signature ^= u64::from(pixel.a());
+        signature = signature.wrapping_mul(0x1_0000_0001_b3);
+    }
+    Some(signature)
 }
 
 /// Normalized bounds describing the visible region of the waveform.

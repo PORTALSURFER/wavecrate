@@ -1,6 +1,7 @@
 use super::*;
 use crate::app::controller::playback::audio_cache::FileMetadata;
 use crate::app::state::WaveformView;
+use crate::app::state::waveform_image_signature;
 use crate::waveform::DecodedWaveform;
 use std::fs;
 use std::path::Path;
@@ -157,6 +158,7 @@ impl AppController {
 
         if (decoded.samples.is_empty() && decoded.peaks.is_none()) || total_frames == 0 {
             self.ui.waveform.image = None;
+            self.ui.waveform.waveform_image_signature = None;
             return;
         }
         let start_frame = ((view.start * total_frames as f64).floor() as usize)
@@ -207,6 +209,12 @@ impl AppController {
             );
         // Keep waveform image metadata in the renderer to preserve precision.
         self.ui.waveform.image = Some(color_image);
+        self.ui.waveform.waveform_image_signature = self
+            .ui
+            .waveform
+            .image
+            .as_ref()
+            .and_then(waveform_image_signature);
         self.sample_view.waveform.render_meta = Some(desired_meta);
     }
 

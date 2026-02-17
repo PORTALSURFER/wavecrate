@@ -29,6 +29,7 @@ fn main() -> Result<(), String> {
         inner_size: None,
         min_inner_size: Some(MIN_VIEWPORT_SIZE),
         maximized: true,
+        target_fps: 120,
         icon: load_app_icon(),
     };
 

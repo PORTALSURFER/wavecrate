@@ -418,6 +418,7 @@ impl AppController {
         self.sample_view.wav.loaded_audio = None;
         self.sample_view.waveform.decoded = None;
         self.ui.waveform.image = None;
+        self.ui.waveform.waveform_image_signature = None;
         self.ui.waveform.playhead = PlayheadState::default();
         self.ui.waveform.selection = None;
         self.ui.waveform.selection_duration = None;

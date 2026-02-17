@@ -29,6 +29,7 @@ pub fn run_gui(args: UpdaterRunArgs) -> Result<(), String> {
         inner_size: Some([860.0, 620.0]),
         min_inner_size: Some([640.0, 420.0]),
         maximized: false,
+        target_fps: 120,
         icon: None,
     };
     run_native_vello_app(options, UpdateNativeBridge::new(args))
