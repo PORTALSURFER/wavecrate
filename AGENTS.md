@@ -38,6 +38,8 @@ refer to `design_principles.md` when implementing change requests
 - `tests/`: integration tests and behavior checks.
 - `assets/`: static runtime assets.
 - `scripts/`: build/dev helper scripts.
+- `docs/`: test and docs support metadata.
+  - `TEST.md` — test suite inventory and command guide.
 - `manual` docs map (project documentation and design references).
   - `index.md` — project homepage content, overview, and documentation entry point.
   - `usage.md` — user-facing usage guide and feature walkthrough.
