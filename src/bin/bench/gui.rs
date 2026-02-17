@@ -150,29 +150,34 @@ fn write_seed_wav(path: &Path, seed: i64) -> Result<(), String> {
 }
 
 fn execute_interaction_step(controller: &mut AppController, step: usize) -> Result<(), String> {
-    const SEARCH_QUERIES: [&str; 4] = ["sample_", "sample_00", "sample_000", "sample_001"];
-    let query = SEARCH_QUERIES[step % SEARCH_QUERIES.len()];
-    controller.set_browser_search(query);
-
-    let filter = if step % 3 == 0 {
-        TriageFlagFilter::All
-    } else if step % 3 == 1 {
-        TriageFlagFilter::Keep
-    } else {
-        TriageFlagFilter::Trash
-    };
-    controller.set_browser_filter(filter);
-
-    if step % 2 == 0 {
-        controller.set_browser_sort(SampleBrowserSort::ListOrder.into());
-    } else {
-        controller.set_browser_sort(SampleBrowserSort::PlaybackAgeDesc.into());
-    }
-
+    controller.set_browser_search(interaction_query_for_step(step));
+    controller.set_browser_filter(interaction_filter_for_step(step));
+    controller.set_browser_sort(interaction_sort_for_step(step).into());
     if controller.visible_browser_len() > 0 {
         controller.select_column_by_index(step % 3);
     }
     Ok(())
+}
+
+fn interaction_query_for_step(step: usize) -> &'static str {
+    const SEARCH_QUERIES: [&str; 4] = ["sample_", "sample_00", "sample_000", "sample_001"];
+    SEARCH_QUERIES[step % SEARCH_QUERIES.len()]
+}
+
+fn interaction_filter_for_step(step: usize) -> TriageFlagFilter {
+    match step % 3 {
+        0 => TriageFlagFilter::All,
+        1 => TriageFlagFilter::Keep,
+        _ => TriageFlagFilter::Trash,
+    }
+}
+
+fn interaction_sort_for_step(step: usize) -> SampleBrowserSort {
+    if step % 2 == 0 {
+        SampleBrowserSort::ListOrder
+    } else {
+        SampleBrowserSort::PlaybackAgeDesc
+    }
 }
 
 #[cfg(test)]
@@ -211,25 +216,20 @@ mod tests {
         let mut workspace = build_controller_with_db_rows(&options).expect("build gui workspace");
         wait_for_rows(&mut workspace.controller, options.gui_rows).expect("rows seeded");
 
-        let expected_queries = ["sample_", "sample_00", "sample_000", "sample_001"];
         for step in 0..6usize {
             execute_interaction_step(&mut workspace.controller, step).expect("interaction step");
             assert_eq!(
                 workspace.controller.ui.browser.search_query,
-                expected_queries[step % expected_queries.len()]
+                interaction_query_for_step(step)
             );
-            let expected_filter = match step % 3 {
-                0 => TriageFlagFilter::All,
-                1 => TriageFlagFilter::Keep,
-                _ => TriageFlagFilter::Trash,
-            };
-            assert_eq!(workspace.controller.ui.browser.filter, expected_filter);
-            let expected_sort = if step % 2 == 0 {
-                SampleBrowserSort::ListOrder
-            } else {
-                SampleBrowserSort::PlaybackAgeDesc
-            };
-            assert_eq!(workspace.controller.ui.browser.sort, expected_sort.into());
+            assert_eq!(
+                workspace.controller.ui.browser.filter,
+                interaction_filter_for_step(step)
+            );
+            assert_eq!(
+                workspace.controller.ui.browser.sort,
+                interaction_sort_for_step(step).into()
+            );
         }
     }
 }
