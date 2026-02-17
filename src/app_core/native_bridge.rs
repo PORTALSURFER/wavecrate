@@ -69,13 +69,20 @@ static FRAME_RESULT_TEXT_RUNS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static BRIDGE_PROFILE_ENABLED: OnceLock<bool> = OnceLock::new();
 
 #[cfg(feature = "native-bridge-metrics")]
+fn parse_bridge_profile_enabled(value: &str) -> bool {
+    let normalized = value.trim();
+    normalized == "1"
+        || normalized.eq_ignore_ascii_case("true")
+        || normalized.eq_ignore_ascii_case("on")
+        || normalized.eq_ignore_ascii_case("yes")
+}
+
+#[cfg(feature = "native-bridge-metrics")]
 fn bridge_profiling_enabled() -> bool {
     *BRIDGE_PROFILE_ENABLED.get_or_init(|| {
         std::env::var(BRIDGE_PROFILE_ENV)
             .ok()
-            .is_some_and(|value| {
-                matches!(value.as_str(), "1" | "true" | "TRUE" | "on" | "On" | "ON" | "yes")
-            })
+            .is_some_and(|value| parse_bridge_profile_enabled(&value))
     })
 }
 #[cfg(not(feature = "native-bridge-metrics"))]
@@ -384,4 +391,21 @@ pub fn new_native_bridge(
     player: Option<Rc<RefCell<AudioPlayer>>>,
 ) -> Result<SempalNativeBridge, String> {
     SempalNativeBridge::new(renderer, player)
+}
+
+#[cfg(test)]
+#[cfg(feature = "native-bridge-metrics")]
+mod tests {
+    use super::parse_bridge_profile_enabled;
+
+    #[test]
+    fn parse_bridge_profile_enabled_is_case_insensitive() {
+        assert!(parse_bridge_profile_enabled("TRUE"));
+        assert!(parse_bridge_profile_enabled("on"));
+        assert!(parse_bridge_profile_enabled("Yes"));
+        assert!(parse_bridge_profile_enabled("  true  "));
+        assert!(!parse_bridge_profile_enabled("0"));
+        assert!(!parse_bridge_profile_enabled("no"));
+        assert!(!parse_bridge_profile_enabled(""));
+    }
 }
