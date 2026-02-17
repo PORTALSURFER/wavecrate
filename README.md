@@ -35,7 +35,7 @@ Audio sample triage tool built with Rust.
 - `vendor/radiant` owns GUI abstractions, widgets, layout, input handling, diff/update
   logic, and rendering coordination.
 - `src/gui` contains the app-level GUI wiring for Sempal and consumes the `radiant` API.
-- `src/gui_app` and `src/gui_runtime` are the host-bridge layers between Sempal and `radiant`.
+- `src/gui_runtime` is the host-bridge layer between Sempal and `radiant`.
 - Core domain logic, sample indexing, playback, and persistence remain in `src/` modules
   (`audio`, `analysis`, `sample_sources`, `updater`, etc.).
 - Rendering is performed by the `vello` backend through the `radiant` runtime path.
