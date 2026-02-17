@@ -57,7 +57,6 @@ pub trait AppControllerNativeRuntimeExt {
 impl AppControllerNativeRuntimeExt for AppController {
     fn prepare_native_frame(&mut self) {
         self.tick_playhead();
-        self.poll_background_jobs();
         self.update_performance_governor(false);
     }
 

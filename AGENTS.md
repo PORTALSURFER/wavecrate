@@ -27,6 +27,14 @@ refer to /docs/design_principles.md when implementing change requests
   - `waveform` — waveform decoding, rendering, and caching.
   - `main.rs` and `bin/` entrypoints — app and updater binaries.
 - `vendor/radiant/`: UI shell, layout, and rendering engine used by native shells.
+  - `vendor/radiant/src/app/` — native-app bridge model types and action enums.
+  - `vendor/radiant/src/gui/` — retained shell layout, style, painting, and input bridge.
+    - `gui/native_shell/` — interaction state, layout primitives, and shell frame generation.
+    - `gui/input.rs` — key/mouse input tokenization consumed by state + actions.
+    - `gui/types.rs` — shared geometry and color primitives.
+    - `gui/repaint.rs` — repaint/dirty-bit signal bridging into retained caches.
+  - `vendor/radiant/src/gui_runtime/` — runtime host entrypoint and native window loop integration.
+    - `gui_runtime/native_vello.rs` — Vello-based render loop and scene rebuild scheduler.
 - `tests/`: integration tests and behavior checks.
 - `assets/`: static runtime assets.
 - `scripts/`: build/dev helper scripts.
