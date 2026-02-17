@@ -13,7 +13,7 @@ use sempal::audio::AudioPlayer;
 use sempal::gui_runtime::{NativeRunOptions, WindowIconRgba, run_native_vello_app};
 use sempal::logging;
 use sempal::waveform::WaveformRenderer;
-use std::{path::PathBuf, process, time::SystemTime};
+use std::{process, time::SystemTime};
 use tracing::{error, info};
 
 fn main() -> Result<(), String> {
@@ -32,8 +32,7 @@ fn main() -> Result<(), String> {
         .and_then(|path| path.into_os_string().into_string().ok())
         .unwrap_or_else(|| String::from("<unknown>"));
     let cwd = std::env::current_dir()
-        .map(PathBuf::to_string_lossy)
-        .map(|cwd| cwd.to_string())
+        .map(|cwd| cwd.to_string_lossy().into_owned())
         .unwrap_or_else(|_| String::from("<unknown>"));
     let args: Vec<_> = std::env::args_os().collect();
     let now = SystemTime::now();
