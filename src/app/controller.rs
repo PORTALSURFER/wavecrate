@@ -18,7 +18,6 @@ pub(crate) mod updates;
 pub(crate) use crate::app_core::state::StatusTone;
 use crate::{
     app::state::UiState,
-    gui::types::ImageRgba,
     app::view_model,
     audio::AudioPlayer,
     gui::repaint::RepaintSignal,
@@ -35,8 +34,8 @@ use rfd::FileDialog;
 use std::{
     cell::RefCell,
     path::{Path, PathBuf},
-    rc::Rc,
     sync::Arc,
+    rc::Rc,
     time::{Duration, Instant},
 };
 
@@ -67,7 +66,7 @@ pub struct AppController {
     /// Cached native projection payload for the currently rendered waveform image.
     pub(crate) projected_waveform_image_signature: Option<u64>,
     /// Cached native projection payload for the currently rendered waveform image.
-    pub(crate) projected_waveform_image: Option<Arc<ImageRgba>>,
+    pub(crate) projected_waveform_image: Option<crate::gui::types::ImageRgba>,
     wav_entries: WavEntriesState,
     selection_state: ControllerSelectionState,
     pub(crate) settings: AppSettingsState,

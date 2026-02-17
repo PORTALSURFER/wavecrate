@@ -37,7 +37,6 @@ use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 
 pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
@@ -795,7 +794,7 @@ fn project_waveform_model(controller: &mut AppController) -> WaveformPanelModel 
 
 fn project_waveform_image(
     controller: &mut AppController,
-) -> Option<Arc<ImageRgba>> {
+) -> Option<ImageRgba> {
     if controller.projected_waveform_image_signature == controller.ui.waveform.waveform_image_signature {
         return controller.projected_waveform_image.clone();
     }
@@ -807,7 +806,7 @@ fn project_waveform_image(
 
 fn project_waveform_image_data(
     image: &Option<crate::waveform::WaveformImage>,
-) -> Option<Arc<ImageRgba>> {
+) -> Option<ImageRgba> {
     let image = image.as_ref()?;
     if image.size[0] == 0 || image.size[1] == 0 {
         return None;
@@ -819,7 +818,7 @@ fn project_waveform_image_data(
         pixels.push(pixel.b());
         pixels.push(pixel.a());
     }
-    ImageRgba::new(image.size[0], image.size[1], pixels).map(Arc::new)
+    ImageRgba::new(image.size[0], image.size[1], pixels)
 }
 
 fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel {
