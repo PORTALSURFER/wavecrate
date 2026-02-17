@@ -20,7 +20,7 @@ impl Wsola {
     pub(crate) fn new(sample_rate: u32) -> Self {
         let mut window_size = ((sample_rate.max(1) as f32) * 0.025).round() as usize;
         window_size = window_size.clamp(256, 4096);
-        if window_size % 2 != 0 {
+        if !window_size.is_multiple_of(2) {
             window_size += 1;
         }
         let hop_s = window_size / 2;
@@ -141,13 +141,13 @@ fn hann_window(size: usize) -> Vec<f32> {
 fn mono_from_interleaved(samples: &[f32], channels: usize) -> Vec<f32> {
     let frames = samples.len() / channels.max(1);
     let mut mono = vec![0.0; frames];
-    for frame in 0..frames {
+    for (frame, mono_slot) in mono.iter_mut().enumerate().take(frames) {
         let mut sum = 0.0f32;
         let base = frame * channels;
         for ch in 0..channels {
             sum += samples[base + ch];
         }
-        mono[frame] = sum / channels as f32;
+        *mono_slot = sum / channels as f32;
     }
     mono
 }
