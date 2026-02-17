@@ -31,12 +31,15 @@ impl WaveformRenderer {
     }
 }
 
+/// Advance and return the next cache token used for waveform cache invalidation.
 pub(crate) fn next_cache_token() -> u64 {
     cache_token::next_cache_token()
 }
 
+/// Construct the default decode cache with the built-in LRU capacity.
 pub(super) fn default_decode_cache() -> Mutex<cache::DecodeCache> {
     Mutex::new(cache::DecodeCache::new(DEFAULT_DECODE_CACHE_LIMIT))
 }
 
+/// Re-export of the decode cache type for neighboring modules.
 pub(crate) use cache::DecodeCache;
