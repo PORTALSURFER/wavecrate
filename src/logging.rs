@@ -114,16 +114,15 @@ pub fn init() -> Result<(), LoggingError> {
 ///
 /// The hook preserves the previous panic handler so default panic rendering is still
 /// emitted for diagnostics outside tracing consumers.
-pub fn install_panic_hook() {
-    let previous_hook = panic::take_hook();
-    panic::set_hook(Box::new(move |panic_info| {
-        let thread = std::thread::current()
-            .name()
-            .unwrap_or("<unnamed>");
-        let payload = panic_info
-            .payload()
-            .downcast_ref::<&str>()
-            .copied()
+    pub fn install_panic_hook() {
+        let previous_hook = panic::take_hook();
+        panic::set_hook(Box::new(move |panic_info| {
+            let current_thread = std::thread::current();
+            let thread = current_thread.name().unwrap_or("<unnamed>");
+            let payload = panic_info
+                .payload()
+                .downcast_ref::<&str>()
+                .copied()
             .or_else(|| {
                 panic_info
                     .payload()
