@@ -60,13 +60,8 @@ try {
   Write-Host "[ci_local] cargo fmt --all -- --check"
   cargo fmt --all -- --check
 
-  Write-Host "[ci_local] scripts/check_migration_boundary.sh"
-  $bash = Get-Command bash -ErrorAction SilentlyContinue
-  if ($null -ne $bash) {
-    bash ./scripts/check_migration_boundary.sh
-  } else {
-    Invoke-MigrationBoundaryCheckFallback -RootDir $rootDir
-  }
+  Write-Host "[ci_local] scripts/check_migration_boundary.ps1"
+  & (Join-Path $rootDir "scripts/check_migration_boundary.ps1")
 
   Write-Host "[ci_local] scripts/check_file_size_budget.ps1"
   & (Join-Path $rootDir "scripts/check_file_size_budget.ps1")
