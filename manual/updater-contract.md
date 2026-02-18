@@ -99,7 +99,6 @@ The zip expands to exactly one root folder:
 sempal/
   sempal(.exe)
   sempal-updater.exe       (windows only)
-  models/panns_cnn14_16k.bpk
   update-manifest.json
   resources/            (optional)
 ```
@@ -130,6 +129,6 @@ Minimal example:
   "target": "x86_64-pc-windows-msvc",
   "platform": "windows",
   "arch": "x86_64",
-  "files": ["sempal-updater.exe", "sempal.exe", "models/panns_cnn14_16k.bpk", "update-manifest.json"]
+  "files": ["sempal-updater.exe", "sempal.exe", "update-manifest.json"]
 }
 ```

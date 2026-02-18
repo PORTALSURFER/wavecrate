@@ -133,15 +133,3 @@ operations fail or are unavailable.
 - `SEMPAL_FALLBACK_KEY`
 Supplies the 32-byte fallback encryption key via an environment variable (useful
 when keyring storage is unavailable). This is expected to be base64-encoded.
-
-## PANNs model setup (README-only variables)
-
-The README references these variables for PANNs model setup and controlled ONNX
-downloads. At the time of writing, only the README references them in-tree.
-
-- `SEMPAL_PANNS_ONNX_PATH`
-- `SEMPAL_MODELS_DIR`
-- `SEMPAL_PANNS_ONNX_URL`
-- `SEMPAL_PANNS_ONNX_SHA256`
-- `SEMPAL_PANNS_ONNX_ALLOWED_HOSTS`
-

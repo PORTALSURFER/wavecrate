@@ -103,20 +103,18 @@ avoid duplicate state mutation in UI callbacks.
 
 ## ML model setup (PANNs)
 
-- The app uses a PANNs model (burnpack) and requires the ONNX model to build the burnpack.
-- Download + export the model once (Windows PowerShell):
-  - `.\scripts\setup_panns.ps1`
-- Or with Python directly:
-  - `python .\scripts\setup_panns.py`
-- By default, this writes to `%APPDATA%\\.sempal\\models`:
-  - `panns_cnn14_16k.onnx`
-  - `panns_cnn14_16k.bpk`
-- Override locations if needed:
-  - `SEMPAL_PANNS_ONNX_PATH` for the ONNX path
-  - `SEMPAL_MODELS_DIR` for the models directory
-- When downloading the ONNX model, provide an allowlisted HTTPS URL and its SHA-256 hash:
-  - `SEMPAL_PANNS_ONNX_URL` and `SEMPAL_PANNS_ONNX_SHA256`
-  - Override allowed hosts with `SEMPAL_PANNS_ONNX_ALLOWED_HOSTS` (comma-separated)
+PANNs embedding inference is deprecated and removed in this codebase (see
+`src/analysis/mod.rs`). Current builds do not require downloading/exporting a
+PANNs ONNX model.
+
+Legacy golden regression tests still use PANNs reference artifacts:
+
+- Generate/update golden references:
+  - `bash scripts/ci_golden_tests.sh`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_golden_tests.ps1`
+- These scripts set:
+  - `SEMPAL_PANNS_GOLDEN_PATH`
+  - `SEMPAL_PANNS_EMBED_GOLDEN_PATH`
 
 ## Code style and linting
 
