@@ -34,6 +34,18 @@ use `docs/FEATURE_CHECKLIST.md` as the default safe path.
 - Optional SQLite extension loading: `src/sqlite_ext.rs`
 - Platform clipboard/drag-and-drop integrations: `src/external_clipboard.rs`, `src/external_drag.rs`
 
+## Ownership and CODEOWNERS
+
+`docs/ARCHITECTURE.md` is the human/agent routing map (source of truth for "where should this change go?").
+`.github/CODEOWNERS` is the enforcement mechanism that makes those ownership buckets show up in PR review.
+
+When changing ownership boundaries:
+
+1. Update `docs/ARCHITECTURE.md` (the map) to reflect the intended responsibility split.
+2. Update `.github/CODEOWNERS` (the enforcement) to match the same buckets.
+3. Prefer broad, stable directory patterns over fragile file-level ownership unless you have a clear need.
+4. Keep changes small and reviewable: ownership churn causes review noise and slows throughput.
+
 ## Guardrails and invariants
 
 - `src` owns domain state and UI intent only; `vendor/radiant` owns GUI behavior.

@@ -14,6 +14,7 @@ cd "$ROOT_DIR"
 DOCS_README="docs/README.md"
 
 required=(
+  "docs/INDEX.md"
   "docs/FEATURE_CHECKLIST.md"
   "docs/ARCHITECTURE.md"
   "docs/ENV_VARS.md"
@@ -65,4 +66,3 @@ if missing:
 
 print(f"[docs_index] OK ({len(paths)} referenced docs files)")
 PY
-

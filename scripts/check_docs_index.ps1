@@ -20,6 +20,7 @@ try {
   }
 
   $required = @(
+    "docs/INDEX.md"
     "docs/FEATURE_CHECKLIST.md"
     "docs/ARCHITECTURE.md"
     "docs/ENV_VARS.md"
@@ -72,4 +73,3 @@ try {
 } finally {
   Pop-Location
 }
-
