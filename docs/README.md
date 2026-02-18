@@ -30,6 +30,9 @@ Use these scripts as the default entrypoints for local work (humans and agents).
 - Safe local run (isolated config/logs):
   - macOS/Linux/WSL: `bash scripts/run_sandbox.sh --`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1`
+- Clean sandbox state (delete `<repo>/.sandbox/sempal`):
+  - macOS/Linux/WSL: `bash scripts/clean_sandbox.sh`
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/clean_sandbox.ps1`
 - Environment sanity checks:
   - macOS/Linux/WSL: `bash scripts/doctor.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1`
