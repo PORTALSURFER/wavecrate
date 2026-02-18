@@ -28,10 +28,9 @@ function New-SandboxBase {
     New-Item -ItemType Directory -Path $Requested -Force | Out-Null
     return (Resolve-Path $Requested).Path
   }
-  $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
-  $base = Join-Path $env:TEMP ("sempal-sandbox-" + $stamp)
+  $base = Join-Path $rootDir ".sandbox/sempal"
   New-Item -ItemType Directory -Path $base -Force | Out-Null
-  return $base
+  return (Resolve-Path $base).Path
 }
 
 $sandboxBase = New-SandboxBase -Requested $Dir
@@ -46,7 +45,11 @@ Write-Host ("[run_sandbox] SEMPAL_CONFIG_HOME={0}" -f $sandboxBase)
 Write-Host ("[run_sandbox] app_root={0}" -f $appRoot)
 Write-Host ("[run_sandbox] config={0}" -f $configPath)
 Write-Host ("[run_sandbox] logs={0}" -f $logsDir)
-Write-Host "[run_sandbox] NOTE: this run uses an isolated config/log directory."
+Write-Host "[run_sandbox] CONTRACT: app config/logs will NOT be read/written from your real user profile dirs (it uses SEMPAL_CONFIG_HOME)."
+Write-Host "[run_sandbox] Can still write:"
+Write-Host ("[run_sandbox]   - sandbox dir: {0}" -f $sandboxBase)
+Write-Host ("[run_sandbox]   - cargo build artifacts: {0} (and your rustup/cargo caches)" -f (Join-Path $rootDir "target"))
+Write-Host "[run_sandbox]   - per-source-folder DBs if you point at them: .sempal_samples.db"
 
 Push-Location $rootDir
 try {
@@ -57,4 +60,3 @@ try {
     Remove-Item -LiteralPath $sandboxBase -Recurse -Force -ErrorAction SilentlyContinue
   }
 }
-

@@ -3,7 +3,7 @@
 # Runs Sempal in an isolated sandbox config directory so local runs (including
 # agent runs) do not touch real user data.
 #
-# This works by setting `SEMPAL_CONFIG_HOME` to a fresh temporary directory.
+# This works by setting `SEMPAL_CONFIG_HOME` to a sandbox base directory.
 # Sempal then creates and uses `<SEMPAL_CONFIG_HOME>/.sempal/` for config/logs.
 
 set -euo pipefail
@@ -27,7 +27,7 @@ Derived paths:
 - logs:      <app root>/logs
 
 Options:
-  --dir <path>  Use a fixed sandbox base dir (default: mktemp).
+  --dir <path>  Use a fixed sandbox base dir (default: <repo>/.sandbox/sempal).
   --clean       Delete the sandbox base dir on exit.
 EOF
 }
@@ -48,10 +48,10 @@ while (( $# > 0 )); do
 done
 
 if [[ -z "$SANDBOX_BASE" ]]; then
-  SANDBOX_BASE="$(mktemp -d -t sempal-sandbox-XXXXXXXX)"
-else
-  mkdir -p "$SANDBOX_BASE"
+  SANDBOX_BASE="$ROOT_DIR/.sandbox/sempal"
 fi
+
+mkdir -p "$SANDBOX_BASE"
 
 if (( CLEAN == 1 )); then
   trap 'rm -rf "$SANDBOX_BASE"' EXIT
@@ -68,7 +68,10 @@ echo "[run_sandbox] SEMPAL_CONFIG_HOME=$SEMPAL_CONFIG_HOME"
 echo "[run_sandbox] app_root=$APP_ROOT"
 echo "[run_sandbox] config=$CONFIG_PATH"
 echo "[run_sandbox] logs=$LOGS_DIR"
-echo "[run_sandbox] NOTE: this run uses an isolated config/log directory."
+echo "[run_sandbox] CONTRACT: app config/logs will NOT be read/written from your real user profile dirs (it uses SEMPAL_CONFIG_HOME)."
+echo "[run_sandbox] Can still write:"
+echo "[run_sandbox]   - sandbox dir: $SEMPAL_CONFIG_HOME"
+echo "[run_sandbox]   - cargo build artifacts: $ROOT_DIR/target (and your rustup/cargo caches)"
+echo "[run_sandbox]   - per-source-folder DBs if you point at them: .sempal_samples.db"
 
 exec cargo run --release -- "$@"
-
