@@ -23,7 +23,8 @@ Rules:
 
 - After any code change, create a commit and push it.
   If your environment requires explicit approval for git operations, ask for confirmation and include the intended commit message.
-- Before pushing, run `scripts/ci_local.sh` after each code change and fix any failures before proceeding.
+- Before pushing, run `scripts/ci_local.sh` after every change and do not push until it is green.
+  If any check fails, fix issues and rerun until it passes.
   If you cannot run scripts in your environment, stop and resolve before pushing.
 - `scripts/run_sandbox.sh` and `scripts/run_sandbox.ps1` default to read-only source DB mode (`--write-db` required).
 - `manual/` is user-facing documentation only. Developer docs belong in `docs/`.
