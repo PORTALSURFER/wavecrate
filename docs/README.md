@@ -12,4 +12,5 @@ Start here:
 - `docs/ENV_VARS.md` — environment variable reference
 - `docs/TEST.md` — test suite map and commands
 - `docs/design_principles.md` — architectural goals and constraints
-
+- `docs/plans/TEMPLATE_execution_plan.md` — template for multi-step work
+- `docs/plans/TEMPLATE_investigation.md` — template for bug/perf investigations
