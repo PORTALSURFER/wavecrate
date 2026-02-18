@@ -10,6 +10,10 @@ Checks the common footguns called out in README:
 - `CPAL_ASIO_DIR` (Windows ASIO builds)
 - `SEMPAL_NATIVE_FONT_PATH` (native shell font override)
 - presence of `git lfs`
+Also checks toolchain sanity:
+- pinned Rust toolchain vs rust-toolchain.toml
+- rustfmt/clippy present for the pinned toolchain
+- presence of `rg` (ripgrep)
 Also prints the expected `.sempal/logs` locations for each OS.
 #>
 
@@ -20,6 +24,12 @@ function Write-Info([string]$Message) { Write-Host "[doctor] $Message" }
 function Write-Warn([string]$Message) { Write-Warning "[doctor][warn] $Message"; $script:warnings++ }
 function Write-Err([string]$Message) { Write-Error "[doctor][error] $Message"; $script:failures++ }
 
+function Write-BootstrapHint {
+  Write-Warn "Run bootstrap to install pinned toolchain + tools:"
+  Write-Warn "  - bash scripts/bootstrap.sh"
+  Write-Warn "  - powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1"
+}
+
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Write-Info "Repo: $rootDir"
 
@@ -29,6 +39,89 @@ $os =
   elseif ($IsLinux) { "linux" }
   else { "unknown" }
 Write-Info "OS: $os"
+
+Write-Info "Checking ripgrep (rg)..."
+$rg = Get-Command rg -ErrorAction SilentlyContinue
+if ($null -ne $rg) {
+  Write-Info "rg: present"
+} else {
+  Write-Warn "rg: missing (recommended; used by several repo checks)"
+  Write-BootstrapHint
+}
+
+Write-Info "Checking Rust toolchain (pinned)..."
+$toolchainToml = Join-Path $rootDir "rust-toolchain.toml"
+if (-not (Test-Path -LiteralPath $toolchainToml)) {
+  Write-Warn "rust-toolchain.toml not found at repo root (can't verify toolchain pin)"
+} else {
+  $rustup = Get-Command rustup -ErrorAction SilentlyContinue
+  if ($null -eq $rustup) {
+    Write-Err "rustup not found on PATH (can't verify/install pinned toolchain)"
+    Write-BootstrapHint
+  } else {
+    $channel = "stable"
+    foreach ($line in Get-Content -LiteralPath $toolchainToml) {
+      if ($line -match '^\s*channel\s*=\s*"([^"]+)"\s*$') {
+        $channel = $Matches[1]
+        break
+      }
+    }
+    Write-Info "Pinned toolchain channel: $channel"
+
+    # Verify toolchain exists by trying to run rustc under it.
+    try {
+      rustup run $channel rustc -V | Out-Null
+      Write-Info "Pinned toolchain installed: yes"
+    } catch {
+      Write-Err "Pinned toolchain is not installed: $channel"
+      Write-BootstrapHint
+    }
+
+    # Warn if active toolchain doesn't match the pin.
+    try {
+      $active = (rustup show active-toolchain | Select-Object -First 1)
+      $activeTok = ($active -split '\s+')[0]
+      if (-not [string]::IsNullOrWhiteSpace($activeTok)) {
+        if ($activeTok.StartsWith($channel)) {
+          Write-Info "Active toolchain: $activeTok (matches pin)"
+        } else {
+          Write-Warn "Active toolchain: $activeTok (does not match pin: $channel)"
+          Write-Warn "Consider: rustup default $channel"
+        }
+      } else {
+        Write-Warn "Could not determine active toolchain via rustup"
+      }
+    } catch {
+      Write-Warn "Could not determine active toolchain via rustup"
+    }
+
+    # Verify components exist for pinned toolchain.
+    try {
+      $installed = rustup component list --toolchain $channel --installed
+      $hasFmt = $false
+      $hasClippy = $false
+      foreach ($l in $installed) {
+        if ($l -match '^(rustfmt)') { $hasFmt = $true }
+        if ($l -match '^(clippy)') { $hasClippy = $true }
+      }
+      if ($hasFmt) {
+        Write-Info "rustfmt: installed (toolchain $channel)"
+      } else {
+        Write-Err "rustfmt is not installed for toolchain $channel"
+        Write-BootstrapHint
+      }
+      if ($hasClippy) {
+        Write-Info "clippy: installed (toolchain $channel)"
+      } else {
+        Write-Err "clippy is not installed for toolchain $channel"
+        Write-BootstrapHint
+      }
+    } catch {
+      Write-Warn "Could not query rustup components for toolchain $channel"
+      Write-BootstrapHint
+    }
+  }
+}
 
 Write-Info "Checking Git LFS..."
 $git = Get-Command git -ErrorAction SilentlyContinue
@@ -95,4 +188,3 @@ if ($failures -gt 0) {
 
 Write-Info "Result: OK ($warnings warnings)"
 exit 0
-
