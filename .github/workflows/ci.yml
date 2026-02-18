@@ -94,6 +94,12 @@ jobs:
           CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: ./scripts/check_rust_taste_invariants.sh --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+      - name: Check Rust TODO/FIXME (non-test)
+        shell: bash
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/check_rust_no_todos.sh --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
       - name: Check app_core dependency boundary
         shell: bash
         env:
