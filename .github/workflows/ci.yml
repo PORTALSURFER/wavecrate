@@ -106,6 +106,10 @@ jobs:
           CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: ./scripts/knowledge_lint.sh --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+      - name: Env var docs drift (nudge)
+        if: ${{ matrix.platform == 'linux' }}
+        shell: bash
+        run: ./scripts/report_env_vars_drift.sh || true
       - name: Lint (clippy)
         run: cargo clippy --all-targets
       - name: Run tests
