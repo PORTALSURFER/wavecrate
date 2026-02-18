@@ -27,9 +27,12 @@ Use these scripts as the default entrypoints for local work (humans and agents).
 - CI parity checks:
   - macOS/Linux/WSL: `bash scripts/ci_local.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
-- Safe local run (isolated config/logs):
-  - macOS/Linux/WSL: `bash scripts/run_sandbox.sh --`
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1`
+- Safe local run (sandboxed config/logs):
+  - Default sandbox is persistent under `<repo>/.sandbox/sempal` for easy inspection.
+  - Ephemeral sandbox (no state left behind): `bash scripts/run_sandbox.sh --temp --` / `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 -Temp --`
+  - Run:
+    - macOS/Linux/WSL: `bash scripts/run_sandbox.sh --`
+    - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --`
 - Clean sandbox state (delete `<repo>/.sandbox/sempal`):
   - macOS/Linux/WSL: `bash scripts/clean_sandbox.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/clean_sandbox.ps1`

@@ -7,41 +7,40 @@
 # NOTE: Patterns are evaluated top-to-bottom; the last matching pattern wins.
 
 # Default: everything.
-* @PORTALSURFER/maintainers
+* @PORTALSURFER
 
 # Tooling, automation, and documentation.
-/.github/ @PORTALSURFER/maintainers
-/scripts/ @PORTALSURFER/maintainers
-/docs/ @PORTALSURFER/maintainers
-/manual/ @PORTALSURFER/maintainers
+/.github/ @PORTALSURFER
+/scripts/ @PORTALSURFER
+/docs/ @PORTALSURFER
+/manual/ @PORTALSURFER
 
 # Core application code (by responsibility buckets).
-/src/app_core/ @PORTALSURFER/maintainers
-/src/app/ @PORTALSURFER/maintainers
-/src/gui/ @PORTALSURFER/maintainers
-/src/gui_app/ @PORTALSURFER/maintainers
-/src/gui_runtime/ @PORTALSURFER/maintainers
-/src/legacy_runtime/ @PORTALSURFER/maintainers
-/src/audio/ @PORTALSURFER/maintainers
-/src/analysis/ @PORTALSURFER/maintainers
-/src/sample_sources/ @PORTALSURFER/maintainers
+/src/app_core/ @PORTALSURFER
+/src/app/ @PORTALSURFER
+/src/gui/ @PORTALSURFER
+/src/gui_app/ @PORTALSURFER
+/src/gui_runtime/ @PORTALSURFER
+/src/legacy_runtime/ @PORTALSURFER
+/src/audio/ @PORTALSURFER
+/src/analysis/ @PORTALSURFER
+/src/sample_sources/ @PORTALSURFER
 
-/src/selection.rs @PORTALSURFER/maintainers
-/src/app_dirs/ @PORTALSURFER/maintainers
-/src/updater/ @PORTALSURFER/maintainers
-/src/bin/sempal-updater/ @PORTALSURFER/maintainers
-/src/bin/sempal-installer/ @PORTALSURFER/maintainers
-/src/logging.rs @PORTALSURFER/maintainers
-/src/http_client.rs @PORTALSURFER/maintainers
-/src/issue_gateway/ @PORTALSURFER/maintainers
-/src/sqlite_ext.rs @PORTALSURFER/maintainers
-/src/external_clipboard.rs @PORTALSURFER/maintainers
-/src/external_drag.rs @PORTALSURFER/maintainers
+/src/selection.rs @PORTALSURFER
+/src/app_dirs/ @PORTALSURFER
+/src/updater/ @PORTALSURFER
+/src/bin/sempal-updater/ @PORTALSURFER
+/src/bin/sempal-installer/ @PORTALSURFER
+/src/logging.rs @PORTALSURFER
+/src/http_client.rs @PORTALSURFER
+/src/issue_gateway/ @PORTALSURFER
+/src/sqlite_ext.rs @PORTALSURFER
+/src/external_clipboard.rs @PORTALSURFER
+/src/external_drag.rs @PORTALSURFER
 
 # UI framework (Radiant).
-/vendor/radiant/ @PORTALSURFER/maintainers
+/vendor/radiant/ @PORTALSURFER
 
 # Tests and assets.
-/tests/ @PORTALSURFER/maintainers
-/assets/ @PORTALSURFER/maintainers
-
+/tests/ @PORTALSURFER
+/assets/ @PORTALSURFER

@@ -13,7 +13,7 @@ These are the default “don’t guess, don’t grep” entrypoints for most wor
 
 1. Bootstrap tooling + pinned toolchain:
    - `bash scripts/bootstrap.sh` (or `scripts/bootstrap.sh --verify-only`)
-   - `powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1 -- --verify-only`
+   - `powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1 --verify-only`
 2. Environment sanity checks:
    - `bash scripts/doctor.sh`
    - `powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1`
