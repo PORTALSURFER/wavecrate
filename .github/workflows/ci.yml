@@ -24,8 +24,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Read pinned Rust toolchain
+        id: rust_toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="$(python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          data = tomllib.loads(Path("rust-toolchain.toml").read_text(encoding="utf-8"))
+          print(data.get("toolchain", {}).get("channel", "stable"))
+          PY
+          )"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: ${{ steps.rust_toolchain.outputs.channel }}
           components: rustfmt, clippy
       - name: Install Linux audio deps
         if: ${{ matrix.platform == 'linux' }}
