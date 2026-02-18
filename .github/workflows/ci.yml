@@ -118,5 +118,10 @@ jobs:
         run: ./scripts/report_env_vars_drift.sh || true
       - name: Lint (clippy)
         run: cargo clippy --all-targets
+      - name: Docs correctness (rustdoc warnings)
+        if: ${{ matrix.platform == 'linux' }}
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc -p sempal --no-deps
       - name: Run tests
         run: cargo test --all-targets

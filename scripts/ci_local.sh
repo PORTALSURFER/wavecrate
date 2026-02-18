@@ -38,6 +38,9 @@ echo "[ci_local] scripts/knowledge_lint.sh"
 echo "[ci_local] cargo clippy --all-targets"
 cargo clippy --all-targets
 
+echo "[ci_local] cargo doc -p sempal --no-deps (RUSTDOCFLAGS=-D warnings)"
+RUSTDOCFLAGS="-D warnings" cargo doc -p sempal --no-deps
+
 echo "[ci_local] cargo test --all-targets"
 cargo test --all-targets
 

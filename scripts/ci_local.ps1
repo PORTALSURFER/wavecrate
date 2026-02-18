@@ -87,6 +87,19 @@ try {
   Write-Host "[ci_local] cargo clippy --all-targets"
   cargo clippy --all-targets
 
+  Write-Host "[ci_local] cargo doc -p sempal --no-deps (RUSTDOCFLAGS=-D warnings)"
+  $prevRustdocFlags = $env:RUSTDOCFLAGS
+  try {
+    $env:RUSTDOCFLAGS = "-D warnings"
+    cargo doc -p sempal --no-deps
+  } finally {
+    if ($null -eq $prevRustdocFlags) {
+      Remove-Item Env:RUSTDOCFLAGS -ErrorAction SilentlyContinue
+    } else {
+      $env:RUSTDOCFLAGS = $prevRustdocFlags
+    }
+  }
+
   Write-Host "[ci_local] cargo test --all-targets"
   cargo test --all-targets
 
