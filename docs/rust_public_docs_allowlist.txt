@@ -1,0 +1,9 @@
+# Allowlist for the Rust public-docs check.
+#
+# The rule is: newly added `pub` items (fn/struct/enum/trait/type/const/static)
+# in non-test Rust code must have nearby doc comments (`///` or `#[doc = ...]`).
+#
+# This allowlist exists only as a last resort for rare, well-justified cases.
+#
+# Format: one repo-relative Rust file path per line (no globs).
+

@@ -78,6 +78,9 @@ try {
   Write-Host "[ci_local] scripts/check_rust_no_todos.ps1"
   & (Join-Path $rootDir "scripts/check_rust_no_todos.ps1")
 
+  Write-Host "[ci_local] scripts/check_rust_public_docs.ps1"
+  & (Join-Path $rootDir "scripts/check_rust_public_docs.ps1")
+
   Write-Host "[ci_local] scripts/check_app_core_dependency_boundary.ps1"
   & (Join-Path $rootDir "scripts/check_app_core_dependency_boundary.ps1")
 

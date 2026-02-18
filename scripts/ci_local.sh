@@ -29,6 +29,9 @@ echo "[ci_local] scripts/check_rust_taste_invariants.sh"
 echo "[ci_local] scripts/check_rust_no_todos.sh"
 ./scripts/check_rust_no_todos.sh
 
+echo "[ci_local] scripts/check_rust_public_docs.sh"
+./scripts/check_rust_public_docs.sh
+
 echo "[ci_local] scripts/check_app_core_dependency_boundary.sh"
 ./scripts/check_app_core_dependency_boundary.sh
 
