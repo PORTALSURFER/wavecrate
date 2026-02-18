@@ -14,6 +14,7 @@ Golden path commands (CI parity + diagnostics):
 - Bootstrap tooling + pinned toolchain: `bash scripts/bootstrap.sh` or `powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1`
 - CI parity checks: `bash scripts/ci_local.sh` or `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 - Safe local run (isolated config/logs): `bash scripts/run_sandbox.sh --` or `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1`
+- Clean sandbox state: `bash scripts/clean_sandbox.sh` or `powershell -ExecutionPolicy Bypass -File scripts/clean_sandbox.ps1`
 - Environment sanity checks: `bash scripts/doctor.sh` or `powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1`
 - Tail newest log: `bash scripts/latest_log.sh` or `powershell -ExecutionPolicy Bypass -File scripts/latest_log.ps1`
 - Create bug bundle: `bash scripts/bug_bundle.sh` or `powershell -ExecutionPolicy Bypass -File scripts/bug_bundle.ps1`

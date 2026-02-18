@@ -19,6 +19,16 @@ if ! command -v git >/dev/null 2>&1; then
   exit 1
 fi
 
+if command -v rg >/dev/null 2>&1; then
+  echo "[bootstrap] rg: OK"
+else
+  echo "[bootstrap] rg: MISSING (recommended; several repo checks use it)" >&2
+  echo "[bootstrap]   Install ripgrep (rg). Examples:" >&2
+  echo "[bootstrap]     macOS: brew install ripgrep" >&2
+  echo "[bootstrap]     Ubuntu/Debian: sudo apt-get install ripgrep" >&2
+  echo "[bootstrap]     Windows: winget install BurntSushi.ripgrep.MSVC" >&2
+fi
+
 if command -v git-lfs >/dev/null 2>&1 || (git lfs version >/dev/null 2>&1); then
   echo "[bootstrap] git-lfs: OK"
   # Ensure hooks are configured locally (best effort).
@@ -87,4 +97,3 @@ echo "[bootstrap] Next steps:"
 echo "  - Environment sanity:   bash scripts/doctor.sh"
 echo "  - CI parity checks:     bash scripts/ci_local.sh"
 echo "  - Safe local run:       bash scripts/run_sandbox.sh --"
-

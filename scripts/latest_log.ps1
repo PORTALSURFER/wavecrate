@@ -15,12 +15,22 @@ This is best-effort and intended for quick diagnostics (humans + agents).
 #>
 
 param(
-  [int]$Lines = 200
+  [int]$Lines = 200,
+  [switch]$Sandbox
 )
+
+function Get-SandboxConfigBase {
+  $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+  return (Join-Path $rootDir ".sandbox\\sempal")
+}
 
 function Get-DefaultConfigBase {
   if (-not [string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_HOME)) {
     return $env:SEMPAL_CONFIG_HOME
+  }
+  $sandboxBase = Get-SandboxConfigBase
+  if ($Sandbox -or (Test-Path -LiteralPath $sandboxBase -PathType Container)) {
+    return $sandboxBase
   }
   if ($IsWindows) {
     if (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
@@ -35,6 +45,14 @@ function Get-DefaultConfigBase {
     return $env:XDG_CONFIG_HOME
   }
   return (Join-Path $HOME ".config")
+}
+
+$rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$sandboxBase = Get-SandboxConfigBase
+$configBase = Get-DefaultConfigBase
+$usedSandbox = $false
+if ([string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_HOME) -and ($configBase -eq $sandboxBase)) {
+  $usedSandbox = $true
 }
 
 function Get-AppDataDirOverrideFromConfig {
@@ -68,8 +86,7 @@ function Get-AppDataDirOverrideFromConfig {
 }
 
 function Resolve-AppRoot {
-  $base = Get-DefaultConfigBase
-  $defaultRoot = Join-Path $base ".sempal"
+  $defaultRoot = Join-Path $configBase ".sempal"
   $configPath = Join-Path $defaultRoot "config.toml"
 
   $override = Get-AppDataDirOverrideFromConfig -ConfigPath $configPath
@@ -86,6 +103,9 @@ function Resolve-AppRoot {
 $appRoot = Resolve-AppRoot
 $logsDir = Join-Path $appRoot "logs"
 
+Write-Host ("[latest_log] config_base_dir={0}" -f $configBase)
+Write-Host ("[latest_log] preferred_sandbox_config_home={0}" -f $sandboxBase)
+Write-Host ("[latest_log] used_sandbox_config_home={0}" -f $usedSandbox.ToString().ToLowerInvariant())
 Write-Host ("[latest_log] app_root={0}" -f $appRoot)
 Write-Host ("[latest_log] logs_dir={0}" -f $logsDir)
 
@@ -106,4 +126,3 @@ if ($null -eq $newest) {
 Write-Host ("[latest_log] newest_log={0}" -f $newest.FullName)
 Write-Host ("[latest_log] tail_lines={0}" -f $Lines)
 Get-Content -LiteralPath $newest.FullName -Tail $Lines
-

@@ -21,6 +21,16 @@ try {
     throw "[bootstrap] ERROR: git not found on PATH"
   }
 
+  $rg = Get-Command rg -ErrorAction SilentlyContinue
+  if ($null -ne $rg) {
+    Write-Host "[bootstrap] rg: OK"
+  } else {
+    Write-Host "[bootstrap] rg: MISSING (recommended; several repo checks use it)"
+    Write-Host "[bootstrap]   Install ripgrep (rg). Examples:"
+    Write-Host "[bootstrap]     Windows: winget install BurntSushi.ripgrep.MSVC"
+    Write-Host "[bootstrap]     Windows (alt): choco install ripgrep"
+  }
+
   $hasGitLfs = $false
   try {
     git lfs version | Out-Null
@@ -94,4 +104,3 @@ try {
 } finally {
   Pop-Location
 }
-

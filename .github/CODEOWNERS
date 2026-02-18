@@ -1,0 +1,47 @@
+# CODEOWNERS for Sempal
+#
+# This file mirrors the component buckets in `docs/ARCHITECTURE.md` so routing
+# decisions are enforceable in reviews. Owners can be refined over time by
+# splitting buckets to more specific teams/users.
+#
+# NOTE: Patterns are evaluated top-to-bottom; the last matching pattern wins.
+
+# Default: everything.
+* @PORTALSURFER/maintainers
+
+# Tooling, automation, and documentation.
+/.github/ @PORTALSURFER/maintainers
+/scripts/ @PORTALSURFER/maintainers
+/docs/ @PORTALSURFER/maintainers
+/manual/ @PORTALSURFER/maintainers
+
+# Core application code (by responsibility buckets).
+/src/app_core/ @PORTALSURFER/maintainers
+/src/app/ @PORTALSURFER/maintainers
+/src/gui/ @PORTALSURFER/maintainers
+/src/gui_app/ @PORTALSURFER/maintainers
+/src/gui_runtime/ @PORTALSURFER/maintainers
+/src/legacy_runtime/ @PORTALSURFER/maintainers
+/src/audio/ @PORTALSURFER/maintainers
+/src/analysis/ @PORTALSURFER/maintainers
+/src/sample_sources/ @PORTALSURFER/maintainers
+
+/src/selection.rs @PORTALSURFER/maintainers
+/src/app_dirs/ @PORTALSURFER/maintainers
+/src/updater/ @PORTALSURFER/maintainers
+/src/bin/sempal-updater/ @PORTALSURFER/maintainers
+/src/bin/sempal-installer/ @PORTALSURFER/maintainers
+/src/logging.rs @PORTALSURFER/maintainers
+/src/http_client.rs @PORTALSURFER/maintainers
+/src/issue_gateway/ @PORTALSURFER/maintainers
+/src/sqlite_ext.rs @PORTALSURFER/maintainers
+/src/external_clipboard.rs @PORTALSURFER/maintainers
+/src/external_drag.rs @PORTALSURFER/maintainers
+
+# UI framework (Radiant).
+/vendor/radiant/ @PORTALSURFER/maintainers
+
+# Tests and assets.
+/tests/ @PORTALSURFER/maintainers
+/assets/ @PORTALSURFER/maintainers
+
