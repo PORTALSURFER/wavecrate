@@ -1,0 +1,85 @@
+name: PR hygiene
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  issues: read
+
+concurrency:
+  group: pr-hygiene-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  size_nudge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment on large PRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.setFailed('Missing pull_request payload');
+              return;
+            }
+
+            const thresholds = {
+              changedFiles: 25,
+              churnLines: 1500, // additions + deletions
+            };
+
+            const changedFiles = pr.changed_files ?? 0;
+            const additions = pr.additions ?? 0;
+            const deletions = pr.deletions ?? 0;
+            const churn = additions + deletions;
+
+            const isLarge =
+              changedFiles > thresholds.changedFiles || churn > thresholds.churnLines;
+
+            const marker = '<!-- sempal-pr-hygiene -->';
+            const body = [
+              marker,
+              '### PR size nudge',
+              '',
+              `This PR currently has \`${changedFiles}\` changed files and \`${additions}\` additions / \`${deletions}\` deletions (\`${churn}\` total churn).`,
+              '',
+              isLarge
+                ? 'This is on the large side. If possible, split it into smaller PRs (single responsibility, fast review/merge).'
+                : 'Looks reasonably scoped.',
+              '',
+              'Helpful local command: `bash scripts/ci_local.sh` (or `scripts/ci_local.ps1` on Windows).',
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const issue_number = pr.number;
+
+            // Update existing bot comment if present, otherwise create a new one.
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number, per_page: 100 }
+            );
+
+            const existing = comments.find(
+              (c) => typeof c.body === 'string' && c.body.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body,
+            });
+
