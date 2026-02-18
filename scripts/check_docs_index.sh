@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+# Ensures `docs/README.md` remains a reliable system-of-record landing page.
+#
+# Checks:
+# - Required docs are referenced by path in `docs/README.md`
+# - Any `docs/*.md` path referenced in `docs/README.md` exists on disk
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+DOCS_README="docs/README.md"
+
+required=(
+  "docs/FEATURE_CHECKLIST.md"
+  "docs/ARCHITECTURE.md"
+  "docs/ENV_VARS.md"
+  "docs/TEST.md"
+  "docs/design_principles.md"
+  "docs/plans/TEMPLATE_execution_plan.md"
+  "docs/plans/TEMPLATE_investigation.md"
+)
+
+if [[ ! -f "$DOCS_README" ]]; then
+  echo "[docs_index] Missing $DOCS_README" >&2
+  exit 1
+fi
+
+missing_refs=0
+for path in "${required[@]}"; do
+  if ! rg -F -q "$path" "$DOCS_README"; then
+    if (( missing_refs == 0 )); then
+      echo "[docs_index] docs/README.md is missing required references:" >&2
+    fi
+    echo " - $path" >&2
+    missing_refs=$((missing_refs + 1))
+  fi
+  if [[ ! -f "$path" ]]; then
+    echo "[docs_index] Required file missing on disk: $path" >&2
+    exit 1
+  fi
+done
+
+if (( missing_refs > 0 )); then
+  exit 1
+fi
+
+python3 - "$DOCS_README" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+readme = Path(sys.argv[1])
+text = readme.read_text(encoding="utf-8")
+
+paths = sorted(set(re.findall(r"\bdocs/[A-Za-z0-9._/-]+\.md\b", text)))
+missing = [p for p in paths if not Path(p).is_file()]
+if missing:
+    print("[docs_index] docs/README.md references missing files:", file=sys.stderr)
+    for p in missing:
+        print(f" - {p}", file=sys.stderr)
+    sys.exit(1)
+
+print(f"[docs_index] OK ({len(paths)} referenced docs files)")
+PY
+
