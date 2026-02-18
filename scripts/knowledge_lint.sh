@@ -16,6 +16,7 @@ Usage: scripts/knowledge_lint.sh [--base <ref>] [--head <ref>]
 
 Runs:
 - scripts/check_docs_index.sh
+- scripts/check_codeowners_coverage.sh
 - scripts/check_markdown_links.sh (diff-aware)
 EOF
 }
@@ -36,5 +37,5 @@ while (( $# > 0 )); do
 done
 
 ./scripts/check_docs_index.sh
+./scripts/check_codeowners_coverage.sh
 ./scripts/check_markdown_links.sh ${BASE_REF:+--base "$BASE_REF"} --head "$HEAD_REF"
-

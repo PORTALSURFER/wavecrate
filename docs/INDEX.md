@@ -7,6 +7,29 @@ If you're an agent or a new contributor: start in `docs/README.md`, then come ba
 - Local CI parity: `scripts/ci_local.{sh,ps1}`
 - CI: `.github/workflows/ci.yml`
 
+## Tooling and scripts (recommended workflow chain)
+
+These are the default “don’t guess, don’t grep” entrypoints for most work:
+
+1. Bootstrap tooling + pinned toolchain:
+   - `bash scripts/bootstrap.sh` (or `scripts/bootstrap.sh --verify-only`)
+   - `powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1 -- --verify-only`
+2. Environment sanity checks:
+   - `bash scripts/doctor.sh`
+   - `powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1`
+3. Safe local run (isolated config/logs):
+   - `bash scripts/run_sandbox.sh --`
+   - `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --`
+4. Find and tail the newest log:
+   - `bash scripts/latest_log.sh`
+   - `powershell -ExecutionPolicy Bypass -File scripts/latest_log.ps1`
+5. Create a bug bundle (logs + config + versions):
+   - `bash scripts/bug_bundle.sh`
+   - `powershell -ExecutionPolicy Bypass -File scripts/bug_bundle.ps1`
+6. Reset sandbox state (fresh start):
+   - `bash scripts/clean_sandbox.sh`
+   - `powershell -ExecutionPolicy Bypass -File scripts/clean_sandbox.ps1`
+
 ## Checks glossary (diff-aware vs full scan)
 
 Agents should optimize for diff-aware checks during iteration, and reserve full scans for periodic cleanup.
@@ -26,6 +49,7 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
   - Scan a fixed scope every time (usually still fast, but not “only the diff”).
   - `scripts/check_migration_boundary.*` (scans `src/app_core/**`)
   - `scripts/check_docs_index.*` (scans `docs/README.md` references)
+  - `scripts/check_codeowners_coverage.*` (scans `.github/CODEOWNERS` for bucket coverage)
 
 ## When a check fires (what to do)
 
@@ -58,12 +82,14 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
 | `scripts/check_app_core_dependency_boundary.ps1` | PowerShell equivalent of the app_core dependency boundary check. | Same remediation as the bash version. |
 | `scripts/check_docs_index.sh` | `docs/README.md` must reference required docs and all referenced `docs/*.md` must exist. | Update `docs/README.md` to include required links and fix broken references. |
 | `scripts/check_docs_index.ps1` | PowerShell equivalent of the docs index check. | Same remediation as the bash version. |
+| `scripts/check_codeowners_coverage.sh` | `.github/CODEOWNERS` must contain entries for the high-level ownership buckets. | If ownership boundaries changed, update `docs/ARCHITECTURE.md` and then update `.github/CODEOWNERS` to match (see “Ownership and CODEOWNERS”). |
+| `scripts/check_codeowners_coverage.ps1` | PowerShell equivalent of the CODEOWNERS coverage check. | Same remediation as the bash version. |
 | `scripts/check_markdown_links.sh` | Changed Markdown files must not introduce broken local file links (diff-aware). | Fix the link target, update the path, or delete stale references. |
 | `scripts/check_markdown_links.ps1` | PowerShell equivalent of the Markdown link check. | Same remediation as the bash version. |
 
 ## Knowledge linter (wrapper)
 
-- `scripts/knowledge_lint.sh` runs `scripts/check_docs_index.sh` and `scripts/check_markdown_links.sh`.
+- `scripts/knowledge_lint.sh` runs `scripts/check_docs_index.sh`, `scripts/check_codeowners_coverage.sh`, and `scripts/check_markdown_links.sh`.
 - `scripts/knowledge_lint.ps1` runs the PowerShell equivalents.
 
 ## Allowlists (docs/*allowlist*.txt)
