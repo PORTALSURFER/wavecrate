@@ -17,6 +17,9 @@ echo "[ci_local] scripts/check_migration_boundary.sh"
 echo "[ci_local] scripts/check_file_size_budget.sh"
 ./scripts/check_file_size_budget.sh
 
+echo "[ci_local] scripts/check_manual_docs_scope.sh"
+./scripts/check_manual_docs_scope.sh
+
 echo "[ci_local] cargo clippy --all-targets"
 cargo clippy --all-targets
 
