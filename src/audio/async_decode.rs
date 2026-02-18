@@ -318,7 +318,9 @@ mod tests {
         start_barrier.wait();
         let mut second = 0.0;
         for _ in 0..10 {
-            if let Some(sample) = async_source.next() && sample != 0.0 {
+            if let Some(sample) = async_source.next()
+                && sample != 0.0
+            {
                 second = sample;
                 break;
             }
@@ -364,7 +366,9 @@ mod tests {
         assert_eq!(first, 0.1);
         let mut second = None;
         for _ in 0..50 {
-            if let Some(sample) = async_source.next() && sample != 0.0 {
+            if let Some(sample) = async_source.next()
+                && sample != 0.0
+            {
                 second = Some(sample);
                 break;
             }

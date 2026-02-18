@@ -26,9 +26,11 @@ try {
     "docs/ENV_VARS.md"
     "docs/TEST.md"
     "docs/design_principles.md"
+    "docs/plans/index.md"
     "docs/plans/TEMPLATE_execution_plan.md"
     "docs/plans/TEMPLATE_investigation.md"
-  )
+    "docs/run_contracts.md"
+)
 
   $text = Get-Content -LiteralPath $docsReadme -Raw
 

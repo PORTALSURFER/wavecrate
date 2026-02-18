@@ -38,6 +38,7 @@ Options:
   --write-db    Allow source DB writes (opt out of read-only DB mode).
   --allow-user-library-db-write
                 Allow DB writes under user-library-like source paths.
+                Ignored unless --write-db is also provided.
 EOF
 }
 
@@ -123,6 +124,16 @@ if (( ALLOW_USER_LIBRARY_DB_WRITE == 1 )); then
 else
   echo "[run_sandbox] User-library DB writes: blocked."
 fi
+
+if (( WRITE_DB == 0 )); then
+  echo "[run_sandbox] DB writes to source trees are blocked by default."
+else
+  echo "[run_sandbox] DB writes to source trees are enabled for this run."
+  if (( ALLOW_USER_LIBRARY_DB_WRITE == 0 )); then
+    echo "[run_sandbox] User-library-like source roots are still blocked unless --allow-user-library-db-write is set."
+  fi
+fi
+
 echo "[run_sandbox] Can still write:"
 echo "[run_sandbox]   - sandbox dir: $SEMPAL_CONFIG_HOME"
 echo "[run_sandbox]   - cargo build artifacts: $ROOT_DIR/target (and your rustup/cargo caches)"

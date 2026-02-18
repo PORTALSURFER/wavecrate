@@ -68,6 +68,8 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
 | `scripts/check_migration_boundary.ps1` | PowerShell equivalent of the migration-boundary check. | Same remediation as the bash version. |
 | `scripts/check_file_size_budget.sh` | Rust files must stay under the file-size budget (default `400` LOC), diff-aware by default. | Split the module, extract submodules, or reduce responsibilities; last resort: allowlist. |
 | `scripts/check_file_size_budget.ps1` | PowerShell equivalent of the file-size budget check. | Same remediation as the bash version. |
+| `scripts/check_script_guardrails.sh` | Key shell scripts must stay syntax valid and pass fixture checks for matching logic. | Keep script syntax and fixture assertions green; ensure regex matching and argument parsing are fixture-covered. |
+| `scripts/check_script_guardrails.ps1` | PowerShell wrapper around the script guardrails check. | Same remediation as the bash version. |
 | `scripts/check_manual_docs_scope.sh` | `manual/` is user docs only; new/changed files in `manual/` must be allowlisted (site assets + user docs + redirect stubs). | Move developer docs into `docs/`; keep `manual/` for user content and site assets. |
 | `scripts/check_manual_docs_scope.ps1` | PowerShell equivalent of the manual-scope check. | Same remediation as the bash version. |
 | `scripts/check_legacy_app_coupling.sh` | Prevent new `crate::app` coupling from non-legacy codepaths (diff-aware; skips `src/app/**` and `src/legacy_runtime/**`). | Move code into legacy paths, route through `app_core`, or isolate behind a boundary; last resort: allowlist. |

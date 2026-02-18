@@ -149,7 +149,9 @@ pub enum SourceDbError {
     #[error("Read-only source DB mode requires an existing database file: {0}")]
     ReadOnlyDatabaseMissing(PathBuf),
     /// Refusing to write a source DB in a path that looks like a user library.
-    #[error("Refusing to write .sempal_samples.db in user library path: {path}")]
+    #[error(
+        "Refusing to write `.sempal_samples.db` in user-library-like path: {path}; set SEMPAL_ALLOW_USER_LIBRARY_DB_WRITE=1 to allow this"
+    )]
     UserLibraryWriteBlocked {
         /// Suspicious source root path.
         path: PathBuf,
@@ -381,36 +383,20 @@ mod tests {
         impl Drop for HomeEnvGuard {
             fn drop(&mut self) {
                 match self.prev_home.take() {
-                    Some(home) => unsafe {
-                        std::env::set_var("HOME", home)
-                    },
-                    None => unsafe {
-                        std::env::remove_var("HOME")
-                    },
+                    Some(home) => unsafe { std::env::set_var("HOME", home) },
+                    None => unsafe { std::env::remove_var("HOME") },
                 }
                 match self.prev_homedrive.take() {
-                    Some(value) => unsafe {
-                        std::env::set_var("HOMEDRIVE", value)
-                    },
-                    None => unsafe {
-                        std::env::remove_var("HOMEDRIVE")
-                    },
+                    Some(value) => unsafe { std::env::set_var("HOMEDRIVE", value) },
+                    None => unsafe { std::env::remove_var("HOMEDRIVE") },
                 }
                 match self.prev_hompath.take() {
-                    Some(value) => unsafe {
-                        std::env::set_var("HOMEPATH", value)
-                    },
-                    None => unsafe {
-                        std::env::remove_var("HOMEPATH")
-                    },
+                    Some(value) => unsafe { std::env::set_var("HOMEPATH", value) },
+                    None => unsafe { std::env::remove_var("HOMEPATH") },
                 }
                 match self.prev_user_profile.take() {
-                    Some(value) => unsafe {
-                        std::env::set_var("USERPROFILE", value)
-                    },
-                    None => unsafe {
-                        std::env::remove_var("USERPROFILE")
-                    },
+                    Some(value) => unsafe { std::env::set_var("USERPROFILE", value) },
+                    None => unsafe { std::env::remove_var("USERPROFILE") },
                 }
             }
         }

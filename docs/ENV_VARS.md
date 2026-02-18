@@ -42,6 +42,9 @@ Example: `SEMPAL_CONFIG_HOME=/tmp` causes logs to be written under
 - Per-source-folder database side effect:
   - If you point Sempal at a folder, it may create or update a `.sempal_samples.db` in that source folder.
   - `SEMPAL_CONFIG_HOME` does **not** relocate these per-folder DB files.
+  - `scripts/run_sandbox.sh` and `scripts/run_sandbox.ps1` set
+    `SEMPAL_SOURCE_DB_READ_ONLY=1` by default, so source DB writes are blocked
+    unless `--write-db` is explicitly passed.
 
 ### Source database behavior
 

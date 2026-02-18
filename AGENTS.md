@@ -23,8 +23,9 @@ Rules:
 
 - After any code change, create a commit and push it.
   If your environment requires explicit approval for git operations, ask for confirmation and include the intended commit message.
-- After any code change, run `scripts/ci_local.sh` (and fix issues until green) before push.
+- Before pushing, run `scripts/ci_local.sh` after each code change and fix any failures before proceeding.
   If you cannot run scripts in your environment, stop and resolve before pushing.
+- `scripts/run_sandbox.sh` and `scripts/run_sandbox.ps1` default to read-only source DB mode (`--write-db` required).
 - `manual/` is user-facing documentation only. Developer docs belong in `docs/`.
 
 ## Current Agent Context
@@ -41,7 +42,7 @@ Rules:
 - The immediate goal is to improve handoff quality so the next agent can continue without re-discovering decisions.
 
 ### Current known constraints / hazards
-- `run_sandbox` is safer than direct runs but can still write `.sempal_samples.db` in a source tree if launched there.
+- `run_sandbox` defaults to no writes in source trees (`--write-db` and `--allow-user-library-db-write` are explicit overrides).
 - Default run/worktree flow still mixes review, CI, and interactive execution steps.
 - Runtime diagnostics are primarily log-based and human-readable, with limited machine-readable status reporting.
 - `docs/QUALITY_SCORE.md` and the plans area track gaps; they are not yet hard enforcement.

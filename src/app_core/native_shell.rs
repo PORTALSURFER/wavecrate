@@ -1085,9 +1085,8 @@ mod tests {
             AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
         controller.ui.browser.sort = SampleBrowserSort::PlaybackAgeDesc;
         controller.ui.browser.active_tab = SampleBrowserTab::Map;
-        controller.ui.browser.visible = crate::app_core::app_api::state::VisibleRows::All {
-            total: 42,
-        };
+        controller.ui.browser.visible =
+            crate::app_core::app_api::state::VisibleRows::All { total: 42 };
         let projected = project_browser_model(&mut controller);
         assert_eq!(
             projected.search_placeholder.as_deref(),

@@ -90,6 +90,16 @@ if ($AllowUserLibraryDbWrite) {
 } else {
   Write-Host "[run_sandbox] User-library DB writes: blocked."
 }
+
+if (-not $WriteDb) {
+  Write-Host "[run_sandbox] DB writes to source trees are blocked by default."
+} else {
+  Write-Host "[run_sandbox] DB writes to source trees are enabled for this run."
+  if (-not $AllowUserLibraryDbWrite) {
+    Write-Host "[run_sandbox] User-library-like source roots are still blocked unless -AllowUserLibraryDbWrite is set."
+  }
+}
+
 Write-Host "[run_sandbox] Can still write:"
 Write-Host ("[run_sandbox]   - sandbox dir: {0}" -f $sandboxBase)
 Write-Host ("[run_sandbox]   - cargo build artifacts: {0} (and your rustup/cargo caches)" -f (Join-Path $rootDir "target"))

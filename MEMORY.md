@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-18T12:21:28Z
+Last Updated: 2026-02-18T12:27:10Z
 Updated By: Codex
 
 ## Purpose
@@ -10,13 +10,16 @@ Updated By: Codex
 
 ## Current Session (2026-02-18 UTC)
 
-- Working on P0 hardening for safer agent-facing behavior.
+- Working on P0/P1 hardening for safer agent-facing execution.
 - Current branch changes focus on:
-  - Added fixture-based script self-checks in `scripts/check_script_guardrails.sh`.
-  - Hardened source DB opening with explicit read-only defaults and user-library write guards.
-  - Updated sandbox runtime defaults to read-only DB behavior.
-  - Added explicit user-library override handling for db writes.
-  - Added session memory freshness enforcement in local CI checks.
+  - Added script-guard self-check fixtures for `scripts/check_file_size_budget.sh` and `scripts/check_rust_taste_invariants.sh`.
+  - Added explicit parse-argument handling for check scripts and documented failures on malformed flags.
+  - Added machine-readable run contract NDJSON artifacts in `src/main.rs`.
+  - Documented run-contract schema for harness assertions in `docs/run_contracts.md`.
+  - Hardened `run_sandbox`/`run_sandbox.ps1` messaging and behavior around read-only DB defaults and user-library overrides.
+  - Added active/completed plan folders with index under `docs/plans/` and updated agent handoff docs.
+  - Added source DB user-library guard messaging and retained read-only-first defaults.
+  - Updated CI doc-index requirements and memory freshness flow to enforce session updates.
 - Immediate next action: keep local CI and guardrail scripts green after every incremental change.
 
 ## Work Notes

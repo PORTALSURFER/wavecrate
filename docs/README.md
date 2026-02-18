@@ -14,8 +14,10 @@ Start here:
 - `docs/TEST.md` — test suite map and commands
 - `docs/design_principles.md` — architectural goals and constraints
 - `docs/QUALITY_SCORE.md` — coarse quality scorecard and known gaps
+- `docs/plans/index.md` — current/archived plan index for parallel agents
 - `docs/plans/TEMPLATE_execution_plan.md` — template for multi-step work
 - `docs/plans/TEMPLATE_investigation.md` — template for bug/perf investigations
+- `docs/run_contracts.md` — machine-readable app-run artifact contract
 
 ## Run / diagnose / CI parity
 
@@ -31,6 +33,7 @@ Use these scripts as the default entrypoints for local work (humans and agents).
   - Default sandbox is persistent under `<repo>/.sandbox/sempal` for easy inspection.
   - Ephemeral sandbox (no state left behind): `bash scripts/run_sandbox.sh --temp --` / `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 -Temp --`
   - Per-source `.sempal_samples.db` files are read-only by default (`--write-db` required to allow writes).
+  - `--allow-user-library-db-write` is required to write DB files under user-library-like source roots.
   - Run:
     - macOS/Linux/WSL: `bash scripts/run_sandbox.sh --`
     - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --`

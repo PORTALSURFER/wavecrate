@@ -52,6 +52,8 @@ run_file_size_budget_fixture() {
   git -C "$fixture_dir/repo" config user.name "sempal-ci"
   git -C "$fixture_dir/repo" config user.email "ci@sempal.test"
 
+  mkdir -p "$fixture_dir/repo/vendor/radiant/src"
+  mkdir -p "$fixture_dir/repo/tests"
   cat >"$fixture_dir/repo/src/too_many_lines.rs" <<'EOF'
 fn main() {
     println!("a");
@@ -60,8 +62,16 @@ fn main() {
     println!("d");
 }
 EOF
+  cat >"$fixture_dir/repo/vendor/radiant/src/ok.rs" <<'EOF'
+fn one() {}
+EOF
+  cat >"$fixture_dir/repo/tests/notes.txt" <<'EOF'
+plain text should not be checked by script
+EOF
 
   git -C "$fixture_dir/repo" add src/too_many_lines.rs
+  git -C "$fixture_dir/repo" add vendor/radiant/src/ok.rs
+  git -C "$fixture_dir/repo" add tests/notes.txt
   git -C "$fixture_dir/repo" commit -qm "seed"
 
   run_expect_exit_code \
@@ -81,6 +91,22 @@ EOF
     --all \
     --limit \
     10
+
+  run_expect_exit_code \
+    "file-size-budget fixture treats --base with missing value as parse error" \
+    2 \
+    "$repo_dir" \
+    "$script_path" \
+    --base
+
+  run_expect_exit_code \
+    "file-size-budget fixture treats --limit with non-numeric value as parse error" \
+    2 \
+    "$repo_dir" \
+    "$script_path" \
+    --limit \
+    invalid \
+    --all
 }
 
 run_taste_invariants_fixture() {
@@ -136,6 +162,36 @@ EOF
     0 \
     "$repo_dir" \
     "$script_path"
+
+  run_expect_exit_code \
+    "taste invariants fixture treats --base with missing value as parse error" \
+    2 \
+    "$repo_dir" \
+    "$script_path" \
+    --base
+
+  run_expect_exit_code \
+    "taste invariants fixture treats --head with missing value as parse error" \
+    2 \
+    "$repo_dir" \
+    "$script_path" \
+    --head
+
+  cat >"$repo_dir/src/lib.rs" <<'EOF'
+// println!("guardrail");
+fn x() {
+    // println!("guardrail");
+    let _ = 1;
+}
+EOF
+
+  run_expect_exit_code \
+    "taste invariants fixture ignores debug prints in comment-only lines" \
+    0 \
+    "$repo_dir" \
+    "$script_path" \
+    --base \
+    HEAD
 }
 
 run_expect_exit_code \
