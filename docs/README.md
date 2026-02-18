@@ -35,3 +35,13 @@ Use these scripts as the default entrypoints for local work (humans and agents).
 - Bug report bundle (logs + config + versions):
   - macOS/Linux/WSL: `bash scripts/bug_bundle.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/bug_bundle.ps1`
+
+## Runbooks
+
+Fast triage for common failure modes:
+
+- `docs/runbooks/asio_build_failures.md`
+- `docs/runbooks/keyring_failures.md`
+- `docs/runbooks/native_font_fallback.md`
+- `docs/runbooks/sqlite_extension_load_blocked.md`
+- `docs/runbooks/updater_path_validation.md`
