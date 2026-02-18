@@ -1,6 +1,6 @@
 
 when building you will need asiosdk, you can find it at /mnt/e/lib/asiosdk/ASIOSDK, map this to CPAL_ASIO_DIR env var
-refer to `design_principles.md` when implementing change requests
+refer to `docs/design_principles.md` when implementing change requests
 Windows logs can be found at `/mnt/c/Users/wanja.svasek/AppData/Roaming/.sempal/logs`.
 
 ## How to add a feature safely
@@ -57,24 +57,14 @@ See `docs/ARCHITECTURE.md`.
 - `assets/`: static runtime assets.
 - `scripts/`: build/dev helper scripts.
 - `docs/`: test and docs support metadata.
+  - `README.md` — developer documentation entry point.
+  - `FEATURE_CHECKLIST.md` — safe path for implementing changes.
+  - `ARCHITECTURE.md` — module ownership map.
+  - `ENV_VARS.md` — environment variable reference.
   - `TEST.md` — test suite inventory and command guide.
-- `manual` docs map (project documentation and design references).
+- `manual/` docs map (user-facing documentation only).
   - `index.md` — project homepage content, overview, and documentation entry point.
   - `usage.md` — user-facing usage guide and feature walkthrough.
-  - `design_principles.md` — architectural goals, constraints, and coding standards.
-  - `performance_qa.md` — performance targets and QA checks for large datasets/views.
-  - `gui_migration_parity.md` — parity matrix for legacy runtime vs `radiant`.
-  - `native_shell_legacy_baseline.md` — baseline shell contracts for legacy/native parity.
-  - `feature_vector.md` — feature-vector definition and ANN-related metadata.
-  - `ann_index_container.md` — ANN index container format and storage design notes.
-  - `updater-contract.md` — updater state machine and public contract surface.
-  - `hints.md` — hint-of-the-day catalog and messaging patterns.
-  - `icon_assets.md` — icon asset generation and asset conventions.
-  - `styleguide.md` — GUI style direction and visual language definitions.
-  - `plan.md` — ongoing implementation plan for single-file ANN container work.
-  - `transient_plan.md` — transient detection improvement plan and milestones.
-  - `transient_audit.md` — transient detection audit and current implementation status.
-  - `todo.md` — tracked backlog and task list.
   - `_config.yml` — GitHub Pages/Jekyll documentation site configuration.
   - `_layouts/default.html` — docs site page shell and common header/footer layout.
   - `assets/theme.css` — documentation theme and layout styling.

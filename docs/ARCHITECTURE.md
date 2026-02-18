@@ -3,7 +3,7 @@
 This document is a lightweight “where should this change go?” map for Sempal.
 It is optimized for quick routing decisions by humans and coding agents.
 
-If you are implementing a change request, read `manual/design_principles.md` and
+If you are implementing a change request, read `docs/design_principles.md` and
 use `docs/FEATURE_CHECKLIST.md` as the default safe path.
 
 ## Change routing rules
@@ -45,4 +45,3 @@ use `docs/FEATURE_CHECKLIST.md` as the default safe path.
 - Unit tests: next to the logic in `src/**` using `#[cfg(test)]`.
 - Integration tests: `tests/`.
 - Radiant UI behavior tests and fixtures: `vendor/radiant` (see `docs/TEST.md` for commands).
-

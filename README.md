@@ -150,3 +150,4 @@ Legacy golden regression tests still use PANNs reference artifacts:
 ## Documentation
 
 - [Usage guide](manual/usage.md)
+- Developer docs entry point: `docs/README.md`

@@ -5,7 +5,7 @@ It is written to be scannable for both humans and coding agents.
 
 ## 1) Decide where the code should live
 
-- Read `manual/design_principles.md` for architectural constraints and conventions.
+- Read `docs/design_principles.md` for architectural constraints and conventions.
 - Prefer adding new domain logic under `src/` (not in `vendor/`).
 - If the change is UI behavior/layout/input routing, prefer implementing it in `vendor/radiant` and keep `src` limited to intent + domain state.
 - If the change is app projection/intent wiring, prefer `src/app_core` over `src/app` (legacy) unless you are explicitly working in the legacy runtime.
@@ -31,6 +31,7 @@ It is written to be scannable for both humans and coding agents.
 - Update user-facing docs when behavior changes:
 - `manual/usage.md` for workflows and UI-facing behavior
 - `README.md` for build/run/env-var guidance
+- Update developer docs in `docs/` when behavior changes (architecture, invariants, env vars, tests).
 - Update or add module-level docs (`//!`) when responsibilities or invariants change.
 
 ## 5) Run the “golden path” checks locally
@@ -54,4 +55,3 @@ It is written to be scannable for both humans and coding agents.
 - Prefer small, focused commits and minimal surface area.
 - Refactor large files into focused modules when changes would deepen nesting or expand already-large units.
 - If you touch `vendor/radiant`, keep the contract boundaries described in `README.md` intact.
-
