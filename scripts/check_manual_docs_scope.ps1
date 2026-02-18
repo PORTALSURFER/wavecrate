@@ -9,10 +9,12 @@ Enforces that `manual/` only contains user-facing docs and site assets.
 Fails when added/modified files under `manual/` are outside the allowlist:
   manual/index.md
   manual/usage.md
+  manual/design_principles.md
   manual/_config.yml
   manual/_layouts/**
   manual/assets/**
   manual/README.md
+  manual/<redirect-stubs>.md (developer docs moved to `docs/`)
 
 The script is diff-aware: it checks base/head (when provided), plus staged and
 unstaged changes. Deletions are allowed.
@@ -64,8 +66,23 @@ try {
     switch ($Path) {
       "manual/index.md" { return $true }
       "manual/usage.md" { return $true }
+      "manual/design_principles.md" { return $true }
       "manual/_config.yml" { return $true }
       "manual/README.md" { return $true }
+      "manual/ann_index_container.md" { return $true }
+      "manual/drag_audit.md" { return $true }
+      "manual/feature_vector.md" { return $true }
+      "manual/gui_migration_parity.md" { return $true }
+      "manual/hints.md" { return $true }
+      "manual/icon_assets.md" { return $true }
+      "manual/native_shell_legacy_baseline.md" { return $true }
+      "manual/performance_qa.md" { return $true }
+      "manual/plan.md" { return $true }
+      "manual/styleguide.md" { return $true }
+      "manual/todo.md" { return $true }
+      "manual/transient_audit.md" { return $true }
+      "manual/transient_plan.md" { return $true }
+      "manual/updater-contract.md" { return $true }
       default {
         if ($Path -like "manual/_layouts/*") { return $true }
         if ($Path -like "manual/assets/*") { return $true }
@@ -102,4 +119,3 @@ try {
 } finally {
   Pop-Location
 }
-

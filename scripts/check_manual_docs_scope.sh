@@ -20,10 +20,12 @@ Usage: scripts/check_manual_docs_scope.sh [--base <ref>] [--head <ref>]
 Fails when added/modified files under `manual/` are outside the allowlist:
   manual/index.md
   manual/usage.md
+  manual/design_principles.md
   manual/_config.yml
   manual/_layouts/**
   manual/assets/**
   manual/README.md
+  manual/<redirect-stubs>.md (developer docs moved to `docs/`)
 
 The script checks:
 - git diff between --base and --head (when provided and resolvable)
@@ -75,10 +77,25 @@ is_allowlisted() {
   case "$path" in
     manual/index.md) return 0 ;;
     manual/usage.md) return 0 ;;
+    manual/design_principles.md) return 0 ;;
     manual/_config.yml) return 0 ;;
     manual/README.md) return 0 ;;
     manual/_layouts/*) return 0 ;;
     manual/assets/*) return 0 ;;
+    manual/ann_index_container.md) return 0 ;;
+    manual/drag_audit.md) return 0 ;;
+    manual/feature_vector.md) return 0 ;;
+    manual/gui_migration_parity.md) return 0 ;;
+    manual/hints.md) return 0 ;;
+    manual/icon_assets.md) return 0 ;;
+    manual/native_shell_legacy_baseline.md) return 0 ;;
+    manual/performance_qa.md) return 0 ;;
+    manual/plan.md) return 0 ;;
+    manual/styleguide.md) return 0 ;;
+    manual/todo.md) return 0 ;;
+    manual/transient_audit.md) return 0 ;;
+    manual/transient_plan.md) return 0 ;;
+    manual/updater-contract.md) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -115,4 +132,3 @@ fi
 
 echo "[manual_scope] OK"
 exit 0
-
