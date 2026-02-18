@@ -176,8 +176,8 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
   keeping `EguiController` as a compatibility alias during migration.
 - [x] Remove public crate exposure of legacy module surface (`pub mod app` in
   `src/lib.rs`) once migration consumers no longer require it.
-- [x] Delete legacy layout-only docs (`manual/egui_layout.md`) after porting
-  remaining actionable guidance into native-shell migration docs.
+- [x] Delete legacy layout-only docs after porting remaining actionable guidance
+  into native-shell migration docs.
 - [x] Enforce direct `crate::app::` references in `app_core` through
   `scripts/check_migration_boundary.sh` in CI so the migration shim boundary
   remains explicit.
