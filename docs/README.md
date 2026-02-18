@@ -21,6 +21,9 @@ Start here:
 
 Use these scripts as the default entrypoints for local work (humans and agents).
 
+- Bootstrap tooling + pinned toolchain:
+  - macOS/Linux/WSL: `bash scripts/bootstrap.sh`
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1`
 - CI parity checks:
   - macOS/Linux/WSL: `bash scripts/ci_local.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
