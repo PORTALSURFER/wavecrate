@@ -1,0 +1,67 @@
+name: Entropy - Quality score review
+
+on:
+  schedule:
+    # Monthly on the 1st at 04:10 UTC.
+    - cron: "10 4 1 * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: entropy-quality-score
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create or update scorecard issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'docs/QUALITY_SCORE.md';
+            const title = 'Tech debt: quality score review';
+            const marker = '<!-- sempal-quality-score -->';
+
+            const body = fs.existsSync(path)
+              ? fs.readFileSync(path, 'utf8')
+              : `# Missing\n\nExpected \`${path}\` to exist.`;
+
+            const issueBody = [
+              marker,
+              'This is a scheduled reminder to review and update the quality scorecard.',
+              '',
+              body.trim(),
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${owner}/${repo} is:issue in:title "${title}"`,
+              per_page: 5,
+            });
+
+            const existing = (search.data.items || []).find((item) => !item.pull_request);
+            if (existing) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: existing.number,
+                title,
+                body: issueBody,
+              });
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title,
+              body: issueBody,
+              labels: ['maintenance', 'tech-debt'],
+            });
+
