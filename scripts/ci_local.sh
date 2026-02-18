@@ -17,6 +17,9 @@ echo "[ci_local] scripts/check_memory_log.sh"
 echo "[ci_local] scripts/check_migration_boundary.sh"
 ./scripts/check_migration_boundary.sh
 
+echo "[ci_local] scripts/check_script_guardrails.sh"
+./scripts/check_script_guardrails.sh
+
 echo "[ci_local] scripts/check_workflow_toolchain_pinning.sh"
 ./scripts/check_workflow_toolchain_pinning.sh
 

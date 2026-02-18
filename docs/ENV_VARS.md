@@ -43,6 +43,18 @@ Example: `SEMPAL_CONFIG_HOME=/tmp` causes logs to be written under
   - If you point Sempal at a folder, it may create or update a `.sempal_samples.db` in that source folder.
   - `SEMPAL_CONFIG_HOME` does **not** relocate these per-folder DB files.
 
+### Source database behavior
+
+- `SEMPAL_SOURCE_DB_READ_ONLY`
+  - When `1`/`true`/`yes`/`on`, `SourceDatabase::open` uses read-only access by
+    default and requires `<source>/.sempal_samples.db` to already exist.
+  - When unset/default, normal write-capable behavior applies.
+
+- `SEMPAL_ALLOW_USER_LIBRARY_DB_WRITE`
+  - When write mode is enabled, this must be set to `1`/`true`/`yes`/`on` to allow
+    DB writes in paths that look like user libraries (for example `~/Music`,
+    `~/Documents`, `~/Downloads`, `~/Desktop`).
+
 - `SEMPAL_NATIVE_FONT_PATH`
 Optional path to a `.ttf` font used by the native shell text renderer when
 system font discovery fails.

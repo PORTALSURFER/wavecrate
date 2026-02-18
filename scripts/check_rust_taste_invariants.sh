@@ -110,7 +110,7 @@ scan_diff_stream() {
           continue
         fi
 
-        if echo "$text" | grep -Eq '(^|[^a-zA-Z_])dbg!\\s*\\('; then
+        if echo "$text" | grep -Fq 'dbg!('; then
           if (( violations == 0 )); then
             echo "[taste] Violations detected ($label):" >&2
             echo "[taste] Use tracing instead of dbg!/println! in non-test code." >&2
@@ -120,7 +120,7 @@ scan_diff_stream() {
           echo " - $current: dbg!: $text" >&2
           violations=$((violations + 1))
         fi
-        if echo "$text" | grep -Eq '(^|[^a-zA-Z_])println!\\s*\\('; then
+        if echo "$text" | grep -Fq 'println!('; then
           if (( violations == 0 )); then
             echo "[taste] Violations detected ($label):" >&2
             echo "[taste] Use tracing instead of dbg!/println! in non-test code." >&2
@@ -130,7 +130,7 @@ scan_diff_stream() {
           echo " - $current: println!: $text" >&2
           violations=$((violations + 1))
         fi
-        if echo "$text" | grep -Eq '\\.unwrap\\s*\\('; then
+        if echo "$text" | grep -Fq '.unwrap('; then
           if (( violations == 0 )); then
             echo "[taste] Violations detected ($label):" >&2
             echo "[taste] Use tracing instead of dbg!/println! in non-test code." >&2
@@ -140,7 +140,7 @@ scan_diff_stream() {
           echo " - $current: unwrap(): $text" >&2
           violations=$((violations + 1))
         fi
-        if echo "$text" | grep -Eq '\\.expect\\s*\\('; then
+        if echo "$text" | grep -Fq '.expect('; then
           if (( violations == 0 )); then
             echo "[taste] Violations detected ($label):" >&2
             echo "[taste] Use tracing instead of dbg!/println! in non-test code." >&2

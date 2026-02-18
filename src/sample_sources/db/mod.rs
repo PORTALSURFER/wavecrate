@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use rusqlite::{Connection, OpenFlags, Transaction};
 use serde::{Deserialize, Serialize};
@@ -26,6 +26,10 @@ pub const DB_FILE_NAME: &str = ".sempal_samples.db";
 pub const META_LAST_SCAN_COMPLETED_AT: &str = "last_scan_completed_at";
 /// Metadata key for the last similarity-prep scan timestamp.
 pub const META_LAST_SIMILARITY_PREP_SCAN_AT: &str = "last_similarity_prep_scan_at";
+/// Env var that enables read-only source DB opening by default.
+pub const SOURCE_DB_READ_ONLY_ENV: &str = "SEMPAL_SOURCE_DB_READ_ONLY";
+/// Env var that allows writing source DB files in user-library-like roots.
+pub const SOURCE_DB_ALLOW_USER_LIBRARY_WRITE_ENV: &str = "SEMPAL_ALLOW_USER_LIBRARY_DB_WRITE";
 
 /// Rating applied to a wav file to mark keep/trash decisions.
 /// Positive values (1..=3) are Keep.
@@ -141,6 +145,15 @@ pub enum SourceDbError {
     /// SQLite returned an unexpected result.
     #[error("SQLite returned an unexpected result")]
     Unexpected,
+    /// Read-only mode requires an existing database file.
+    #[error("Read-only source DB mode requires an existing database file: {0}")]
+    ReadOnlyDatabaseMissing(PathBuf),
+    /// Refusing to write a source DB in a path that looks like a user library.
+    #[error("Refusing to write .sempal_samples.db in user library path: {path}")]
+    UserLibraryWriteBlocked {
+        /// Suspicious source root path.
+        path: PathBuf,
+    },
 }
 
 /// SQLite wrapper that stores wav metadata for a single source folder.
@@ -158,20 +171,11 @@ impl SourceDatabase {
     /// Open (or create) the database that lives inside the source folder.
     pub fn open(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
         let root = root.as_ref();
-        if !root.is_dir() {
-            return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
-        }
-
-        let db_path = root.join(DB_FILE_NAME);
-        util::create_parent_if_needed(&db_path)?;
-        let connection = Connection::open(&db_path)?;
-        let db = Self {
-            connection,
-            root: root.to_path_buf(),
-        };
-        db.apply_pragmas()?;
-        db.apply_schema()?;
-        Ok(db)
+        open_source_database(
+            root,
+            should_open_source_db_read_only(),
+            allow_user_library_db_write(),
+        )
     }
 
     /// Open an existing database in read-only mode without applying schema migrations.
@@ -182,6 +186,9 @@ impl SourceDatabase {
         }
 
         let db_path = root.join(DB_FILE_NAME);
+        if !db_path.is_file() {
+            return Err(SourceDbError::ReadOnlyDatabaseMissing(db_path));
+        }
         let connection = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         let db = Self {
             connection,
@@ -245,11 +252,178 @@ impl SourceDatabase {
     }
 }
 
+fn open_source_database(
+    root: &Path,
+    read_only: bool,
+    allow_user_library_write: bool,
+) -> Result<SourceDatabase, SourceDbError> {
+    if !root.is_dir() {
+        return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
+    }
+
+    if read_only {
+        return SourceDatabase::open_read_only(root);
+    }
+
+    if is_user_library_root(root) && !allow_user_library_write {
+        return Err(SourceDbError::UserLibraryWriteBlocked {
+            path: root.to_path_buf(),
+        });
+    }
+
+    let db_path = root.join(DB_FILE_NAME);
+    util::create_parent_if_needed(&db_path)?;
+    let connection = Connection::open(&db_path)?;
+    let db = SourceDatabase {
+        connection,
+        root: root.to_path_buf(),
+    };
+    db.apply_pragmas()?;
+    db.apply_schema()?;
+    Ok(db)
+}
+
+fn should_open_source_db_read_only() -> bool {
+    env_var_truthy(SOURCE_DB_READ_ONLY_ENV)
+}
+
+fn allow_user_library_db_write() -> bool {
+    env_var_truthy(SOURCE_DB_ALLOW_USER_LIBRARY_WRITE_ENV)
+}
+
+fn is_user_library_root(root: &Path) -> bool {
+    let Ok(home_root) = user_root_dir() else {
+        return false;
+    };
+    let Ok(home_root) = home_root.canonicalize() else {
+        return false;
+    };
+    let Ok(root_canonical) = root.canonicalize() else {
+        return false;
+    };
+    let Ok(relative) = root_canonical.strip_prefix(&home_root) else {
+        return false;
+    };
+    let mut components = relative.components();
+    let Some(Component::Normal(first)) = components.next() else {
+        return false;
+    };
+    is_user_library_root_name(first)
+}
+
+fn is_user_library_root_name(folder_name: &std::ffi::OsStr) -> bool {
+    let name = folder_name.to_string_lossy().to_ascii_lowercase();
+    matches!(
+        name.as_str(),
+        "music"
+            | "documents"
+            | "download"
+            | "downloads"
+            | "desktop"
+            | "pictures"
+            | "videos"
+            | "video"
+            | "movies"
+            | "onedrive"
+    )
+}
+
+fn user_root_dir() -> Result<PathBuf, &'static str> {
+    if let Ok(home) = std::env::var("HOME") {
+        return Ok(PathBuf::from(home));
+    }
+    if let (Ok(drive), Ok(path)) = (std::env::var("HOMEDRIVE"), std::env::var("HOMEPATH")) {
+        return Ok(PathBuf::from(format!("{drive}{path}")));
+    }
+    if let Ok(user_profile) = std::env::var("USERPROFILE") {
+        return Ok(PathBuf::from(user_profile));
+    }
+    Err("Missing HOME/USERPROFILE environment variable")
+}
+
+fn env_var_truthy(key: &str) -> bool {
+    std::env::var(key).is_ok_and(|value| {
+        let value = value.trim().to_ascii_lowercase();
+        matches!(value.as_str(), "1" | "true" | "yes" | "on")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use rusqlite::{OptionalExtension, params};
+    use std::ffi::OsString;
+    use std::sync::{Mutex, OnceLock};
     use tempfile::tempdir;
+
+    fn with_home_env_override<T>(home: &Path, test: impl FnOnce() -> T) -> T {
+        static HOME_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        let _lock = match HOME_ENV_LOCK.get_or_init(|| Mutex::new(())).lock() {
+            Ok(lock) => lock,
+            Err(_) => panic!("HOME env override lock was poisoned"),
+        };
+        let prev_home = std::env::var_os("HOME");
+        let prev_homedrive = std::env::var_os("HOMEDRIVE");
+        let prev_hompath = std::env::var_os("HOMEPATH");
+        let prev_user_profile = std::env::var_os("USERPROFILE");
+
+        unsafe {
+            std::env::set_var("HOME", home);
+        }
+
+        struct HomeEnvGuard {
+            prev_home: Option<OsString>,
+            prev_homedrive: Option<OsString>,
+            prev_hompath: Option<OsString>,
+            prev_user_profile: Option<OsString>,
+        }
+
+        impl Drop for HomeEnvGuard {
+            fn drop(&mut self) {
+                match self.prev_home.take() {
+                    Some(home) => unsafe {
+                        std::env::set_var("HOME", home)
+                    },
+                    None => unsafe {
+                        std::env::remove_var("HOME")
+                    },
+                }
+                match self.prev_homedrive.take() {
+                    Some(value) => unsafe {
+                        std::env::set_var("HOMEDRIVE", value)
+                    },
+                    None => unsafe {
+                        std::env::remove_var("HOMEDRIVE")
+                    },
+                }
+                match self.prev_hompath.take() {
+                    Some(value) => unsafe {
+                        std::env::set_var("HOMEPATH", value)
+                    },
+                    None => unsafe {
+                        std::env::remove_var("HOMEPATH")
+                    },
+                }
+                match self.prev_user_profile.take() {
+                    Some(value) => unsafe {
+                        std::env::set_var("USERPROFILE", value)
+                    },
+                    None => unsafe {
+                        std::env::remove_var("USERPROFILE")
+                    },
+                }
+            }
+        }
+
+        let _home_guard = HomeEnvGuard {
+            prev_home,
+            prev_homedrive,
+            prev_hompath,
+            prev_user_profile,
+        };
+
+        test()
+    }
 
     #[test]
     fn tags_default_and_persist() {
@@ -290,6 +464,47 @@ mod tests {
         let rows = read_only.list_files().unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].relative_path, PathBuf::from("one.wav"));
+    }
+
+    #[test]
+    fn open_defaults_to_read_only_when_enabled() {
+        let dir = match tempdir() {
+            Ok(dir) => dir,
+            Err(err) => panic!("tempdir failed: {err}"),
+        };
+
+        assert!(matches!(
+            open_source_database(dir.path(), true, false),
+            Err(SourceDbError::ReadOnlyDatabaseMissing(_))
+        ));
+    }
+
+    #[test]
+    fn open_blocks_writes_for_user_library_roots_without_override() {
+        let home = match tempdir() {
+            Ok(home) => home,
+            Err(err) => panic!("tempdir failed: {err}"),
+        };
+        let user_home = home.path().join("home");
+        let user_music = user_home.join("Music");
+        if let Err(err) = std::fs::create_dir_all(&user_music) {
+            panic!("create fake user library dir failed: {err}");
+        }
+        with_home_env_override(&user_home, || {
+            let blocked = open_source_database(&user_music, false, false);
+            assert!(matches!(
+                blocked,
+                Err(SourceDbError::UserLibraryWriteBlocked { .. })
+            ));
+
+            let db = open_source_database(&user_music, false, true);
+            assert!(db.is_ok());
+            let opened = match db {
+                Ok(opened) => opened,
+                Err(err) => panic!("db open with override should be allowed: {err}"),
+            };
+            assert_eq!(opened.root(), user_music.as_path());
+        });
     }
 
     #[test]

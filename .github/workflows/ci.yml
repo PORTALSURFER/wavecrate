@@ -70,6 +70,9 @@ jobs:
       - name: Check migration boundary
         shell: bash
         run: ./scripts/check_migration_boundary.sh
+      - name: Check script guardrails
+        shell: bash
+        run: ./scripts/check_script_guardrails.sh
       - name: Check workflow toolchain pinning
         if: ${{ matrix.platform == 'linux' }}
         shell: bash

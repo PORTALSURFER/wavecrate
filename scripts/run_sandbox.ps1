@@ -19,7 +19,9 @@ param(
   [string]$Dir,
   [string]$Name,
   [switch]$Temp,
-  [switch]$Clean
+  [switch]$Clean,
+  [switch]$WriteDb,
+  [switch]$AllowUserLibraryDbWrite
 )
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -54,6 +56,17 @@ if (-not [string]::IsNullOrWhiteSpace($Dir) -and -not [string]::IsNullOrWhiteSpa
   throw "[run_sandbox][error] -Dir and -Name are mutually exclusive."
 }
 
+if ($WriteDb) {
+  Remove-Item Env:SEMPAL_SOURCE_DB_READ_ONLY -ErrorAction SilentlyContinue
+} else {
+  $env:SEMPAL_SOURCE_DB_READ_ONLY = "1"
+}
+if ($AllowUserLibraryDbWrite) {
+  $env:SEMPAL_ALLOW_USER_LIBRARY_DB_WRITE = "1"
+} else {
+  Remove-Item Env:SEMPAL_ALLOW_USER_LIBRARY_DB_WRITE -ErrorAction SilentlyContinue
+}
+
 $sandboxBase = New-SandboxBase -Requested $Dir -SandboxName $Name -UseTemp ([bool]$Temp)
 $env:SEMPAL_CONFIG_HOME = $sandboxBase
 
@@ -67,10 +80,19 @@ Write-Host ("[run_sandbox] app_root={0}" -f $appRoot)
 Write-Host ("[run_sandbox] config={0}" -f $configPath)
 Write-Host ("[run_sandbox] logs={0}" -f $logsDir)
 Write-Host "[run_sandbox] CONTRACT: app config/logs will NOT be read/written from your real user profile dirs (it uses SEMPAL_CONFIG_HOME)."
+if ($WriteDb) {
+  Write-Host "[run_sandbox] Source DB mode: write-enabled (explicit override)."
+} else {
+  Write-Host "[run_sandbox] Source DB mode: read-only (default for agent safety)."
+}
+if ($AllowUserLibraryDbWrite) {
+  Write-Host "[run_sandbox] User-library DB writes: explicitly allowed."
+} else {
+  Write-Host "[run_sandbox] User-library DB writes: blocked."
+}
 Write-Host "[run_sandbox] Can still write:"
 Write-Host ("[run_sandbox]   - sandbox dir: {0}" -f $sandboxBase)
 Write-Host ("[run_sandbox]   - cargo build artifacts: {0} (and your rustup/cargo caches)" -f (Join-Path $rootDir "target"))
-Write-Host "[run_sandbox]   - per-source-folder DBs if you point at them: .sempal_samples.db"
 if ($Temp) {
   Write-Host "[run_sandbox] Ephemeral mode: sandbox dir will be deleted on exit."
 }

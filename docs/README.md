@@ -30,6 +30,7 @@ Use these scripts as the default entrypoints for local work (humans and agents).
 - Safe local run (sandboxed config/logs):
   - Default sandbox is persistent under `<repo>/.sandbox/sempal` for easy inspection.
   - Ephemeral sandbox (no state left behind): `bash scripts/run_sandbox.sh --temp --` / `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 -Temp --`
+  - Per-source `.sempal_samples.db` files are read-only by default (`--write-db` required to allow writes).
   - Run:
     - macOS/Linux/WSL: `bash scripts/run_sandbox.sh --`
     - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --`
