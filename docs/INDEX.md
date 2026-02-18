@@ -7,6 +7,26 @@ If you're an agent or a new contributor: start in `docs/README.md`, then come ba
 - Local CI parity: `scripts/ci_local.{sh,ps1}`
 - CI: `.github/workflows/ci.yml`
 
+## Checks glossary (diff-aware vs full scan)
+
+Agents should optimize for diff-aware checks during iteration, and reserve full scans for periodic cleanup.
+
+- Diff-aware checks (default behavior):
+  - Operate on git diff ranges and/or staged/unstaged changes.
+  - Prevent introducing new violations without forcing immediate cleanup of legacy debt.
+  - `scripts/check_file_size_budget.*` (diff-aware by default; full scan via `--all`)
+  - `scripts/check_manual_docs_scope.*`
+  - `scripts/check_legacy_app_coupling.*`
+  - `scripts/check_rust_taste_invariants.*`
+  - `scripts/check_rust_no_todos.*`
+  - `scripts/check_rust_public_docs.*`
+  - `scripts/check_app_core_dependency_boundary.*`
+  - `scripts/check_markdown_links.*`
+- Full-scan checks:
+  - Scan a fixed scope every time (usually still fast, but not “only the diff”).
+  - `scripts/check_migration_boundary.*` (scans `src/app_core/**`)
+  - `scripts/check_docs_index.*` (scans `docs/README.md` references)
+
 ## When a check fires (what to do)
 
 1. Prefer fixing the underlying issue (refactor/move code/add docs) over adding an exception.
@@ -56,4 +76,3 @@ If you're an agent or a new contributor: start in `docs/README.md`, then come ba
 | `docs/app_core_dependency_boundary_allowlist.txt` | `scripts/check_app_core_dependency_boundary.*` | Last resort for temporary boundary violations while migrating. |
 | `docs/rust_no_todos_allowlist.txt` | `scripts/check_rust_no_todos.*` | Last resort for exceptional cases; prefer issues or `docs/plans/`. |
 | `docs/rust_public_docs_allowlist.txt` | `scripts/check_rust_public_docs.*` | Last resort if a public item intentionally must remain undocumented (rare). |
-
