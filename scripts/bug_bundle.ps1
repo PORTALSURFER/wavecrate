@@ -16,12 +16,22 @@ Note: logs and config may contain local paths. Review before sharing.
 
 param(
   [int]$Logs = 5,
-  [string]$OutDir = "dist\\bug_bundles"
+  [string]$OutDir = "dist\\bug_bundles",
+  [switch]$Sandbox
 )
+
+function Get-SandboxConfigBase {
+  $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+  return (Join-Path $rootDir ".sandbox\\sempal")
+}
 
 function Get-DefaultConfigBase {
   if (-not [string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_HOME)) {
     return $env:SEMPAL_CONFIG_HOME
+  }
+  $sandboxBase = Get-SandboxConfigBase
+  if ($Sandbox -or (Test-Path -LiteralPath $sandboxBase -PathType Container)) {
+    return $sandboxBase
   }
   if ($IsWindows) {
     if (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
@@ -83,6 +93,13 @@ function Resolve-AppRoot {
 }
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$sandboxBase = Get-SandboxConfigBase
+$configBase = Get-DefaultConfigBase
+$usedSandbox = $false
+if ([string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_HOME) -and ($configBase -eq $sandboxBase)) {
+  $usedSandbox = $true
+}
+
 $appRoot = Resolve-AppRoot
 $logsDir = Join-Path $appRoot "logs"
 $configPath = Join-Path $appRoot "config.toml"
@@ -106,6 +123,9 @@ function Try-Cmd([string]$Exe, [string[]]$Args) {
 @(
   "timestamp_utc=$timestamp"
   "repo_root=$rootDir"
+  "config_base_dir=$configBase"
+  "preferred_sandbox_config_home=$sandboxBase"
+  ("used_sandbox_config_home=" + $usedSandbox.ToString().ToLowerInvariant())
   "app_root=$appRoot"
   "logs_dir=$logsDir"
   "config_path=$configPath"
@@ -141,4 +161,3 @@ Remove-Item -LiteralPath $bundleRoot -Recurse -Force -ErrorAction SilentlyContin
 
 Write-Host ("[bug_bundle] wrote {0}" -f $zipPath)
 Write-Host "[bug_bundle] NOTE: logs/config may contain local paths; review before sharing."
-

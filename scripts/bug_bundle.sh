@@ -16,15 +16,21 @@ cd "$ROOT_DIR"
 
 MAX_LOGS=5
 OUT_DIR="dist/bug_bundles"
+USE_SANDBOX=0
 
 usage() {
   cat <<'EOF'
-Usage: scripts/bug_bundle.sh [--out-dir <dir>] [--logs <n>]
+Usage: scripts/bug_bundle.sh [--out-dir <dir>] [--logs <n>] [--sandbox]
 
 Creates an archive under <out-dir> containing:
 - the newest N log files (default: 5)
 - `config.toml` (if present)
 - version/system info
+
+Sandbox behavior:
+- If `SEMPAL_CONFIG_HOME` is set, it is always used.
+- Otherwise, if `<repo>/.sandbox/sempal` exists, this script prefers it.
+- Pass `--sandbox` to force using `<repo>/.sandbox/sempal`.
 EOF
 }
 
@@ -34,6 +40,8 @@ while (( $# > 0 )); do
       OUT_DIR="${2:-}"; shift 2 ;;
     --logs)
       MAX_LOGS="${2:-}"; shift 2 ;;
+    --sandbox)
+      USE_SANDBOX=1; shift ;;
     -h|--help)
       usage; exit 0 ;;
     *)
@@ -44,10 +52,15 @@ while (( $# > 0 )); do
 done
 
 os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
+sandbox_config_home="${ROOT_DIR}/.sandbox/sempal"
 
 default_config_base_dir() {
   if [[ -n "${SEMPAL_CONFIG_HOME:-}" ]]; then
     printf "%s" "$SEMPAL_CONFIG_HOME"
+    return 0
+  fi
+  if (( USE_SANDBOX == 1 )) || [[ -d "$sandbox_config_home" ]]; then
+    printf "%s" "$sandbox_config_home"
     return 0
   fi
   case "$os_name" in
@@ -64,6 +77,12 @@ default_config_base_dir() {
   esac
 }
 
+config_base_dir="$(default_config_base_dir)"
+used_sandbox_config_home="false"
+if [[ -z "${SEMPAL_CONFIG_HOME:-}" ]] && [[ "$config_base_dir" == "$sandbox_config_home" ]]; then
+  used_sandbox_config_home="true"
+fi
+
 extract_app_data_dir_from_config() {
   local config_path="$1"
   [[ -f "$config_path" ]] || return 1
@@ -79,9 +98,7 @@ extract_app_data_dir_from_config() {
 }
 
 resolve_app_root_dir() {
-  local config_base
-  config_base="$(default_config_base_dir)"
-  local default_root="${config_base}/.sempal"
+  local default_root="${config_base_dir}/.sempal"
 
   local config_path="${default_root}/config.toml"
   local override_root=""
@@ -109,6 +126,9 @@ mkdir -p "${bundle_dir}/meta"
 {
   echo "timestamp_utc=${timestamp}"
   echo "repo_root=${ROOT_DIR}"
+  echo "config_base_dir=${config_base_dir}"
+  echo "preferred_sandbox_config_home=${sandbox_config_home}"
+  echo "used_sandbox_config_home=${used_sandbox_config_home}"
   echo "app_root=${app_root}"
   echo "logs_dir=${logs_dir}"
   echo "config_path=${config_path}"
@@ -148,4 +168,3 @@ else
 fi
 
 echo "[bug_bundle] NOTE: logs/config may contain local paths; review before sharing."
-
