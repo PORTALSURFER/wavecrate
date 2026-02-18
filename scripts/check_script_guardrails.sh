@@ -194,6 +194,62 @@ EOF
     HEAD
 }
 
+run_quality_score_drift_fixture() {
+  local fixture_dir
+  fixture_dir="$(mktemp -d)"
+  trap 'rm -rf "$fixture_dir"' RETURN
+
+  local repo_dir="$fixture_dir/repo"
+  local script_path="$repo_dir/scripts/check_quality_score_drift.sh"
+  mkdir -p "$repo_dir/src" "$repo_dir/docs" "$repo_dir/scripts"
+  cp "scripts/check_quality_score_drift.sh" "$script_path"
+  cp "scripts/check_file_size_budget.sh" "$repo_dir/scripts/check_file_size_budget.sh"
+  cp "scripts/check_rust_taste_invariants.sh" "$repo_dir/scripts/check_rust_taste_invariants.sh"
+  chmod +x "$script_path"
+  chmod +x "$repo_dir/scripts/check_file_size_budget.sh"
+  chmod +x "$repo_dir/scripts/check_rust_taste_invariants.sh"
+
+  git -C "$repo_dir" init -q
+  git -C "$repo_dir" config user.name "sempal-ci"
+  git -C "$repo_dir" config user.email "ci@sempal.test"
+
+  cat >"$repo_dir/src/lib.rs" <<'EOF'
+fn main() {
+    let _value = 1;
+}
+EOF
+
+  cat >"$repo_dir/docs/QUALITY_SCORE.md" <<'EOF'
+# Quality Scorecard
+
+| Area | Score | Notes |
+| --- | ---: | --- |
+| Agent-facing guardrails | 4 | Guardrails are currently healthy. |
+EOF
+
+  git -C "$repo_dir" add src/lib.rs docs/QUALITY_SCORE.md
+  git -C "$repo_dir" commit -qm "seed"
+
+  run_expect_exit_code \
+    "quality score drift fixture passes when score matches healthy guardrails" \
+    0 \
+    "$repo_dir" \
+    "$script_path"
+
+  cat >>"$repo_dir/src/lib.rs" <<'EOF'
+
+fn guarded() {
+    println!("guardrail drift");
+}
+EOF
+
+  run_expect_exit_code \
+    "quality score drift fixture fails when score is still high while guardrails degrade" \
+    1 \
+    "$repo_dir" \
+    "$script_path"
+}
+
 run_expect_exit_code \
   "bash -n scripts/check_file_size_budget.sh" \
   0 \
@@ -211,6 +267,14 @@ run_expect_exit_code \
   scripts/check_rust_taste_invariants.sh
 
 run_expect_exit_code \
+  "bash -n scripts/check_quality_score_drift.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/check_quality_score_drift.sh
+
+run_expect_exit_code \
   "bash -n scripts/run_sandbox.sh" \
   0 \
   "$ROOT_DIR" \
@@ -220,6 +284,7 @@ run_expect_exit_code \
 
 run_file_size_budget_fixture
 run_taste_invariants_fixture
+run_quality_score_drift_fixture
 
 if (( failures > 0 )); then
   echo "[guardrails] FAILED: $failures checks failed."

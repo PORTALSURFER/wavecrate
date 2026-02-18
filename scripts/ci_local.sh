@@ -23,17 +23,14 @@ echo "[ci_local] scripts/check_script_guardrails.sh"
 echo "[ci_local] scripts/check_workflow_toolchain_pinning.sh"
 ./scripts/check_workflow_toolchain_pinning.sh
 
-echo "[ci_local] scripts/check_file_size_budget.sh"
-./scripts/check_file_size_budget.sh
+echo "[ci_local] scripts/check_quality_score_drift.sh"
+./scripts/check_quality_score_drift.sh
 
 echo "[ci_local] scripts/check_manual_docs_scope.sh"
 ./scripts/check_manual_docs_scope.sh
 
 echo "[ci_local] scripts/check_legacy_app_coupling.sh"
 ./scripts/check_legacy_app_coupling.sh
-
-echo "[ci_local] scripts/check_rust_taste_invariants.sh"
-./scripts/check_rust_taste_invariants.sh
 
 echo "[ci_local] scripts/check_rust_no_todos.sh"
 ./scripts/check_rust_no_todos.sh

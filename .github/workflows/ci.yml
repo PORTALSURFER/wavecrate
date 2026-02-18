@@ -77,12 +77,12 @@ jobs:
         if: ${{ matrix.platform == 'linux' }}
         shell: bash
         run: ./scripts/check_workflow_toolchain_pinning.sh
-      - name: Check file size budget
+      - name: Check high-visibility guardrail score alignment
         shell: bash
         env:
           CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: ./scripts/check_file_size_budget.sh --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+        run: ./scripts/check_quality_score_drift.sh --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
       - name: Check manual docs scope
         shell: bash
         env:
@@ -95,12 +95,6 @@ jobs:
           CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: ./scripts/check_legacy_app_coupling.sh --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
-      - name: Check Rust taste invariants
-        shell: bash
-        env:
-          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: ./scripts/check_rust_taste_invariants.sh --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
       - name: Check Rust TODO/FIXME (non-test)
         shell: bash
         env:

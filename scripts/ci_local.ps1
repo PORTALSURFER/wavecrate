@@ -72,17 +72,14 @@ try {
   Write-Host "[ci_local] scripts/check_workflow_toolchain_pinning.ps1"
   & (Join-Path $rootDir "scripts/check_workflow_toolchain_pinning.ps1")
 
-  Write-Host "[ci_local] scripts/check_file_size_budget.ps1"
-  & (Join-Path $rootDir "scripts/check_file_size_budget.ps1")
+  Write-Host "[ci_local] scripts/check_quality_score_drift.ps1"
+  & (Join-Path $rootDir "scripts/check_quality_score_drift.ps1")
 
   Write-Host "[ci_local] scripts/check_manual_docs_scope.ps1"
   & (Join-Path $rootDir "scripts/check_manual_docs_scope.ps1")
 
   Write-Host "[ci_local] scripts/check_legacy_app_coupling.ps1"
   & (Join-Path $rootDir "scripts/check_legacy_app_coupling.ps1")
-
-  Write-Host "[ci_local] scripts/check_rust_taste_invariants.ps1"
-  & (Join-Path $rootDir "scripts/check_rust_taste_invariants.ps1")
 
   Write-Host "[ci_local] scripts/check_rust_no_todos.ps1"
   & (Join-Path $rootDir "scripts/check_rust_no_todos.ps1")

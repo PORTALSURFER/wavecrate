@@ -21,6 +21,7 @@ Last reviewed: 2026-02-18
 | --- | ---: | --- |
 | Developer entrypoints (docs/scripts) | 4 | `docs/README.md`, `scripts/ci_local.*`, `scripts/doctor.*`, `scripts/run_sandbox.*` exist and are wired into CI/local flows. |
 | Documentation hygiene | 4 | Knowledge lint exists; still some doc drift risk outside the checked scope. |
+| Agent-facing guardrails | 4 | `scripts/check_script_guardrails.sh`, `scripts/check_file_size_budget.sh`, and `scripts/check_rust_taste_invariants.sh` are enforced. |
 | Legacy boundary enforcement | 4 | `crate::app` coupling and `app_core` boundaries are enforced diff-aware in CI. |
 | Code size discipline | 3 | File size budget enforced on changed files; allowlist is still large and needs burn-down. |
 | Testing posture | 3 | Test map exists; coverage varies; some critical flows are integration-heavy. |
@@ -31,12 +32,11 @@ Last reviewed: 2026-02-18
 ## Known gaps (actionable)
 
 - Reduce file size allowlist debt: prioritize splitting the top 5 largest files and deleting allowlist entries as they fall below 400 LOC.
-- Add a “safe sandbox run” to the default dev workflow documentation so nobody accidentally runs against real data by default.
 - Add a scheduled doc review cadence: review this file monthly and update scores based on current reality.
 - Add one performance regression harness for a representative large dataset/view and run it in CI (even if it is a coarse threshold test).
+- The guardrail drift check now lives in `scripts/check_quality_score_drift.sh` and is wired into local CI and GitHub CI.
 
 ## Notes
 
 - Scores are intentionally coarse and should be updated when the system changes.
 - When making large changes, update `docs/QUALITY_SCORE.md` in the same PR if it affects any score materially.
-

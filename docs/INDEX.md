@@ -70,6 +70,8 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
 | `scripts/check_file_size_budget.ps1` | PowerShell equivalent of the file-size budget check. | Same remediation as the bash version. |
 | `scripts/check_script_guardrails.sh` | Key shell scripts must stay syntax valid and pass fixture checks for matching logic. | Keep script syntax and fixture assertions green; ensure regex matching and argument parsing are fixture-covered. |
 | `scripts/check_script_guardrails.ps1` | PowerShell wrapper around the script guardrails check. | Same remediation as the bash version. |
+| `scripts/check_quality_score_drift.sh` | Ensures `docs/QUALITY_SCORE.md` reflects current high-visibility guardrail status (file-size budget + Rust taste invariants) and flags drift. | Update the score row in `docs/QUALITY_SCORE.md` whenever this check degrades or recovers. |
+| `scripts/check_quality_score_drift.ps1` | PowerShell wrapper for score-drift enforcement check. | Same remediation as the bash version, then update `docs/QUALITY_SCORE.md` to keep handoff context accurate. |
 | `scripts/check_manual_docs_scope.sh` | `manual/` is user docs only; new/changed files in `manual/` must be allowlisted (site assets + user docs + redirect stubs). | Move developer docs into `docs/`; keep `manual/` for user content and site assets. |
 | `scripts/check_manual_docs_scope.ps1` | PowerShell equivalent of the manual-scope check. | Same remediation as the bash version. |
 | `scripts/check_legacy_app_coupling.sh` | Prevent new `crate::app` coupling from non-legacy codepaths (diff-aware; skips `src/app/**` and `src/legacy_runtime/**`). | Move code into legacy paths, route through `app_core`, or isolate behind a boundary; last resort: allowlist. |

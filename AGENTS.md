@@ -45,7 +45,7 @@ Rules:
 - `run_sandbox` defaults to no writes in source trees (`--write-db` and `--allow-user-library-db-write` are explicit overrides).
 - Default run/worktree flow still mixes review, CI, and interactive execution steps.
 - Runtime diagnostics are primarily log-based and human-readable, with limited machine-readable status reporting.
-- `docs/QUALITY_SCORE.md` and the plans area track gaps; they are not yet hard enforcement.
+- `docs/QUALITY_SCORE.md` includes a score row for agent-facing guardrails that is now enforced by `scripts/check_quality_score_drift.sh` in local CI and GitHub CI.
 
 ### Recommended start sequence for new agents
 - Read `docs/README.md`, then `docs/FEATURE_CHECKLIST.md`, then `docs/ARCHITECTURE.md`.
