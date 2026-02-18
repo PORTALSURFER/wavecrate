@@ -7,6 +7,7 @@ site).
 
 Start here:
 
+- `docs/INDEX.md` — invariants + allowlists inventory (what to do when checks fail)
 - `docs/FEATURE_CHECKLIST.md` — safe path for implementing changes
 - `docs/ARCHITECTURE.md` — module ownership map
 - `docs/ENV_VARS.md` — environment variable reference

@@ -1,0 +1,59 @@
+# Developer index (invariants, allowlists, and remediation)
+
+If you're an agent or a new contributor: start in `docs/README.md`, then come back here when a CI/local check fails.
+
+## Where checks run
+
+- Local CI parity: `scripts/ci_local.{sh,ps1}`
+- CI: `.github/workflows/ci.yml`
+
+## When a check fires (what to do)
+
+1. Prefer fixing the underlying issue (refactor/move code/add docs) over adding an exception.
+2. If a check has an allowlist, only use it as a last resort and add a short justification comment in the allowlist file.
+3. If you intentionally changed repo structure or docs topology, update:
+   - `docs/README.md` (landing page)
+   - `scripts/check_docs_index.*` (required references)
+   - `docs/INDEX.md` (this file)
+
+## Invariant checks (scripts/check_*.{sh,ps1})
+
+| Check | What it enforces | How to fix when it fails |
+| --- | --- | --- |
+| `scripts/check_migration_boundary.sh` | `src/app_core/**` must not reference `crate::app::` except `src/app_core/app_api.rs`. | Move legacy app dependencies behind `app_api` or move code into the legacy layer. |
+| `scripts/check_migration_boundary.ps1` | PowerShell equivalent of the migration-boundary check. | Same remediation as the bash version. |
+| `scripts/check_file_size_budget.sh` | Rust files must stay under the file-size budget (default `400` LOC), diff-aware by default. | Split the module, extract submodules, or reduce responsibilities; last resort: allowlist. |
+| `scripts/check_file_size_budget.ps1` | PowerShell equivalent of the file-size budget check. | Same remediation as the bash version. |
+| `scripts/check_manual_docs_scope.sh` | `manual/` is user docs only; new/changed files in `manual/` must be allowlisted (site assets + user docs + redirect stubs). | Move developer docs into `docs/`; keep `manual/` for user content and site assets. |
+| `scripts/check_manual_docs_scope.ps1` | PowerShell equivalent of the manual-scope check. | Same remediation as the bash version. |
+| `scripts/check_legacy_app_coupling.sh` | Prevent new `crate::app` coupling from non-legacy codepaths (diff-aware; skips `src/app/**` and `src/legacy_runtime/**`). | Move code into legacy paths, route through `app_core`, or isolate behind a boundary; last resort: allowlist. |
+| `scripts/check_legacy_app_coupling.ps1` | PowerShell equivalent of the legacy-coupling check. | Same remediation as the bash version. |
+| `scripts/check_rust_taste_invariants.sh` | Disallow added `dbg!`, `println!`, `.unwrap()`, `.expect()` in non-test Rust (diff-aware). | Use `tracing`, propagate errors, or confine patterns to tests/benches; last resort: allowlist. |
+| `scripts/check_rust_taste_invariants.ps1` | PowerShell equivalent of the Rust taste invariants check. | Same remediation as the bash version. |
+| `scripts/check_rust_no_todos.sh` | Disallow added `TODO`/`FIXME` markers in non-test Rust (diff-aware). | Implement the fix now, file an issue instead, or capture the plan in `docs/plans/` instead of in-code TODOs; last resort: allowlist. |
+| `scripts/check_rust_no_todos.ps1` | PowerShell equivalent of the no-TODO/FIXME check. | Same remediation as the bash version. |
+| `scripts/check_rust_public_docs.sh` | Newly added `pub` Rust items must have nearby doc comments (`///` or `#[doc = ...]`), diff-aware. | Add `///` docs describing what/why/constraints; include examples if non-obvious; last resort: allowlist. |
+| `scripts/check_rust_public_docs.ps1` | PowerShell equivalent of the public-docs check. | Same remediation as the bash version. |
+| `scripts/check_app_core_dependency_boundary.sh` | `src/app_core/**` must not take new dependencies on `crate::legacy_runtime::`, `crate::gui_app::`, `crate::gui_runtime::` (diff-aware). | Move UI/runtime coupling into the appropriate layer (`src/gui_app`, `src/gui_runtime`, `src/legacy_runtime`) or invert the dependency. |
+| `scripts/check_app_core_dependency_boundary.ps1` | PowerShell equivalent of the app_core dependency boundary check. | Same remediation as the bash version. |
+| `scripts/check_docs_index.sh` | `docs/README.md` must reference required docs and all referenced `docs/*.md` must exist. | Update `docs/README.md` to include required links and fix broken references. |
+| `scripts/check_docs_index.ps1` | PowerShell equivalent of the docs index check. | Same remediation as the bash version. |
+| `scripts/check_markdown_links.sh` | Changed Markdown files must not introduce broken local file links (diff-aware). | Fix the link target, update the path, or delete stale references. |
+| `scripts/check_markdown_links.ps1` | PowerShell equivalent of the Markdown link check. | Same remediation as the bash version. |
+
+## Knowledge linter (wrapper)
+
+- `scripts/knowledge_lint.sh` runs `scripts/check_docs_index.sh` and `scripts/check_markdown_links.sh`.
+- `scripts/knowledge_lint.ps1` runs the PowerShell equivalents.
+
+## Allowlists (docs/*allowlist*.txt)
+
+| Allowlist | Used by | When to use |
+| --- | --- | --- |
+| `docs/file_size_budget_allowlist.txt` | `scripts/check_file_size_budget.*` | Only for known legacy oversized files during transition; prefer splitting files and removing entries over time. |
+| `docs/legacy_app_coupling_allowlist.txt` | `scripts/check_legacy_app_coupling.*` | Rare transitional shims only; prefer refactors that remove coupling. |
+| `docs/rust_taste_invariants_allowlist.txt` | `scripts/check_rust_taste_invariants.*` | Last resort when a non-test file must temporarily contain the forbidden patterns. |
+| `docs/app_core_dependency_boundary_allowlist.txt` | `scripts/check_app_core_dependency_boundary.*` | Last resort for temporary boundary violations while migrating. |
+| `docs/rust_no_todos_allowlist.txt` | `scripts/check_rust_no_todos.*` | Last resort for exceptional cases; prefer issues or `docs/plans/`. |
+| `docs/rust_public_docs_allowlist.txt` | `scripts/check_rust_public_docs.*` | Last resort if a public item intentionally must remain undocumented (rare). |
+
