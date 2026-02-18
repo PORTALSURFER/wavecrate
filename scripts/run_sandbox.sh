@@ -141,4 +141,39 @@ if (( TEMP == 1 )); then
   echo "[run_sandbox] Ephemeral mode: sandbox dir will be deleted on exit."
 fi
 
-exec cargo run --release -- "$@"
+cargo run --release -- "$@"
+
+run_status=$?
+
+if [[ -d "$LOGS_DIR/contracts" ]]; then
+  latest_contract="$(
+    ls -1t "$LOGS_DIR/contracts/run_contract_"*.ndjson 2>/dev/null | head -n 1 || true
+  )"
+  if [[ -n "${latest_contract:-}" ]]; then
+    echo "[run_sandbox] latest run_contract=$latest_contract"
+    latest_manifest="${latest_contract//run_contract_/run_manifest_}"
+    latest_manifest="${latest_manifest%.ndjson}.json"
+    echo "[run_sandbox] latest run_manifest=$latest_manifest"
+
+    if [[ -f "$latest_manifest" ]]; then
+      if command -v python3 >/dev/null 2>&1; then
+        final_status="$(python3 - "$latest_manifest" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+print(payload.get("exit_status", "<missing>"))
+PY
+ "$latest_manifest" )"
+        echo "[run_sandbox] run outcome=$final_status"
+      else
+        echo "[run_sandbox][warn] python3 not available; cannot print final run outcome."
+      fi
+    else
+      echo "[run_sandbox] run manifest missing or not written yet: $latest_manifest"
+    fi
+  fi
+fi
+
+exit "$run_status"

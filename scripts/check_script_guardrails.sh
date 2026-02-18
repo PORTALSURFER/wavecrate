@@ -194,6 +194,108 @@ EOF
     HEAD
 }
 
+run_run_contract_smoke_fixture() {
+  local fixture_dir
+  fixture_dir="$(mktemp -d)"
+  trap 'rm -rf "$fixture_dir"' RETURN
+
+  local fixture_script="$ROOT_DIR/scripts/check_run_contract_smoke.sh"
+  local artifact="$fixture_dir/run_contract_123-456.ndjson"
+  local manifest="$fixture_dir/run_manifest_123-456.json"
+  local bad_artifact="$fixture_dir/run_contract_bad.json"
+  local bad_manifest="$fixture_dir/run_manifest_bad.json"
+  local startup_fail_artifact="$fixture_dir/run_contract_startup_fail.ndjson"
+  local startup_fail_manifest="$fixture_dir/run_manifest_startup_fail.json"
+  local valid_manifest_path="$fixture_dir/run_manifest_123-456.json"
+  local bad_manifest_path="$fixture_dir/run_manifest_bad.json"
+  local valid_artifact_path="$fixture_dir/run_contract_123-456.ndjson"
+  local bad_artifact_path="$fixture_dir/run_contract_bad.json"
+
+  cat >"$artifact" <<EOF
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_begin","exit_status":"running","timestamp_utc":"1","process_id":111,"manifest_path":"$valid_manifest_path","artifact_path":"$valid_artifact_path"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"runtime","milestone":"runtime_started","exit_status":"running","timestamp_utc":"2","process_id":111,"manifest_path":"$valid_manifest_path","artifact_path":"$valid_artifact_path"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"shutdown","milestone":"runtime_exit","exit_status":"success","timestamp_utc":"3","process_id":111,"manifest_path":"$valid_manifest_path","artifact_path":"$valid_artifact_path"}
+EOF
+  cat >"$manifest" <<EOF
+{
+  "run_id": "123-456",
+  "artifact_path": "$valid_artifact_path",
+  "manifest_path": "$valid_manifest_path",
+  "milestones": [
+    {"name": "startup_begin", "startup_phase": "startup", "status": "running", "timestamp_utc": "1"},
+    {"name": "runtime_started", "startup_phase": "runtime", "status": "running", "timestamp_utc": "2"},
+    {"name": "runtime_exit", "startup_phase": "shutdown", "status": "success", "timestamp_utc": "3"}
+  ],
+  "exit_status": "success"
+}
+EOF
+
+  run_expect_exit_code \
+    "run-contract smoke fixture passes for valid manifest+artifact" \
+    0 \
+    "$fixture_dir" \
+    "$fixture_script" \
+    --artifact \
+    "$artifact"
+
+  cat >"$bad_artifact" <<EOF
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"runtime","milestone":"runtime_started","exit_status":"running","timestamp_utc":"2","process_id":111,"manifest_path":"$bad_manifest_path","artifact_path":"$bad_artifact_path"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_begin","exit_status":"running","timestamp_utc":"1","process_id":111,"manifest_path":"$bad_manifest_path","artifact_path":"$bad_artifact_path"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"shutdown","milestone":"runtime_exit","exit_status":"success","timestamp_utc":"3","process_id":111,"manifest_path":"$bad_manifest_path","artifact_path":"$bad_artifact_path"}
+EOF
+
+  run_expect_exit_code \
+    "run-contract smoke fixture fails on invalid milestone order" \
+    1 \
+    "$fixture_dir" \
+    "$fixture_script" \
+    --artifact \
+    "$bad_artifact" \
+    --manifest \
+    "$bad_manifest"
+
+  cat >"$bad_manifest" <<EOF
+{
+  "run_id": "123-456",
+  "artifact_path": "$bad_artifact_path",
+  "manifest_path": "$bad_manifest_path",
+  "milestones": [
+    {"name": "runtime_started", "startup_phase": "runtime", "status": "running", "timestamp_utc": "2"},
+    {"name": "startup_begin", "startup_phase": "startup", "status": "running", "timestamp_utc": "1"},
+    {"name": "runtime_exit", "startup_phase": "shutdown", "status": "success", "timestamp_utc": "3"}
+  ],
+  "exit_status": "success"
+}
+EOF
+
+  cat >"$startup_fail_artifact" <<EOF
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_begin","exit_status":"running","timestamp_utc":"1","process_id":111,"manifest_path":"$startup_fail_manifest","artifact_path":"$startup_fail_artifact"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_failed","exit_status":"error","timestamp_utc":"2","process_id":111,"manifest_path":"$startup_fail_manifest","artifact_path":"$startup_fail_artifact"}
+EOF
+  cat >"$startup_fail_manifest" <<EOF
+{
+  "run_id": "123-456",
+  "artifact_path": "$startup_fail_artifact",
+  "manifest_path": "$startup_fail_manifest",
+  "milestones": [
+    {"name": "startup_begin", "startup_phase": "startup", "status": "running", "timestamp_utc": "1"},
+    {"name": "startup_failed", "startup_phase": "startup", "status": "error", "timestamp_utc": "2"}
+  ],
+  "exit_status": "error"
+}
+EOF
+
+  run_expect_exit_code \
+    "run-contract smoke fixture passes for startup failure sequence" \
+    0 \
+    "$fixture_dir" \
+    "$fixture_script" \
+    --artifact \
+    "$startup_fail_artifact" \
+    --manifest \
+    "$startup_fail_manifest"
+}
+
 run_quality_score_drift_fixture() {
   local fixture_dir
   fixture_dir="$(mktemp -d)"
@@ -267,6 +369,14 @@ run_expect_exit_code \
   scripts/check_rust_taste_invariants.sh
 
 run_expect_exit_code \
+  "bash -n scripts/check_run_contract_smoke.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/check_run_contract_smoke.sh
+
+run_expect_exit_code \
   "bash -n scripts/check_quality_score_drift.sh" \
   0 \
   "$ROOT_DIR" \
@@ -284,6 +394,7 @@ run_expect_exit_code \
 
 run_file_size_budget_fixture
 run_taste_invariants_fixture
+run_run_contract_smoke_fixture
 run_quality_score_drift_fixture
 
 if (( failures > 0 )); then
