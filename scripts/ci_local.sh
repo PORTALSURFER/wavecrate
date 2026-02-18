@@ -26,6 +26,9 @@ echo "[ci_local] scripts/check_legacy_app_coupling.sh"
 echo "[ci_local] scripts/check_rust_taste_invariants.sh"
 ./scripts/check_rust_taste_invariants.sh
 
+echo "[ci_local] scripts/check_app_core_dependency_boundary.sh"
+./scripts/check_app_core_dependency_boundary.sh
+
 echo "[ci_local] cargo clippy --all-targets"
 cargo clippy --all-targets
 

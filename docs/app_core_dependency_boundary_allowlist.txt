@@ -1,0 +1,7 @@
+# Allowlist for `scripts/check_app_core_dependency_boundary.*`.
+#
+# Each entry is a repo-relative Rust file path under `src/app_core/` that is
+# allowed to introduce new forbidden dependencies (see the script for details).
+#
+# Keep this list empty/small. Prefer moving code to the correct layer instead.
+
