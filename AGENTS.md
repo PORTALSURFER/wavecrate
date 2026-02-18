@@ -3,6 +3,23 @@ when building you will need asiosdk, you can find it at /mnt/e/lib/asiosdk/ASIOS
 refer to `design_principles.md` when implementing change requests
 Windows logs can be found at `/mnt/c/Users/wanja.svasek/AppData/Roaming/.sempal/logs`.
 
+## How to add a feature safely
+
+See `docs/FEATURE_CHECKLIST.md`.
+
+## Environment variables
+
+See `docs/ENV_VARS.md`.
+
+## Version control rule
+
+After any code change, create a commit and push it.
+If your environment requires explicit approval for git operations, ask for confirmation and include the intended commit message.
+
+## Architecture and module ownership
+
+See `docs/ARCHITECTURE.md`.
+
 ## Codebase map (short)
 
 - `src/` modules:

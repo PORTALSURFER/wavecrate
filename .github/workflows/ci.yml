@@ -22,6 +22,8 @@ jobs:
             platform: macos
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -53,6 +55,12 @@ jobs:
       - name: Check migration boundary
         shell: bash
         run: ./scripts/check_migration_boundary.sh
+      - name: Check file size budget
+        shell: bash
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/check_file_size_budget.sh --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
       - name: Lint (clippy)
         run: cargo clippy --all-targets
       - name: Run tests

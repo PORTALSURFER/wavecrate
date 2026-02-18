@@ -1,0 +1,4 @@
+[toolchain]
+# Keep developer, CI, and agent environments consistent.
+channel = "1.93.0"
+components = ["rustfmt", "clippy"]

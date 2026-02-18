@@ -1,0 +1,75 @@
+# Allowlist for the Rust file size budget check.
+#
+# Sempal aims to keep source files under 400 LOC. This allowlist captures
+# known legacy files that currently exceed the budget so we can enforce the
+# constraint on new/edited files without blocking incremental work.
+#
+# Prefer shrinking/splitting these files over time and deleting entries once
+# they fall under the budget.
+
+src/analysis/ann_index/container.rs
+src/analysis/audio/normalize.rs
+src/analysis/frequency_domain/stft.rs
+src/app/controller.rs
+src/app/controller/jobs.rs
+src/app/controller/library/analysis_jobs/db/tests.rs
+src/app/controller/library/analysis_jobs/enqueue/tests.rs
+src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs
+src/app/controller/library/analysis_jobs/pool/job_execution/backfill.rs
+src/app/controller/library/analysis_jobs/pool/job_progress.rs
+src/app/controller/library/background_jobs/mod.rs
+src/app/controller/library/browser_controller/actions.rs
+src/app/controller/library/selection_edits/mod.rs
+src/app/controller/library/source_folders/delete_recovery.rs
+src/app/controller/library/source_folders/tree.rs
+src/app/controller/library/sources.rs
+src/app/controller/library/wavs.rs
+src/app/controller/library/wavs/browser_actions.rs
+src/app/controller/library/wavs/browser_search.rs
+src/app/controller/library/wavs/browser_search_worker.rs
+src/app/controller/library/wavs/similar/resolve.rs
+src/app/controller/library/wavs/waveform_loading.rs
+src/app/controller/playback/audio_options.rs
+src/app/controller/playback/loop_crossfade.rs
+src/app/controller/playback/mod.rs
+src/app/controller/playback/player.rs
+src/app/controller/playback/recording/waveform_loader.rs
+src/app/controller/playback/transport.rs
+src/app/controller/tests/browser_actions.rs
+src/app/controller/tests/focus_random.rs
+src/app/controller/tests/folders_core.rs
+src/app/controller/tests/waveform.rs
+src/app/controller/ui/clipboard_paste.rs
+src/app/controller/ui/drag_drop_controller/actions.rs
+src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs
+src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs
+src/app/controller/ui/hotkeys/actions.rs
+src/app/controller/ui/hotkeys_controller/waveform.rs
+src/app/controller/ui/map_view.rs
+src/app_core/native_bridge.rs
+src/app_core/native_shell.rs
+src/audio/output.rs
+src/audio/source.rs
+src/bin/sempal-installer/ui.rs
+src/bin/sempal-updater/ui.rs
+src/external_drag.rs
+src/issue_gateway/token_store.rs
+src/sample_sources/db/file_ops_journal.rs
+src/sample_sources/db/mod.rs
+src/sample_sources/scanner/scan/tests.rs
+src/selection.rs
+src/sqlite_ext.rs
+src/updater/archive.rs
+src/updater/mod.rs
+src/wav_sanitize.rs
+src/waveform/mod.rs
+src/waveform/render.rs
+src/waveform/render/paint/lines.rs
+vendor/radiant/src/app/mod.rs
+vendor/radiant/src/gui/native_shell/layout.rs
+vendor/radiant/src/gui/native_shell/mod.rs
+vendor/radiant/src/gui/native_shell/shots.rs
+vendor/radiant/src/gui/native_shell/state.rs
+vendor/radiant/src/gui/native_shell/style.rs
+vendor/radiant/src/gui_runtime/native_vello.rs
+
