@@ -92,6 +92,34 @@ EOF
     --limit \
     10
 
+  local collection_trace
+  collection_trace="$(mktemp)"
+  set +e
+  (cd "$repo_dir" && "$script_path" --all --limit 3) >"$collection_trace" 2>&1
+  local collection_code=$?
+  set -e
+
+  if [[ "$collection_code" -ne 1 ]]; then
+    echo "[guardrails] FAIL: file-size-budget fixture collected-file-count trace requires failure exit code 1 (got $collection_code)" >&2
+    cat "$collection_trace" >&2
+    failures=$((failures + 1))
+  else
+    local collection_count
+    collection_count="$(grep -oE 'collected_file_count=[0-9]+' "$collection_trace" | tail -n 1 | cut -d= -f2)"
+    if [[ -z "$collection_count" ]]; then
+      echo "[guardrails] FAIL: file-size-budget fixture did not emit collected_file_count trace" >&2
+      cat "$collection_trace" >&2
+      failures=$((failures + 1))
+    elif (( collection_count < 2 )); then
+      echo "[guardrails] FAIL: file-size-budget fixture collected_file_count=$collection_count, below minimum threshold 2" >&2
+      cat "$collection_trace" >&2
+      failures=$((failures + 1))
+    else
+      echo "[guardrails] PASS: file-size-budget fixture emitted collected_file_count=$collection_count"
+    fi
+  fi
+  rm -f "$collection_trace"
+
   run_expect_exit_code \
     "file-size-budget fixture treats --base with missing value as parse error" \
     2 \

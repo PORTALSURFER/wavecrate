@@ -15,6 +15,9 @@ LIMIT=400
 BASE_REF=""
 HEAD_REF="HEAD"
 CHECK_ALL=0
+COLLECTED_FILE_COUNT=0
+COLLECT_SCOPE=""
+TRACKED_PATHS=(src tests vendor/radiant/src)
 
 usage() {
   cat <<'EOF'
@@ -90,28 +93,61 @@ git_has_commit() {
 collect_files() {
   local base="$1"
   local head="$2"
+  local -a raw_files=()
+  local -a rust_files=()
 
   if (( CHECK_ALL == 1 )); then
-    git ls-files -- src tests vendor/radiant/src \
-      | grep -E '\.rs$' || true
-    return 0
-  fi
-
-  local out=()
-
-  if [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
-    mapfile -t out < <(git diff --name-only --diff-filter=AM "$base...$head" -- src tests vendor/radiant/src || true)
+    mapfile -t raw_files < <(git ls-files -- "${TRACKED_PATHS[@]}" || true)
+    COLLECT_SCOPE="all"
+  elif [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
+    mapfile -t raw_files < <(
+      git diff --name-only --diff-filter=AM "$base...$head" -- "${TRACKED_PATHS[@]}" \
+        || true
+    )
+    COLLECT_SCOPE="diff(base...head)"
   elif git_has_commit "$head"; then
     # If base isn't available (e.g. first push), fall back to the head commit's file list.
-    mapfile -t out < <(git show --name-only --pretty=format: "$head" -- src tests vendor/radiant/src || true)
+    mapfile -t raw_files < <(
+      git show --name-only --pretty=format: "$head" -- "${TRACKED_PATHS[@]}" || true
+    )
+    COLLECT_SCOPE="diff(head)"
+  else
+    COLLECT_SCOPE="diff"
+    raw_files=()
   fi
 
-  mapfile -t staged < <(git diff --name-only --diff-filter=AM --cached -- src tests vendor/radiant/src || true)
-  mapfile -t unstaged < <(git diff --name-only --diff-filter=AM -- src tests vendor/radiant/src || true)
+  local staged_count=0
+  local unstaged_count=0
+  if (( CHECK_ALL != 1 )); then
+    local -a staged=()
+    local -a unstaged=()
+    mapfile -t staged < <(
+      git diff --name-only --diff-filter=AM --cached -- "${TRACKED_PATHS[@]}" || true
+    )
+    mapfile -t unstaged < <(
+      git diff --name-only --diff-filter=AM -- "${TRACKED_PATHS[@]}" || true
+    )
+    staged_count="${#staged[@]}"
+    unstaged_count="${#unstaged[@]}"
+    raw_files+=("${staged[@]}" "${unstaged[@]}")
+  fi
 
-  printf "%s\n" "${out[@]}" "${staged[@]}" "${unstaged[@]}" \
-    | grep -E '\.rs$' \
-    | sort -u || true
+  local candidate
+  for candidate in "${raw_files[@]}"; do
+    [[ "$candidate" == src/* ]] && [[ "$candidate" == *.rs ]] && rust_files+=("$candidate")
+    [[ "$candidate" == tests/* ]] && [[ "$candidate" == *.rs ]] && rust_files+=("$candidate")
+    [[ "$candidate" == vendor/radiant/src/* ]] && [[ "$candidate" == *.rs ]] && rust_files+=("$candidate")
+  done
+
+  local -a uniq_files=()
+  mapfile -t uniq_files < <(printf "%s\n" "${rust_files[@]}" | sort -u || true)
+
+  COLLECTED_FILE_COUNT="${#uniq_files[@]}"
+  echo "[file_budget] collected_file_count=${COLLECTED_FILE_COUNT} (scope=${COLLECT_SCOPE}, raw=${#raw_files[@]}, staged=${staged_count}, unstaged=${unstaged_count})" >&2
+
+  if (( COLLECTED_FILE_COUNT > 0 )); then
+    printf "%s\n" "${uniq_files[@]}"
+  fi
 }
 
 files="$(collect_files "$BASE_REF" "$HEAD_REF")"
