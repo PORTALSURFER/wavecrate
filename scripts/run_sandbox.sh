@@ -14,10 +14,11 @@ cd "$ROOT_DIR"
 SANDBOX_BASE=""
 CLEAN=0
 TEMP=0
+NAME=""
 
 usage() {
   cat <<'EOF'
-Usage: scripts/run_sandbox.sh [--dir <sandbox_base>] [--temp] [--clean] [--] [app args...]
+Usage: scripts/run_sandbox.sh [--dir <sandbox_base>] [--name <id>] [--temp] [--clean] [--] [app args...]
 
 Runs `cargo run --release` with:
 - `SEMPAL_CONFIG_HOME` set to an isolated sandbox base directory
@@ -29,6 +30,7 @@ Derived paths:
 
 Options:
   --dir <path>  Use a fixed sandbox base dir (default: <repo>/.sandbox/sempal).
+  --name <id>   Use a named sandbox dir under <repo>/.sandbox/sempal/<id> (persistent).
   --temp        Use a temporary sandbox base dir (mktemp) and delete it on exit.
   --clean       Delete the sandbox base dir on exit.
 EOF
@@ -38,6 +40,8 @@ while (( $# > 0 )); do
   case "$1" in
     --dir)
       SANDBOX_BASE="${2:-}"; shift 2 ;;
+    --name)
+      NAME="${2:-}"; shift 2 ;;
     --temp)
       TEMP=1; shift ;;
     --clean)
@@ -51,10 +55,21 @@ while (( $# > 0 )); do
   esac
 done
 
+if (( TEMP == 1 )) && [[ -n "$NAME" ]]; then
+  echo "[run_sandbox][error] --temp and --name are mutually exclusive." >&2
+  exit 2
+fi
+if [[ -n "$SANDBOX_BASE" ]] && [[ -n "$NAME" ]]; then
+  echo "[run_sandbox][error] --dir and --name are mutually exclusive." >&2
+  exit 2
+fi
+
 if [[ -z "$SANDBOX_BASE" ]]; then
   if (( TEMP == 1 )); then
     SANDBOX_BASE="$(mktemp -d -t sempal-sandbox-XXXXXXXX)"
     CLEAN=1
+  elif [[ -n "$NAME" ]]; then
+    SANDBOX_BASE="$ROOT_DIR/.sandbox/sempal/$NAME"
   else
     SANDBOX_BASE="$ROOT_DIR/.sandbox/sempal"
   fi

@@ -17,6 +17,7 @@ Derived paths:
 
 param(
   [string]$Dir,
+  [string]$Name,
   [switch]$Temp,
   [switch]$Clean
 )
@@ -24,7 +25,7 @@ param(
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 function New-SandboxBase {
-  param([string]$Requested, [bool]$UseTemp)
+  param([string]$Requested, [string]$SandboxName, [bool]$UseTemp)
   if (-not [string]::IsNullOrWhiteSpace($Requested)) {
     New-Item -ItemType Directory -Path $Requested -Force | Out-Null
     return (Resolve-Path $Requested).Path
@@ -36,13 +37,24 @@ function New-SandboxBase {
     New-Item -ItemType Directory -Path $base -Force | Out-Null
     return (Resolve-Path $base).Path
   } else {
-    $base = Join-Path $rootDir ".sandbox/sempal"
+    if (-not [string]::IsNullOrWhiteSpace($SandboxName)) {
+      $base = Join-Path $rootDir (".sandbox/sempal/" + $SandboxName)
+    } else {
+      $base = Join-Path $rootDir ".sandbox/sempal"
+    }
     New-Item -ItemType Directory -Path $base -Force | Out-Null
     return (Resolve-Path $base).Path
   }
 }
 
-$sandboxBase = New-SandboxBase -Requested $Dir -UseTemp ([bool]$Temp)
+if ($Temp -and -not [string]::IsNullOrWhiteSpace($Name)) {
+  throw "[run_sandbox][error] -Temp and -Name are mutually exclusive."
+}
+if (-not [string]::IsNullOrWhiteSpace($Dir) -and -not [string]::IsNullOrWhiteSpace($Name)) {
+  throw "[run_sandbox][error] -Dir and -Name are mutually exclusive."
+}
+
+$sandboxBase = New-SandboxBase -Requested $Dir -SandboxName $Name -UseTemp ([bool]$Temp)
 $env:SEMPAL_CONFIG_HOME = $sandboxBase
 
 $appRoot = Join-Path $sandboxBase ".sempal"
