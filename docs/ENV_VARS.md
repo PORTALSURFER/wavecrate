@@ -34,6 +34,15 @@ and uses a `.sempal` directory under this base.
 Example: `SEMPAL_CONFIG_HOME=/tmp` causes logs to be written under
 `/tmp/.sempal/logs` on Unix-like platforms.
 
+### What writes where (important for safe local runs)
+
+- App config + logs:
+  - Sempal writes under `<SEMPAL_CONFIG_HOME>/.sempal/` (or your OS config dir if `SEMPAL_CONFIG_HOME` is unset).
+  - `scripts/run_sandbox.*` sets `SEMPAL_CONFIG_HOME` so the run does **not** touch your real user profile config/log directories.
+- Per-source-folder database side effect:
+  - If you point Sempal at a folder, it may create or update a `.sempal_samples.db` in that source folder.
+  - `SEMPAL_CONFIG_HOME` does **not** relocate these per-folder DB files.
+
 - `SEMPAL_NATIVE_FONT_PATH`
 Optional path to a `.ttf` font used by the native shell text renderer when
 system font discovery fails.
