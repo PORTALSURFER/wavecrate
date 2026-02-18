@@ -1,0 +1,86 @@
+name: Entropy - File size budget
+
+on:
+  schedule:
+    # Weekly (Monday) at 03:30 UTC.
+    - cron: "30 3 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: entropy-file-size-budget
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run full file size budget check
+        id: full_check
+        shell: bash
+        run: |
+          set +e
+          ./scripts/check_file_size_budget.sh --all
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          set -e
+      - name: Build allowlist report
+        shell: bash
+        run: |
+          mkdir -p dist/entropy
+          ./scripts/report_file_size_budget_allowlist.sh > dist/entropy/file_budget_allowlist.md
+      - name: Create or update tracking issue
+        uses: actions/github-script@v7
+        env:
+          REPORT_PATH: dist/entropy/file_budget_allowlist.md
+          FULL_CHECK_EXIT_CODE: ${{ steps.full_check.outputs.exit_code }}
+        with:
+          script: |
+            const fs = require('fs');
+
+            const title = 'Tech debt: file size budget allowlist';
+            const labels = ['tech-debt', 'maintenance'];
+            const exitCode = process.env.FULL_CHECK_EXIT_CODE || 'unknown';
+            const reportPath = process.env.REPORT_PATH;
+
+            const report = fs.existsSync(reportPath)
+              ? fs.readFileSync(reportPath, 'utf8')
+              : `# File size budget allowlist report\n\nMissing report file: \`${reportPath}\``;
+
+            const header = [
+              `Full budget check: \`scripts/check_file_size_budget.sh --all\` exit_code=\`${exitCode}\``,
+              '',
+              report.trim(),
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${owner}/${repo} is:issue in:title "${title}"`,
+              per_page: 5,
+            });
+
+            const existing = (search.data.items || []).find((item) => !item.pull_request);
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: existing.number,
+                title,
+                body: header,
+              });
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title,
+              body: header,
+              labels,
+            });
+
