@@ -1,0 +1,11 @@
+# Allowlist for `scripts/check_rust_taste_invariants.*`.
+#
+# Each entry is a repo-relative path to a Rust source file that is allowed to
+# introduce new occurrences of:
+# - `dbg!(...)`
+# - `println!(...)`
+# - `.unwrap()`
+# - `.expect(...)`
+#
+# Keep this list empty/small. Prefer refactoring instead of allowlisting.
+

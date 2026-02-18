@@ -77,6 +77,9 @@ try {
   Write-Host "[ci_local] scripts/check_legacy_app_coupling.ps1"
   & (Join-Path $rootDir "scripts/check_legacy_app_coupling.ps1")
 
+  Write-Host "[ci_local] scripts/check_rust_taste_invariants.ps1"
+  & (Join-Path $rootDir "scripts/check_rust_taste_invariants.ps1")
+
   Write-Host "[ci_local] cargo clippy --all-targets"
   cargo clippy --all-targets
 
