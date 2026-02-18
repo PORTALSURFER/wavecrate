@@ -24,3 +24,28 @@ Rules:
 - After any code change, create a commit and push it.
   If your environment requires explicit approval for git operations, ask for confirmation and include the intended commit message.
 - `manual/` is user-facing documentation only. Developer docs belong in `docs/`.
+
+## Current Agent Context
+
+### Where we are now
+- Repository: `/home/uhx/dev/sempal`
+- Product: Sempal (sample manager app)
+- Work mode: agent-facing review + onboarding hardening
+- Current milestone: applying the second review pass to increase agent-friendliness and reduce hidden side effects.
+
+### What is happening right now
+- Reviewing and documenting high-friction areas in docs, scripts, and runtime behavior before making broad refactors.
+- No active feature or behavior changes are committed in this pass.
+- The immediate goal is to improve handoff quality so the next agent can continue without re-discovering decisions.
+
+### Current known constraints / hazards
+- `run_sandbox` is safer than direct runs but can still write `.sempal_samples.db` in a source tree if launched there.
+- Default run/worktree flow still mixes review, CI, and interactive execution steps.
+- Runtime diagnostics are primarily log-based and human-readable, with limited machine-readable status reporting.
+- `docs/QUALITY_SCORE.md` and the plans area track gaps; they are not yet hard enforcement.
+
+### Recommended start sequence for new agents
+- Read `docs/README.md`, then `docs/FEATURE_CHECKLIST.md`, then `docs/ARCHITECTURE.md`.
+- Confirm environment/tooling with `bash scripts/doctor.sh`.
+- Verify current plan and debt context in `docs/plans/*` and `docs/QUALITY_SCORE.md`.
+- Run `bash scripts/ci_local.sh` before and after edits.
