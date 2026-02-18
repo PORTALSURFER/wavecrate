@@ -1,0 +1,93 @@
+name: Entropy - Doc gardening
+
+on:
+  schedule:
+    # Weekly (Wednesday) at 03:50 UTC.
+    - cron: "50 3 * * 3"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: entropy-doc-gardening
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build docs reports
+        shell: bash
+        run: |
+          mkdir -p dist/entropy
+          ./scripts/report_markdown_links_all.sh > dist/entropy/markdown_links.md
+          ./scripts/report_env_vars_drift.sh > dist/entropy/env_vars_drift.md
+          ./scripts/report_file_size_budget_allowlist.sh > dist/entropy/file_budget_allowlist.md
+      - name: Create or update tracking issue
+        uses: actions/github-script@v7
+        env:
+          LINKS_REPORT: dist/entropy/markdown_links.md
+          ENV_REPORT: dist/entropy/env_vars_drift.md
+          ALLOWLIST_REPORT: dist/entropy/file_budget_allowlist.md
+        with:
+          script: |
+            const fs = require('fs');
+            const title = 'Tech debt: doc gardening';
+            const marker = '<!-- sempal-doc-gardening -->';
+
+            function readOrPlaceholder(path) {
+              return fs.existsSync(path)
+                ? fs.readFileSync(path, 'utf8').trim()
+                : `Missing report file: \`${path}\``;
+            }
+
+            const links = readOrPlaceholder(process.env.LINKS_REPORT);
+            const envs = readOrPlaceholder(process.env.ENV_REPORT);
+            const allowlist = readOrPlaceholder(process.env.ALLOWLIST_REPORT);
+
+            const body = [
+              marker,
+              'Scheduled report for documentation maintenance and drift detection.',
+              '',
+              '## (1) Stale docs links',
+              '',
+              links,
+              '',
+              '## (2) Env vars used but undocumented',
+              '',
+              envs,
+              '',
+              '## (3) Allowlist entries that can be removed',
+              '',
+              allowlist,
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${owner}/${repo} is:issue in:title "${title}"`,
+              per_page: 5,
+            });
+
+            const existing = (search.data.items || []).find((item) => !item.pull_request);
+            if (existing) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: existing.number,
+                title,
+                body,
+              });
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title,
+              body,
+              labels: ['maintenance', 'tech-debt'],
+            });
+
