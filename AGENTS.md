@@ -23,6 +23,8 @@ Rules:
 
 - After any code change, create a commit and push it.
   If your environment requires explicit approval for git operations, ask for confirmation and include the intended commit message.
+- After any code change, run `scripts/ci_local.sh` (and fix issues until green) before push.
+  If you cannot run scripts in your environment, stop and resolve before pushing.
 - `manual/` is user-facing documentation only. Developer docs belong in `docs/`.
 
 ## Current Agent Context
