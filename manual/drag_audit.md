@@ -1,15 +1,11 @@
-# Drag/Drop Call Site Audit
+---
+layout: default
+title: Drag audit (moved)
+permalink: /drag_audit
+description: This page moved to developer documentation.
+---
 
-## `ui/sample_browser_panel.rs`
-- **Sample row drag / frame hover**: sets `DragTarget::BrowserTriage(column)` whenever the pointer sits over a triage column target.
+# Moved
 
-## `ui/sources_panel.rs`
-- **Folder rows**: hovering a row sets `DragTarget::FolderPanel { folder: Some(path) }`.
-- **Panel hover without row**: when pointer is inside the panel but not over a row, emits `DragTarget::FolderPanel { folder: None }`.
-- **Pointer exits panel**: clears the folders source by sending `DragTarget::None`.
+This document is developer-facing and was moved to `docs/audits/drag_audit.md`.
 
-## `ui/waveform_view.rs`
-- **Selection handle drag**: uses `DragTarget::None` so drag state retains pointer position while interacting with waveform handles.
-
-## External drag-outs
-- When `maybe_launch_external_drag` succeeds (Windows only), the controller records `DragTarget::External` so the resolver knows internal targets are suspended during the OS/DAW drag.
