@@ -60,6 +60,9 @@ try {
   Write-Host "[ci_local] cargo fmt --all -- --check"
   cargo fmt --all -- --check
 
+  Write-Host "[ci_local] scripts/check_memory_log.ps1"
+  & (Join-Path $rootDir "scripts/check_memory_log.ps1")
+
   Write-Host "[ci_local] scripts/check_migration_boundary.ps1"
   & (Join-Path $rootDir "scripts/check_migration_boundary.ps1")
 

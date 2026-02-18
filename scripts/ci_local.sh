@@ -11,6 +11,9 @@ cd "$ROOT_DIR"
 echo "[ci_local] cargo fmt --all -- --check"
 cargo fmt --all -- --check
 
+echo "[ci_local] scripts/check_memory_log.sh"
+./scripts/check_memory_log.sh
+
 echo "[ci_local] scripts/check_migration_boundary.sh"
 ./scripts/check_migration_boundary.sh
 
