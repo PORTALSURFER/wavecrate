@@ -17,23 +17,32 @@ Derived paths:
 
 param(
   [string]$Dir,
+  [switch]$Temp,
   [switch]$Clean
 )
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 function New-SandboxBase {
-  param([string]$Requested)
+  param([string]$Requested, [bool]$UseTemp)
   if (-not [string]::IsNullOrWhiteSpace($Requested)) {
     New-Item -ItemType Directory -Path $Requested -Force | Out-Null
     return (Resolve-Path $Requested).Path
   }
-  $base = Join-Path $rootDir ".sandbox/sempal"
-  New-Item -ItemType Directory -Path $base -Force | Out-Null
-  return (Resolve-Path $base).Path
+  if ($UseTemp) {
+    $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
+    $rand = [Guid]::NewGuid().ToString("N").Substring(0, 8)
+    $base = Join-Path $env:TEMP ("sempal-sandbox-" + $stamp + "-" + $rand)
+    New-Item -ItemType Directory -Path $base -Force | Out-Null
+    return (Resolve-Path $base).Path
+  } else {
+    $base = Join-Path $rootDir ".sandbox/sempal"
+    New-Item -ItemType Directory -Path $base -Force | Out-Null
+    return (Resolve-Path $base).Path
+  }
 }
 
-$sandboxBase = New-SandboxBase -Requested $Dir
+$sandboxBase = New-SandboxBase -Requested $Dir -UseTemp ([bool]$Temp)
 $env:SEMPAL_CONFIG_HOME = $sandboxBase
 
 $appRoot = Join-Path $sandboxBase ".sempal"
@@ -50,13 +59,16 @@ Write-Host "[run_sandbox] Can still write:"
 Write-Host ("[run_sandbox]   - sandbox dir: {0}" -f $sandboxBase)
 Write-Host ("[run_sandbox]   - cargo build artifacts: {0} (and your rustup/cargo caches)" -f (Join-Path $rootDir "target"))
 Write-Host "[run_sandbox]   - per-source-folder DBs if you point at them: .sempal_samples.db"
+if ($Temp) {
+  Write-Host "[run_sandbox] Ephemeral mode: sandbox dir will be deleted on exit."
+}
 
 Push-Location $rootDir
 try {
   cargo run --release -- $args
 } finally {
   Pop-Location
-  if ($Clean) {
+  if ($Temp -or $Clean) {
     Remove-Item -LiteralPath $sandboxBase -Recurse -Force -ErrorAction SilentlyContinue
   }
 }

@@ -13,10 +13,11 @@ cd "$ROOT_DIR"
 
 SANDBOX_BASE=""
 CLEAN=0
+TEMP=0
 
 usage() {
   cat <<'EOF'
-Usage: scripts/run_sandbox.sh [--dir <sandbox_base>] [--clean] [--] [app args...]
+Usage: scripts/run_sandbox.sh [--dir <sandbox_base>] [--temp] [--clean] [--] [app args...]
 
 Runs `cargo run --release` with:
 - `SEMPAL_CONFIG_HOME` set to an isolated sandbox base directory
@@ -28,6 +29,7 @@ Derived paths:
 
 Options:
   --dir <path>  Use a fixed sandbox base dir (default: <repo>/.sandbox/sempal).
+  --temp        Use a temporary sandbox base dir (mktemp) and delete it on exit.
   --clean       Delete the sandbox base dir on exit.
 EOF
 }
@@ -36,6 +38,8 @@ while (( $# > 0 )); do
   case "$1" in
     --dir)
       SANDBOX_BASE="${2:-}"; shift 2 ;;
+    --temp)
+      TEMP=1; shift ;;
     --clean)
       CLEAN=1; shift ;;
     --)
@@ -48,7 +52,12 @@ while (( $# > 0 )); do
 done
 
 if [[ -z "$SANDBOX_BASE" ]]; then
-  SANDBOX_BASE="$ROOT_DIR/.sandbox/sempal"
+  if (( TEMP == 1 )); then
+    SANDBOX_BASE="$(mktemp -d -t sempal-sandbox-XXXXXXXX)"
+    CLEAN=1
+  else
+    SANDBOX_BASE="$ROOT_DIR/.sandbox/sempal"
+  fi
 fi
 
 mkdir -p "$SANDBOX_BASE"
@@ -73,5 +82,8 @@ echo "[run_sandbox] Can still write:"
 echo "[run_sandbox]   - sandbox dir: $SEMPAL_CONFIG_HOME"
 echo "[run_sandbox]   - cargo build artifacts: $ROOT_DIR/target (and your rustup/cargo caches)"
 echo "[run_sandbox]   - per-source-folder DBs if you point at them: .sempal_samples.db"
+if (( TEMP == 1 )); then
+  echo "[run_sandbox] Ephemeral mode: sandbox dir will be deleted on exit."
+fi
 
 exec cargo run --release -- "$@"
