@@ -13,9 +13,8 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
   issues: write
-  pull-requests: write
 
 concurrency:
   group: entropy-doc-gardening
@@ -24,6 +23,9 @@ concurrency:
 jobs:
   report:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
       - name: Build docs reports
@@ -97,9 +99,18 @@ jobs:
               body,
               labels: ['maintenance', 'tech-debt'],
             });
-      - name: Prepare optional PR (safe doc gardening auto-fixes)
+
+  open_pr:
+    name: Optional PR (safe auto-fixes)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.open_pr }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare changes
         id: pr_prep
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.open_pr }}
         shell: bash
         run: |
           set -euo pipefail
@@ -111,7 +122,7 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Create PR (safe entropy auto-fixes)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.open_pr && steps.pr_prep.outputs.changed == 'true' }}
+        if: ${{ steps.pr_prep.outputs.changed == 'true' }}
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
