@@ -20,6 +20,9 @@ echo "[ci_local] scripts/check_file_size_budget.sh"
 echo "[ci_local] scripts/check_manual_docs_scope.sh"
 ./scripts/check_manual_docs_scope.sh
 
+echo "[ci_local] scripts/check_legacy_app_coupling.sh"
+./scripts/check_legacy_app_coupling.sh
+
 echo "[ci_local] cargo clippy --all-targets"
 cargo clippy --all-targets
 

@@ -67,6 +67,12 @@ jobs:
           CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: ./scripts/check_manual_docs_scope.sh --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+      - name: Check legacy app coupling
+        shell: bash
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/check_legacy_app_coupling.sh --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
       - name: Lint (clippy)
         run: cargo clippy --all-targets
       - name: Run tests

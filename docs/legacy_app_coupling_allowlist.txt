@@ -1,0 +1,7 @@
+# Allowlist for `scripts/check_legacy_app_coupling.*`.
+#
+# This list contains files that are allowed to introduce new `crate::app` usage.
+# Keep it as small as possible and delete entries once migration completes.
+
+src/app_core/app_api.rs
+
