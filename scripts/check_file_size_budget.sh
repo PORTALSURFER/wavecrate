@@ -74,7 +74,7 @@ collect_files() {
 
   if (( CHECK_ALL == 1 )); then
     git ls-files -- src tests vendor/radiant/src \
-      | grep -E '\\.rs$' || true
+      | grep -E '\.rs$' || true
     return 0
   fi
 
@@ -91,7 +91,7 @@ collect_files() {
   mapfile -t unstaged < <(git diff --name-only --diff-filter=AM -- src tests vendor/radiant/src || true)
 
   printf "%s\n" "${out[@]}" "${staged[@]}" "${unstaged[@]}" \
-    | grep -E '\\.rs$' \
+    | grep -E '\.rs$' \
     | sort -u || true
 }
 
@@ -135,4 +135,3 @@ fi
 
 echo "[file_budget] OK ($checked files checked)"
 exit 0
-

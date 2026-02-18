@@ -103,48 +103,48 @@ scan_diff_stream() {
         is_allowlisted "$current" && continue
         is_testish_path "$current" && continue
 
+        text="${line#+}"
+
         # Ignore pure comment lines to avoid false positives in docs/comments.
-        if [[ "$line" =~ ^\\+\\s*// ]]; then
+        if echo "$text" | grep -Eq '^[[:space:]]*//'; then
           continue
         fi
 
-        text="${line#+}"
-
-        if [[ "$text" =~ \\bdbg!\\s*\\( ]]; then
+        if echo "$text" | grep -Eq '(^|[^a-zA-Z_])dbg!\\s*\\('; then
           if (( violations == 0 )); then
             echo "[taste] Violations detected ($label):" >&2
-            echo "[taste] Use `tracing` instead of `dbg!`/`println!` in non-test code." >&2
-            echo "[taste] Avoid `.unwrap()`/`.expect(...)` in non-test code; propagate errors." >&2
+            echo "[taste] Use tracing instead of dbg!/println! in non-test code." >&2
+            echo "[taste] Avoid .unwrap()/.expect(...) in non-test code; propagate errors." >&2
             echo "[taste] Allowlist (last resort): $ALLOWLIST_PATH" >&2
           fi
           echo " - $current: dbg!: $text" >&2
           violations=$((violations + 1))
         fi
-        if [[ "$text" =~ \\bprintln!\\s*\\( ]]; then
+        if echo "$text" | grep -Eq '(^|[^a-zA-Z_])println!\\s*\\('; then
           if (( violations == 0 )); then
             echo "[taste] Violations detected ($label):" >&2
-            echo "[taste] Use `tracing` instead of `dbg!`/`println!` in non-test code." >&2
-            echo "[taste] Avoid `.unwrap()`/`.expect(...)` in non-test code; propagate errors." >&2
+            echo "[taste] Use tracing instead of dbg!/println! in non-test code." >&2
+            echo "[taste] Avoid .unwrap()/.expect(...) in non-test code; propagate errors." >&2
             echo "[taste] Allowlist (last resort): $ALLOWLIST_PATH" >&2
           fi
           echo " - $current: println!: $text" >&2
           violations=$((violations + 1))
         fi
-        if [[ "$text" =~ \\.unwrap\\(\\) ]]; then
+        if echo "$text" | grep -Eq '\\.unwrap\\s*\\('; then
           if (( violations == 0 )); then
             echo "[taste] Violations detected ($label):" >&2
-            echo "[taste] Use `tracing` instead of `dbg!`/`println!` in non-test code." >&2
-            echo "[taste] Avoid `.unwrap()`/`.expect(...)` in non-test code; propagate errors." >&2
+            echo "[taste] Use tracing instead of dbg!/println! in non-test code." >&2
+            echo "[taste] Avoid .unwrap()/.expect(...) in non-test code; propagate errors." >&2
             echo "[taste] Allowlist (last resort): $ALLOWLIST_PATH" >&2
           fi
           echo " - $current: unwrap(): $text" >&2
           violations=$((violations + 1))
         fi
-        if [[ "$text" =~ \\.expect\\s*\\( ]]; then
+        if echo "$text" | grep -Eq '\\.expect\\s*\\('; then
           if (( violations == 0 )); then
             echo "[taste] Violations detected ($label):" >&2
-            echo "[taste] Use `tracing` instead of `dbg!`/`println!` in non-test code." >&2
-            echo "[taste] Avoid `.unwrap()`/`.expect(...)` in non-test code; propagate errors." >&2
+            echo "[taste] Use tracing instead of dbg!/println! in non-test code." >&2
+            echo "[taste] Avoid .unwrap()/.expect(...) in non-test code; propagate errors." >&2
             echo "[taste] Allowlist (last resort): $ALLOWLIST_PATH" >&2
           fi
           echo " - $current: expect(): $text" >&2
@@ -182,4 +182,3 @@ fi
 
 echo "[taste] OK"
 exit 0
-
