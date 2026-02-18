@@ -14,6 +14,9 @@ cargo fmt --all -- --check
 echo "[ci_local] scripts/check_migration_boundary.sh"
 ./scripts/check_migration_boundary.sh
 
+echo "[ci_local] scripts/check_workflow_toolchain_pinning.sh"
+./scripts/check_workflow_toolchain_pinning.sh
+
 echo "[ci_local] scripts/check_file_size_budget.sh"
 ./scripts/check_file_size_budget.sh
 

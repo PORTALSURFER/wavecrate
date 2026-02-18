@@ -1,0 +1,72 @@
+name: Entropy - Auto-merge safe maintenance PRs
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: entropy-automerge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  enable:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate: safe entropy PR only
+        id: gate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.setFailed('Missing pull_request payload');
+              return;
+            }
+
+            const allowedAuthors = new Set(['github-actions[bot]', 'peter-evans[bot]']);
+            const labels = new Set((pr.labels || []).map((l) => l.name));
+            const isBot = allowedAuthors.has(pr.user?.login || '');
+            const isEntropyBranch = typeof pr.head?.ref === 'string' && pr.head.ref.startsWith('entropy/');
+            const hasLabel = labels.has('maintenance') && labels.has('tech-debt');
+
+            core.info(`author=${pr.user?.login} bot=${isBot}`);
+            core.info(`head_ref=${pr.head?.ref} entropy_branch=${isEntropyBranch}`);
+            core.info(`labels=${[...labels].join(',')}`);
+
+            core.setOutput('pr', String(pr.number));
+
+            if (!isBot || !isEntropyBranch || !hasLabel) {
+              core.setOutput('enable', 'false');
+              return;
+            }
+
+            // Ensure the PR only touches docs/** (including allowlists).
+            const { owner, repo } = context.repo;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+
+            const bad = (files || []).filter((f) => typeof f.filename === 'string' && !f.filename.startsWith('docs/'));
+            if (bad.length > 0) {
+              core.info(`Found non-docs changes (${bad.length}): ${bad.slice(0, 10).map((b) => b.filename).join(', ')}`);
+              core.setOutput('enable', 'false');
+              return;
+            }
+
+            core.setOutput('enable', 'true');
+      - name: Enable auto-merge (squash)
+        if: ${{ steps.gate.outputs.enable == 'true' }}
+        continue-on-error: true
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ steps.gate.outputs.pr }}
+          merge-method: squash
+

@@ -70,6 +70,10 @@ jobs:
       - name: Check migration boundary
         shell: bash
         run: ./scripts/check_migration_boundary.sh
+      - name: Check workflow toolchain pinning
+        if: ${{ matrix.platform == 'linux' }}
+        shell: bash
+        run: ./scripts/check_workflow_toolchain_pinning.sh
       - name: Check file size budget
         shell: bash
         env:

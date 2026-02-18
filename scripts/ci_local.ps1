@@ -63,6 +63,9 @@ try {
   Write-Host "[ci_local] scripts/check_migration_boundary.ps1"
   & (Join-Path $rootDir "scripts/check_migration_boundary.ps1")
 
+  Write-Host "[ci_local] scripts/check_workflow_toolchain_pinning.ps1"
+  & (Join-Path $rootDir "scripts/check_workflow_toolchain_pinning.ps1")
+
   Write-Host "[ci_local] scripts/check_file_size_budget.ps1"
   & (Join-Path $rootDir "scripts/check_file_size_budget.ps1")
 

@@ -36,7 +36,7 @@ $rewrites = @(
   @{ From = "manual/drag_audit.md"; To = "docs/audits/drag_audit.md" }
 )
 
-$targets = @("README.md", "AGENTS.md", "docs", ".github") | ForEach-Object { Join-Path $root $_ }
+$targets = @("docs") | ForEach-Object { Join-Path $root $_ }
 $changed = $false
 
 foreach ($rw in $rewrites) {
@@ -65,4 +65,3 @@ if ($changed) {
 } else {
   Write-Host "[fix_trivial_doc_links] no changes"
 }
-

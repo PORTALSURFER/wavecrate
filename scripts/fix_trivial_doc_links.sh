@@ -62,7 +62,7 @@ for ((i=0; i<${#REWRITES[@]}; i+=2)); do
     continue
   fi
 
-  mapfile -t files < <(rg -l --fixed-strings "$from" README.md AGENTS.md docs .github 2>/dev/null || true)
+  mapfile -t files < <(rg -l --fixed-strings "$from" docs 2>/dev/null || true)
   if (( ${#files[@]} == 0 )); then
     continue
   fi
@@ -78,4 +78,3 @@ if (( changed == 0 )); then
 else
   echo "[fix_trivial_doc_links] rewrites applied" >&2
 fi
-

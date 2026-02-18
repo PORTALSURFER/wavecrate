@@ -1,6 +1,7 @@
 /target
 /dist
 .sandbox/
+.worktrees/
 staging
 profile.kernel.etl
 profile.json.gz
