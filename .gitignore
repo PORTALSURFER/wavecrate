@@ -1,5 +1,6 @@
 /target
 /dist
+.sandbox/
 staging
 profile.kernel.etl
 profile.json.gz
