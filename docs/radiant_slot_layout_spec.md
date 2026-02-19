@@ -555,12 +555,20 @@ For each container, assert exact output rects across:
 - Native-shell map rendering and map hit-testing now consume adapter-owned
   canvas/point geometry instead of local `state.rs` helper arithmetic.
 
+## Current Implementation Status (Phase 22)
+
+- Browser tab surface geometry now routes through adapter-owned helpers:
+  - `layout_adapter::compute_browser_tabs_rects(...)` for `samples`/`map`
+    tab rect bounds and distribution
+- Native-shell browser tab rendering and tab hit-testing now consume adapter
+  tab rects instead of local split-width arithmetic in `state.rs`.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
 annotation micro-placement outside sidebar/status/waveform-header/browser-list
 /map-header/top-bar-update/overlay-copy/browser-chrome/control-strip/sidebar
-text/chrome/title/browser-row-cache/map-canvas paths (for example residual
-annotation text paths and other local rect arithmetic) that still uses local
-geometry and should be migrated into slotized text/layout adapters in a
+text/chrome/title/browser-row-cache/map-canvas/browser-tabs paths (for example
+residual annotation text paths and other local rect arithmetic) that still uses
+local geometry and should be migrated into slotized text/layout adapters in a
 follow-up phase.

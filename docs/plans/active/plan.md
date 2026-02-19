@@ -294,3 +294,20 @@ placement arithmetic in `state.rs`.
 6. [x] Regenerate affected native-shell shot fixtures (if changed) and keep
    `vendor/radiant` tests green.
 7. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 22) Checklist
+
+Goal: migrate browser tab surface geometry into adapter-owned helpers so
+native-shell tab rendering and tab hit-testing no longer rely on local
+split-width arithmetic in `state.rs`.
+
+1. [x] Add a focused `layout_adapter::browser_tabs` module for tab rect
+   geometry (`samples`/`map`) with slotized row distribution.
+2. [x] Route browser-tab rendering through adapter-computed tab rects.
+3. [x] Route browser-tab hit-testing (`browser_tab_action_at_point`) through
+   adapter-computed tab rects.
+4. [x] Remove legacy local browser-tab split helper arithmetic from `state.rs`.
+5. [x] Add focused adapter tests for tab rect bounds and ordering.
+6. [x] Regenerate affected native-shell shot fixtures (if changed) and keep
+   `vendor/radiant` tests green.
+7. [x] Update slot-layout spec status and tracked remaining gap notes.
