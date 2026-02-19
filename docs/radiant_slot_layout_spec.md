@@ -450,10 +450,20 @@ For each container, assert exact output rects across:
   consume adapter-owned browser row/header text/chip geometry instead of local
   browser text baseline and inset arithmetic.
 
+## Current Implementation Status (Phase 12)
+
+- Map-active browser-header metadata geometry now routes through slotized
+  adapter helpers:
+  - `layout_adapter::compute_browser_map_header_text_layout(...)` for
+    map-header left/right metadata label bounds
+- Native-shell map-active browser-header rendering now consumes adapter-owned
+  map-header label geometry instead of local text baseline and right-anchor
+  rect arithmetic.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
 annotation micro-placement outside sidebar/status/waveform-header/browser-list
-paths (for example map-header metadata and other overlay copy paths) that still uses local rect
+/map-header paths (for example status/update overlays and other residual copy paths) that still uses local rect
 arithmetic and should be migrated into slotized text/layout adapters in a
 follow-up phase.

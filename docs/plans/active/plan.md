@@ -129,3 +129,18 @@ label/baseline rect arithmetic for those surfaces.
 4. [x] Regenerate affected native-shell shot fixtures and keep
    `vendor/radiant` tests green.
 5. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 12) Checklist
+
+Goal: migrate map-active browser-header metadata text geometry into strict
+slotized adapters so shell-state rendering no longer owns local map-header
+text baseline and right-anchor rect arithmetic.
+
+1. [x] Add a focused `layout_adapter::map_header` module for map-header
+   left/right metadata label bounds.
+2. [x] Route map-active browser-header rendering through adapter-computed
+   map-header label rects.
+3. [x] Add focused adapter tests for map-header bounds and right-partition
+   constraints.
+4. [x] Keep `vendor/radiant` tests green after the rewiring.
+5. [x] Update slot-layout spec status and tracked remaining gap notes.
