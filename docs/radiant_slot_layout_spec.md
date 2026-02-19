@@ -269,6 +269,9 @@ Cache measure results by:
 - `SlotParams`
 - `Constraints { min_w, max_w, min_h, max_h }`
 - `LayoutResult { rects, overflow_flags, diagnostics }`
+- `LayoutState { scroll_offsets }` for stateful containers (`ScrollView`)
+- `LayoutDebugOptions` and `LayoutDebugPrimitive` for non-interactive debug overlays
+- `LayoutDiagnosticCode` for stable diagnostic categories
 
 ## 12. Test Requirements
 
@@ -293,6 +296,19 @@ For each container, assert exact output rects across:
 - Deep nesting (`100` to `500` levels).
 - Large slot lists (`1k` to `10k` items), especially for scroll/virtualized
   containers.
+
+## Current Implementation Status (Phase 2)
+
+- `LayoutEngine::layout_with_state(...)` is implemented to accept `LayoutState`
+  and `LayoutDebugOptions`.
+- `ScrollView` now clamps requested offsets to viewport-valid ranges and emits
+  `InvalidScrollOffsetClamped` diagnostics when clamping occurs.
+- Layout output now includes debug primitives (node bounds, content bounds,
+  slot margins, overflow markers) when debug options are enabled.
+- Diagnostics now carry stable codes (`LayoutDiagnosticCode`) so tests and
+  tooling can assert behavior without relying on free-form text.
+- Virtualized scroll/windowing behavior remains intentionally out of scope for
+  this phase.
 
 ## Current Native-Shell Gap (tracked)
 
