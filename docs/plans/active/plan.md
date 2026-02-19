@@ -29,3 +29,37 @@
 - “Feasible” should be interpreted broadly: tests are expected in almost all cases.
 - Prefer small, focused unit tests that validate behaviour clearly.
 - Do not allow untested logic unless explicitly approved by the user.
+
+## Layout Redesign (Phase 6) Checklist
+
+Goal: migrate high-impact native-shell geometry to strict slotized helper
+adapters while preserving current visual and interaction behavior.
+
+1. [x] Slotize top-bar bands (`title row`, `controls row`, `title cluster`,
+   `action cluster`) in `layout_adapter`.
+2. [x] Slotize browser bands (`tabs`, `toolbar`, `header`, `rows`, `footer`)
+   in `layout_adapter`.
+3. [x] Slotize sidebar bands (`header`, `rows`, `footer`) in `layout_adapter`.
+4. [x] Route sidebar source/folder split via `layout_adapter` section helper
+   instead of shell-state local split helpers.
+5. [x] Rewire `ShellLayout::build_with_style(...)` to consume slotized band
+   outputs for top-bar/browser/sidebar.
+6. [x] Update layout spec status + tracked remaining gap text in
+   `docs/radiant_slot_layout_spec.md`.
+
+## Layout Redesign (Phase 7) Checklist
+
+Goal: migrate remaining overlay and control-strip micro-layout surfaces to
+strict slotized helper adapters while preserving current behavior.
+
+1. [x] Add slotized overlay adapters for prompt/progress/drag geometry and
+   route state hit-testing/rendering through adapter outputs.
+2. [x] Add slotized control-strip adapters for top-bar update actions, browser
+   actions, and sidebar footer actions.
+3. [x] Add slotized browser toolbar section adapter for search/activity/sort
+   partitioning left of the action strip.
+4. [x] Split new adapter code into focused modules under the line-budget
+   constraints and add focused unit tests for non-trivial geometry logic.
+5. [x] Regenerate native-shell shot fixtures and keep `vendor/radiant` tests
+   green after rewiring.
+6. [x] Update layout redesign docs/spec status for this phase.

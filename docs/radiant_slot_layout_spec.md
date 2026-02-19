@@ -375,9 +375,40 @@ For each container, assert exact output rects across:
   - size: `round(w), round(h)`
   - size lower bound: `0`
 
+## Current Implementation Status (Phase 6)
+
+- Native-shell high-impact layout bands now resolve through layout-core slot
+  trees in `layout_adapter`:
+  - top-bar banding (`title row`, `controls row`, `title cluster`,
+    `action cluster`)
+  - browser banding (`tabs`, `toolbar`, `table header`, `rows`, `footer`)
+  - sidebar banding (`header`, `rows`, `footer`)
+- Sidebar source/folder section partitioning now routes through
+  `layout_adapter::compute_sidebar_row_sections(...)`, replacing shell-state
+  local rectangle partition helpers.
+- `ShellLayout::build_with_style(...)` now consumes the slotized band outputs
+  from `layout_adapter` for top-bar/browser/sidebar geometry instead of local
+  ad-hoc panel arithmetic.
+
+## Current Implementation Status (Phase 7)
+
+- Native-shell overlay geometry now routes through slotized layout adapters:
+  - `layout_adapter::compute_prompt_overlay_sections(...)`
+  - `layout_adapter::compute_progress_overlay_sections(...)`
+  - `layout_adapter::compute_drag_overlay_rect(...)`
+- Browser/sidebar/top-bar component micro-layout now routes through slotized
+  control adapters:
+  - top-bar update action buttons
+  - browser action strip buttons
+  - sidebar footer action buttons
+  - browser toolbar search/activity/sort partitions
+- Shell-state rendering and hit-testing now consume adapter-owned overlay/button
+  sections instead of local ad-hoc rect math for those surfaces.
+
 ## Current Native-Shell Gap (tracked)
 
-Current native shell rendering includes a top-bar volume meter that is
-hardcoded and non-interactive (a visual placeholder). This is intentionally
-out-of-spec for this document and should be replaced with a slot-driven,
-model-backed widget that participates in the layout/action contract.
+Remaining native-shell layout work is now concentrated in text/badge baseline
+and decoration offsets inside render routines (for example per-label vertical
+offset tuning and waveform annotation micro-placement) that still use local
+rect arithmetic and should be migrated into slotized text/layout adapters in a
+follow-up phase.
