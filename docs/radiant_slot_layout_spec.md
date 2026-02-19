@@ -526,11 +526,21 @@ For each container, assert exact output rects across:
 - Native-shell top-bar title rendering now consumes adapter-owned label rects
   instead of local top-title baseline/inset arithmetic.
 
+## Current Implementation Status (Phase 19)
+
+- Sidebar chrome copy geometry now routes through slotized adapter helpers:
+  - `layout_adapter::compute_sidebar_header_text_layout(...)` for sidebar
+    header title/query text-line bounds
+  - `layout_adapter::compute_sidebar_footer_text_layout(...)` for sidebar
+    footer primary/secondary summary text-line bounds
+- Native-shell sidebar header/footer text rendering now consumes adapter-owned
+  line geometry instead of local sidebar chrome text-row arithmetic.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
 annotation micro-placement outside sidebar/status/waveform-header/browser-list
-/map-header/top-bar-update/overlay-copy/browser-chrome/control-strip/
-sidebar-row-text/top-title paths (for example map-canvas annotations and other
-residual annotation text paths) that still uses local rect arithmetic and
-should be migrated into slotized text/layout adapters in a follow-up phase.
+/map-header/top-bar-update/overlay-copy/browser-chrome/control-strip/sidebar
+text/chrome/title paths (for example map-canvas annotations and other residual
+annotation text paths) that still uses local rect arithmetic and should be
+migrated into slotized text/layout adapters in a follow-up phase.

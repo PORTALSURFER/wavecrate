@@ -244,3 +244,19 @@ shell-state no longer owns local top-title baseline and inset arithmetic.
 5. [x] Regenerate affected native-shell shot fixtures and keep
    `vendor/radiant` tests green.
 6. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 19) Checklist
+
+Goal: migrate sidebar header/footer chrome copy geometry into strict slotized
+adapters so shell-state no longer owns local sidebar chrome text-row arithmetic.
+
+1. [x] Add a focused `layout_adapter::sidebar_chrome_text` module for sidebar
+   header title/query and footer primary/secondary line bounds.
+2. [x] Route sidebar header title/query rendering through adapter-computed line
+   rects in full-frame rendering.
+3. [x] Route sidebar footer summary/recovery rendering through adapter-computed
+   line rects in full-frame rendering.
+4. [x] Add focused adapter tests for sidebar chrome text bounds and ordering.
+5. [x] Regenerate affected native-shell shot fixtures and keep
+   `vendor/radiant` tests green.
+6. [x] Update slot-layout spec status and tracked remaining gap notes.
