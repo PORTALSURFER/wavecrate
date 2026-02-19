@@ -358,6 +358,23 @@ For each container, assert exact output rects across:
 | `Grid` | Horizontal/Vertical | N/A | N/A | Fallback + diagnostic |
 | non-linear containers | N/A | N/A | N/A | Fallback + diagnostic |
 
+## Current Implementation Status (Phase 5)
+
+- Debug overlays now support measured-vs-final inspection via
+  `DebugPrimitiveKind::MeasuredBounds` and `LayoutDebugOptions::show_measured`.
+- `LayoutEngine` now exposes subtree dirty APIs:
+  - `mark_layout_dirty_subtree(root, node_id)`
+  - `mark_measure_dirty_subtree(root, node_id)`
+- Dirty subtree marking includes ancestor path nodes so parent/container measure
+  cache entries are invalidated deterministically for affected branches.
+- Native-shell top-bar control geometry now resolves through layout-core slot
+  trees (`layout_adapter::compute_top_bar_controls_sections`) instead of
+  standalone ad-hoc rectangle math in shell state.
+- Rounding contract remains explicit and unchanged:
+  - origin: `floor(x), floor(y)`
+  - size: `round(w), round(h)`
+  - size lower bound: `0`
+
 ## Current Native-Shell Gap (tracked)
 
 Current native shell rendering includes a top-bar volume meter that is
