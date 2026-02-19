@@ -126,6 +126,48 @@ Enables native bridge profiling logs when the build enables the
 `native-bridge-metrics` cargo feature. Accepted values: `1`, `true`, `on`, `yes`
 (case-insensitive).
 
+## Performance guard benchmark overrides
+
+- `SEMPAL_PERF_GUARD_OUT`
+Output path used by `scripts/run_perf_guard.sh` for the benchmark JSON report.
+Default: `target/perf/bench.json`.
+
+- `SEMPAL_PERF_GUARD_GUI_ROWS`
+Synthetic GUI row count passed to `sempal-bench` for the guard run.
+Default: `2500`.
+
+- `SEMPAL_PERF_GUARD_GUI_INTERACTION_ROWS`
+Synthetic row count used for focused interaction benchmark scenarios.
+Default: `1500`.
+
+- `SEMPAL_PERF_GUARD_GUI_INTERACTION_ITERS`
+Measured iteration count per focused interaction scenario.
+Default: `24`.
+
+- `SEMPAL_PERF_GUARD_WARMUP_ITERS`
+Warmup iteration count used during guard benchmark runs.
+Default: `3`.
+
+- `SEMPAL_PERF_GUARD_MEASURE_ITERS`
+Measured iteration count used for each guard benchmark action.
+Default: `16`.
+
+- `SEMPAL_PERF_WARN_P95_US_HOVER`
+Warning-only p95 latency threshold (microseconds) for hover interaction
+benchmark results. Default: `8000`.
+
+- `SEMPAL_PERF_WARN_P95_US_WHEEL`
+Warning-only p95 latency threshold (microseconds) for wheel interaction
+benchmark results. Default: `10000`.
+
+- `SEMPAL_PERF_WARN_P95_US_MAP_PAN_PROXY`
+Warning-only p95 latency threshold (microseconds) for map-pan-proxy interaction
+benchmark results. Default: `12000`.
+
+- `SEMPAL_PERF_WARN_P95_US_WAVEFORM`
+Warning-only p95 latency threshold (microseconds) for waveform interaction
+benchmark results. Default: `10000`.
+
 ## Analysis job tuning and debugging
 
 - `SEMPAL_ANALYSIS_WORKERS`

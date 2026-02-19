@@ -1,0 +1,4 @@
+# Diff-aware allowlist for scripts/check_rust_private_docs.sh
+#
+# Paths listed here are excluded from the private-docs guardrail.
+# Keep this list empty unless there is a justified, temporary exception.

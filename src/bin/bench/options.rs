@@ -7,6 +7,10 @@ const DEFAULT_ANALYSIS_DURATION_MS: u32 = 500;
 const DEFAULT_ANALYSIS_SAMPLE_RATE: u32 = 44_100;
 const DEFAULT_SIMILARITY_ROWS: usize = 20_000;
 const DEFAULT_GUI_ROWS: usize = 10_000;
+/// Default row count used for focused GUI interaction scenarios.
+const DEFAULT_GUI_INTERACTION_ROWS: usize = 2_000;
+/// Default measured-iteration count per focused GUI interaction scenario.
+const DEFAULT_GUI_INTERACTION_ITERS: usize = 24;
 const DEFAULT_WARMUP_ITERS: usize = 5;
 const DEFAULT_MEASURE_ITERS: usize = 30;
 
@@ -42,6 +46,10 @@ pub(super) struct BenchOptions {
     pub(super) similarity_rows: usize,
     /// Number of rows seeded for the GUI benchmark.
     pub(super) gui_rows: usize,
+    /// Number of rows used by focused interaction scenarios.
+    pub(super) gui_interaction_rows: usize,
+    /// Number of measured interaction iterations per scenario.
+    pub(super) gui_interaction_iters: usize,
 }
 
 impl Default for BenchOptions {
@@ -60,6 +68,8 @@ impl Default for BenchOptions {
             analysis_sample_rate: DEFAULT_ANALYSIS_SAMPLE_RATE,
             similarity_rows: DEFAULT_SIMILARITY_ROWS,
             gui_rows: DEFAULT_GUI_ROWS,
+            gui_interaction_rows: DEFAULT_GUI_INTERACTION_ROWS,
+            gui_interaction_iters: DEFAULT_GUI_INTERACTION_ITERS,
         }
     }
 }
@@ -194,6 +204,14 @@ fn apply_value(
             options.gui_rows = parse_usize(args, idx, "--gui-rows")?;
             Ok(true)
         }
+        "--gui-interaction-rows" => {
+            options.gui_interaction_rows = parse_usize(args, idx, "--gui-interaction-rows")?;
+            Ok(true)
+        }
+        "--gui-interaction-iters" => {
+            options.gui_interaction_iters = parse_usize(args, idx, "--gui-interaction-iters")?;
+            Ok(true)
+        }
         _ => Ok(false),
     }
 }
@@ -243,7 +261,9 @@ Options:\n\
   --analysis-duration-ms <ms>  Synthetic wav duration (default: 500)\n\
   --analysis-sample-rate <hz>  Synthetic wav sample rate (default: 44100)\n\
   --similarity-rows <n>        Seed rows for similarity benchmark (default: 20000)\n\
-  --gui-rows <n>              Seed rows for GUI benchmark (default: 10000)\n\
+  --gui-rows <n>               Seed rows for GUI benchmark (default: 10000)\n\
+  --gui-interaction-rows <n>   Seed rows for focused GUI interaction scenarios (default: 2000)\n\
+  --gui-interaction-iters <n>  Measured iterations per interaction scenario (default: 24)\n\
   -h, --help                   Show this help\n"
 }
 
@@ -251,10 +271,19 @@ Options:\n\
 mod tests {
     use super::*;
 
+    /// Parse CLI args and require a concrete benchmark options payload.
+    fn parse_options_or_panic(args: Vec<String>) -> BenchOptions {
+        match parse_args(args) {
+            Ok(Some(options)) => options,
+            Ok(None) => panic!("expected options"),
+            Err(err) => panic!("parse args failed: {err}"),
+        }
+    }
+
+    /// Ensure default parse enables all benchmark groups and default values.
     #[test]
     fn parse_args_defaults_to_enabled_benchmarks() {
-        let options = parse_args(vec![]).expect("parse default args");
-        let options = options.expect("expected options");
+        let options = parse_options_or_panic(vec![]);
         assert!(options.analysis);
         assert!(options.similarity);
         assert!(options.gui);
@@ -264,25 +293,27 @@ mod tests {
         assert_eq!(options.analysis_sample_rate, DEFAULT_ANALYSIS_SAMPLE_RATE);
         assert_eq!(options.similarity_rows, DEFAULT_SIMILARITY_ROWS);
         assert_eq!(options.gui_rows, DEFAULT_GUI_ROWS);
+        assert_eq!(options.gui_interaction_rows, DEFAULT_GUI_INTERACTION_ROWS);
+        assert_eq!(options.gui_interaction_iters, DEFAULT_GUI_INTERACTION_ITERS);
     }
 
+    /// Ensure toggle and output flags override benchmark defaults.
     #[test]
     fn parse_args_supports_toggle_and_output_flags() {
-        let options = parse_args(vec![
+        let options = parse_options_or_panic(vec![
             "--no-analysis".to_string(),
             "--no-similarity".to_string(),
             "--analysis-full".to_string(),
             "--out".to_string(),
             "results.json".to_string(),
-        ])
-        .expect("parse toggle args");
-        let options = options.expect("expected options");
+        ]);
         assert!(!options.analysis);
         assert!(!options.similarity);
         assert!(options.analysis_full);
         assert_eq!(options.out, PathBuf::from("results.json"));
     }
 
+    /// Ensure parser rejects the fully disabled benchmark configuration.
     #[test]
     fn parse_args_rejects_all_disabled() {
         let err = parse_args(vec![
@@ -297,6 +328,7 @@ mod tests {
         );
     }
 
+    /// Ensure parser reports numeric validation failures with flag context.
     #[test]
     fn parse_args_rejects_invalid_argument_value() {
         let err = parse_args(vec![
@@ -310,6 +342,7 @@ mod tests {
         );
     }
 
+    /// Ensure parser reports unknown arguments with help text context.
     #[test]
     fn parse_args_rejects_unknown_argument() {
         let err = parse_args(vec!["--does-not-exist".to_string()]);
@@ -318,5 +351,18 @@ mod tests {
             err.unwrap_err()
                 .contains("Unknown argument: --does-not-exist")
         );
+    }
+
+    /// Ensure focused GUI interaction CLI overrides are parsed and applied.
+    #[test]
+    fn parse_args_accepts_gui_interaction_overrides() {
+        let options = parse_options_or_panic(vec![
+            "--gui-interaction-rows".to_string(),
+            "128".to_string(),
+            "--gui-interaction-iters".to_string(),
+            "12".to_string(),
+        ]);
+        assert_eq!(options.gui_interaction_rows, 128);
+        assert_eq!(options.gui_interaction_iters, 12);
     }
 }

@@ -18,6 +18,8 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
   - Build `radiant` with `--features gui-performance`.
   - Set `SEMPAL_NATIVE_RENDER_PROFILE=1` before launch.
   - Profiling prints averages every 240 native redraw frames to stderr; disable feature for normal runs to avoid collection overhead.
+- Run `bash scripts/run_perf_guard.sh` (or `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`) to execute deterministic benchmark scenarios for hover, wheel, map-pan proxy, and waveform interactions.
+- Tune guard input size and warning limits with `SEMPAL_PERF_GUARD_*` and `SEMPAL_PERF_WARN_P95_US_*` overrides documented in `docs/ENV_VARS.md`.
 
 ## Checklist
 - Launch app and select the large source.
@@ -32,6 +34,7 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
 - Initial load time (ms) from status.
 - Frame responsiveness during fast scroll (subjective) and selection latency.
 - Post-scan reload time (ms).
+- Perf guard scenario latencies (p50/p95/max/mean) and warning-threshold drift across runs.
 
 ## Follow-ups
 - Adjust row height/window size if scroll perf regresses.

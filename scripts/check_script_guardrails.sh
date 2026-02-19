@@ -509,6 +509,22 @@ run_expect_exit_code \
   scripts/check_quality_score_drift.sh
 
 run_expect_exit_code \
+  "bash -n scripts/check_rust_private_docs.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/check_rust_private_docs.sh
+
+run_expect_exit_code \
+  "bash -n scripts/run_perf_guard.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/run_perf_guard.sh
+
+run_expect_exit_code \
   "bash -n scripts/run_sandbox.sh" \
   0 \
   "$ROOT_DIR" \

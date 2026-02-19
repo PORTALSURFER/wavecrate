@@ -100,6 +100,9 @@ try {
   Write-Host "[ci_local] cargo test --all-targets"
   cargo test --all-targets
 
+  Write-Host "[ci_local] scripts/run_perf_guard.sh"
+  & bash (Join-Path $rootDir "scripts/run_perf_guard.sh")
+
   Write-Host "[ci_local] OK"
 } finally {
   Pop-Location

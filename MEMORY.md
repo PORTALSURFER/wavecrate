@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-19T22:27:36Z
+Last Updated: 2026-02-19T22:52:44Z
 Updated By: Codex
 
 ## Purpose
@@ -10,22 +10,21 @@ Updated By: Codex
 
 ## Current Session (2026-02-19 UTC)
 
-- I am implementing the multi-day runtime performance/responsiveness redesign.
+- I am implementing the multi-day runtime performance/responsiveness redesign
+  as the core current project task.
 - `docs/plans/active/plan.md` tracks this under
   `Runtime Performance Redesign (Multi-Day) Checklist`.
-- Runtime milestones 1-4 are now complete:
-  - `vendor/radiant/src/gui_runtime/native_vello.rs` routes `UiAction`
-    handling through scoped invalidation and now uses a persistent
-    `ShellLayoutRuntime`.
-  - `vendor/radiant/src/gui/native_shell/layout_runtime.rs` persists
-    layout-core engine/state per shell tree family and applies deterministic
-    subtree dirtying (`layout`/`measure`) on hot paths.
-  - `src/app_core/native_bridge.rs` and `src/app_core/native_shell.rs` reuse
-    cached model/projection outputs by deterministic keys.
-- The repository-wide clippy baseline cleanup pass has been applied and
-  `bash scripts/ci_local.sh` is currently green.
-- I am preparing the final milestone batch commit/push for these runtime and
-  responsiveness changes.
+- Runtime milestones 1-4 are complete, and I am finishing milestone 5:
+  - `src/bin/bench/gui.rs` and `src/bin/bench/stats.rs` now benchmark focused
+    interaction scenarios (hover, wheel, map-pan proxy, waveform).
+  - `scripts/run_perf_guard.sh` (and `.ps1`) runs deterministic interaction
+    latency checks and emits warning-only threshold drift diagnostics.
+  - `vendor/radiant/src/gui_runtime/native_vello.rs` is being finalized with
+    interaction-class latency profiling hooks for hover/wheel/map-proxy/waveform.
+  - `src/app_core/native_bridge.rs` is being finalized with classified action
+    timing attribution (wheel/map-proxy/waveform).
+- I am running full local CI and preparing coherent commit/push handoff after
+  checks are green.
 
 ## Work Notes
 

@@ -64,4 +64,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc -p sempal --no-deps
 echo "[ci_local] cargo test --all-targets"
 cargo test --all-targets
 
+echo "[ci_local] scripts/run_perf_guard.sh"
+./scripts/run_perf_guard.sh
+
 echo "[ci_local] OK"

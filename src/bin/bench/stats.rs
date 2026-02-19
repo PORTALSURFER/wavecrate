@@ -25,13 +25,18 @@ pub(super) fn bench_action(
     options: &BenchOptions,
     mut f: impl FnMut() -> Result<(), String>,
 ) -> Result<LatencySummary, String> {
-    run_warmup_action(options.warmup_iters, &mut f)?;
-    let samples_us = run_measure_action(options.measure_iters, &mut f)?;
-    Ok(summarize(
-        options.warmup_iters,
-        options.measure_iters,
-        samples_us,
-    ))
+    bench_action_with_iters(options.warmup_iters, options.measure_iters, &mut f)
+}
+
+/// Measure benchmark actions with explicitly supplied warmup and measure counts.
+pub(super) fn bench_action_with_iters(
+    warmup_iters: usize,
+    measure_iters: usize,
+    mut f: impl FnMut() -> Result<(), String>,
+) -> Result<LatencySummary, String> {
+    run_warmup_action(warmup_iters, &mut f)?;
+    let samples_us = run_measure_action(measure_iters, &mut f)?;
+    Ok(summarize(warmup_iters, measure_iters, samples_us))
 }
 
 fn run_warmup_action(
@@ -94,6 +99,15 @@ fn percentile(sorted: &[u64], p: f64) -> u64 {
 mod tests {
     use super::*;
 
+    /// Panic with context when a stats test helper result is an error.
+    fn must<T>(result: Result<T, String>, context: &str) -> T {
+        match result {
+            Ok(value) => value,
+            Err(err) => panic!("{context}: {err}"),
+        }
+    }
+
+    /// Ensure warmup runner executes the action exactly the requested count.
     #[test]
     fn run_warmup_invokes_action_exactly() {
         let mut calls = 0usize;
@@ -105,6 +119,7 @@ mod tests {
         assert_eq!(calls, 3);
     }
 
+    /// Ensure measured runner records and returns sorted timing samples.
     #[test]
     fn run_measure_action_collects_timings_and_sorts() {
         let mut calls = 0usize;
@@ -112,11 +127,12 @@ mod tests {
             calls += 1;
             Ok(())
         });
-        let samples = result.expect("measured samples");
+        let samples = must(result, "measured samples");
         assert_eq!(calls, 3);
         assert_eq!(samples.len(), 3);
     }
 
+    /// Ensure summary output reports expected min/max and percentile values.
     #[test]
     fn summarize_percentile_handles_empty_and_known_data() {
         let summary = summarize(0, 4, vec![40_u64, 10_u64, 30_u64, 20_u64, 50_u64]);
@@ -126,6 +142,7 @@ mod tests {
         assert_eq!(summary.p95_us, 50);
     }
 
+    /// Ensure percentile index rounding and clamping are deterministic.
     #[test]
     fn percentile_rounds_and_clamps_indices() {
         let sorted = vec![10_u64, 20, 30, 40];
@@ -134,6 +151,7 @@ mod tests {
         assert_eq!(percentile(&sorted, -1.0), 10);
     }
 
+    /// Ensure `bench_action` reports configured warmup/measure sample counts.
     #[test]
     fn bench_action_reports_requested_sample_counts() {
         let mut calls = 0usize;
@@ -142,16 +160,19 @@ mod tests {
             measure_iters: 3,
             ..BenchOptions::default()
         };
-        let summary = bench_action(&options, || {
-            calls += 1;
-            Ok(())
-        })
-        .expect("bench action");
+        let summary = must(
+            bench_action(&options, || {
+                calls += 1;
+                Ok(())
+            }),
+            "bench action",
+        );
         assert_eq!(summary.warmup_iters, 2);
         assert_eq!(summary.measure_iters, 3);
         assert_eq!(calls, 5);
     }
 
+    /// Ensure measured action failures are wrapped with benchmark context.
     #[test]
     fn bench_action_wraps_measured_action_error() {
         let mut attempts = 0usize;
@@ -170,5 +191,21 @@ mod tests {
         });
         let error = result.expect_err("expected failure");
         assert!(error.contains("Measured action failed: attempt 2 failed"));
+    }
+
+    /// Ensure explicit warmup/measure counts override `BenchOptions` defaults.
+    #[test]
+    fn bench_action_with_iters_uses_explicit_counts() {
+        let mut calls = 0usize;
+        let summary = must(
+            bench_action_with_iters(2, 4, || {
+                calls += 1;
+                Ok(())
+            }),
+            "bench action with explicit counts",
+        );
+        assert_eq!(summary.warmup_iters, 2);
+        assert_eq!(summary.measure_iters, 4);
+        assert_eq!(calls, 6);
     }
 }

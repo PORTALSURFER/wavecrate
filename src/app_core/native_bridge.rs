@@ -41,6 +41,17 @@ const BRIDGE_PROFILE_INTERVAL: u64 = 1;
 #[cfg(feature = "native-bridge-metrics")]
 const BRIDGE_PROFILE_ENV: &str = "SEMPAL_NATIVE_BRIDGE_PROFILE";
 
+/// Interaction classes tracked by native bridge profiling.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum InteractionActionClass {
+    /// Wheel-like browser row movement actions.
+    Wheel,
+    /// Map interaction actions flowing through the bridge.
+    MapPanProxy,
+    /// Waveform seek/cursor/selection/zoom actions.
+    Waveform,
+}
+
 #[cfg(feature = "native-bridge-metrics")]
 static PULL_MODEL_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
@@ -57,6 +68,24 @@ static PULL_MOTION_PROJECT_NS: AtomicU64 = AtomicU64::new(0);
 static ACTION_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 static ACTION_DURATION_NS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Total count of wheel-class interaction actions.
+static ACTION_WHEEL_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Accumulated wheel-class interaction action duration in nanoseconds.
+static ACTION_WHEEL_DURATION_NS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Total count of map-proxy-class interaction actions.
+static ACTION_MAP_PROXY_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Accumulated map-proxy-class interaction action duration in nanoseconds.
+static ACTION_MAP_PROXY_DURATION_NS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Total count of waveform-class interaction actions.
+static ACTION_WAVEFORM_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Accumulated waveform-class interaction action duration in nanoseconds.
+static ACTION_WAVEFORM_DURATION_NS: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 static FRAME_RESULT_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
@@ -102,6 +131,24 @@ fn ms_from_ns(ns: u64) -> f64 {
     ns as f64 / 1_000_000.0
 }
 
+/// Classify UI actions into focused interaction profile groups.
+fn classify_action_interaction(action: &NativeUiAction) -> Option<InteractionActionClass> {
+    match action {
+        NativeUiAction::MoveBrowserFocus { .. } => Some(InteractionActionClass::Wheel),
+        NativeUiAction::SetBrowserTab { map: true } | NativeUiAction::FocusMapSample { .. } => {
+            Some(InteractionActionClass::MapPanProxy)
+        }
+        NativeUiAction::SeekWaveform { .. }
+        | NativeUiAction::SetWaveformCursor { .. }
+        | NativeUiAction::SetWaveformSelectionRange { .. }
+        | NativeUiAction::ClearWaveformSelection
+        | NativeUiAction::ZoomWaveform { .. }
+        | NativeUiAction::ZoomWaveformToSelection
+        | NativeUiAction::ZoomWaveformFull => Some(InteractionActionClass::Waveform),
+        _ => None,
+    }
+}
+
 #[cfg(feature = "native-bridge-metrics")]
 fn maybe_log_bridge_profile() {
     let pull_model_count = PULL_MODEL_COUNT.load(Ordering::Relaxed);
@@ -112,6 +159,12 @@ fn maybe_log_bridge_profile() {
     let pull_motion_project = PULL_MOTION_PROJECT_NS.load(Ordering::Relaxed);
     let action_count = ACTION_COUNT.load(Ordering::Relaxed);
     let action_ns = ACTION_DURATION_NS.load(Ordering::Relaxed);
+    let wheel_count = ACTION_WHEEL_COUNT.load(Ordering::Relaxed);
+    let wheel_ns = ACTION_WHEEL_DURATION_NS.load(Ordering::Relaxed);
+    let map_proxy_count = ACTION_MAP_PROXY_COUNT.load(Ordering::Relaxed);
+    let map_proxy_ns = ACTION_MAP_PROXY_DURATION_NS.load(Ordering::Relaxed);
+    let waveform_count = ACTION_WAVEFORM_COUNT.load(Ordering::Relaxed);
+    let waveform_ns = ACTION_WAVEFORM_DURATION_NS.load(Ordering::Relaxed);
     let frame_count = FRAME_RESULT_COUNT.load(Ordering::Relaxed);
     let frame_anim_count = FRAME_RESULT_ANIMATION_COUNT.load(Ordering::Relaxed);
     let primitive_sum = FRAME_RESULT_PRIMITIVES_TOTAL.load(Ordering::Relaxed);
@@ -141,6 +194,21 @@ fn maybe_log_bridge_profile() {
     } else {
         ms_from_ns(action_ns) / action_count as f64
     };
+    let wheel_avg_ms = if wheel_count == 0 {
+        0.0
+    } else {
+        ms_from_ns(wheel_ns) / wheel_count as f64
+    };
+    let map_proxy_avg_ms = if map_proxy_count == 0 {
+        0.0
+    } else {
+        ms_from_ns(map_proxy_ns) / map_proxy_count as f64
+    };
+    let waveform_avg_ms = if waveform_count == 0 {
+        0.0
+    } else {
+        ms_from_ns(waveform_ns) / waveform_count as f64
+    };
     let avg_primitives_per_frame = if frame_count == 0 {
         0.0
     } else {
@@ -155,16 +223,23 @@ fn maybe_log_bridge_profile() {
         pull_model_count,
         pull_motion_count,
         action_count,
+        wheel_count,
+        map_proxy_count,
+        waveform_count,
         frame_count,
         frame_anim_count,
         "native bridge profiling: pull_model prep_ms={:.3} project_ms={:.3} \
          pull_motion prep_ms={:.3} project_ms={:.3} action_ms={:.3} \
+         wheel_action_ms={:.3} map_proxy_action_ms={:.3} waveform_action_ms={:.3} \
          avg_primitives_per_frame={:.2} avg_text_runs_per_frame={:.2}",
         pull_model_avg_prep_ms,
         pull_model_avg_project_ms,
         pull_motion_avg_prep_ms,
         pull_motion_avg_project_ms,
         action_avg_ms,
+        wheel_avg_ms,
+        map_proxy_avg_ms,
+        waveform_avg_ms,
         avg_primitives_per_frame,
         avg_text_runs_per_frame
     );
@@ -263,6 +338,30 @@ fn trace_action_duration(duration: Duration) {
 #[cfg(not(feature = "native-bridge-metrics"))]
 #[inline(always)]
 fn trace_action_duration(_duration: Duration) {}
+
+#[cfg(feature = "native-bridge-metrics")]
+#[inline(always)]
+/// Track classified interaction action timings for bridge profiling logs.
+fn trace_action_interaction(kind: InteractionActionClass, duration: Duration) {
+    match kind {
+        InteractionActionClass::Wheel => {
+            ACTION_WHEEL_COUNT.fetch_add(1, Ordering::Relaxed);
+            saturating_add_duration(&ACTION_WHEEL_DURATION_NS, duration);
+        }
+        InteractionActionClass::MapPanProxy => {
+            ACTION_MAP_PROXY_COUNT.fetch_add(1, Ordering::Relaxed);
+            saturating_add_duration(&ACTION_MAP_PROXY_DURATION_NS, duration);
+        }
+        InteractionActionClass::Waveform => {
+            ACTION_WAVEFORM_COUNT.fetch_add(1, Ordering::Relaxed);
+            saturating_add_duration(&ACTION_WAVEFORM_DURATION_NS, duration);
+        }
+    }
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+/// No-op classified interaction recorder for non-profiling builds.
+fn trace_action_interaction(_kind: InteractionActionClass, _duration: Duration) {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct MapQueryBoundsKey {
@@ -559,6 +658,7 @@ impl NativeAppBridge for SempalNativeBridge {
     fn on_action(&mut self, action: NativeUiAction) {
         let call = trace_action_call();
         let profiling = bridge_profiling_enabled();
+        let interaction_class = classify_action_interaction(&action);
         let action_start = profiling.then(Instant::now);
         if call <= 64 {
             info!(call, action = ?action, "native bridge: on_action");
@@ -568,6 +668,9 @@ impl NativeAppBridge for SempalNativeBridge {
         if profiling {
             let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
             trace_action_duration(action_duration);
+            if let Some(kind) = interaction_class {
+                trace_action_interaction(kind, action_duration);
+            }
         }
     }
 

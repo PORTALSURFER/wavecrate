@@ -381,5 +381,5 @@ cache-friendly projection/layout behavior, following Xilem-style scoped updates.
    browser/sidebar/map surfaces reuse prior projected view models.
 4. [x] Persist and reuse layout engine state in layout-core runtime integration
    so dirty-subtree invalidation APIs are exercised on hot paths.
-5. [ ] Add focused performance telemetry gates and benchmarks for hover, wheel,
+5. [x] Add focused performance telemetry gates and benchmarks for hover, wheel,
    map pan, and waveform interaction latencies.

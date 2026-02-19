@@ -136,6 +136,7 @@ run_check "manual docs scope guard" "" "" ./scripts/check_manual_docs_scope.sh
 run_check "legacy app coupling guardrail" "" "" ./scripts/check_legacy_app_coupling.sh
 run_check "rust todo/todo guardrail (non-test only)" "" "" ./scripts/check_rust_no_todos.sh
 run_check "rust public docs guardrail" "" "" ./scripts/check_rust_public_docs.sh
+run_check "rust private docs guardrail" "" "" ./scripts/check_rust_private_docs.sh
 run_check "app_core dependency boundary" "" "" ./scripts/check_app_core_dependency_boundary.sh
 run_check "knowledge lint" "" "" ./scripts/knowledge_lint.sh
 
