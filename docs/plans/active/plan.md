@@ -208,3 +208,23 @@ arithmetic for those surfaces.
 5. [x] Regenerate affected native-shell shot fixtures and keep
    `vendor/radiant` tests green.
 6. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 17) Checklist
+
+Goal: migrate sidebar source/folder row and recovery-badge copy geometry into
+strict slotized adapters so shell-state no longer owns local row-label/badge
+baseline arithmetic for those paths.
+
+1. [x] Add a focused `layout_adapter::sidebar_text` module for source-row,
+   folder-row, and recovery-badge label bounds.
+2. [x] Route sidebar source/folder row text rendering through adapter-computed
+   label rects in full-frame rendering.
+3. [x] Route focused folder-row overlay text rendering through adapter-computed
+   label rects in state-overlay rendering.
+4. [x] Route recovery-badge label rendering through adapter-computed label
+   rects.
+5. [x] Add focused adapter tests for sidebar row/badge text bounds and indent
+   behavior.
+6. [x] Regenerate affected native-shell shot fixtures and keep
+   `vendor/radiant` tests green.
+7. [x] Update slot-layout spec status and tracked remaining gap notes.

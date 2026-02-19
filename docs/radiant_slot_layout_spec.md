@@ -504,11 +504,25 @@ For each container, assert exact output rects across:
 - Native-shell control-strip rendering now consumes adapter-owned text-line
   geometry instead of local `text_top_in_rect(...)` arithmetic for those paths.
 
+## Current Implementation Status (Phase 17)
+
+- Sidebar row and recovery-badge copy geometry now routes through slotized
+  adapter helpers:
+  - `layout_adapter::compute_sidebar_source_row_text_rect(...)` for source-row
+    label bounds
+  - `layout_adapter::compute_sidebar_folder_row_text_rect(...)` for folder-row
+    label bounds with depth indent
+  - `layout_adapter::compute_sidebar_recovery_badge_text_rect(...)` for
+    recovery-badge label bounds
+- Native-shell sidebar full-frame and state-overlay rendering now consumes
+  adapter-owned label rects instead of local row/badge `text_top_in_rect(...)`
+  arithmetic for those paths.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
 annotation micro-placement outside sidebar/status/waveform-header/browser-list
-/map-header/top-bar-update/overlay-copy/browser-chrome/control-strip paths (for
-example map-canvas annotations and other residual row-label/title text paths)
-that still uses local rect arithmetic and should be migrated into slotized
-text/layout adapters in a follow-up phase.
+/map-header/top-bar-update/overlay-copy/browser-chrome/control-strip/
+sidebar-row-text paths (for example map-canvas annotations and residual
+top-title text paths) that still uses local rect arithmetic and should be
+migrated into slotized text/layout adapters in a follow-up phase.
