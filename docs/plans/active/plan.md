@@ -190,3 +190,21 @@ label-baseline arithmetic for those surfaces.
    empty-section collapse behavior.
 4. [x] Keep `vendor/radiant` tests green after the rewiring.
 5. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 16) Checklist
+
+Goal: migrate control-strip label text geometry into strict slotized adapters
+so shell-state no longer owns local button-label and top-controls baseline
+arithmetic for those surfaces.
+
+1. [x] Add a focused `layout_adapter::control_text` module for top-bar controls
+   labels and action-button label bounds.
+2. [x] Route update/browser/sidebar action-button text rendering through
+   adapter-computed label rects.
+3. [x] Route top-bar controls labels (`Options`, volume value, `Vol`) through
+   adapter-computed text-line rects.
+4. [x] Add focused adapter tests for control text bounds and empty-button
+   collapse behavior.
+5. [x] Regenerate affected native-shell shot fixtures and keep
+   `vendor/radiant` tests green.
+6. [x] Update slot-layout spec status and tracked remaining gap notes.
