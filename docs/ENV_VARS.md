@@ -25,6 +25,15 @@ CI secret used by `.github/workflows/release-build.yml` to sign release checksum
 files. This is expected to be an Ed25519 private key in PEM form that OpenSSL
 can use for `pkeyutl -sign`.
 
+- `SEMPAL_WINDOWS_SIGN_PFX_BASE64`
+CI secret used by `.github/workflows/release-build.yml` to Authenticode-sign
+Windows executables. This value is expected to be a base64-encoded `.pfx`
+certificate bundle.
+
+- `SEMPAL_WINDOWS_SIGN_PFX_PASSWORD`
+Password for `SEMPAL_WINDOWS_SIGN_PFX_BASE64`, consumed by the Windows signing
+step in `.github/workflows/release-build.yml`.
+
 ## Agent hand-off guardrails
 
 - `AGENT_PREFLIGHT_UPDATER`

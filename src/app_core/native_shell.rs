@@ -177,8 +177,8 @@ fn project_update_model(ui: &UiState) -> UpdatePanelModel {
             .update
             .available_tag
             .as_deref()
-            .map(|tag| format!("Update available: {tag}"))
-            .unwrap_or_else(|| String::from("Update available")),
+            .map(|tag| format!("Update available: {tag} (manual install required)"))
+            .unwrap_or_else(|| String::from("Update available (manual install required)")),
         UpdateStatus::Error => ui
             .update
             .last_error
@@ -191,7 +191,7 @@ fn project_update_model(ui: &UiState) -> UpdatePanelModel {
         UpdateStatus::Checking => String::from("Action: waiting"),
         UpdateStatus::UpdateAvailable => {
             if ui.update.available_url.is_some() {
-                String::from("Actions: open | install | dismiss")
+                String::from("Actions: open | install(manual) | dismiss")
             } else {
                 String::from("Action: dismiss")
             }
@@ -202,9 +202,9 @@ fn project_update_model(ui: &UiState) -> UpdatePanelModel {
         UpdateStatus::UpdateAvailable => {
             let tag = ui.update.available_tag.as_deref().unwrap_or("latest");
             if let Some(published_at) = ui.update.available_published_at.as_deref() {
-                format!("Release: {tag} ({published_at})")
+                format!("Release: {tag} ({published_at}) | Signed manual install required")
             } else {
-                format!("Release: {tag}")
+                format!("Release: {tag} | Signed manual install required")
             }
         }
         _ => String::new(),
@@ -1185,14 +1185,17 @@ mod tests {
         ui.update.available_published_at = Some(String::from("2026-02-01T12:00:00Z"));
         let projected = project_update_model(&ui);
         assert_eq!(projected.status, UpdateStatusModel::Available);
-        assert_eq!(projected.status_label, "Update available: v20.1.0");
+        assert_eq!(
+            projected.status_label,
+            "Update available: v20.1.0 (manual install required)"
+        );
         assert_eq!(
             projected.action_hint_label,
-            "Actions: open | install | dismiss"
+            "Actions: open | install(manual) | dismiss"
         );
         assert_eq!(
             projected.release_notes_label,
-            "Release: v20.1.0 (2026-02-01T12:00:00Z)"
+            "Release: v20.1.0 (2026-02-01T12:00:00Z) | Signed manual install required"
         );
 
         ui.update.status = UpdateStatus::Error;

@@ -25,3 +25,16 @@ writing outside the intended install directory.
 ## Notes
 
 - See `docs/ENV_VARS.md` for the override semantics.
+
+## Trust and AV diagnostics (Windows)
+
+- Windows update install is manual by design. The app opens the release page and
+  does not replace binaries in place.
+- Release CI signs `sempal.exe`, `sempal-updater.exe`, and
+  `sempal-installer.exe` using Authenticode and fails the build if signature
+  verification is not `Valid`.
+- If endpoint protection still flags a release:
+  - Confirm the affected executable reports `Valid` with
+    `Get-AuthenticodeSignature`.
+  - Record the SHA-256 of the flagged file and submit a false-positive report to
+    your AV vendor with the signature details.

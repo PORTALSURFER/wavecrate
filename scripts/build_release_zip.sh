@@ -4,12 +4,21 @@ set -euo pipefail
 APP_NAME="sempal"
 REPO_ROOT="$(pwd)"
 BUILD_CARGO_BIN="${SEMPAL_CARGO_BIN:-cargo}"
+SKIP_BUILD="${SEMPAL_SKIP_BUILD:-0}"
 OUT_DIR="dist/release"
 TARGET=""
 PLATFORM=""
 ARCH=""
 CHANNEL=""
 VERSION=""
+
+is_truthy() {
+  local value="$1"
+  case "${value,,}" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 usage() {
   cat <<'EOF'
@@ -77,9 +86,11 @@ case "$CHANNEL" in
     ;;
 esac
 
-"$BUILD_CARGO_BIN" build --release --bin "$APP_NAME" --target "$TARGET"
-if [[ "$TARGET" == *windows* ]]; then
-  "$BUILD_CARGO_BIN" build --release --bin "${APP_NAME}-updater" --target "$TARGET"
+if ! is_truthy "$SKIP_BUILD"; then
+  "$BUILD_CARGO_BIN" build --release --bin "$APP_NAME" --target "$TARGET"
+  if [[ "$TARGET" == *windows* ]]; then
+    "$BUILD_CARGO_BIN" build --release --bin "${APP_NAME}-updater" --target "$TARGET"
+  fi
 fi
 
 BIN_NAME="$APP_NAME"

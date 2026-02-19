@@ -4,6 +4,14 @@ This document describes the release artifact shapes produced by `rls_cargo` and 
 
 Canonical source of truth for naming and layout is `release_contract.toml`.
 
+## Windows policy
+
+- The app checks for updates in-app, but update installation on Windows is manual.
+- Selecting install opens the release page; the app does not replace binaries in place.
+- CI must Authenticode-sign `sempal.exe`, `sempal-updater.exe`, and
+  `sempal-installer.exe` for both stable and nightly release jobs.
+- Windows release jobs fail if signature verification is not `Valid` for any required executable.
+
 ## Channels
 
 - `stable`: immutable releases tagged `v{VERSION}` (GitHub `prerelease=false`)

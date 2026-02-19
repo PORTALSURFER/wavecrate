@@ -118,6 +118,82 @@ jobs:
             --channel "${RELEASE_CHANNEL}" \
             ${RELEASE_VERSION:+--version "${RELEASE_VERSION}"} \
             --out-dir dist/release
+      - name: Build installer binary (Windows)
+        if: ${{ matrix.platform == 'windows' }}
+        shell: bash
+        run: |
+          cargo build --release --bin sempal-installer --target "${{ matrix.target }}"
+      - name: Sign Windows executables
+        if: ${{ matrix.platform == 'windows' }}
+        shell: pwsh
+        env:
+          SEMPAL_WINDOWS_SIGN_PFX_BASE64: ${{ secrets.SEMPAL_WINDOWS_SIGN_PFX_BASE64 }}
+          SEMPAL_WINDOWS_SIGN_PFX_PASSWORD: ${{ secrets.SEMPAL_WINDOWS_SIGN_PFX_PASSWORD }}
+        run: |
+          if (-not $env:SEMPAL_WINDOWS_SIGN_PFX_BASE64) {
+            throw "Missing SEMPAL_WINDOWS_SIGN_PFX_BASE64 secret."
+          }
+          if (-not $env:SEMPAL_WINDOWS_SIGN_PFX_PASSWORD) {
+            throw "Missing SEMPAL_WINDOWS_SIGN_PFX_PASSWORD secret."
+          }
+          $targetDir = Join-Path $env:GITHUB_WORKSPACE "target/${{ matrix.target }}/release"
+          $binaries = @(
+            (Join-Path $targetDir "sempal.exe"),
+            (Join-Path $targetDir "sempal-updater.exe"),
+            (Join-Path $targetDir "sempal-installer.exe")
+          )
+          foreach ($binary in $binaries) {
+            if (-not (Test-Path $binary)) {
+              throw "Missing binary for signing: $binary"
+            }
+          }
+          $certPath = Join-Path $env:RUNNER_TEMP "sempal-codesign.pfx"
+          [System.IO.File]::WriteAllBytes(
+            $certPath,
+            [System.Convert]::FromBase64String($env:SEMPAL_WINDOWS_SIGN_PFX_BASE64)
+          )
+          foreach ($binary in $binaries) {
+            & signtool sign /fd SHA256 /f $certPath /p $env:SEMPAL_WINDOWS_SIGN_PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $binary
+            if ($LASTEXITCODE -ne 0) {
+              throw "signtool sign failed for $binary"
+            }
+          }
+          Remove-Item -LiteralPath $certPath -Force
+      - name: Verify Windows signatures
+        if: ${{ matrix.platform == 'windows' }}
+        shell: pwsh
+        run: |
+          $targetDir = Join-Path $env:GITHUB_WORKSPACE "target/${{ matrix.target }}/release"
+          $binaries = @(
+            (Join-Path $targetDir "sempal.exe"),
+            (Join-Path $targetDir "sempal-updater.exe"),
+            (Join-Path $targetDir "sempal-installer.exe")
+          )
+          $rows = @("path`tstatus`tsigner_subject`ttimestamp_subject")
+          foreach ($binary in $binaries) {
+            $signature = Get-AuthenticodeSignature -FilePath $binary
+            if ($signature.Status -ne "Valid") {
+              throw "Authenticode verification failed for $binary: $($signature.Status)"
+            }
+            $signer = if ($signature.SignerCertificate) { $signature.SignerCertificate.Subject } else { "missing" }
+            $timestamp = if ($signature.TimeStamperCertificate) { $signature.TimeStamperCertificate.Subject } else { "missing" }
+            $rows += "$binary`t$($signature.Status)`t$signer`t$timestamp"
+          }
+          $reportPath = Join-Path $env:GITHUB_WORKSPACE "dist/release/windows-authenticode-report.txt"
+          [System.IO.File]::WriteAllLines($reportPath, $rows)
+      - name: Rebuild signed release zip (Windows)
+        if: ${{ matrix.platform == 'windows' }}
+        env:
+          SEMPAL_SKIP_BUILD: "1"
+        shell: bash
+        run: |
+          scripts/build_release_zip.sh \
+            --target "${{ matrix.target }}" \
+            --platform "${{ matrix.platform }}" \
+            --arch "${{ matrix.arch }}" \
+            --channel "${RELEASE_CHANNEL}" \
+            ${RELEASE_VERSION:+--version "${RELEASE_VERSION}"} \
+            --out-dir dist/release
       - name: Uniquify checksums entry
         shell: bash
         run: |

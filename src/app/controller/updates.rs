@@ -46,64 +46,20 @@ impl AppController {
         let _ = self.save_full_config();
     }
 
-    /// On Windows, launch `sempal-updater.exe` and terminate the app so the helper can swap binaries.
+    /// Open the release page and require manual update installation.
+    ///
+    /// This intentionally avoids in-app binary replacement to keep the update
+    /// path explicit and easier to validate with platform trust tooling.
     pub fn install_update_and_exit(&mut self) {
-        #[cfg(not(target_os = "windows"))]
-        {
-            self.open_update_link();
+        if self.ui.update.available_url.is_none() {
+            self.set_status("No update available", StatusTone::Info);
             return;
         }
-        #[cfg(target_os = "windows")]
-        {
-            let Some(url) = self.ui.update.available_url.clone() else {
-                self.set_status("No update available", StatusTone::Info);
-                return;
-            };
-            let install_dir = match std::env::current_exe()
-                .ok()
-                .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-            {
-                Some(dir) => dir,
-                None => {
-                    self.set_status("Could not resolve install directory", StatusTone::Error);
-                    return;
-                }
-            };
-            let updater_path = install_dir.join("sempal-updater.exe");
-            if !updater_path.exists() {
-                self.set_status(
-                    "Updater helper missing (sempal-updater.exe); opening release page",
-                    StatusTone::Warning,
-                );
-                let _ = crate::updater::open_release_page(&url);
-                return;
-            }
-            let channel = map_channel(self.settings.updates.channel);
-            let mut cmd = std::process::Command::new(&updater_path);
-            cmd.arg("--install-dir")
-                .arg(&install_dir)
-                .arg("--repo")
-                .arg(crate::updater::REPO_SLUG)
-                .arg("--channel")
-                .arg(match channel {
-                    UpdateChannel::Stable => "stable",
-                    UpdateChannel::Nightly => "nightly",
-                })
-                .arg("--target")
-                .arg("x86_64-pc-windows-msvc")
-                .arg("--platform")
-                .arg("windows")
-                .arg("--arch")
-                .arg("x86_64");
-            let spawned = cmd.spawn();
-            match spawned {
-                Ok(_) => std::process::exit(0),
-                Err(err) => self.set_status(
-                    format!("Could not launch updater: {err}"),
-                    StatusTone::Error,
-                ),
-            }
-        }
+        self.set_status(
+            "Manual secure update required; opening release page",
+            StatusTone::Info,
+        );
+        self.open_update_link();
     }
 
     pub(crate) fn apply_update_check_result(&mut self, result: UpdateCheckOutcome) {
