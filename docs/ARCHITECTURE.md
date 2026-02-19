@@ -83,6 +83,7 @@ When changing ownership boundaries:
   - `waveform` — waveform decoding, rendering, and caching.
   - `main.rs` and `bin/` entrypoints — app and updater binaries.
 - `vendor/radiant/`: UI shell, layout, and rendering engine used by native shells.
+  - Layout contract: `docs/radiant_slot_layout_spec.md`.
   - `vendor/radiant/src/app/` — native-app bridge model types and action enums.
   - `vendor/radiant/src/gui/` — retained shell layout, style, painting, and input bridge.
     - `gui/native_shell/` — interaction state, layout primitives, and shell frame generation.

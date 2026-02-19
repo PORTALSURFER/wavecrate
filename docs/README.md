@@ -13,6 +13,7 @@ Start here:
 - `docs/ENV_VARS.md` — environment variable reference
 - `docs/TEST.md` — test suite map and commands
 - `docs/design_principles.md` — architectural goals and constraints
+- `docs/radiant_slot_layout_spec.md` — strict hierarchical slot-based layout contract for `vendor/radiant`
 - `docs/QUALITY_SCORE.md` — coarse quality scorecard and known gaps
 - `docs/plans/index.md` — current/archived plan index for parallel agents
 - `docs/plans/TEMPLATE_execution_plan.md` — template for multi-step work
