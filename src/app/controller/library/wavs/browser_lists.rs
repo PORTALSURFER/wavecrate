@@ -153,6 +153,60 @@ impl AppController {
         self.browser_path_for_visible(row)
     }
 
+    /// Refresh browser focus/loaded markers without rebuilding visible row lists.
+    ///
+    /// This is used for focus-only interactions (for example wheel navigation)
+    /// where triage buckets and visible ordering are unchanged.
+    pub(crate) fn refresh_browser_selection_markers(&mut self) {
+        self.prune_browser_selection();
+        let selected_index = self.selected_row_index();
+        let loaded_index = self.loaded_row_index();
+        self.ui.browser.selected =
+            selected_index.and_then(|index| self.browser_index_for_entry(index));
+        self.ui.browser.loaded = loaded_index.and_then(|index| self.browser_index_for_entry(index));
+        self.ui.browser.selected_visible =
+            selected_index.and_then(|index| self.ui.browser.visible.position(index));
+        self.ui.browser.loaded_visible =
+            loaded_index.and_then(|index| self.ui.browser.visible.position(index));
+        self.ui.loaded_wav = loaded_index.and_then(|index| {
+            self.wav_entry(index)
+                .map(|entry| entry.relative_path.clone())
+        });
+        let visible_len = self.ui.browser.visible.len();
+        if let Some(anchor) = self.ui.browser.selection_anchor_visible
+            && anchor >= visible_len
+        {
+            self.ui.browser.selection_anchor_visible = self.ui.browser.selected_visible;
+        }
+    }
+
+    /// Resolve a triage-column browser index for an absolute wav entry index.
+    fn browser_index_for_entry(&self, entry_index: usize) -> Option<SampleBrowserIndex> {
+        use crate::sample_sources::Rating;
+        self.ui
+            .browser
+            .trash
+            .iter()
+            .position(|index| *index == entry_index)
+            .map(|row| view_model::sample_browser_index_for(Rating::TRASH_3, row))
+            .or_else(|| {
+                self.ui
+                    .browser
+                    .neutral
+                    .iter()
+                    .position(|index| *index == entry_index)
+                    .map(|row| view_model::sample_browser_index_for(Rating::NEUTRAL, row))
+            })
+            .or_else(|| {
+                self.ui
+                    .browser
+                    .keep
+                    .iter()
+                    .position(|index| *index == entry_index)
+                    .map(|row| view_model::sample_browser_index_for(Rating::KEEP_1, row))
+            })
+    }
+
     pub(crate) fn browser_path_for_visible(&mut self, visible_row: usize) -> Option<PathBuf> {
         let index = self.ui.browser.visible.get(visible_row)?;
         self.wav_entry(index)

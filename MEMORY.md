@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-19T22:52:44Z
+Last Updated: 2026-02-19T23:36:23Z
 Updated By: Codex
 
 ## Purpose
@@ -10,21 +10,18 @@ Updated By: Codex
 
 ## Current Session (2026-02-19 UTC)
 
-- I am implementing the multi-day runtime performance/responsiveness redesign
-  as the core current project task.
-- `docs/plans/active/plan.md` tracks this under
-  `Runtime Performance Redesign (Multi-Day) Checklist`.
-- Runtime milestones 1-4 are complete, and I am finishing milestone 5:
-  - `src/bin/bench/gui.rs` and `src/bin/bench/stats.rs` now benchmark focused
-    interaction scenarios (hover, wheel, map-pan proxy, waveform).
-  - `scripts/run_perf_guard.sh` (and `.ps1`) runs deterministic interaction
-    latency checks and emits warning-only threshold drift diagnostics.
-  - `vendor/radiant/src/gui_runtime/native_vello.rs` is being finalized with
-    interaction-class latency profiling hooks for hover/wheel/map-proxy/waveform.
-  - `src/app_core/native_bridge.rs` is being finalized with classified action
-    timing attribution (wheel/map-proxy/waveform).
-- I am running full local CI and preparing coherent commit/push handoff after
-  checks are green.
+- I am implementing the next runtime-performance batch in the multi-day
+  responsiveness redesign plan.
+- The current change set improves high-frequency browser interactions by:
+  - avoiding full browser-list rebuilds on focus-only selection changes via
+    `refresh_browser_selection_markers` in
+    `src/app/controller/library/wavs/browser_lists.rs`.
+  - lowering projected browser-row cap to 256 in `src/app_core/ui.rs`.
+  - aligning render-window tests in `src/app_core/native_shell.rs` with the new cap.
+  - making `scripts/run_perf_guard.sh` sandbox-safe by defaulting XDG
+    config/data/state writes to `target/perf/runtime`.
+- `bash scripts/ci_local.sh` is green for this batch, and I am preparing
+  commit/push.
 
 ## Work Notes
 

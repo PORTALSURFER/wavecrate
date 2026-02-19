@@ -422,7 +422,7 @@ impl AppController {
             }
         }
         self.select_wav_by_path_with_rebuild(&path, false);
-        self.rebuild_browser_lists();
+        self.refresh_browser_selection_markers();
     }
 
     /// Return the set of action rows for a primary row (multi-select aware).

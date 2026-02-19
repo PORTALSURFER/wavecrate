@@ -16,8 +16,15 @@ GUI_INTERACTION_ROWS="${SEMPAL_PERF_GUARD_GUI_INTERACTION_ROWS:-1500}"
 GUI_INTERACTION_ITERS="${SEMPAL_PERF_GUARD_GUI_INTERACTION_ITERS:-24}"
 WARMUP_ITERS="${SEMPAL_PERF_GUARD_WARMUP_ITERS:-3}"
 MEASURE_ITERS="${SEMPAL_PERF_GUARD_MEASURE_ITERS:-16}"
+PERF_STATE_ROOT="${SEMPAL_PERF_GUARD_STATE_ROOT:-$ROOT_DIR/target/perf/runtime}"
 
 mkdir -p "$(dirname "$OUT_PATH")"
+mkdir -p "$PERF_STATE_ROOT/config" "$PERF_STATE_ROOT/data" "$PERF_STATE_ROOT/state"
+
+# Keep benchmark config/data writes inside the repo unless the caller overrides XDG dirs.
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$PERF_STATE_ROOT/config}"
+export XDG_DATA_HOME="${XDG_DATA_HOME:-$PERF_STATE_ROOT/data}"
+export XDG_STATE_HOME="${XDG_STATE_HOME:-$PERF_STATE_ROOT/state}"
 
 echo "[perf_guard] running sempal-bench interaction profile"
 cargo run --bin sempal-bench -- \
