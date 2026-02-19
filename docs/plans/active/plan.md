@@ -97,3 +97,19 @@ adapters so shell layout/state no longer own local status rect arithmetic.
 5. [x] Regenerate affected native-shell shot fixtures and keep
    `vendor/radiant` tests green.
 6. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 10) Checklist
+
+Goal: migrate waveform header title/metadata text-row geometry into strict
+slotized adapters so shell-state rendering no longer owns local waveform header
+rect arithmetic.
+
+1. [x] Add a focused `layout_adapter::waveform_header` module for waveform
+   header title and metadata row geometry.
+2. [x] Route native-shell waveform header text rendering through
+   adapter-computed text-row rects.
+3. [x] Add focused adapter tests for waveform header row ordering/bounds and
+   empty-header collapse behavior.
+4. [x] Regenerate affected native-shell shot fixtures and keep
+   `vendor/radiant` tests green.
+5. [x] Update slot-layout spec status and tracked remaining gap notes.

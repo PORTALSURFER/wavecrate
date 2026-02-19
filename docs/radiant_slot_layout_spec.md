@@ -430,10 +430,19 @@ For each container, assert exact output rects across:
   consume adapter-owned status geometry instead of local proportional/status
   text rect arithmetic.
 
+## Current Implementation Status (Phase 10)
+
+- Waveform header text-row geometry now routes through slotized adapter
+  helpers:
+  - `layout_adapter::compute_waveform_header_text_layout(...)` for header
+    title and metadata row bounds
+- Native-shell waveform header text rendering now consumes adapter-owned
+  title/metadata row rects instead of local text-row offset arithmetic.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
-annotation micro-placement outside sidebar/status paths (for example
-waveform and browser row/header label baseline tuning) that still uses local
-rect arithmetic and should be migrated into slotized text/layout adapters in a
+annotation micro-placement outside sidebar/status/waveform-header paths (for
+example browser row/header label baseline tuning) that still uses local rect
+arithmetic and should be migrated into slotized text/layout adapters in a
 follow-up phase.
