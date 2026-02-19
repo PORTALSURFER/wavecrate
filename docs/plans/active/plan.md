@@ -63,3 +63,20 @@ strict slotized helper adapters while preserving current behavior.
 5. [x] Regenerate native-shell shot fixtures and keep `vendor/radiant` tests
    green after rewiring.
 6. [x] Update layout redesign docs/spec status for this phase.
+
+## Layout Redesign (Phase 8) Checklist
+
+Goal: migrate sidebar header text/badge/divider micro-layout into strict
+slotized adapters so shell-state rendering no longer owns local rect math for
+that surface.
+
+1. [x] Add a focused `layout_adapter::sidebar_header` module for folder-header
+   text rows, recovery badge geometry/label compaction, and source-section
+   divider placement.
+2. [x] Rewire shell-state sidebar rendering/tests to consume adapter-owned
+   folder-header and divider outputs.
+3. [x] Remove superseded sidebar header/divider helper arithmetic from
+   `state.rs` and keep behavior deterministic through adapter contracts.
+4. [x] Regenerate affected native-shell shot fixtures and keep
+   `vendor/radiant` tests green.
+5. [x] Update slot-layout spec status and tracked remaining gap notes.

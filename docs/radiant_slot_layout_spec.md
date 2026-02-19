@@ -405,10 +405,23 @@ For each container, assert exact output rects across:
 - Shell-state rendering and hit-testing now consume adapter-owned overlay/button
   sections instead of local ad-hoc rect math for those surfaces.
 
+## Current Implementation Status (Phase 8)
+
+- Sidebar folder-header micro-layout now routes through slotized adapter
+  helpers in `layout_adapter::sidebar_header`:
+  - `compute_sidebar_folder_header_layout(...)` for title row, metadata row,
+    and recovery badge geometry/label state
+  - `compute_source_section_divider_rect(...)` for source/folder divider
+    placement
+- Native-shell sidebar rendering and related layout tests now consume the
+  adapter outputs for header text/badge/divider placement.
+- Legacy shell-state local helper arithmetic for those sidebar surfaces has
+  been removed in favor of adapter-owned deterministic layout contracts.
+
 ## Current Native-Shell Gap (tracked)
 
-Remaining native-shell layout work is now concentrated in text/badge baseline
-and decoration offsets inside render routines (for example per-label vertical
-offset tuning and waveform annotation micro-placement) that still use local
-rect arithmetic and should be migrated into slotized text/layout adapters in a
+Remaining native-shell layout work is now concentrated in render-time text and
+annotation micro-placement outside the sidebar header path (for example
+waveform/status/browse-row label baseline tuning) that still uses local rect
+arithmetic and should be migrated into slotized text/layout adapters in a
 follow-up phase.
