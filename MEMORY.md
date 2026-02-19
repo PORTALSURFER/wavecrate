@@ -1,29 +1,27 @@
 # Agent Memory
 
-Last Updated: 2026-02-19T20:29:35Z
+Last Updated: 2026-02-19T21:07:21Z
 Updated By: Codex
 
 ## Purpose
 
 - Keep session handoff durable for agents and automation.
-- Record the latest objective and the current state of the agent-facing safety work.
+- Record the latest objective and current execution state.
 
-## Current Session (2026-02-18 UTC)
+## Current Session (2026-02-19 UTC)
 
-- Working on P0/P1 hardening for safer agent-facing execution.
-- Current branch changes focus on:
-  - Added script-guard self-check fixtures for `scripts/check_file_size_budget.sh` and `scripts/check_rust_taste_invariants.sh`.
-  - Added explicit parse-argument handling for check scripts and documented failures on malformed flags.
-  - Added machine-readable run contract NDJSON artifacts in `src/main.rs`.
-  - Documented run-contract schema for harness assertions in `docs/run_contracts.md`.
-  - Hardened `run_sandbox`/`run_sandbox.ps1` messaging and behavior around read-only DB defaults and user-library overrides.
-  - Added active/completed plan folders with index under `docs/plans/` and updated agent handoff docs.
-  - Added source DB user-library guard messaging and retained read-only-first defaults.
-  - Updated CI doc-index requirements and memory freshness flow to enforce session updates.
-- Immediate next action: keep local CI and guardrail scripts green after every incremental change.
+- I am implementing the multi-day runtime performance/responsiveness redesign.
+- The active task is now documented in `docs/plans/active/plan.md` under
+  `Runtime Performance Redesign (Multi-Day) Checklist`.
+- I have implemented the first milestone in
+  `vendor/radiant/src/gui_runtime/native_vello.rs`:
+  - Overlay-only invalidations no longer force unconditional full-model pulls.
+  - Startup now marks model dirty explicitly so initial model hydration remains deterministic.
+- Immediate next action: add scoped invalidation classes and projection/layout
+  cache reuse so hot-path interactions avoid broad recomputation.
 
 ## Work Notes
 
-- Fixed broken script guardrail tests by making fixtures run from a repo-shaped temporary directory (script lives under `scripts/`).
-- Added deterministic user-root override helper in `src/sample_sources/db/mod.rs` tests so env-state races are guarded by a lock.
-- Updated `scripts/check_rust_taste_invariants.sh` to avoid fragile regex escapes and reduce false parse failures.
+- Latest pushed commits:
+  - `vendor/radiant`: `4b13777` (`layout(native_shell): slotize overlay visuals and waveform annotations`)
+  - `sempal`: `0e6f3bd4` (`layout(native_shell): bump radiant slotized overlay milestone`)
