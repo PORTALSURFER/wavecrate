@@ -439,10 +439,21 @@ For each container, assert exact output rects across:
 - Native-shell waveform header text rendering now consumes adapter-owned
   title/metadata row rects instead of local text-row offset arithmetic.
 
+## Current Implementation Status (Phase 11)
+
+- Browser list text/chip geometry now routes through slotized adapter helpers:
+  - `layout_adapter::compute_browser_header_text_layout(...)` for list
+    table-header `#`/`Sample`/`Bucket` label bounds
+  - `layout_adapter::compute_browser_row_text_layout(...)` for per-row
+    index/sample label bounds plus bucket chip/label bounds
+- Native-shell browser list rendering and focused-row overlay rendering now
+  consume adapter-owned browser row/header text/chip geometry instead of local
+  browser text baseline and inset arithmetic.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
-annotation micro-placement outside sidebar/status/waveform-header paths (for
-example browser row/header label baseline tuning) that still uses local rect
+annotation micro-placement outside sidebar/status/waveform-header/browser-list
+paths (for example map-header metadata and other overlay copy paths) that still uses local rect
 arithmetic and should be migrated into slotized text/layout adapters in a
 follow-up phase.

@@ -113,3 +113,19 @@ rect arithmetic.
 4. [x] Regenerate affected native-shell shot fixtures and keep
    `vendor/radiant` tests green.
 5. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 11) Checklist
+
+Goal: migrate browser list table-header and row text/chip geometry into strict
+slotized adapters so shell-state rendering no longer owns local browser
+label/baseline rect arithmetic for those surfaces.
+
+1. [x] Add a focused `layout_adapter::browser_text` module for browser table
+   columns, table-header label bounds, and row text/chip bounds.
+2. [x] Route browser list rendering and focused-row overlay text rendering
+   through adapter-computed browser text/chip rects.
+3. [x] Add focused adapter tests for browser column ordering and
+   row/header text bounds constraints.
+4. [x] Regenerate affected native-shell shot fixtures and keep
+   `vendor/radiant` tests green.
+5. [x] Update slot-layout spec status and tracked remaining gap notes.
