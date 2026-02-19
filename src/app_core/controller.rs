@@ -153,6 +153,9 @@ impl AppControllerNativeRuntimeExt for AppController {
             NativeUiAction::CancelPrompt => self.cancel_active_prompt_action(),
             NativeUiAction::CancelProgress => self.request_progress_cancel(),
             NativeUiAction::ToggleLoopPlayback => self.toggle_loop(),
+            NativeUiAction::SetVolume { value_milli } => {
+                self.set_volume((f32::from(value_milli.min(1000)) / 1000.0).clamp(0.0, 1.0))
+            }
             NativeUiAction::SeekWaveform { position_milli } => {
                 self.seek_waveform_milli(position_milli)
             }

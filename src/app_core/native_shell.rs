@@ -91,6 +91,7 @@ pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
             ColumnModel::new("Keep", column_counts[2]),
         ],
         selected_column,
+        volume: controller.ui.volume.clamp(0.0, 1.0),
         transport_running,
         sources,
         browser,
