@@ -175,3 +175,18 @@ input/error/button-label baseline arithmetic for those surfaces.
 4. [x] Regenerate affected native-shell shot fixtures and keep
    `vendor/radiant` tests green.
 5. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 15) Checklist
+
+Goal: migrate browser chrome tabs/toolbar/footer copy geometry into strict
+slotized adapters so shell-state browser rendering no longer owns local
+label-baseline arithmetic for those surfaces.
+
+1. [x] Add a focused `layout_adapter::browser_chrome_text` module for browser
+   tabs labels, toolbar chip/field labels, and footer summary label bounds.
+2. [x] Route browser chrome text rendering through adapter-computed text-line
+   rects in both full-frame and state-overlay render paths.
+3. [x] Add focused adapter tests for browser chrome text bounds and
+   empty-section collapse behavior.
+4. [x] Keep `vendor/radiant` tests green after the rewiring.
+5. [x] Update slot-layout spec status and tracked remaining gap notes.

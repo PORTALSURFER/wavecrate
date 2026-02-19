@@ -481,10 +481,24 @@ For each container, assert exact output rects across:
 - Native-shell overlay rendering now consumes adapter-owned text-line geometry
   instead of local y-offset and button text-top arithmetic for those paths.
 
+## Current Implementation Status (Phase 15)
+
+- Browser chrome tabs/toolbar/footer copy geometry now routes through slotized
+  adapter helpers:
+  - `layout_adapter::compute_browser_tabs_text_layout(...)` for tab-label
+    text-line bounds
+  - `layout_adapter::compute_browser_toolbar_text_layout(...)` for search/
+    activity/sort label bounds
+  - `layout_adapter::compute_browser_footer_text_rect(...)` for browser-footer
+    summary text-line bounds
+- Native-shell browser chrome rendering now consumes adapter-owned text-line
+  geometry instead of local tab/toolbar/footer text baseline arithmetic.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
 annotation micro-placement outside sidebar/status/waveform-header/browser-list
-/map-header/top-bar-update/overlay-copy paths (for example map-canvas annotations and other residual text paths) that still uses local rect
-arithmetic and should be migrated into slotized text/layout adapters in a
-follow-up phase.
+/map-header/top-bar-update/overlay-copy/browser-chrome paths (for example
+map-canvas annotations and other residual text/button paths) that still uses
+local rect arithmetic and should be migrated into slotized text/layout adapters
+in a follow-up phase.
