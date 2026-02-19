@@ -418,10 +418,22 @@ For each container, assert exact output rects across:
 - Legacy shell-state local helper arithmetic for those sidebar surfaces has
   been removed in favor of adapter-owned deterministic layout contracts.
 
+## Current Implementation Status (Phase 9)
+
+- Status-bar segment geometry now routes through slotized adapter helpers:
+  - `layout_adapter::compute_status_bar_segments(...)` for left/center/right
+    segment partitioning
+- Status text-line geometry now routes through slotized adapter helpers:
+  - `layout_adapter::compute_status_text_line_rect(...)` for per-segment
+    text-line placement bounds
+- `ShellLayout::build_with_style(...)` and native-shell status rendering now
+  consume adapter-owned status geometry instead of local proportional/status
+  text rect arithmetic.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
-annotation micro-placement outside the sidebar header path (for example
-waveform/status/browse-row label baseline tuning) that still uses local rect
-arithmetic and should be migrated into slotized text/layout adapters in a
+annotation micro-placement outside sidebar/status paths (for example
+waveform and browser row/header label baseline tuning) that still uses local
+rect arithmetic and should be migrated into slotized text/layout adapters in a
 follow-up phase.

@@ -80,3 +80,20 @@ that surface.
 4. [x] Regenerate affected native-shell shot fixtures and keep
    `vendor/radiant` tests green.
 5. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 9) Checklist
+
+Goal: migrate status-bar segment/text-line geometry into strict slotized
+adapters so shell layout/state no longer own local status rect arithmetic.
+
+1. [x] Add a focused `layout_adapter::status_bar` module for status
+   left/center/right segment geometry.
+2. [x] Route `ShellLayout::build_with_style(...)` status segment computation
+   through adapter outputs instead of local proportional math.
+3. [x] Add slotized status text-line rect helper and route status text rendering
+   + motion overlay rendering through adapter-computed bounds.
+4. [x] Add focused adapter tests for status segment ordering/clamping and status
+   text-line bounds constraints.
+5. [x] Regenerate affected native-shell shot fixtures and keep
+   `vendor/radiant` tests green.
+6. [x] Update slot-layout spec status and tracked remaining gap notes.
