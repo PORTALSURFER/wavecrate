@@ -327,6 +327,37 @@ For each container, assert exact output rects across:
 - Wrap/grid/general subtree virtualization remains out of scope; unsupported
   cases default to non-virtualized layout with a diagnostic.
 
+## Current Implementation Status (Phase 4)
+
+- Virtualized linear layout now resolves full `Row`/`Column` sizing semantics
+  before windowing:
+  - `Fixed`
+  - `Intrinsic`
+  - `Percent`
+  - `Fill(weight)`
+- Virtualization no longer requires `MainAlign::Start`; resolved linear
+  alignment is preserved in windowed layout.
+- Virtualization cache invalidation now targets dependency subtrees instead of
+  clearing the entire cache on every dirty mark.
+- Virtualization metadata now records resolved window and alignment details:
+  - `window_main_start`
+  - `window_main_end`
+  - `resolved_total_main`
+  - `alignment_mode`
+- Additional fallback diagnostics now classify span/alignment fallback paths:
+  - `VirtualizationAlignmentFallback`
+  - `VirtualizationSpanResolutionFallback`
+
+### Virtualization Support Matrix
+
+| Container | Axis | Main Size Modes | Main Align Modes | Behavior |
+| --- | --- | --- | --- | --- |
+| `Row` | Horizontal | Fixed, Intrinsic, Percent, Fill | Start, Center, End, SpaceBetween, SpaceAround, SpaceEvenly | Virtualized |
+| `Column` | Vertical | Fixed, Intrinsic, Percent, Fill | Start, Center, End, SpaceBetween, SpaceAround, SpaceEvenly | Virtualized |
+| `Wrap` | Horizontal/Vertical | N/A | N/A | Fallback + diagnostic |
+| `Grid` | Horizontal/Vertical | N/A | N/A | Fallback + diagnostic |
+| non-linear containers | N/A | N/A | N/A | Fallback + diagnostic |
+
 ## Current Native-Shell Gap (tracked)
 
 Current native shell rendering includes a top-bar volume meter that is
