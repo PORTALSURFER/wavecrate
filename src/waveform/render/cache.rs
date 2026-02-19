@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use super::WaveformImage;
 use super::{DecodedWaveform, WaveformChannelView, WaveformRenderer};
 use crate::selection::SelectionRange;

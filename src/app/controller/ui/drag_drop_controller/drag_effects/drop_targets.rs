@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use super::super::{DragDropController, file_metadata};
 use crate::app::controller::StatusTone;
 use crate::app::state::DragSample;
@@ -207,15 +209,15 @@ fn copy_sample_to_target(
 ) -> Result<PathBuf, String> {
     let destination_relative = copy_destination_relative(target, target_folder, file_name)?;
     let destination_absolute = target.root.join(&destination_relative);
-    if let Some(parent) = destination_relative.parent() {
-        if !parent.as_os_str().is_empty() {
-            let target_dir = target.root.join(parent);
-            if let Err(err) = std::fs::create_dir_all(&target_dir) {
-                return Err(format!(
-                    "Failed to create target folder {}: {err}",
-                    target_dir.display()
-                ));
-            }
+    if let Some(parent) = destination_relative.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        let target_dir = target.root.join(parent);
+        if let Err(err) = std::fs::create_dir_all(&target_dir) {
+            return Err(format!(
+                "Failed to create target folder {}: {err}",
+                target_dir.display()
+            ));
         }
     }
     if let Err(err) = std::fs::copy(absolute, &destination_absolute) {

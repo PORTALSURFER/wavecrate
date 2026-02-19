@@ -122,7 +122,7 @@ where
                 break;
             }
             let detail = format!("Moving {}", entry.relative_path.display());
-            if completed % 5 == 0 {
+            if completed.is_multiple_of(5) {
                 on_message(TrashMoveMessage::Progress {
                     completed,
                     detail: Some(detail.clone()),

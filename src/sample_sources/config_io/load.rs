@@ -60,13 +60,13 @@ pub(super) fn load_settings_from(path: &Path) -> Result<AppSettings, ConfigError
             path: path.to_path_buf(),
             source,
         })?;
-    if let Some(root) = value.as_table_mut() {
-        if let Some(core) = root.get("core").and_then(|core| core.as_table()).cloned() {
-            for (key, value) in core {
-                root.entry(key).or_insert(value);
-            }
-            root.remove("core");
+    if let Some(root) = value.as_table_mut()
+        && let Some(core) = root.get("core").and_then(|core| core.as_table()).cloned()
+    {
+        for (key, value) in core {
+            root.entry(key).or_insert(value);
         }
+        root.remove("core");
     }
     value
         .try_into()

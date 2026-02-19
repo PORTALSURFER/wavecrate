@@ -15,10 +15,18 @@ pub struct MapUiState {
     pub last_drag_pos: Option<UiPoint>,
     /// Cached data bounds for the current layout.
     pub bounds: Option<MapBounds>,
+    /// Source id associated with the cached bounds payload.
+    pub cached_bounds_source_id: Option<String>,
+    /// UMAP version associated with the cached bounds payload.
+    pub cached_bounds_umap_version: Option<String>,
     /// Bounds used for the most recent query.
     pub last_query: Option<MapQueryBounds>,
     /// Cached points for the current source/layout.
     pub cached_points: Vec<MapPoint>,
+    /// Source id associated with the cached points payload.
+    pub cached_points_source_id: Option<String>,
+    /// UMAP version associated with the cached points payload.
+    pub cached_points_umap_version: Option<String>,
     /// Revision counter for cached points.
     pub cached_points_revision: u64,
     /// Cached filter key for filtered points.
@@ -77,8 +85,12 @@ impl Default for MapUiState {
             zoom: 1.0,
             last_drag_pos: None,
             bounds: None,
+            cached_bounds_source_id: None,
+            cached_bounds_umap_version: None,
             last_query: None,
             cached_points: Vec::new(),
+            cached_points_source_id: None,
+            cached_points_umap_version: None,
             cached_points_revision: 0,
             cached_filtered_key: None,
             cached_filtered_points: Vec::new(),

@@ -63,10 +63,7 @@ pub(crate) fn tick_playhead_trail(
 
     let mut position = position.clamp(0.0, 1.0);
     let discontinuity = match playhead.trail.back() {
-        Some(last) => {
-            let backwards = position + POSITION_EPS < last.position;
-            backwards
-        }
+        Some(last) => position + POSITION_EPS < last.position,
         None => false,
     };
 
@@ -76,10 +73,10 @@ pub(crate) fn tick_playhead_trail(
         return;
     }
 
-    if let Some(last) = playhead.trail.back() {
-        if position < last.position {
-            position = last.position;
-        }
+    if let Some(last) = playhead.trail.back()
+        && position < last.position
+    {
+        position = last.position;
     }
 
     let should_push = match playhead.trail.back() {
@@ -124,7 +121,7 @@ mod tests {
 
         tick_playhead_trail(&mut playhead, 0.4999, false, true);
 
-        assert!(playhead.trail.len() >= 1);
+        assert!(!playhead.trail.is_empty());
         let last = playhead.trail.back().unwrap();
         assert!((last.position - 0.5).abs() < 1e-6);
     }

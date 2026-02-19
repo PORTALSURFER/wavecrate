@@ -31,15 +31,11 @@ impl Default for UpdateSettings {
 /// Update channel selection for GitHub releases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum UpdateChannel {
     /// Receive stable releases only.
+    #[default]
     Stable,
     /// Receive nightly/pre-release builds.
     Nightly,
-}
-
-impl Default for UpdateChannel {
-    fn default() -> Self {
-        Self::Stable
-    }
 }

@@ -94,10 +94,8 @@ pub(crate) fn update_slice_range(
     updated.sort_by(|a, b| a.start().partial_cmp(&b.start()).unwrap_or(Ordering::Equal));
     let new_index = updated.iter().position(|slice| *slice == range);
     let mut new_selected = Vec::new();
-    if was_selected {
-        if let Some(index) = new_index {
-            new_selected.push(index);
-        }
+    if was_selected && let Some(index) = new_index {
+        new_selected.push(index);
     }
     for selected in selected_ranges {
         if let Some(index) = updated.iter().position(|slice| *slice == selected) {

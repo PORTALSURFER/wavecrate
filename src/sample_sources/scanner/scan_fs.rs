@@ -86,10 +86,10 @@ pub(super) fn visit_dir(
                 continue;
             }
             if file_type.is_dir() {
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name.starts_with('.') {
-                        continue;
-                    }
+                if let Some(name) = path.file_name().and_then(|n| n.to_str())
+                    && name.starts_with('.')
+                {
+                    continue;
                 }
                 stack.push(path);
                 continue;
@@ -163,10 +163,10 @@ fn strip_relative(root: &Path, path: &Path) -> Result<PathBuf, ScanError> {
     if let Ok(relative) = path.strip_prefix(root) {
         return Ok(PathBuf::from(relative));
     }
-    if let (Ok(canon_root), Ok(canon_path)) = (root.canonicalize(), path.canonicalize()) {
-        if let Ok(relative) = canon_path.strip_prefix(&canon_root) {
-            return Ok(PathBuf::from(relative));
-        }
+    if let (Ok(canon_root), Ok(canon_path)) = (root.canonicalize(), path.canonicalize())
+        && let Ok(relative) = canon_path.strip_prefix(&canon_root)
+    {
+        return Ok(PathBuf::from(relative));
     }
     Err(ScanError::InvalidRoot(path.to_path_buf()))
 }

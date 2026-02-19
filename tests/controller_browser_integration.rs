@@ -146,13 +146,7 @@ fn ctrl_shift_click_adds_range_without_resetting_anchor() {
 
     controller.add_range_browser_selection(2);
 
-    let selected: Vec<_> = controller
-        .ui
-        .browser
-        .selected_paths
-        .iter()
-        .cloned()
-        .collect();
+    let selected: Vec<_> = controller.ui.browser.selected_paths.to_vec();
     assert_eq!(selected.len(), 4);
     assert!(selected.contains(&row0));
     assert!(selected.contains(&row1));

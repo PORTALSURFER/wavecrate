@@ -63,8 +63,7 @@ impl AppController {
         let boosted = thread::available_parallelism()
             .map(|n| n.get() as u32)
             .unwrap_or(1)
-            .max(1)
-            .min(64);
+            .clamp(1, 64);
         self.runtime.performance.idle_worker_override = Some(boosted);
         self.runtime.analysis.set_worker_count(boosted);
     }

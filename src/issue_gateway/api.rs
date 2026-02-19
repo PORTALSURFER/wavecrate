@@ -1,4 +1,5 @@
 //! Gateway API client for creating GitHub issues.
+#![allow(clippy::result_large_err)]
 
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -156,10 +157,10 @@ pub fn poll_issue_token(request_id: &str) -> Result<Option<String>, IssueAuthErr
     let parsed: PollResponse = serde_json::from_str(&body)
         .map_err(|err| IssueAuthError::InvalidResponse(err.to_string()))?;
 
-    if let Some(token) = parsed.session_id {
-        if looks_like_issue_token(&token) {
-            return Ok(Some(token));
-        }
+    if let Some(token) = parsed.session_id
+        && looks_like_issue_token(&token)
+    {
+        return Ok(Some(token));
     }
 
     if let Some(err) = parsed.error {
@@ -271,14 +272,12 @@ fn parse_issue_token(body: &str) -> Result<String, IssueAuthError> {
     if looks_like_issue_token(trimmed) {
         return Ok(trimmed.to_string());
     }
-    if trimmed.starts_with('{') {
-        if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
-            if let Some(token) = value.get("token").and_then(|token| token.as_str()) {
-                if looks_like_issue_token(token) {
-                    return Ok(token.to_string());
-                }
-            }
-        }
+    if trimmed.starts_with('{')
+        && let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed)
+        && let Some(token) = value.get("token").and_then(|token| token.as_str())
+        && looks_like_issue_token(token)
+    {
+        return Ok(token.to_string());
     }
 
     let mut saw_marker = false;

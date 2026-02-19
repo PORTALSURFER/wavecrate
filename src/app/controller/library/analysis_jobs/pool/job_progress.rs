@@ -86,10 +86,10 @@ fn refresh_sources(
         if !source.root.is_dir() {
             continue;
         }
-        if let Some(allowed) = allowed_source_ids {
-            if !allowed.contains(&source.id) {
-                continue;
-            }
+        if let Some(allowed) = allowed_source_ids
+            && !allowed.contains(&source.id)
+        {
+            continue;
         }
         let conn = match db::open_source_db(&source.root) {
             Ok(conn) => conn,
@@ -150,12 +150,11 @@ fn cleanup_stale_jobs(
     for source in &mut *sources {
         if let Ok((updated, source_ids)) =
             db::fail_stale_running_jobs_with_sources(&source.conn, stale_before)
+            && updated > 0
         {
-            if updated > 0 {
-                changed += updated;
-                for source_id in source_ids {
-                    touched_sources.insert(source_id);
-                }
+            changed += updated;
+            for source_id in source_ids {
+                touched_sources.insert(source_id);
             }
         }
     }

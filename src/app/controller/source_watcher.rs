@@ -170,9 +170,8 @@ fn drain_ready_sources(
     }
     let ready: Vec<SourceId> = pending
         .iter()
-        .filter_map(|(source_id, entry)| {
-            (now.saturating_duration_since(entry.last_event) >= debounce).then(|| source_id.clone())
-        })
+        .filter(|&(_source_id, entry)| now.saturating_duration_since(entry.last_event) >= debounce)
+        .map(|(source_id, _entry)| source_id.clone())
         .collect();
     for source_id in &ready {
         pending.remove(source_id);

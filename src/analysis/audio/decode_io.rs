@@ -105,9 +105,9 @@ struct DecodeScratch {
 }
 
 thread_local! {
-    static DECODE_SCRATCH: RefCell<DecodeScratch> = RefCell::new(DecodeScratch {
+    static DECODE_SCRATCH: RefCell<DecodeScratch> = const { RefCell::new(DecodeScratch {
         mono: Vec::new(),
-    });
+    }) };
 }
 
 #[cfg(test)]

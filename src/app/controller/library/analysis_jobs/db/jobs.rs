@@ -102,8 +102,7 @@ pub(crate) fn sample_analysis_states(
     if sample_ids.is_empty() {
         return Ok(HashMap::new());
     }
-    let placeholders = std::iter::repeat("?")
-        .take(sample_ids.len())
+    let placeholders = std::iter::repeat_n("?", sample_ids.len())
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
@@ -145,8 +144,7 @@ pub(crate) fn sample_ids_missing_duration(
     if sample_ids.is_empty() {
         return Ok(missing);
     }
-    let placeholders = std::iter::repeat("?")
-        .take(sample_ids.len())
+    let placeholders = std::iter::repeat_n("?", sample_ids.len())
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(
@@ -303,8 +301,7 @@ pub(crate) fn touch_running_at(conn: &Connection, job_ids: &[i64]) -> Result<(),
         return Ok(());
     }
     let now = now_epoch_seconds();
-    let placeholders = std::iter::repeat("?")
-        .take(job_ids.len())
+    let placeholders = std::iter::repeat_n("?", job_ids.len())
         .collect::<Vec<_>>()
         .join(", ");
     let sql = format!(

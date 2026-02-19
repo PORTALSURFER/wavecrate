@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
 pub(crate) struct CachedFeatures {

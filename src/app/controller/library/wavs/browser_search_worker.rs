@@ -35,6 +35,7 @@ impl DbFileStamp {
     }
 }
 
+#[derive(Default)]
 struct SearchWorkerCache {
     db: Option<crate::sample_sources::SourceDatabase>,
     entries: Option<Vec<CompactSearchEntry>>,
@@ -42,19 +43,6 @@ struct SearchWorkerCache {
     source_root: Option<PathBuf>,
     revision: u64,
     db_stamp: Option<DbFileStamp>,
-}
-
-impl Default for SearchWorkerCache {
-    fn default() -> Self {
-        Self {
-            db: None,
-            entries: None,
-            source_id: None,
-            source_root: None,
-            revision: 0,
-            db_stamp: None,
-        }
-    }
 }
 
 #[derive(Default)]
@@ -309,10 +297,11 @@ fn process_search_job(
 
     if let Some(similar) = &job.similar_query {
         for index in similar.indices.iter().copied() {
-            if let Some(entry) = entries.get(index) {
-                if filter_accepts(entry.tag) && folder_accepts(entry) {
-                    visible.push(index);
-                }
+            if let Some(entry) = entries.get(index)
+                && filter_accepts(entry.tag)
+                && folder_accepts(entry)
+            {
+                visible.push(index);
             }
         }
 
@@ -339,15 +328,15 @@ fn process_search_job(
                         .then_with(|| a.cmp(b))
                 });
 
-                if let Some(anchor) = similar.anchor_index {
-                    if let Some(entry) = entries.get(anchor) {
-                        if filter_accepts(entry.tag) && folder_accepts(entry) {
-                            if let Some(pos) = visible.iter().position(|i| *i == anchor) {
-                                visible.remove(pos);
-                            }
-                            visible.insert(0, anchor);
-                        }
+                if let Some(anchor) = similar.anchor_index
+                    && let Some(entry) = entries.get(anchor)
+                    && filter_accepts(entry.tag)
+                    && folder_accepts(entry)
+                {
+                    if let Some(pos) = visible.iter().position(|i| *i == anchor) {
+                        visible.remove(pos);
                     }
+                    visible.insert(0, anchor);
                 }
             }
             SampleBrowserSort::PlaybackAgeAsc => {
@@ -454,7 +443,7 @@ fn empty_search_result(job: SearchJob) -> SearchResult {
 
 fn sort_visible_by_playback_age(
     entries: &[CompactSearchEntry],
-    visible: &mut Vec<usize>,
+    visible: &mut [usize],
     ascending: bool,
 ) {
     visible.sort_by(|a, b| {

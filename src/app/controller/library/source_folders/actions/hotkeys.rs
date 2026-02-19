@@ -105,10 +105,10 @@ impl AppController {
             .iter()
             .filter_map(|path| self.visible_row_for_path(path))
             .collect();
-        if rows.is_empty() {
-            if let Some(row) = self.focused_browser_row() {
-                rows.push(row);
-            }
+        if rows.is_empty()
+            && let Some(row) = self.focused_browser_row()
+        {
+            rows.push(row);
         }
         rows.sort_unstable();
         rows.dedup();

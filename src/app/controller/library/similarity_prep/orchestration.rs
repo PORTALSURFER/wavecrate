@@ -22,10 +22,10 @@ impl AppController {
 
         // Cooldown to prevent rapid repeated attempts (e.g., from map view every frame)
         const SIMILARITY_PREP_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(5);
-        if let Some(last_attempt) = self.runtime.similarity_prep_last_attempt {
-            if last_attempt.elapsed() < SIMILARITY_PREP_COOLDOWN {
-                return; // Too soon, skip
-            }
+        if let Some(last_attempt) = self.runtime.similarity_prep_last_attempt
+            && last_attempt.elapsed() < SIMILARITY_PREP_COOLDOWN
+        {
+            return; // Too soon, skip
         }
         self.runtime.similarity_prep_last_attempt = Some(std::time::Instant::now());
 

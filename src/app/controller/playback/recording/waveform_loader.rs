@@ -196,13 +196,13 @@ impl RecordingWaveformState {
                             *min = (*min).min(sample);
                             *max = (*max).max(sample);
                         }
-                    } else if ch == 1 {
-                        if let Some(right_peaks) = right.as_mut() {
-                            let bucket = frame / bucket_size_frames;
-                            let (min, max) = &mut right_peaks[bucket];
-                            *min = (*min).min(sample);
-                            *max = (*max).max(sample);
-                        }
+                    } else if ch == 1
+                        && let Some(right_peaks) = right.as_mut()
+                    {
+                        let bucket = frame / bucket_size_frames;
+                        let (min, max) = &mut right_peaks[bucket];
+                        *min = (*min).min(sample);
+                        *max = (*max).max(sample);
                     }
                 }
             }
@@ -274,15 +274,15 @@ impl RecordingWaveformState {
                             *min = (*min).min(sample);
                             *max = (*max).max(sample);
                         }
-                    } else if ch == 1 {
-                        if let Some(right_peaks) = right.as_mut() {
-                            if bucket >= right_peaks.len() {
-                                right_peaks.resize(bucket + 1, (1.0, -1.0));
-                            }
-                            let (min, max) = &mut right_peaks[bucket];
-                            *min = (*min).min(sample);
-                            *max = (*max).max(sample);
+                    } else if ch == 1
+                        && let Some(right_peaks) = right.as_mut()
+                    {
+                        if bucket >= right_peaks.len() {
+                            right_peaks.resize(bucket + 1, (1.0, -1.0));
                         }
+                        let (min, max) = &mut right_peaks[bucket];
+                        *min = (*min).min(sample);
+                        *max = (*max).max(sample);
                     }
                 }
                 frame_sum += sample;
@@ -662,12 +662,13 @@ fn load_recording_waveform(job: RecordingWaveformJob) -> RecordingWaveformLoadRe
         };
     }
 
-    if let Some(existing) = &state {
-        if existing.sample_rate != job.sample_rate || existing.channels != job.channels {
-            state = None;
-        } else if existing.bytes_read > data_len || existing.total_frames > total_frames {
-            state = None;
-        }
+    if let Some(existing) = &state
+        && (existing.sample_rate != job.sample_rate
+            || existing.channels != job.channels
+            || existing.bytes_read > data_len
+            || existing.total_frames > total_frames)
+    {
+        state = None;
     }
 
     let mut next_state = match state {

@@ -119,7 +119,7 @@ fn export_selection_clip_applies_short_edge_fades_when_enabled() {
     controller.ui.controls.anti_clip_fade_ms = 250.0;
 
     let wav_path = source_root.join("fades.wav");
-    write_test_wav(&wav_path, &vec![1.0; 8]);
+    write_test_wav(&wav_path, &[1.0; 8]);
     controller
         .load_waveform_for_selection(&source, Path::new("fades.wav"))
         .unwrap();

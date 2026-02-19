@@ -64,11 +64,7 @@ impl EditFadeHandle {
 
     /// Return a copy of the latest edit-fade snapshot.
     pub(crate) fn snapshot(&self) -> EditFadeSnapshot {
-        self.shared
-            .state
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
+        *self.shared.state.read().unwrap_or_else(|e| e.into_inner())
     }
 }
 

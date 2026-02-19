@@ -80,7 +80,7 @@ pub(crate) fn enqueue_rebuild_ann_index_job(
             ],
         )
         .map_err(|err| format!("Failed to enqueue ANN rebuild job: {err}"))?;
-    Ok(inserted as usize)
+    Ok(inserted)
 }
 
 fn now_epoch_seconds() -> i64 {

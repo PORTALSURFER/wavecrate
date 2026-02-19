@@ -221,13 +221,13 @@ impl IssueTokenStore {
             return Ok(key);
         }
 
-        if !keyring_disabled() {
-            if let Some(key) = self.get_key_from_file()? {
-                self.try_keyring_fallback_key_set(&key)?;
-                let _ = std::fs::remove_file(self.legacy_fallback_key_path());
-                self.cache_fallback_key(key);
-                return Ok(key);
-            }
+        if !keyring_disabled()
+            && let Some(key) = self.get_key_from_file()?
+        {
+            self.try_keyring_fallback_key_set(&key)?;
+            let _ = std::fs::remove_file(self.legacy_fallback_key_path());
+            self.cache_fallback_key(key);
+            return Ok(key);
         }
 
         // Generate new random key
@@ -483,16 +483,10 @@ fn random_bytes(len: usize) -> Result<Vec<u8>, IssueTokenStoreError> {
 fn write_private_file(path: &Path, bytes: &[u8]) -> Result<(), IssueTokenStoreError> {
     use std::io::Write;
     let dir = path.parent().ok_or_else(|| {
-        IssueTokenStoreError::Io(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "token path has no parent directory",
-        ))
+        IssueTokenStoreError::Io(std::io::Error::other("token path has no parent directory"))
     })?;
     let file_name = path.file_name().ok_or_else(|| {
-        IssueTokenStoreError::Io(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "token path has no file name",
-        ))
+        IssueTokenStoreError::Io(std::io::Error::other("token path has no file name"))
     })?;
 
     let mut last_err = None;
@@ -640,7 +634,7 @@ fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, Issue
 }
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, String> {
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err("Odd number of digits".into());
     }
     (0..s.len())

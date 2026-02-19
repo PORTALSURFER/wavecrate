@@ -12,6 +12,12 @@ pub type UiState = app_state::UiState;
 /// Normalized map query bounds shared with map projection helpers.
 pub type MapQueryBounds = app_state::MapQueryBounds;
 
+/// Cached map bounds used by migration-facing map projections.
+pub type MapBounds = app_state::MapBounds;
+
+/// Cached projected map point payload used by migration-facing map projections.
+pub type MapPoint = app_state::MapPoint;
+
 /// Browser tab selection state.
 pub type SampleBrowserTab = app_state::SampleBrowserTab;
 

@@ -128,28 +128,27 @@ fn build_backfill_plan(
             ready.push(materialize_result(sample_id, &content_hash, data));
             continue;
         }
-        if use_cache {
-            if let Some(data) = cached_embedding_data(conn, &content_hash, analysis_version)? {
-                embedding_cache.insert(content_hash.clone(), data.clone());
-                ready.push(materialize_result(sample_id, &content_hash, &data));
-                continue;
-            }
+        if use_cache
+            && let Some(data) = cached_embedding_data(conn, &content_hash, analysis_version)?
+        {
+            embedding_cache.insert(content_hash.clone(), data.clone());
+            ready.push(materialize_result(sample_id, &content_hash, &data));
+            continue;
         }
-        if let Some(features) = load_features_vec_optional(conn, sample_id)? {
-            if let Ok(data) = embedding_data_from_features(&features) {
-                embedding_cache.insert(content_hash.clone(), data.clone());
-                ready.push(materialize_result(sample_id, &content_hash, &data));
-                continue;
-            }
+        if let Some(features) = load_features_vec_optional(conn, sample_id)?
+            && let Ok(data) = embedding_data_from_features(&features)
+        {
+            embedding_cache.insert(content_hash.clone(), data.clone());
+            ready.push(materialize_result(sample_id, &content_hash, &data));
+            continue;
         }
-        if use_cache {
-            if let Some(data) =
+        if use_cache
+            && let Some(data) =
                 cached_feature_embedding_data(conn, &content_hash, analysis_version)?
-            {
-                embedding_cache.insert(content_hash.clone(), data.clone());
-                ready.push(materialize_result(sample_id, &content_hash, &data));
-                continue;
-            }
+        {
+            embedding_cache.insert(content_hash.clone(), data.clone());
+            ready.push(materialize_result(sample_id, &content_hash, &data));
+            continue;
         }
 
         let Some(absolute_path) = resolve_backfill_path(job, sample_id) else {

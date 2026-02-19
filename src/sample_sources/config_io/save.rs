@@ -44,14 +44,11 @@ fn atomic_write(path: &Path, data: &[u8]) -> Result<(), ConfigError> {
     use rand::TryRngCore;
     let dir = path.parent().ok_or_else(|| ConfigError::Write {
         path: path.to_path_buf(),
-        source: std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "config path has no parent directory",
-        ),
+        source: std::io::Error::other("config path has no parent directory"),
     })?;
     let file_name = path.file_name().ok_or_else(|| ConfigError::Write {
         path: path.to_path_buf(),
-        source: std::io::Error::new(std::io::ErrorKind::Other, "config path has no file name"),
+        source: std::io::Error::other("config path has no file name"),
     })?;
 
     let mut last_err = None;
@@ -61,10 +58,9 @@ fn atomic_write(path: &Path, data: &[u8]) -> Result<(), ConfigError> {
             .try_fill_bytes(&mut bytes)
             .map_err(|source| ConfigError::Write {
                 path: path.to_path_buf(),
-                source: std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("failed to generate temporary file suffix: {source}"),
-                ),
+                source: std::io::Error::other(format!(
+                    "failed to generate temporary file suffix: {source}"
+                )),
             })?;
         let suffix: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
         let tmp_path = dir.join(format!("{}.tmp-{}", file_name.to_string_lossy(), suffix));

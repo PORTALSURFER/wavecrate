@@ -129,8 +129,8 @@ impl AppController {
                         continue;
                     }
                     let now = Instant::now();
-                    match message.result {
-                        Ok(update) => match update {
+                    if let Ok(update) = message.result {
+                        match update {
                             RecordingWaveformUpdate::NoChange { file_len } => {
                                 if let Some(target) = self.audio.recording_target.as_mut() {
                                     target.last_file_len = file_len;
@@ -169,8 +169,7 @@ impl AppController {
                                     target.last_file_len = file_len;
                                 }
                             }
-                        },
-                        Err(_) => {}
+                        }
                     }
                     if let Some(target) = self.audio.recording_target.as_mut() {
                         target.last_refresh_at = Some(now);
@@ -274,7 +273,12 @@ impl AppController {
                     match message.result {
                         Ok(()) => {
                             self.ui.map.bounds = None;
+                            self.ui.map.cached_bounds_source_id = None;
+                            self.ui.map.cached_bounds_umap_version = None;
                             self.ui.map.last_query = None;
+                            self.ui.map.cached_points.clear();
+                            self.ui.map.cached_points_source_id = None;
+                            self.ui.map.cached_points_umap_version = None;
                             self.set_status(
                                 format!("t-SNE layout {} built", message.umap_version),
                                 StatusTone::Info,
@@ -293,6 +297,9 @@ impl AppController {
                     match message.result {
                         Ok(stats) => {
                             self.ui.map.last_query = None;
+                            self.ui.map.cached_points.clear();
+                            self.ui.map.cached_points_source_id = None;
+                            self.ui.map.cached_points_umap_version = None;
                             self.ui.map.cached_cluster_centroids_key = None;
                             self.ui.map.cached_cluster_centroids = None;
                             self.ui.map.auto_cluster_build_requested_key = None;

@@ -374,12 +374,12 @@ cache-friendly projection/layout behavior, following Xilem-style scoped updates.
 
 1. [x] Decouple overlay-only redraw rebuilds from unconditional full-model
    pulls in `native_vello` while preserving explicit startup model refresh.
-2. [ ] Add explicit runtime invalidation scopes (full/static/state/motion) and
+2. [x] Add explicit runtime invalidation scopes (full/static/state/motion) and
    route `UiAction` handling through scope classifiers instead of blanket
    full-scene dirties.
-3. [ ] Introduce model/projection cache keys in `app_core` so unchanged
+3. [x] Introduce model/projection cache keys in `app_core` so unchanged
    browser/sidebar/map surfaces reuse prior projected view models.
-4. [ ] Persist and reuse layout engine state in layout-core runtime integration
+4. [x] Persist and reuse layout engine state in layout-core runtime integration
    so dirty-subtree invalidation APIs are exercised on hot paths.
 5. [ ] Add focused performance telemetry gates and benchmarks for hover, wheel,
    map pan, and waveform interaction latencies.

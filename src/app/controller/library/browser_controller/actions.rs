@@ -178,8 +178,7 @@ impl BrowserActions for BrowserController<'_> {
                 .loaded_audio
                 .as_ref()
                 .is_some_and(|audio| {
-                    audio.source_id == source_id
-                        && paths.iter().any(|path| audio.relative_path == *path)
+                    audio.source_id == source_id && paths.contains(&audio.relative_path)
                 });
             if loaded_matches {
                 self.set_waveform_bpm_input(Some(bpm));
@@ -272,23 +271,24 @@ impl BrowserActions for BrowserController<'_> {
             }
         }
         if let Some(path) = primary_new {
-            if primary_is_loaded && was_playing {
-                if let Some(source) = primary_source {
-                    let start_override = if playhead_position.is_finite() {
-                        Some(playhead_position.clamp(0.0, 1.0))
-                    } else {
-                        None
-                    };
-                    self.runtime
-                        .jobs
-                        .set_pending_playback(Some(PendingPlayback {
-                            source_id: source.id,
-                            relative_path: path.clone(),
-                            looped: was_looping,
-                            start_override,
-                        }));
-                    self.selection_state.suppress_autoplay_once = true;
-                }
+            if primary_is_loaded
+                && was_playing
+                && let Some(source) = primary_source
+            {
+                let start_override = if playhead_position.is_finite() {
+                    Some(playhead_position.clamp(0.0, 1.0))
+                } else {
+                    None
+                };
+                self.runtime
+                    .jobs
+                    .set_pending_playback(Some(PendingPlayback {
+                        source_id: source.id,
+                        relative_path: path.clone(),
+                        looped: was_looping,
+                        start_override,
+                    }));
+                self.selection_state.suppress_autoplay_once = true;
             }
             self.select_from_browser(&path);
         }

@@ -21,15 +21,15 @@ use crate::app_core::actions::{
     NativeWaveformChromeModel as WaveformChromeModel,
     NativeWaveformPanelModel as WaveformPanelModel,
 };
-use crate::app_core::state::{
-    DestructiveEditPrompt, DragTarget, FolderActionPrompt, MapQueryBounds, MapRenderMode,
-    SampleBrowserActionPrompt, SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, UiState,
-    UpdateStatus,
-};
 #[cfg(test)]
 use crate::app_core::state::{
-    DestructiveSelectionEdit, FolderDeleteRecoveryAction, FolderDeleteRecoveryEntry,
-    FolderDeleteRecoveryStatus, FolderRowView, InlineFolderCreation,
+    DestructiveEditPrompt, DestructiveSelectionEdit, FolderDeleteRecoveryAction,
+    FolderDeleteRecoveryEntry, FolderDeleteRecoveryStatus, FolderRowView, InlineFolderCreation,
+};
+use crate::app_core::state::{
+    DragTarget, FolderActionPrompt, MapBounds, MapPoint, MapQueryBounds, MapRenderMode,
+    SampleBrowserActionPrompt, SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, UiState,
+    UpdateStatus,
 };
 use crate::app_core::ui::{MAX_RENDERED_BROWSER_ROWS, MAX_RENDERED_MAP_POINTS};
 use crate::gui::types::ImageRgba;
@@ -249,10 +249,26 @@ fn project_map_model(controller: &mut AppController) -> MapPanelModel {
     }
 
     let source_id = controller.current_source().map(|source| source.id);
+    let source_id_key = source_id.as_ref().map(|id| id.as_str().to_string());
     let umap_version = controller.ui.map.umap_version.clone();
-    let bounds =
+    let has_matching_bounds_cache = controller.ui.map.cached_bounds_source_id == source_id_key
+        && controller.ui.map.cached_bounds_umap_version.as_deref() == Some(umap_version.as_str());
+    let bounds = if has_matching_bounds_cache {
+        controller.ui.map.bounds
+    } else {
         match controller.umap_bounds(SIMILARITY_MODEL_ID, &umap_version, source_id.as_ref()) {
-            Ok(bounds) => bounds,
+            Ok(bounds) => {
+                let mapped_bounds = bounds.map(|value| MapBounds {
+                    min_x: value.min_x,
+                    max_x: value.max_x,
+                    min_y: value.min_y,
+                    max_y: value.max_y,
+                });
+                controller.ui.map.cached_bounds_source_id = source_id_key.clone();
+                controller.ui.map.cached_bounds_umap_version = Some(umap_version.clone());
+                controller.ui.map.bounds = mapped_bounds;
+                mapped_bounds
+            }
             Err(err) => {
                 return MapPanelModel {
                     active: true,
@@ -270,7 +286,8 @@ fn project_map_model(controller: &mut AppController) -> MapPanelModel {
                     points: Vec::new(),
                 };
             }
-        };
+        }
+    };
     let Some(bounds) = bounds else {
         return MapPanelModel {
             active: true,
@@ -288,39 +305,62 @@ fn project_map_model(controller: &mut AppController) -> MapPanelModel {
             points: Vec::new(),
         };
     };
-
-    let points = match controller.umap_points_in_bounds(
-        SIMILARITY_MODEL_ID,
-        &umap_version,
-        "umap",
-        &umap_version,
-        source_id.as_ref(),
-        MapQueryBounds {
-            min_x: bounds.min_x,
-            max_x: bounds.max_x,
-            min_y: bounds.min_y,
-            max_y: bounds.max_y,
-        }
-        .into(),
-        MAX_RENDERED_MAP_POINTS,
-    ) {
-        Ok(points) => points,
-        Err(err) => {
-            return MapPanelModel {
-                active: true,
-                summary: String::from("Map query failed"),
-                legend_label: format!("Render: {render_mode_label}"),
-                selection_label: String::from("Selection: unavailable"),
-                hover_label: String::from("Hover: unavailable"),
-                cluster_label: String::from("Clusters: unavailable"),
-                viewport_label: format!(
-                    "zoom {:.2}x | pan ({:.0}, {:.0})",
-                    controller.ui.map.zoom, controller.ui.map.pan.x, controller.ui.map.pan.y
-                ),
-                error: Some(err),
-                render_mode,
-                points: Vec::new(),
-            };
+    let query_bounds = MapQueryBounds {
+        min_x: bounds.min_x,
+        max_x: bounds.max_x,
+        min_y: bounds.min_y,
+        max_y: bounds.max_y,
+    };
+    let has_matching_points_cache = controller.ui.map.cached_points_source_id == source_id_key
+        && controller.ui.map.cached_points_umap_version.as_deref() == Some(umap_version.as_str())
+        && controller.ui.map.last_query == Some(query_bounds);
+    let points = if has_matching_points_cache {
+        controller.ui.map.cached_points.clone()
+    } else {
+        match controller.umap_points_in_bounds(
+            SIMILARITY_MODEL_ID,
+            &umap_version,
+            "umap",
+            &umap_version,
+            source_id.as_ref(),
+            query_bounds,
+            MAX_RENDERED_MAP_POINTS,
+        ) {
+            Ok(points) => {
+                let cached_points = points
+                    .iter()
+                    .map(|point| MapPoint {
+                        sample_id: point.sample_id.clone(),
+                        x: point.x,
+                        y: point.y,
+                        cluster_id: point.cluster_id,
+                    })
+                    .collect::<Vec<_>>();
+                controller.ui.map.cached_points = cached_points.clone();
+                controller.ui.map.cached_points_source_id = source_id_key.clone();
+                controller.ui.map.cached_points_umap_version = Some(umap_version.clone());
+                controller.ui.map.last_query = Some(query_bounds);
+                controller.ui.map.cached_points_revision =
+                    controller.ui.map.cached_points_revision.saturating_add(1);
+                cached_points
+            }
+            Err(err) => {
+                return MapPanelModel {
+                    active: true,
+                    summary: String::from("Map query failed"),
+                    legend_label: format!("Render: {render_mode_label}"),
+                    selection_label: String::from("Selection: unavailable"),
+                    hover_label: String::from("Hover: unavailable"),
+                    cluster_label: String::from("Clusters: unavailable"),
+                    viewport_label: format!(
+                        "zoom {:.2}x | pan ({:.0}, {:.0})",
+                        controller.ui.map.zoom, controller.ui.map.pan.x, controller.ui.map.pan.y
+                    ),
+                    error: Some(err),
+                    render_mode,
+                    points: Vec::new(),
+                };
+            }
         }
     };
 
@@ -437,11 +477,8 @@ fn project_progress_overlay_model(ui: &UiState) -> ProgressOverlayModel {
 }
 
 fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
-    if let Some(SampleBrowserActionPrompt::Rename { target, name }) = ui
-        .browser
-        .pending_action
-        .clone()
-        .map(SampleBrowserActionPrompt::from)
+    if let Some(SampleBrowserActionPrompt::Rename { target, name }) =
+        ui.browser.pending_action.clone()
     {
         let input_value = Some(name);
         return ConfirmPromptModel {
@@ -457,12 +494,8 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             input_error: None,
         };
     }
-    if let Some(FolderActionPrompt::Rename { target, name }) = ui
-        .sources
-        .folders
-        .pending_action
-        .clone()
-        .map(FolderActionPrompt::from)
+    if let Some(FolderActionPrompt::Rename { target, name }) =
+        ui.sources.folders.pending_action.clone()
     {
         let input_value = Some(name);
         let input_error = input_value
@@ -501,12 +534,7 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             input_error,
         };
     }
-    if let Some(prompt) = ui
-        .waveform
-        .pending_destructive
-        .clone()
-        .map(DestructiveEditPrompt::from)
-    {
+    if let Some(prompt) = ui.waveform.pending_destructive.clone() {
         return ConfirmPromptModel {
             visible: true,
             kind: Some(ConfirmPromptKind::DestructiveEdit),
@@ -675,8 +703,7 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
     let busy = controller.ui.browser.search_busy;
     let sort_label =
         Some(browser_sort_label(SampleBrowserSort::from(controller.ui.browser.sort)).to_owned());
-    let active_tab_label =
-        Some(browser_tab_label(controller.ui.browser.active_tab.into()).to_owned());
+    let active_tab_label = Some(browser_tab_label(controller.ui.browser.active_tab).to_owned());
     let focused_sample_label = controller
         .ui
         .loaded_wav
@@ -1228,6 +1255,79 @@ mod tests {
         assert!(projected.hover_label.contains("Hover:"));
         assert!(projected.cluster_label.starts_with("Clusters:"));
         assert_eq!(projected.viewport_label, "zoom 1.75x | pan (12, -8)");
+    }
+
+    #[test]
+    fn map_projection_uses_cached_points_when_query_key_matches() {
+        let mut controller =
+            AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+        controller.ui.browser.active_tab = SampleBrowserTab::Map;
+        controller.ui.map.umap_version = String::from("v1");
+        controller.ui.map.bounds = Some(MapBounds {
+            min_x: -1.0,
+            max_x: 1.0,
+            min_y: -1.0,
+            max_y: 1.0,
+        });
+        controller.ui.map.cached_bounds_source_id = None;
+        controller.ui.map.cached_bounds_umap_version = Some(String::from("v1"));
+        controller.ui.map.last_query = Some(MapQueryBounds {
+            min_x: -1.0,
+            max_x: 1.0,
+            min_y: -1.0,
+            max_y: 1.0,
+        });
+        controller.ui.map.cached_points = vec![MapPoint {
+            sample_id: String::from("source::kick.wav"),
+            x: 0.0,
+            y: 0.0,
+            cluster_id: Some(1),
+        }];
+        controller.ui.map.cached_points_source_id = None;
+        controller.ui.map.cached_points_umap_version = Some(String::from("v1"));
+        controller.ui.map.cached_points_revision = 7;
+
+        let projected = project_map_model(&mut controller);
+        assert!(projected.active);
+        assert_eq!(projected.error, None);
+        assert_eq!(projected.summary, "1 points");
+        assert_eq!(projected.points.len(), 1);
+        assert_eq!(controller.ui.map.cached_points_revision, 7);
+    }
+
+    #[test]
+    fn map_projection_does_not_reuse_stale_cache_after_umap_version_change() {
+        let mut controller =
+            AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+        controller.ui.browser.active_tab = SampleBrowserTab::Map;
+        controller.ui.map.bounds = Some(MapBounds {
+            min_x: -1.0,
+            max_x: 1.0,
+            min_y: -1.0,
+            max_y: 1.0,
+        });
+        controller.ui.map.cached_bounds_source_id = None;
+        controller.ui.map.cached_bounds_umap_version = Some(String::from("v1"));
+        controller.ui.map.last_query = Some(MapQueryBounds {
+            min_x: -1.0,
+            max_x: 1.0,
+            min_y: -1.0,
+            max_y: 1.0,
+        });
+        controller.ui.map.cached_points = vec![MapPoint {
+            sample_id: String::from("source::kick.wav"),
+            x: 0.0,
+            y: 0.0,
+            cluster_id: Some(1),
+        }];
+        controller.ui.map.cached_points_source_id = None;
+        controller.ui.map.cached_points_umap_version = Some(String::from("v1"));
+        controller.ui.map.umap_version = String::from("v2");
+
+        let projected = project_map_model(&mut controller);
+        assert!(projected.active);
+        assert!(projected.error.is_some());
+        assert!(projected.points.is_empty());
     }
 
     #[test]

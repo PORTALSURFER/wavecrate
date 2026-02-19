@@ -299,35 +299,6 @@ pub(crate) fn hide_waveform_playhead_for_tests(controller: &mut AppController) {
     hide_waveform_playhead(controller);
 }
 
-#[cfg(test)]
-mod tests {
-    use super::smooth_progress_after_seek;
-    use crate::app::state::PlayheadSeek;
-    use std::time::{Duration, Instant};
-
-    #[test]
-    fn smooth_playhead_progress_after_seek_starts_at_seek_position() {
-        let mut seek = Some(PlayheadSeek {
-            position: 0.25,
-            started_at: Instant::now(),
-        });
-        let progress = smooth_progress_after_seek(&mut seek, 0.40);
-        assert!(progress >= 0.25);
-        assert!(progress <= 0.40);
-    }
-
-    #[test]
-    fn smooth_playhead_progress_after_seek_clears_after_timeout() {
-        let mut seek = Some(PlayheadSeek {
-            position: 0.25,
-            started_at: Instant::now() - Duration::from_millis(500),
-        });
-        let progress = smooth_progress_after_seek(&mut seek, 0.40);
-        assert_eq!(progress, 0.40);
-        assert!(seek.is_none());
-    }
-}
-
 /// Update the active playback selection and its cached duration label.
 pub(crate) fn apply_selection(controller: &mut AppController, range: Option<SelectionRange>) {
     let label = range.and_then(|selection| selection_duration_label(controller, selection));
@@ -342,8 +313,8 @@ pub(crate) fn apply_edit_selection(controller: &mut AppController, range: Option
     if let Some(player) = controller.audio.player.as_ref() {
         player.borrow().set_edit_fade_state(range);
     }
-    let had_effects = previous.map_or(false, |selection| selection.has_edit_effects());
-    let has_effects = range.map_or(false, |selection| selection.has_edit_effects());
+    let had_effects = previous.is_some_and(|selection| selection.has_edit_effects());
+    let has_effects = range.is_some_and(|selection| selection.has_edit_effects());
     if had_effects || has_effects {
         controller.refresh_waveform_image();
     }
@@ -421,4 +392,33 @@ pub(crate) fn defer_loop_disable_after_cycle(controller: &mut AppController) -> 
 
     controller.audio.pending_loop_disable_at = Some(Instant::now() + remaining);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::smooth_progress_after_seek;
+    use crate::app::state::PlayheadSeek;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn smooth_playhead_progress_after_seek_starts_at_seek_position() {
+        let mut seek = Some(PlayheadSeek {
+            position: 0.25,
+            started_at: Instant::now(),
+        });
+        let progress = smooth_progress_after_seek(&mut seek, 0.40);
+        assert!(progress >= 0.25);
+        assert!(progress <= 0.40);
+    }
+
+    #[test]
+    fn smooth_playhead_progress_after_seek_clears_after_timeout() {
+        let mut seek = Some(PlayheadSeek {
+            position: 0.25,
+            started_at: Instant::now() - Duration::from_millis(500),
+        });
+        let progress = smooth_progress_after_seek(&mut seek, 0.40);
+        assert_eq!(progress, 0.40);
+        assert!(seek.is_none());
+    }
 }

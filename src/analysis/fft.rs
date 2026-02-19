@@ -70,9 +70,9 @@ mod tests {
         let mut buf = vec![Complex32::new(1.0, 0.0); 8];
         fft_radix2_inplace(&mut buf).unwrap();
         assert!((buf[0].re - 8.0).abs() < 1e-4);
-        for bin in 1..8 {
-            assert!(buf[bin].re.abs() < 1e-4);
-            assert!(buf[bin].im.abs() < 1e-4);
+        for value in buf.iter().take(8).skip(1) {
+            assert!(value.re.abs() < 1e-4);
+            assert!(value.im.abs() < 1e-4);
         }
     }
 

@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err, clippy::too_many_arguments)]
+
 use super::ScanJobMessage;
 use super::library::analysis_jobs::AnalysisJobMessage;
 use super::library::source_folders::delete_recovery::DeleteRecoveryReport;
@@ -740,7 +742,8 @@ impl ControllerJobs {
             recording_waveform_job_rx,
             search_job_rx,
         );
-        let jobs = Self {
+
+        Self {
             wav_job_tx,
             audio_job_tx,
             recording_waveform_job_tx,
@@ -780,8 +783,7 @@ impl ControllerJobs {
             issue_token_save_in_progress: false,
             issue_token_delete_in_progress: false,
             repaint_signal,
-        };
-        jobs
+        }
     }
 
     pub(super) fn try_recv_message(&self) -> Result<JobMessage, TryRecvError> {
@@ -912,7 +914,7 @@ impl ControllerJobs {
     }
 
     pub(super) fn send_search_job(&self, job: SearchJob) {
-        let _ = self.search_job_tx.send(job);
+        self.search_job_tx.send(job);
     }
 
     pub(super) fn scan_in_progress(&self) -> bool {

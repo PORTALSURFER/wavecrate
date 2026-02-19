@@ -117,12 +117,12 @@ fn validate_embedding_dim(
             "Embedding dim mismatch for {sample_id}: expected {expected}, got {actual}"
         ));
     }
-    if let Some(prev) = previous {
-        if expected != prev {
-            return Err(format!(
-                "Embedding dim mismatch: expected {prev}, got {expected} for {sample_id}"
-            ));
-        }
+    if let Some(prev) = previous
+        && expected != prev
+    {
+        return Err(format!(
+            "Embedding dim mismatch: expected {prev}, got {expected} for {sample_id}"
+        ));
     }
     Ok(())
 }

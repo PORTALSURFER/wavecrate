@@ -34,20 +34,11 @@ enum InstallStep {
     Error,
 }
 
+#[derive(Default)]
 struct InstallProgress {
     total_files: usize,
     copied_files: usize,
     current: Option<String>,
-}
-
-impl Default for InstallProgress {
-    fn default() -> Self {
-        Self {
-            total_files: 0,
-            copied_files: 0,
-            current: None,
-        }
-    }
 }
 
 struct InstallerNativeBridge {

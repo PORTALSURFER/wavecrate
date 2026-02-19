@@ -280,12 +280,11 @@ impl AppController {
                 entry.last_played_at = Some(played_at);
             }
         }
-        if let Some(cache) = self.cache.wav.entries.get_mut(&source_id) {
-            if let Some(index) = cache.lookup.get(&relative_path).copied()
-                && let Some(entry) = cache.entry_mut(index)
-            {
-                entry.last_played_at = Some(played_at);
-            }
+        if let Some(cache) = self.cache.wav.entries.get_mut(&source_id)
+            && let Some(index) = cache.lookup.get(&relative_path).copied()
+            && let Some(entry) = cache.entry_mut(index)
+        {
+            entry.last_played_at = Some(played_at);
         }
     }
 

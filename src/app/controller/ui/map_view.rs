@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use super::*;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::state::SampleBrowserTab;

@@ -47,7 +47,6 @@ impl DragDropController<'_> {
                 target_tag,
                 keep_source_focused,
             );
-            return;
         }
     }
 

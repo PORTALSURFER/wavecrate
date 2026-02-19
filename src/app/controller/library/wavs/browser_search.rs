@@ -98,15 +98,15 @@ impl AppController {
                             .unwrap_or(Ordering::Equal)
                             .then_with(|| a.cmp(b))
                     });
-                    if let Some(anchor) = similar.anchor_index {
-                        if let Some(entry) = self.wav_entry(anchor) {
-                            if filter_accepts(entry.tag) && folder_accepts(&entry.relative_path) {
-                                if let Some(pos) = visible.iter().position(|i| *i == anchor) {
-                                    visible.remove(pos);
-                                }
-                                visible.insert(0, anchor);
-                            }
+                    if let Some(anchor) = similar.anchor_index
+                        && let Some(entry) = self.wav_entry(anchor)
+                        && filter_accepts(entry.tag)
+                        && folder_accepts(&entry.relative_path)
+                    {
+                        if let Some(pos) = visible.iter().position(|i| *i == anchor) {
+                            visible.remove(pos);
                         }
+                        visible.insert(0, anchor);
                     }
                 }
                 SampleBrowserSort::PlaybackAgeAsc => {
@@ -443,7 +443,7 @@ pub(crate) fn set_browser_search(controller: &mut AppController, query: impl Int
 
 fn sort_visible_by_playback_age(
     controller: &mut AppController,
-    visible: &mut Vec<usize>,
+    visible: &mut [usize],
     ascending: bool,
 ) {
     visible.sort_by(|a, b| {

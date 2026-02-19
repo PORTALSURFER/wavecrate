@@ -25,7 +25,7 @@ pub(crate) fn find_similar_for_visible_row(
         controller,
         &sample_id,
         None,
-        |path| view_model::sample_display_label(path),
+        view_model::sample_display_label,
         Some(entry_index),
         "No similar samples found in the current source",
     )
@@ -55,7 +55,7 @@ pub(crate) fn find_similar_for_sample_id(
         controller,
         sample_id,
         None,
-        |path| view_model::sample_display_label(path),
+        view_model::sample_display_label,
         None,
         "No similar samples found in the current source",
     )

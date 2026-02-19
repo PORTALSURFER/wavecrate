@@ -264,9 +264,212 @@ fn trace_action_duration(duration: Duration) {
 #[inline(always)]
 fn trace_action_duration(_duration: Duration) {}
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct MapQueryBoundsKey {
+    min_x_bits: u32,
+    max_x_bits: u32,
+    min_y_bits: u32,
+    max_y_bits: u32,
+}
+
+impl MapQueryBoundsKey {
+    fn from_bounds(bounds: crate::app_core::state::MapQueryBounds) -> Self {
+        Self {
+            min_x_bits: bounds.min_x.to_bits(),
+            max_x_bits: bounds.max_x.to_bits(),
+            min_y_bits: bounds.min_y.to_bits(),
+            max_y_bits: bounds.max_y.to_bits(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct NativeProjectionCacheKey {
+    status_text: String,
+    status_tone: u8,
+    sources_selected: Option<usize>,
+    sources_len: usize,
+    folder_rows_len: usize,
+    folder_focused: Option<usize>,
+    folder_search_query: String,
+    browser_visible_len: usize,
+    browser_selected_visible: Option<usize>,
+    browser_anchor_visible: Option<usize>,
+    browser_selected_paths_len: usize,
+    browser_search_query: String,
+    browser_filter: u8,
+    browser_sort: u8,
+    browser_tab: u8,
+    progress_visible: bool,
+    progress_completed: usize,
+    progress_total: usize,
+    prompt_active: bool,
+    drag_active: bool,
+    waveform_signature: Option<u64>,
+    waveform_cursor: Option<u16>,
+    waveform_playhead: Option<u16>,
+    waveform_selection: Option<(u16, u16)>,
+    waveform_view: (u16, u16),
+    map_open: bool,
+    map_zoom_bits: u32,
+    map_pan_x_bits: u32,
+    map_pan_y_bits: u32,
+    map_selected_sample_id: Option<String>,
+    map_hovered_sample_id: Option<String>,
+    map_umap_version: String,
+    map_bounds_source_id: Option<String>,
+    map_bounds_umap_version: Option<String>,
+    map_points_source_id: Option<String>,
+    map_points_umap_version: Option<String>,
+    map_last_query: Option<MapQueryBoundsKey>,
+    map_points_revision: u64,
+    update_status: u8,
+    update_available_tag: Option<String>,
+    update_available_url: Option<String>,
+    update_last_error: Option<String>,
+    loaded_wav: Option<String>,
+    volume_milli: u16,
+    transport_running: bool,
+}
+
+#[derive(Clone, Debug, Default)]
+struct NativeProjectionCache {
+    app_key: Option<NativeProjectionCacheKey>,
+    app_model: Option<NativeAppModel>,
+}
+
+impl NativeProjectionCache {
+    fn resolve_or_project(
+        &mut self,
+        controller: &mut AppController,
+        project: impl FnOnce(&mut AppController) -> NativeAppModel,
+    ) -> NativeAppModel {
+        let key = build_projection_cache_key(controller);
+        if self.app_key.as_ref() == Some(&key)
+            && let Some(model) = self.app_model.as_ref()
+        {
+            return model.clone();
+        }
+        let model = project(controller);
+        self.app_key = Some(key);
+        self.app_model = Some(model.clone());
+        model
+    }
+
+    fn invalidate(&mut self) {
+        self.app_key = None;
+        self.app_model = None;
+    }
+}
+
+fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCacheKey {
+    use crate::app_core::state::{
+        MapQueryBounds, SampleBrowserSort, SampleBrowserTab, StatusTone, TriageFlagFilter,
+        UpdateStatus,
+    };
+    let map_last_query = controller
+        .ui
+        .map
+        .last_query
+        .map(|bounds: MapQueryBounds| MapQueryBoundsKey::from_bounds(bounds));
+    let waveform_selection = controller.ui.waveform.selection.map(|range| {
+        let start = (range.start().clamp(0.0, 1.0) * 1000.0).round() as u16;
+        let end = (range.end().clamp(0.0, 1.0) * 1000.0).round() as u16;
+        (start, end)
+    });
+    NativeProjectionCacheKey {
+        status_text: controller.ui.status.text.clone(),
+        status_tone: match controller.ui.status.status_tone {
+            StatusTone::Idle => 0,
+            StatusTone::Busy => 1,
+            StatusTone::Info => 2,
+            StatusTone::Warning => 3,
+            StatusTone::Error => 4,
+        },
+        sources_selected: controller.ui.sources.selected,
+        sources_len: controller.ui.sources.rows.len(),
+        folder_rows_len: controller.ui.sources.folders.rows.len(),
+        folder_focused: controller.ui.sources.folders.focused,
+        folder_search_query: controller.ui.sources.folders.search_query.clone(),
+        browser_visible_len: controller.ui.browser.visible.len(),
+        browser_selected_visible: controller.ui.browser.selected_visible,
+        browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
+        browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
+        browser_search_query: controller.ui.browser.search_query.clone(),
+        browser_filter: match controller.ui.browser.filter {
+            TriageFlagFilter::All => 0,
+            TriageFlagFilter::Keep => 1,
+            TriageFlagFilter::Trash => 2,
+            TriageFlagFilter::Untagged => 3,
+        },
+        browser_sort: match controller.ui.browser.sort {
+            SampleBrowserSort::ListOrder => 0,
+            SampleBrowserSort::Similarity => 1,
+            SampleBrowserSort::PlaybackAgeAsc => 2,
+            SampleBrowserSort::PlaybackAgeDesc => 3,
+        },
+        browser_tab: match controller.ui.browser.active_tab {
+            SampleBrowserTab::List => 0,
+            SampleBrowserTab::Map => 1,
+        },
+        progress_visible: controller.ui.progress.visible,
+        progress_completed: controller.ui.progress.completed,
+        progress_total: controller.ui.progress.total,
+        prompt_active: controller.ui.browser.pending_action.is_some()
+            || controller.ui.sources.folders.pending_action.is_some()
+            || controller.ui.sources.folders.new_folder.is_some()
+            || controller.ui.waveform.pending_destructive.is_some(),
+        drag_active: controller.ui.drag.payload.is_some(),
+        waveform_signature: controller.ui.waveform.waveform_image_signature,
+        waveform_cursor: controller
+            .ui
+            .waveform
+            .cursor
+            .map(|value| (value.clamp(0.0, 1.0) * 1000.0).round() as u16),
+        waveform_playhead: controller.ui.waveform.playhead.visible.then_some(
+            (controller.ui.waveform.playhead.position.clamp(0.0, 1.0) * 1000.0).round() as u16,
+        ),
+        waveform_selection,
+        waveform_view: (
+            (controller.ui.waveform.view.start.clamp(0.0, 1.0) * 1000.0).round() as u16,
+            (controller.ui.waveform.view.end.clamp(0.0, 1.0) * 1000.0).round() as u16,
+        ),
+        map_open: controller.ui.map.open,
+        map_zoom_bits: controller.ui.map.zoom.to_bits(),
+        map_pan_x_bits: controller.ui.map.pan.x.to_bits(),
+        map_pan_y_bits: controller.ui.map.pan.y.to_bits(),
+        map_selected_sample_id: controller.ui.map.selected_sample_id.clone(),
+        map_hovered_sample_id: controller.ui.map.hovered_sample_id.clone(),
+        map_umap_version: controller.ui.map.umap_version.clone(),
+        map_bounds_source_id: controller.ui.map.cached_bounds_source_id.clone(),
+        map_bounds_umap_version: controller.ui.map.cached_bounds_umap_version.clone(),
+        map_points_source_id: controller.ui.map.cached_points_source_id.clone(),
+        map_points_umap_version: controller.ui.map.cached_points_umap_version.clone(),
+        map_last_query,
+        map_points_revision: controller.ui.map.cached_points_revision,
+        update_status: match controller.ui.update.status {
+            UpdateStatus::Idle => 0,
+            UpdateStatus::Checking => 1,
+            UpdateStatus::UpdateAvailable => 2,
+            UpdateStatus::Error => 3,
+        },
+        update_available_tag: controller.ui.update.available_tag.clone(),
+        update_available_url: controller.ui.update.available_url.clone(),
+        update_last_error: controller.ui.update.last_error.clone(),
+        loaded_wav: controller
+            .ui
+            .loaded_wav
+            .as_ref()
+            .map(|path| path.display().to_string()),
+        volume_milli: (controller.ui.volume.clamp(0.0, 1.0) * 1000.0).round() as u16,
+        transport_running: controller.is_playing(),
+    }
+}
+
 /// Host bridge used by the native `radiant` runtime.
 pub struct SempalNativeBridge {
     controller: AppController,
+    projection_cache: NativeProjectionCache,
 }
 
 impl SempalNativeBridge {
@@ -281,7 +484,10 @@ impl SempalNativeBridge {
             err
         })?;
         info!("Native bridge controller ready");
-        Ok(Self { controller })
+        Ok(Self {
+            controller,
+            projection_cache: NativeProjectionCache::default(),
+        })
     }
 }
 
@@ -299,7 +505,11 @@ impl NativeAppBridge for SempalNativeBridge {
             trace_pull_model_preparation(prepare_duration);
         }
         let project_start = profiling.then(Instant::now);
-        let model = self.controller.project_native_app_model();
+        let model = self
+            .projection_cache
+            .resolve_or_project(&mut self.controller, |controller| {
+                controller.project_native_app_model()
+            });
         let project_duration = project_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
             trace_pull_model_projection(project_duration);
@@ -313,7 +523,7 @@ impl NativeAppBridge for SempalNativeBridge {
                 "native bridge: pull_model completed"
             );
         }
-        if profiling && call % BRIDGE_PROFILE_INTERVAL == 0 {
+        if profiling && call.is_multiple_of(BRIDGE_PROFILE_INTERVAL) {
             maybe_log_bridge_profile();
         }
         model
@@ -340,7 +550,7 @@ impl NativeAppBridge for SempalNativeBridge {
         if call <= 24 {
             info!(call, "native bridge: pull_motion_model completed");
         }
-        if profiling && call % BRIDGE_PROFILE_INTERVAL == 0 {
+        if profiling && call.is_multiple_of(BRIDGE_PROFILE_INTERVAL) {
             maybe_log_bridge_profile();
         }
         model
@@ -353,6 +563,7 @@ impl NativeAppBridge for SempalNativeBridge {
         if call <= 64 {
             info!(call, action = ?action, "native bridge: on_action");
         }
+        self.projection_cache.invalidate();
         self.controller.apply_native_ui_action(action);
         if profiling {
             let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -366,7 +577,7 @@ impl NativeAppBridge for SempalNativeBridge {
             return;
         }
         let frame_count = trace_frame_result(&result);
-        if frame_count % BRIDGE_PROFILE_INTERVAL == 0 {
+        if frame_count.is_multiple_of(BRIDGE_PROFILE_INTERVAL) {
             maybe_log_bridge_profile();
         }
     }
@@ -394,18 +605,82 @@ pub fn new_native_bridge(
 }
 
 #[cfg(test)]
-#[cfg(feature = "native-bridge-metrics")]
 mod tests {
-    use super::parse_bridge_profile_enabled;
+    use super::{NativeProjectionCache, build_projection_cache_key};
+    use crate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
+    use crate::app_core::state::UpdateStatus;
+    use crate::waveform::WaveformRenderer;
 
     #[test]
+    fn projection_cache_key_changes_when_map_cache_revision_changes() {
+        let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+        let first = build_projection_cache_key(&controller);
+        controller.ui.map.cached_points_revision += 1;
+        let second = build_projection_cache_key(&controller);
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn projection_cache_key_changes_when_update_status_changes() {
+        let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+        let first = build_projection_cache_key(&controller);
+        controller.ui.update.status = UpdateStatus::Checking;
+        let second = build_projection_cache_key(&controller);
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn projection_cache_reuses_model_when_key_unchanged() {
+        let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+        let mut cache = NativeProjectionCache::default();
+        let mut projections = 0usize;
+
+        let _ = cache.resolve_or_project(&mut controller, |controller| {
+            projections += 1;
+            controller.project_native_app_model()
+        });
+        let _ = cache.resolve_or_project(&mut controller, |controller| {
+            projections += 1;
+            controller.project_native_app_model()
+        });
+        assert_eq!(projections, 1);
+
+        controller.ui.status.text = String::from("changed");
+        let _ = cache.resolve_or_project(&mut controller, |controller| {
+            projections += 1;
+            controller.project_native_app_model()
+        });
+        assert_eq!(projections, 2);
+    }
+
+    #[test]
+    fn projection_cache_invalidate_forces_refresh() {
+        let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+        let mut cache = NativeProjectionCache::default();
+        let mut projections = 0usize;
+
+        let _ = cache.resolve_or_project(&mut controller, |controller| {
+            projections += 1;
+            controller.project_native_app_model()
+        });
+        cache.invalidate();
+        let _ = cache.resolve_or_project(&mut controller, |controller| {
+            projections += 1;
+            controller.project_native_app_model()
+        });
+
+        assert_eq!(projections, 2);
+    }
+
+    #[cfg(feature = "native-bridge-metrics")]
+    #[test]
     fn parse_bridge_profile_enabled_is_case_insensitive() {
-        assert!(parse_bridge_profile_enabled("TRUE"));
-        assert!(parse_bridge_profile_enabled("on"));
-        assert!(parse_bridge_profile_enabled("Yes"));
-        assert!(parse_bridge_profile_enabled("  true  "));
-        assert!(!parse_bridge_profile_enabled("0"));
-        assert!(!parse_bridge_profile_enabled("no"));
-        assert!(!parse_bridge_profile_enabled(""));
+        assert!(super::parse_bridge_profile_enabled("TRUE"));
+        assert!(super::parse_bridge_profile_enabled("on"));
+        assert!(super::parse_bridge_profile_enabled("Yes"));
+        assert!(super::parse_bridge_profile_enabled("  true  "));
+        assert!(!super::parse_bridge_profile_enabled("0"));
+        assert!(!super::parse_bridge_profile_enabled("no"));
+        assert!(!super::parse_bridge_profile_enabled(""));
     }
 }

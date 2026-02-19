@@ -3,6 +3,7 @@
 use sempal::app_dirs;
 use serde::Serialize;
 use std::{
+    fmt,
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
@@ -149,14 +150,14 @@ impl RunContract {
             return;
         };
 
-        if let Some(parent) = self.artifact_path.parent() {
-            if let Err(err) = fs::create_dir_all(parent) {
-                error!(
-                    "[run_contract] failed to ensure artifact directory {}: {err}",
-                    parent.display()
-                );
-                return;
-            }
+        if let Some(parent) = self.artifact_path.parent()
+            && let Err(err) = fs::create_dir_all(parent)
+        {
+            error!(
+                "[run_contract] failed to ensure artifact directory {}: {err}",
+                parent.display()
+            );
+            return;
         }
 
         match OpenOptions::new()
@@ -210,14 +211,14 @@ impl RunContract {
             return;
         };
 
-        if let Some(parent) = self.manifest_path.parent() {
-            if let Err(err) = fs::create_dir_all(parent) {
-                error!(
-                    "[run_contract] failed to ensure manifest directory {}: {err}",
-                    parent.display()
-                );
-                return;
-            }
+        if let Some(parent) = self.manifest_path.parent()
+            && let Err(err) = fs::create_dir_all(parent)
+        {
+            error!(
+                "[run_contract] failed to ensure manifest directory {}: {err}",
+                parent.display()
+            );
+            return;
         }
 
         if let Err(err) = fs::write(&self.manifest_path, serialized) {
@@ -241,9 +242,11 @@ impl UtcTimestamp {
             .as_secs();
         Self(now)
     }
+}
 
-    fn to_string(self) -> String {
-        self.0.to_string()
+impl fmt::Display for UtcTimestamp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

@@ -10,24 +10,20 @@ pub(crate) fn handle_analysis_message(controller: &mut AppController, message: A
             source_id,
             progress,
         } => {
-            if let Some(state) = controller.runtime.similarity_prep.as_ref() {
-                if source_id.as_ref() != Some(&state.source_id) {
-                    return;
-                }
+            if let Some(state) = controller.runtime.similarity_prep.as_ref()
+                && source_id.as_ref() != Some(&state.source_id)
+            {
+                return;
             }
             let selected_source = controller.selection_state.ctx.selected_source.clone();
             let mut progress = progress;
-            if source_id.is_none() {
-                if let Some(selected_id) = selected_source.as_ref() {
-                    if let Some(source) = controller.current_source() {
-                        if &source.id == selected_id {
-                            if let Ok(scoped) = analysis_jobs::current_progress_for_source(&source)
-                            {
-                                progress = scoped;
-                            }
-                        }
-                    }
-                }
+            if source_id.is_none()
+                && let Some(selected_id) = selected_source.as_ref()
+                && let Some(source) = controller.current_source()
+                && &source.id == selected_id
+                && let Ok(scoped) = analysis_jobs::current_progress_for_source(&source)
+            {
+                progress = scoped;
             }
             let selected_matches = match source_id.as_ref() {
                 None => true,
@@ -36,15 +32,14 @@ pub(crate) fn handle_analysis_message(controller: &mut AppController, message: A
                     .map(|selected| selected == id)
                     .unwrap_or(false),
             };
-            if let Some(source_id) = source_id.as_ref() {
-                if controller
+            if let Some(source_id) = source_id.as_ref()
+                && controller
                     .runtime
                     .similarity_prep
                     .as_ref()
                     .is_some_and(|state| &state.source_id == source_id)
-                {
-                    controller.handle_similarity_analysis_progress(&progress);
-                }
+            {
+                controller.handle_similarity_analysis_progress(&progress);
             }
             if !selected_matches {
                 return;

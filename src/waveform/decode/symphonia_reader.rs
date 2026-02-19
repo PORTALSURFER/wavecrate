@@ -156,12 +156,12 @@ impl WaveformRenderer {
                         *min = (*min).min(sample);
                         *max = (*max).max(sample);
                     }
-                } else if ch == 1 {
-                    if let Some(right_peaks) = right.as_mut() {
-                        let (min, max) = &mut right_peaks[bucket];
-                        *min = (*min).min(sample);
-                        *max = (*max).max(sample);
-                    }
+                } else if ch == 1
+                    && let Some(right_peaks) = right.as_mut()
+                {
+                    let (min, max) = &mut right_peaks[bucket];
+                    *min = (*min).min(sample);
+                    *max = (*max).max(sample);
                 }
             }
             let (min, max) = &mut mono[bucket];

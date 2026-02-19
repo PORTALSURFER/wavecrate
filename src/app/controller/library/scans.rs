@@ -136,9 +136,7 @@ impl AppController {
 }
 
 fn auto_sync_due(last_sync: Option<Instant>, now: Instant, min_interval: Duration) -> bool {
-    last_sync.map_or(true, |last| {
-        now.saturating_duration_since(last) >= min_interval
-    })
+    last_sync.is_none_or(|last| now.saturating_duration_since(last) >= min_interval)
 }
 
 #[cfg(test)]

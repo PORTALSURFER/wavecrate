@@ -79,7 +79,7 @@ pub(crate) fn register_recording_in_browser(
 
 fn ensure_recordings_source(
     controller: &mut AppController,
-    recording_path: &PathBuf,
+    recording_path: &Path,
 ) -> Result<SampleSource, String> {
     let root = recording_path
         .parent()

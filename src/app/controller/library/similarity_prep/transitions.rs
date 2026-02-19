@@ -90,11 +90,11 @@ impl AppController {
         }
         match result.result {
             Ok(outcome) => {
-                if let Some(scan_completed_at) = state.as_ref().and_then(|s| s.scan_completed_at) {
-                    if let Some(source) = self.find_source_by_id(&result.source_id) {
-                        let store = DbSimilarityPrepStore;
-                        store.record_prep_scan_timestamp(&source, scan_completed_at);
-                    }
+                if let Some(scan_completed_at) = state.as_ref().and_then(|s| s.scan_completed_at)
+                    && let Some(source) = self.find_source_by_id(&result.source_id)
+                {
+                    let store = DbSimilarityPrepStore;
+                    store.record_prep_scan_timestamp(&source, scan_completed_at);
                 }
                 self.show_similarity_prep_ready(&outcome);
             }

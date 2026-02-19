@@ -40,7 +40,7 @@ mod tests {
         // Test various frame counts
         for target_frames in [1, 10, 100, 1000] {
             // Encode an exact frame count in nanoseconds using integer ceil.
-            let nanos = (target_frames as u64 * 1_000_000_000 + rate as u64 - 1) / rate as u64;
+            let nanos = (target_frames as u64 * 1_000_000_000).div_ceil(rate as u64);
             let duration = Duration::from_nanos(nanos);
 
             let source = EndlessSource {

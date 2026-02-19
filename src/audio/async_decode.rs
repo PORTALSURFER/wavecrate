@@ -79,10 +79,10 @@ where
                             }
                         }
                         None => {
-                            if let Some(err) = source.last_error() {
-                                if let Ok(mut slot) = thread_error.lock() {
-                                    *slot = Some(err);
-                                }
+                            if let Some(err) = source.last_error()
+                                && let Ok(mut slot) = thread_error.lock()
+                            {
+                                *slot = Some(err);
                             }
                             break;
                         }

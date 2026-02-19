@@ -175,23 +175,23 @@ fn dct_ii_into(values: &[f32], count: usize, cos_table: &[f32], out: &mut Vec<f3
     }
     let expected = count * bands;
     if cos_table.len() != expected {
-        for k in 0..count {
+        for (k, out_value) in out.iter_mut().enumerate().take(count) {
             let mut sum = 0.0_f64;
             for (m, &v) in values.iter().enumerate() {
                 let angle = std::f64::consts::PI * (k as f64) * ((m as f64) + 0.5) / bands as f64;
                 sum += v as f64 * angle.cos();
             }
-            out[k] = sum as f32;
+            *out_value = sum as f32;
         }
         return;
     }
-    for k in 0..count {
+    for (k, out_value) in out.iter_mut().enumerate().take(count) {
         let mut sum = 0.0_f64;
         let base = k * bands;
         for m in 0..bands {
             sum += values[m] as f64 * cos_table[base + m] as f64;
         }
-        out[k] = sum as f32;
+        *out_value = sum as f32;
     }
 }
 

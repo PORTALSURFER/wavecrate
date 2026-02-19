@@ -35,14 +35,8 @@ pub const SOURCE_DB_ALLOW_USER_LIBRARY_WRITE_ENV: &str = "SEMPAL_ALLOW_USER_LIBR
 /// Positive values (1..=3) are Keep.
 /// Negative values (-3..=-1) are Trash.
 /// 0 is Neutral.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Rating(i8);
-
-impl Default for Rating {
-    fn default() -> Self {
-        Self(0)
-    }
-}
 
 impl Rating {
     /// Neutral rating (no keep/trash decision).

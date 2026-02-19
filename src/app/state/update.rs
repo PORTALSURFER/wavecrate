@@ -1,9 +1,10 @@
 //! UI state for update checks and update notifications.
 
 /// Status for the background update check.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum UpdateStatus {
     /// No update activity in progress.
+    #[default]
     Idle,
     /// Update check in progress.
     Checking,
@@ -11,12 +12,6 @@ pub enum UpdateStatus {
     UpdateAvailable,
     /// Update check failed.
     Error,
-}
-
-impl Default for UpdateStatus {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 /// UI state surfaced in the status bar when a newer release exists.

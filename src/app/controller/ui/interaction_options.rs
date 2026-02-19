@@ -35,7 +35,6 @@ fn wheel_zoom_factor_to_speed(factor: f32) -> f32 {
     let factor = clamp_zoom_factor(factor);
     clamp_wheel_zoom_speed(factor.ln() / WHEEL_ZOOM_ANCHOR_FACTOR.ln())
 }
-
 impl AppController {
     /// Set and persist waveform scroll speed (clamped).
     pub fn set_waveform_scroll_speed(&mut self, speed: f32) {
@@ -228,10 +227,11 @@ impl AppController {
             .is_some_and(|audio| {
                 audio.source_id == source.id && audio.relative_path == relative_path
             });
-        if was_playing && loaded_matches {
-            if let Err(err) = self.play_audio(looped, start_override) {
-                self.set_status(err, StatusTone::Error);
-            }
+        if was_playing
+            && loaded_matches
+            && let Err(err) = self.play_audio(looped, start_override)
+        {
+            self.set_status(err, StatusTone::Error);
         }
     }
 
@@ -297,10 +297,11 @@ impl AppController {
                 .is_some_and(|audio| {
                     audio.source_id == source.id && audio.relative_path == relative_path
                 });
-            if was_playing && loaded_matches {
-                if let Err(err) = self.play_audio(looped, start_override) {
-                    self.set_status(err, StatusTone::Error);
-                }
+            if was_playing
+                && loaded_matches
+                && let Err(err) = self.play_audio(looped, start_override)
+            {
+                self.set_status(err, StatusTone::Error);
             }
         }
     }

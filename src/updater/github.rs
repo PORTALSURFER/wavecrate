@@ -329,7 +329,7 @@ mod tests {
     #[test]
     fn retries_on_transient_github_errors() {
         let body = r#"{"ok": true}"#;
-        let responses = vec![
+        let responses = [
             "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n".to_string(),
             "HTTP/1.1 429 Too Many Requests\r\nRetry-After: 0\r\nContent-Length: 0\r\n\r\n"
                 .to_string(),

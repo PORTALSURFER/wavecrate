@@ -134,18 +134,9 @@ pub(crate) fn run_update_check(request: UpdateCheckRequest) -> Result<UpdateChec
 
 fn runtime_identity(channel: UpdateChannel) -> RuntimeIdentity {
     let platform_raw = std::env::consts::OS;
-    let platform = match platform_raw {
-        "windows" => "windows",
-        "linux" => "linux",
-        "macos" => "macos",
-        other => other,
-    };
+    let platform = platform_raw;
     let arch_raw = std::env::consts::ARCH;
-    let arch = match arch_raw {
-        "x86_64" => "x86_64",
-        "aarch64" => "aarch64",
-        other => other,
-    };
+    let arch = arch_raw;
     let target = match (platform, arch) {
         ("windows", "x86_64") => "x86_64-pc-windows-msvc",
         ("windows", "aarch64") => "aarch64-pc-windows-msvc",

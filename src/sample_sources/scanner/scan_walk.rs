@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use std::{
     path::Path,
     sync::atomic::{AtomicBool, Ordering},

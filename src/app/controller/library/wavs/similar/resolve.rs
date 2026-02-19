@@ -67,12 +67,11 @@ pub(crate) fn resolve_similarity_for_sample_id(
     if let Err(err) = maybe_enqueue_full_analysis(controller, &mut conn, sample_id) {
         tracing::debug!("Fast prep refine enqueue failed: {err}");
     }
-    if score_cutoff.is_some() {
-        if let Some(rms) = load_rms_for_sample(&conn, sample_id)? {
-            if is_effectively_silent(rms) {
-                return Err("Selected sample is effectively silent".to_string());
-            }
-        }
+    if score_cutoff.is_some()
+        && let Some(rms) = load_rms_for_sample(&conn, sample_id)?
+        && is_effectively_silent(rms)
+    {
+        return Err("Selected sample is effectively silent".to_string());
     }
     let neighbours =
         crate::analysis::ann_index::find_similar(&conn, sample_id, SIMILAR_RE_RANK_CANDIDATES)?;
@@ -247,22 +246,21 @@ fn filter_ranked_candidates(
     let mut scores = Vec::new();
     let apply_duplicate_filters = score_cutoff.is_some();
     for (candidate_id, score) in ranked {
-        if let Some(cutoff) = score_cutoff {
-            if score < cutoff {
-                break;
-            }
+        if let Some(cutoff) = score_cutoff
+            && score < cutoff
+        {
+            break;
         }
         let (candidate_source, relative_path) =
             super::analysis_jobs::parse_sample_id(&candidate_id)?;
         if candidate_source.as_str() != source_id.as_str() {
             continue;
         }
-        if apply_duplicate_filters {
-            if let Some(rms) = load_rms_for_sample(conn, &candidate_id)? {
-                if is_effectively_silent(rms) {
-                    continue;
-                }
-            }
+        if apply_duplicate_filters
+            && let Some(rms) = load_rms_for_sample(conn, &candidate_id)?
+            && is_effectively_silent(rms)
+        {
+            continue;
         }
         if let Some(index) = resolve_index(&relative_path) {
             indices.push(index);

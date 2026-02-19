@@ -28,7 +28,7 @@ pub(super) fn run(options: &BenchOptions) -> Result<FeatureBlobDecodeBenchResult
     for _ in 0..options.measure_iters.max(1) {
         for _ in 0..blobs {
             let decoded = sempal::analysis::decode_f32_le_blob(&payload)?;
-            checksum += decoded.get(0).copied().unwrap_or(0.0) as f64;
+            checksum += decoded.first().copied().unwrap_or(0.0) as f64;
         }
     }
     let elapsed = started.elapsed();

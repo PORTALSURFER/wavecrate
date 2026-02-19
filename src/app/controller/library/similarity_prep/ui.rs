@@ -21,7 +21,12 @@ impl AppController {
     pub(crate) fn show_similarity_prep_ready(&mut self, outcome: &jobs::SimilarityPrepOutcome) {
         self.runtime.similarity_prep_last_error = None;
         self.ui.map.bounds = None;
+        self.ui.map.cached_bounds_source_id = None;
+        self.ui.map.cached_bounds_umap_version = None;
         self.ui.map.last_query = None;
+        self.ui.map.cached_points.clear();
+        self.ui.map.cached_points_source_id = None;
+        self.ui.map.cached_points_umap_version = None;
         self.ui.map.cached_cluster_centroids_key = None;
         self.ui.map.cached_cluster_centroids = None;
         self.ui.map.auto_cluster_build_requested_key = None;

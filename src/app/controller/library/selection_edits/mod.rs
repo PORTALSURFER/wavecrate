@@ -208,17 +208,17 @@ impl AppController {
         let was_looping = self.ui.waveform.loop_enabled;
         let playhead_position = self.ui.waveform.playhead.position;
 
-        if let Ok(backup) = undo::OverwriteBackup::capture_before(&new_absolute) {
-            if backup.capture_after(&new_absolute).is_ok() {
-                self.push_undo_entry(self.crop_new_sample_undo_entry(
-                    format!("Cropped to new sample {}", new_relative.display()),
-                    context.source.id.clone(),
-                    new_relative.clone(),
-                    new_absolute.clone(),
-                    tag,
-                    backup,
-                ));
-            }
+        if let Ok(backup) = undo::OverwriteBackup::capture_before(&new_absolute)
+            && backup.capture_after(&new_absolute).is_ok()
+        {
+            self.push_undo_entry(self.crop_new_sample_undo_entry(
+                format!("Cropped to new sample {}", new_relative.display()),
+                context.source.id.clone(),
+                new_relative.clone(),
+                new_absolute.clone(),
+                tag,
+                backup,
+            ));
         }
 
         if was_playing {

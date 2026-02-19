@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use cpal;
 use cpal::traits::{DeviceTrait, HostTrait};
 use serde::{Deserialize, Serialize};
@@ -605,10 +607,8 @@ fn process_audio_callback(state: &mut CallbackState, data: &mut [f32]) {
                 break;
             }
         }
-        if finished {
-            if let Some(err) = source.last_error() {
-                last_error = Some(err);
-            }
+        if finished && let Some(err) = source.last_error() {
+            last_error = Some(err);
         }
         !finished
     });
@@ -617,10 +617,10 @@ fn process_audio_callback(state: &mut CallbackState, data: &mut [f32]) {
         .active_sources
         .store(state.sources.len(), Ordering::Relaxed);
 
-    if let Some(err) = last_error {
-        if state.error_sender.send(err).is_err() {
-            // Receiver dropped; nothing left to report.
-        }
+    if let Some(err) = last_error
+        && state.error_sender.send(err).is_err()
+    {
+        // Receiver dropped; nothing left to report.
     }
 }
 

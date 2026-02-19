@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use super::*;
 use crate::app::controller::playback::audio_samples::{
     decode_samples_from_bytes, wav_bytes_from_samples,
@@ -127,17 +129,17 @@ impl AppController {
                 .map_err(|err| err.to_string())?,
         };
 
-        if matches!(intent, AudioLoadIntent::Selection) {
-            if let Some(ratio) = self.stretch_ratio_for_sample(source, relative_path) {
-                let stretched = self.stretch_wav_bytes(&bytes, ratio)?;
-                // Decode the stretched bytes to get the correct duration
-                let stretched_decoded = self
-                    .sample_view
-                    .renderer
-                    .decode_from_bytes(&stretched)
-                    .map_err(|err| err.to_string())?;
-                return Ok((stretched_decoded, stretched, true));
-            }
+        if matches!(intent, AudioLoadIntent::Selection)
+            && let Some(ratio) = self.stretch_ratio_for_sample(source, relative_path)
+        {
+            let stretched = self.stretch_wav_bytes(&bytes, ratio)?;
+            // Decode the stretched bytes to get the correct duration
+            let stretched_decoded = self
+                .sample_view
+                .renderer
+                .decode_from_bytes(&stretched)
+                .map_err(|err| err.to_string())?;
+            return Ok((stretched_decoded, stretched, true));
         }
 
         Ok((original_decoded, bytes, false))

@@ -159,7 +159,7 @@ fn write_seed_wav(path: &Path, seed: i64) -> Result<(), String> {
 fn execute_interaction_step(controller: &mut AppController, step: usize) -> Result<(), String> {
     controller.set_browser_search(interaction_query_for_step(step));
     controller.set_browser_filter(interaction_filter_for_step(step));
-    controller.set_browser_sort(interaction_sort_for_step(step).into());
+    controller.set_browser_sort(interaction_sort_for_step(step));
     if controller.visible_browser_len() > 0 {
         controller.select_column_by_index(step % 3);
     }
@@ -180,7 +180,7 @@ fn interaction_filter_for_step(step: usize) -> TriageFlagFilter {
 }
 
 fn interaction_sort_for_step(step: usize) -> SampleBrowserSort {
-    if step % 2 == 0 {
+    if step.is_multiple_of(2) {
         SampleBrowserSort::ListOrder
     } else {
         SampleBrowserSort::PlaybackAgeDesc
@@ -199,17 +199,18 @@ mod tests {
     }
 
     fn tiny_options() -> BenchOptions {
-        let mut options = BenchOptions::default();
-        options.gui_rows = 4;
-        options.warmup_iters = 1;
-        options.measure_iters = 1;
-        options
+        BenchOptions {
+            gui_rows: 4,
+            warmup_iters: 1,
+            measure_iters: 1,
+            ..BenchOptions::default()
+        }
     }
 
     #[test]
     fn run_gui_benchmark_uses_one_row_when_gui_rows_is_zero() {
         let mut options = tiny_options();
-        let _config_scope = with_isolated_app_config();
+        with_isolated_app_config();
         options.gui_rows = 0;
         let report = run(&options).expect("gui benchmark with minimum row count");
         assert_eq!(report.seeded_rows, 1);
@@ -219,7 +220,7 @@ mod tests {
     #[test]
     fn interaction_step_cycles_search_filter_and_sort() {
         let options = tiny_options();
-        let _config_scope = with_isolated_app_config();
+        with_isolated_app_config();
         let mut workspace = build_controller_with_db_rows(&options).expect("build gui workspace");
         wait_for_rows(&mut workspace.controller, options.gui_rows).expect("rows seeded");
 
@@ -235,7 +236,7 @@ mod tests {
             );
             assert_eq!(
                 workspace.controller.ui.browser.sort,
-                interaction_sort_for_step(step).into()
+                interaction_sort_for_step(step)
             );
         }
     }

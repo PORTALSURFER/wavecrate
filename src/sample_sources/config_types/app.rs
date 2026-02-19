@@ -22,7 +22,7 @@ use super::{AnalysisSettings, InteractionOptions, UpdateSettings};
 /// `volume`, `audio_output`, `audio_input`, `controls`, `job_message_queue_capacity`.
 ///
 /// `sources` are stored in the library database.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     /// Sample sources loaded from the library database.
     pub sources: Vec<SampleSource>,
@@ -32,7 +32,7 @@ pub struct AppConfig {
 }
 
 /// App settings that belong in the TOML config file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub(crate) struct AppSettings {
     #[serde(default, flatten)]
     pub core: AppSettingsCore,
@@ -168,23 +168,6 @@ impl Default for FeatureFlags {
     fn default() -> Self {
         Self {
             autoplay_selection: true,
-        }
-    }
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            sources: Vec::new(),
-            core: AppSettingsCore::default(),
-        }
-    }
-}
-
-impl Default for AppSettings {
-    fn default() -> Self {
-        Self {
-            core: AppSettingsCore::default(),
         }
     }
 }

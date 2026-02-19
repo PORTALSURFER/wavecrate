@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use super::super::job_execution::update_job_status_with_retry;
 use super::super::job_progress::ProgressPollerWakeup;
 use super::super::progress_cache::ProgressCache;
@@ -68,10 +70,10 @@ pub(crate) fn finalize_immediate_job(
         let source_id = analysis_db::parse_sample_id(&job.sample_id)
             .ok()
             .map(|(source_id, _)| crate::sample_sources::SourceId::from_string(source_id));
-        if let Some(source_id) = source_id.as_ref() {
-            if let Ok(mut cache) = progress_cache.write() {
-                cache.update(source_id.clone(), progress);
-            }
+        if let Some(source_id) = source_id.as_ref()
+            && let Ok(mut cache) = progress_cache.write()
+        {
+            cache.update(source_id.clone(), progress);
         }
         let _ = tx.send(JobMessage::Analysis(AnalysisJobMessage::Progress {
             source_id,
@@ -155,7 +157,7 @@ pub(crate) fn spawn_decode_heartbeat(
                 return;
             }
         };
-        let _ = analysis_db::touch_running_at(&conn, &[job_id]);
+        let _ = analysis_db::touch_running_at(conn, &[job_id]);
         let mut last_touch = Instant::now() - interval;
         let poll = Duration::from_millis(200);
         loop {
@@ -163,7 +165,7 @@ pub(crate) fn spawn_decode_heartbeat(
                 break;
             }
             if last_touch.elapsed() >= interval {
-                let _ = analysis_db::touch_running_at(&conn, &[job_id]);
+                let _ = analysis_db::touch_running_at(conn, &[job_id]);
                 last_touch = Instant::now();
             }
             sleep(poll);

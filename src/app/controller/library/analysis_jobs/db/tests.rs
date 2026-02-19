@@ -635,7 +635,7 @@ fn sample_ids_missing_duration_finds_nulls() {
     .unwrap();
     let missing = sample_ids_missing_duration(
         &conn,
-        &vec!["s::missing.wav".to_string(), "s::ok.wav".to_string()],
+        &["s::missing.wav".to_string(), "s::ok.wav".to_string()],
     )
     .unwrap();
     assert!(missing.contains("s::missing.wav"));

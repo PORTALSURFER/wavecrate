@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use super::selection_edits::apply_short_edge_fades_to_clip;
 use super::*;
 use crate::sample_sources::Rating;

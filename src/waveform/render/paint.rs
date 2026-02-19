@@ -41,10 +41,9 @@ impl WaveformRenderer {
             let mut min_sum = 0.0_f32;
             let mut max_sum = 0.0_f32;
             let mut weight_sum = 0.0_f32;
-            for i in start..end {
+            for (i, &(min, max)) in columns.iter().enumerate().take(end).skip(start) {
                 let dist = idx.abs_diff(i) as f32;
                 let weight = (radius as f32 + 1.0 - dist).max(0.0);
-                let (min, max) = columns[i];
                 min_sum += min * weight;
                 max_sum += max * weight;
                 weight_sum += weight;

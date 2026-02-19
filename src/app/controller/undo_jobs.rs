@@ -29,16 +29,16 @@ pub(crate) fn run_undo_file_job(
             absolute_path,
             backup_path,
         } => {
-            if let Some(parent) = absolute_path.parent() {
-                if let Err(err) = std::fs::create_dir_all(parent) {
-                    return UndoFileOpResult {
-                        result: Err(format!(
-                            "Failed to create folder {}: {err}",
-                            parent.display()
-                        )),
-                        cancelled: false,
-                    };
-                }
+            if let Some(parent) = absolute_path.parent()
+                && let Err(err) = std::fs::create_dir_all(parent)
+            {
+                return UndoFileOpResult {
+                    result: Err(format!(
+                        "Failed to create folder {}: {err}",
+                        parent.display()
+                    )),
+                    cancelled: false,
+                };
             }
             std::fs::copy(&backup_path, &absolute_path)
                 .map_err(|err| format!("Failed to restore audio: {err}"))
@@ -98,16 +98,16 @@ pub(crate) fn run_undo_file_job(
             backup_path,
             tag,
         } => {
-            if let Some(parent) = absolute_path.parent() {
-                if let Err(err) = std::fs::create_dir_all(parent) {
-                    return UndoFileOpResult {
-                        result: Err(format!(
-                            "Failed to create folder {}: {err}",
-                            parent.display()
-                        )),
-                        cancelled: false,
-                    };
-                }
+            if let Some(parent) = absolute_path.parent()
+                && let Err(err) = std::fs::create_dir_all(parent)
+            {
+                return UndoFileOpResult {
+                    result: Err(format!(
+                        "Failed to create folder {}: {err}",
+                        parent.display()
+                    )),
+                    cancelled: false,
+                };
             }
             std::fs::copy(&backup_path, &absolute_path)
                 .map_err(|err| format!("Failed to restore audio: {err}"))

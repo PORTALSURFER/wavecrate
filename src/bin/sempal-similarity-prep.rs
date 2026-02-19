@@ -2,6 +2,7 @@
 
 use sempal::app_core::controller::build_native_app_controller;
 use sempal::waveform::WaveformRenderer;
+use std::io::Write;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -58,10 +59,13 @@ fn main() {
     }
 
     let normalized = sempal::sample_sources::config::normalize_path(&opts.source);
-    if opts.reset_failed {
-        if let Err(err) = reset_stalled_analysis_jobs(&normalized) {
-            eprintln!("Warning: failed to reset analysis jobs: {err}");
-        }
+    if opts.reset_failed
+        && let Err(err) = reset_stalled_analysis_jobs(&normalized)
+    {
+        let _ = writeln!(
+            std::io::stderr(),
+            "Warning: failed to reset analysis jobs: {err}"
+        );
     }
     if !controller.select_source_by_root(&normalized) {
         if opts.analysis_full {

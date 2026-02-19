@@ -3,7 +3,6 @@ use crate::app::controller::library::wav_io;
 use crate::app::controller::playback::audio_cache::CacheKey;
 use crate::app::view_model;
 use crate::waveform::DecodedWaveform;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 mod audio_loading;
@@ -44,10 +43,8 @@ impl AppController {
         anchor_index: Option<usize>,
     ) {
         self.ui.browser.focused_similarity =
-            match similar::build_focused_similarity_highlight(self, sample_id, anchor_index) {
-                Ok(highlight) => highlight,
-                Err(_) => None,
-            };
+            similar::build_focused_similarity_highlight(self, sample_id, anchor_index)
+                .unwrap_or_default();
     }
 
     /// Expose wav indices for a given triage flag column (used by virtualized rendering).
@@ -62,10 +59,10 @@ impl AppController {
     /// Resolve the stored BPM metadata for a sample path when available.
     pub(crate) fn bpm_value_for_path(&mut self, path: &Path) -> Option<f32> {
         let source = self.current_source()?;
-        if let Some(cache) = self.ui_cache.browser.bpm_values.get(&source.id) {
-            if let Some(cached) = cache.get(path) {
-                return *cached;
-            }
+        if let Some(cache) = self.ui_cache.browser.bpm_values.get(&source.id)
+            && let Some(cached) = cache.get(path)
+        {
+            return *cached;
         }
         let db = self.database_for(&source).ok()?;
         let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), path);
@@ -75,7 +72,7 @@ impl AppController {
             .browser
             .bpm_values
             .entry(source.id.clone())
-            .or_insert_with(HashMap::new);
+            .or_default();
         cache.insert(path.to_path_buf(), bpm);
         bpm
     }
@@ -179,12 +176,11 @@ impl AppController {
         source: &SampleSource,
         relative_path: &Path,
     ) -> Result<crate::sample_sources::Rating, String> {
-        if let Some(cache) = self.cache.wav.entries.get(&source.id) {
-            if let Some(index) = cache.lookup.get(relative_path).copied()
-                && let Some(entry) = cache.entry(index)
-            {
-                return Ok(entry.tag);
-            }
+        if let Some(cache) = self.cache.wav.entries.get(&source.id)
+            && let Some(index) = cache.lookup.get(relative_path).copied()
+            && let Some(entry) = cache.entry(index)
+        {
+            return Ok(entry.tag);
         }
         if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id)
             && let Some(index) = self.wav_index_for_path(relative_path)
@@ -206,12 +202,11 @@ impl AppController {
         source: &SampleSource,
         relative_path: &Path,
     ) -> Result<bool, String> {
-        if let Some(cache) = self.cache.wav.entries.get(&source.id) {
-            if let Some(index) = cache.lookup.get(relative_path).copied()
-                && let Some(entry) = cache.entry(index)
-            {
-                return Ok(entry.looped);
-            }
+        if let Some(cache) = self.cache.wav.entries.get(&source.id)
+            && let Some(index) = cache.lookup.get(relative_path).copied()
+            && let Some(entry) = cache.entry(index)
+        {
+            return Ok(entry.looped);
         }
         if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id)
             && let Some(index) = self.wav_index_for_path(relative_path)
@@ -233,12 +228,11 @@ impl AppController {
         source: &SampleSource,
         relative_path: &Path,
     ) -> Result<Option<i64>, String> {
-        if let Some(cache) = self.cache.wav.entries.get(&source.id) {
-            if let Some(index) = cache.lookup.get(relative_path).copied()
-                && let Some(entry) = cache.entry(index)
-            {
-                return Ok(entry.last_played_at);
-            }
+        if let Some(cache) = self.cache.wav.entries.get(&source.id)
+            && let Some(index) = cache.lookup.get(relative_path).copied()
+            && let Some(entry) = cache.entry(index)
+        {
+            return Ok(entry.last_played_at);
         }
         if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id)
             && let Some(index) = self.wav_index_for_path(relative_path)
@@ -432,15 +426,14 @@ impl AppController {
                 self.ui.browser.last_focused_path = Some(new_entry.relative_path.clone());
             }
         }
-        if let Some(cache) = self.cache.wav.entries.get_mut(&source.id) {
-            if let Some(index) = cache.lookup.get(old_path).copied()
-                && let Some(slot) = cache.entry_mut(index)
-            {
-                *slot = new_entry.clone();
-                cache.lookup.remove(old_path);
-                cache.insert_lookup(new_entry.relative_path.clone(), index);
-                updated = true;
-            }
+        if let Some(cache) = self.cache.wav.entries.get_mut(&source.id)
+            && let Some(index) = cache.lookup.get(old_path).copied()
+            && let Some(slot) = cache.entry_mut(index)
+        {
+            *slot = new_entry.clone();
+            cache.lookup.remove(old_path);
+            cache.insert_lookup(new_entry.relative_path.clone(), index);
+            updated = true;
         }
         if updated {
             if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
@@ -515,7 +508,7 @@ impl AppController {
         let db = self.database_for(&source).map_err(|err| err.to_string())?;
         let total = self.wav_entries.total;
         let page_size = self.wav_entries.page_size.max(1);
-        let page_count = (total + page_size - 1) / page_size;
+        let page_count = total.div_ceil(page_size);
         for page_index in 0..page_count {
             let offset = page_index * page_size;
             if let Some(page) = self.wav_entries.pages.get(&page_index) {

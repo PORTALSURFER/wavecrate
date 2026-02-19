@@ -71,7 +71,7 @@ pub fn encode_f32_le_blob(values: &[f32]) -> Vec<u8> {
 
 /// Decode a little-endian `f32` blob (as stored in SQLite) into a `Vec<f32>`.
 pub fn decode_f32_le_blob(blob: &[u8]) -> Result<Vec<f32>, String> {
-    if blob.len() % 4 != 0 {
+    if !blob.len().is_multiple_of(4) {
         return Err("Feature blob length is not a multiple of 4 bytes".to_string());
     }
     let mut out = Vec::with_capacity(blob.len() / 4);

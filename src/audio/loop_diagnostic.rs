@@ -41,7 +41,7 @@ where
         if self.samples_emitted >= self.expected_samples_per_cycle {
             let cycle = self.cycle_count.fetch_add(1, Ordering::Relaxed);
             let frames = self.samples_emitted / self.channels as u64;
-            let is_even = frames % 2 == 0;
+            let is_even = frames.is_multiple_of(2);
 
             tracing::debug!(
                 "Loop cycle {} complete: emitted {} samples ({} frames), even={}, expected={}",

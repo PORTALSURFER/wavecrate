@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use super::job_execution::{run_analysis_jobs_with_decoded_batch, run_job};
 use crate::app::controller::jobs::JobMessageSender;
 use crate::app::controller::library::analysis_jobs::db as analysis_db;
@@ -410,20 +412,19 @@ fn decode_analysis_job(
     let absolute = job.source_root.join(&relative_path);
     let max_analysis_duration_seconds = f32::from_bits(max_duration_bits.load(Ordering::Relaxed));
     let sample_rate = analysis_sample_rate.load(Ordering::Relaxed).max(1);
-    if max_analysis_duration_seconds.is_finite() && max_analysis_duration_seconds > 0.0 {
-        if let Ok(probe) = crate::analysis::audio::probe_metadata(&absolute) {
-            if let Some(duration_seconds) = probe.duration_seconds {
-                if duration_seconds > max_analysis_duration_seconds {
-                    let sample_rate = probe
-                        .sample_rate
-                        .unwrap_or(crate::analysis::audio::ANALYSIS_SAMPLE_RATE);
-                    return DecodeOutcome::Skipped {
-                        duration_seconds,
-                        sample_rate,
-                    };
-                }
-            }
-        }
+    if max_analysis_duration_seconds.is_finite()
+        && max_analysis_duration_seconds > 0.0
+        && let Ok(probe) = crate::analysis::audio::probe_metadata(&absolute)
+        && let Some(duration_seconds) = probe.duration_seconds
+        && duration_seconds > max_analysis_duration_seconds
+    {
+        let sample_rate = probe
+            .sample_rate
+            .unwrap_or(crate::analysis::audio::ANALYSIS_SAMPLE_RATE);
+        return DecodeOutcome::Skipped {
+            duration_seconds,
+            sample_rate,
+        };
     }
     match crate::analysis::audio::decode_for_analysis_with_rate(&absolute, sample_rate) {
         Ok(decoded) => DecodeOutcome::Decoded(decoded),

@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use super::*;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::library::wav_entries_loader;
@@ -20,19 +22,19 @@ impl AppController {
             return;
         }
         self.clear_source_missing(&source.id);
-        if let Some(cache) = self.cache.wav.entries.get(&source.id) {
-            if let Some(entries) = cache.pages.get(&0).cloned() {
-                self.apply_wav_entries(
-                    entries,
-                    cache.total,
-                    cache.page_size,
-                    0,
-                    true,
-                    Some(source.id.clone()),
-                    None,
-                );
-                return;
-            }
+        if let Some(cache) = self.cache.wav.entries.get(&source.id)
+            && let Some(entries) = cache.pages.get(&0).cloned()
+        {
+            self.apply_wav_entries(
+                entries,
+                cache.total,
+                cache.page_size,
+                0,
+                true,
+                Some(source.id.clone()),
+                None,
+            );
+            return;
         }
         if self.wav_entries.source_id.as_ref() != Some(&source.id) {
             self.wav_entries.clear();

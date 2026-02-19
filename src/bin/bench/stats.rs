@@ -137,9 +137,11 @@ mod tests {
     #[test]
     fn bench_action_reports_requested_sample_counts() {
         let mut calls = 0usize;
-        let mut options = BenchOptions::default();
-        options.warmup_iters = 2;
-        options.measure_iters = 3;
+        let options = BenchOptions {
+            warmup_iters: 2,
+            measure_iters: 3,
+            ..BenchOptions::default()
+        };
         let summary = bench_action(&options, || {
             calls += 1;
             Ok(())
@@ -153,9 +155,11 @@ mod tests {
     #[test]
     fn bench_action_wraps_measured_action_error() {
         let mut attempts = 0usize;
-        let mut options = BenchOptions::default();
-        options.warmup_iters = 1;
-        options.measure_iters = 2;
+        let options = BenchOptions {
+            warmup_iters: 1,
+            measure_iters: 2,
+            ..BenchOptions::default()
+        };
         let result = bench_action(&options, || {
             attempts += 1;
             if attempts > 1 {

@@ -629,15 +629,15 @@ fn run_folder_sample_move_task(
             report_progress(sender, completed, detail);
             continue;
         }
-        if let Some(last_played_at) = last_played_at {
-            if let Err(err) = batch.set_last_played_at(&request.target_relative, last_played_at) {
-                rollback_folder_move_to_source(&mut errors, &staged_absolute, &absolute);
-                remove_folder_move_journal_entry(&mut errors, &db, &op_id);
-                errors.push(format!("Failed to copy playback age: {err}"));
-                completed += 1;
-                report_progress(sender, completed, detail);
-                continue;
-            }
+        if let Some(last_played_at) = last_played_at
+            && let Err(err) = batch.set_last_played_at(&request.target_relative, last_played_at)
+        {
+            rollback_folder_move_to_source(&mut errors, &staged_absolute, &absolute);
+            remove_folder_move_journal_entry(&mut errors, &db, &op_id);
+            errors.push(format!("Failed to copy playback age: {err}"));
+            completed += 1;
+            report_progress(sender, completed, detail);
+            continue;
         }
         if let Err(err) = batch.commit() {
             rollback_folder_move_to_source(&mut errors, &staged_absolute, &absolute);
@@ -934,20 +934,20 @@ fn run_folder_move_task(
                     cancelled,
                 };
             }
-            if let Some(last_played_at) = entry.last_played_at {
-                if let Err(err) = batch.set_last_played_at(&updated_path, last_played_at) {
-                    let _ = std::fs::rename(&absolute_new, &absolute_old);
-                    errors.push(format!("Failed to copy playback age: {err}"));
-                    return FolderMoveResult {
-                        source_id: request.source_id,
-                        old_folder: request.folder,
-                        new_folder: new_relative,
-                        folder_moved: false,
-                        moved,
-                        errors,
-                        cancelled,
-                    };
-                }
+            if let Some(last_played_at) = entry.last_played_at
+                && let Err(err) = batch.set_last_played_at(&updated_path, last_played_at)
+            {
+                let _ = std::fs::rename(&absolute_new, &absolute_old);
+                errors.push(format!("Failed to copy playback age: {err}"));
+                return FolderMoveResult {
+                    source_id: request.source_id,
+                    old_folder: request.folder,
+                    new_folder: new_relative,
+                    folder_moved: false,
+                    moved,
+                    errors,
+                    cancelled,
+                };
             }
             updates.push(FolderEntryMove {
                 old_relative: entry.relative_path.clone(),

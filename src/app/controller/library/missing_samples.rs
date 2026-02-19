@@ -95,12 +95,11 @@ impl AppController {
         {
             return entry.missing;
         }
-        if let Some(cache) = self.cache.wav.entries.get(source_id) {
-            if let Some(index) = cache.lookup.get(relative_path).copied()
-                && let Some(entry) = cache.entry(index)
-            {
-                return entry.missing;
-            }
+        if let Some(cache) = self.cache.wav.entries.get(source_id)
+            && let Some(index) = cache.lookup.get(relative_path).copied()
+            && let Some(entry) = cache.entry(index)
+        {
+            return entry.missing;
         }
         if let Some(set) = self.library.missing.wavs.get(source_id) {
             return set.contains(relative_path);

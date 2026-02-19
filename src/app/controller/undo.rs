@@ -257,9 +257,7 @@ mod tests {
     #[test]
     fn pushing_new_action_clears_redo_stack() {
         let mut stack: UndoStack<Counter> = UndoStack::new(10);
-        let mut counter = Counter::default();
-
-        counter.value = 1;
+        let mut counter = Counter { value: 1 };
         stack.push(UndoEntry::new(
             "set 1",
             |c: &mut Counter| {

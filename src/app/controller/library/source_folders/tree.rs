@@ -197,15 +197,14 @@ impl AppController {
                 .or_default();
             model
                 .last_disk_refresh
-                .map_or(true, |last| now.duration_since(last) >= max_age)
+                .is_none_or(|last| now.duration_since(last) >= max_age)
         };
         let pending_source = self.runtime.jobs.pending_folder_scan_source();
         if let Some(pending_source) = pending_source.as_ref()
             && pending_source != &source_id
+            && let Some(model) = self.ui_cache.folders.models.get_mut(pending_source)
         {
-            if let Some(model) = self.ui_cache.folders.models.get_mut(pending_source) {
-                model.disk_refresh_in_progress = false;
-            }
+            model.disk_refresh_in_progress = false;
         }
         if needs_refresh {
             let should_request = {

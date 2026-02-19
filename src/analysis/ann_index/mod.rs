@@ -200,10 +200,10 @@ fn perform_search(
     let mut results = Vec::with_capacity(neighbours.len());
     for neighbour in neighbours {
         if let Some(candidate) = state.id_map.get(neighbour.d_id) {
-            if let Some(skip) = skip_id {
-                if candidate == skip {
-                    continue;
-                }
+            if let Some(skip) = skip_id
+                && candidate == skip
+            {
+                continue;
             }
             results.push(SimilarNeighbor {
                 sample_id: candidate.clone(),

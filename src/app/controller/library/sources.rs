@@ -275,8 +275,12 @@ impl AppController {
         self.clear_focused_similarity_highlight();
         self.clear_waveform_view();
         self.ui.map.bounds = None;
+        self.ui.map.cached_bounds_source_id = None;
+        self.ui.map.cached_bounds_umap_version = None;
         self.ui.map.last_query = None;
         self.ui.map.cached_points.clear();
+        self.ui.map.cached_points_source_id = None;
+        self.ui.map.cached_points_umap_version = None;
         self.ui.map.outdated = if let Some(source) = self.current_source() {
             let scan_at =
                 crate::app::controller::library::similarity_prep::db::read_source_scan_timestamp(

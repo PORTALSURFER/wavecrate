@@ -62,13 +62,13 @@ pub fn build_umap_layout(
 }
 
 /// Return the default JSON report path for a given database and UMAP version.
-pub fn default_report_path(db_path: &PathBuf, umap_version: &str) -> PathBuf {
+pub fn default_report_path(db_path: &Path, umap_version: &str) -> PathBuf {
     let parent = db_path.parent().unwrap_or_else(|| Path::new("."));
     parent.join(format!("umap_report_{}.json", umap_version))
 }
 
 /// Serialize and write a UMAP report to disk.
-pub fn write_report(path: &PathBuf, report: &UmapReport) -> Result<(), String> {
+pub fn write_report(path: &Path, report: &UmapReport) -> Result<(), String> {
     let data = serde_json::to_vec_pretty(report)
         .map_err(|err| format!("Serialize report failed: {err}"))?;
     std::fs::write(path, data).map_err(|err| format!("Write report failed: {err}"))?;

@@ -174,14 +174,14 @@ fn pick_stream_config<'a>(
     let mut picked = None;
     let mut rate = default_rate;
     if let Some(requested) = requested_rate {
-        if let Some(range) = ranges.iter().find(|range| rate_in_range(requested, *range)) {
+        if let Some(range) = ranges.iter().find(|range| rate_in_range(requested, range)) {
             picked = Some(*range);
             rate = requested;
         } else if using_desired {
             *used_fallback = true;
             if let Some(range) = supported
                 .iter()
-                .find(|range| rate_in_range(requested, *range))
+                .find(|range| rate_in_range(requested, range))
             {
                 picked = Some(range);
                 rate = requested;
@@ -194,7 +194,7 @@ fn pick_stream_config<'a>(
     if picked.is_none() {
         if let Some(range) = ranges
             .iter()
-            .find(|range| rate_in_range(default_rate, *range))
+            .find(|range| rate_in_range(default_rate, range))
         {
             picked = Some(*range);
             rate = default_rate;

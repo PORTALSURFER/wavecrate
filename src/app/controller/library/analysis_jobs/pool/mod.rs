@@ -132,75 +132,74 @@ impl AnalysisWorkerPool {
 
     pub(crate) fn start(&mut self, message_tx: JobMessageSender) {
         let _ = &message_tx;
-        if !self.threads.is_empty() {
-            return;
-        }
-        #[cfg(not(test))]
-        {
-            let worker_count = job_claim::worker_count_with_override(
-                self.worker_count_override.load(Ordering::Relaxed),
-            );
-            let decode_workers = job_claim::decode_worker_count_with_override(
-                worker_count,
-                self.decode_worker_count_override.load(Ordering::Relaxed),
-            );
-            let embedding_batch_max = crate::analysis::similarity::SIMILARITY_BATCH_MAX;
-            let decode_queue_target =
-                job_claim::decode_queue_target(embedding_batch_max, worker_count);
-            let claim_wakeup = wakeup::claim_wakeup_handle();
-            let queue = std::sync::Arc::new(job_claim::DecodedQueue::new_with_wakeup(
-                decode_queue_target,
-                Some(claim_wakeup.clone()),
-            ));
-            let reset_done = Arc::new(Mutex::new(HashSet::new()));
-            info!(
-                "Analysis workers starting: compute={}, decode={}, queue_target={}, queue_max={}",
-                worker_count,
-                decode_workers,
-                decode_queue_target,
-                queue.max_size()
-            );
-            for worker_index in 0..decode_workers {
-                self.threads.push(job_claim::spawn_decoder_worker(
-                    worker_index,
-                    queue.clone(),
-                    self.cancel.clone(),
-                    self.shutdown.clone(),
-                    self.pause_claiming.clone(),
-                    self.allowed_source_ids.clone(),
-                    self.max_duration_bits.clone(),
-                    self.analysis_sample_rate.clone(),
+        if self.threads.is_empty() {
+            #[cfg(not(test))]
+            {
+                let worker_count = job_claim::worker_count_with_override(
+                    self.worker_count_override.load(Ordering::Relaxed),
+                );
+                let decode_workers = job_claim::decode_worker_count_with_override(
+                    worker_count,
+                    self.decode_worker_count_override.load(Ordering::Relaxed),
+                );
+                let embedding_batch_max = crate::analysis::similarity::SIMILARITY_BATCH_MAX;
+                let decode_queue_target =
+                    job_claim::decode_queue_target(embedding_batch_max, worker_count);
+                let claim_wakeup = wakeup::claim_wakeup_handle();
+                let queue = std::sync::Arc::new(job_claim::DecodedQueue::new_with_wakeup(
                     decode_queue_target,
-                    claim_wakeup.clone(),
-                    reset_done.clone(),
+                    Some(claim_wakeup.clone()),
                 ));
-            }
-            for worker_index in 0..worker_count {
-                self.threads.push(job_claim::spawn_compute_worker(
-                    worker_index,
-                    message_tx.clone(),
+                let reset_done = Arc::new(Mutex::new(HashSet::new()));
+                info!(
+                    "Analysis workers starting: compute={}, decode={}, queue_target={}, queue_max={}",
+                    worker_count,
+                    decode_workers,
+                    decode_queue_target,
+                    queue.max_size()
+                );
+                for worker_index in 0..decode_workers {
+                    self.threads.push(job_claim::spawn_decoder_worker(
+                        worker_index,
+                        queue.clone(),
+                        self.cancel.clone(),
+                        self.shutdown.clone(),
+                        self.pause_claiming.clone(),
+                        self.allowed_source_ids.clone(),
+                        self.max_duration_bits.clone(),
+                        self.analysis_sample_rate.clone(),
+                        decode_queue_target,
+                        claim_wakeup.clone(),
+                        reset_done.clone(),
+                    ));
+                }
+                for worker_index in 0..worker_count {
+                    self.threads.push(job_claim::spawn_compute_worker(
+                        worker_index,
+                        message_tx.clone(),
+                        self.repaint_signal.clone(),
+                        queue.clone(),
+                        self.cancel.clone(),
+                        self.shutdown.clone(),
+                        self.use_cache.clone(),
+                        self.allowed_source_ids.clone(),
+                        self.max_duration_bits.clone(),
+                        self.analysis_sample_rate.clone(),
+                        self.analysis_version_override.clone(),
+                        self._progress_cache.clone(),
+                        self.progress_wakeup.clone(),
+                    ));
+                }
+                self.threads.push(job_progress::spawn_progress_poller(
+                    message_tx,
                     self.repaint_signal.clone(),
-                    queue.clone(),
                     self.cancel.clone(),
                     self.shutdown.clone(),
-                    self.use_cache.clone(),
                     self.allowed_source_ids.clone(),
-                    self.max_duration_bits.clone(),
-                    self.analysis_sample_rate.clone(),
-                    self.analysis_version_override.clone(),
                     self._progress_cache.clone(),
                     self.progress_wakeup.clone(),
                 ));
             }
-            self.threads.push(job_progress::spawn_progress_poller(
-                message_tx,
-                self.repaint_signal.clone(),
-                self.cancel.clone(),
-                self.shutdown.clone(),
-                self.allowed_source_ids.clone(),
-                self._progress_cache.clone(),
-                self.progress_wakeup.clone(),
-            ));
         }
     }
 

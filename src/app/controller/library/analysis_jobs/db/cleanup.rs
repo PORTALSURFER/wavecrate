@@ -109,7 +109,7 @@ pub(crate) fn purge_orphaned_samples(conn: &mut Connection) -> Result<usize, Str
         };
         removed += tx
             .execute(&sql, params)
-            .map_err(|err| format!("Failed to purge {table}: {err}"))? as usize;
+            .map_err(|err| format!("Failed to purge {table}: {err}"))?;
     }
     tx.commit()
         .map_err(|err| format!("Failed to commit purge transaction: {err}"))?;

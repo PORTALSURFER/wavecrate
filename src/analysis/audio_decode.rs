@@ -94,11 +94,11 @@ fn decode_with_symphonia(
         let mut sample_buf = SampleBuffer::<f32>::new(audio_buf.capacity() as u64, spec);
         sample_buf.copy_interleaved_ref(audio_buf);
         samples.extend_from_slice(sample_buf.samples());
-        if let Some(limit) = max_samples {
-            if samples.len() >= limit {
-                samples.truncate(limit);
-                break;
-            }
+        if let Some(limit) = max_samples
+            && samples.len() >= limit
+        {
+            samples.truncate(limit);
+            break;
         }
     }
 

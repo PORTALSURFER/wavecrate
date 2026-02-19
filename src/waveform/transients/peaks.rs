@@ -71,16 +71,16 @@ impl SlidingWindowBaseline {
             self.total += 1;
         }
         self.entries.push_back(sample);
-        if self.entries.len() > self.window {
-            if let Some(outgoing) = self.entries.pop_front().flatten() {
-                if let Some(count) = self.counts.get_mut(&outgoing) {
-                    *count -= 1;
-                    if *count == 0 {
-                        self.counts.remove(&outgoing);
-                    }
+        if self.entries.len() > self.window
+            && let Some(outgoing) = self.entries.pop_front().flatten()
+        {
+            if let Some(count) = self.counts.get_mut(&outgoing) {
+                *count -= 1;
+                if *count == 0 {
+                    self.counts.remove(&outgoing);
                 }
-                self.total -= 1;
             }
+            self.total -= 1;
         }
     }
 
@@ -120,7 +120,7 @@ impl SlidingWindowBaseline {
         let median_key = median;
         let mut left_iter = self
             .counts
-            .range(..median_key.clone())
+            .range(..median_key)
             .rev()
             .map(|(&value, &count)| (value, count))
             .peekable();

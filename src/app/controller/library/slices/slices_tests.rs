@@ -61,7 +61,7 @@ fn detect_waveform_slices_uses_transients_when_enabled() {
     controller.cache_db(&source).unwrap();
 
     let wav_path = root.join("clip.wav");
-    write_test_wav(&wav_path, &vec![0.5_f32; 8]);
+    write_test_wav(&wav_path, &[0.5_f32; 8]);
     controller
         .load_waveform_for_selection(&source, Path::new("clip.wav"))
         .unwrap();

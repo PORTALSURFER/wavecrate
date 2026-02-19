@@ -23,10 +23,11 @@ pub(crate) fn start_recording_in_current_source(
     }
     let (source, relative_path, output_path) =
         super::path::next_recording_path_in_source(controller)?;
-    if controller.settings.controls.input_monitoring_enabled && controller.audio.player.is_none() {
-        if let Err(err) = controller.ensure_player() {
-            controller.set_status(err, StatusTone::Warning);
-        }
+    if controller.settings.controls.input_monitoring_enabled
+        && controller.audio.player.is_none()
+        && let Err(err) = controller.ensure_player()
+    {
+        controller.set_status(err, StatusTone::Warning);
     }
     controller.sample_view.wav.selected_wav = Some(relative_path.clone());
     controller.audio.recording_target = Some(RecordingTarget {

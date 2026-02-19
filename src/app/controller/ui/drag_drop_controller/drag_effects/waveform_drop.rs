@@ -82,16 +82,15 @@ impl DragDropController<'_> {
             }
         };
         let copy_absolute = copy_absolute.unwrap();
-        if let Some(parent) = copy_relative.parent() {
-            if !parent.as_os_str().is_empty() {
-                if let Err(err) = fs::create_dir_all(source.root.join(parent)) {
-                    self.set_status(
-                        format!("Failed to create folder for copy: {err}"),
-                        StatusTone::Error,
-                    );
-                    return;
-                }
-            }
+        if let Some(parent) = copy_relative.parent()
+            && !parent.as_os_str().is_empty()
+            && let Err(err) = fs::create_dir_all(source.root.join(parent))
+        {
+            self.set_status(
+                format!("Failed to create folder for copy: {err}"),
+                StatusTone::Error,
+            );
+            return;
         }
         if let Err(err) = fs::copy(&absolute, &copy_absolute) {
             self.set_status(format!("Failed to copy sample: {err}"), StatusTone::Error);

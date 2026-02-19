@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use super::super::DragDropController;
 use crate::app::controller::StatusTone;
 use crate::app::controller::jobs::{
@@ -534,15 +536,15 @@ fn run_source_move_task(
             report_progress(sender, completed, detail);
             continue;
         }
-        if let Some(last_played_at) = last_played_at {
-            if let Err(err) = batch.set_last_played_at(&target_relative, last_played_at) {
-                rollback_move_to_source(&mut errors, &staged_absolute, &absolute);
-                remove_move_journal_entry(&mut errors, &target_db, &op_id);
-                errors.push(format!("Failed to copy playback age: {err}"));
-                completed += 1;
-                report_progress(sender, completed, detail);
-                continue;
-            }
+        if let Some(last_played_at) = last_played_at
+            && let Err(err) = batch.set_last_played_at(&target_relative, last_played_at)
+        {
+            rollback_move_to_source(&mut errors, &staged_absolute, &absolute);
+            remove_move_journal_entry(&mut errors, &target_db, &op_id);
+            errors.push(format!("Failed to copy playback age: {err}"));
+            completed += 1;
+            report_progress(sender, completed, detail);
+            continue;
         }
         if let Err(err) = batch.commit() {
             rollback_move_to_source(&mut errors, &staged_absolute, &absolute);

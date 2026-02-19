@@ -194,8 +194,8 @@ mod tests {
             samples[i] = 0.6;
         }
         let tail_start = samples.len().saturating_sub(window_len);
-        for i in tail_start..samples.len() {
-            samples[i] = 0.4;
+        for sample in samples.iter_mut().skip(tail_start) {
+            *sample = 0.4;
         }
 
         let windowed = apply_energy_windowing(&samples, sample_rate);

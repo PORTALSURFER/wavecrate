@@ -1,7 +1,8 @@
 /// Token status for GitHub issue reporting.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum IssueTokenStatus {
     /// Token state has not been loaded yet.
+    #[default]
     Unknown,
     /// Token is present and ready for use.
     Connected,
@@ -9,12 +10,6 @@ pub enum IssueTokenStatus {
     NotConnected,
     /// Token storage returned an error.
     Error(String),
-}
-
-impl Default for IssueTokenStatus {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 /// UI state for submitting feedback as a GitHub issue.

@@ -47,9 +47,7 @@ pub(crate) fn update_selection_drag(
     position: f32,
     snap_override: bool,
 ) {
-    let range = if controller.selection_state.bpm_scale_beats.is_some() {
-        controller.selection_state.range.update_drag(position)
-    } else if snap_override {
+    let range = if controller.selection_state.bpm_scale_beats.is_some() || snap_override {
         controller.selection_state.range.update_drag(position)
     } else if let Some(step) = bpm_snap_step(controller) {
         controller
@@ -138,10 +136,11 @@ pub(crate) fn set_selection_range(controller: &mut AppController, range: Selecti
         .map(|p| p.borrow().is_playing())
         .unwrap_or(false);
 
-    if is_playing && !controller.ui.waveform.loop_enabled {
-        if let Err(err) = controller.play_audio(false, Some(range.start())) {
-            controller.set_status(err, StatusTone::Error);
-        }
+    if is_playing
+        && !controller.ui.waveform.loop_enabled
+        && let Err(err) = controller.play_audio(false, Some(range.start()))
+    {
+        controller.set_status(err, StatusTone::Error);
     }
 }
 
@@ -214,18 +213,15 @@ pub(crate) fn toggle_loop(controller: &mut AppController) {
         }
 
         // When enabling loop, also save the current BPM value to all selected samples
-        if new_loop_state && !was_looping {
-            if let Some(bpm) = controller.ui.waveform.bpm_value {
-                if bpm.is_finite() && bpm > 0.0 {
-                    if let Err(err) = controller.set_bpm_browser_samples(
-                        &action_rows,
-                        bpm,
-                        primary_row.unwrap_or(0),
-                    ) {
-                        tracing::warn!("Failed to save BPM to browser samples: {err}");
-                    }
-                }
-            }
+        if new_loop_state
+            && !was_looping
+            && let Some(bpm) = controller.ui.waveform.bpm_value
+            && bpm.is_finite()
+            && bpm > 0.0
+            && let Err(err) =
+                controller.set_bpm_browser_samples(&action_rows, bpm, primary_row.unwrap_or(0))
+        {
+            tracing::warn!("Failed to save BPM to browser samples: {err}");
         }
     } else {
         // Fallback: Update loop marker for just the currently loaded sample
@@ -244,54 +240,50 @@ pub(crate) fn toggle_loop(controller: &mut AppController) {
                         .map(|source| (source.clone(), loaded_audio.relative_path.clone()))
                 });
 
-        if let Some((source, relative_path)) = loop_marker_update {
-            if let Err(err) = controller.set_sample_looped_for_source(
+        if let Some((source, relative_path)) = loop_marker_update
+            && let Err(err) = controller.set_sample_looped_for_source(
                 &source,
                 &relative_path,
                 new_loop_state,
                 false,
-            ) {
-                tracing::warn!("Failed to update loop marker: {err}");
-            }
+            )
+        {
+            tracing::warn!("Failed to update loop marker: {err}");
         }
     }
 
     if controller.ui.waveform.loop_enabled {
         controller.audio.pending_loop_disable_at = None;
-        if !was_looping {
-            if let Some(player_rc) = controller.audio.player.as_ref().cloned() {
-                let (is_playing, progress) = {
-                    let player_ref = player_rc.borrow();
-                    (player_ref.is_playing(), player_ref.progress())
+        if !was_looping && let Some(player_rc) = controller.audio.player.as_ref().cloned() {
+            let (is_playing, progress) = {
+                let player_ref = player_rc.borrow();
+                (player_ref.is_playing(), player_ref.progress())
+            };
+            if is_playing {
+                let has_selection = controller
+                    .selection_state
+                    .range
+                    .range()
+                    .or(controller.ui.waveform.selection)
+                    .filter(|range| super::selection_meets_bpm_min_for_playback(controller, *range))
+                    .is_some();
+                let start_override = if has_selection {
+                    None
+                } else {
+                    progress.or_else(|| {
+                        if controller.ui.waveform.playhead.visible {
+                            Some(controller.ui.waveform.playhead.position)
+                        } else {
+                            controller
+                                .ui
+                                .waveform
+                                .cursor
+                                .or(controller.ui.waveform.last_start_marker)
+                        }
+                    })
                 };
-                if is_playing {
-                    let has_selection = controller
-                        .selection_state
-                        .range
-                        .range()
-                        .or(controller.ui.waveform.selection)
-                        .filter(|range| {
-                            super::selection_meets_bpm_min_for_playback(controller, *range)
-                        })
-                        .is_some();
-                    let start_override = if has_selection {
-                        None
-                    } else {
-                        progress.or_else(|| {
-                            if controller.ui.waveform.playhead.visible {
-                                Some(controller.ui.waveform.playhead.position)
-                            } else {
-                                controller
-                                    .ui
-                                    .waveform
-                                    .cursor
-                                    .or(controller.ui.waveform.last_start_marker)
-                            }
-                        })
-                    };
-                    if let Err(err) = controller.play_audio(true, start_override) {
-                        controller.set_status(err, StatusTone::Error);
-                    }
+                if let Err(err) = controller.play_audio(true, start_override) {
+                    controller.set_status(err, StatusTone::Error);
                 }
             }
         }
@@ -382,10 +374,11 @@ fn selection_start_snap_radius(controller: &AppController) -> f32 {
     if view_width.is_finite() && view_width > 0.0 {
         radius = radius.min((view_width * SELECTION_START_SNAP_VIEW_FRACTION as f64) as f32);
     }
-    if let Some(duration) = controller.loaded_audio_duration_seconds() {
-        if duration.is_finite() && duration > 0.0 {
-            radius = radius.min(SELECTION_START_SNAP_SECONDS / duration);
-        }
+    if let Some(duration) = controller.loaded_audio_duration_seconds()
+        && duration.is_finite()
+        && duration > 0.0
+    {
+        radius = radius.min(SELECTION_START_SNAP_SECONDS / duration);
     }
     radius
 }

@@ -100,10 +100,10 @@ impl AppController {
         }
         let mut purge_failures = Vec::new();
         for source in &self.library.sources {
-            if let Ok(mut conn) = super::library::analysis_jobs::open_source_db(&source.root) {
-                if let Err(err) = super::library::analysis_jobs::purge_orphaned_samples(&mut conn) {
-                    purge_failures.push((source.root.display().to_string(), err));
-                }
+            if let Ok(mut conn) = super::library::analysis_jobs::open_source_db(&source.root)
+                && let Err(err) = super::library::analysis_jobs::purge_orphaned_samples(&mut conn)
+            {
+                purge_failures.push((source.root.display().to_string(), err));
             }
         }
         for (root, err) in purge_failures {

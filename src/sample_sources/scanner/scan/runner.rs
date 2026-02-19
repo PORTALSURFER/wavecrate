@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::thread;

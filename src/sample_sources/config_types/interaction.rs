@@ -9,20 +9,15 @@ use super::super::config_defaults::{
 };
 
 /// Tooltip detail level.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum TooltipMode {
     /// No tooltips.
     Off,
     /// Short, concise helper hints.
+    #[default]
     Regular,
     /// Detailed descriptions of features and interactions.
     Extended,
-}
-
-impl Default for TooltipMode {
-    fn default() -> Self {
-        Self::Regular
-    }
 }
 
 impl Display for TooltipMode {

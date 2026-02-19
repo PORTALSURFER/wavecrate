@@ -18,20 +18,17 @@ pub(crate) fn decode_for_analysis(
     let absolute = job.source_root.join(&relative_path);
     if context.max_analysis_duration_seconds.is_finite()
         && context.max_analysis_duration_seconds > 0.0
+        && let Ok(probe) = crate::analysis::audio::probe_metadata(&absolute)
+        && let Some(duration_seconds) = probe.duration_seconds
+        && duration_seconds > context.max_analysis_duration_seconds
     {
-        if let Ok(probe) = crate::analysis::audio::probe_metadata(&absolute) {
-            if let Some(duration_seconds) = probe.duration_seconds {
-                if duration_seconds > context.max_analysis_duration_seconds {
-                    let sample_rate = probe
-                        .sample_rate
-                        .unwrap_or(crate::analysis::audio::ANALYSIS_SAMPLE_RATE);
-                    return Ok(DecodeOutcome::Skipped {
-                        duration_seconds,
-                        sample_rate,
-                    });
-                }
-            }
-        }
+        let sample_rate = probe
+            .sample_rate
+            .unwrap_or(crate::analysis::audio::ANALYSIS_SAMPLE_RATE);
+        return Ok(DecodeOutcome::Skipped {
+            duration_seconds,
+            sample_rate,
+        });
     }
     let decode_limit_seconds = if context.max_analysis_duration_seconds.is_finite()
         && context.max_analysis_duration_seconds > 0.0

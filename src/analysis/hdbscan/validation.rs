@@ -8,10 +8,10 @@ pub fn validate_request(
     if config.min_cluster_size == 0 {
         return Err("min_cluster_size must be greater than zero".to_string());
     }
-    if let Some(min_samples) = config.min_samples {
-        if min_samples == 0 {
-            return Err("min_samples must be greater than zero".to_string());
-        }
+    if let Some(min_samples) = config.min_samples
+        && min_samples == 0
+    {
+        return Err("min_samples must be greater than zero".to_string());
     }
     if method == HdbscanMethod::Umap {
         let version = umap_version.unwrap_or("");

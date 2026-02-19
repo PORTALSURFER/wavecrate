@@ -30,7 +30,6 @@ impl AppController {
                     state.source_id.as_str()
                 );
                 self.request_hard_sync();
-                return;
             }
             SimilarityPrepStage::AwaitEmbeddings => {
                 let Some(source) = self.find_source_by_id(&state.source_id) else {

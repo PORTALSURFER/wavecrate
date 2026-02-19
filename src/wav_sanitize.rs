@@ -203,7 +203,7 @@ fn sanitize_wav_header(bytes: &mut Vec<u8>, total_file_len: u64) -> bool {
         };
         if (chunk_data as u64)
             .checked_add(chunk_size as u64)
-            .map_or(true, |end| end > total_file_len)
+            .is_none_or(|end| end > total_file_len)
         {
             return false;
         }
@@ -269,7 +269,7 @@ fn shrink_pcm_fmt_chunk_with_padding(
     chunk_size: usize,
     total_file_len: u64,
 ) -> bool {
-    if chunk_size <= 18 || chunk_size % 2 != 0 {
+    if chunk_size <= 18 || !chunk_size.is_multiple_of(2) {
         return false;
     }
     let fmt_data = chunk_offset + 8;

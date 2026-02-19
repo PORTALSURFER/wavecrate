@@ -29,10 +29,10 @@ pub(crate) fn refresh_sources(
         if !source.root.is_dir() {
             continue;
         }
-        if let Some(allowed) = allowed_source_ids {
-            if !allowed.contains(&source.id) {
-                continue;
-            }
+        if let Some(allowed) = allowed_source_ids
+            && !allowed.contains(&source.id)
+        {
+            continue;
         }
         let conn = match db::open_source_db(&source.root) {
             Ok(conn) => conn,
@@ -61,12 +61,11 @@ pub(crate) fn worker_count_with_override(override_count: u32) -> usize {
     if override_count >= 1 {
         return override_count as usize;
     }
-    if let Ok(value) = std::env::var("SEMPAL_ANALYSIS_WORKERS") {
-        if let Ok(parsed) = value.trim().parse::<usize>() {
-            if parsed >= 1 {
-                return parsed;
-            }
-        }
+    if let Ok(value) = std::env::var("SEMPAL_ANALYSIS_WORKERS")
+        && let Ok(parsed) = value.trim().parse::<usize>()
+        && parsed >= 1
+    {
+        return parsed;
     }
     std::thread::available_parallelism()
         .map(|n| n.get())
@@ -80,12 +79,11 @@ pub(crate) fn decode_worker_count_with_override(worker_count: usize, override_co
     if override_count >= 1 {
         return override_count as usize;
     }
-    if let Ok(value) = std::env::var("SEMPAL_DECODE_WORKERS") {
-        if let Ok(parsed) = value.trim().parse::<usize>() {
-            if parsed >= 1 {
-                return parsed;
-            }
-        }
+    if let Ok(value) = std::env::var("SEMPAL_DECODE_WORKERS")
+        && let Ok(parsed) = value.trim().parse::<usize>()
+        && parsed >= 1
+    {
+        return parsed;
     }
     let max_workers = std::thread::available_parallelism()
         .map(|n| n.get())
@@ -94,24 +92,22 @@ pub(crate) fn decode_worker_count_with_override(worker_count: usize, override_co
 }
 
 pub(crate) fn claim_batch_size() -> usize {
-    if let Ok(value) = std::env::var("SEMPAL_ANALYSIS_CLAIM_BATCH") {
-        if let Ok(parsed) = value.trim().parse::<usize>() {
-            if parsed >= 1 {
-                return parsed;
-            }
-        }
+    if let Ok(value) = std::env::var("SEMPAL_ANALYSIS_CLAIM_BATCH")
+        && let Ok(parsed) = value.trim().parse::<usize>()
+        && parsed >= 1
+    {
+        return parsed;
     }
     64
 }
 
 #[cfg_attr(test, allow(dead_code))]
 pub(crate) fn decode_queue_target(embedding_batch_max: usize, worker_count: usize) -> usize {
-    if let Ok(value) = std::env::var("SEMPAL_DECODE_QUEUE_TARGET") {
-        if let Ok(parsed) = value.trim().parse::<usize>() {
-            if parsed >= 1 {
-                return parsed;
-            }
-        }
+    if let Ok(value) = std::env::var("SEMPAL_DECODE_QUEUE_TARGET")
+        && let Ok(parsed) = value.trim().parse::<usize>()
+        && parsed >= 1
+    {
+        return parsed;
     }
     (embedding_batch_max.saturating_mul(worker_count)).max(4)
 }

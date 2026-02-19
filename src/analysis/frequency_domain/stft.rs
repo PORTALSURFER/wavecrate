@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use super::mel::{MelBank, MelScratch};
 use crate::analysis::fft::{Complex32, FftPlan, fft_radix2_inplace_with_plan, hann_window};
 

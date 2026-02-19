@@ -397,12 +397,10 @@ fn recover_journaled_entries(
             status,
             detail: detail.clone(),
         });
-        if remove_from_journal {
-            if let Err(err) = remove_entry(staging_root, &entry.id) {
-                report
-                    .errors
-                    .push(format!("Failed to update delete journal: {err}"));
-            }
+        if remove_from_journal && let Err(err) = remove_entry(staging_root, &entry.id) {
+            report
+                .errors
+                .push(format!("Failed to update delete journal: {err}"));
         }
     }
 }
@@ -579,10 +577,10 @@ fn mark_staging_root_hidden(staging_root: &Path) {
 
 /// Remove the staging root if it is now empty.
 pub(crate) fn cleanup_staging_root(staging_root: &Path) {
-    if let Ok(mut entries) = fs::read_dir(staging_root) {
-        if entries.next().is_none() {
-            let _ = fs::remove_dir(staging_root);
-        }
+    if let Ok(mut entries) = fs::read_dir(staging_root)
+        && entries.next().is_none()
+    {
+        let _ = fs::remove_dir(staging_root);
     }
 }
 

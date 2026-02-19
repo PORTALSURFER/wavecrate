@@ -34,7 +34,7 @@ mod tests {
     }
 
     fn ceil_nanos_for_frames(frames: u64, sample_rate: u32) -> u64 {
-        (frames * 1_000_000_000 + sample_rate as u64 - 1) / sample_rate as u64
+        (frames * 1_000_000_000).div_ceil(sample_rate as u64)
     }
 
     #[test]

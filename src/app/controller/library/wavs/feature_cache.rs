@@ -46,7 +46,7 @@ impl AppController {
                 .browser
                 .durations
                 .entry(source_id.clone())
-                .or_insert_with(HashMap::new)
+                .or_default()
                 .insert(relative_path.to_path_buf(), duration_seconds);
         }
         let Some(cache) = self.ui_cache.browser.features.get_mut(source_id) else {
@@ -165,7 +165,7 @@ impl AppController {
             }
         }
 
-        for idx in 0..self.wav_entries_len() {
+        for (idx, row_slot) in rows.iter_mut().enumerate().take(self.wav_entries_len()) {
             let Some(entry) = self.wav_entry(idx) else {
                 continue;
             };
@@ -178,25 +178,23 @@ impl AppController {
                 long_sample_mark: None,
                 analysis_status: None,
             });
-            if status.duration_seconds.is_none() {
-                if let Some(fallback) = fallback_rows.get(idx).and_then(|row| row.as_ref()) {
-                    if let Some(duration) = fallback
-                        .duration_seconds
-                        .filter(|value| value.is_finite() && *value > 0.0)
-                    {
-                        status.duration_seconds = Some(duration);
-                        if status.sr_used.is_none() {
-                            status.sr_used = fallback.sr_used;
-                        }
-                    }
+            if status.duration_seconds.is_none()
+                && let Some(fallback) = fallback_rows.get(idx).and_then(|row| row.as_ref())
+                && let Some(duration) = fallback
+                    .duration_seconds
+                    .filter(|value| value.is_finite() && *value > 0.0)
+            {
+                status.duration_seconds = Some(duration);
+                if status.sr_used.is_none() {
+                    status.sr_used = fallback.sr_used;
                 }
             }
-            if status.long_sample_mark.is_none() {
-                if let Some(fallback) = fallback_rows.get(idx).and_then(|row| row.as_ref()) {
-                    status.long_sample_mark = fallback.long_sample_mark;
-                }
+            if status.long_sample_mark.is_none()
+                && let Some(fallback) = fallback_rows.get(idx).and_then(|row| row.as_ref())
+            {
+                status.long_sample_mark = fallback.long_sample_mark;
             }
-            rows[idx] = Some(status);
+            *row_slot = Some(status);
         }
         self.ui_cache
             .browser

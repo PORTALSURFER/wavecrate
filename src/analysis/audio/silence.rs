@@ -183,10 +183,10 @@ mod tests {
         let off_amp = db_to_linear(SILENCE_THRESHOLD_OFF_DB) * 1.1;
 
         let mut samples = Vec::new();
-        samples.extend(std::iter::repeat(0.0).take(window_size * 2));
-        samples.extend(std::iter::repeat(on_amp).take(window_size));
-        samples.extend(std::iter::repeat(off_amp).take(window_size));
-        samples.extend(std::iter::repeat(0.0).take(window_size));
+        samples.extend(std::iter::repeat_n(0.0, window_size * 2));
+        samples.extend(std::iter::repeat_n(on_amp, window_size));
+        samples.extend(std::iter::repeat_n(off_amp, window_size));
+        samples.extend(std::iter::repeat_n(0.0, window_size));
 
         let trimmed = trim_silence_with_hysteresis(&samples, sample_rate);
         assert!(trimmed.len() >= window_size * 2);
@@ -204,10 +204,10 @@ mod tests {
         let window_size = (sample_rate as f32 * 0.02).round() as usize;
         let on_amp = db_to_linear(SILENCE_THRESHOLD_ON_DB) * 1.1;
         let mut samples = Vec::new();
-        samples.extend(std::iter::repeat(0.0).take(window_size));
-        samples.extend(std::iter::repeat(on_amp).take(window_size * 2));
-        samples.extend(std::iter::repeat(0.0).take(window_size * 2));
-        samples.extend(std::iter::repeat(on_amp).take(window_size));
+        samples.extend(std::iter::repeat_n(0.0, window_size));
+        samples.extend(std::iter::repeat_n(on_amp, window_size * 2));
+        samples.extend(std::iter::repeat_n(0.0, window_size * 2));
+        samples.extend(std::iter::repeat_n(on_amp, window_size));
         let ranges = detect_non_silent_ranges(&samples, sample_rate);
         assert_eq!(ranges.len(), 2);
         assert!(ranges[0].0 < ranges[0].1);
