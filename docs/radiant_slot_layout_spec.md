@@ -310,6 +310,23 @@ For each container, assert exact output rects across:
 - Virtualized scroll/windowing behavior remains intentionally out of scope for
   this phase.
 
+## Current Implementation Status (Phase 3)
+
+- `ScrollView` now supports optional linear virtualization for `Row` and
+  `Column` content via `ContainerPolicy::virtualization`.
+- Virtualization emits stable metadata and diagnostics:
+  - `LayoutOutput.virtual_windows`
+  - `LayoutOutput.stats`
+  - `VirtualizationPolicyIgnored` and `VirtualizationWindowClamped`
+- Debug overlays now include virtualization primitives:
+  - `ViewportBounds`
+  - `VirtualWindowBounds`
+  - `CulledRegion`
+- `10k`-item stress coverage now asserts bounded materialization counts for a
+  virtualized scroll list.
+- Wrap/grid/general subtree virtualization remains out of scope; unsupported
+  cases default to non-virtualized layout with a diagnostic.
+
 ## Current Native-Shell Gap (tracked)
 
 Current native shell rendering includes a top-bar volume meter that is
