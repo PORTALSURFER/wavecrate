@@ -260,3 +260,19 @@ adapters so shell-state no longer owns local sidebar chrome text-row arithmetic.
 5. [x] Regenerate affected native-shell shot fixtures and keep
    `vendor/radiant` tests green.
 6. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 20) Checklist
+
+Goal: migrate browser-row label truncation width resolution to adapter-owned
+slot geometry so browser virtualization no longer relies on local width
+arithmetic helpers.
+
+1. [x] Route `rendered_browser_rows(...)` sample-label truncation width through
+   `compute_browser_row_text_layout(...)` sample-label bounds.
+2. [x] Remove legacy local `row_label_width(...)` helper usage from browser-row
+   cache construction.
+3. [x] Add a focused regression test asserting browser-row truncation uses the
+   slotized sample-label width.
+4. [x] Regenerate affected native-shell shot fixtures (if changed) and keep
+   `vendor/radiant` tests green.
+5. [x] Update slot-layout spec status and tracked remaining gap notes.

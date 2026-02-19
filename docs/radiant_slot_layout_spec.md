@@ -536,11 +536,20 @@ For each container, assert exact output rects across:
 - Native-shell sidebar header/footer text rendering now consumes adapter-owned
   line geometry instead of local sidebar chrome text-row arithmetic.
 
+## Current Implementation Status (Phase 20)
+
+- Browser-row cached sample-label truncation now routes through slotized
+  adapter geometry:
+  - `rendered_browser_rows(...)` now resolves label width from
+    `layout_adapter::compute_browser_row_text_layout(...).sample_label`
+- Native-shell browser-row virtualization no longer uses a local
+  `row_label_width(...)` helper for cached sample-label truncation width.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
 annotation micro-placement outside sidebar/status/waveform-header/browser-list
 /map-header/top-bar-update/overlay-copy/browser-chrome/control-strip/sidebar
-text/chrome/title paths (for example map-canvas annotations and other residual
-annotation text paths) that still uses local rect arithmetic and should be
-migrated into slotized text/layout adapters in a follow-up phase.
+text/chrome/title/browser-row-cache paths (for example map-canvas annotations
+and other residual annotation text paths) that still uses local rect arithmetic
+and should be migrated into slotized text/layout adapters in a follow-up phase.
