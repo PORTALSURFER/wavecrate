@@ -29,6 +29,21 @@ Use these scripts as the default entrypoints for local work (humans and agents).
 - CI parity checks:
   - macOS/Linux/WSL: `bash scripts/ci_local.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+- Agent request preflight:
+  - `bash scripts/run_agent_request.sh` (or `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`)  
+    refreshes `MEMORY.md`, runs mandatory checks, then full local CI.
+- Lightweight per-request preflight: `bash scripts/run_agent_preflight.sh`
+- Automatic pull/checkout enforcement:
+  `bash scripts/install_agent_preflight_hooks.sh` is installed by
+  `bash scripts/bootstrap.sh` and enforces lightweight preflight checks after
+  branch/source updates.
+  - Configure via `AGENT_PREFLIGHT_UPDATER` and
+    `AGENT_PREFLIGHT_MEMORY_MAX_AGE_HOURS`.
+  - Skip hook execution with `SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK=1`.
+  - Skip bootstrap-time hook installation with
+    `SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL=1`.
+  - CI-level memory guardrail overrides: `AGENT_CI_REQUIRED_UPDATER` and
+    `AGENT_CI_MEMORY_MAX_AGE_HOURS` (defaults: unset and `24`).
 - Safe local run (sandboxed config/logs):
   - Default sandbox is persistent under `<repo>/.sandbox/sempal` for easy inspection.
   - Ephemeral sandbox (no state left behind): `bash scripts/run_sandbox.sh --temp --` / `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 -Temp --`

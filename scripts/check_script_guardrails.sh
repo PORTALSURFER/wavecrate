@@ -380,6 +380,102 @@ EOF
     "$script_path"
 }
 
+run_memory_log_fixture() {
+  local fixture_dir
+  fixture_dir="$(mktemp -d)"
+  trap 'rm -rf "$fixture_dir"' RETURN
+
+  local repo_dir="$fixture_dir/repo"
+  local script_path="$repo_dir/scripts/check_memory_log.sh"
+  mkdir -p "$repo_dir/scripts"
+  cp "scripts/check_memory_log.sh" "$script_path"
+  chmod +x "$script_path"
+
+  local timestamp
+  timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+  cat >"$repo_dir/MEMORY.md" <<EOF
+# MEMORY
+Last Updated: $timestamp
+Updated By: Codex
+EOF
+
+  run_expect_exit_code \
+    "memory log fixture passes without required updater" \
+    0 \
+    "$repo_dir" \
+    "$script_path"
+
+  run_expect_exit_code \
+    "memory log fixture fails when required updater is mismatched" \
+    1 \
+    "$repo_dir" \
+    env \
+    MEMORY_REQUIRED_UPDATER=Human \
+    "$script_path"
+
+  run_expect_exit_code \
+    "memory log fixture passes when required updater matches" \
+    0 \
+    "$repo_dir" \
+    env \
+    MEMORY_REQUIRED_UPDATER=Codex \
+    "$script_path"
+}
+
+run_expect_exit_code \
+  "bash -n scripts/run_agent_request.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/run_agent_request.sh
+
+run_expect_exit_code \
+  "bash -n scripts/run_agent_ci_checks.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/run_agent_ci_checks.sh
+
+run_expect_exit_code \
+  "bash -n scripts/run_agent_preflight.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/run_agent_preflight.sh
+
+run_expect_exit_code \
+  "bash -n scripts/install_agent_preflight_hooks.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/install_agent_preflight_hooks.sh
+
+run_expect_exit_code \
+  "bash -n scripts/refresh_memory_md.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/refresh_memory_md.sh
+
+run_expect_exit_code \
+  "run_agent_request --help" \
+  0 \
+  "$ROOT_DIR" \
+  scripts/run_agent_request.sh \
+  --help
+
+run_expect_exit_code \
+  "run_agent_preflight --help" \
+  0 \
+  "$ROOT_DIR" \
+  scripts/run_agent_preflight.sh \
+  --help
+
 run_expect_exit_code \
   "bash -n scripts/check_file_size_budget.sh" \
   0 \
@@ -424,6 +520,7 @@ run_file_size_budget_fixture
 run_taste_invariants_fixture
 run_run_contract_smoke_fixture
 run_quality_score_drift_fixture
+run_memory_log_fixture
 
 if (( failures > 0 )); then
   echo "[guardrails] FAILED: $failures checks failed."

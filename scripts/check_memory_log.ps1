@@ -5,8 +5,9 @@ Set-StrictMode -Version Latest
 Validates that MEMORY.md has a fresh update marker and updater identity.
 
 .DESCRIPTION
-This check protects agent handoff consistency by requiring a recent
-`Last Updated:` timestamp and explicit `Updated By:` ownership line.
+This check protects handoff consistency by requiring a recent `Last Updated:`
+timestamp and explicit `Updated By:` ownership line. Updater matching is optional
+and can be controlled through `MEMORY_REQUIRED_UPDATER`.
 #>
 
 $ErrorActionPreference = "Stop"
@@ -14,7 +15,21 @@ $ErrorActionPreference = "Stop"
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $memoryFile = Join-Path $rootDir "MEMORY.md"
 $maxAgeHours = 24
-$requiredUpdater = "Codex"
+$memoryMaxAgeEnv = [Environment]::GetEnvironmentVariable("MEMORY_MAX_AGE_HOURS")
+if (-not [string]::IsNullOrWhiteSpace($memoryMaxAgeEnv)) {
+  if (-not [int]::TryParse($memoryMaxAgeEnv, [ref]$maxAgeHours)) {
+    Write-Error "[memory_log] MEMORY_MAX_AGE_HOURS must be an integer; got: $memoryMaxAgeEnv"
+    exit 1
+  }
+  if ($maxAgeHours -lt 0) {
+    Write-Error "[memory_log] MEMORY_MAX_AGE_HOURS must be >= 0; got: $maxAgeHours"
+    exit 1
+  }
+}
+$requiredUpdater = [Environment]::GetEnvironmentVariable("MEMORY_REQUIRED_UPDATER")
+if ($null -eq $requiredUpdater) {
+  $requiredUpdater = ""
+}
 
 if (-not (Test-Path $memoryFile)) {
   Write-Error "[memory_log] Missing required file: MEMORY.md"
@@ -64,12 +79,12 @@ $matchBy = [regex]::Match(
   '^Updated By:\s*(.+)$'
 )
 if (-not $matchBy.Success) {
-  Write-Error "[memory_log] 'Updated By:' line malformed. Expected format: Updated By: Codex"
+  Write-Error "[memory_log] 'Updated By:' line malformed. Expected format: Updated By: <name>"
   exit 1
 }
 $updatedBy = $matchBy.Groups[1].Value.Trim()
 
-if ($updatedBy -ne $requiredUpdater) {
+if ($requiredUpdater -and $updatedBy -ne $requiredUpdater) {
   Write-Error "[memory_log] MEMORY.md must be updated by '$requiredUpdater'. Found: $updatedBy"
   exit 1
 }
@@ -85,4 +100,4 @@ if ($age.TotalHours -gt $maxAgeHours) {
   exit 1
 }
 
-Write-Host "[memory_log] OK ($timestamp by $updatedBy)"
+Write-Host "[memory_log] OK ($timestamp by $updatedBy, max_age=${maxAgeHours}h)"

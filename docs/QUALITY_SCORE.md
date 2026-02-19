@@ -21,7 +21,7 @@ Last reviewed: 2026-02-18
 | --- | ---: | --- |
 | Developer entrypoints (docs/scripts) | 4 | `docs/README.md`, `scripts/ci_local.*`, `scripts/doctor.*`, `scripts/run_sandbox.*` exist and are wired into CI/local flows. |
 | Documentation hygiene | 4 | Knowledge lint exists; still some doc drift risk outside the checked scope. |
-| Agent-facing guardrails | 3 | `scripts/check_script_guardrails.sh` and `scripts/check_rust_taste_invariants.sh` are enforced; `scripts/check_file_size_budget.sh` is currently failing on `src/main.rs`. |
+| Agent-facing guardrails | 4 | `scripts/check_script_guardrails.sh`, `scripts/check_rust_taste_invariants.sh`, and `scripts/check_file_size_budget.sh` are enforced and healthy. |
 | Legacy boundary enforcement | 4 | `crate::app` coupling and `app_core` boundaries are enforced diff-aware in CI. |
 | Code size discipline | 3 | File size budget enforced on changed files; allowlist is still large and needs burn-down. |
 | Testing posture | 3 | Test map exists; coverage varies; some critical flows are integration-heavy. |

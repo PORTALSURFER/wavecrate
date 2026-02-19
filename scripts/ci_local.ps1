@@ -14,6 +14,18 @@ The migration-boundary check is implemented in bash for parity with CI. If `bash
 is not available locally, this script runs an equivalent PowerShell fallback.
 #>
 
+param(
+  [switch]$SkipAgentPreflight,
+  [switch]$Help
+)
+
+if ($Help) {
+  Write-Host "Usage: scripts/ci_local.ps1 [-SkipAgentPreflight]"
+  Write-Host "Run the local equivalent of the CI checks used by this repository."
+  Write-Host "If -SkipAgentPreflight is set, skip `scripts/run_agent_ci_checks.sh`."
+  exit 0
+}
+
 function Invoke-MigrationBoundaryCheckFallback {
   param(
     [Parameter(Mandatory = $true)]
@@ -57,41 +69,17 @@ $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 Push-Location $rootDir
 try {
+  if (-not (Get-Command bash -ErrorAction SilentlyContinue)) {
+    throw "[ci_local] ERROR: bash is required by scripts/run_agent_ci_checks.sh in this environment."
+  }
+
   Write-Host "[ci_local] cargo fmt --all -- --check"
   cargo fmt --all -- --check
 
-  Write-Host "[ci_local] scripts/check_memory_log.ps1"
-  & (Join-Path $rootDir "scripts/check_memory_log.ps1")
-
-  Write-Host "[ci_local] scripts/check_migration_boundary.ps1"
-  & (Join-Path $rootDir "scripts/check_migration_boundary.ps1")
-
-  Write-Host "[ci_local] scripts/check_script_guardrails.ps1"
-  & (Join-Path $rootDir "scripts/check_script_guardrails.ps1")
-
-  Write-Host "[ci_local] scripts/check_workflow_toolchain_pinning.ps1"
-  & (Join-Path $rootDir "scripts/check_workflow_toolchain_pinning.ps1")
-
-  Write-Host "[ci_local] scripts/check_quality_score_drift.ps1"
-  & (Join-Path $rootDir "scripts/check_quality_score_drift.ps1")
-
-  Write-Host "[ci_local] scripts/check_manual_docs_scope.ps1"
-  & (Join-Path $rootDir "scripts/check_manual_docs_scope.ps1")
-
-  Write-Host "[ci_local] scripts/check_legacy_app_coupling.ps1"
-  & (Join-Path $rootDir "scripts/check_legacy_app_coupling.ps1")
-
-  Write-Host "[ci_local] scripts/check_rust_no_todos.ps1"
-  & (Join-Path $rootDir "scripts/check_rust_no_todos.ps1")
-
-  Write-Host "[ci_local] scripts/check_rust_public_docs.ps1"
-  & (Join-Path $rootDir "scripts/check_rust_public_docs.ps1")
-
-  Write-Host "[ci_local] scripts/check_app_core_dependency_boundary.ps1"
-  & (Join-Path $rootDir "scripts/check_app_core_dependency_boundary.ps1")
-
-  Write-Host "[ci_local] scripts/knowledge_lint.ps1"
-  & (Join-Path $rootDir "scripts/knowledge_lint.ps1")
+  if (-not $SkipAgentPreflight) {
+    Write-Host "[ci_local] scripts/run_agent_ci_checks.sh"
+    & bash (Join-Path $rootDir "scripts/run_agent_ci_checks.sh")
+  }
 
   Write-Host "[ci_local] cargo clippy --all-targets"
   cargo clippy --all-targets

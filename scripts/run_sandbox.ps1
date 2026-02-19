@@ -109,10 +109,56 @@ if ($Temp) {
 
 Push-Location $rootDir
 try {
-  cargo run --release -- $args
+  $runStatus = 0
+  try {
+    cargo run --release -- $args
+    $runStatus = $LASTEXITCODE
+    if ($runStatus -ne 0) {
+      Write-Host "[run_sandbox][warn] cargo run failed with exit code $runStatus."
+    }
+  } catch {
+    if ($LASTEXITCODE -ne 0) {
+      $runStatus = $LASTEXITCODE
+    } else {
+      $runStatus = 1
+    }
+    Write-Host "[run_sandbox][warn] cargo run failed with exit code $runStatus."
+  }
 } finally {
   Pop-Location
   if ($Temp -or $Clean) {
     Remove-Item -LiteralPath $sandboxBase -Recurse -Force -ErrorAction SilentlyContinue
   }
 }
+
+if (Test-Path $logsDir) {
+  $contractsDir = Join-Path $logsDir "contracts"
+  if (Test-Path $contractsDir) {
+    $latestContract = Get-ChildItem -Path $contractsDir -Filter "run_contract_*.ndjson" |
+      Sort-Object LastWriteTime -Descending |
+      Select-Object -First 1
+
+    if ($null -ne $latestContract) {
+      $latestContractPath = $latestContract.FullName
+      $latestManifestPath = $latestContractPath -replace "run_contract_", "run_manifest_"
+      $latestManifestPath = [System.IO.Path]::ChangeExtension($latestManifestPath, ".json")
+
+      Write-Host "[run_sandbox] latest run_contract=$latestContractPath"
+      Write-Host "[run_sandbox] latest run_manifest=$latestManifestPath"
+
+      if (Test-Path $latestManifestPath) {
+        try {
+          $manifest = Get-Content -Raw -LiteralPath $latestManifestPath | ConvertFrom-Json
+          $finalStatus = if ($manifest.PSObject.Properties["exit_status"]) { $manifest.exit_status } else { "<missing>" }
+          Write-Host "[run_sandbox] run outcome=$finalStatus"
+        } catch {
+          Write-Host "[run_sandbox][warn] Failed to parse run manifest: $latestManifestPath"
+        }
+      } else {
+        Write-Host "[run_sandbox] run manifest missing or not written yet: $latestManifestPath"
+      }
+    }
+  }
+}
+
+exit $runStatus

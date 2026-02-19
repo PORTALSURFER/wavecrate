@@ -17,16 +17,21 @@ These are the default “don’t guess, don’t grep” entrypoints for most wor
 2. Environment sanity checks:
    - `bash scripts/doctor.sh`
    - `powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1`
-3. Safe local run (isolated config/logs):
+3. Mandatory agent request preflight:
+   - `bash scripts/run_agent_request.sh`
+   - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`
+   - `bash scripts/run_agent_preflight.sh` (lightweight version; no full `ci_local`)
+   - `bash scripts/install_agent_preflight_hooks.sh` (optional auto-hook install)
+4. Safe local run (isolated config/logs):
    - `bash scripts/run_sandbox.sh --`
    - `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --`
-4. Find and tail the newest log:
+5. Find and tail the newest log:
    - `bash scripts/latest_log.sh`
    - `powershell -ExecutionPolicy Bypass -File scripts/latest_log.ps1`
-5. Create a bug bundle (logs + config + versions):
+6. Create a bug bundle (logs + config + versions):
    - `bash scripts/bug_bundle.sh`
    - `powershell -ExecutionPolicy Bypass -File scripts/bug_bundle.ps1`
-6. Reset sandbox state (fresh start):
+7. Reset sandbox state (fresh start):
    - `bash scripts/clean_sandbox.sh`
    - `powershell -ExecutionPolicy Bypass -File scripts/clean_sandbox.ps1`
 
@@ -70,6 +75,10 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
 | `scripts/check_file_size_budget.ps1` | PowerShell equivalent of the file-size budget check. | Same remediation as the bash version. |
 | `scripts/check_script_guardrails.sh` | Key shell scripts must stay syntax valid and pass fixture checks for matching logic. | Keep script syntax and fixture assertions green; ensure regex matching and argument parsing are fixture-covered. |
 | `scripts/check_script_guardrails.ps1` | PowerShell wrapper around the script guardrails check. | Same remediation as the bash version. |
+| `scripts/run_agent_request.sh` | Refreshes `MEMORY.md`, runs mandatory guardrails, and executes full local CI. | Run at session start; do not continue if this check fails. |
+| `scripts/run_agent_request.ps1` | PowerShell equivalent of the agent preflight + local CI entrypoint. | Same remediation as the bash version. |
+| `scripts/run_agent_preflight.sh` | Runs mandatory preflight checks (`run_agent_ci_checks.sh`) with configurable MEMORY refresh behavior. | Use from branch/pull entrypoints when you need the mandatory checks without full local CI. |
+| `scripts/install_agent_preflight_hooks.sh` | Installs git hooks that auto-run `run_agent_preflight.sh` after merge/checkout. | Install in local workspaces that should enforce preflight on every pull/branch switch. |
 | `scripts/check_quality_score_drift.sh` | Ensures `docs/QUALITY_SCORE.md` reflects current high-visibility guardrail status (file-size budget + Rust taste invariants) and flags drift. | Update the score row in `docs/QUALITY_SCORE.md` whenever this check degrades or recovers. |
 | `scripts/check_quality_score_drift.ps1` | PowerShell wrapper for score-drift enforcement check. | Same remediation as the bash version, then update `docs/QUALITY_SCORE.md` to keep handoff context accurate. |
 | `scripts/check_manual_docs_scope.sh` | `manual/` is user docs only; new/changed files in `manual/` must be allowlisted (site assets + user docs + redirect stubs). | Move developer docs into `docs/`; keep `manual/` for user content and site assets. |

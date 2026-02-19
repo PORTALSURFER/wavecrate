@@ -25,6 +25,34 @@ if ($args -contains "-h" -or $args -contains "--help") {
   exit 0
 }
 
+function Install-AgentPreflightHooks {
+  if ($env:SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL -eq "1") {
+    Write-Host "[bootstrap] SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL=1: skipping hook install."
+    return $true
+  }
+
+  $hookInstaller = Join-Path $rootDir "scripts/install_agent_preflight_hooks.sh"
+  if (-not (Test-Path -LiteralPath $hookInstaller)) {
+    Write-Host "[bootstrap] ERROR: missing hook installer at $hookInstaller" -ForegroundColor Red
+    return $false
+  }
+
+  $bash = Get-Command bash -ErrorAction SilentlyContinue
+  if ($null -eq $bash) {
+    Write-Host "[bootstrap] ERROR: bash not found; required to install agent preflight hooks." -ForegroundColor Red
+    Write-Host "[bootstrap] Install a bash-enabled shell (Git Bash/WSL)."
+    return $false
+  }
+
+  & $bash.Path $hookInstaller --force
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "[bootstrap] ERROR: hook installer failed with code $LASTEXITCODE." -ForegroundColor Red
+    return $false
+  }
+  Write-Host "[bootstrap] agent preflight hooks: installed"
+  return $true
+}
+
 $failures = 0
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -168,6 +196,14 @@ try {
   if ($verifyOnly) {
     if ($failures -gt 0) {
       Write-Error ("[bootstrap] Result: FAIL ({0} missing requirements). Hint: run without --verify-only to install." -f $failures)
+      exit 1
+    }
+    Write-Host "[bootstrap] Result: OK"
+  } else {
+    if (-not (Install-AgentPreflightHooks)) {
+      Write-Host "[bootstrap] Agent workspace setup is incomplete without the preflight hooks."
+      Write-Host "[bootstrap] Run manually: bash scripts/install_agent_preflight_hooks.sh --force"
+      Write-Error "[bootstrap] Result: FAIL"
       exit 1
     }
     Write-Host "[bootstrap] Result: OK"

@@ -26,6 +26,22 @@ Rules:
 - Before pushing, run `scripts/ci_local.sh` after every change and do not push until it is green.
   If any check fails, fix issues and rerun until it passes.
   If you cannot run scripts in your environment, stop and resolve before pushing.
+
+- Mandatory agent request preflight:
+  - On each agent request/session, run `bash scripts/run_agent_request.sh` (or
+    `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`).
+- `scripts/run_agent_preflight.sh` is the lightweight preflight primitive and is
+  used by `run_agent_request.sh`. Automatic enforcement after `git pull` or
+  branch checkout is installed by `bash scripts/bootstrap.sh` by default and uses
+  `bash scripts/install_agent_preflight_hooks.sh` to enforce the lightweight preflight hook.
+  - Hook environment overrides: `AGENT_PREFLIGHT_UPDATER` (default `Codex`),
+    `AGENT_PREFLIGHT_MEMORY_MAX_AGE_HOURS` (default `1`), and
+    `SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK=1` to skip hook execution and
+    `SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL=1` to skip bootstrap installation.
+  - Agent-CI memory guardrails (used by `run_agent_ci_checks.sh` and `ci_local.sh`):
+    `AGENT_CI_REQUIRED_UPDATER` (default: unset) and
+    `AGENT_CI_MEMORY_MAX_AGE_HOURS` (default: `24`).
+  - If this check fails, do not proceed with code changes until it is green.
 - `scripts/run_sandbox.sh` and `scripts/run_sandbox.ps1` default to read-only source DB mode (`--write-db` required).
 - `manual/` is user-facing documentation only. Developer docs belong in `docs/`.
 

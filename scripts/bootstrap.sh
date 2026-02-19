@@ -23,9 +23,10 @@ Default: installs/ensures a known-good local environment:
 - rustfmt + clippy components
 - checks git-lfs, python3, and rg
 
---verify-only:
-- performs checks only (no installs / no machine mutation)
-- exits non-zero if required items are missing
+  --verify-only:
+  - performs checks only (no installs / no machine mutation)
+  - exits non-zero if required items are missing
+  - skip agent preflight hook installation
 EOF
 }
 
@@ -41,6 +42,28 @@ while (( $# > 0 )); do
       exit 2 ;;
   esac
 done
+
+install_agent_preflight_hooks() {
+  local hook_script="$ROOT_DIR/scripts/install_agent_preflight_hooks.sh"
+
+  if [[ "${SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL:-0}" == "1" ]]; then
+    echo "[bootstrap] SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL=1: skipping hook install."
+    return 0
+  fi
+
+  if [[ ! -x "$hook_script" ]]; then
+    echo "[bootstrap] ERROR: missing hook installer at $hook_script" >&2
+    return 1
+  fi
+
+  if "$hook_script" --force; then
+    echo "[bootstrap] agent preflight hooks: installed"
+    return 0
+  fi
+
+  echo "[bootstrap] ERROR: failed to install agent preflight hooks." >&2
+  return 1
+}
 
 failures=0
 
@@ -173,6 +196,13 @@ if (( VERIFY_ONLY == 1 )); then
   if (( failures > 0 )); then
     echo "[bootstrap] Result: FAIL ($failures missing requirements)" >&2
     echo "[bootstrap] Hint: run without --verify-only to install missing requirements." >&2
+    exit 1
+  fi
+  echo "[bootstrap] Result: OK"
+else
+  if ! install_agent_preflight_hooks; then
+    echo "[bootstrap] Agent workspace setup is incomplete without the preflight hooks."
+    echo "[bootstrap]   Re-run: bash scripts/install_agent_preflight_hooks.sh --force"
     exit 1
   fi
   echo "[bootstrap] Result: OK"
