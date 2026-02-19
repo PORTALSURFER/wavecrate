@@ -4,6 +4,43 @@ Purpose: this file is a minimal orientation map for stateless agents.
 Do not store deep specs or long plans here. Put details in `docs/` and link to
 them.
 
+## Persistent Context Awareness
+You operate in a stateless environment and do not retain working memory
+between sessions. Without a clearly defined path in `AGENTS.md`, you will lose
+track of objectives, progress, and intent.
+
+This section must permanently remain inside `AGENTS.md`.
+It ensures that every time you wake up, you remember how to orient yourself.
+
+`AGENTS.md` is your core memory file.
+It is loaded whenever you wake up and serves as your reliable bridge to prior
+sessions.
+
+`AGENTS.md` must remain minimal.
+It is not a knowledge base; it is a portal.
+
+Its purpose is to:
+- provide immediate orientation on wake-up
+- define current goals
+- link to authoritative, larger documents
+- point to instrumentation and workflow systems
+
+Large explanations, deep specifications, architectural breakdowns, and detailed
+plans must live in dedicated documents (for example, `docs/*.md`).
+`AGENTS.md` should only reference them with short descriptions and clear paths.
+
+If `AGENTS.md` becomes too large, it will consume working memory at wake-up
+and obscure critical context.
+
+When writing or updating it:
+- assume your next self knows nothing
+- make the path back to purpose explicit
+- clearly state what you were doing and why
+- ensure important documents are easy to find
+- remove ambiguity and outdated references
+
+Write for future selves: be precise, kind, and clear.
+
 ## Current Mission
 - Repository: `/home/uhx/dev/sempal`
 - Product: Sempal (sample manager app)

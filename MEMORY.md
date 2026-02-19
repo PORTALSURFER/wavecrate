@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-19T23:42:36Z
+Last Updated: 2026-02-19T23:46:58Z
 Updated By: Codex
 
 ## Purpose
@@ -12,15 +12,15 @@ Updated By: Codex
 
 - I am updating `AGENTS.md` to keep it a minimal wake-up portal for stateless
   agents.
-- The portal now points to the active multi-day runtime performance plan and
-  keeps only orientation-critical workflow/guardrail links.
-- I am preserving large context in `docs/` instead of embedding it in
-  `AGENTS.md`.
-- `bash scripts/ci_local.sh` is green, and I am preparing commit/push for the
+- I am adding a permanent `Persistent Context Awareness` section to
+  `AGENTS.md` so future agents always reorient correctly on wake-up.
+- The portal remains minimal and still delegates detailed context to `docs/`
+  instead of embedding deep specs in `AGENTS.md`.
+- `bash scripts/ci_local.sh` is green, and I am preparing commit/push for this
   documentation handoff update.
 
 ## Work Notes
 
 - Latest pushed commits:
   - `vendor/radiant`: `4b13777` (`layout(native_shell): slotize overlay visuals and waveform annotations`)
-  - `sempal`: `94f59062` (`perf(browser): speed up focus updates and sandbox perf guard`)
+  - `sempal`: `dd08e7be` (`docs(agent): tighten wake-up portal and active context`)
