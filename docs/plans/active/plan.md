@@ -144,3 +144,18 @@ text baseline and right-anchor rect arithmetic.
    constraints.
 4. [x] Keep `vendor/radiant` tests green after the rewiring.
 5. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 13) Checklist
+
+Goal: migrate top-bar update status/controls text geometry into strict
+slotized adapters so shell-state rendering no longer owns local action-cluster
+reserved-width and baseline rect arithmetic for that surface.
+
+1. [x] Add a focused `layout_adapter::update_text` module for top-bar update
+   status and controls text-line bounds.
+2. [x] Route top-bar update text rendering through adapter-computed line rects
+   instead of local reserved-width and text-top calculations.
+3. [x] Add focused adapter tests for update text bounds, button-reservation
+   behavior, and empty-cluster collapse.
+4. [x] Keep `vendor/radiant` tests green after the rewiring.
+5. [x] Update slot-layout spec status and tracked remaining gap notes.

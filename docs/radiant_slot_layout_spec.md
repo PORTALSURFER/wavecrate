@@ -460,10 +460,18 @@ For each container, assert exact output rects across:
   map-header label geometry instead of local text baseline and right-anchor
   rect arithmetic.
 
+## Current Implementation Status (Phase 13)
+
+- Top-bar update copy geometry now routes through slotized adapter helpers:
+  - `layout_adapter::compute_top_bar_update_text_layout(...)` for update
+    status/controls text-line bounds in the action cluster
+- Native-shell top-bar update text rendering now consumes adapter-owned
+  line geometry instead of local reserved-width and baseline arithmetic.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
 annotation micro-placement outside sidebar/status/waveform-header/browser-list
-/map-header paths (for example status/update overlays and other residual copy paths) that still uses local rect
+/map-header/top-bar-update paths (for example prompt/progress/drag overlay copy and other residual text paths) that still uses local rect
 arithmetic and should be migrated into slotized text/layout adapters in a
 follow-up phase.
