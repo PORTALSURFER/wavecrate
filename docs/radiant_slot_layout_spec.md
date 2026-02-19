@@ -468,10 +468,23 @@ For each container, assert exact output rects across:
 - Native-shell top-bar update text rendering now consumes adapter-owned
   line geometry instead of local reserved-width and baseline arithmetic.
 
+## Current Implementation Status (Phase 14)
+
+- Prompt/progress/drag overlay copy geometry now routes through slotized
+  adapter helpers:
+  - `layout_adapter::compute_prompt_overlay_text_layout(...)` for prompt
+    title/message/target/input/error/button-label text-line bounds
+  - `layout_adapter::compute_progress_overlay_text_layout(...)` for progress
+    title/detail/counter/cancel-label text-line bounds
+  - `layout_adapter::compute_drag_overlay_text_layout(...)` for drag-banner
+    label text-line bounds
+- Native-shell overlay rendering now consumes adapter-owned text-line geometry
+  instead of local y-offset and button text-top arithmetic for those paths.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
 annotation micro-placement outside sidebar/status/waveform-header/browser-list
-/map-header/top-bar-update paths (for example prompt/progress/drag overlay copy and other residual text paths) that still uses local rect
+/map-header/top-bar-update/overlay-copy paths (for example map-canvas annotations and other residual text paths) that still uses local rect
 arithmetic and should be migrated into slotized text/layout adapters in a
 follow-up phase.

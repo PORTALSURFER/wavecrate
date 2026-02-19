@@ -159,3 +159,19 @@ reserved-width and baseline rect arithmetic for that surface.
    behavior, and empty-cluster collapse.
 4. [x] Keep `vendor/radiant` tests green after the rewiring.
 5. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 14) Checklist
+
+Goal: migrate prompt/progress/drag overlay copy geometry into strict slotized
+adapters so shell-state overlay rendering no longer owns local title/detail/
+input/error/button-label baseline arithmetic for those surfaces.
+
+1. [x] Add a focused `layout_adapter::overlays::text` module for prompt,
+   progress, and drag overlay text-line bounds.
+2. [x] Route prompt/progress/drag text rendering through adapter-computed
+   text-line rects instead of local y-offset and text-top calculations.
+3. [x] Add focused adapter tests for overlay text bounds and optional-row
+   behaviors (detail/target/input-error).
+4. [x] Regenerate affected native-shell shot fixtures and keep
+   `vendor/radiant` tests green.
+5. [x] Update slot-layout spec status and tracked remaining gap notes.
