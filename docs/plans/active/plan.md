@@ -276,3 +276,21 @@ arithmetic helpers.
 4. [x] Regenerate affected native-shell shot fixtures (if changed) and keep
    `vendor/radiant` tests green.
 5. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 21) Checklist
+
+Goal: migrate browser-map canvas geometry into adapter-owned helpers so
+native-shell map rendering and hit-testing no longer rely on local canvas/point
+placement arithmetic in `state.rs`.
+
+1. [x] Add a focused `layout_adapter::map_canvas` module for browser-map canvas
+   bounds and normalized map-point center resolution.
+2. [x] Route map-active canvas rendering through adapter-computed canvas/point
+   geometry.
+3. [x] Route map hit-testing (`map_sample_id_at_point`) through adapter-computed
+   canvas/point geometry.
+4. [x] Remove legacy local map canvas/point helper arithmetic from `state.rs`.
+5. [x] Add focused adapter tests for map-canvas bounds and point clamping.
+6. [x] Regenerate affected native-shell shot fixtures (if changed) and keep
+   `vendor/radiant` tests green.
+7. [x] Update slot-layout spec status and tracked remaining gap notes.

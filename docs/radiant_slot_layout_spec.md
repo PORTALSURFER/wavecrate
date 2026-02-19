@@ -545,11 +545,22 @@ For each container, assert exact output rects across:
 - Native-shell browser-row virtualization no longer uses a local
   `row_label_width(...)` helper for cached sample-label truncation width.
 
+## Current Implementation Status (Phase 21)
+
+- Browser-map canvas geometry now routes through adapter-owned helpers:
+  - `layout_adapter::compute_browser_map_canvas_rect(...)` for map canvas
+    bounds inside browser rows
+  - `layout_adapter::compute_browser_map_point_center(...)` for normalized
+    point anchor resolution inside canvas bounds
+- Native-shell map rendering and map hit-testing now consume adapter-owned
+  canvas/point geometry instead of local `state.rs` helper arithmetic.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
 annotation micro-placement outside sidebar/status/waveform-header/browser-list
 /map-header/top-bar-update/overlay-copy/browser-chrome/control-strip/sidebar
-text/chrome/title/browser-row-cache paths (for example map-canvas annotations
-and other residual annotation text paths) that still uses local rect arithmetic
-and should be migrated into slotized text/layout adapters in a follow-up phase.
+text/chrome/title/browser-row-cache/map-canvas paths (for example residual
+annotation text paths and other local rect arithmetic) that still uses local
+geometry and should be migrated into slotized text/layout adapters in a
+follow-up phase.
