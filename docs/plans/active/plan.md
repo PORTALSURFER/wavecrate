@@ -311,3 +311,58 @@ split-width arithmetic in `state.rs`.
 6. [x] Regenerate affected native-shell shot fixtures (if changed) and keep
    `vendor/radiant` tests green.
 7. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 23) Checklist
+
+Goal: migrate row hit-testing from stride arithmetic to geometry-driven rect
+resolution so pointer routing uses the actual cached slotized row bounds.
+
+1. [x] Add a focused `layout_adapter::row_hit_test` module with rect-based row
+   index resolution helper(s).
+2. [x] Route source/folder row hit-testing through adapter row-index helpers.
+3. [x] Route browser-row hit-testing through geometry-driven row containment
+   checks instead of row-height/gap stride arithmetic.
+4. [x] Remove legacy stride-based row-index helper arithmetic from `state.rs`.
+5. [x] Add focused adapter tests for row-hit resolution and gap/empty behavior.
+6. [x] Regenerate affected native-shell shot fixtures (if changed) and keep
+   `vendor/radiant` tests green.
+7. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 24) Checklist
+
+Goal: migrate prompt/progress/drag overlay visual geometry into adapter-owned
+helpers so native-shell rendering and hit-testing no longer depend on local
+overlay rect arithmetic.
+
+1. [x] Add a focused `layout_adapter::overlay_visuals` module for prompt,
+   progress, and drag overlay visual rect outputs.
+2. [x] Route overlay hit-testing helper paths (`prompt`/`progress`/`drag`)
+   through adapter-owned visual geometry.
+3. [x] Route progress overlay filled-track geometry through adapter-owned rect
+   outputs instead of render-path local width math.
+4. [x] Add focused adapter tests for overlay visual bounds/scrim/fill behavior.
+5. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 25) Checklist
+
+Goal: migrate waveform annotation visual geometry into adapter-owned helpers so
+native-shell rendering no longer owns local selection/cursor/playhead rect
+arithmetic.
+
+1. [x] Add a focused `layout_adapter::waveform_annotations` module for
+   selection/cursor/playhead rect computation from normalized milli anchors.
+2. [x] Route waveform annotation rendering through adapter-computed rects.
+3. [x] Add focused adapter tests for annotation bounds and edge clamping.
+4. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 26) Checklist
+
+Goal: close the current tail milestone with deterministic coverage and updated
+design status reporting.
+
+1. [x] Keep new adapter modules under focused responsibilities and include
+   public API docs for visual/annotation geometry contracts.
+2. [x] Add/retain deterministic unit coverage for new non-trivial geometry
+   paths.
+3. [x] Update active plan + slot-layout spec to reflect the completed
+   milestone and narrowed residual gap scope.

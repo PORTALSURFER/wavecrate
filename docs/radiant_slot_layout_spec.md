@@ -563,12 +563,43 @@ For each container, assert exact output rects across:
 - Native-shell browser tab rendering and tab hit-testing now consume adapter
   tab rects instead of local split-width arithmetic in `state.rs`.
 
+## Current Implementation Status (Phase 23)
+
+- Row hit-testing now routes through geometry-driven rect containment helpers:
+  - `layout_adapter::compute_row_index_at_point(...)` for stacked row rect
+    index resolution
+- Native-shell source/folder/browser row hit-testing now consumes cached row
+  rect geometry instead of row-height/gap stride arithmetic.
+
+## Current Implementation Status (Phase 24)
+
+- Overlay visual geometry now routes through adapter-owned helpers:
+  - `layout_adapter::compute_prompt_overlay_visual_layout(...)`
+  - `layout_adapter::compute_progress_overlay_visual_layout(...)`
+  - `layout_adapter::compute_drag_overlay_visual_layout(...)`
+- Native-shell prompt/progress/drag rendering + overlay hit-testing now consume
+  adapter-owned visual rects, including progress fill-track rect resolution.
+
+## Current Implementation Status (Phase 25)
+
+- Waveform annotation geometry now routes through adapter-owned helpers:
+  - `layout_adapter::compute_waveform_annotation_rects(...)` for waveform
+    selection/cursor/playhead rects from normalized milli anchors
+- Native-shell waveform annotation rendering now consumes adapter-owned
+  annotation rects instead of local waveform overlay arithmetic in `state.rs`.
+
+## Current Implementation Status (Phase 26)
+
+- Tail milestone coverage was expanded with focused adapter tests for:
+  - `layout_adapter::overlay_visuals` visual bounds/scrim/fill behavior
+  - `layout_adapter::waveform_annotations` annotation bounds/edge clamping
+- Plan/spec status tracking now reflects the completed overlay-visual and
+  waveform-annotation slotization milestone.
+
 ## Current Native-Shell Gap (tracked)
 
-Remaining native-shell layout work is now concentrated in render-time text and
-annotation micro-placement outside sidebar/status/waveform-header/browser-list
-/map-header/top-bar-update/overlay-copy/browser-chrome/control-strip/sidebar
-text/chrome/title/browser-row-cache/map-canvas/browser-tabs paths (for example
-residual annotation text paths and other local rect arithmetic) that still uses
-local geometry and should be migrated into slotized text/layout adapters in a
-follow-up phase.
+Remaining native-shell layout work is now concentrated in non-overlay
+decorative micro-geometry outside the migrated slotized adapter surfaces (for
+example small indicator/ornament placements and generic border/stroke helper
+paths). Core prompt/progress/drag overlay visuals and waveform annotation
+geometry are now adapter-owned.
