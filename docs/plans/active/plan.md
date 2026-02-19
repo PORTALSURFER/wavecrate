@@ -228,3 +228,19 @@ baseline arithmetic for those paths.
 6. [x] Regenerate affected native-shell shot fixtures and keep
    `vendor/radiant` tests green.
 7. [x] Update slot-layout spec status and tracked remaining gap notes.
+
+## Layout Redesign (Phase 18) Checklist
+
+Goal: migrate top-bar title copy geometry into strict slotized adapters so
+shell-state no longer owns local top-title baseline and inset arithmetic.
+
+1. [x] Add a focused `layout_adapter::top_title_text` module for top-bar title
+   label bounds.
+2. [x] Route top-bar title rendering through adapter-computed label rects in
+   full-frame rendering.
+3. [x] Remove legacy `text_top_in_rect(...)` helper usage from native-shell
+   state rendering.
+4. [x] Add focused adapter tests for top-bar title bounds and inset behavior.
+5. [x] Regenerate affected native-shell shot fixtures and keep
+   `vendor/radiant` tests green.
+6. [x] Update slot-layout spec status and tracked remaining gap notes.

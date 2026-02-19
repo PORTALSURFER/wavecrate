@@ -518,11 +518,19 @@ For each container, assert exact output rects across:
   adapter-owned label rects instead of local row/badge `text_top_in_rect(...)`
   arithmetic for those paths.
 
+## Current Implementation Status (Phase 18)
+
+- Top-bar title copy geometry now routes through a slotized adapter helper:
+  - `layout_adapter::compute_top_bar_title_text_rect(...)` for top-title label
+    bounds inside the top-bar title cluster/row
+- Native-shell top-bar title rendering now consumes adapter-owned label rects
+  instead of local top-title baseline/inset arithmetic.
+
 ## Current Native-Shell Gap (tracked)
 
 Remaining native-shell layout work is now concentrated in render-time text and
 annotation micro-placement outside sidebar/status/waveform-header/browser-list
 /map-header/top-bar-update/overlay-copy/browser-chrome/control-strip/
-sidebar-row-text paths (for example map-canvas annotations and residual
-top-title text paths) that still uses local rect arithmetic and should be
-migrated into slotized text/layout adapters in a follow-up phase.
+sidebar-row-text/top-title paths (for example map-canvas annotations and other
+residual annotation text paths) that still uses local rect arithmetic and
+should be migrated into slotized text/layout adapters in a follow-up phase.
