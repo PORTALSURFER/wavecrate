@@ -77,6 +77,10 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
 | `scripts/check_script_guardrails.ps1` | PowerShell wrapper around the script guardrails check. | Same remediation as the bash version. |
 | `scripts/run_agent_request.sh` | Refreshes `MEMORY.md`, runs mandatory guardrails, and executes full local CI. | Run at session start; do not continue if this check fails. |
 | `scripts/run_agent_request.ps1` | PowerShell equivalent of the agent preflight + local CI entrypoint. | Same remediation as the bash version. |
+| `scripts/run_perf_guard.sh` | Runs deterministic runtime interaction benchmarks and evaluates warn/fail thresholds (including stage attribution where available). | Use for local perf regression checks and CI parity before push. |
+| `scripts/run_perf_guard.ps1` | PowerShell wrapper for `scripts/run_perf_guard.sh`. | Same remediation as the bash version. |
+| `scripts/run_perf_wheel_stability.sh` | Collects repeated wheel-latency perf windows and evaluates hard-fail promotion readiness. | Use when deciding whether wheel fail thresholds are stable enough to tighten. |
+| `scripts/run_perf_wheel_stability.ps1` | PowerShell wrapper for `scripts/run_perf_wheel_stability.sh`. | Same remediation as the bash version. |
 | `scripts/run_agent_preflight.sh` | Runs mandatory preflight checks (`run_agent_ci_checks.sh`) with configurable MEMORY refresh behavior. | Use from branch/pull entrypoints when you need the mandatory checks without full local CI. |
 | `scripts/install_agent_preflight_hooks.sh` | Installs git hooks that auto-run `run_agent_preflight.sh` after merge/checkout. | Install in local workspaces that should enforce preflight on every pull/branch switch. |
 | `scripts/check_quality_score_drift.sh` | Ensures `docs/QUALITY_SCORE.md` reflects current high-visibility guardrail status (file-size budget + Rust taste invariants) and flags drift. | Update the score row in `docs/QUALITY_SCORE.md` whenever this check degrades or recovers. |

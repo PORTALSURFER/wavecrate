@@ -178,8 +178,9 @@ Optional hard-fail p95 latency threshold (microseconds) for hover interaction
 benchmark results. Unset by default.
 
 - `SEMPAL_PERF_FAIL_P95_US_WHEEL`
-Optional hard-fail p95 latency threshold (microseconds) for wheel interaction
-benchmark results. Unset by default.
+Hard-fail p95 latency threshold (microseconds) for wheel interaction benchmark
+results. Default: `30000` (can be overridden; set to a very high value to
+effectively disable).
 
 - `SEMPAL_PERF_FAIL_P95_US_FOCUS_PREVIEW`
 Optional hard-fail p95 latency threshold (microseconds) for browser-focus
@@ -260,6 +261,48 @@ set by `scripts/ci_golden_tests.sh` / `scripts/ci_golden_tests.ps1`).
 - `SEMPAL_PANNS_EMBED_GOLDEN_PATH`
 Path to the golden embedding JSON used by the golden regression tests (typically
 set by `scripts/ci_golden_tests.sh` / `scripts/ci_golden_tests.ps1`).
+
+## Wheel stability workflow overrides
+
+- `SEMPAL_PERF_WHEEL_STABILITY_ROOT`
+Artifact root used by `scripts/run_perf_wheel_stability.sh` for collected
+wheel-latency evidence and summary outputs. Default:
+`target/perf/wheel_stability`.
+
+- `SEMPAL_PERF_WHEEL_STABILITY_WINDOWS`
+Number of evidence windows collected in `collect` mode. Default: `7`.
+
+- `SEMPAL_PERF_WHEEL_STABILITY_RUNS_PER_WINDOW`
+Number of perf-guard runs executed per collected window. Default: `3`.
+
+- `SEMPAL_PERF_WHEEL_STABILITY_REQUIRED_WINDOWS`
+Number of most-recent windows required by `evaluate` mode before promotion can
+be marked ready. Default: `7`.
+
+- `SEMPAL_PERF_WHEEL_STABILITY_TARGET_P95_US`
+Maximum median wheel p95 (microseconds) allowed per window for promotion
+readiness. Default: `16000`.
+
+- `SEMPAL_PERF_WHEEL_STABILITY_MAX_P95_SPREAD_US`
+Maximum in-window wheel p95 spread (microseconds) allowed for readiness.
+Default: `7000`.
+
+- `SEMPAL_PERF_WHEEL_STABILITY_MAX_STDDEV_US`
+Maximum median wheel standard deviation (microseconds) allowed per window.
+Default: `6000`.
+
+- `SEMPAL_PERF_WHEEL_STABILITY_MAX_OUTLIER_RATIO`
+Maximum median wheel high-outlier ratio allowed per window (0.0-1.0).
+Default: `0.35`.
+
+- `SEMPAL_PERF_WHEEL_STABILITY_SUMMARY_OUT`
+Output path for wheel-stability readiness summary JSON written by
+`scripts/run_perf_wheel_stability.sh`. Default:
+`target/perf/wheel_stability/wheel_stability_summary.json`.
+
+- `SEMPAL_PERF_WHEEL_STABILITY_ENFORCE_READY`
+When truthy (`1`, `true`, `yes`, `on`), `scripts/run_perf_wheel_stability.sh
+evaluate` exits non-zero if readiness criteria are not met. Default: `0`.
 
 ## Issue reporting token storage
 

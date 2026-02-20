@@ -100,7 +100,7 @@ scenarios = [
         "SEMPAL_PERF_WARN_P95_US_WHEEL",
         10_000,
         "SEMPAL_PERF_FAIL_P95_US_WHEEL",
-        None,
+        30_000,
     ),
     (
         "browser_focus_preview_latency",

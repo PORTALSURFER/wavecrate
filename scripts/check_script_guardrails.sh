@@ -525,6 +525,14 @@ run_expect_exit_code \
   scripts/run_perf_guard.sh
 
 run_expect_exit_code \
+  "bash -n scripts/run_perf_wheel_stability.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/run_perf_wheel_stability.sh
+
+run_expect_exit_code \
   "bash -n scripts/run_sandbox.sh" \
   0 \
   "$ROOT_DIR" \

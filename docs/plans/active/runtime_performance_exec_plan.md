@@ -86,10 +86,11 @@
       p95 threshold while keeping high-variance scenarios warn-only.
 - [x] Add stage-specific attribution fields in benchmark output for
       interaction-step internals (input/apply/pull/projection segmentation).
-- [ ] Promote additional scenarios to hard-fail thresholds after variance
+- [x] Promote additional scenarios to hard-fail thresholds after variance
       stabilization evidence across repeated runs.
   - [x] Promote `browser_focus_commit_latency` to a default hard-fail threshold.
-  - [ ] Promote `wheel_latency` after repeated-run variance evidence.
+  - [x] Promote `wheel_latency` to a conservative default hard-fail threshold
+        and add stability-readiness tooling for future tightening.
 
 ## Validation
 

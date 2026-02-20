@@ -27,6 +27,10 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
   - `SEMPAL_PERF_GUARD_RUNS=3`
   - keep warmup/measure counts fixed across comparisons
   - compare median p95/p99 and `p95_spread` deltas between branches
+- For wheel promotion readiness, run:
+  - `bash scripts/run_perf_wheel_stability.sh collect-and-evaluate`
+  - review `target/perf/wheel_stability/wheel_stability_summary.json`
+  - require `ready_for_fail_promotion=true` across the required window count
 
 ## Checklist
 - Launch app and select the large source.
@@ -45,6 +49,8 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
   and warning/fail-threshold drift across runs.
 - Perf guard stage attribution (where available) for `input`, `apply`, `pull`,
   and `projection` p95 values so drift can be localized quickly.
+- Wheel-promotion readiness summary (`ready_for_fail_promotion`, reasons, and
+  per-window stability metrics) from `run_perf_wheel_stability`.
 
 ## Follow-ups
 - Adjust row height/window size if scroll perf regresses.
