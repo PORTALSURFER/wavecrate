@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-20T14:56:35Z
+Last Updated: 2026-02-20T15:21:51Z
 Updated By: Codex
 
 ## Purpose
@@ -10,17 +10,17 @@ Updated By: Codex
 
 ## Current Session (2026-02-20 UTC)
 
-- I am implementing the next GUI performance milestone: bridge-driven dirty
-  segment tracking for incremental native frame updates.
-- I added `DirtySegments` to the Radiant bridge contract and wired
-  `SempalNativeBridge` projection caching to return segment deltas per pull.
-- I updated native `winit + vello` runtime rebuild gating to support
-  `SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE`, so static rebuilds can be skipped
-  when the bridge reports no static segment changes.
-- I documented `SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE` in
-  `docs/ENV_VARS.md`.
+- I am implementing performance plan item #2: retained static-scene segment
+  composition for the native `winit + vello` runtime.
+- In `vendor/radiant/src/gui/native_shell/state.rs`, I added static segment
+  definitions (`status`, `browser frame`, `browser rows`, `map`, `waveform`,
+  `global`) plus segmented static-frame partition builders and coverage tests.
+- In `vendor/radiant/src/gui_runtime/native_vello.rs`, I added per-segment
+  scene caches keyed by `(segment, viewport bits, style signature, segment model
+  signature)` and wired incremental static-scene composition under
+  `SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE`.
 - Full `bash scripts/ci_local.sh` is green for this change set.
 
 ## Work Notes
 
-- Pending commit/push: incremental dirty-segment frame pipeline milestone.
+- Pending commit/push: plan #2 retained static segment composition milestone.
