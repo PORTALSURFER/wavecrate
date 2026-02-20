@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-20T11:40:20Z
+Last Updated: 2026-02-20T12:23:12Z
 Updated By: Codex
 
 ## Purpose
@@ -10,23 +10,20 @@ Updated By: Codex
 
 ## Current Session (2026-02-20 UTC)
 
-- I am finishing Phase 4 closure work for runtime performance guardrails in
-  `docs/plans/active/runtime_performance_exec_plan.md`.
-- I added a wheel-stability workflow (`scripts/run_perf_wheel_stability.sh`
-  plus PowerShell wrapper) that collects repeated perf windows and evaluates
-  hard-fail promotion readiness into machine-readable JSON.
-- I promoted `wheel_latency` to a conservative default hard-fail threshold in
-  `scripts/run_perf_guard.sh` (`SEMPAL_PERF_FAIL_P95_US_WHEEL=30000`) and kept
-  stage-attribution reporting enabled.
-- I updated guardrails/docs (`docs/ENV_VARS.md`, `docs/performance_qa.md`,
-  `docs/INDEX.md`, and script guardrail checks) to reflect the new workflow.
-- `bash scripts/ci_local.sh` is green and I am preparing commit/push for this
-  milestone.
+- I am implementing the next runtime performance milestone focused on hover and
+  wheel responsiveness hot paths.
+- In `vendor/radiant/src/gui_runtime/native_vello.rs`, I replaced clone-heavy
+  state/motion overlay fingerprint cache keys with compact deterministic
+  signatures so overlay skip checks avoid repeated model cloning.
+- In `src/app_core/native_bridge.rs`, I moved wheel focus dirty/invalidation
+  handling to flush-time and now skip projection-cache invalidation when queued
+  focus deltas produce no effective model-key change.
+- I updated the corresponding bridge test to assert the no-op focus path keeps
+  the projection cache key.
+- `bash scripts/ci_local.sh` is green after these changes; perf guard reports
+  warn-only drift and remains non-failing.
 
 ## Work Notes
 
-- Latest pushed commits:
-  - `vendor/radiant`: `cb9999b` (`perf(native_vello): intern text layout keys and atom cache`)
-  - `sempal`: `13b01fae` (`perf(bench): add stage-attributed interaction metrics`)
-- Pending commit (not yet pushed): wheel-stability evidence workflow,
-  conservative wheel hard-fail promotion, and supporting docs/guardrails.
+- Pending commits (not yet pushed): native-vello overlay fingerprint
+  signature optimization and native bridge no-op wheel focus invalidation skip.

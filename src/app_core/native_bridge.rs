@@ -902,8 +902,16 @@ impl SempalNativeBridge {
             return;
         }
         self.pending_browser_focus_delta = 0;
-        self.projection_cache.invalidate();
+        let action = NativeUiAction::MoveBrowserFocus {
+            delta: pending as i8,
+        };
+        let before_key = build_projection_cache_key(&self.controller);
         self.controller.focus_browser_delta_action(pending as i8);
+        let after_key = build_projection_cache_key(&self.controller);
+        if before_key != after_key {
+            self.mark_dirty_for_action(&action);
+            self.projection_cache.invalidate();
+        }
     }
 
     /// Queue a coalescable waveform action and return whether it was absorbed.
@@ -1088,7 +1096,6 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     fn on_action(&mut self, action: NativeUiAction) {
-        self.mark_dirty_for_action(&action);
         if let NativeUiAction::MoveBrowserFocus { delta } = action {
             let call = trace_action_call();
             let profiling = bridge_profiling_enabled();
@@ -1104,6 +1111,7 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             return;
         }
+        self.mark_dirty_for_action(&action);
         if self.enqueue_waveform_action(&action) {
             let call = trace_action_call();
             let profiling = bridge_profiling_enabled();
@@ -1261,12 +1269,13 @@ mod tests {
         assert_eq!(bridge.pending_browser_focus_delta, 7);
     }
 
-    /// Flushing queued focus movement should invalidate projection cache keys.
+    /// No-op queued focus movement should keep projection cache keys intact.
     #[test]
-    fn flush_pending_browser_focus_clears_projection_cache_key() {
+    fn flush_pending_browser_focus_noop_keeps_projection_cache_key() {
         let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        let key = build_projection_cache_key(&controller);
         let cache = NativeProjectionCache {
-            app_key: Some(build_projection_cache_key(&controller)),
+            app_key: Some(key.clone()),
             ..NativeProjectionCache::default()
         };
 
@@ -1280,7 +1289,7 @@ mod tests {
         bridge.flush_pending_browser_focus_delta();
 
         assert_eq!(bridge.pending_browser_focus_delta, 0);
-        assert!(bridge.projection_cache.app_key.is_none());
+        assert_eq!(bridge.projection_cache.app_key, Some(key));
     }
 
     /// Queued waveform actions should coalesce to last-write-wins semantics.
