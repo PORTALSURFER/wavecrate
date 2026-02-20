@@ -7,6 +7,8 @@ site).
 
 Start here:
 
+- `AGENTS.md` (repo root) — minimal wake-up portal + current mission
+- `MEMORY.md` (repo root) — current session snapshot ("what is happening now")
 - `docs/INDEX.md` — invariants + allowlists inventory (what to do when checks fail)
 - `docs/FEATURE_CHECKLIST.md` — safe path for implementing changes
 - `docs/ARCHITECTURE.md` — module ownership map
@@ -16,6 +18,7 @@ Start here:
 - `docs/radiant_slot_layout_spec.md` — strict hierarchical slot-based layout contract for `vendor/radiant`
 - `docs/QUALITY_SCORE.md` — coarse quality scorecard and known gaps
 - `docs/plans/index.md` — current/archived plan index for parallel agents
+- `docs/plans/active/todo.md` — short ordered queue for the active execution lane
 - `docs/plans/TEMPLATE_execution_plan.md` — template for multi-step work
 - `docs/plans/TEMPLATE_investigation.md` — template for bug/perf investigations
 - `docs/run_contracts.md` — machine-readable app-run artifact contract

@@ -44,10 +44,17 @@ Write for future selves: be precise, kind, and clear.
 ## Current Mission
 - Repository: `/home/uhx/dev/sempal`
 - Product: Sempal (sample manager app)
+- Active branch: `next`
 - Active program: runtime responsiveness/performance redesign inspired by
   Xilem-style scoped invalidation and cache reuse.
 - Source of truth for active execution:
   `docs/plans/active/runtime_performance_exec_plan.md`.
+
+## Handoff Anchors
+- `MEMORY.md`: live "what I am doing right now" snapshot (must stay current).
+- `docs/plans/active/runtime_performance_exec_plan.md`: canonical multi-day
+  execution plan for performance work.
+- `docs/plans/active/todo.md`: short ordered queue for the next concrete tasks.
 
 ## Wake-Up Sequence
 1. Run mandatory preflight: `bash scripts/run_agent_request.sh`
@@ -90,3 +97,5 @@ Write for future selves: be precise, kind, and clear.
 - When priorities change, update this file first, then update linked plan/docs.
 - Store large context in dedicated docs and reference them here with short
   labels.
+- Before commit/push, make sure `MEMORY.md` and `docs/plans/active/todo.md`
+  both reflect current reality.

@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-20T20:40:34Z
+Last Updated: 2026-02-20T20:45:35Z
 Updated By: Codex
 
 ## Purpose
@@ -10,15 +10,15 @@ Updated By: Codex
 
 ## Current Session (2026-02-20 UTC)
 
-- I am implementing performance ROI item #1: single-pass waveform zoom math.
-- `src/app/controller/ui/waveform_controller/actions.rs` now routes multi-step
-  zoom through one aggregated solve instead of per-step loops.
-- I split zoom logic into `src/app/controller/ui/waveform_controller/zoom.rs`
-  and kept `helpers.rs` under the file-size guardrail.
-- `src/app/controller/tests/waveform_nav_cursor.rs` includes a regression test
-  proving batched large-step zoom matches repeated single-step zoom.
-- Full `bash scripts/ci_local.sh` is green for this change set.
+- I am doing documentation housekeeping for future agent sessions.
+- `AGENTS.md` now includes explicit handoff anchors (`MEMORY.md`,
+  runtime performance plan, and active TODO queue).
+- `docs/README.md` now points directly to `AGENTS.md`, `MEMORY.md`, and
+  `docs/plans/active/todo.md` in the startup list.
+- `docs/plans/index.md` now marks the runtime performance execution plan as the
+  active source of truth and clarifies `active/todo.md` purpose.
+- `docs/plans/active/todo.md` is now populated with a concise ordered queue.
 
 ## Work Notes
 
-- Pending commit/push: waveform one-pass zoom milestone (`#1`) + tests/docs.
+- Pending commit/push: agent-handoff documentation housekeeping updates.
