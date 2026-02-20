@@ -31,8 +31,12 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) waveform_refresh_batch_depth: u16,
     /// Pending playback-age DB update moved out of input action handlers.
     pub(crate) pending_age_update_commit: Option<PendingAgeUpdate>,
+    /// Earliest frame time when deferred playback-age persistence may run.
+    pub(crate) pending_age_update_commit_not_before: Option<Instant>,
     /// Pending focused-similarity refresh moved out of input action handlers.
     pub(crate) pending_similarity_refresh: Option<PendingFocusedSimilarityRefresh>,
+    /// Earliest frame time when deferred focused-similarity refresh may run.
+    pub(crate) pending_similarity_refresh_not_before: Option<Instant>,
     /// Reused map-query SQLite connections keyed by source id.
     pub(crate) map_query_connections: HashMap<SourceId, Connection>,
     /// Tracks whether staged delete recovery has been scheduled for this session.
@@ -70,7 +74,9 @@ impl ControllerRuntimeState {
             waveform_refresh_pending: false,
             waveform_refresh_batch_depth: 0,
             pending_age_update_commit: None,
+            pending_age_update_commit_not_before: None,
             pending_similarity_refresh: None,
+            pending_similarity_refresh_not_before: None,
             map_query_connections: HashMap::new(),
             delete_recovery_started: false,
             #[cfg(test)]

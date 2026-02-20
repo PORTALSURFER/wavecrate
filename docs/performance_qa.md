@@ -19,6 +19,7 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
   - Set `SEMPAL_NATIVE_RENDER_PROFILE=1` before launch.
   - Profiling prints averages every 240 native redraw frames to stderr; disable feature for normal runs to avoid collection overhead.
 - Run `bash scripts/run_perf_guard.sh` (or `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`) to execute deterministic benchmark scenarios for hover, wheel, map-pan proxy, and waveform interactions.
+- `hover_latency` in perf guard reflects preview-hover behavior (focus-only row hover without commit/load side effects).
 - Tune guard input size and warning limits with `SEMPAL_PERF_GUARD_*` and `SEMPAL_PERF_WARN_P95_US_*` overrides documented in `docs/ENV_VARS.md`.
 
 ## Checklist

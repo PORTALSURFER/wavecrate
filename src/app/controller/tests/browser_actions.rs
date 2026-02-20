@@ -121,6 +121,22 @@ fn preview_focus_defers_pending_age_update_until_commit() {
     assert!(controller.audio.pending_age_update.is_none());
 }
 
+/// Commit focus queues similarity refresh and applies it only after debounce.
+#[test]
+fn commit_focus_debounces_similarity_refresh_flush() {
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+
+    controller.focus_browser_row_only(0);
+    controller.focus_browser_row(1);
+
+    assert!(controller.runtime.pending_similarity_refresh.is_some());
+    controller.flush_pending_focused_similarity_highlight_refresh();
+    assert!(controller.runtime.pending_similarity_refresh.is_some());
+}
+
 #[test]
 fn f_hotkey_focuses_loaded_sample_in_browser() {
     let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![

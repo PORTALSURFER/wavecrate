@@ -4,6 +4,7 @@ use crate::app::controller::playback::audio_cache::CacheKey;
 use crate::app::view_model;
 use crate::waveform::DecodedWaveform;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 mod audio_loading;
 mod browser_actions;
@@ -27,6 +28,8 @@ pub(crate) use waveform_rendering::WaveformRenderMeta;
 
 /// Upper bound for waveform texture width to stay within GPU limits.
 pub(crate) const MAX_TEXTURE_WIDTH: u32 = 16_384;
+/// Debounce duration for expensive focused-similarity highlight recomputes.
+const FOCUSED_SIMILARITY_REFRESH_DEBOUNCE: Duration = Duration::from_millis(160);
 
 impl AppController {
     /// Reset all waveform and playback visuals.
@@ -37,6 +40,7 @@ impl AppController {
     /// Clear near-duplicate highlights for the focused sample.
     pub(crate) fn clear_focused_similarity_highlight(&mut self) {
         self.runtime.pending_similarity_refresh = None;
+        self.runtime.pending_similarity_refresh_not_before = None;
         self.ui.browser.focused_similarity = None;
     }
 
@@ -65,10 +69,20 @@ impl AppController {
                 anchor_index,
             },
         );
+        self.runtime.pending_similarity_refresh_not_before =
+            Some(Instant::now() + FOCUSED_SIMILARITY_REFRESH_DEBOUNCE);
     }
 
     /// Flush any queued focused-similarity refresh request.
     pub(crate) fn flush_pending_focused_similarity_highlight_refresh(&mut self) {
+        if self
+            .runtime
+            .pending_similarity_refresh_not_before
+            .is_some_and(|deadline| Instant::now() < deadline)
+        {
+            return;
+        }
+        self.runtime.pending_similarity_refresh_not_before = None;
         let Some(pending) = self.runtime.pending_similarity_refresh.take() else {
             return;
         };

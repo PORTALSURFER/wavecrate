@@ -60,6 +60,10 @@
 
 ### Phase 3: Deep Architecture and Throughput
 
+- [x] Align perf-guard hover benchmark semantics with true preview-hover focus
+      interactions.
+- [x] Debounce deferred commit-side metadata/highlight flushes so rapid focus
+      interactions avoid synchronous spike work.
 - [ ] Introduce explicit derived-state dependency graph with dirty propagation
       for high-churn UI subsystems.
 - [ ] Reduce per-frame allocation churn in shell/text paths via reusable
@@ -77,6 +81,15 @@
 - Bench tracking:
   - Compare p50/p95/max latency deltas before/after each milestone.
   - Track regressions with perf JSON output under `target/perf/`.
+
+### Latest Perf-Guard Delta (2026-02-20)
+
+- Before Phase 3.3 changes:
+  - `hover_latency` p95: `53123us`
+  - `browser_focus_commit_latency` p95: `17132us`
+- After Phase 3.3 changes:
+  - `hover_latency` p95: `3546us`
+  - `browser_focus_commit_latency` p95: `4597us`
 
 ## Milestone Exit Criteria
 

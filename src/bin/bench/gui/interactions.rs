@@ -31,7 +31,7 @@ pub(super) fn bench_hover_latency(
         || {
             let row = step % interaction_rows;
             step = step.saturating_add(1);
-            controller.focus_browser_row(row);
+            controller.focus_browser_row_only(row);
             controller.prepare_native_frame(false);
             let _: NativeAppModel = controller.project_native_app_model();
             Ok(())

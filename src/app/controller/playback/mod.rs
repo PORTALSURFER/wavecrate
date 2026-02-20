@@ -4,6 +4,7 @@ pub(crate) use crate::sample_sources::*;
 pub(crate) use crate::selection::SelectionRange;
 
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 pub(crate) mod audio_cache;
 pub(crate) mod audio_loader;
@@ -31,6 +32,8 @@ const SHOULD_PLAY_RANDOM_SAMPLE: bool = false;
 #[cfg(not(test))]
 const SHOULD_PLAY_RANDOM_SAMPLE: bool = true;
 const PLAYHEAD_COMPLETION_EPSILON: f32 = 0.001;
+/// Debounce duration for deferred playback-age database writes.
+const DEFERRED_PLAYBACK_AGE_COMMIT_DELAY: Duration = Duration::from_millis(160);
 
 fn selection_meets_bpm_min(controller: &AppController, range: SelectionRange) -> bool {
     if !controller.ui.waveform.bpm_snap_enabled {
@@ -309,10 +312,20 @@ impl AppController {
             return;
         }
         self.runtime.pending_age_update_commit = self.audio.pending_age_update.take();
+        self.runtime.pending_age_update_commit_not_before =
+            Some(Instant::now() + DEFERRED_PLAYBACK_AGE_COMMIT_DELAY);
     }
 
     /// Flush any deferred playback-age update persistence request.
     pub(crate) fn flush_pending_age_update_commit(&mut self) {
+        if self
+            .runtime
+            .pending_age_update_commit_not_before
+            .is_some_and(|deadline| Instant::now() < deadline)
+        {
+            return;
+        }
+        self.runtime.pending_age_update_commit_not_before = None;
         let Some(update) = self.runtime.pending_age_update_commit.take() else {
             return;
         };
@@ -502,7 +515,9 @@ fn zoom_steps_from_ui(steps: u8) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::controller::state::audio::PendingAgeUpdate;
     use crate::app::controller::test_support;
+    use std::path::Path;
     use std::path::PathBuf;
 
     #[test]
@@ -571,5 +586,26 @@ mod tests {
         assert_eq!(zoom_steps_from_ui(0), 1);
         assert_eq!(zoom_steps_from_ui(1), 1);
         assert_eq!(zoom_steps_from_ui(12), 12);
+    }
+
+    /// Deferred playback-age writes should remain queued until debounce expires.
+    #[test]
+    fn deferred_pending_age_update_commit_waits_for_deadline() {
+        let (mut controller, source) = test_support::prepare_with_source_and_wav_entries(vec![
+            test_support::sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+            test_support::sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        ]);
+        controller.audio.pending_age_update = Some(PendingAgeUpdate {
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: PathBuf::from("one.wav"),
+            played_at: 123,
+        });
+
+        controller.defer_pending_age_update_commit_if_path_changes(Path::new("two.wav"));
+        assert!(controller.runtime.pending_age_update_commit.is_some());
+
+        controller.flush_pending_age_update_commit();
+        assert!(controller.runtime.pending_age_update_commit.is_some());
     }
 }
