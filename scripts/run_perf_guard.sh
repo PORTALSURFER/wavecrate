@@ -114,7 +114,7 @@ scenarios = [
         "SEMPAL_PERF_WARN_P95_US_FOCUS_COMMIT",
         16_000,
         "SEMPAL_PERF_FAIL_P95_US_FOCUS_COMMIT",
-        None,
+        100_000,
     ),
     (
         "map_pan_proxy_latency",
@@ -131,6 +131,13 @@ scenarios = [
         None,
     ),
 ]
+
+stage_names = (
+    "input_stage",
+    "apply_stage",
+    "pull_stage",
+    "projection_stage",
+)
 
 warned = False
 failed = False
@@ -182,6 +189,47 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
         f"outliers={outlier_high_count} ({outlier_high_ratio * 100.0:.1f}%) "
         f"runs={len(run_summaries)} p95_spread={spread_p95_us}us {status}"
     )
+
+    stage_reports = []
+    for gui in gui_reports:
+        attribution = gui.get("interaction_stage_attribution")
+        if not isinstance(attribution, dict):
+            stage_reports.append(None)
+            continue
+        stage_reports.append(attribution.get(key))
+    if any(isinstance(stage, dict) for stage in stage_reports):
+        if not all(isinstance(stage, dict) for stage in stage_reports):
+            print(
+                f"[perf_guard] WARN: {key} stage attribution missing for one or more runs",
+                file=sys.stderr,
+            )
+        else:
+            stage_p95 = {}
+            missing_stage_field = False
+            for stage_name in stage_names:
+                values = []
+                for stage in stage_reports:
+                    summary = stage.get(stage_name)
+                    if not isinstance(summary, dict):
+                        missing_stage_field = True
+                        break
+                    values.append(int(summary.get("p95_us", 0)))
+                if missing_stage_field:
+                    break
+                stage_p95[stage_name] = int(median(values))
+            if missing_stage_field:
+                print(
+                    f"[perf_guard] WARN: {key} stage attribution is missing one or more stage summaries",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"[perf_guard]   {key} stage_p95_us: "
+                    f"input={stage_p95['input_stage']} "
+                    f"apply={stage_p95['apply_stage']} "
+                    f"pull={stage_p95['pull_stage']} "
+                    f"projection={stage_p95['projection_stage']}"
+                )
 
     if p95 > warn_limit:
         warned = True

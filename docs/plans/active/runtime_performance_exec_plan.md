@@ -84,10 +84,12 @@
       attribution during drift events.
 - [x] Promote one low-noise scenario (`map_pan_proxy_latency`) to a hard-fail
       p95 threshold while keeping high-variance scenarios warn-only.
-- [ ] Add stage-specific attribution fields in benchmark output for
+- [x] Add stage-specific attribution fields in benchmark output for
       interaction-step internals (input/apply/pull/projection segmentation).
 - [ ] Promote additional scenarios to hard-fail thresholds after variance
       stabilization evidence across repeated runs.
+  - [x] Promote `browser_focus_commit_latency` to a default hard-fail threshold.
+  - [ ] Promote `wheel_latency` after repeated-run variance evidence.
 
 ## Validation
 

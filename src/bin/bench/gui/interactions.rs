@@ -21,18 +21,21 @@ pub(super) fn execute_interaction_step(controller: &mut AppController, step: usi
 pub(super) fn bench_hover_latency(
     options: &BenchOptions,
     controller: &mut AppController,
-) -> Result<stats::LatencySummary, String> {
+) -> Result<stats::StagedLatencySummary, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
     wait_for_rows(controller, interaction_rows)?;
     let mut step = 0usize;
-    stats::bench_action_with_iters(
+    stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
-        || {
+        |timer| {
             let row = step % interaction_rows;
             step = step.saturating_add(1);
+            timer.mark_input_done();
             controller.focus_browser_row_only(row);
+            timer.mark_apply_done();
             controller.prepare_native_frame(false);
+            timer.mark_pull_done();
             let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
@@ -43,14 +46,14 @@ pub(super) fn bench_hover_latency(
 pub(super) fn bench_wheel_latency(
     options: &BenchOptions,
     controller: &mut AppController,
-) -> Result<stats::LatencySummary, String> {
+) -> Result<stats::StagedLatencySummary, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
     wait_for_rows(controller, interaction_rows)?;
     let mut step = 0usize;
-    stats::bench_action_with_iters(
+    stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
-        || {
+        |timer| {
             let delta = match step % 4 {
                 0 => 1,
                 1 => -1,
@@ -58,8 +61,11 @@ pub(super) fn bench_wheel_latency(
                 _ => -2,
             };
             step = step.saturating_add(1);
+            timer.mark_input_done();
             controller.apply_native_ui_action(NativeUiAction::MoveBrowserFocus { delta });
+            timer.mark_apply_done();
             controller.prepare_native_frame(false);
+            timer.mark_pull_done();
             let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
@@ -136,18 +142,21 @@ pub(super) fn bench_browser_sort_toggle_latency(
 pub(super) fn bench_browser_focus_preview_latency(
     options: &BenchOptions,
     controller: &mut AppController,
-) -> Result<stats::LatencySummary, String> {
+) -> Result<stats::StagedLatencySummary, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
     wait_for_rows(controller, interaction_rows)?;
     let mut step = 0usize;
-    stats::bench_action_with_iters(
+    stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
-        || {
+        |timer| {
             let row = step % interaction_rows;
             step = step.saturating_add(1);
+            timer.mark_input_done();
             controller.focus_browser_row_only(row);
+            timer.mark_apply_done();
             controller.prepare_native_frame(false);
+            timer.mark_pull_done();
             let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
@@ -158,19 +167,22 @@ pub(super) fn bench_browser_focus_preview_latency(
 pub(super) fn bench_browser_focus_commit_latency(
     options: &BenchOptions,
     controller: &mut AppController,
-) -> Result<stats::LatencySummary, String> {
+) -> Result<stats::StagedLatencySummary, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
     wait_for_rows(controller, interaction_rows)?;
     let mut step = 0usize;
-    stats::bench_action_with_iters(
+    stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
-        || {
+        |timer| {
             let row = step % interaction_rows;
             step = step.saturating_add(1);
+            timer.mark_input_done();
             controller.focus_browser_row_only(row);
             let _ = controller.commit_focused_browser_row();
+            timer.mark_apply_done();
             controller.prepare_native_frame(false);
+            timer.mark_pull_done();
             let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
@@ -181,21 +193,24 @@ pub(super) fn bench_browser_focus_commit_latency(
 pub(super) fn bench_map_pan_proxy_latency(
     options: &BenchOptions,
     controller: &mut AppController,
-) -> Result<stats::LatencySummary, String> {
+) -> Result<stats::StagedLatencySummary, String> {
     prime_map_cache_for_benchmark(controller)?;
     let mut step = 0usize;
-    stats::bench_action_with_iters(
+    stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
-        || {
+        |timer| {
             let offset = (step % 16) as f32;
             step = step.saturating_add(1);
+            timer.mark_input_done();
             controller.ui.map.pan.x = -24.0 + offset * 3.0;
             controller.ui.map.pan.y = 18.0 - offset * 2.0;
             controller.ui.map.zoom = 1.0 + ((step % 7) as f32 * 0.1);
             controller.ui.map.cached_points_revision =
                 controller.ui.map.cached_points_revision.saturating_add(1);
+            timer.mark_apply_done();
             controller.prepare_native_frame(false);
+            timer.mark_pull_done();
             let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
@@ -206,16 +221,19 @@ pub(super) fn bench_map_pan_proxy_latency(
 pub(super) fn bench_waveform_interactions(
     options: &BenchOptions,
     controller: &mut AppController,
-) -> Result<stats::LatencySummary, String> {
+) -> Result<stats::StagedLatencySummary, String> {
     let mut step = 0usize;
-    stats::bench_action_with_iters(
+    stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
-        || {
+        |timer| {
             let action = waveform_action_for_step(step);
             step = step.saturating_add(1);
+            timer.mark_input_done();
             controller.apply_native_ui_action(action);
+            timer.mark_apply_done();
             controller.prepare_native_frame(false);
+            timer.mark_pull_done();
             let _: NativeAppModel = controller.project_native_app_model();
             let _: NativeMotionModel = controller.project_native_motion_model();
             Ok(())

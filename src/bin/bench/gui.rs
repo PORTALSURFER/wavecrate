@@ -52,6 +52,27 @@ pub(super) struct GuiBenchResult {
     pub(super) waveform_interaction_latency: stats::LatencySummary,
     /// Latency of adjacent waveform pan/zoom interactions.
     pub(super) waveform_pan_zoom_adjacent_latency: stats::LatencySummary,
+    /// Stage-attributed latency summaries for focused interaction scenarios.
+    pub(super) interaction_stage_attribution: GuiInteractionStageAttribution,
+}
+
+/// Stage-attributed interaction latency summaries keyed by scenario.
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct GuiInteractionStageAttribution {
+    /// Stage-attributed latency for mixed browser interaction-step churn.
+    pub(super) interactive_projection: stats::StageLatencyBreakdown,
+    /// Stage-attributed latency for pointer-hover style row focus changes.
+    pub(super) hover_latency: stats::StageLatencyBreakdown,
+    /// Stage-attributed latency for wheel-like row nudges.
+    pub(super) wheel_latency: stats::StageLatencyBreakdown,
+    /// Stage-attributed latency for browser-row preview focus navigation.
+    pub(super) browser_focus_preview_latency: stats::StageLatencyBreakdown,
+    /// Stage-attributed latency for browser-row commit actions.
+    pub(super) browser_focus_commit_latency: stats::StageLatencyBreakdown,
+    /// Stage-attributed latency for map pan/zoom proxy updates.
+    pub(super) map_pan_proxy_latency: stats::StageLatencyBreakdown,
+    /// Stage-attributed latency for waveform interaction actions.
+    pub(super) waveform_interaction_latency: stats::StageLatencyBreakdown,
 }
 
 /// Scoped benchmark workspace that keeps seed artifacts alive for the benchmark
@@ -77,14 +98,21 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         Ok(())
     })?;
     let mut interaction_step = 0usize;
-    let interactive_projection = stats::bench_action(options, || {
-        execute_interaction_step(&mut workspace.controller, interaction_step);
-        interaction_step = interaction_step.saturating_add(1);
-        workspace.controller.prepare_native_frame(false);
-        let _: NativeAppModel = workspace.controller.project_native_app_model();
-        let _: NativeMotionModel = workspace.controller.project_native_motion_model();
-        Ok(())
-    })?;
+    let interactive_projection = stats::bench_staged_action_with_iters(
+        options.warmup_iters,
+        options.measure_iters,
+        |timer| {
+            execute_interaction_step(&mut workspace.controller, interaction_step);
+            interaction_step = interaction_step.saturating_add(1);
+            timer.mark_input_done();
+            timer.mark_apply_done();
+            workspace.controller.prepare_native_frame(false);
+            timer.mark_pull_done();
+            let _: NativeAppModel = workspace.controller.project_native_app_model();
+            let _: NativeMotionModel = workspace.controller.project_native_motion_model();
+            Ok(())
+        },
+    )?;
     let hover_latency = bench_hover_latency(options, &mut workspace.controller)?;
     let wheel_latency = bench_wheel_latency(options, &mut workspace.controller)?;
     let browser_filter_churn_latency =
@@ -102,21 +130,59 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         bench_waveform_interactions(options, &mut workspace.controller)?;
     let waveform_pan_zoom_adjacent_latency =
         bench_waveform_pan_zoom_adjacent_latency(options, &mut workspace.controller)?;
+
+    let stats::StagedLatencySummary {
+        total: interactive_projection_total,
+        stages: interactive_projection_stages,
+    } = interactive_projection;
+    let stats::StagedLatencySummary {
+        total: hover_latency_total,
+        stages: hover_latency_stages,
+    } = hover_latency;
+    let stats::StagedLatencySummary {
+        total: wheel_latency_total,
+        stages: wheel_latency_stages,
+    } = wheel_latency;
+    let stats::StagedLatencySummary {
+        total: browser_focus_preview_latency_total,
+        stages: browser_focus_preview_latency_stages,
+    } = browser_focus_preview_latency;
+    let stats::StagedLatencySummary {
+        total: browser_focus_commit_latency_total,
+        stages: browser_focus_commit_latency_stages,
+    } = browser_focus_commit_latency;
+    let stats::StagedLatencySummary {
+        total: map_pan_proxy_latency_total,
+        stages: map_pan_proxy_latency_stages,
+    } = map_pan_proxy_latency;
+    let stats::StagedLatencySummary {
+        total: waveform_interaction_latency_total,
+        stages: waveform_interaction_latency_stages,
+    } = waveform_interaction_latency;
     Ok(GuiBenchResult {
         seeded_rows,
         app_model_projection,
         motion_model_projection,
-        interactive_projection,
-        hover_latency,
-        wheel_latency,
+        interactive_projection: interactive_projection_total,
+        hover_latency: hover_latency_total,
+        wheel_latency: wheel_latency_total,
         browser_filter_churn_latency,
         browser_query_churn_latency,
         browser_sort_toggle_latency,
-        browser_focus_preview_latency,
-        browser_focus_commit_latency,
-        map_pan_proxy_latency,
-        waveform_interaction_latency,
+        browser_focus_preview_latency: browser_focus_preview_latency_total,
+        browser_focus_commit_latency: browser_focus_commit_latency_total,
+        map_pan_proxy_latency: map_pan_proxy_latency_total,
+        waveform_interaction_latency: waveform_interaction_latency_total,
         waveform_pan_zoom_adjacent_latency,
+        interaction_stage_attribution: GuiInteractionStageAttribution {
+            interactive_projection: interactive_projection_stages,
+            hover_latency: hover_latency_stages,
+            wheel_latency: wheel_latency_stages,
+            browser_focus_preview_latency: browser_focus_preview_latency_stages,
+            browser_focus_commit_latency: browser_focus_commit_latency_stages,
+            map_pan_proxy_latency: map_pan_proxy_latency_stages,
+            waveform_interaction_latency: waveform_interaction_latency_stages,
+        },
     })
 }
 

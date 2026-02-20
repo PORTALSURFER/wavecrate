@@ -46,6 +46,14 @@ fn run_gui_benchmark_uses_one_row_when_gui_rows_is_zero() {
     assert_eq!(report.seeded_rows, 1);
     assert_eq!(report.app_model_projection.measure_iters, 1);
     assert_eq!(report.hover_latency.measure_iters, 2);
+    assert_eq!(
+        report
+            .interaction_stage_attribution
+            .hover_latency
+            .input_stage
+            .measure_iters,
+        2
+    );
 }
 
 /// Ensure interaction-step sequencing rotates search/filter/sort settings.

@@ -186,8 +186,9 @@ Optional hard-fail p95 latency threshold (microseconds) for browser-focus
 preview interaction benchmark results. Unset by default.
 
 - `SEMPAL_PERF_FAIL_P95_US_FOCUS_COMMIT`
-Optional hard-fail p95 latency threshold (microseconds) for browser-focus
-commit interaction benchmark results. Unset by default.
+Hard-fail p95 latency threshold (microseconds) for browser-focus commit
+interaction benchmark results. Default: `100000` (can be overridden; set to a
+very high value to effectively disable).
 
 - `SEMPAL_PERF_FAIL_P95_US_WAVEFORM`
 Optional hard-fail p95 latency threshold (microseconds) for waveform

@@ -2,42 +2,50 @@ use super::options::BenchOptions;
 use serde::Serialize;
 use std::time::Instant;
 
+/// Stage-attributed benchmark helpers split from this module for size limits.
+#[path = "stats/staged.rs"]
+mod staged;
+
+pub(crate) use staged::{
+    StageLatencyBreakdown, StagedLatencySummary, bench_staged_action_with_iters,
+};
+
 #[derive(Clone, Debug, Serialize)]
 pub(super) struct LatencySummary {
     /// Number of measured latency samples included in this summary.
-    pub(super) sample_count: usize,
+    pub(crate) sample_count: usize,
     /// Warmup iteration count used for each benchmark action.
-    pub(super) warmup_iters: usize,
+    pub(crate) warmup_iters: usize,
     /// Measured iteration count used for each benchmark action.
-    pub(super) measure_iters: usize,
+    pub(crate) measure_iters: usize,
     /// Minimum sampled latency in microseconds.
-    pub(super) min_us: u64,
+    pub(crate) min_us: u64,
     /// 50th percentile (median) in microseconds.
-    pub(super) p50_us: u64,
+    pub(crate) p50_us: u64,
     /// 95th percentile in microseconds.
-    pub(super) p95_us: u64,
+    pub(crate) p95_us: u64,
     /// 99th percentile in microseconds.
-    pub(super) p99_us: u64,
+    pub(crate) p99_us: u64,
     /// 25th percentile in microseconds.
-    pub(super) p25_us: u64,
+    pub(crate) p25_us: u64,
     /// 75th percentile in microseconds.
-    pub(super) p75_us: u64,
+    pub(crate) p75_us: u64,
     /// Interquartile range in microseconds.
-    pub(super) iqr_us: u64,
+    pub(crate) iqr_us: u64,
     /// Maximum sampled latency in microseconds.
-    pub(super) max_us: u64,
+    pub(crate) max_us: u64,
     /// Mean latency in microseconds.
-    pub(super) mean_us: f64,
+    pub(crate) mean_us: f64,
     /// Standard deviation in microseconds.
-    pub(super) stddev_us: f64,
+    pub(crate) stddev_us: f64,
     /// Number of high outliers based on Tukey's upper fence.
-    pub(super) outlier_high_count: usize,
+    pub(crate) outlier_high_count: usize,
     /// Share of high outliers in the measured sample set (0.0-1.0).
-    pub(super) outlier_high_ratio: f64,
+    pub(crate) outlier_high_ratio: f64,
 }
 
 /// Measure benchmark actions and return a latency summary.
-pub(super) fn bench_action(
+pub(crate) fn bench_action(
     options: &BenchOptions,
     mut f: impl FnMut() -> Result<(), String>,
 ) -> Result<LatencySummary, String> {
@@ -45,7 +53,7 @@ pub(super) fn bench_action(
 }
 
 /// Measure benchmark actions with explicitly supplied warmup and measure counts.
-pub(super) fn bench_action_with_iters(
+pub(crate) fn bench_action_with_iters(
     warmup_iters: usize,
     measure_iters: usize,
     mut f: impl FnMut() -> Result<(), String>,

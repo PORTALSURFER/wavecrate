@@ -43,6 +43,8 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
 - Post-scan reload time (ms).
 - Perf guard scenario latencies (p50/p95/p99/max/mean/stddev), outlier counts,
   and warning/fail-threshold drift across runs.
+- Perf guard stage attribution (where available) for `input`, `apply`, `pull`,
+  and `projection` p95 values so drift can be localized quickly.
 
 ## Follow-ups
 - Adjust row height/window size if scroll perf regresses.

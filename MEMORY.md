@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-20T10:58:38Z
+Last Updated: 2026-02-20T11:30:36Z
 Updated By: Codex
 
 ## Purpose
@@ -10,22 +10,23 @@ Updated By: Codex
 
 ## Current Session (2026-02-20 UTC)
 
-- I am implementing the remaining runtime performance milestones from
+- I am completing Phase 4 follow-through in
   `docs/plans/active/runtime_performance_exec_plan.md`.
-- I added benchmark-side latency volatility metrics (`p99`, `stddev`,
-  interquartile range, and high-outlier counts) in `src/bin/bench/stats.rs`.
-- I upgraded `scripts/run_perf_guard.sh` to support multi-run aggregation,
-  p95-spread reporting, top warning-contributor ranking, and one promoted
-  hard-fail threshold (`map_pan_proxy_latency` p95 default fail > 4000us).
-- I updated performance docs/env-var docs to capture the new run protocol and
-  threshold controls.
-- `bash scripts/ci_local.sh` is green with the updated perf guard output and I
-  am preparing commit/push for this stabilization milestone.
+- I added stage-attributed interaction benchmark reporting
+  (`input`/`apply`/`pull`/`projection`) and exposed it in GUI benchmark JSON
+  under `interaction_stage_attribution`.
+- I updated `scripts/run_perf_guard.sh` to print per-scenario stage p95
+  attribution when benchmark output includes stage fields.
+- I promoted `browser_focus_commit_latency` to a default hard-fail perf-guard
+  threshold (`SEMPAL_PERF_FAIL_P95_US_FOCUS_COMMIT=100000`) while keeping
+  higher-variance scenarios warning-only.
+- `bash scripts/ci_local.sh` is green and I am preparing commit/push for this
+  milestone.
 
 ## Work Notes
 
 - Latest pushed commits:
   - `vendor/radiant`: `cb9999b` (`perf(native_vello): intern text layout keys and atom cache`)
   - `sempal`: `f7381c03` (`perf(runtime): reduce text churn and queue lock contention`)
-- Pending commit (not yet pushed): perf-guard stability milestone across
-  `scripts/run_perf_guard.sh`, `src/bin/bench/stats.rs`, and related docs.
+- Pending commit (not yet pushed): stage-attributed benchmark reporting +
+  perf-guard focus-commit hard-fail promotion and docs updates.
