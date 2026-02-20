@@ -351,6 +351,8 @@ impl AppController {
                         && message.query == self.ui.browser.search_query
                     {
                         self.ui.browser.visible = message.visible;
+                        self.ui.browser.visible_rows_revision =
+                            self.ui.browser.visible_rows_revision.wrapping_add(1);
                         self.ui.browser.trash = message.trash;
                         self.ui.browser.neutral = message.neutral;
                         self.ui.browser.keep = message.keep;
@@ -364,6 +366,7 @@ impl AppController {
                             focused_index.and_then(|idx| self.ui.browser.visible.position(idx));
                         self.ui.browser.loaded_visible =
                             loaded_index.and_then(|idx| self.ui.browser.visible.position(idx));
+                        self.ui.browser.marker_cache = None;
                     }
                 }
                 JobMessage::Normalized(message) => {

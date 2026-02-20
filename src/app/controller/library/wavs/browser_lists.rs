@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::state::FocusContext;
+use crate::app::state::{BrowserMarkerCacheState, FocusContext};
 
 impl AppController {
     pub(crate) fn rebuild_browser_lists(&mut self) {
@@ -35,8 +35,11 @@ impl AppController {
                 .map(|entry| entry.relative_path.clone())
         });
         self.ui.browser.visible = visible;
+        self.ui.browser.visible_rows_revision =
+            self.ui.browser.visible_rows_revision.wrapping_add(1);
         self.ui.browser.selected_visible = selected_visible;
         self.ui.browser.loaded_visible = loaded_visible;
+        self.ui.browser.marker_cache = None;
         let visible_len = self.ui.browser.visible.len();
         if let Some(anchor) = self.ui.browser.selection_anchor_visible
             && anchor >= visible_len
@@ -97,6 +100,7 @@ impl AppController {
     }
 
     fn prune_browser_selection(&mut self) {
+        let previous_paths = self.ui.browser.selected_paths.clone();
         let selected_paths = self.ui.browser.selected_paths.clone();
         let mut kept = Vec::new();
         for path in selected_paths.iter() {
@@ -105,6 +109,9 @@ impl AppController {
             }
         }
         self.ui.browser.selected_paths = kept;
+        if self.ui.browser.selected_paths != previous_paths {
+            self.ui.browser.marker_cache = None;
+        }
         let selected_wav = self.sample_view.wav.selected_wav.clone();
         if let Some(path) = selected_wav
             && self.wav_index_for_path(&path).is_none()
@@ -116,6 +123,7 @@ impl AppController {
             self.clear_focused_similarity_highlight();
             self.ui.browser.selected = None;
             self.ui.browser.selected_visible = None;
+            self.ui.browser.marker_cache = None;
             self.clear_waveform_view();
         }
     }
@@ -134,6 +142,9 @@ impl AppController {
     /// This is used for focus-only interactions (for example wheel navigation)
     /// where triage buckets and visible ordering are unchanged.
     pub(crate) fn refresh_browser_selection_markers(&mut self) {
+        if self.ui.browser.marker_cache.as_ref() == Some(&self.browser_marker_cache_state()) {
+            return;
+        }
         self.prune_browser_selection();
         let selected_index = self.selected_row_index();
         let loaded_index = self.loaded_row_index();
@@ -154,6 +165,7 @@ impl AppController {
         {
             self.ui.browser.selection_anchor_visible = self.ui.browser.selected_visible;
         }
+        self.ui.browser.marker_cache = Some(self.browser_marker_cache_state());
     }
 
     /// Resolve a triage-column browser index for an absolute wav entry index.
@@ -187,5 +199,14 @@ impl AppController {
         let index = self.ui.browser.visible.get(visible_row)?;
         self.wav_entry(index)
             .map(|entry| entry.relative_path.clone())
+    }
+
+    /// Capture the current marker-driving browser inputs for refresh caching.
+    fn browser_marker_cache_state(&self) -> BrowserMarkerCacheState {
+        BrowserMarkerCacheState::from_inputs(
+            &self.ui.browser,
+            self.sample_view.wav.selected_wav.as_deref(),
+            self.sample_view.wav.loaded_wav.as_deref(),
+        )
     }
 }

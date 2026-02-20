@@ -1,7 +1,7 @@
 /// Side-effect policy for wav-path selection/focus transitions.
 #[derive(Clone, Copy)]
 pub(super) struct SelectionSideEffects {
-    /// Commit pending playback-age metadata before changing focus.
+    /// Flush or queue pending playback-age metadata before changing focus.
     pub(super) commit_pending_age_update: bool,
     /// Record focus history entries for random-navigation workflows.
     pub(super) record_focus_history: bool,

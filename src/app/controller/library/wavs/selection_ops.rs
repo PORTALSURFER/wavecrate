@@ -60,14 +60,8 @@ fn select_wav_path_with_options(
     rebuild: bool,
     side_effects: SelectionSideEffects,
 ) {
-    if side_effects.commit_pending_age_update
-        && controller
-            .audio
-            .pending_age_update
-            .as_ref()
-            .is_some_and(|u| u.relative_path != path)
-    {
-        controller.commit_pending_age_update();
+    if side_effects.commit_pending_age_update {
+        controller.defer_pending_age_update_commit_if_path_changes(path);
     }
     let Some(index) = controller.wav_index_for_path(path) else {
         return;
@@ -138,7 +132,11 @@ fn select_wav_path_with_options(
     if path_changed && side_effects.refresh_similarity_highlight {
         if let Some(source) = controller.current_source() {
             let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), path);
-            controller.refresh_focused_similarity_highlight(&sample_id, Some(index));
+            controller.defer_focused_similarity_highlight_refresh(
+                sample_id,
+                path.to_path_buf(),
+                Some(index),
+            );
         } else {
             controller.clear_focused_similarity_highlight();
         }

@@ -71,6 +71,8 @@ pub trait AppControllerNativeRuntimeExt {
 impl AppControllerNativeRuntimeExt for AppController {
     fn prepare_native_frame(&mut self, animation_only: bool) {
         self.flush_pending_volume_setting();
+        self.flush_pending_age_update_commit();
+        self.flush_pending_focused_similarity_highlight_refresh();
         self.flush_pending_waveform_image_refresh();
         if animation_only {
             self.record_frame_timing_for_fps();

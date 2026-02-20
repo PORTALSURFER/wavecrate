@@ -2,6 +2,7 @@
 
 use crate::app::controller::jobs;
 use crate::app::controller::library::analysis_jobs;
+use crate::app::controller::state::audio::PendingAgeUpdate;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 use rusqlite::Connection;
@@ -28,6 +29,10 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) waveform_refresh_pending: bool,
     /// Nesting depth for waveform refresh batching.
     pub(crate) waveform_refresh_batch_depth: u16,
+    /// Pending playback-age DB update moved out of input action handlers.
+    pub(crate) pending_age_update_commit: Option<PendingAgeUpdate>,
+    /// Pending focused-similarity refresh moved out of input action handlers.
+    pub(crate) pending_similarity_refresh: Option<PendingFocusedSimilarityRefresh>,
     /// Reused map-query SQLite connections keyed by source id.
     pub(crate) map_query_connections: HashMap<SourceId, Connection>,
     /// Tracks whether staged delete recovery has been scheduled for this session.
@@ -64,6 +69,8 @@ impl ControllerRuntimeState {
             last_persisted_volume_milli: None,
             waveform_refresh_pending: false,
             waveform_refresh_batch_depth: 0,
+            pending_age_update_commit: None,
+            pending_similarity_refresh: None,
             map_query_connections: HashMap::new(),
             delete_recovery_started: false,
             #[cfg(test)]
@@ -91,6 +98,17 @@ impl ControllerRuntimeState {
     pub(crate) fn waveform_refresh_batch_active(&self) -> bool {
         self.waveform_refresh_batch_depth > 0
     }
+}
+
+/// Deferred focused-similarity refresh request for the current browser selection.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingFocusedSimilarityRefresh {
+    /// Sample id used to query near-duplicate highlights.
+    pub(crate) sample_id: String,
+    /// Selected relative wav path expected to still be focused when flushing.
+    pub(crate) relative_path: PathBuf,
+    /// Optional absolute entry index for the focused row.
+    pub(crate) anchor_index: Option<usize>,
 }
 
 pub(crate) struct PerformanceGovernorState {

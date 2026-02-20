@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -13,6 +14,8 @@ pub struct SampleBrowserState {
     pub keep: Vec<usize>,
     /// Visible rows after applying the active filter.
     pub visible: VisibleRows,
+    /// Monotonic revision bumped whenever the visible-row projection changes.
+    pub visible_rows_revision: u64,
     /// Focused row used for playback/navigation (mirrors previously “selected”).
     pub selected: Option<SampleBrowserIndex>,
     /// Loaded row used for playback.
@@ -25,6 +28,8 @@ pub struct SampleBrowserState {
     pub selection_anchor_visible: Option<usize>,
     /// Paths currently included in the multi-selection set.
     pub selected_paths: Vec<PathBuf>,
+    /// Last marker-input snapshot used to short-circuit redundant marker recomputes.
+    pub marker_cache: Option<BrowserMarkerCacheState>,
     /// Last focused browser item to restore focus after context changes.
     pub last_focused_path: Option<PathBuf>,
     /// Whether autoscroll is enabled for selection changes.
@@ -68,12 +73,14 @@ impl Default for SampleBrowserState {
             neutral: Vec::new(),
             keep: Vec::new(),
             visible: VisibleRows::List(Vec::new()),
+            visible_rows_revision: 0,
             selected: None,
             loaded: None,
             selected_visible: None,
             loaded_visible: None,
             selection_anchor_visible: None,
             selected_paths: Vec::new(),
+            marker_cache: None,
             last_focused_path: None,
             autoscroll: false,
             filter: TriageFlagFilter::All,
@@ -93,6 +100,52 @@ impl Default for SampleBrowserState {
             copy_flash_at: None,
         }
     }
+}
+
+/// Snapshot of marker-driving browser inputs for redundant-refresh short-circuiting.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BrowserMarkerCacheState {
+    /// Visible-row projection revision used by focus/loaded marker lookup.
+    pub visible_rows_revision: u64,
+    /// Stable hash of the focused wav path when present.
+    pub selected_path_hash: Option<u64>,
+    /// Stable hash of the loaded wav path when present.
+    pub loaded_path_hash: Option<u64>,
+    /// Stable hash of the multi-selection set.
+    pub selected_paths_hash: u64,
+    /// Current range-selection anchor in visible-row coordinates.
+    pub selection_anchor_visible: Option<usize>,
+}
+
+impl BrowserMarkerCacheState {
+    /// Build a marker cache snapshot from browser state and current focused/loaded paths.
+    pub fn from_inputs(
+        browser: &SampleBrowserState,
+        selected_path: Option<&std::path::Path>,
+        loaded_path: Option<&std::path::Path>,
+    ) -> Self {
+        Self {
+            visible_rows_revision: browser.visible_rows_revision,
+            selected_path_hash: selected_path.map(hash_path),
+            loaded_path_hash: loaded_path.map(hash_path),
+            selected_paths_hash: hash_paths(&browser.selected_paths),
+            selection_anchor_visible: browser.selection_anchor_visible,
+        }
+    }
+}
+
+/// Hash one relative path into a stable scalar for marker-cache comparisons.
+fn hash_path(path: &std::path::Path) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Hash a multi-selection path list while preserving insertion order.
+fn hash_paths(paths: &[PathBuf]) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    paths.hash(&mut hasher);
+    hasher.finish()
 }
 
 /// Holds the current similar-sounds query context.

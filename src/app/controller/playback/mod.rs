@@ -3,7 +3,7 @@ pub(crate) use super::{AppController, BPM_MIN_SELECTION_DIVISOR, StatusTone};
 pub(crate) use crate::sample_sources::*;
 pub(crate) use crate::selection::SelectionRange;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(crate) mod audio_cache;
 pub(crate) mod audio_loader;
@@ -298,11 +298,37 @@ impl AppController {
         }
     }
 
+    /// Defer pending playback-age persistence when focus changes away from a path.
+    pub(crate) fn defer_pending_age_update_commit_if_path_changes(&mut self, next_path: &Path) {
+        let should_defer = self
+            .audio
+            .pending_age_update
+            .as_ref()
+            .is_some_and(|update| update.relative_path != next_path);
+        if !should_defer {
+            return;
+        }
+        self.runtime.pending_age_update_commit = self.audio.pending_age_update.take();
+    }
+
+    /// Flush any deferred playback-age update persistence request.
+    pub(crate) fn flush_pending_age_update_commit(&mut self) {
+        let Some(update) = self.runtime.pending_age_update_commit.take() else {
+            return;
+        };
+        self.commit_pending_age_update_value(update);
+    }
+
     /// Commit any pending playback age update to the database and refresh the UI.
     pub fn commit_pending_age_update(&mut self) {
         let Some(update) = self.audio.pending_age_update.take() else {
             return;
         };
+        self.commit_pending_age_update_value(update);
+    }
+
+    /// Persist one playback-age update payload and refresh browser lists when needed.
+    fn commit_pending_age_update_value(&mut self, update: PendingAgeUpdate) {
         let source = SampleSource {
             id: update.source_id.clone(),
             root: update.root,

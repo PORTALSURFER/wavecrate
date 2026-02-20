@@ -36,6 +36,7 @@ impl AppController {
 
     /// Clear near-duplicate highlights for the focused sample.
     pub(crate) fn clear_focused_similarity_highlight(&mut self) {
+        self.runtime.pending_similarity_refresh = None;
         self.ui.browser.focused_similarity = None;
     }
 
@@ -48,6 +49,33 @@ impl AppController {
         self.ui.browser.focused_similarity =
             similar::build_focused_similarity_highlight(self, sample_id, anchor_index)
                 .unwrap_or_default();
+    }
+
+    /// Queue a focused-similarity highlight refresh for frame-time execution.
+    pub(crate) fn defer_focused_similarity_highlight_refresh(
+        &mut self,
+        sample_id: String,
+        relative_path: PathBuf,
+        anchor_index: Option<usize>,
+    ) {
+        self.runtime.pending_similarity_refresh = Some(
+            crate::app::controller::state::runtime::PendingFocusedSimilarityRefresh {
+                sample_id,
+                relative_path,
+                anchor_index,
+            },
+        );
+    }
+
+    /// Flush any queued focused-similarity refresh request.
+    pub(crate) fn flush_pending_focused_similarity_highlight_refresh(&mut self) {
+        let Some(pending) = self.runtime.pending_similarity_refresh.take() else {
+            return;
+        };
+        if self.sample_view.wav.selected_wav.as_deref() != Some(pending.relative_path.as_path()) {
+            return;
+        }
+        self.refresh_focused_similarity_highlight(&pending.sample_id, pending.anchor_index);
     }
 
     /// Expose wav indices for a given triage flag column (used by virtualized rendering).

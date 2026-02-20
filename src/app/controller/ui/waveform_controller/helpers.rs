@@ -152,6 +152,11 @@ impl WaveformController<'_> {
             return;
         }
         let clamped = position.clamp(0.0, 1.0);
+        let cursor_unchanged = self
+            .ui
+            .waveform
+            .cursor
+            .is_some_and(|existing| (existing - clamped).abs() <= f32::EPSILON);
         self.ui.waveform.cursor = Some(clamped);
         let now = Instant::now();
         match source {
@@ -159,6 +164,9 @@ impl WaveformController<'_> {
             CursorUpdateSource::Navigation => {
                 self.ui.waveform.cursor_last_navigation_at = Some(now)
             }
+        }
+        if cursor_unchanged {
+            return;
         }
         self.ensure_cursor_visible_in_view(clamped);
     }
@@ -327,20 +335,25 @@ impl WaveformController<'_> {
         let start = (center - width * 0.5).clamp(0.0, 1.0 - width);
         let end = (start + width).min(1.0);
 
-        let view = WaveformView { start, end };
-        self.ui.waveform.view = view.clamp();
-        self.refresh_waveform_image();
+        let view = WaveformView { start, end }.clamp();
+        if views_differ(self.ui.waveform.view, view) {
+            self.ui.waveform.view = view;
+            self.refresh_waveform_image();
+        }
     }
 
     pub(crate) fn zoom_out_full(&mut self) {
         if !self.waveform_ready() {
             return;
         }
-        self.ui.waveform.view = WaveformView {
+        let view = WaveformView {
             start: 0.0,
             end: 1.0,
         };
-        self.refresh_waveform_image();
+        if views_differ(self.ui.waveform.view, view) {
+            self.ui.waveform.view = view;
+            self.refresh_waveform_image();
+        }
     }
 }
 
