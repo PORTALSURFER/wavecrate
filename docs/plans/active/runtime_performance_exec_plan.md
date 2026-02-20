@@ -49,13 +49,13 @@
 
 ### Phase 2: Pipeline Recompute Reduction
 
-- [ ] Refactor browser filtering/search/sort into retained staged nodes
+- [x] Refactor browser filtering/search/sort into retained staged nodes
       (filter -> score -> sort -> viewport window).
-- [ ] Memoize intermediate browser results by query/filter/sort revisions.
-- [ ] Reuse triage/fuzzy-score caches across compatible UI updates.
-- [ ] Improve waveform caching to support partial/delta recompute for
+- [x] Memoize intermediate browser results by query/filter/sort revisions.
+- [x] Reuse triage/fuzzy-score caches across compatible UI updates.
+- [x] Improve waveform caching to support partial/delta recompute for
       pan/zoom-adjacent views.
-- [ ] Expand perf benchmarks to include browser pipeline and waveform-cache
+- [x] Expand perf benchmarks to include browser pipeline and waveform-cache
       scenarios.
 
 ### Phase 3: Deep Architecture and Throughput
@@ -64,7 +64,7 @@
       for high-churn UI subsystems.
 - [ ] Reduce per-frame allocation churn in shell/text paths via reusable
       buffers, fewer string clones, and stronger cache keys.
-- [ ] Reduce input-to-apply latency by tightening pending-input scheduling in
+- [x] Reduce input-to-apply latency by tightening pending-input scheduling in
       native event-loop handling.
 - [ ] Reduce worker-pool lock contention in analysis job claim/decode queues.
 - [ ] Add per-stage telemetry for invalidation/rebuild rates and queue delays.

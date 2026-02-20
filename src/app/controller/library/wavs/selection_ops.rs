@@ -3,6 +3,10 @@ use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::Rating;
 use tracing::{debug, warn};
 
+/// Side-effect policies for preview and commit focus transitions.
+mod side_effects;
+use side_effects::SelectionSideEffects;
+
 pub(crate) fn select_wav_by_path(controller: &mut AppController, path: &Path) {
     select_wav_by_path_with_rebuild(controller, path, true);
 }
@@ -16,7 +20,26 @@ pub(crate) fn focus_wav_by_path_with_rebuild(
     path: &Path,
     rebuild: bool,
 ) {
-    select_wav_path_with_options(controller, path, rebuild, false);
+    select_wav_path_with_options(
+        controller,
+        path,
+        rebuild,
+        SelectionSideEffects {
+            queue_audio_load: false,
+            ..SelectionSideEffects::commit()
+        },
+    );
+}
+
+/// Preview-focus a wav path while skipping heavy commit side effects.
+///
+/// This path is used by wheel/arrow/high-frequency browser navigation.
+pub(crate) fn focus_wav_by_path_preview_with_rebuild(
+    controller: &mut AppController,
+    path: &Path,
+    rebuild: bool,
+) {
+    select_wav_path_with_options(controller, path, rebuild, SelectionSideEffects::preview());
 }
 
 pub(crate) fn select_wav_by_path_with_rebuild(
@@ -24,24 +47,25 @@ pub(crate) fn select_wav_by_path_with_rebuild(
     path: &Path,
     rebuild: bool,
 ) {
-    select_wav_path_with_options(controller, path, rebuild, true);
+    select_wav_path_with_options(controller, path, rebuild, SelectionSideEffects::commit());
 }
 
 /// Shared wav-path selection pipeline with optional audio load queueing.
 ///
-/// `queue_audio_load` set to `false` keeps focus/selection state in sync while
-/// avoiding waveform/audio churn during high-frequency navigation.
+/// Side effects are controlled by `side_effects` so high-frequency navigation
+/// can remain lightweight while commit actions preserve full behavior.
 fn select_wav_path_with_options(
     controller: &mut AppController,
     path: &Path,
     rebuild: bool,
-    queue_audio_load: bool,
+    side_effects: SelectionSideEffects,
 ) {
-    if controller
-        .audio
-        .pending_age_update
-        .as_ref()
-        .is_some_and(|u| u.relative_path != path)
+    if side_effects.commit_pending_age_update
+        && controller
+            .audio
+            .pending_age_update
+            .as_ref()
+            .is_some_and(|u| u.relative_path != path)
     {
         controller.commit_pending_age_update();
     }
@@ -86,8 +110,12 @@ fn select_wav_path_with_options(
     controller.sample_view.wav.selected_wav = Some(path.to_path_buf());
     controller.ui.browser.last_focused_path = Some(path.to_path_buf());
     if path_changed {
-        controller.record_focus_history(path);
-        controller.clear_focused_similarity_highlight();
+        if side_effects.record_focus_history {
+            controller.record_focus_history(path);
+        }
+        if !side_effects.refresh_similarity_highlight {
+            controller.clear_focused_similarity_highlight();
+        }
     }
     let missing = controller
         .wav_entries
@@ -107,7 +135,7 @@ fn select_wav_path_with_options(
         }
         return;
     }
-    if path_changed {
+    if path_changed && side_effects.refresh_similarity_highlight {
         if let Some(source) = controller.current_source() {
             let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), path);
             controller.refresh_focused_similarity_highlight(&sample_id, Some(index));
@@ -115,7 +143,7 @@ fn select_wav_path_with_options(
             controller.clear_focused_similarity_highlight();
         }
     }
-    if !queue_audio_load {
+    if !side_effects.queue_audio_load {
         controller.selection_state.suppress_autoplay_once = false;
     } else if let Some(source) = controller.current_source() {
         let autoplay = controller.settings.feature_flags.autoplay_selection

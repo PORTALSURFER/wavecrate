@@ -121,7 +121,9 @@ impl AppControllerNativeRuntimeExt for AppController {
             NativeUiAction::DeleteFocusedFolder => self.delete_focused_folder(),
             NativeUiAction::ClearFolderDeleteRecoveryLog => self.clear_folder_delete_recovery_log(),
             NativeUiAction::MoveBrowserFocus { delta } => self.focus_browser_delta_action(delta),
-            NativeUiAction::FocusBrowserRow { visible_row } => self.focus_browser_row(visible_row),
+            NativeUiAction::FocusBrowserRow { visible_row } => {
+                self.focus_browser_row_only(visible_row)
+            }
             NativeUiAction::CommitFocusedBrowserRow => {
                 self.commit_browser_focus_or_toggle_transport()
             }

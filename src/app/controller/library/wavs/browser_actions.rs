@@ -142,7 +142,17 @@ impl AppController {
 
     /// Focus a browser row and update multi-selection state.
     pub fn focus_browser_row(&mut self, visible_row: usize) {
-        self.apply_browser_selection(visible_row, SelectionAction::Replace, true);
+        self.focus_browser_row_with_intent(visible_row, BrowserFocusIntent::Commit);
+    }
+
+    /// Focus a browser row with explicit preview-vs-commit semantics.
+    pub fn focus_browser_row_with_intent(
+        &mut self,
+        visible_row: usize,
+        intent: BrowserFocusIntent,
+    ) {
+        let commit_load = matches!(intent, BrowserFocusIntent::Commit);
+        self.apply_browser_selection(visible_row, SelectionAction::Replace, commit_load);
     }
 
     /// Focus a browser row without mutating the multi-selection set.
@@ -154,7 +164,7 @@ impl AppController {
         self.ui.browser.autoscroll = true;
         self.ui.browser.selection_anchor_visible = Some(visible_row);
         self.ui.browser.last_focused_path = Some(path.to_path_buf());
-        self.focus_wav_by_path_with_rebuild(&path, false);
+        self.focus_wav_by_path_preview_with_rebuild(&path, false);
         self.refresh_browser_selection_markers();
     }
 
@@ -473,7 +483,7 @@ impl AppController {
         if commit_load {
             self.select_wav_by_path_with_rebuild(&path, false);
         } else {
-            self.focus_wav_by_path_with_rebuild(&path, false);
+            self.focus_wav_by_path_preview_with_rebuild(&path, false);
         }
         self.refresh_browser_selection_markers();
     }
@@ -499,4 +509,13 @@ enum SelectionAction {
     Replace,
     Toggle,
     Extend { additive: bool },
+}
+
+/// Intent for browser-row focus updates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BrowserFocusIntent {
+    /// Preview navigation without committing expensive side effects.
+    Preview,
+    /// Full commit navigation with selection-loading side effects.
+    Commit,
 }

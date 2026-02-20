@@ -132,6 +132,51 @@ pub(super) fn bench_browser_sort_toggle_latency(
     )
 }
 
+/// Measure lightweight preview-focus navigation latency.
+pub(super) fn bench_browser_focus_preview_latency(
+    options: &BenchOptions,
+    controller: &mut AppController,
+) -> Result<stats::LatencySummary, String> {
+    let interaction_rows = options.gui_interaction_rows.max(1);
+    wait_for_rows(controller, interaction_rows)?;
+    let mut step = 0usize;
+    stats::bench_action_with_iters(
+        interaction_warmup(options),
+        interaction_iters(options),
+        || {
+            let row = step % interaction_rows;
+            step = step.saturating_add(1);
+            controller.focus_browser_row_only(row);
+            controller.prepare_native_frame(false);
+            let _: NativeAppModel = controller.project_native_app_model();
+            Ok(())
+        },
+    )
+}
+
+/// Measure commit-focus latency after preview navigation.
+pub(super) fn bench_browser_focus_commit_latency(
+    options: &BenchOptions,
+    controller: &mut AppController,
+) -> Result<stats::LatencySummary, String> {
+    let interaction_rows = options.gui_interaction_rows.max(1);
+    wait_for_rows(controller, interaction_rows)?;
+    let mut step = 0usize;
+    stats::bench_action_with_iters(
+        interaction_warmup(options),
+        interaction_iters(options),
+        || {
+            let row = step % interaction_rows;
+            step = step.saturating_add(1);
+            controller.focus_browser_row_only(row);
+            let _ = controller.commit_focused_browser_row();
+            controller.prepare_native_frame(false);
+            let _: NativeAppModel = controller.project_native_app_model();
+            Ok(())
+        },
+    )
+}
+
 /// Measure map pan/zoom projection latency using cached map state.
 pub(super) fn bench_map_pan_proxy_latency(
     options: &BenchOptions,

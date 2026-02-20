@@ -4,6 +4,7 @@ use super::super::test_support::{
 };
 use super::super::*;
 use super::common::visible_indices;
+use crate::app::controller::state::audio::PendingAgeUpdate;
 use crate::app::controller::ui::hotkeys;
 use crate::app::state::FocusContext;
 use crate::sample_sources::Rating;
@@ -95,6 +96,29 @@ fn moving_browser_focus_is_load_free_until_explicit_commit() {
         || controller.ui.waveform.loading.as_deref() == Some(Path::new("two.wav"))
         || controller.sample_view.wav.loaded_wav.as_deref() == Some(Path::new("two.wav"));
     assert!(queued_or_loaded_two);
+}
+
+/// Preview focus should defer pending playback-age writes until commit.
+#[test]
+fn preview_focus_defers_pending_age_update_until_commit() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+
+    controller.focus_browser_row_only(0);
+    controller.audio.pending_age_update = Some(PendingAgeUpdate {
+        source_id: source.id.clone(),
+        root: source.root.clone(),
+        relative_path: PathBuf::from("one.wav"),
+        played_at: 123,
+    });
+
+    controller.focus_browser_row_only(1);
+    assert!(controller.audio.pending_age_update.is_some());
+
+    assert!(controller.commit_focused_browser_row());
+    assert!(controller.audio.pending_age_update.is_none());
 }
 
 #[test]

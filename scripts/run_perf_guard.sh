@@ -64,6 +64,8 @@ if not isinstance(gui, dict):
 scenarios = [
     ("hover_latency", "SEMPAL_PERF_WARN_P95_US_HOVER", 8_000),
     ("wheel_latency", "SEMPAL_PERF_WARN_P95_US_WHEEL", 10_000),
+    ("browser_focus_preview_latency", "SEMPAL_PERF_WARN_P95_US_FOCUS_PREVIEW", 10_000),
+    ("browser_focus_commit_latency", "SEMPAL_PERF_WARN_P95_US_FOCUS_COMMIT", 16_000),
     ("map_pan_proxy_latency", "SEMPAL_PERF_WARN_P95_US_MAP_PAN_PROXY", 12_000),
     ("waveform_interaction_latency", "SEMPAL_PERF_WARN_P95_US_WAVEFORM", 10_000),
 ]

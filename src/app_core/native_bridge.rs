@@ -618,6 +618,8 @@ fn action_requires_projection_cache_invalidation(action: &NativeUiAction) -> boo
 pub struct SempalNativeBridge {
     controller: AppController,
     projection_cache: NativeProjectionCache,
+    /// Coalesced pending browser-focus delta from high-frequency wheel/arrow actions.
+    pending_browser_focus_delta: i16,
 }
 
 impl SempalNativeBridge {
@@ -635,7 +637,27 @@ impl SempalNativeBridge {
         Ok(Self {
             controller,
             projection_cache: NativeProjectionCache::default(),
+            pending_browser_focus_delta: 0,
         })
+    }
+
+    /// Queue browser-focus movement so repeated wheel/arrow actions can coalesce.
+    fn enqueue_browser_focus_delta(&mut self, delta: i8) {
+        self.pending_browser_focus_delta = self
+            .pending_browser_focus_delta
+            .saturating_add(i16::from(delta))
+            .clamp(i16::from(i8::MIN), i16::from(i8::MAX));
+    }
+
+    /// Apply any queued browser-focus movement before pulling/projecting state.
+    fn flush_pending_browser_focus_delta(&mut self) {
+        let pending = self.pending_browser_focus_delta;
+        if pending == 0 {
+            return;
+        }
+        self.pending_browser_focus_delta = 0;
+        self.projection_cache.invalidate();
+        self.controller.focus_browser_delta_action(pending as i8);
     }
 }
 
@@ -647,6 +669,7 @@ impl NativeAppBridge for SempalNativeBridge {
         if call <= 24 {
             info!(call, "native bridge: pull_model start");
         }
+        self.flush_pending_browser_focus_delta();
         self.controller.prepare_native_frame(false);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
@@ -684,6 +707,7 @@ impl NativeAppBridge for SempalNativeBridge {
         if call <= 24 {
             info!(call, "native bridge: pull_motion_model start");
         }
+        self.flush_pending_browser_focus_delta();
         self.controller.prepare_native_frame(true);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
@@ -705,6 +729,22 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     fn on_action(&mut self, action: NativeUiAction) {
+        if let NativeUiAction::MoveBrowserFocus { delta } = action {
+            let call = trace_action_call();
+            let profiling = bridge_profiling_enabled();
+            let action_start = profiling.then(Instant::now);
+            if call <= 64 {
+                info!(call, delta, "native bridge: queue MoveBrowserFocus");
+            }
+            self.enqueue_browser_focus_delta(delta);
+            if profiling {
+                let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
+                trace_action_duration(action_duration);
+                trace_action_interaction(InteractionActionClass::Wheel, action_duration);
+            }
+            return;
+        }
+        self.flush_pending_browser_focus_delta();
         let call = trace_action_call();
         let profiling = bridge_profiling_enabled();
         let interaction_class = classify_action_interaction(&action);
@@ -737,6 +777,7 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     fn on_exit(&mut self) {
+        self.flush_pending_browser_focus_delta();
         if let Err(err) = self.controller.persist_native_exit_config() {
             error!(err = %err, "Failed to persist config on native exit");
             eprintln!("{err}");
@@ -760,7 +801,7 @@ pub fn new_native_bridge(
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeProjectionCache, build_projection_cache_key};
+    use super::{NativeProjectionCache, SempalNativeBridge, build_projection_cache_key};
     use crate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
     use crate::app_core::state::UpdateStatus;
     use crate::waveform::WaveformRenderer;
@@ -824,6 +865,45 @@ mod tests {
         });
 
         assert_eq!(projections, 2);
+    }
+
+    /// Queued browser focus deltas should clamp into i8-safe bounds.
+    #[test]
+    fn browser_focus_delta_queue_coalesces_and_clamps() {
+        let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        let mut bridge = SempalNativeBridge {
+            controller,
+            projection_cache: NativeProjectionCache::default(),
+            pending_browser_focus_delta: 0,
+        };
+
+        bridge.enqueue_browser_focus_delta(70);
+        bridge.enqueue_browser_focus_delta(70);
+        assert_eq!(bridge.pending_browser_focus_delta, i16::from(i8::MAX));
+
+        bridge.enqueue_browser_focus_delta(-120);
+        assert_eq!(bridge.pending_browser_focus_delta, 7);
+    }
+
+    /// Flushing queued focus movement should invalidate projection cache keys.
+    #[test]
+    fn flush_pending_browser_focus_clears_projection_cache_key() {
+        let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        let cache = NativeProjectionCache {
+            app_key: Some(build_projection_cache_key(&controller)),
+            ..NativeProjectionCache::default()
+        };
+
+        let mut bridge = SempalNativeBridge {
+            controller,
+            projection_cache: cache,
+            pending_browser_focus_delta: 0,
+        };
+        bridge.enqueue_browser_focus_delta(1);
+        bridge.flush_pending_browser_focus_delta();
+
+        assert_eq!(bridge.pending_browser_focus_delta, 0);
+        assert!(bridge.projection_cache.app_key.is_none());
     }
 
     #[cfg(feature = "native-bridge-metrics")]

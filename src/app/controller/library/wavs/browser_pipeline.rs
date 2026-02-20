@@ -1,7 +1,8 @@
 use super::*;
 use crate::app::state::{SampleBrowserSort, TriageFlagFilter, VisibleRows};
-use std::cmp::Ordering;
-use std::hash::{Hash, Hasher};
+
+/// Shared stage helper functions for sort/filter/hash operations.
+mod helpers;
 
 /// Cache state for retained browser pipeline stages.
 #[derive(Default)]
@@ -68,16 +69,16 @@ pub(crate) fn build_visible_rows(
     let sort_mode = controller.ui.browser.sort;
     let filter = controller.ui.browser.filter;
     let rating_filter = controller.ui.browser.rating_filter.clone();
-    let rating_filter_hash = hash_value(&rating_filter);
+    let rating_filter_hash = helpers::hash_value(&rating_filter);
     let folder_selection = controller.folder_selection_for_filter().cloned();
     let folder_negated = controller.folder_negation_for_filter().cloned();
     let root_mode = controller
         .root_folder_filter_mode_for_filter()
         .unwrap_or_default();
-    let folder_hash = hash_value(&(
+    let folder_hash = helpers::hash_value(&(
         folder_selection.as_ref(),
         folder_negated.as_ref(),
-        root_mode_key(root_mode),
+        helpers::root_mode_key(root_mode),
     ));
     let has_folder_filters = crate::app::controller::library::source_folders::folder_filters_active(
         folder_selection.as_ref(),
@@ -96,10 +97,11 @@ pub(crate) fn build_visible_rows(
         return (VisibleRows::All { total }, focused_index, loaded_index);
     }
 
-    let base_fingerprint_hash = hash_value(&controller.ui_cache.browser.pipeline.base_fingerprint);
-    let filtered_fingerprint = hash_value(&(
+    let base_fingerprint_hash =
+        helpers::hash_value(&controller.ui_cache.browser.pipeline.base_fingerprint);
+    let filtered_fingerprint = helpers::hash_value(&(
         base_fingerprint_hash,
-        filter_key(filter),
+        helpers::filter_key(filter),
         rating_filter_hash,
         folder_hash,
     ));
@@ -110,7 +112,7 @@ pub(crate) fn build_visible_rows(
             let Some(entry) = controller.wav_entry(index) else {
                 continue;
             };
-            if !filter_accepts(filter, &rating_filter, entry.tag) {
+            if !helpers::filter_accepts(filter, &rating_filter, entry.tag) {
                 continue;
             }
             if !crate::app::controller::library::source_folders::folder_filter_accepts(
@@ -130,10 +132,10 @@ pub(crate) fn build_visible_rows(
     }
 
     if let Some(similar) = similar_query {
-        let sorted_fingerprint = hash_value(&(
+        let sorted_fingerprint = helpers::hash_value(&(
             filtered_fingerprint,
-            sort_key(sort_mode),
-            similarity_fingerprint(&similar),
+            helpers::sort_key(sort_mode),
+            helpers::similarity_fingerprint(&similar),
         ));
         if controller.ui_cache.browser.pipeline.sorted_fingerprint != Some(sorted_fingerprint) {
             let mut visible = Vec::with_capacity(similar.indices.len());
@@ -141,7 +143,7 @@ pub(crate) fn build_visible_rows(
                 let Some(entry) = controller.wav_entry(index) else {
                     continue;
                 };
-                if !filter_accepts(filter, &rating_filter, entry.tag) {
+                if !helpers::filter_accepts(filter, &rating_filter, entry.tag) {
                     continue;
                 }
                 if !crate::app::controller::library::source_folders::folder_filter_accepts(
@@ -154,7 +156,7 @@ pub(crate) fn build_visible_rows(
                 }
                 visible.push(index);
             }
-            apply_sort_for_similar(controller, &mut visible, sort_mode, &similar);
+            helpers::apply_sort_for_similar(controller, &mut visible, sort_mode, &similar);
             controller.ui_cache.browser.pipeline.sorted_rows = visible;
             controller.ui_cache.browser.pipeline.sorted_fingerprint = Some(sorted_fingerprint);
         }
@@ -163,9 +165,9 @@ pub(crate) fn build_visible_rows(
 
     if let Some(query) = query {
         controller.ensure_search_scores(&query);
-        let score_fingerprint = hash_value(&(
+        let score_fingerprint = helpers::hash_value(&(
             filtered_fingerprint,
-            hash_value(&query),
+            helpers::hash_value(&query),
             controller.ui_cache.browser.search.scores.len(),
         ));
         if controller.ui_cache.browser.pipeline.scored_fingerprint != Some(score_fingerprint) {
@@ -189,9 +191,9 @@ pub(crate) fn build_visible_rows(
             controller.ui_cache.browser.pipeline.sorted_fingerprint = None;
         }
 
-        let sorted_fingerprint = hash_value(&(
+        let sorted_fingerprint = helpers::hash_value(&(
             controller.ui_cache.browser.pipeline.scored_fingerprint,
-            sort_key(sort_mode),
+            helpers::sort_key(sort_mode),
         ));
         if controller.ui_cache.browser.pipeline.sorted_fingerprint != Some(sorted_fingerprint) {
             let mut visible: Vec<usize> = controller
@@ -206,7 +208,7 @@ pub(crate) fn build_visible_rows(
                 sort_mode,
                 SampleBrowserSort::PlaybackAgeAsc | SampleBrowserSort::PlaybackAgeDesc
             ) {
-                sort_visible_by_playback_age(
+                helpers::sort_visible_by_playback_age(
                     controller,
                     &mut visible,
                     sort_mode == SampleBrowserSort::PlaybackAgeAsc,
@@ -219,14 +221,15 @@ pub(crate) fn build_visible_rows(
         return visible_result_from_sorted(controller, focused_index, loaded_index);
     }
 
-    let sorted_fingerprint = hash_value(&(filtered_fingerprint, sort_key(sort_mode)));
+    let sorted_fingerprint =
+        helpers::hash_value(&(filtered_fingerprint, helpers::sort_key(sort_mode)));
     if controller.ui_cache.browser.pipeline.sorted_fingerprint != Some(sorted_fingerprint) {
         let mut visible = controller.ui_cache.browser.pipeline.filtered_rows.clone();
         if matches!(
             sort_mode,
             SampleBrowserSort::PlaybackAgeAsc | SampleBrowserSort::PlaybackAgeDesc
         ) {
-            sort_visible_by_playback_age(
+            helpers::sort_visible_by_playback_age(
                 controller,
                 &mut visible,
                 sort_mode == SampleBrowserSort::PlaybackAgeAsc,
@@ -298,141 +301,4 @@ fn visible_result_from_sorted(
     let loaded_visible =
         loaded_index.and_then(|index| visible.iter().position(|row| *row == index));
     (VisibleRows::List(visible), selected_visible, loaded_visible)
-}
-
-/// Apply explicit sort policy for similarity-query result rows.
-fn apply_sort_for_similar(
-    controller: &mut AppController,
-    visible: &mut [usize],
-    sort_mode: SampleBrowserSort,
-    similar: &crate::app::state::SimilarQuery,
-) {
-    match sort_mode {
-        SampleBrowserSort::Similarity => {
-            let mut lookup = vec![None; controller.wav_entries_len()];
-            for (&index, &score) in similar.indices.iter().zip(similar.scores.iter()) {
-                if index < lookup.len() {
-                    lookup[index] = Some(score);
-                }
-            }
-            visible.sort_by(|a, b| {
-                let a_score = lookup
-                    .get(*a)
-                    .and_then(|score| *score)
-                    .unwrap_or(f32::NEG_INFINITY);
-                let b_score = lookup
-                    .get(*b)
-                    .and_then(|score| *score)
-                    .unwrap_or(f32::NEG_INFINITY);
-                b_score
-                    .partial_cmp(&a_score)
-                    .unwrap_or(Ordering::Equal)
-                    .then_with(|| a.cmp(b))
-            });
-            if let Some(anchor) = similar.anchor_index
-                && let Some(pos) = visible.iter().position(|index| *index == anchor)
-            {
-                visible.rotate_right(visible.len().saturating_sub(pos));
-            }
-        }
-        SampleBrowserSort::PlaybackAgeAsc => {
-            sort_visible_by_playback_age(controller, visible, true);
-        }
-        SampleBrowserSort::PlaybackAgeDesc => {
-            sort_visible_by_playback_age(controller, visible, false);
-        }
-        SampleBrowserSort::ListOrder => {
-            visible.sort_unstable();
-        }
-    }
-}
-
-/// Return whether an entry tag matches the active triage/rating filters.
-fn filter_accepts(
-    filter: TriageFlagFilter,
-    rating_filter: &std::collections::BTreeSet<i8>,
-    tag: crate::sample_sources::Rating,
-) -> bool {
-    let triage_ok = match filter {
-        TriageFlagFilter::All => true,
-        TriageFlagFilter::Keep => tag.is_keep(),
-        TriageFlagFilter::Trash => tag.is_trash(),
-        TriageFlagFilter::Untagged => tag.is_neutral(),
-    };
-    let rating_ok = rating_filter.is_empty() || rating_filter.contains(&tag.val());
-    triage_ok && rating_ok
-}
-
-/// Sort visible row indices by playback age then by absolute index.
-fn sort_visible_by_playback_age(
-    controller: &mut AppController,
-    visible: &mut [usize],
-    ascending: bool,
-) {
-    visible.sort_by(|a, b| {
-        let a_key = controller
-            .wav_entry(*a)
-            .and_then(|entry| entry.last_played_at)
-            .unwrap_or(i64::MIN);
-        let b_key = controller
-            .wav_entry(*b)
-            .and_then(|entry| entry.last_played_at)
-            .unwrap_or(i64::MIN);
-        let order = if ascending {
-            a_key.cmp(&b_key)
-        } else {
-            b_key.cmp(&a_key)
-        };
-        order.then_with(|| a.cmp(b))
-    });
-}
-
-/// Hash any value into a compact stage fingerprint.
-fn hash_value<T: Hash + ?Sized>(value: &T) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
-}
-
-/// Convert root-folder mode into a stable scalar for cache keys.
-fn root_mode_key(mode: crate::app::state::RootFolderFilterMode) -> u8 {
-    match mode {
-        crate::app::state::RootFolderFilterMode::AllDescendants => 0,
-        crate::app::state::RootFolderFilterMode::RootOnly => 1,
-    }
-}
-
-/// Convert triage-filter enum into a stable scalar for cache keys.
-fn filter_key(filter: TriageFlagFilter) -> u8 {
-    match filter {
-        TriageFlagFilter::All => 0,
-        TriageFlagFilter::Keep => 1,
-        TriageFlagFilter::Trash => 2,
-        TriageFlagFilter::Untagged => 3,
-    }
-}
-
-/// Convert browser-sort enum into a stable scalar for cache keys.
-fn sort_key(sort: SampleBrowserSort) -> u8 {
-    match sort {
-        SampleBrowserSort::ListOrder => 0,
-        SampleBrowserSort::Similarity => 1,
-        SampleBrowserSort::PlaybackAgeAsc => 2,
-        SampleBrowserSort::PlaybackAgeDesc => 3,
-    }
-}
-
-/// Hash a similarity query payload for stage cache invalidation.
-fn similarity_fingerprint(query: &crate::app::state::SimilarQuery) -> u64 {
-    hash_value(&(
-        &query.sample_id,
-        &query.label,
-        &query.indices,
-        query
-            .scores
-            .iter()
-            .map(|score| score.to_bits())
-            .collect::<Vec<u32>>(),
-        query.anchor_index,
-    ))
 }

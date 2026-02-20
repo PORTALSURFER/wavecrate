@@ -4,7 +4,8 @@
 mod interactions;
 
 use self::interactions::{
-    bench_browser_filter_churn_latency, bench_browser_query_churn_latency,
+    bench_browser_filter_churn_latency, bench_browser_focus_commit_latency,
+    bench_browser_focus_preview_latency, bench_browser_query_churn_latency,
     bench_browser_sort_toggle_latency, bench_hover_latency, bench_map_pan_proxy_latency,
     bench_waveform_interactions, bench_waveform_pan_zoom_adjacent_latency, bench_wheel_latency,
     execute_interaction_step,
@@ -41,6 +42,10 @@ pub(super) struct GuiBenchResult {
     pub(super) browser_query_churn_latency: stats::LatencySummary,
     /// Latency of sort-only browser recompute churn.
     pub(super) browser_sort_toggle_latency: stats::LatencySummary,
+    /// Latency of browser-row preview focus navigation.
+    pub(super) browser_focus_preview_latency: stats::LatencySummary,
+    /// Latency of browser-row commit actions after preview focus.
+    pub(super) browser_focus_commit_latency: stats::LatencySummary,
     /// Latency of map pan/zoom state changes through model projection.
     pub(super) map_pan_proxy_latency: stats::LatencySummary,
     /// Latency of waveform interaction actions through projection.
@@ -88,6 +93,10 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         bench_browser_query_churn_latency(options, &mut workspace.controller)?;
     let browser_sort_toggle_latency =
         bench_browser_sort_toggle_latency(options, &mut workspace.controller)?;
+    let browser_focus_preview_latency =
+        bench_browser_focus_preview_latency(options, &mut workspace.controller)?;
+    let browser_focus_commit_latency =
+        bench_browser_focus_commit_latency(options, &mut workspace.controller)?;
     let map_pan_proxy_latency = bench_map_pan_proxy_latency(options, &mut workspace.controller)?;
     let waveform_interaction_latency =
         bench_waveform_interactions(options, &mut workspace.controller)?;
@@ -103,6 +112,8 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         browser_filter_churn_latency,
         browser_query_churn_latency,
         browser_sort_toggle_latency,
+        browser_focus_preview_latency,
+        browser_focus_commit_latency,
         map_pan_proxy_latency,
         waveform_interaction_latency,
         waveform_pan_zoom_adjacent_latency,
