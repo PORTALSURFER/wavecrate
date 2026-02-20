@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-20T20:43:16Z
+Last updated (UTC): 2026-02-20T21:07:18Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -15,10 +15,16 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Confirm the next accepted ROI milestone with the user before implementation.
-2. Implement the approved milestone with focused tests and perf-guard evidence.
-3. Update this queue and `MEMORY.md` in the same commit as the milestone change.
+1. Validate Phase 7 item 1 with perf/profiler evidence and capture before/after
+   static-scene rebuild behavior.
+2. Implement waveform adjacent pan/zoom cache-hit improvements
+   (meta quantization + stable texture-width buckets).
+3. Implement a delta waveform translation path that reuses prior image data for
+   adjacent pan steps.
+4. Update `MEMORY.md` and this queue in the same commit as each milestone.
 
 ## Done recently
 
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
+- Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
+  high-frequency browser/search/prompt actions use model+overlay invalidation.

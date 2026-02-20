@@ -121,6 +121,20 @@
 - [x] Add benchmark JSON + perf-guard segment attribution output that reports
       segment-level latency/counter summaries alongside stage attribution.
 
+### Phase 7: Invalidation Scope Precision (Next ROI)
+
+- [x] Tighten `vendor/radiant` action invalidation routing so high-frequency
+      browser/search/prompt actions use model+overlay refresh without forcing
+      static-scene dirties upfront.
+- [ ] Validate reduced static rebuild churn via profiler counters and
+      perf-guard reruns focused on `waveform_pan_zoom_adjacent_latency`.
+- [ ] Improve sempal waveform adjacent pan/zoom cache-hit rate by quantizing
+      view metadata and stabilizing texture-width bucket churn.
+- [ ] Add a partial/delta waveform translation path (shift + edge re-render)
+      to avoid full image rebuilds on pure adjacent pans.
+- [ ] Keep static segment rebuilds fully dirty-mask-driven across radiant
+      frame segments and expand targeted tests for action-to-segment behavior.
+
 ## Validation
 
 - Required checks:
