@@ -578,6 +578,14 @@ impl AppController {
         selection_ops::select_wav_by_path_with_rebuild(self, path, rebuild);
     }
 
+    /// Focus a wav row by path without queueing audio/waveform loading.
+    ///
+    /// This supports high-frequency browser focus navigation where loading is
+    /// committed separately by an explicit action.
+    pub(crate) fn focus_wav_by_path_with_rebuild(&mut self, path: &Path, rebuild: bool) {
+        selection_ops::focus_wav_by_path_with_rebuild(self, path, rebuild);
+    }
+
     /// Map the current browser filter into a drop target tag for drag-and-drop retagging.
     pub fn triage_flag_drop_target(&self) -> TriageFlagColumn {
         selection_ops::triage_flag_drop_target(self)

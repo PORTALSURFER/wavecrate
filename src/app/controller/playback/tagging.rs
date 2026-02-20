@@ -75,11 +75,10 @@ pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample
                         .ok_or_else(|| "Source not available".to_string())?;
                     controller.set_sample_tag_for_source(&source, path, *tag, false)?;
                 }
-                if let Some(path) = refocus_path_undo.as_deref() {
-                    controller.selection_state.suppress_autoplay_once = true;
-                    if let Some(row) = controller.visible_row_for_path(path) {
-                        controller.focus_browser_row_only(row);
-                    }
+                if let Some(path) = refocus_path_undo.as_deref()
+                    && let Some(row) = controller.visible_row_for_path(path)
+                {
+                    controller.focus_browser_row_only(row);
                 }
                 Ok(super::undo::UndoExecution::Applied)
             },
@@ -235,11 +234,10 @@ pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) 
                         .ok_or_else(|| "Source not available".to_string())?;
                     controller.set_sample_tag_for_source(&source, path, *tag, false)?;
                 }
-                if let Some(path) = refocus_path_undo.as_deref() {
-                    controller.selection_state.suppress_autoplay_once = true;
-                    if let Some(row) = controller.visible_row_for_path(path) {
-                        controller.focus_browser_row_only(row);
-                    }
+                if let Some(path) = refocus_path_undo.as_deref()
+                    && let Some(row) = controller.visible_row_for_path(path)
+                {
+                    controller.focus_browser_row_only(row);
                 }
                 Ok(super::undo::UndoExecution::Applied)
             },

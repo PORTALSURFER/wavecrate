@@ -39,7 +39,7 @@ impl AppController {
             .unwrap_or(0)
             .min(visible_count - 1);
         let target = (base as isize + delta as isize).clamp(0, visible_count as isize - 1) as usize;
-        self.focus_browser_row(target);
+        self.focus_browser_row_only(target);
         true
     }
 
@@ -142,7 +142,7 @@ impl AppController {
 
     /// Focus a browser row and update multi-selection state.
     pub fn focus_browser_row(&mut self, visible_row: usize) {
-        self.apply_browser_selection(visible_row, SelectionAction::Replace);
+        self.apply_browser_selection(visible_row, SelectionAction::Replace, true);
     }
 
     /// Focus a browser row without mutating the multi-selection set.
@@ -154,7 +154,39 @@ impl AppController {
         self.ui.browser.autoscroll = true;
         self.ui.browser.selection_anchor_visible = Some(visible_row);
         self.ui.browser.last_focused_path = Some(path.to_path_buf());
-        self.select_wav_by_path_with_rebuild(&path, true);
+        self.focus_wav_by_path_with_rebuild(&path, false);
+        self.refresh_browser_selection_markers();
+    }
+
+    /// Commit the focused browser row and queue audio/waveform loading for it.
+    ///
+    /// Returns `true` when a focused row was committed, or `false` when no row
+    /// is focused in the current browser projection.
+    pub fn commit_focused_browser_row(&mut self) -> bool {
+        let Some(path) = self.focused_browser_path() else {
+            return false;
+        };
+        self.focus_browser_context();
+        self.ui.browser.autoscroll = true;
+        if let Some(row) = self.visible_row_for_path(&path) {
+            self.ui.browser.selection_anchor_visible = Some(row);
+        }
+        self.select_wav_by_path_with_rebuild(&path, false);
+        self.refresh_browser_selection_markers();
+        true
+    }
+
+    /// Commit the focused browser row when browser-focused; otherwise toggle transport.
+    ///
+    /// Native runtime Enter uses this so list workflows can explicitly commit
+    /// selection while preserving the existing transport shortcut elsewhere.
+    pub fn commit_browser_focus_or_toggle_transport(&mut self) {
+        if matches!(self.ui.focus.context, FocusContext::SampleBrowser)
+            && self.commit_focused_browser_row()
+        {
+            return;
+        }
+        self.toggle_play_pause();
     }
 
     pub(crate) fn start_browser_rename(&mut self) {
@@ -260,17 +292,25 @@ impl AppController {
 
     /// Toggle whether a visible browser row is included in the multi-selection set.
     pub fn toggle_browser_row_selection(&mut self, visible_row: usize) {
-        self.apply_browser_selection(visible_row, SelectionAction::Toggle);
+        self.apply_browser_selection(visible_row, SelectionAction::Toggle, false);
     }
 
     /// Extend the multi-selection range to a visible browser row (replaces the selection set).
     pub fn extend_browser_selection_to_row(&mut self, visible_row: usize) {
-        self.apply_browser_selection(visible_row, SelectionAction::Extend { additive: false });
+        self.apply_browser_selection(
+            visible_row,
+            SelectionAction::Extend { additive: false },
+            false,
+        );
     }
 
     /// Extend the multi-selection range to a visible browser row (adds to the selection set).
     pub fn add_range_browser_selection(&mut self, visible_row: usize) {
-        self.apply_browser_selection(visible_row, SelectionAction::Extend { additive: true });
+        self.apply_browser_selection(
+            visible_row,
+            SelectionAction::Extend { additive: true },
+            false,
+        );
     }
 
     /// Toggle the focused sample's inclusion in the browser multi-selection set.
@@ -384,7 +424,16 @@ impl AppController {
         self.rebuild_browser_lists();
     }
 
-    fn apply_browser_selection(&mut self, visible_row: usize, action: SelectionAction) {
+    /// Apply browser selection state for a visible row and optionally commit loading.
+    ///
+    /// `commit_load` controls whether the focused row should trigger a waveform/audio
+    /// load, or only update focus/selection state for lightweight navigation.
+    fn apply_browser_selection(
+        &mut self,
+        visible_row: usize,
+        action: SelectionAction,
+        commit_load: bool,
+    ) {
         let Some(path) = self.browser_path_for_visible(visible_row) else {
             return;
         };
@@ -421,7 +470,11 @@ impl AppController {
                 self.extend_browser_selection_to(visible_row, additive);
             }
         }
-        self.select_wav_by_path_with_rebuild(&path, false);
+        if commit_load {
+            self.select_wav_by_path_with_rebuild(&path, false);
+        } else {
+            self.focus_wav_by_path_with_rebuild(&path, false);
+        }
         self.refresh_browser_selection_markers();
     }
 

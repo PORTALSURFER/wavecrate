@@ -7,10 +7,35 @@ pub(crate) fn select_wav_by_path(controller: &mut AppController, path: &Path) {
     select_wav_by_path_with_rebuild(controller, path, true);
 }
 
+/// Focus a wav path without queueing an audio/waveform load.
+///
+/// This is used for high-frequency browser focus navigation where selection
+/// state should update immediately but loading is committed separately.
+pub(crate) fn focus_wav_by_path_with_rebuild(
+    controller: &mut AppController,
+    path: &Path,
+    rebuild: bool,
+) {
+    select_wav_path_with_options(controller, path, rebuild, false);
+}
+
 pub(crate) fn select_wav_by_path_with_rebuild(
     controller: &mut AppController,
     path: &Path,
     rebuild: bool,
+) {
+    select_wav_path_with_options(controller, path, rebuild, true);
+}
+
+/// Shared wav-path selection pipeline with optional audio load queueing.
+///
+/// `queue_audio_load` set to `false` keeps focus/selection state in sync while
+/// avoiding waveform/audio churn during high-frequency navigation.
+fn select_wav_path_with_options(
+    controller: &mut AppController,
+    path: &Path,
+    rebuild: bool,
+    queue_audio_load: bool,
 ) {
     if controller
         .audio
@@ -90,7 +115,9 @@ pub(crate) fn select_wav_by_path_with_rebuild(
             controller.clear_focused_similarity_highlight();
         }
     }
-    if let Some(source) = controller.current_source() {
+    if !queue_audio_load {
+        controller.selection_state.suppress_autoplay_once = false;
+    } else if let Some(source) = controller.current_source() {
         let autoplay = controller.settings.feature_flags.autoplay_selection
             && !controller.selection_state.suppress_autoplay_once;
         controller.selection_state.suppress_autoplay_once = false;

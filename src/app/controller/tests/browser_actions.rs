@@ -55,6 +55,48 @@ fn focus_hotkey_does_not_autoplay_browser_sample() {
     assert_eq!(controller.ui.browser.selected_visible, Some(0));
 }
 
+/// Arrow/wheel-style focus changes should not trigger sample loading until commit.
+#[test]
+fn moving_browser_focus_is_load_free_until_explicit_commit() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+
+    controller.focus_browser_row_only(0);
+    controller.sample_view.wav.loaded_wav = Some(PathBuf::from("one.wav"));
+    controller.ui.loaded_wav = Some(PathBuf::from("one.wav"));
+    controller.runtime.jobs.pending_audio = None;
+    controller.runtime.jobs.pending_playback = None;
+
+    controller.focus_browser_delta_action(1);
+
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("one.wav"))
+    );
+    assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.runtime.jobs.pending_playback.is_none());
+
+    assert!(controller.commit_focused_browser_row());
+    let queued_or_loaded_two = controller
+        .runtime
+        .jobs
+        .pending_audio
+        .as_ref()
+        .is_some_and(|pending| pending.relative_path == PathBuf::from("two.wav"))
+        || controller.ui.waveform.loading.as_deref() == Some(Path::new("two.wav"))
+        || controller.sample_view.wav.loaded_wav.as_deref() == Some(Path::new("two.wav"));
+    assert!(queued_or_loaded_two);
+}
+
 #[test]
 fn f_hotkey_focuses_loaded_sample_in_browser() {
     let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
