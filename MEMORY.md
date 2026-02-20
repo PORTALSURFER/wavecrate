@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-20T15:21:51Z
+Last Updated: 2026-02-20T16:56:59Z
 Updated By: Codex
 
 ## Purpose
@@ -10,17 +10,18 @@ Updated By: Codex
 
 ## Current Session (2026-02-20 UTC)
 
-- I am implementing performance plan item #2: retained static-scene segment
-  composition for the native `winit + vello` runtime.
-- In `vendor/radiant/src/gui/native_shell/state.rs`, I added static segment
-  definitions (`status`, `browser frame`, `browser rows`, `map`, `waveform`,
-  `global`) plus segmented static-frame partition builders and coverage tests.
-- In `vendor/radiant/src/gui_runtime/native_vello.rs`, I added per-segment
-  scene caches keyed by `(segment, viewport bits, style signature, segment model
-  signature)` and wired incremental static-scene composition under
-  `SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE`.
+- I am implementing the next GUI performance milestone: bridge-provided static
+  segment revisions replacing per-frame segment model hashing in retained scene
+  cache keys.
+- In `vendor/radiant/src/app/mod.rs`, I added `SegmentRevisions` and extended
+  `NativeAppBridge` with `take_segment_revisions`.
+- In `src/app_core/native_bridge.rs`, I now track monotonic revision counters
+  from projection dirty masks and expose them to the runtime.
+- In `vendor/radiant/src/gui_runtime/native_vello.rs`, static segment scene
+  fingerprints now use bridge revisions, including a one-shot conservative
+  rebuild fallback when revisions are not provided.
 - Full `bash scripts/ci_local.sh` is green for this change set.
 
 ## Work Notes
 
-- Pending commit/push: plan #2 retained static segment composition milestone.
+- Pending commit/push: bridge segment revision cache-key milestone.

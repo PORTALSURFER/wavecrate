@@ -15,7 +15,8 @@ use crate::{
     app_core::actions::NativeAppBridge,
     app_core::actions::NativeMotionModel,
     app_core::actions::{
-        NativeAppModel, NativeDirtySegments, NativeFrameBuildResult, NativeUiAction,
+        NativeAppModel, NativeDirtySegments, NativeFrameBuildResult, NativeSegmentRevisions,
+        NativeUiAction,
     },
     app_core::app_api::controller_state::{DerivedNodeId, DirtyReason},
     app_core::controller::{
@@ -1534,6 +1535,8 @@ pub struct SempalNativeBridge {
     projection_cache: NativeProjectionCache,
     /// Dirty segments produced by the latest `pull_model` projection update.
     last_dirty_segments: NativeDirtySegments,
+    /// Monotonic static-segment revisions from projection updates.
+    segment_revisions: NativeSegmentRevisions,
     /// Coalesced pending browser-focus delta from high-frequency wheel/arrow actions.
     pending_browser_focus_delta: i16,
     /// Coalesced pending waveform actions from high-frequency drag/wheel input.
@@ -1556,6 +1559,7 @@ impl SempalNativeBridge {
             controller,
             projection_cache: NativeProjectionCache::default(),
             last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
             pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         })
@@ -1733,6 +1737,8 @@ impl NativeAppBridge for SempalNativeBridge {
                 controller.project_native_app_model()
             });
         self.last_dirty_segments = dirty_segments;
+        self.segment_revisions
+            .bump_for_dirty_segments(self.last_dirty_segments);
         let project_duration = project_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
             trace_pull_model_projection(project_duration);
@@ -1755,6 +1761,11 @@ impl NativeAppBridge for SempalNativeBridge {
     /// Return and clear the bridge segment mask from the most recent model pull.
     fn take_dirty_segments(&mut self) -> NativeDirtySegments {
         std::mem::replace(&mut self.last_dirty_segments, NativeDirtySegments::empty())
+    }
+
+    /// Return the latest static-segment revision snapshot.
+    fn take_segment_revisions(&mut self) -> NativeSegmentRevisions {
+        self.segment_revisions
     }
 
     fn pull_motion_model(&mut self) -> Option<NativeMotionModel> {
@@ -1875,7 +1886,9 @@ mod tests {
         DerivedNodeId, NativeProjectionCache, PendingWaveformActions, SempalNativeBridge,
         build_projection_cache_key,
     };
-    use crate::app_core::actions::{NativeDirtySegments, NativeUiAction};
+    use crate::app_core::actions::{
+        NativeAppBridge, NativeDirtySegments, NativeSegmentRevisions, NativeUiAction,
+    };
     use crate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
     use crate::app_core::state::UpdateStatus;
     use crate::waveform::WaveformRenderer;
@@ -1953,6 +1966,31 @@ mod tests {
         assert_eq!(projections, 2);
     }
 
+    /// Initial full projection should bump all static segment revisions.
+    #[test]
+    fn pull_model_bumps_segment_revisions_on_first_projection() {
+        let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        let mut bridge = SempalNativeBridge {
+            controller,
+            projection_cache: NativeProjectionCache::default(),
+            last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
+            pending_browser_focus_delta: 0,
+            pending_waveform_actions: PendingWaveformActions::default(),
+        };
+
+        let _ = bridge.pull_model();
+        let revisions = bridge.take_segment_revisions();
+
+        assert!(revisions.has_static_revisions());
+        assert!(revisions.status_bar > 0);
+        assert!(revisions.browser_frame > 0);
+        assert!(revisions.browser_rows_window > 0);
+        assert!(revisions.map_panel > 0);
+        assert!(revisions.waveform_overlay > 0);
+        assert!(revisions.global_static > 0);
+    }
+
     /// Queued browser focus deltas should clamp into i8-safe bounds.
     #[test]
     fn browser_focus_delta_queue_coalesces_and_clamps() {
@@ -1961,6 +1999,7 @@ mod tests {
             controller,
             projection_cache: NativeProjectionCache::default(),
             last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
             pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
@@ -1987,6 +2026,7 @@ mod tests {
             controller,
             projection_cache: cache,
             last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
             pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
@@ -2094,6 +2134,7 @@ mod tests {
             controller,
             projection_cache: cache,
             last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
             pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
@@ -2121,6 +2162,7 @@ mod tests {
             controller: AppController::new(WaveformRenderer::new(16, 16), None),
             projection_cache: NativeProjectionCache::default(),
             last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
             pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
@@ -2156,6 +2198,7 @@ mod tests {
             controller,
             projection_cache: NativeProjectionCache::default(),
             last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
             pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
@@ -2188,6 +2231,7 @@ mod tests {
             controller,
             projection_cache: cache,
             last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
             pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
@@ -2239,6 +2283,7 @@ mod tests {
             controller,
             projection_cache: NativeProjectionCache::default(),
             last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
             pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
