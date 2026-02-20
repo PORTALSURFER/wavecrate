@@ -116,6 +116,10 @@ Sempal defaults to `info`.
 
 ## UI and runtime profiling
 
+- `SEMPAL_BROWSER_SEARCH_OFFLOAD_THRESHOLD`
+Wav-entry threshold used by browser search to switch from synchronous layout
+path recompute to async search jobs. Default: `5000`.
+
 - `SEMPAL_NATIVE_RENDER_PROFILE`
 Enables native render profiling logs when the build enables the `gui-performance`
 cargo feature. Accepted values include `1`, `true`, `on`, and `yes` (case
@@ -161,6 +165,18 @@ p95 spread across runs. Default: `1`.
 Warning-only p95 latency threshold (microseconds) for hover interaction
 benchmark results. Default: `8000`.
 
+- `SEMPAL_PERF_WARN_P95_US_FILTER_CHURN`
+Warning-only p95 latency threshold (microseconds) for filter-only browser churn
+benchmark results. Default: `10000`.
+
+- `SEMPAL_PERF_WARN_P95_US_QUERY_CHURN`
+Warning-only p95 latency threshold (microseconds) for query-only browser churn
+benchmark results. Default: `12000`.
+
+- `SEMPAL_PERF_WARN_P95_US_SORT_CHURN`
+Warning-only p95 latency threshold (microseconds) for sort-only browser churn
+benchmark results. Default: `10000`.
+
 - `SEMPAL_PERF_WARN_P95_US_WHEEL`
 Warning-only p95 latency threshold (microseconds) for wheel interaction
 benchmark results. Default: `10000`.
@@ -176,6 +192,18 @@ benchmark results. Default: `10000`.
 - `SEMPAL_PERF_FAIL_P95_US_HOVER`
 Optional hard-fail p95 latency threshold (microseconds) for hover interaction
 benchmark results. Unset by default.
+
+- `SEMPAL_PERF_FAIL_P95_US_FILTER_CHURN`
+Optional hard-fail p95 latency threshold (microseconds) for filter-only browser
+churn benchmark results. Unset by default.
+
+- `SEMPAL_PERF_FAIL_P95_US_QUERY_CHURN`
+Optional hard-fail p95 latency threshold (microseconds) for query-only browser
+churn benchmark results. Unset by default.
+
+- `SEMPAL_PERF_FAIL_P95_US_SORT_CHURN`
+Optional hard-fail p95 latency threshold (microseconds) for sort-only browser
+churn benchmark results. Unset by default.
 
 - `SEMPAL_PERF_FAIL_P95_US_WHEEL`
 Hard-fail p95 latency threshold (microseconds) for wheel interaction benchmark

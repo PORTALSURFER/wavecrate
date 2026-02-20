@@ -106,9 +106,10 @@ pub(crate) fn build_visible_rows(
         folder_hash,
     ));
     if controller.ui_cache.browser.pipeline.filtered_fingerprint != Some(filtered_fingerprint) {
-        let base_rows = controller.ui_cache.browser.pipeline.base_rows.clone();
-        let mut filtered_rows = Vec::with_capacity(base_rows.len());
-        for index in base_rows {
+        let base_len = controller.ui_cache.browser.pipeline.base_rows.len();
+        let mut filtered_rows = Vec::with_capacity(base_len);
+        for row in 0..base_len {
+            let index = controller.ui_cache.browser.pipeline.base_rows[row];
             let Some(entry) = controller.wav_entry(index) else {
                 continue;
             };
@@ -171,9 +172,10 @@ pub(crate) fn build_visible_rows(
             controller.ui_cache.browser.search.scores.len(),
         ));
         if controller.ui_cache.browser.pipeline.scored_fingerprint != Some(score_fingerprint) {
-            let filtered_rows = controller.ui_cache.browser.pipeline.filtered_rows.clone();
-            let mut scored = Vec::with_capacity(filtered_rows.len());
-            for index in filtered_rows {
+            let filtered_len = controller.ui_cache.browser.pipeline.filtered_rows.len();
+            let mut scored = Vec::with_capacity(filtered_len);
+            for row in 0..filtered_len {
+                let index = controller.ui_cache.browser.pipeline.filtered_rows[row];
                 if let Some(score) = controller
                     .ui_cache
                     .browser

@@ -3,6 +3,12 @@ use crate::app::state::SampleBrowserSort;
 use crate::app::view_model;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
+use std::sync::OnceLock;
+
+/// Environment override for the browser-search offload threshold.
+const SEARCH_OFFLOAD_THRESHOLD_ENV: &str = "SEMPAL_BROWSER_SEARCH_OFFLOAD_THRESHOLD";
+/// Default wav-entry count threshold above which search work offloads to jobs.
+const DEFAULT_SEARCH_OFFLOAD_THRESHOLD: usize = 5_000;
 
 /// Cached score payload for a specific source/query combination.
 #[derive(Clone)]
@@ -58,8 +64,9 @@ impl Default for BrowserSearchCache {
 }
 
 impl AppController {
+    /// Return `true` when browser search should run through the async job path.
     pub(crate) fn should_offload_search(&self) -> bool {
-        self.wav_entries_len() > 5000
+        self.wav_entries_len() > browser_search_offload_threshold()
     }
 
     #[allow(dead_code)]
@@ -83,10 +90,11 @@ impl AppController {
 
     /// Ensure fuzzy-match scores exist for the query against current visible entries.
     pub(crate) fn ensure_search_scores(&mut self, query: &str) {
+        let entries_len = self.wav_entries_len();
         let source_id = self.selection_state.ctx.selected_source.clone();
         if self.ui_cache.browser.search.source_id == source_id
             && self.ui_cache.browser.search.query == query
-            && self.ui_cache.browser.search.scores.len() == self.wav_entries_len()
+            && self.ui_cache.browser.search.scores.len() == entries_len
         {
             return;
         }
@@ -99,7 +107,7 @@ impl AppController {
             .position(|entry| {
                 entry.source_id == source_id
                     && entry.query == query
-                    && entry.scores.len() == self.wav_entries_len()
+                    && entry.scores.len() == entries_len
             })
         {
             let cached = self
@@ -123,18 +131,11 @@ impl AppController {
         }
         if self.ui_cache.browser.search.source_id != source_id
             || self.ui_cache.browser.search.query != query
-            || self.ui_cache.browser.search.scores.len() != self.wav_entries_len()
+            || self.ui_cache.browser.search.scores.len() != entries_len
         {
             self.ui_cache.browser.search.source_id = source_id;
             self.ui_cache.browser.search.query.clear();
             self.ui_cache.browser.search.query.push_str(query);
-            self.ui_cache.browser.search.scores.clear();
-            self.ui_cache
-                .browser
-                .search
-                .scores
-                .resize(self.wav_entries_len(), None);
-
             let Some(source_id) = self.selection_state.ctx.selected_source.clone() else {
                 return;
             };
@@ -143,7 +144,7 @@ impl AppController {
                 .browser
                 .labels
                 .get(&source_id)
-                .map(|cached| cached.len() != self.wav_entries_len())
+                .map(|cached| cached.len() != entries_len)
                 .unwrap_or(true);
             if needs_labels {
                 self.ui_cache
@@ -151,26 +152,26 @@ impl AppController {
                     .labels
                     .insert(source_id.clone(), Vec::new());
             }
-            let mut label_strings: Vec<Option<String>> = Vec::with_capacity(self.wav_entries_len());
-            for idx in 0..self.wav_entries_len() {
-                let lbl = self.label_for_ref(idx).map(|s| s.to_string());
-                label_strings.push(lbl);
+            for idx in 0..entries_len {
+                let _ = self.label_for_ref(idx);
             }
-
-            let mut new_scores: Vec<Option<i64>> = Vec::with_capacity(label_strings.len());
-            for lbl_opt in label_strings {
-                if let Some(lbl_str) = lbl_opt {
-                    let score = self
-                        .ui_cache
-                        .browser
-                        .search
-                        .matcher
-                        .fuzzy_match(&lbl_str, query);
-                    new_scores.push(score);
-                } else {
-                    new_scores.push(None);
+            let mut new_scores: Vec<Option<i64>> = Vec::with_capacity(entries_len);
+            if let Some(labels) = self.ui_cache.browser.labels.get(&source_id) {
+                for label in labels.iter().take(entries_len) {
+                    if label.is_empty() {
+                        new_scores.push(None);
+                    } else {
+                        new_scores.push(
+                            self.ui_cache
+                                .browser
+                                .search
+                                .matcher
+                                .fuzzy_match(label, query),
+                        );
+                    }
                 }
             }
+            new_scores.resize(entries_len, None);
             self.ui_cache.browser.search.scores = new_scores;
             self.ui_cache.browser.search.query_score_cache.insert(
                 0,
@@ -326,4 +327,17 @@ pub(crate) fn set_browser_search(controller: &mut AppController, query: impl Int
     controller.ui.browser.sort = SampleBrowserSort::ListOrder;
     controller.ui.browser.similarity_sort_follow_loaded = false;
     controller.rebuild_browser_lists();
+}
+
+/// Resolve the wav-entry threshold for switching browser search to async jobs.
+fn browser_search_offload_threshold() -> usize {
+    /// Cached parsed offload threshold for browser search jobs.
+    static OFFLOAD_THRESHOLD: OnceLock<usize> = OnceLock::new();
+    *OFFLOAD_THRESHOLD.get_or_init(|| {
+        std::env::var(SEARCH_OFFLOAD_THRESHOLD_ENV)
+            .ok()
+            .and_then(|value| value.trim().parse::<usize>().ok())
+            .filter(|threshold| *threshold > 0)
+            .unwrap_or(DEFAULT_SEARCH_OFFLOAD_THRESHOLD)
+    })
 }

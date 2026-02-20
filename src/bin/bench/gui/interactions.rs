@@ -76,18 +76,21 @@ pub(super) fn bench_wheel_latency(
 pub(super) fn bench_browser_filter_churn_latency(
     options: &BenchOptions,
     controller: &mut AppController,
-) -> Result<stats::LatencySummary, String> {
+) -> Result<stats::StagedLatencySummary, String> {
     wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
     controller.set_browser_search("");
     controller.set_browser_sort(SampleBrowserSort::ListOrder);
     let mut step = 0usize;
-    stats::bench_action_with_iters(
+    stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
-        || {
+        |timer| {
+            timer.mark_input_done();
             controller.set_browser_filter(interaction_filter_for_step(step));
             step = step.saturating_add(1);
+            timer.mark_apply_done();
             controller.prepare_native_frame(false);
+            timer.mark_pull_done();
             let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
@@ -98,18 +101,21 @@ pub(super) fn bench_browser_filter_churn_latency(
 pub(super) fn bench_browser_query_churn_latency(
     options: &BenchOptions,
     controller: &mut AppController,
-) -> Result<stats::LatencySummary, String> {
+) -> Result<stats::StagedLatencySummary, String> {
     wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
     controller.set_browser_filter(TriageFlagFilter::All);
     controller.set_browser_sort(SampleBrowserSort::ListOrder);
     let mut step = 0usize;
-    stats::bench_action_with_iters(
+    stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
-        || {
+        |timer| {
+            timer.mark_input_done();
             controller.set_browser_search(interaction_query_for_step(step));
             step = step.saturating_add(1);
+            timer.mark_apply_done();
             controller.prepare_native_frame(false);
+            timer.mark_pull_done();
             let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
@@ -120,18 +126,21 @@ pub(super) fn bench_browser_query_churn_latency(
 pub(super) fn bench_browser_sort_toggle_latency(
     options: &BenchOptions,
     controller: &mut AppController,
-) -> Result<stats::LatencySummary, String> {
+) -> Result<stats::StagedLatencySummary, String> {
     wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
     controller.set_browser_filter(TriageFlagFilter::All);
     controller.set_browser_search(interaction_query_for_step(0));
     let mut step = 0usize;
-    stats::bench_action_with_iters(
+    stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
-        || {
+        |timer| {
+            timer.mark_input_done();
             controller.set_browser_sort(interaction_sort_for_step(step));
             step = step.saturating_add(1);
+            timer.mark_apply_done();
             controller.prepare_native_frame(false);
+            timer.mark_pull_done();
             let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },

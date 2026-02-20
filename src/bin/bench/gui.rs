@@ -68,6 +68,12 @@ pub(super) struct GuiInteractionStageAttribution {
     pub(super) hover_latency: stats::StageLatencyBreakdown,
     /// Stage-attributed latency for wheel-like row nudges.
     pub(super) wheel_latency: stats::StageLatencyBreakdown,
+    /// Stage-attributed latency for filter-only browser churn.
+    pub(super) browser_filter_churn_latency: stats::StageLatencyBreakdown,
+    /// Stage-attributed latency for query-only browser churn.
+    pub(super) browser_query_churn_latency: stats::StageLatencyBreakdown,
+    /// Stage-attributed latency for sort-only browser churn.
+    pub(super) browser_sort_toggle_latency: stats::StageLatencyBreakdown,
     /// Stage-attributed latency for browser-row preview focus navigation.
     pub(super) browser_focus_preview_latency: stats::StageLatencyBreakdown,
     /// Stage-attributed latency for browser-row commit actions.
@@ -173,6 +179,18 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         stages: wheel_latency_stages,
     } = wheel_latency;
     let stats::StagedLatencySummary {
+        total: browser_filter_churn_latency_total,
+        stages: browser_filter_churn_latency_stages,
+    } = browser_filter_churn_latency;
+    let stats::StagedLatencySummary {
+        total: browser_query_churn_latency_total,
+        stages: browser_query_churn_latency_stages,
+    } = browser_query_churn_latency;
+    let stats::StagedLatencySummary {
+        total: browser_sort_toggle_latency_total,
+        stages: browser_sort_toggle_latency_stages,
+    } = browser_sort_toggle_latency;
+    let stats::StagedLatencySummary {
         total: browser_focus_preview_latency_total,
         stages: browser_focus_preview_latency_stages,
     } = browser_focus_preview_latency;
@@ -224,9 +242,9 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         interactive_projection: interactive_projection_total,
         hover_latency: hover_latency_total,
         wheel_latency: wheel_latency_total,
-        browser_filter_churn_latency,
-        browser_query_churn_latency,
-        browser_sort_toggle_latency,
+        browser_filter_churn_latency: browser_filter_churn_latency_total,
+        browser_query_churn_latency: browser_query_churn_latency_total,
+        browser_sort_toggle_latency: browser_sort_toggle_latency_total,
         browser_focus_preview_latency: browser_focus_preview_latency_total,
         browser_focus_commit_latency: browser_focus_commit_latency_total,
         map_pan_proxy_latency: map_pan_proxy_latency_total,
@@ -236,6 +254,9 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
             interactive_projection: interactive_projection_stages,
             hover_latency: hover_latency_stages,
             wheel_latency: wheel_latency_stages,
+            browser_filter_churn_latency: browser_filter_churn_latency_stages,
+            browser_query_churn_latency: browser_query_churn_latency_stages,
+            browser_sort_toggle_latency: browser_sort_toggle_latency_stages,
             browser_focus_preview_latency: browser_focus_preview_latency_stages,
             browser_focus_commit_latency: browser_focus_commit_latency_stages,
             map_pan_proxy_latency: map_pan_proxy_latency_stages,

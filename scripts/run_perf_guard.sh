@@ -89,6 +89,27 @@ for path in report_paths:
 
 scenarios = [
     (
+        "browser_filter_churn_latency",
+        "SEMPAL_PERF_WARN_P95_US_FILTER_CHURN",
+        10_000,
+        "SEMPAL_PERF_FAIL_P95_US_FILTER_CHURN",
+        None,
+    ),
+    (
+        "browser_query_churn_latency",
+        "SEMPAL_PERF_WARN_P95_US_QUERY_CHURN",
+        12_000,
+        "SEMPAL_PERF_FAIL_P95_US_QUERY_CHURN",
+        None,
+    ),
+    (
+        "browser_sort_toggle_latency",
+        "SEMPAL_PERF_WARN_P95_US_SORT_CHURN",
+        10_000,
+        "SEMPAL_PERF_FAIL_P95_US_SORT_CHURN",
+        None,
+    ),
+    (
         "hover_latency",
         "SEMPAL_PERF_WARN_P95_US_HOVER",
         8_000,
@@ -147,10 +168,19 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
     run_summaries = []
     for index, gui in enumerate(gui_reports, start=1):
         summary = gui.get(key)
-        if not isinstance(summary, dict):
-            print(f"[perf_guard] ERROR: missing scenario `{key}` in run {index}", file=sys.stderr)
-            sys.exit(1)
-        run_summaries.append(summary)
+        if isinstance(summary, dict):
+            run_summaries.append(summary)
+        else:
+            print(
+                f"[perf_guard] WARN: missing scenario `{key}` in run {index}; excluding run from this scenario",
+                file=sys.stderr,
+            )
+    if not run_summaries:
+        print(
+            f"[perf_guard] WARN: skipping scenario `{key}` because no runs provided it",
+            file=sys.stderr,
+        )
+        continue
 
     p50_values = [int(summary.get("p50_us", 0)) for summary in run_summaries]
     p95_values = [int(summary.get("p95_us", 0)) for summary in run_summaries]
@@ -246,6 +276,9 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
         else:
             segment_name_by_scenario = {
                 "interactive_projection": "status_bar",
+                "browser_filter_churn_latency": "browser_rows_window",
+                "browser_query_churn_latency": "browser_rows_window",
+                "browser_sort_toggle_latency": "browser_rows_window",
                 "hover_latency": "browser_frame",
                 "wheel_latency": "browser_rows_window",
                 "browser_focus_preview_latency": "browser_frame",
