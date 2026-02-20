@@ -1,10 +1,14 @@
 //! Runtime state and job coordination for the controller.
 
+/// Incremental derived-state dirty graph model used by native projection paths.
+mod derived_graph;
+
 use crate::app::controller::jobs;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::state::audio::PendingAgeUpdate;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
+pub(crate) use derived_graph::{DerivedNodeId, DerivedStateGraph, DirtyReason};
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -42,6 +46,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) waveform_refresh_pending_reason: Option<WaveformRefreshReason>,
     /// Nesting depth for waveform refresh batching.
     pub(crate) waveform_refresh_batch_depth: u16,
+    /// Incremental derived-state dirty graph used by native projection paths.
+    pub(crate) derived_graph: DerivedStateGraph,
     /// Pending playback-age DB update moved out of input action handlers.
     pub(crate) pending_age_update_commit: Option<PendingAgeUpdate>,
     /// Earliest frame time when deferred playback-age persistence may run.
@@ -87,6 +93,7 @@ impl ControllerRuntimeState {
             waveform_refresh_pending: false,
             waveform_refresh_pending_reason: None,
             waveform_refresh_batch_depth: 0,
+            derived_graph: DerivedStateGraph::new(),
             pending_age_update_commit: None,
             pending_age_update_commit_not_before: None,
             pending_similarity_refresh: None,

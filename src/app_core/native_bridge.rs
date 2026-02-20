@@ -15,6 +15,7 @@ use crate::{
     app_core::actions::NativeAppBridge,
     app_core::actions::NativeMotionModel,
     app_core::actions::{NativeAppModel, NativeFrameBuildResult, NativeUiAction},
+    app_core::app_api::controller_state::{DerivedNodeId, DirtyReason},
     app_core::controller::{
         AppController, AppControllerNativeRuntimeExt, build_native_app_controller,
     },
@@ -105,6 +106,18 @@ static WAVEFORM_FLUSH_DURATION_NS: AtomicU64 = AtomicU64::new(0);
 /// Total number of emitted native waveform actions across queued flushes.
 static WAVEFORM_FLUSH_EMITTED_ACTIONS_TOTAL: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
+/// Total number of derived-graph flush passes before projection.
+static DERIVED_FLUSH_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Accumulated derived-graph flush duration in nanoseconds.
+static DERIVED_FLUSH_DURATION_NS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Total dirty source-node count observed across derived flushes.
+static DERIVED_DIRTY_SOURCE_TOTAL: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Total dirty derived-node count observed across derived flushes.
+static DERIVED_DIRTY_COMPUTED_TOTAL: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static FRAME_RESULT_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 static FRAME_RESULT_ANIMATION_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -192,6 +205,10 @@ fn maybe_log_bridge_profile() {
     let waveform_flush_ns = WAVEFORM_FLUSH_DURATION_NS.load(Ordering::Relaxed);
     let waveform_flush_emitted_actions =
         WAVEFORM_FLUSH_EMITTED_ACTIONS_TOTAL.load(Ordering::Relaxed);
+    let derived_flush_count = DERIVED_FLUSH_COUNT.load(Ordering::Relaxed);
+    let derived_flush_ns = DERIVED_FLUSH_DURATION_NS.load(Ordering::Relaxed);
+    let derived_dirty_source_total = DERIVED_DIRTY_SOURCE_TOTAL.load(Ordering::Relaxed);
+    let derived_dirty_computed_total = DERIVED_DIRTY_COMPUTED_TOTAL.load(Ordering::Relaxed);
     let frame_count = FRAME_RESULT_COUNT.load(Ordering::Relaxed);
     let frame_anim_count = FRAME_RESULT_ANIMATION_COUNT.load(Ordering::Relaxed);
     let primitive_sum = FRAME_RESULT_PRIMITIVES_TOTAL.load(Ordering::Relaxed);
@@ -251,6 +268,21 @@ fn maybe_log_bridge_profile() {
     } else {
         waveform_flush_emitted_actions as f64 / waveform_flush_count as f64
     };
+    let derived_flush_avg_ms = if derived_flush_count == 0 {
+        0.0
+    } else {
+        ms_from_ns(derived_flush_ns) / derived_flush_count as f64
+    };
+    let derived_flush_avg_dirty_sources = if derived_flush_count == 0 {
+        0.0
+    } else {
+        derived_dirty_source_total as f64 / derived_flush_count as f64
+    };
+    let derived_flush_avg_dirty_computed = if derived_flush_count == 0 {
+        0.0
+    } else {
+        derived_dirty_computed_total as f64 / derived_flush_count as f64
+    };
     let avg_primitives_per_frame = if frame_count == 0 {
         0.0
     } else {
@@ -275,6 +307,7 @@ fn maybe_log_bridge_profile() {
          pull_motion prep_ms={:.3} project_ms={:.3} action_ms={:.3} \
          wheel_action_ms={:.3} map_proxy_action_ms={:.3} waveform_action_ms={:.3} volume_action_ms={:.3} \
          waveform_flush_ms={:.3} waveform_flush_avg_actions={:.2} \
+         derived_flush_ms={:.3} derived_dirty_sources={:.2} derived_dirty_computed={:.2} \
          avg_primitives_per_frame={:.2} avg_text_runs_per_frame={:.2}",
         pull_model_avg_prep_ms,
         pull_model_avg_project_ms,
@@ -287,6 +320,9 @@ fn maybe_log_bridge_profile() {
         volume_avg_ms,
         waveform_flush_avg_ms,
         waveform_flush_avg_actions,
+        derived_flush_avg_ms,
+        derived_flush_avg_dirty_sources,
+        derived_flush_avg_dirty_computed,
         avg_primitives_per_frame,
         avg_text_runs_per_frame
     );
@@ -426,6 +462,25 @@ fn trace_waveform_flush(duration: Duration, emitted_actions: u64) {
 #[inline(always)]
 /// No-op waveform flush tracer for non-profiling builds.
 fn trace_waveform_flush(_duration: Duration, _emitted_actions: u64) {}
+
+#[cfg(feature = "native-bridge-metrics")]
+#[inline(always)]
+/// Track derived-graph flush timing and dirty-node counts.
+fn trace_derived_flush(duration: Duration, dirty_source_count: usize, dirty_derived_count: usize) {
+    DERIVED_FLUSH_COUNT.fetch_add(1, Ordering::Relaxed);
+    DERIVED_DIRTY_SOURCE_TOTAL.fetch_add(dirty_source_count as u64, Ordering::Relaxed);
+    DERIVED_DIRTY_COMPUTED_TOTAL.fetch_add(dirty_derived_count as u64, Ordering::Relaxed);
+    saturating_add_duration(&DERIVED_FLUSH_DURATION_NS, duration);
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+/// No-op derived-graph flush tracer for non-profiling builds.
+fn trace_derived_flush(
+    _duration: Duration,
+    _dirty_source_count: usize,
+    _dirty_derived_count: usize,
+) {
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct MapQueryBoundsKey {
@@ -653,6 +708,71 @@ fn action_requires_projection_cache_invalidation(action: &NativeUiAction) -> boo
     )
 }
 
+/// Conservative source-node set used for broad invalidation actions.
+const BROAD_DIRTY_SOURCES: [DerivedNodeId; 4] = [
+    DerivedNodeId::BrowserState,
+    DerivedNodeId::MapState,
+    DerivedNodeId::TransportState,
+    DerivedNodeId::StatusState,
+];
+
+/// Resolve the primary dirty source node and reason for one native action.
+fn classify_dirty_source(action: &NativeUiAction) -> Option<(DerivedNodeId, DirtyReason)> {
+    match action {
+        NativeUiAction::SeekWaveform { .. }
+        | NativeUiAction::SetWaveformCursor { .. }
+        | NativeUiAction::SetWaveformSelectionRange { .. }
+        | NativeUiAction::ClearWaveformSelection
+        | NativeUiAction::ZoomWaveform { .. }
+        | NativeUiAction::ZoomWaveformToSelection
+        | NativeUiAction::ZoomWaveformFull => {
+            Some((DerivedNodeId::WaveformState, DirtyReason::WaveformAction))
+        }
+        NativeUiAction::MoveBrowserFocus { .. }
+        | NativeUiAction::FocusBrowserRow { .. }
+        | NativeUiAction::CommitFocusedBrowserRow
+        | NativeUiAction::ToggleBrowserRowSelection { .. }
+        | NativeUiAction::ExtendBrowserSelectionToRow { .. }
+        | NativeUiAction::AddRangeBrowserSelection { .. }
+        | NativeUiAction::ExtendBrowserSelectionFromFocus { .. }
+        | NativeUiAction::AddRangeBrowserSelectionFromFocus { .. }
+        | NativeUiAction::ToggleFocusedBrowserRowSelection
+        | NativeUiAction::SelectAllBrowserRows
+        | NativeUiAction::SetBrowserSearch { .. }
+        | NativeUiAction::FocusBrowserPanel
+        | NativeUiAction::FocusBrowserSearch
+        | NativeUiAction::FocusLoadedSampleInBrowser
+        | NativeUiAction::StartBrowserRename
+        | NativeUiAction::ConfirmBrowserRename
+        | NativeUiAction::CancelBrowserRename
+        | NativeUiAction::TagBrowserSelection { .. }
+        | NativeUiAction::DeleteBrowserSelection
+        | NativeUiAction::SetBrowserTab { map: false } => {
+            Some((DerivedNodeId::BrowserState, DirtyReason::BrowserAction))
+        }
+        NativeUiAction::SetBrowserTab { map: true } | NativeUiAction::FocusMapSample { .. } => {
+            Some((DerivedNodeId::MapState, DirtyReason::MapAction))
+        }
+        NativeUiAction::ToggleTransport
+        | NativeUiAction::ToggleLoopPlayback
+        | NativeUiAction::SetVolume { .. }
+        | NativeUiAction::CommitVolumeSetting => {
+            Some((DerivedNodeId::TransportState, DirtyReason::TransportAction))
+        }
+        NativeUiAction::CheckForUpdates
+        | NativeUiAction::OpenUpdateLink
+        | NativeUiAction::InstallUpdate
+        | NativeUiAction::DismissUpdate
+        | NativeUiAction::ConfirmPrompt
+        | NativeUiAction::CancelPrompt
+        | NativeUiAction::CancelProgress
+        | NativeUiAction::SetPromptInput { .. } => {
+            Some((DerivedNodeId::StatusState, DirtyReason::StatusAction))
+        }
+        _ => None,
+    }
+}
+
 /// Queue of high-frequency waveform actions that can be coalesced per pull frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct PendingWaveformActions {
@@ -791,6 +911,17 @@ impl SempalNativeBridge {
         self.pending_waveform_actions.enqueue(action)
     }
 
+    /// Mark derived graph sources affected by one action.
+    fn mark_dirty_for_action(&mut self, action: &NativeUiAction) {
+        if let Some((source, reason)) = classify_dirty_source(action) {
+            self.controller.mark_derived_source_dirty(source, reason);
+        }
+        if action_requires_projection_cache_invalidation(action) {
+            self.controller
+                .mark_derived_sources_dirty(&BROAD_DIRTY_SOURCES, DirtyReason::BroadInvalidation);
+        }
+    }
+
     /// Apply queued waveform actions in deterministic order before projection.
     fn flush_pending_waveform_actions(&mut self) {
         if !self.pending_waveform_actions.has_pending() {
@@ -856,6 +987,35 @@ impl SempalNativeBridge {
         self.flush_pending_browser_focus_delta();
         self.flush_pending_waveform_actions();
     }
+
+    /// Recompute dirty derived nodes and invalidate projection cache when required.
+    fn flush_derived_updates_before_pull(&mut self, animation_only: bool) {
+        if animation_only || !self.controller.has_dirty_derived_nodes() {
+            return;
+        }
+        let dirty_sources = self.controller.dirty_derived_source_count();
+        let dirty_computed = self.controller.dirty_derived_computed_count();
+        let profiling = bridge_profiling_enabled();
+        let flush_start = profiling.then(Instant::now);
+        let dirty_nodes = self.controller.dirty_derived_nodes_in_topo_order();
+        let mut projection_key_dirty = false;
+        for node in dirty_nodes {
+            if node == DerivedNodeId::WaveformRenderInputs {
+                self.controller.refresh_waveform_image();
+            }
+            if node == DerivedNodeId::NativeAppProjectionKey {
+                projection_key_dirty = true;
+            }
+            self.controller.clear_derived_dirty_node(node);
+        }
+        if projection_key_dirty {
+            self.projection_cache.invalidate();
+        }
+        if profiling {
+            let flush_duration = flush_start.map_or(Duration::ZERO, |start| start.elapsed());
+            trace_derived_flush(flush_duration, dirty_sources, dirty_computed);
+        }
+    }
 }
 
 impl NativeAppBridge for SempalNativeBridge {
@@ -868,6 +1028,7 @@ impl NativeAppBridge for SempalNativeBridge {
         }
         self.flush_pending_input_actions();
         self.controller.prepare_native_frame(false);
+        self.flush_derived_updates_before_pull(false);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
             trace_pull_model_preparation(prepare_duration);
@@ -906,6 +1067,7 @@ impl NativeAppBridge for SempalNativeBridge {
         }
         self.flush_pending_input_actions();
         self.controller.prepare_native_frame(true);
+        self.flush_derived_updates_before_pull(true);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
             trace_pull_motion_preparation(prepare_duration);
@@ -926,6 +1088,7 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     fn on_action(&mut self, action: NativeUiAction) {
+        self.mark_dirty_for_action(&action);
         if let NativeUiAction::MoveBrowserFocus { delta } = action {
             let call = trace_action_call();
             let profiling = bridge_profiling_enabled();
@@ -962,9 +1125,6 @@ impl NativeAppBridge for SempalNativeBridge {
         let action_start = profiling.then(Instant::now);
         if call <= 64 {
             info!(call, action = ?action, "native bridge: on_action");
-        }
-        if action_requires_projection_cache_invalidation(&action) {
-            self.projection_cache.invalidate();
         }
         self.controller.apply_native_ui_action(action);
         if profiling {
@@ -1013,7 +1173,7 @@ pub fn new_native_bridge(
 #[cfg(test)]
 mod tests {
     use super::{
-        NativeProjectionCache, PendingWaveformActions, SempalNativeBridge,
+        DerivedNodeId, NativeProjectionCache, PendingWaveformActions, SempalNativeBridge,
         build_projection_cache_key,
     };
     use crate::app_core::actions::NativeUiAction;
@@ -1200,6 +1360,57 @@ mod tests {
         bridge.flush_pending_waveform_actions();
 
         assert!(!bridge.pending_waveform_actions.has_pending());
+        assert!(bridge.projection_cache.app_key.is_none());
+    }
+
+    /// Action classification should mark waveform source and projection-key nodes dirty.
+    #[test]
+    fn mark_dirty_for_waveform_action_marks_graph_nodes() {
+        let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        let mut bridge = SempalNativeBridge {
+            controller,
+            projection_cache: NativeProjectionCache::default(),
+            pending_browser_focus_delta: 0,
+            pending_waveform_actions: PendingWaveformActions::default(),
+        };
+
+        bridge.mark_dirty_for_action(&NativeUiAction::SeekWaveform {
+            position_milli: 250,
+        });
+
+        assert!(
+            bridge
+                .controller
+                .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+        );
+        assert!(
+            bridge
+                .controller
+                .is_derived_node_dirty_for_test(DerivedNodeId::NativeAppProjectionKey)
+        );
+    }
+
+    /// Flushing derived updates should clear graph dirties and invalidate projection cache key.
+    #[test]
+    fn flush_derived_updates_clears_nodes_and_invalidates_key() {
+        let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        let cache = NativeProjectionCache {
+            app_key: Some(build_projection_cache_key(&controller)),
+            ..NativeProjectionCache::default()
+        };
+        let mut bridge = SempalNativeBridge {
+            controller,
+            projection_cache: cache,
+            pending_browser_focus_delta: 0,
+            pending_waveform_actions: PendingWaveformActions::default(),
+        };
+
+        bridge.mark_dirty_for_action(&NativeUiAction::SetBrowserSearch {
+            query: String::from("kick"),
+        });
+        bridge.flush_derived_updates_before_pull(false);
+
+        assert!(!bridge.controller.has_dirty_derived_nodes());
         assert!(bridge.projection_cache.app_key.is_none());
     }
 

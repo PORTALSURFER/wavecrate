@@ -66,7 +66,7 @@
       interactions avoid synchronous spike work.
 - [x] Coalesce high-frequency waveform seek/cursor/selection/zoom actions in
       the native bridge before projection pulls.
-- [ ] Introduce explicit derived-state dependency graph with dirty propagation
+- [x] Introduce explicit derived-state dependency graph with dirty propagation
       for high-churn UI subsystems.
 - [ ] Reduce per-frame allocation churn in shell/text paths via reusable
       buffers, fewer string clones, and stronger cache keys.

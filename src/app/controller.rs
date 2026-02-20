@@ -10,6 +10,8 @@ mod ui;
 mod config;
 pub(crate) mod controller_state;
 pub(crate) mod jobs;
+/// Derived-state graph access helpers for runtime projection paths.
+mod runtime_graph;
 pub(crate) mod state;
 pub(crate) mod undo;
 mod undo_jobs;

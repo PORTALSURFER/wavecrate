@@ -7,6 +7,14 @@ pub(crate) mod controller {
     pub(crate) use crate::app::controller::AppController;
 }
 
+/// Legacy controller-internal state types needed by migration glue.
+pub(crate) mod controller_state {
+    /// Legacy derived-state graph node identifiers.
+    pub(crate) use crate::app::controller::state::runtime::DerivedNodeId;
+    /// Legacy derived-state dirty reason categories.
+    pub(crate) use crate::app::controller::state::runtime::DirtyReason;
+}
+
 pub(crate) mod state {
     /// Legacy application state types.
     pub(crate) use crate::app::state::*;
