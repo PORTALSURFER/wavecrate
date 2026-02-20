@@ -107,6 +107,20 @@
       and waveform image refresh apply/skip, and retain existing feature-gated
       metric tests.
 
+### Phase 6: Segment-Aware Projection Refresh
+
+- [x] Keep global projection-key correctness while switching miss handling to
+      retained-model segment refresh (`status`, `browser frame`, `browser rows`,
+      `map`, `waveform`) in the native bridge.
+- [x] Split native browser projection into frame metadata and row-window helpers
+      so bridge refresh paths can update rows independently.
+- [x] Replace full cache invalidation in derived/wheel miss paths with key-only
+      invalidation so retained segment state survives to the next pull.
+- [x] Add segment-level bridge profiling counters/log output for hit/miss
+      attribution across the retained projection segments.
+- [x] Add benchmark JSON + perf-guard segment attribution output that reports
+      segment-level latency/counter summaries alongside stage attribution.
+
 ## Validation
 
 - Required checks:

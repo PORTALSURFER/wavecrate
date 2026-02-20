@@ -19,6 +19,7 @@ use crate::{
     app_core::controller::{
         AppController, AppControllerNativeRuntimeExt, build_native_app_controller,
     },
+    app_core::native_shell,
     audio::AudioPlayer,
     waveform::WaveformRenderer,
 };
@@ -56,6 +57,21 @@ enum InteractionActionClass {
     Volume,
 }
 
+/// Projection segments tracked for retained model refresh and profiling.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProjectionSegment {
+    /// Footer/status string projection.
+    StatusBar,
+    /// Browser metadata/chrome/action projection.
+    BrowserFrame,
+    /// Browser visible-row window projection.
+    BrowserRowsWindow,
+    /// Similarity map panel projection.
+    MapPanel,
+    /// Waveform panel/chrome projection.
+    WaveformOverlay,
+}
+
 #[cfg(feature = "native-bridge-metrics")]
 static PULL_MODEL_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
@@ -78,6 +94,36 @@ static PROJECTION_CACHE_HIT_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 /// Total number of projection-cache lookups that required a fresh projection.
 static PROJECTION_CACHE_MISS_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Segment-level projection-cache hits for status-bar projection.
+static PROJECTION_STATUS_SEGMENT_HIT_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Segment-level projection-cache misses for status-bar projection.
+static PROJECTION_STATUS_SEGMENT_MISS_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Segment-level projection-cache hits for browser-frame projection.
+static PROJECTION_BROWSER_FRAME_SEGMENT_HIT_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Segment-level projection-cache misses for browser-frame projection.
+static PROJECTION_BROWSER_FRAME_SEGMENT_MISS_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Segment-level projection-cache hits for browser-rows projection.
+static PROJECTION_BROWSER_ROWS_SEGMENT_HIT_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Segment-level projection-cache misses for browser-rows projection.
+static PROJECTION_BROWSER_ROWS_SEGMENT_MISS_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Segment-level projection-cache hits for map-panel projection.
+static PROJECTION_MAP_SEGMENT_HIT_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Segment-level projection-cache misses for map-panel projection.
+static PROJECTION_MAP_SEGMENT_MISS_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Segment-level projection-cache hits for waveform projection.
+static PROJECTION_WAVEFORM_SEGMENT_HIT_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Segment-level projection-cache misses for waveform projection.
+static PROJECTION_WAVEFORM_SEGMENT_MISS_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 /// Total count of wheel-class interaction actions.
 static ACTION_WHEEL_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -207,6 +253,21 @@ fn maybe_log_bridge_profile() {
     let action_ns = ACTION_DURATION_NS.load(Ordering::Relaxed);
     let projection_cache_hit_count = PROJECTION_CACHE_HIT_COUNT.load(Ordering::Relaxed);
     let projection_cache_miss_count = PROJECTION_CACHE_MISS_COUNT.load(Ordering::Relaxed);
+    let status_segment_hit_count = PROJECTION_STATUS_SEGMENT_HIT_COUNT.load(Ordering::Relaxed);
+    let status_segment_miss_count = PROJECTION_STATUS_SEGMENT_MISS_COUNT.load(Ordering::Relaxed);
+    let browser_frame_segment_hit_count =
+        PROJECTION_BROWSER_FRAME_SEGMENT_HIT_COUNT.load(Ordering::Relaxed);
+    let browser_frame_segment_miss_count =
+        PROJECTION_BROWSER_FRAME_SEGMENT_MISS_COUNT.load(Ordering::Relaxed);
+    let browser_rows_segment_hit_count =
+        PROJECTION_BROWSER_ROWS_SEGMENT_HIT_COUNT.load(Ordering::Relaxed);
+    let browser_rows_segment_miss_count =
+        PROJECTION_BROWSER_ROWS_SEGMENT_MISS_COUNT.load(Ordering::Relaxed);
+    let map_segment_hit_count = PROJECTION_MAP_SEGMENT_HIT_COUNT.load(Ordering::Relaxed);
+    let map_segment_miss_count = PROJECTION_MAP_SEGMENT_MISS_COUNT.load(Ordering::Relaxed);
+    let waveform_segment_hit_count = PROJECTION_WAVEFORM_SEGMENT_HIT_COUNT.load(Ordering::Relaxed);
+    let waveform_segment_miss_count =
+        PROJECTION_WAVEFORM_SEGMENT_MISS_COUNT.load(Ordering::Relaxed);
     let wheel_count = ACTION_WHEEL_COUNT.load(Ordering::Relaxed);
     let wheel_ns = ACTION_WHEEL_DURATION_NS.load(Ordering::Relaxed);
     let map_proxy_count = ACTION_MAP_PROXY_COUNT.load(Ordering::Relaxed);
@@ -324,6 +385,7 @@ fn maybe_log_bridge_profile() {
         "native bridge profiling: pull_model prep_ms={:.3} project_ms={:.3} \
          pull_motion prep_ms={:.3} project_ms={:.3} action_ms={:.3} \
          projection_cache hits={} misses={} \
+         segments status(h/m)={}/{} browser_frame(h/m)={}/{} browser_rows(h/m)={}/{} map(h/m)={}/{} waveform(h/m)={}/{} \
          wheel_action_ms={:.3} map_proxy_action_ms={:.3} waveform_action_ms={:.3} volume_action_ms={:.3} \
          waveform_flush_ms={:.3} waveform_flush_avg_actions={:.2} \
          waveform_image_refresh apply={} skip={} \
@@ -336,6 +398,16 @@ fn maybe_log_bridge_profile() {
         action_avg_ms,
         projection_cache_hit_count,
         projection_cache_miss_count,
+        status_segment_hit_count,
+        status_segment_miss_count,
+        browser_frame_segment_hit_count,
+        browser_frame_segment_miss_count,
+        browser_rows_segment_hit_count,
+        browser_rows_segment_miss_count,
+        map_segment_hit_count,
+        map_segment_miss_count,
+        waveform_segment_hit_count,
+        waveform_segment_miss_count,
         wheel_avg_ms,
         map_proxy_avg_ms,
         waveform_avg_ms,
@@ -460,6 +532,48 @@ fn trace_projection_cache_lookup(hit: bool) {
 #[inline(always)]
 /// No-op projection-cache hit/miss tracer for non-profiling builds.
 fn trace_projection_cache_lookup(_hit: bool) {}
+
+#[cfg(feature = "native-bridge-metrics")]
+#[inline(always)]
+/// Track segment-level projection-cache hit/miss decisions.
+fn trace_projection_segment_lookup(segment: ProjectionSegment, hit: bool) {
+    match (segment, hit) {
+        (ProjectionSegment::StatusBar, true) => {
+            PROJECTION_STATUS_SEGMENT_HIT_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
+        (ProjectionSegment::StatusBar, false) => {
+            PROJECTION_STATUS_SEGMENT_MISS_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
+        (ProjectionSegment::BrowserFrame, true) => {
+            PROJECTION_BROWSER_FRAME_SEGMENT_HIT_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
+        (ProjectionSegment::BrowserFrame, false) => {
+            PROJECTION_BROWSER_FRAME_SEGMENT_MISS_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
+        (ProjectionSegment::BrowserRowsWindow, true) => {
+            PROJECTION_BROWSER_ROWS_SEGMENT_HIT_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
+        (ProjectionSegment::BrowserRowsWindow, false) => {
+            PROJECTION_BROWSER_ROWS_SEGMENT_MISS_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
+        (ProjectionSegment::MapPanel, true) => {
+            PROJECTION_MAP_SEGMENT_HIT_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
+        (ProjectionSegment::MapPanel, false) => {
+            PROJECTION_MAP_SEGMENT_MISS_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
+        (ProjectionSegment::WaveformOverlay, true) => {
+            PROJECTION_WAVEFORM_SEGMENT_HIT_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
+        (ProjectionSegment::WaveformOverlay, false) => {
+            PROJECTION_WAVEFORM_SEGMENT_MISS_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+/// No-op segment-level projection-cache tracer for non-profiling builds.
+fn trace_projection_segment_lookup(_segment: ProjectionSegment, _hit: bool) {}
 
 #[cfg(feature = "native-bridge-metrics")]
 #[inline(always)]
@@ -622,13 +736,138 @@ struct NativeProjectionCacheKey {
     transport_running: bool,
 }
 
+/// Status-bar projection key scoped to status and footer-affecting state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct StatusProjectionCacheKey {
+    status_text_hash: u64,
+    status_tone: u8,
+    browser_visible_len: usize,
+    browser_selected_paths_len: usize,
+    browser_anchor_visible: Option<usize>,
+    browser_search_query_hash: u64,
+    browser_search_busy: bool,
+    selected_column: usize,
+}
+
+/// Browser metadata/chrome projection key scoped to non-row browser state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BrowserFrameProjectionCacheKey {
+    browser_visible_len: usize,
+    browser_selected_visible: Option<usize>,
+    browser_anchor_visible: Option<usize>,
+    browser_selected_paths_len: usize,
+    browser_search_query_hash: u64,
+    browser_search_busy: bool,
+    browser_sort: u8,
+    browser_tab: u8,
+    browser_similarity_follow_loaded: bool,
+    loaded_wav_hash: Option<u64>,
+}
+
+/// Browser rows projection key scoped to windowed row content.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BrowserRowsProjectionCacheKey {
+    browser_visible_rows_revision: u64,
+    browser_visible_len: usize,
+    browser_selected_visible: Option<usize>,
+    browser_anchor_visible: Option<usize>,
+    browser_selected_paths_len: usize,
+    browser_selected_paths_hash: u64,
+    browser_tab: u8,
+}
+
+/// Map-panel projection key scoped to similarity-map-affecting state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MapProjectionCacheKey {
+    map_open: bool,
+    map_zoom_bits: u32,
+    map_pan_x_bits: u32,
+    map_pan_y_bits: u32,
+    map_selected_sample_id_hash: Option<u64>,
+    map_hovered_sample_id_hash: Option<u64>,
+    map_umap_version_hash: u64,
+    map_bounds_source_id_hash: Option<u64>,
+    map_bounds_umap_version_hash: Option<u64>,
+    map_points_source_id_hash: Option<u64>,
+    map_points_umap_version_hash: Option<u64>,
+    map_last_query: Option<MapQueryBoundsKey>,
+    map_points_revision: u64,
+    browser_tab: u8,
+}
+
+/// Waveform projection key scoped to waveform panel/chrome state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct WaveformProjectionCacheKey {
+    waveform_signature: Option<u64>,
+    waveform_cursor_milli: Option<u16>,
+    waveform_playhead_milli: Option<u16>,
+    waveform_selection_start_milli: Option<u16>,
+    waveform_selection_end_milli: Option<u16>,
+    waveform_view_start_milli: u16,
+    waveform_view_end_milli: u16,
+    waveform_loop_enabled: bool,
+    waveform_bpm_bits: Option<u32>,
+    loaded_wav_hash: Option<u64>,
+    transport_running: bool,
+}
+
 #[derive(Clone, Debug, Default)]
 struct NativeProjectionCache {
     app_key: Option<NativeProjectionCacheKey>,
     app_model: Option<NativeAppModel>,
+    status_key: Option<StatusProjectionCacheKey>,
+    browser_frame_key: Option<BrowserFrameProjectionCacheKey>,
+    browser_rows_key: Option<BrowserRowsProjectionCacheKey>,
+    map_key: Option<MapProjectionCacheKey>,
+    waveform_key: Option<WaveformProjectionCacheKey>,
 }
 
 impl NativeProjectionCache {
+    /// Copy browser metadata fields while preserving any retained row vector.
+    fn apply_browser_frame(
+        model: &mut NativeAppModel,
+        frame: crate::app_core::actions::NativeBrowserPanelModel,
+    ) {
+        model.browser.visible_count = frame.visible_count;
+        model.browser.selected_visible_row = frame.selected_visible_row;
+        model.browser.selected_path_count = frame.selected_path_count;
+        model.browser.search_query = frame.search_query;
+        model.browser.search_placeholder = frame.search_placeholder;
+        model.browser.busy = frame.busy;
+        model.browser.sort_label = frame.sort_label;
+        model.browser.active_tab_label = frame.active_tab_label;
+        model.browser.focused_sample_label = frame.focused_sample_label;
+        model.browser.anchor_visible_row = frame.anchor_visible_row;
+    }
+
+    /// Refresh non-segmented app-model fields from current controller state.
+    fn refresh_non_segment_fields(model: &mut NativeAppModel, controller: &mut AppController) {
+        let selected_column = native_shell::selected_column_index(&controller.ui);
+        model.selected_column = selected_column;
+        model.transport_running = controller.is_playing();
+        model.volume = controller.ui.volume.clamp(0.0, 1.0);
+        model.sources = native_shell::project_sources_model(&controller.ui);
+        model.sources_label = format!("Sources ({})", model.sources.rows.len());
+        model.columns = [
+            crate::app_core::actions::NativeColumnModel::new(
+                "Trash",
+                controller.ui.browser.trash.len(),
+            ),
+            crate::app_core::actions::NativeColumnModel::new(
+                "Samples",
+                controller.ui.browser.neutral.len(),
+            ),
+            crate::app_core::actions::NativeColumnModel::new(
+                "Keep",
+                controller.ui.browser.keep.len(),
+            ),
+        ];
+        model.progress_overlay = native_shell::project_progress_overlay_model(&controller.ui);
+        model.confirm_prompt = native_shell::project_confirm_prompt_model(&controller.ui);
+        model.drag_overlay = native_shell::project_drag_overlay_model(&controller.ui);
+        model.update = native_shell::project_update_model(&controller.ui);
+    }
+
     fn resolve_or_project(
         &mut self,
         controller: &mut AppController,
@@ -642,15 +881,107 @@ impl NativeProjectionCache {
             return model.clone();
         }
         trace_projection_cache_lookup(false);
-        let model = project(controller);
+        let selected_column = native_shell::selected_column_index(&controller.ui);
+        let status_key = build_status_projection_key(controller, selected_column);
+        let browser_frame_key = build_browser_frame_projection_key(controller);
+        let browser_rows_key = build_browser_rows_projection_key(controller);
+        let map_key = build_map_projection_key(controller);
+        let waveform_key = build_waveform_projection_key(controller);
+        let mut model = if let Some(existing) = self.app_model.clone() {
+            existing
+        } else {
+            trace_projection_segment_lookup(ProjectionSegment::StatusBar, false);
+            trace_projection_segment_lookup(ProjectionSegment::BrowserFrame, false);
+            trace_projection_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
+            trace_projection_segment_lookup(ProjectionSegment::MapPanel, false);
+            trace_projection_segment_lookup(ProjectionSegment::WaveformOverlay, false);
+            let model = project(controller);
+            self.app_key = Some(key);
+            self.app_model = Some(model.clone());
+            self.status_key = Some(status_key);
+            self.browser_frame_key = Some(browser_frame_key);
+            self.browser_rows_key = Some(browser_rows_key);
+            self.map_key = Some(map_key);
+            self.waveform_key = Some(waveform_key);
+            return model;
+        };
+
+        if self.status_key.as_ref() == Some(&status_key) {
+            trace_projection_segment_lookup(ProjectionSegment::StatusBar, true);
+        } else {
+            trace_projection_segment_lookup(ProjectionSegment::StatusBar, false);
+            model.status = native_shell::project_status_model(controller, selected_column);
+            model.status_text = controller.ui.status.text.clone();
+            self.status_key = Some(status_key);
+        }
+
+        let browser_frame_changed = self.browser_frame_key.as_ref() != Some(&browser_frame_key);
+        if browser_frame_changed {
+            trace_projection_segment_lookup(ProjectionSegment::BrowserFrame, false);
+            let frame = native_shell::project_browser_panel_frame_model(controller);
+            Self::apply_browser_frame(&mut model, frame);
+            model.browser_chrome = native_shell::project_browser_chrome_model(
+                &controller.ui,
+                model.browser.visible_count,
+            );
+            model.browser_actions = native_shell::project_browser_actions_model(&controller.ui);
+            self.browser_frame_key = Some(browser_frame_key);
+        } else {
+            trace_projection_segment_lookup(ProjectionSegment::BrowserFrame, true);
+        }
+
+        let browser_rows_changed = self.browser_rows_key.as_ref() != Some(&browser_rows_key);
+        if browser_frame_changed || browser_rows_changed {
+            trace_projection_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
+            model.browser.rows = native_shell::project_browser_rows_model(
+                controller,
+                model.browser.visible_count,
+                model.browser.selected_visible_row,
+                model.browser.anchor_visible_row,
+            );
+            self.browser_rows_key = Some(browser_rows_key);
+        } else {
+            trace_projection_segment_lookup(ProjectionSegment::BrowserRowsWindow, true);
+        }
+
+        if self.map_key.as_ref() == Some(&map_key) {
+            trace_projection_segment_lookup(ProjectionSegment::MapPanel, true);
+        } else {
+            trace_projection_segment_lookup(ProjectionSegment::MapPanel, false);
+            model.map = native_shell::project_map_model(controller);
+            self.map_key = Some(map_key);
+        }
+
+        if self.waveform_key.as_ref() == Some(&waveform_key) {
+            trace_projection_segment_lookup(ProjectionSegment::WaveformOverlay, true);
+        } else {
+            trace_projection_segment_lookup(ProjectionSegment::WaveformOverlay, false);
+            model.waveform = native_shell::project_waveform_model(controller);
+            model.waveform_chrome = native_shell::project_waveform_chrome_model(&controller.ui);
+            self.waveform_key = Some(waveform_key);
+        }
+
+        Self::refresh_non_segment_fields(&mut model, controller);
         self.app_key = Some(key);
         self.app_model = Some(model.clone());
         model
     }
 
+    #[cfg(test)]
+    /// Fully clear retained projection cache state.
     fn invalidate(&mut self) {
         self.app_key = None;
         self.app_model = None;
+        self.status_key = None;
+        self.browser_frame_key = None;
+        self.browser_rows_key = None;
+        self.map_key = None;
+        self.waveform_key = None;
+    }
+
+    /// Invalidate only the global key so the next pull runs segment refresh.
+    fn invalidate_key_only(&mut self) {
+        self.app_key = None;
     }
 }
 
@@ -784,6 +1115,159 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
             .as_ref()
             .map(|path| hash_projection_field(path.as_os_str())),
         volume_milli: (controller.ui.volume.clamp(0.0, 1.0) * 1000.0).round() as u16,
+        transport_running: controller.is_playing(),
+    }
+}
+
+/// Build a status-bar projection key from the current controller snapshot.
+fn build_status_projection_key(
+    controller: &AppController,
+    selected_column: usize,
+) -> StatusProjectionCacheKey {
+    use crate::app_core::state::StatusTone;
+    StatusProjectionCacheKey {
+        status_text_hash: hash_projection_field(&controller.ui.status.text),
+        status_tone: match controller.ui.status.status_tone {
+            StatusTone::Idle => 0,
+            StatusTone::Busy => 1,
+            StatusTone::Info => 2,
+            StatusTone::Warning => 3,
+            StatusTone::Error => 4,
+        },
+        browser_visible_len: controller.ui.browser.visible.len(),
+        browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
+        browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
+        browser_search_query_hash: hash_projection_field(&controller.ui.browser.search_query),
+        browser_search_busy: controller.ui.browser.search_busy,
+        selected_column,
+    }
+}
+
+/// Build a browser-frame projection key from the current controller snapshot.
+fn build_browser_frame_projection_key(
+    controller: &AppController,
+) -> BrowserFrameProjectionCacheKey {
+    use crate::app_core::state::{SampleBrowserSort, SampleBrowserTab};
+    BrowserFrameProjectionCacheKey {
+        browser_visible_len: controller.ui.browser.visible.len(),
+        browser_selected_visible: controller.ui.browser.selected_visible,
+        browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
+        browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
+        browser_search_query_hash: hash_projection_field(&controller.ui.browser.search_query),
+        browser_search_busy: controller.ui.browser.search_busy,
+        browser_sort: match controller.ui.browser.sort {
+            SampleBrowserSort::ListOrder => 0,
+            SampleBrowserSort::Similarity => 1,
+            SampleBrowserSort::PlaybackAgeAsc => 2,
+            SampleBrowserSort::PlaybackAgeDesc => 3,
+        },
+        browser_tab: match controller.ui.browser.active_tab {
+            SampleBrowserTab::List => 0,
+            SampleBrowserTab::Map => 1,
+        },
+        browser_similarity_follow_loaded: controller.ui.browser.similarity_sort_follow_loaded,
+        loaded_wav_hash: controller
+            .ui
+            .loaded_wav
+            .as_ref()
+            .map(|path| hash_projection_field(path.as_os_str())),
+    }
+}
+
+/// Build a browser-rows projection key from the current controller snapshot.
+fn build_browser_rows_projection_key(controller: &AppController) -> BrowserRowsProjectionCacheKey {
+    use crate::app_core::state::SampleBrowserTab;
+    BrowserRowsProjectionCacheKey {
+        browser_visible_rows_revision: controller.ui.browser.visible_rows_revision,
+        browser_visible_len: controller.ui.browser.visible.len(),
+        browser_selected_visible: controller.ui.browser.selected_visible,
+        browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
+        browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
+        browser_selected_paths_hash: hash_projection_field(&controller.ui.browser.selected_paths),
+        browser_tab: match controller.ui.browser.active_tab {
+            SampleBrowserTab::List => 0,
+            SampleBrowserTab::Map => 1,
+        },
+    }
+}
+
+/// Build a map-panel projection key from the current controller snapshot.
+fn build_map_projection_key(controller: &AppController) -> MapProjectionCacheKey {
+    use crate::app_core::state::{MapQueryBounds, SampleBrowserTab};
+    MapProjectionCacheKey {
+        map_open: controller.ui.map.open,
+        map_zoom_bits: controller.ui.map.zoom.to_bits(),
+        map_pan_x_bits: controller.ui.map.pan.x.to_bits(),
+        map_pan_y_bits: controller.ui.map.pan.y.to_bits(),
+        map_selected_sample_id_hash: hash_optional_string(
+            controller.ui.map.selected_sample_id.as_deref(),
+        ),
+        map_hovered_sample_id_hash: hash_optional_string(
+            controller.ui.map.hovered_sample_id.as_deref(),
+        ),
+        map_umap_version_hash: hash_projection_field(&controller.ui.map.umap_version),
+        map_bounds_source_id_hash: hash_optional_string(
+            controller.ui.map.cached_bounds_source_id.as_deref(),
+        ),
+        map_bounds_umap_version_hash: hash_optional_string(
+            controller.ui.map.cached_bounds_umap_version.as_deref(),
+        ),
+        map_points_source_id_hash: hash_optional_string(
+            controller.ui.map.cached_points_source_id.as_deref(),
+        ),
+        map_points_umap_version_hash: hash_optional_string(
+            controller.ui.map.cached_points_umap_version.as_deref(),
+        ),
+        map_last_query: controller
+            .ui
+            .map
+            .last_query
+            .map(|bounds: MapQueryBounds| MapQueryBoundsKey::from_bounds(bounds)),
+        map_points_revision: controller.ui.map.cached_points_revision,
+        browser_tab: match controller.ui.browser.active_tab {
+            SampleBrowserTab::List => 0,
+            SampleBrowserTab::Map => 1,
+        },
+    }
+}
+
+/// Build a waveform projection key from the current controller snapshot.
+fn build_waveform_projection_key(controller: &AppController) -> WaveformProjectionCacheKey {
+    let waveform_cursor_milli = controller
+        .ui
+        .waveform
+        .cursor
+        .map(|value| (value.clamp(0.0, 1.0) * 1000.0).round() as u16);
+    let waveform_playhead_milli = controller.ui.waveform.playhead.visible.then_some(
+        (controller.ui.waveform.playhead.position.clamp(0.0, 1.0) * 1000.0).round() as u16,
+    );
+    let (waveform_selection_start_milli, waveform_selection_end_milli) = controller
+        .ui
+        .waveform
+        .selection
+        .map(|selection| {
+            let start = (selection.start().clamp(0.0, 1.0) * 1000.0).round() as u16;
+            let end = (selection.end().clamp(0.0, 1.0) * 1000.0).round() as u16;
+            (Some(start.min(end)), Some(start.max(end)))
+        })
+        .unwrap_or((None, None));
+    WaveformProjectionCacheKey {
+        waveform_signature: controller.ui.waveform.waveform_image_signature,
+        waveform_cursor_milli,
+        waveform_playhead_milli,
+        waveform_selection_start_milli,
+        waveform_selection_end_milli,
+        waveform_view_start_milli: (controller.ui.waveform.view.start.clamp(0.0, 1.0) * 1000.0)
+            .round() as u16,
+        waveform_view_end_milli: (controller.ui.waveform.view.end.clamp(0.0, 1.0) * 1000.0).round()
+            as u16,
+        waveform_loop_enabled: controller.ui.waveform.loop_enabled,
+        waveform_bpm_bits: controller.ui.waveform.bpm_value.map(f32::to_bits),
+        loaded_wav_hash: controller
+            .ui
+            .loaded_wav
+            .as_ref()
+            .map(|path| hash_projection_field(path.as_os_str())),
         transport_running: controller.is_playing(),
     }
 }
@@ -1024,7 +1508,7 @@ impl SempalNativeBridge {
         let after_key = build_projection_cache_key(&self.controller);
         if before_key != after_key {
             self.mark_dirty_for_action(&action);
-            self.projection_cache.invalidate();
+            self.projection_cache.invalidate_key_only();
         }
     }
 
@@ -1142,7 +1626,7 @@ impl SempalNativeBridge {
             self.controller.clear_derived_dirty_node(node);
         }
         if projection_key_dirty {
-            self.projection_cache.invalidate();
+            self.projection_cache.invalidate_key_only();
         }
         if profiling {
             let flush_duration = flush_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -1360,11 +1844,12 @@ mod tests {
         assert_eq!(projections, 1);
 
         controller.ui.status.text = String::from("changed");
-        let _ = cache.resolve_or_project(&mut controller, |controller| {
+        let refreshed = cache.resolve_or_project(&mut controller, |controller| {
             projections += 1;
             controller.project_native_app_model()
         });
-        assert_eq!(projections, 2);
+        assert_eq!(projections, 1);
+        assert_eq!(refreshed.status_text, "changed");
     }
 
     #[test]

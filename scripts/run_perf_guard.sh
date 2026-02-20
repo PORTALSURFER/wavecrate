@@ -230,6 +230,58 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
                     f"pull={stage_p95['pull_stage']} "
                     f"projection={stage_p95['projection_stage']}"
                 )
+    segment_reports = []
+    for gui in gui_reports:
+        attribution = gui.get("interaction_segment_attribution")
+        if not isinstance(attribution, dict):
+            segment_reports.append(None)
+            continue
+        segment_reports.append(attribution)
+    if any(isinstance(segment, dict) for segment in segment_reports):
+        if not all(isinstance(segment, dict) for segment in segment_reports):
+            print(
+                f"[perf_guard] WARN: {key} segment attribution missing for one or more runs",
+                file=sys.stderr,
+            )
+        else:
+            segment_name_by_scenario = {
+                "interactive_projection": "status_bar",
+                "hover_latency": "browser_frame",
+                "wheel_latency": "browser_rows_window",
+                "browser_focus_preview_latency": "browser_frame",
+                "browser_focus_commit_latency": "browser_rows_window",
+                "map_pan_proxy_latency": "map_panel",
+                "waveform_interaction_latency": "waveform_overlay",
+            }
+            segment_name = segment_name_by_scenario.get(key)
+            if segment_name is not None:
+                values = []
+                missing_segment_field = False
+                for segment in segment_reports:
+                    summary = segment.get(segment_name)
+                    if not isinstance(summary, dict):
+                        missing_segment_field = True
+                        break
+                    values.append(
+                        (
+                            int(summary.get("hit_count", 0)),
+                            int(summary.get("miss_count", 0)),
+                            int(summary.get("p95_us", 0)),
+                        )
+                    )
+                if missing_segment_field:
+                    print(
+                        f"[perf_guard] WARN: {key} segment attribution is missing segment `{segment_name}`",
+                        file=sys.stderr,
+                    )
+                else:
+                    hits = int(median([value[0] for value in values]))
+                    misses = int(median([value[1] for value in values]))
+                    segment_p95 = int(median([value[2] for value in values]))
+                    print(
+                        f"[perf_guard]   {key} segment[{segment_name}] "
+                        f"hit={hits} miss={misses} p95={segment_p95}us"
+                    )
 
     if p95 > warn_limit:
         warned = True

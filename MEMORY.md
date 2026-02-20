@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-20T13:14:20Z
+Last Updated: 2026-02-20T13:45:34Z
 Updated By: Codex
 
 ## Purpose
@@ -10,21 +10,24 @@ Updated By: Codex
 
 ## Current Session (2026-02-20 UTC)
 
-- I am finalizing and shipping the Phase 5 stabilization batch for runtime
-  projection and dirty-path behavior.
-- In `src/app_core/native_shell.rs`, I hardened browser retained-cache lifecycle
-  handling and cache-entry validation, and added targeted tests for revision
-  invalidation, same-length selected-path updates, and stale cached-row
-  refreshes.
-- In `src/app_core/native_bridge.rs`, I added tests that lock waveform
-  overlay-vs-view dirty classification semantics and refresh policy behavior.
-- In `src/app/controller/state/runtime/derived_graph.rs`, I added test coverage
-  for overlay dirty-reason propagation through descendants.
-- In `docs/plans/active/runtime_performance_exec_plan.md`, I documented Phase 5
-  stabilization milestones as complete.
-- Full `bash scripts/ci_local.sh` is now green after the stabilization updates.
+- I am implementing and shipping the Phase 6 segment-aware projection refresh
+  milestone for runtime performance.
+- In `src/app_core/native_bridge.rs`, I switched projection-cache miss handling
+  from full reprojection to retained-model segment refresh (`status`,
+  `browser frame`, `browser rows`, `map`, `waveform`) keyed per segment.
+- In `src/app_core/native_bridge.rs`, I replaced full cache invalidation in
+  high-frequency derived/wheel paths with key-only invalidation so retained
+  segment state survives to the next pull.
+- In `src/app_core/native_shell.rs`, I split browser projection into frame
+  metadata and row-window helpers to support independent browser segment refresh.
+- In `src/bin/bench/gui.rs` and `scripts/run_perf_guard.sh`, I added
+  `interaction_segment_attribution` output/logging alongside existing stage
+  attribution in perf reports.
+- In `docs/plans/active/runtime_performance_exec_plan.md`, I added and checked
+  off the Phase 6 milestone checklist.
+- Full `bash scripts/ci_local.sh` is green after these changes.
 
 ## Work Notes
 
-- Pending commit/push: Phase 5 stabilization hardening/tests/docs on top of the
-  prior projection and dirty-path performance work.
+- Pending commit/push: Phase 6 segment-aware projection refresh and perf
+  attribution updates.

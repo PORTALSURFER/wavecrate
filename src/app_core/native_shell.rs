@@ -167,7 +167,8 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
     }
 }
 
-fn project_update_model(ui: &UiState) -> UpdatePanelModel {
+/// Project update panel state into the native shell model.
+pub(crate) fn project_update_model(ui: &UiState) -> UpdatePanelModel {
     let update_status = UpdateStatus::from(ui.update.status.clone());
     let status = match update_status {
         UpdateStatus::Idle => UpdateStatusModel::Idle,
@@ -225,7 +226,8 @@ fn project_update_model(ui: &UiState) -> UpdatePanelModel {
     }
 }
 
-fn project_map_model(controller: &mut AppController) -> MapPanelModel {
+/// Project map panel state into the native shell model.
+pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel {
     let active = matches!(
         SampleBrowserTab::from(controller.ui.browser.active_tab),
         SampleBrowserTab::Map
@@ -458,7 +460,8 @@ fn short_sample_label(sample_id: &str) -> String {
     }
 }
 
-fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel {
+/// Project browser action availability for native action surfaces.
+pub(crate) fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel {
     let has_focus = ui.browser.selected_visible.is_some();
     let has_selection = has_focus || !ui.browser.selected_paths.is_empty();
     BrowserActionsModel {
@@ -468,7 +471,8 @@ fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel {
     }
 }
 
-fn project_progress_overlay_model(ui: &UiState) -> ProgressOverlayModel {
+/// Project progress-overlay state for native runtime rendering.
+pub(crate) fn project_progress_overlay_model(ui: &UiState) -> ProgressOverlayModel {
     ProgressOverlayModel {
         visible: ui.progress.visible,
         modal: ui.progress.modal,
@@ -481,7 +485,8 @@ fn project_progress_overlay_model(ui: &UiState) -> ProgressOverlayModel {
     }
 }
 
-fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
+/// Project active confirm prompt metadata for modal rendering.
+pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
     if let Some(SampleBrowserActionPrompt::Rename { target, name }) =
         ui.browser.pending_action.clone()
     {
@@ -556,7 +561,8 @@ fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
     ConfirmPromptModel::default()
 }
 
-fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
+/// Project drag-overlay feedback content for active drag sessions.
+pub(crate) fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
     let active = ui.drag.payload.is_some();
     if !active {
         return DragOverlayModel::default();
@@ -588,7 +594,11 @@ fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
     }
 }
 
-fn project_status_model(controller: &AppController, selected_column: usize) -> StatusBarModel {
+/// Project status-bar text segments for the native shell footer.
+pub(crate) fn project_status_model(
+    controller: &AppController,
+    selected_column: usize,
+) -> StatusBarModel {
     let left = controller.ui.status.text.clone();
     let center = format!(
         "rows: {} | selected: {} | anchor: {} | search: {}{}",
@@ -634,7 +644,8 @@ pub(crate) fn selected_column_index(ui: &UiState) -> usize {
         .unwrap_or(1)
 }
 
-fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
+/// Project source/folder panel data for the native sidebar.
+pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
     let focused_folder = ui
         .sources
         .folders
@@ -700,7 +711,11 @@ fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
     }
 }
 
-fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
+/// Project browser metadata that excludes the rendered row vector.
+///
+/// This is split from row projection so callers can retain stable frame fields
+/// and refresh only row content when needed.
+pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> BrowserPanelModel {
     let selected_visible_row = controller.ui.browser.selected_visible;
     let selected_path_count = controller.ui.browser.selected_paths.len();
     let search_query = controller.ui.browser.search_query.clone();
@@ -716,22 +731,35 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
         .map(view_model::sample_display_label);
     let anchor_visible_row = controller.ui.browser.selection_anchor_visible;
     let visible_count = controller.ui.browser.visible.len();
+    BrowserPanelModel {
+        visible_count,
+        selected_visible_row,
+        selected_path_count,
+        search_query,
+        search_placeholder,
+        busy,
+        sort_label,
+        active_tab_label,
+        focused_sample_label,
+        anchor_visible_row,
+        rows: Vec::new(),
+    }
+}
+
+/// Project browser row content for the current visible window.
+///
+/// This helper is intentionally separated from metadata projection so callers
+/// can refresh row content independently of browser header/search/tab state.
+pub(crate) fn project_browser_rows_model(
+    controller: &mut AppController,
+    visible_count: usize,
+    selected_visible_row: Option<usize>,
+    anchor_visible_row: Option<usize>,
+) -> Vec<BrowserRowModel> {
     if controller.ui.browser.active_tab == SampleBrowserTab::Map {
         clear_projected_browser_row_cache(controller);
         clear_projected_selected_paths_lookup(controller);
-        return BrowserPanelModel {
-            visible_count,
-            selected_visible_row,
-            selected_path_count,
-            search_query,
-            search_placeholder,
-            busy,
-            sort_label,
-            active_tab_label,
-            focused_sample_label,
-            anchor_visible_row,
-            rows: Vec::new(),
-        };
+        return Vec::new();
     }
     let mut rows = Vec::new();
     refresh_projected_browser_row_cache(controller);
@@ -768,20 +796,19 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
                 .with_bucket_label(bucket_label),
         );
     }
+    rows
+}
 
-    BrowserPanelModel {
-        visible_count,
-        selected_visible_row,
-        selected_path_count,
-        search_query,
-        search_placeholder,
-        busy,
-        sort_label,
-        active_tab_label,
-        focused_sample_label,
-        anchor_visible_row,
-        rows,
-    }
+/// Project browser panel metadata and row window into one panel model.
+pub(crate) fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
+    let mut panel = project_browser_panel_frame_model(controller);
+    panel.rows = project_browser_rows_model(
+        controller,
+        panel.visible_count,
+        panel.selected_visible_row,
+        panel.anchor_visible_row,
+    );
+    panel
 }
 
 /// Build a stable signature for the browser selected-path list.
@@ -885,7 +912,11 @@ fn project_cached_browser_row(
     Some(cached)
 }
 
-fn project_browser_chrome_model(ui: &UiState, visible_count: usize) -> BrowserChromeModel {
+/// Project browser toolbar/tab/footer labels.
+pub(crate) fn project_browser_chrome_model(
+    ui: &UiState,
+    visible_count: usize,
+) -> BrowserChromeModel {
     BrowserChromeModel {
         samples_tab_label: String::from("Samples"),
         map_tab_label: String::from("Similarity map"),
@@ -926,7 +957,8 @@ fn browser_render_window(
     (window_start, window_len)
 }
 
-fn project_waveform_model(controller: &mut AppController) -> WaveformPanelModel {
+/// Project waveform panel data for native waveform rendering.
+pub(crate) fn project_waveform_model(controller: &mut AppController) -> WaveformPanelModel {
     let ui = &controller.ui;
     let view_span = (ui.waveform.view.end - ui.waveform.view.start).clamp(0.000_1, 1.0) as f32;
     let zoom_percent = (100.0 / view_span).round().clamp(100.0, 9999.0);
@@ -993,7 +1025,8 @@ fn project_waveform_image_data(
     ImageRgba::new(image.size[0], image.size[1], pixels)
 }
 
-fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel {
+/// Project waveform chrome labels and action-hint copy.
+pub(crate) fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel {
     WaveformChromeModel {
         transport_hint: if ui.waveform.loop_enabled {
             String::from("Loop enabled")

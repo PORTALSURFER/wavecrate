@@ -54,6 +54,9 @@ pub(super) struct GuiBenchResult {
     pub(super) waveform_pan_zoom_adjacent_latency: stats::LatencySummary,
     /// Stage-attributed latency summaries for focused interaction scenarios.
     pub(super) interaction_stage_attribution: GuiInteractionStageAttribution,
+    /// Segment-attributed latency/counter summaries for retained projection slices.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) interaction_segment_attribution: Option<GuiInteractionSegmentAttribution>,
 }
 
 /// Stage-attributed interaction latency summaries keyed by scenario.
@@ -73,6 +76,32 @@ pub(super) struct GuiInteractionStageAttribution {
     pub(super) map_pan_proxy_latency: stats::StageLatencyBreakdown,
     /// Stage-attributed latency for waveform interaction actions.
     pub(super) waveform_interaction_latency: stats::StageLatencyBreakdown,
+}
+
+/// Segment-level latency/counter summary emitted in benchmark reports.
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct SegmentAttributionSummary {
+    /// Segment-level cache hit count when available.
+    pub(super) hit_count: u64,
+    /// Segment-level cache miss count when available.
+    pub(super) miss_count: u64,
+    /// Segment-level p95 latency proxy in microseconds.
+    pub(super) p95_us: u64,
+}
+
+/// Segment-attributed benchmark summaries keyed by projection segment.
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct GuiInteractionSegmentAttribution {
+    /// Status-bar segment summary.
+    pub(super) status_bar: SegmentAttributionSummary,
+    /// Browser-frame metadata/chrome segment summary.
+    pub(super) browser_frame: SegmentAttributionSummary,
+    /// Browser row-window segment summary.
+    pub(super) browser_rows_window: SegmentAttributionSummary,
+    /// Map-panel segment summary.
+    pub(super) map_panel: SegmentAttributionSummary,
+    /// Waveform overlay/panel segment summary.
+    pub(super) waveform_overlay: SegmentAttributionSummary,
 }
 
 /// Scoped benchmark workspace that keeps seed artifacts alive for the benchmark
@@ -159,6 +188,35 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         total: waveform_interaction_latency_total,
         stages: waveform_interaction_latency_stages,
     } = waveform_interaction_latency;
+    // Bench runs in controller-only mode, so cache hit/miss counters are not
+    // available here; keep counts at zero while still emitting p95 segment proxies.
+    let interaction_segment_attribution = Some(GuiInteractionSegmentAttribution {
+        status_bar: SegmentAttributionSummary {
+            hit_count: 0,
+            miss_count: 0,
+            p95_us: interactive_projection_stages.projection_stage.p95_us,
+        },
+        browser_frame: SegmentAttributionSummary {
+            hit_count: 0,
+            miss_count: 0,
+            p95_us: browser_focus_preview_latency_stages.projection_stage.p95_us,
+        },
+        browser_rows_window: SegmentAttributionSummary {
+            hit_count: 0,
+            miss_count: 0,
+            p95_us: wheel_latency_stages.projection_stage.p95_us,
+        },
+        map_panel: SegmentAttributionSummary {
+            hit_count: 0,
+            miss_count: 0,
+            p95_us: map_pan_proxy_latency_stages.projection_stage.p95_us,
+        },
+        waveform_overlay: SegmentAttributionSummary {
+            hit_count: 0,
+            miss_count: 0,
+            p95_us: waveform_interaction_latency_stages.projection_stage.p95_us,
+        },
+    });
     Ok(GuiBenchResult {
         seeded_rows,
         app_model_projection,
@@ -183,6 +241,7 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
             map_pan_proxy_latency: map_pan_proxy_latency_stages,
             waveform_interaction_latency: waveform_interaction_latency_stages,
         },
+        interaction_segment_attribution,
     })
 }
 
