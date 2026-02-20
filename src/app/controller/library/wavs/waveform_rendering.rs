@@ -2,16 +2,16 @@ use super::*;
 use crate::app::controller::playback::audio_cache::FileMetadata;
 use crate::app::controller::state::runtime::WaveformRefreshReason;
 use crate::app::state::WaveformView;
-use crate::app::state::waveform_image_signature;
 use crate::waveform::DecodedWaveform;
 use std::fs;
 use std::path::Path;
 
+/// Waveform render-cache reuse and translation helpers.
+mod reuse;
+
 const MIN_VIEW_WIDTH_BASE: f64 = 1e-9;
 const MIN_SAMPLES_PER_PIXEL: f32 = 1.0;
 pub(crate) const DEFAULT_TRANSIENT_SENSITIVITY: f32 = 0.6;
-/// Pixel tolerance for reusing cached waveform images on adjacent pan/zoom updates.
-const WAVEFORM_VIEW_CACHE_REUSE_PIXELS: f64 = 2.0;
 
 /// Return the dominant waveform refresh reason when multiple requests coalesce.
 fn merge_waveform_refresh_reason(
@@ -56,20 +56,19 @@ pub(crate) struct WaveformRenderMeta {
 impl WaveformRenderMeta {
     /// Check whether two render targets describe the same view and layout.
     pub(crate) fn matches(&self, other: &WaveformRenderMeta) -> bool {
-        let width = (self.view_end - self.view_start)
-            .abs()
-            .max((other.view_end - other.view_start).abs())
-            .max(1e-9);
-        let pixels = self.size[0].max(1) as f64;
-        let eps = (width * WAVEFORM_VIEW_CACHE_REUSE_PIXELS / pixels).max(1e-9);
+        let (self_frame_bucket, self_start_bucket, self_end_bucket) =
+            reuse::quantized_view_window(self);
+        let (other_frame_bucket, other_start_bucket, other_end_bucket) =
+            reuse::quantized_view_window(other);
         let fade_eps = (1.0 / self.size[0].max(1) as f32).max(1e-6);
         self.samples_len == other.samples_len
             && self.size == other.size
             && self.texture_width == other.texture_width
             && self.channel_view == other.channel_view
             && self.channels == other.channels
-            && (self.view_start - other.view_start).abs() < eps
-            && (self.view_end - other.view_end).abs() < eps
+            && self_frame_bucket == other_frame_bucket
+            && self_start_bucket == other_start_bucket
+            && self_end_bucket == other_end_bucket
             && edit_fade_matches(self.edit_fade, other.edit_fade, fade_eps)
     }
 }
@@ -235,7 +234,18 @@ impl AppController {
         let frames_in_view = end_frame.saturating_sub(start_frame).max(1);
         let upper_width = frames_in_view.min(super::MAX_TEXTURE_WIDTH as usize);
         let lower_bound = width.min(super::MAX_TEXTURE_WIDTH) as usize;
-        let effective_width = target.min(upper_width).max(lower_bound) as u32;
+        let max_texture_width = upper_width.max(lower_bound) as u32;
+        let raw_texture_width = target.min(upper_width).max(lower_bound) as u32;
+        let effective_width = reuse::stabilized_texture_width(
+            raw_texture_width,
+            lower_bound as u32,
+            max_texture_width,
+            self.sample_view
+                .waveform
+                .render_meta
+                .as_ref()
+                .map(|meta| meta.texture_width),
+        );
         let desired_meta = WaveformRenderMeta {
             view_start: view.start,
             view_end: view.end,
@@ -259,6 +269,18 @@ impl AppController {
         {
             return;
         }
+        if let (Some(previous_meta), Some(previous_image)) = (
+            self.sample_view.waveform.render_meta.as_ref(),
+            self.ui.waveform.image.as_ref(),
+        ) && let Some(translated) = self.translate_waveform_image_if_possible(
+            decoded,
+            previous_meta,
+            previous_image,
+            &desired_meta,
+        ) {
+            self.store_waveform_image(translated, desired_meta);
+            return;
+        }
         let color_image = self
             .sample_view
             .renderer
@@ -272,14 +294,7 @@ impl AppController {
                 desired_meta.edit_fade,
             );
         // Keep waveform image metadata in the renderer to preserve precision.
-        self.ui.waveform.image = Some(color_image);
-        self.ui.waveform.waveform_image_signature = self
-            .ui
-            .waveform
-            .image
-            .as_ref()
-            .and_then(waveform_image_signature);
-        self.sample_view.waveform.render_meta = Some(desired_meta);
+        self.store_waveform_image(color_image, desired_meta);
     }
 
     pub(crate) fn refresh_waveform_transients(&mut self) {

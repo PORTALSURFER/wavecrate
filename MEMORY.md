@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-20T21:07:18Z
+Last Updated: 2026-02-20T21:40:48Z
 Updated By: Codex
 
 ## Purpose
@@ -10,19 +10,23 @@ Updated By: Codex
 
 ## Current Session (2026-02-20 UTC)
 
-- I am planning and implementing the next highest-ROI responsiveness milestone
-  for sempal/radiant.
-- In `vendor/radiant/src/gui_runtime/native_vello.rs`, I tightened action
-  invalidation routing so high-frequency browser/search/prompt actions now use
-  model+overlay invalidation without forcing static-scene dirty upfront.
-- I added frame-state/test coverage in radiant for the new
-  model-overlay-dirty semantics.
-- In `docs/plans/active/runtime_performance_exec_plan.md`, I added Phase 7
-  (invalidation scope precision + waveform adjacent latency follow-ups).
-- In `docs/plans/active/todo.md`, I updated the ordered queue for Phase 7
-  follow-on items.
+- I am implementing Phase 7 waveform responsiveness milestones and validating
+  them with focused regression coverage.
+- I completed waveform cache-hit improvements by quantizing render metadata
+  matching and stabilizing texture-width bucketing in
+  `src/app/controller/library/wavs/waveform_rendering.rs`.
+- I completed a partial/delta waveform pan reuse path (shift + edge patch
+  render) in
+  `src/app/controller/library/wavs/waveform_rendering/reuse.rs`.
+- I added/updated regression tests in
+  `src/app/controller/tests/waveform_nav_render.rs` for adjacent pan behavior
+  and texture-width stability.
+- I updated active plan/todo status in
+  `docs/plans/active/runtime_performance_exec_plan.md` and
+  `docs/plans/active/todo.md`.
 
 ## Work Notes
 
-- Pending commit/push: radiant Phase 7 item 1 invalidation-scope refinement +
-  active performance plan updates.
+- Pending in this lane: capture perf/profiler evidence for
+  `waveform_pan_zoom_adjacent_latency`, then continue radiant static-segment
+  dirty-mask precision work.

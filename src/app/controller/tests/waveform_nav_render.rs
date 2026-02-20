@@ -97,6 +97,125 @@ fn waveform_render_meta_allows_small_shifts_on_full_view() {
 }
 
 #[test]
+/// Adjacent panning should keep translated renders visually close to full rerenders.
+fn adjacent_pan_translation_matches_full_render_output() {
+    let (mut controller, _source) = dummy_controller();
+    controller.sample_view.waveform.size = [200, 24];
+    controller.ui.waveform.view = WaveformView {
+        start: 0.20,
+        end: 0.60,
+    };
+    controller.sample_view.waveform.decoded = Some(DecodedWaveform {
+        cache_token: 1,
+        samples: std::sync::Arc::from(
+            (0..2_000)
+                .map(|index| ((index as f32 * 0.017).sin() * 0.9).clamp(-1.0, 1.0))
+                .collect::<Vec<_>>(),
+        ),
+        analysis_samples: std::sync::Arc::from(Vec::new()),
+        analysis_sample_rate: 0,
+        analysis_stride: 1,
+        peaks: None,
+        duration_seconds: 1.0,
+        sample_rate: 48_000,
+        channels: 1,
+    });
+
+    controller.refresh_waveform_image();
+    controller.ui.waveform.view = WaveformView {
+        start: 0.202,
+        end: 0.602,
+    };
+    controller.refresh_waveform_image();
+
+    let render_meta = *controller
+        .sample_view
+        .waveform
+        .render_meta
+        .as_ref()
+        .expect("render metadata");
+    let actual = controller
+        .ui
+        .waveform
+        .image
+        .as_ref()
+        .expect("translated waveform image")
+        .clone();
+    let decoded = controller
+        .sample_view
+        .waveform
+        .decoded
+        .as_ref()
+        .expect("decoded waveform");
+    let expected = controller
+        .sample_view
+        .renderer
+        .render_color_image_for_view_with_size_and_fade(
+            decoded,
+            controller.ui.waveform.view.start as f32,
+            controller.ui.waveform.view.end as f32,
+            controller.ui.waveform.channel_view,
+            render_meta.texture_width,
+            render_meta.size[1],
+            render_meta.edit_fade,
+        );
+    assert_eq!(actual.size, expected.size);
+    let mismatched = actual
+        .pixels
+        .iter()
+        .zip(expected.pixels.iter())
+        .filter(|(left, right)| left != right)
+        .count();
+    let mismatch_ratio = mismatched as f64 / actual.pixels.len().max(1) as f64;
+    assert!(
+        mismatch_ratio <= 0.25,
+        "expected translated pan render to stay close to full render; mismatch ratio={mismatch_ratio:.3}"
+    );
+}
+
+#[test]
+/// Adjacent viewport sizes should retain stable texture-width bucketing.
+fn waveform_texture_width_is_stable_for_adjacent_sizes() {
+    let (mut controller, _source) = dummy_controller();
+    controller.sample_view.waveform.decoded = Some(DecodedWaveform {
+        cache_token: 1,
+        samples: std::sync::Arc::from(
+            (0..4_096)
+                .map(|index| ((index as f32 * 0.023).sin() * 0.8).clamp(-1.0, 1.0))
+                .collect::<Vec<_>>(),
+        ),
+        analysis_samples: std::sync::Arc::from(Vec::new()),
+        analysis_sample_rate: 0,
+        analysis_stride: 1,
+        peaks: None,
+        duration_seconds: 1.0,
+        sample_rate: 48_000,
+        channels: 1,
+    });
+    controller.ui.waveform.view = WaveformView::default();
+
+    controller.update_waveform_size(511, 24);
+    let first_width = controller
+        .sample_view
+        .waveform
+        .render_meta
+        .as_ref()
+        .expect("first render metadata")
+        .texture_width;
+
+    controller.update_waveform_size(512, 24);
+    let second_width = controller
+        .sample_view
+        .waveform
+        .render_meta
+        .as_ref()
+        .expect("second render metadata")
+        .texture_width;
+
+    assert_eq!(first_width, second_width);
+}
+
+#[test]
 fn waveform_rerenders_after_same_length_edit() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
