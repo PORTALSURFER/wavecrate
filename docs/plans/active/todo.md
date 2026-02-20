@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-20T21:40:48Z
+Last updated (UTC): 2026-02-20T22:00:02Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -33,3 +33,6 @@ Purpose:
   metadata matching and stabilized texture-width bucketing.
 - Completed Phase 7 delta pan milestone: added waveform translation reuse
   (shift + edge patch render) with adjacent-pan regression coverage.
+- Completed deferred waveform seek-commit milestone: native seek interactions
+  now queue/debounce replay seeks, reducing waveform interaction apply-stage
+  cost with regression coverage.

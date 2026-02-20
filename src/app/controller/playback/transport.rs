@@ -9,6 +9,11 @@ const SELECTION_START_SNAP_VIEW_FRACTION: f32 = 0.03;
 const SELECTION_START_SNAP_SECONDS: f32 = 0.1;
 /// Debounce window before persisting live volume slider updates.
 const VOLUME_PERSIST_DEBOUNCE: Duration = Duration::from_millis(120);
+/// Debounce window for committing queued waveform seek playback updates.
+///
+/// This keeps drag-heavy seek interactions cheap by applying the final replay
+/// seek shortly after pointer activity settles.
+const WAVEFORM_SEEK_COMMIT_DEBOUNCE: Duration = Duration::from_millis(24);
 
 pub(crate) fn start_selection_drag(controller: &mut AppController, position: f32) {
     controller.selection_state.bpm_scale_beats = None;
@@ -303,6 +308,34 @@ pub(crate) fn seek_to(controller: &mut AppController, position: f32) {
     if let Err(err) = controller.play_audio(looped, Some(position)) {
         controller.set_status(err, StatusTone::Error);
     }
+}
+
+/// Queue a waveform seek request and defer playback restart to frame prep.
+pub(crate) fn queue_waveform_seek_milli(controller: &mut AppController, position_milli: u16) {
+    let clamped = position_milli.min(1000);
+    controller.set_waveform_cursor_milli(clamped);
+    controller.runtime.pending_waveform_seek_milli = Some(clamped);
+    controller.runtime.pending_waveform_seek_not_before =
+        Some(Instant::now() + WAVEFORM_SEEK_COMMIT_DEBOUNCE);
+}
+
+/// Flush a deferred waveform seek once its debounce window has elapsed.
+pub(crate) fn flush_pending_waveform_seek_commit(controller: &mut AppController) {
+    if controller
+        .runtime
+        .pending_waveform_seek_not_before
+        .is_some_and(|deadline| Instant::now() < deadline)
+    {
+        return;
+    }
+    controller.runtime.pending_waveform_seek_not_before = None;
+    let Some(position_milli) = controller.runtime.pending_waveform_seek_milli.take() else {
+        return;
+    };
+    let normalized = (f32::from(position_milli) / 1000.0).clamp(0.0, 1.0);
+    seek_to(controller, normalized);
+    controller.set_waveform_cursor(normalized);
+    controller.focus_waveform();
 }
 
 fn bpm_snap_step(controller: &AppController) -> Option<f32> {

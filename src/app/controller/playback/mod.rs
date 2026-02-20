@@ -179,6 +179,11 @@ impl AppController {
         self.focus_waveform();
     }
 
+    /// Queue a waveform seek from UI actions and defer commit-side playback work.
+    pub fn queue_waveform_seek_milli(&mut self, position_milli: u16) {
+        transport::queue_waveform_seek_milli(self, position_milli);
+    }
+
     /// Set waveform cursor using a 0..=1000 milli position from UI actions.
     pub fn set_waveform_cursor_milli(&mut self, position_milli: u16) {
         let normalized = normalized_from_milli(position_milli);
@@ -272,6 +277,17 @@ impl AppController {
     /// Flush a pending debounced volume-setting persistence if due.
     pub(crate) fn flush_pending_volume_setting(&mut self) {
         transport::flush_pending_volume_setting(self);
+    }
+
+    /// Flush a pending deferred waveform seek commit if due.
+    pub(crate) fn flush_pending_waveform_seek_commit(&mut self) {
+        transport::flush_pending_waveform_seek_commit(self);
+    }
+
+    #[cfg(test)]
+    /// Expose queued deferred waveform seek target for controller/runtime tests.
+    pub(crate) fn pending_waveform_seek_milli_for_test(&self) -> Option<u16> {
+        self.runtime.pending_waveform_seek_milli
     }
 
     /// Toggle between play and pause.
@@ -694,5 +710,36 @@ mod tests {
 
         controller.flush_pending_age_update_commit();
         assert!(controller.runtime.pending_age_update_commit.is_some());
+    }
+
+    /// Queued waveform seek updates should defer commit-side playback work.
+    #[test]
+    fn queue_waveform_seek_milli_defers_commit_until_deadline() {
+        let (mut controller, _source) = test_support::dummy_controller();
+
+        controller.queue_waveform_seek_milli(500);
+
+        assert_eq!(controller.pending_waveform_seek_milli_for_test(), Some(500));
+        controller.flush_pending_waveform_seek_commit();
+        assert_eq!(controller.pending_waveform_seek_milli_for_test(), Some(500));
+    }
+
+    /// Expired deferred waveform seek commits should clear queued seek state.
+    #[test]
+    fn flush_pending_waveform_seek_commit_clears_queue_after_deadline() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        controller.queue_waveform_seek_milli(750);
+        controller.runtime.pending_waveform_seek_not_before =
+            Some(Instant::now() - Duration::from_millis(1));
+
+        controller.flush_pending_waveform_seek_commit();
+
+        assert!(controller.runtime.pending_waveform_seek_milli.is_none());
+        assert!(
+            controller
+                .runtime
+                .pending_waveform_seek_not_before
+                .is_none()
+        );
     }
 }

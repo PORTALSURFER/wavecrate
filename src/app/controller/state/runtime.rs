@@ -56,6 +56,10 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) pending_similarity_refresh: Option<PendingFocusedSimilarityRefresh>,
     /// Earliest frame time when deferred focused-similarity refresh may run.
     pub(crate) pending_similarity_refresh_not_before: Option<Instant>,
+    /// Latest queued waveform seek target from high-frequency interaction updates.
+    pub(crate) pending_waveform_seek_milli: Option<u16>,
+    /// Earliest frame time when a deferred waveform seek commit may run.
+    pub(crate) pending_waveform_seek_not_before: Option<Instant>,
     /// Reused map-query SQLite connections keyed by source id.
     pub(crate) map_query_connections: HashMap<SourceId, Connection>,
     /// Tracks whether staged delete recovery has been scheduled for this session.
@@ -98,6 +102,8 @@ impl ControllerRuntimeState {
             pending_age_update_commit_not_before: None,
             pending_similarity_refresh: None,
             pending_similarity_refresh_not_before: None,
+            pending_waveform_seek_milli: None,
+            pending_waveform_seek_not_before: None,
             map_query_connections: HashMap::new(),
             delete_recovery_started: false,
             #[cfg(test)]

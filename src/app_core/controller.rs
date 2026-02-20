@@ -73,6 +73,7 @@ impl AppControllerNativeRuntimeExt for AppController {
         self.flush_pending_volume_setting();
         self.flush_pending_age_update_commit();
         self.flush_pending_focused_similarity_highlight_refresh();
+        self.flush_pending_waveform_seek_commit();
         self.flush_pending_waveform_image_refresh();
         if animation_only {
             self.record_frame_timing_for_fps();
@@ -168,7 +169,7 @@ impl AppControllerNativeRuntimeExt for AppController {
             }
             NativeUiAction::CommitVolumeSetting => self.commit_volume_setting(),
             NativeUiAction::SeekWaveform { position_milli } => {
-                self.seek_waveform_milli(position_milli)
+                self.queue_waveform_seek_milli(position_milli)
             }
             NativeUiAction::SetWaveformCursor { position_milli } => {
                 self.set_waveform_cursor_milli(position_milli)
@@ -212,5 +213,17 @@ mod tests {
         controller.prepare_native_frame(true);
 
         assert!(controller.average_fps().is_some());
+    }
+
+    #[test]
+    /// Native seek actions should queue deferred playback commit work.
+    fn apply_native_seek_queues_deferred_seek_commit() {
+        let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+
+        controller.apply_native_ui_action(crate::app_core::actions::NativeUiAction::SeekWaveform {
+            position_milli: 420,
+        });
+
+        assert_eq!(controller.pending_waveform_seek_milli_for_test(), Some(420));
     }
 }
