@@ -68,11 +68,11 @@
       the native bridge before projection pulls.
 - [x] Introduce explicit derived-state dependency graph with dirty propagation
       for high-churn UI subsystems.
-- [ ] Reduce per-frame allocation churn in shell/text paths via reusable
+- [x] Reduce per-frame allocation churn in shell/text paths via reusable
       buffers, fewer string clones, and stronger cache keys.
 - [x] Reduce input-to-apply latency by tightening pending-input scheduling in
       native event-loop handling.
-- [ ] Reduce worker-pool lock contention in analysis job claim/decode queues.
+- [x] Reduce worker-pool lock contention in analysis job claim/decode queues.
 - [x] Add per-stage telemetry for invalidation/rebuild rates and queue delays.
 
 ## Validation

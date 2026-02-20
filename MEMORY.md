@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-20T10:14:13Z
+Last Updated: 2026-02-20T10:44:14Z
 Updated By: Codex
 
 ## Purpose
@@ -10,21 +10,24 @@ Updated By: Codex
 
 ## Current Session (2026-02-20 UTC)
 
-- I am implementing the Phase 4 runtime milestone from
+- I am implementing the remaining runtime performance milestones from
   `docs/plans/active/runtime_performance_exec_plan.md`.
-- I am landing a derived-state dependency graph in controller runtime state and
-  wiring native bridge action handling to mark dirty sources and flush derived
-  updates before model pulls.
-- I added derived-graph telemetry counters and tests covering dirty propagation
-  and projection-key invalidation behavior.
-- `bash scripts/ci_local.sh` is green (perf guard warn-only drift), and I am
-  preparing commit/push for this milestone.
+- I refactored radiant text-layout caching to use bounded text-atom interning
+  and allocation-free layout keys on cache hits, plus added atom-cache profile
+  counters in native vello profiling output.
+- I replaced the decoded analysis work queue mutex path with a lock-free
+  bounded queue core (`crossbeam-queue`) plus wait-state signaling, and reduced
+  dedup lock scope by merging pending/inflight bookkeeping into one mutex.
+- `bash scripts/ci_local.sh` is green after these changes, and I pushed the
+  accompanying `vendor/radiant` commit before preparing the root commit/push.
 
 ## Work Notes
 
 - Latest pushed commits:
   - `vendor/radiant`: `4b13777` (`layout(native_shell): slotize overlay visuals and waveform annotations`)
-  - `sempal`: `29279211` (`perf(browser): add staged pipeline cache and interaction benchmarks`)
-- Pending commit (not yet pushed): Phase 4 derived-state dirty-graph
-  integration across `src/app/controller/state/runtime*`,
-  `src/app/controller/runtime_graph.rs`, and `src/app_core/native_bridge.rs`.
+  - `sempal`: `e8cf8840` (`perf(runtime): add derived-state dirty graph flush path`)
+- Latest pushed commit in `vendor/radiant`:
+  - `cb9999b` (`perf(native_vello): intern text layout keys and atom cache`)
+- Pending commit (not yet pushed): root-repo allocation + queue-contention
+  milestone across `src/app/controller/library/analysis_jobs/pool/job_claim/*`,
+  dependency/docs updates, and submodule pointer bump.

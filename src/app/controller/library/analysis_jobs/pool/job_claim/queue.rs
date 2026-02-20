@@ -1,15 +1,20 @@
 use super::dedup::DedupTracker;
 use crate::app::controller::library::analysis_jobs::db;
 use crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
-use std::collections::VecDeque;
+use crossbeam_queue::ArrayQueue;
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::{atomic::AtomicBool, atomic::AtomicUsize, atomic::Ordering};
 use std::time::Duration;
 use tracing::warn;
 
+/// Shared wait state used only for condvar blocking and wake-up coordination.
+#[derive(Default)]
+struct QueueWaitState;
+
 /// Bounded queue of decoded analysis work with dedup tracking.
 pub(crate) struct DecodedQueue {
-    queue: Mutex<VecDeque<DecodedWork>>,
+    queue: ArrayQueue<DecodedWork>,
+    wait_state: Mutex<QueueWaitState>,
     ready: Condvar,
     len: AtomicUsize,
     max_size: usize,
@@ -26,11 +31,13 @@ impl DecodedQueue {
 
     /// Creates a decoded queue with a wakeup to notify claimers when space frees.
     pub(crate) fn new_with_wakeup(max_size: usize, claim_wakeup: Option<Arc<ClaimWakeup>>) -> Self {
+        let max_size = max_size.max(1);
         Self {
-            queue: Mutex::new(VecDeque::new()),
+            queue: ArrayQueue::new(max_size),
+            wait_state: Mutex::new(QueueWaitState),
             ready: Condvar::new(),
             len: AtomicUsize::new(0),
-            max_size: max_size.max(1),
+            max_size,
             dedup: DedupTracker::new(),
             claim_wakeup,
         }
@@ -50,48 +57,56 @@ impl DecodedQueue {
     ///
     /// Returns false if the job is already pending or shutdown interrupts the wait.
     pub(crate) fn push(&self, work: DecodedWork, shutdown: &AtomicBool) -> bool {
-        let mut guard = self.lock_queue();
+        let mut pending_work = work;
         let mut marked_pending = false;
-        if work.job.job_type == db::ANALYZE_SAMPLE_JOB_TYPE {
-            if !self.dedup.mark_pending(work.job.id) {
+        if pending_work.job.job_type == db::ANALYZE_SAMPLE_JOB_TYPE {
+            if !self.dedup.mark_pending(pending_work.job.id) {
                 return false;
             }
             marked_pending = true;
         }
+
         let mut last_full_log = std::time::Instant::now() - Duration::from_secs(1);
-        while guard.len() >= self.max_size {
+        loop {
             if shutdown.load(Ordering::Relaxed) {
                 if marked_pending {
-                    self.dedup.clear_pending(work.job.id);
+                    self.dedup.clear_pending(pending_work.job.id);
                 }
                 return false;
             }
-            if last_full_log.elapsed() >= Duration::from_secs(1) {
-                warn!(
-                    "Decoded queue full; depth={}, max={}",
-                    guard.len(),
-                    self.max_size
-                );
-                last_full_log = std::time::Instant::now();
+            match self.queue.push(pending_work) {
+                Ok(()) => {
+                    self.len.fetch_add(1, Ordering::Relaxed);
+                    self.ready.notify_one();
+                    return true;
+                }
+                Err(rejected) => {
+                    pending_work = rejected;
+                    if last_full_log.elapsed() >= Duration::from_secs(1) {
+                        warn!(
+                            "Decoded queue full; depth={}, max={}",
+                            self.len(),
+                            self.max_size
+                        );
+                        last_full_log = std::time::Instant::now();
+                    }
+                    let guard = self.lock_wait_state();
+                    if self.queue.is_full() && !shutdown.load(Ordering::Relaxed) {
+                        let (_next_guard, _) = self.wait_ready(guard);
+                    }
+                }
             }
-            let (next_guard, _) = self.wait_ready(guard);
-            guard = next_guard;
         }
-        guard.push_back(work);
-        self.len.fetch_add(1, Ordering::Relaxed);
-        self.ready.notify_one();
-        true
     }
 
     #[cfg(test)]
     /// Pops a single decoded job, blocking until one is available.
     pub(crate) fn pop(&self, shutdown: &AtomicBool) -> Option<DecodedWork> {
-        let mut guard = self.lock_queue();
         loop {
             if shutdown.load(Ordering::Relaxed) {
                 return None;
             }
-            if let Some(work) = guard.pop_front() {
+            if let Some(work) = self.queue.pop() {
                 if work.job.job_type == db::ANALYZE_SAMPLE_JOB_TYPE {
                     self.dedup.clear_pending(work.job.id);
                 }
@@ -99,39 +114,38 @@ impl DecodedQueue {
                 if let Some(wakeup) = self.claim_wakeup.as_ref() {
                     wakeup.notify();
                 }
-                self.ready.notify_one();
+                self.ready.notify_all();
                 return Some(work);
             }
-            let (next_guard, _) = self.wait_ready(guard);
-            guard = next_guard;
+            let guard = self.lock_wait_state();
+            if self.queue.is_empty() && !shutdown.load(Ordering::Relaxed) {
+                let (_next_guard, _) = self.wait_ready(guard);
+            }
         }
     }
 
     /// Pops up to `max` decoded jobs for batch processing.
     pub(crate) fn pop_batch(&self, shutdown: &AtomicBool, max: usize) -> (Vec<DecodedWork>, u64) {
-        let mut guard = self.lock_queue();
         let start = std::time::Instant::now();
+        let max = max.max(1);
         loop {
             if shutdown.load(Ordering::Relaxed) {
                 return (Vec::new(), start.elapsed().as_millis() as u64);
             }
-            if let Some(work) = guard.pop_front() {
-                let mut batch = Vec::with_capacity(max.max(1));
+            if let Some(work) = self.queue.pop() {
+                let mut batch = Vec::with_capacity(max);
                 batch.push(work);
                 self.len.fetch_sub(1, Ordering::Relaxed);
                 while batch.len() < max {
-                    if let Some(next) = guard.pop_front() {
-                        batch.push(next);
-                        self.len.fetch_sub(1, Ordering::Relaxed);
-                    } else {
+                    let Some(next) = self.queue.pop() else {
                         break;
-                    }
+                    };
+                    batch.push(next);
+                    self.len.fetch_sub(1, Ordering::Relaxed);
                 }
-                {
-                    for item in &batch {
-                        if item.job.job_type == db::ANALYZE_SAMPLE_JOB_TYPE {
-                            self.dedup.clear_pending(item.job.id);
-                        }
+                for item in &batch {
+                    if item.job.job_type == db::ANALYZE_SAMPLE_JOB_TYPE {
+                        self.dedup.clear_pending(item.job.id);
                     }
                 }
                 self.ready.notify_all();
@@ -140,8 +154,10 @@ impl DecodedQueue {
                 }
                 return (batch, start.elapsed().as_millis() as u64);
             }
-            let (next_guard, _) = self.wait_ready(guard);
-            guard = next_guard;
+            let guard = self.lock_wait_state();
+            if self.queue.is_empty() && !shutdown.load(Ordering::Relaxed) {
+                let (_next_guard, _) = self.wait_ready(guard);
+            }
         }
     }
 
@@ -155,18 +171,19 @@ impl DecodedQueue {
         self.len.load(Ordering::Relaxed)
     }
 
-    fn lock_queue(&self) -> std::sync::MutexGuard<'_, VecDeque<DecodedWork>> {
-        self.queue.lock().unwrap_or_else(|poisoned| {
-            warn!("Decoded queue lock poisoned; recovering.");
+    /// Lock the wait-state mutex and recover from poisoning.
+    fn lock_wait_state(&self) -> std::sync::MutexGuard<'_, QueueWaitState> {
+        self.wait_state.lock().unwrap_or_else(|poisoned| {
+            warn!("Decoded queue wait-state lock poisoned; recovering.");
             poisoned.into_inner()
         })
     }
 
     fn wait_ready<'a>(
         &self,
-        guard: std::sync::MutexGuard<'a, VecDeque<DecodedWork>>,
+        guard: std::sync::MutexGuard<'a, QueueWaitState>,
     ) -> (
-        std::sync::MutexGuard<'a, VecDeque<DecodedWork>>,
+        std::sync::MutexGuard<'a, QueueWaitState>,
         std::sync::WaitTimeoutResult,
     ) {
         self.ready
@@ -247,22 +264,10 @@ mod tests {
     }
 
     #[test]
-    fn poisoned_queue_lock_recovers_on_push() {
-        let queue = DecodedQueue::new(4);
-        let shutdown = AtomicBool::new(false);
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _guard = queue.queue.lock().unwrap();
-            panic!("poison");
-        }));
-        assert!(queue.push(make_work(11), &shutdown));
-        assert_eq!(queue.len(), 1);
-    }
-
-    #[test]
     fn push_blocks_until_space_is_available() {
         let queue = Arc::new(DecodedQueue::new(1));
         let shutdown = Arc::new(AtomicBool::new(false));
-        assert!(queue.push(make_work(1), &shutdown));
+        assert!(queue.push(make_work(1), shutdown.as_ref()));
 
         let (started_tx, started_rx) = mpsc::channel();
         let (done_tx, done_rx) = mpsc::channel();
