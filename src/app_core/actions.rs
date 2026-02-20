@@ -27,6 +27,9 @@ pub type NativeAppModel = radiant::app::AppModel;
 /// Native runtime frame build result payload.
 pub type NativeFrameBuildResult = radiant::app::FrameBuildResult;
 
+/// Native runtime projection-dirty segment mask.
+pub type NativeDirtySegments = radiant::app::DirtySegments;
+
 /// Native runtime motion-only model payload.
 pub type NativeMotionModel = radiant::app::NativeMotionModel;
 

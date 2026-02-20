@@ -125,6 +125,11 @@ Enables native render profiling logs when the build enables the `gui-performance
 cargo feature. Accepted values include `1`, `true`, `on`, and `yes` (case
 variants are accepted in the current implementation).
 
+- `SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE`
+Enables bridge-driven dirty-segment gating for native static frame rebuilds in
+the `winit + vello` runtime. Accepted values: `1`, `true`, `on`, `yes`
+(case-insensitive).
+
 - `SEMPAL_NATIVE_BRIDGE_PROFILE`
 Enables native bridge profiling logs when the build enables the
 `native-bridge-metrics` cargo feature. Accepted values: `1`, `true`, `on`, `yes`
