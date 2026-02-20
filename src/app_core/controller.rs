@@ -70,6 +70,7 @@ pub trait AppControllerNativeRuntimeExt {
 
 impl AppControllerNativeRuntimeExt for AppController {
     fn prepare_native_frame(&mut self, animation_only: bool) {
+        self.flush_pending_volume_setting();
         if animation_only {
             self.record_frame_timing_for_fps();
             if !self.is_playing() {
@@ -157,8 +158,9 @@ impl AppControllerNativeRuntimeExt for AppController {
             NativeUiAction::CancelProgress => self.request_progress_cancel(),
             NativeUiAction::ToggleLoopPlayback => self.toggle_loop(),
             NativeUiAction::SetVolume { value_milli } => {
-                self.set_volume((f32::from(value_milli.min(1000)) / 1000.0).clamp(0.0, 1.0))
+                self.set_volume_live((f32::from(value_milli.min(1000)) / 1000.0).clamp(0.0, 1.0))
             }
+            NativeUiAction::CommitVolumeSetting => self.commit_volume_setting(),
             NativeUiAction::SeekWaveform { position_milli } => {
                 self.seek_waveform_milli(position_milli)
             }

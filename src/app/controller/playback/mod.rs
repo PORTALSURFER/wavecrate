@@ -230,9 +230,19 @@ impl AppController {
         transport::record_play_start(self, position);
     }
 
-    /// Set the output volume multiplier.
-    pub fn set_volume(&mut self, volume: f32) {
-        transport::set_volume(self, volume);
+    /// Apply the output volume multiplier immediately without persisting config.
+    pub fn set_volume_live(&mut self, volume: f32) {
+        transport::set_volume_live(self, volume);
+    }
+
+    /// Persist the current output volume setting if a live change is pending.
+    pub fn commit_volume_setting(&mut self) {
+        transport::commit_volume_setting(self);
+    }
+
+    /// Flush a pending debounced volume-setting persistence if due.
+    pub(crate) fn flush_pending_volume_setting(&mut self) {
+        transport::flush_pending_volume_setting(self);
     }
 
     /// Toggle between play and pause.

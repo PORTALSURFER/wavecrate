@@ -21,6 +21,8 @@ mod selection_bpm_scale;
 mod selection_undo;
 mod transient_options;
 mod trash;
+/// Volume slider controller tests.
+mod volume;
 mod waveform;
 mod waveform_nav_cursor;
 mod waveform_nav_render;

@@ -17,6 +17,12 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) similarity_prep_last_attempt: Option<Instant>,
     pub(crate) similarity_prep_force_full_analysis_next: bool,
     pub(crate) auto_sync_last_by_source: HashMap<SourceId, Instant>,
+    /// True when a live volume change is pending persistence.
+    pub(crate) volume_persist_dirty: bool,
+    /// Debounce deadline for committing a pending volume write.
+    pub(crate) volume_persist_deadline: Option<Instant>,
+    /// Last persisted volume in milli-units (`0..=1000`).
+    pub(crate) last_persisted_volume_milli: Option<u16>,
     /// Tracks whether staged delete recovery has been scheduled for this session.
     pub(crate) delete_recovery_started: bool,
     #[cfg(test)]
@@ -46,6 +52,9 @@ impl ControllerRuntimeState {
             similarity_prep_last_attempt: None,
             similarity_prep_force_full_analysis_next: false,
             auto_sync_last_by_source: HashMap::new(),
+            volume_persist_dirty: false,
+            volume_persist_deadline: None,
+            last_persisted_volume_milli: None,
             delete_recovery_started: false,
             #[cfg(test)]
             progress_cancel_after: None,

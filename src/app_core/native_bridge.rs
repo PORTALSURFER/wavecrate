@@ -50,6 +50,8 @@ enum InteractionActionClass {
     MapPanProxy,
     /// Waveform seek/cursor/selection/zoom actions.
     Waveform,
+    /// Volume slider interaction actions.
+    Volume,
 }
 
 #[cfg(feature = "native-bridge-metrics")]
@@ -86,6 +88,12 @@ static ACTION_WAVEFORM_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 /// Accumulated waveform-class interaction action duration in nanoseconds.
 static ACTION_WAVEFORM_DURATION_NS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Total count of volume-class interaction actions.
+static ACTION_VOLUME_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Accumulated volume-class interaction action duration in nanoseconds.
+static ACTION_VOLUME_DURATION_NS: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 static FRAME_RESULT_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
@@ -145,6 +153,9 @@ fn classify_action_interaction(action: &NativeUiAction) -> Option<InteractionAct
         | NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
         | NativeUiAction::ZoomWaveformFull => Some(InteractionActionClass::Waveform),
+        NativeUiAction::SetVolume { .. } | NativeUiAction::CommitVolumeSetting => {
+            Some(InteractionActionClass::Volume)
+        }
         _ => None,
     }
 }
@@ -165,6 +176,8 @@ fn maybe_log_bridge_profile() {
     let map_proxy_ns = ACTION_MAP_PROXY_DURATION_NS.load(Ordering::Relaxed);
     let waveform_count = ACTION_WAVEFORM_COUNT.load(Ordering::Relaxed);
     let waveform_ns = ACTION_WAVEFORM_DURATION_NS.load(Ordering::Relaxed);
+    let volume_count = ACTION_VOLUME_COUNT.load(Ordering::Relaxed);
+    let volume_ns = ACTION_VOLUME_DURATION_NS.load(Ordering::Relaxed);
     let frame_count = FRAME_RESULT_COUNT.load(Ordering::Relaxed);
     let frame_anim_count = FRAME_RESULT_ANIMATION_COUNT.load(Ordering::Relaxed);
     let primitive_sum = FRAME_RESULT_PRIMITIVES_TOTAL.load(Ordering::Relaxed);
@@ -209,6 +222,11 @@ fn maybe_log_bridge_profile() {
     } else {
         ms_from_ns(waveform_ns) / waveform_count as f64
     };
+    let volume_avg_ms = if volume_count == 0 {
+        0.0
+    } else {
+        ms_from_ns(volume_ns) / volume_count as f64
+    };
     let avg_primitives_per_frame = if frame_count == 0 {
         0.0
     } else {
@@ -226,11 +244,12 @@ fn maybe_log_bridge_profile() {
         wheel_count,
         map_proxy_count,
         waveform_count,
+        volume_count,
         frame_count,
         frame_anim_count,
         "native bridge profiling: pull_model prep_ms={:.3} project_ms={:.3} \
          pull_motion prep_ms={:.3} project_ms={:.3} action_ms={:.3} \
-         wheel_action_ms={:.3} map_proxy_action_ms={:.3} waveform_action_ms={:.3} \
+         wheel_action_ms={:.3} map_proxy_action_ms={:.3} waveform_action_ms={:.3} volume_action_ms={:.3} \
          avg_primitives_per_frame={:.2} avg_text_runs_per_frame={:.2}",
         pull_model_avg_prep_ms,
         pull_model_avg_project_ms,
@@ -240,6 +259,7 @@ fn maybe_log_bridge_profile() {
         wheel_avg_ms,
         map_proxy_avg_ms,
         waveform_avg_ms,
+        volume_avg_ms,
         avg_primitives_per_frame,
         avg_text_runs_per_frame
     );
@@ -355,6 +375,10 @@ fn trace_action_interaction(kind: InteractionActionClass, duration: Duration) {
         InteractionActionClass::Waveform => {
             ACTION_WAVEFORM_COUNT.fetch_add(1, Ordering::Relaxed);
             saturating_add_duration(&ACTION_WAVEFORM_DURATION_NS, duration);
+        }
+        InteractionActionClass::Volume => {
+            ACTION_VOLUME_COUNT.fetch_add(1, Ordering::Relaxed);
+            saturating_add_duration(&ACTION_VOLUME_DURATION_NS, duration);
         }
     }
 }
