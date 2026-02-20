@@ -73,6 +73,12 @@ static ACTION_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 static ACTION_DURATION_NS: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
+/// Total number of projection-cache lookups that reused a cached model.
+static PROJECTION_CACHE_HIT_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Total number of projection-cache lookups that required a fresh projection.
+static PROJECTION_CACHE_MISS_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 /// Total count of wheel-class interaction actions.
 static ACTION_WHEEL_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
@@ -105,6 +111,12 @@ static WAVEFORM_FLUSH_DURATION_NS: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 /// Total number of emitted native waveform actions across queued flushes.
 static WAVEFORM_FLUSH_EMITTED_ACTIONS_TOTAL: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Total number of waveform image refresh requests applied during derived flush.
+static WAVEFORM_IMAGE_REFRESH_APPLY_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Total number of waveform image refresh requests skipped as overlay-only.
+static WAVEFORM_IMAGE_REFRESH_SKIP_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 /// Total number of derived-graph flush passes before projection.
 static DERIVED_FLUSH_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -193,6 +205,8 @@ fn maybe_log_bridge_profile() {
     let pull_motion_project = PULL_MOTION_PROJECT_NS.load(Ordering::Relaxed);
     let action_count = ACTION_COUNT.load(Ordering::Relaxed);
     let action_ns = ACTION_DURATION_NS.load(Ordering::Relaxed);
+    let projection_cache_hit_count = PROJECTION_CACHE_HIT_COUNT.load(Ordering::Relaxed);
+    let projection_cache_miss_count = PROJECTION_CACHE_MISS_COUNT.load(Ordering::Relaxed);
     let wheel_count = ACTION_WHEEL_COUNT.load(Ordering::Relaxed);
     let wheel_ns = ACTION_WHEEL_DURATION_NS.load(Ordering::Relaxed);
     let map_proxy_count = ACTION_MAP_PROXY_COUNT.load(Ordering::Relaxed);
@@ -205,6 +219,10 @@ fn maybe_log_bridge_profile() {
     let waveform_flush_ns = WAVEFORM_FLUSH_DURATION_NS.load(Ordering::Relaxed);
     let waveform_flush_emitted_actions =
         WAVEFORM_FLUSH_EMITTED_ACTIONS_TOTAL.load(Ordering::Relaxed);
+    let waveform_image_refresh_apply_count =
+        WAVEFORM_IMAGE_REFRESH_APPLY_COUNT.load(Ordering::Relaxed);
+    let waveform_image_refresh_skip_count =
+        WAVEFORM_IMAGE_REFRESH_SKIP_COUNT.load(Ordering::Relaxed);
     let derived_flush_count = DERIVED_FLUSH_COUNT.load(Ordering::Relaxed);
     let derived_flush_ns = DERIVED_FLUSH_DURATION_NS.load(Ordering::Relaxed);
     let derived_dirty_source_total = DERIVED_DIRTY_SOURCE_TOTAL.load(Ordering::Relaxed);
@@ -305,8 +323,10 @@ fn maybe_log_bridge_profile() {
         frame_anim_count,
         "native bridge profiling: pull_model prep_ms={:.3} project_ms={:.3} \
          pull_motion prep_ms={:.3} project_ms={:.3} action_ms={:.3} \
+         projection_cache hits={} misses={} \
          wheel_action_ms={:.3} map_proxy_action_ms={:.3} waveform_action_ms={:.3} volume_action_ms={:.3} \
          waveform_flush_ms={:.3} waveform_flush_avg_actions={:.2} \
+         waveform_image_refresh apply={} skip={} \
          derived_flush_ms={:.3} derived_dirty_sources={:.2} derived_dirty_computed={:.2} \
          avg_primitives_per_frame={:.2} avg_text_runs_per_frame={:.2}",
         pull_model_avg_prep_ms,
@@ -314,12 +334,16 @@ fn maybe_log_bridge_profile() {
         pull_motion_avg_prep_ms,
         pull_motion_avg_project_ms,
         action_avg_ms,
+        projection_cache_hit_count,
+        projection_cache_miss_count,
         wheel_avg_ms,
         map_proxy_avg_ms,
         waveform_avg_ms,
         volume_avg_ms,
         waveform_flush_avg_ms,
         waveform_flush_avg_actions,
+        waveform_image_refresh_apply_count,
+        waveform_image_refresh_skip_count,
         derived_flush_avg_ms,
         derived_flush_avg_dirty_sources,
         derived_flush_avg_dirty_computed,
@@ -424,6 +448,21 @@ fn trace_action_duration(_duration: Duration) {}
 
 #[cfg(feature = "native-bridge-metrics")]
 #[inline(always)]
+/// Track whether an app-model projection cache lookup hit or missed.
+fn trace_projection_cache_lookup(hit: bool) {
+    if hit {
+        PROJECTION_CACHE_HIT_COUNT.fetch_add(1, Ordering::Relaxed);
+    } else {
+        PROJECTION_CACHE_MISS_COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+/// No-op projection-cache hit/miss tracer for non-profiling builds.
+fn trace_projection_cache_lookup(_hit: bool) {}
+
+#[cfg(feature = "native-bridge-metrics")]
+#[inline(always)]
 /// Track classified interaction action timings for bridge profiling logs.
 fn trace_action_interaction(kind: InteractionActionClass, duration: Duration) {
     match kind {
@@ -462,6 +501,21 @@ fn trace_waveform_flush(duration: Duration, emitted_actions: u64) {
 #[inline(always)]
 /// No-op waveform flush tracer for non-profiling builds.
 fn trace_waveform_flush(_duration: Duration, _emitted_actions: u64) {}
+
+#[cfg(feature = "native-bridge-metrics")]
+#[inline(always)]
+/// Track whether waveform image refresh work ran or was skipped as overlay-only.
+fn trace_waveform_image_refresh(applied: bool) {
+    if applied {
+        WAVEFORM_IMAGE_REFRESH_APPLY_COUNT.fetch_add(1, Ordering::Relaxed);
+    } else {
+        WAVEFORM_IMAGE_REFRESH_SKIP_COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+/// No-op waveform image refresh tracer for non-profiling builds.
+fn trace_waveform_image_refresh(_applied: bool) {}
 
 #[cfg(feature = "native-bridge-metrics")]
 #[inline(always)]
@@ -523,9 +577,11 @@ struct NativeProjectionCacheKey {
     folder_focused: Option<usize>,
     folder_search_query_hash: u64,
     browser_visible_len: usize,
+    browser_visible_rows_revision: u64,
     browser_selected_visible: Option<usize>,
     browser_anchor_visible: Option<usize>,
     browser_selected_paths_len: usize,
+    browser_selected_paths_hash: u64,
     browser_search_query_hash: u64,
     browser_filter: u8,
     browser_sort: u8,
@@ -536,6 +592,14 @@ struct NativeProjectionCacheKey {
     prompt_active: bool,
     drag_active: bool,
     waveform_signature: Option<u64>,
+    waveform_cursor_milli: Option<u16>,
+    waveform_playhead_milli: Option<u16>,
+    waveform_selection_start_milli: Option<u16>,
+    waveform_selection_end_milli: Option<u16>,
+    waveform_view_start_milli: u16,
+    waveform_view_end_milli: u16,
+    waveform_loop_enabled: bool,
+    waveform_bpm_bits: Option<u32>,
     map_open: bool,
     map_zoom_bits: u32,
     map_pan_x_bits: u32,
@@ -574,8 +638,10 @@ impl NativeProjectionCache {
         if self.app_key.as_ref() == Some(&key)
             && let Some(model) = self.app_model.as_ref()
         {
+            trace_projection_cache_lookup(true);
             return model.clone();
         }
+        trace_projection_cache_lookup(false);
         let model = project(controller);
         self.app_key = Some(key);
         self.app_model = Some(model.clone());
@@ -598,6 +664,24 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
         .map
         .last_query
         .map(|bounds: MapQueryBounds| MapQueryBoundsKey::from_bounds(bounds));
+    let waveform_cursor_milli = controller
+        .ui
+        .waveform
+        .cursor
+        .map(|value| (value.clamp(0.0, 1.0) * 1000.0).round() as u16);
+    let waveform_playhead_milli = controller.ui.waveform.playhead.visible.then_some(
+        (controller.ui.waveform.playhead.position.clamp(0.0, 1.0) * 1000.0).round() as u16,
+    );
+    let (waveform_selection_start_milli, waveform_selection_end_milli) = controller
+        .ui
+        .waveform
+        .selection
+        .map(|selection| {
+            let start = (selection.start().clamp(0.0, 1.0) * 1000.0).round() as u16;
+            let end = (selection.end().clamp(0.0, 1.0) * 1000.0).round() as u16;
+            (Some(start.min(end)), Some(start.max(end)))
+        })
+        .unwrap_or((None, None));
     NativeProjectionCacheKey {
         status_text_hash: hash_projection_field(&controller.ui.status.text),
         status_tone: match controller.ui.status.status_tone {
@@ -615,9 +699,11 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
             &controller.ui.sources.folders.search_query,
         ),
         browser_visible_len: controller.ui.browser.visible.len(),
+        browser_visible_rows_revision: controller.ui.browser.visible_rows_revision,
         browser_selected_visible: controller.ui.browser.selected_visible,
         browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
         browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
+        browser_selected_paths_hash: hash_projection_field(&controller.ui.browser.selected_paths),
         browser_search_query_hash: hash_projection_field(&controller.ui.browser.search_query),
         browser_filter: match controller.ui.browser.filter {
             TriageFlagFilter::All => 0,
@@ -644,6 +730,16 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
             || controller.ui.waveform.pending_destructive.is_some(),
         drag_active: controller.ui.drag.payload.is_some(),
         waveform_signature: controller.ui.waveform.waveform_image_signature,
+        waveform_cursor_milli,
+        waveform_playhead_milli,
+        waveform_selection_start_milli,
+        waveform_selection_end_milli,
+        waveform_view_start_milli: (controller.ui.waveform.view.start.clamp(0.0, 1.0) * 1000.0)
+            .round() as u16,
+        waveform_view_end_milli: (controller.ui.waveform.view.end.clamp(0.0, 1.0) * 1000.0).round()
+            as u16,
+        waveform_loop_enabled: controller.ui.waveform.loop_enabled,
+        waveform_bpm_bits: controller.ui.waveform.bpm_value.map(f32::to_bits),
         map_open: controller.ui.map.open,
         map_zoom_bits: controller.ui.map.zoom.to_bits(),
         map_pan_x_bits: controller.ui.map.pan.x.to_bits(),
@@ -722,12 +818,16 @@ fn classify_dirty_source(action: &NativeUiAction) -> Option<(DerivedNodeId, Dirt
         NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
-        | NativeUiAction::ClearWaveformSelection
-        | NativeUiAction::ZoomWaveform { .. }
+        | NativeUiAction::ClearWaveformSelection => Some((
+            DerivedNodeId::WaveformState,
+            DirtyReason::WaveformOverlayAction,
+        )),
+        NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
-        | NativeUiAction::ZoomWaveformFull => {
-            Some((DerivedNodeId::WaveformState, DirtyReason::WaveformAction))
-        }
+        | NativeUiAction::ZoomWaveformFull => Some((
+            DerivedNodeId::WaveformState,
+            DirtyReason::WaveformViewAction,
+        )),
         NativeUiAction::MoveBrowserFocus { .. }
         | NativeUiAction::FocusBrowserRow { .. }
         | NativeUiAction::CommitFocusedBrowserRow
@@ -771,6 +871,11 @@ fn classify_dirty_source(action: &NativeUiAction) -> Option<(DerivedNodeId, Dirt
         }
         _ => None,
     }
+}
+
+/// Return whether dirty waveform render inputs require a full image refresh.
+fn waveform_render_inputs_require_refresh(reason: Option<DirtyReason>) -> bool {
+    !matches!(reason, Some(DirtyReason::WaveformOverlayAction))
 }
 
 /// Queue of high-frequency waveform actions that can be coalesced per pull frame.
@@ -853,6 +958,15 @@ impl PendingWaveformActions {
                 true
             }
             _ => false,
+        }
+    }
+
+    /// Return the derived-graph dirty reason represented by this pending batch.
+    fn dirty_reason(&self) -> DirtyReason {
+        if self.zoom_full || self.zoom_to_selection || self.zoom_steps_delta != 0 {
+            DirtyReason::WaveformViewAction
+        } else {
+            DirtyReason::WaveformOverlayAction
         }
     }
 }
@@ -938,7 +1052,7 @@ impl SempalNativeBridge {
         let pending = std::mem::take(&mut self.pending_waveform_actions);
         let profiling = bridge_profiling_enabled();
         let flush_start = profiling.then(Instant::now);
-        self.projection_cache.invalidate();
+        let before_key = build_projection_cache_key(&self.controller);
         let mut emitted_actions = 0u64;
 
         if pending.zoom_full {
@@ -983,6 +1097,11 @@ impl SempalNativeBridge {
                 .apply_native_ui_action(NativeUiAction::SeekWaveform { position_milli });
             emitted_actions = emitted_actions.saturating_add(1);
         }
+        let after_key = build_projection_cache_key(&self.controller);
+        if before_key != after_key {
+            self.controller
+                .mark_derived_source_dirty(DerivedNodeId::WaveformState, pending.dirty_reason());
+        }
 
         if profiling {
             let flush_duration = flush_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -1009,7 +1128,13 @@ impl SempalNativeBridge {
         let mut projection_key_dirty = false;
         for node in dirty_nodes {
             if node == DerivedNodeId::WaveformRenderInputs {
-                self.controller.refresh_waveform_image();
+                let should_refresh = waveform_render_inputs_require_refresh(
+                    self.controller.derived_dirty_reason(node),
+                );
+                if should_refresh {
+                    self.controller.refresh_waveform_image();
+                }
+                trace_waveform_image_refresh(should_refresh);
             }
             if node == DerivedNodeId::NativeAppProjectionKey {
                 projection_key_dirty = true;
@@ -1111,7 +1236,6 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             return;
         }
-        self.mark_dirty_for_action(&action);
         if self.enqueue_waveform_action(&action) {
             let call = trace_action_call();
             let profiling = bridge_profiling_enabled();
@@ -1126,6 +1250,7 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             return;
         }
+        self.mark_dirty_for_action(&action);
         self.flush_pending_input_actions();
         let call = trace_action_call();
         let profiling = bridge_profiling_enabled();
@@ -1203,6 +1328,17 @@ mod tests {
         let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
         let first = build_projection_cache_key(&controller);
         controller.ui.update.status = UpdateStatus::Checking;
+        let second = build_projection_cache_key(&controller);
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    /// Projection cache keys must change when selected paths change with stable counts.
+    fn projection_cache_key_changes_when_selected_paths_change_with_same_len() {
+        let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+        controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("first.wav")];
+        let first = build_projection_cache_key(&controller);
+        controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("second.wav")];
         let second = build_projection_cache_key(&controller);
         assert_ne!(first, second);
     }
@@ -1346,9 +1482,9 @@ mod tests {
         assert_eq!(queue.selection_range_milli, Some((120, 400)));
     }
 
-    /// Flushing queued waveform actions should clear queue state and projection cache keys.
+    /// Flushing queued waveform actions should clear queue state and mark waveform dirties.
     #[test]
-    fn flush_pending_waveform_actions_clears_queue_and_projection_key() {
+    fn flush_pending_waveform_actions_clears_queue_and_marks_waveform_dirty() {
         let controller = AppController::new(WaveformRenderer::new(16, 16), None);
         let cache = NativeProjectionCache {
             app_key: Some(build_projection_cache_key(&controller)),
@@ -1369,7 +1505,45 @@ mod tests {
         bridge.flush_pending_waveform_actions();
 
         assert!(!bridge.pending_waveform_actions.has_pending());
-        assert!(bridge.projection_cache.app_key.is_none());
+        assert!(
+            bridge
+                .controller
+                .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+        );
+        assert!(bridge.projection_cache.app_key.is_some());
+    }
+
+    /// No-op queued waveform actions should not dirty the derived graph.
+    #[test]
+    fn flush_pending_waveform_actions_noop_skips_dirty_marking() {
+        let mut bridge = SempalNativeBridge {
+            controller: AppController::new(WaveformRenderer::new(16, 16), None),
+            projection_cache: NativeProjectionCache::default(),
+            pending_browser_focus_delta: 0,
+            pending_waveform_actions: PendingWaveformActions::default(),
+        };
+
+        assert!(
+            bridge.enqueue_waveform_action(&NativeUiAction::SetWaveformCursor {
+                position_milli: 500,
+            })
+        );
+        bridge.flush_pending_waveform_actions();
+        bridge.flush_derived_updates_before_pull(false);
+        assert!(!bridge.controller.has_dirty_derived_nodes());
+
+        assert!(
+            bridge.enqueue_waveform_action(&NativeUiAction::SetWaveformCursor {
+                position_milli: 500,
+            })
+        );
+        bridge.flush_pending_waveform_actions();
+
+        assert!(
+            !bridge
+                .controller
+                .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+        );
     }
 
     /// Action classification should mark waveform source and projection-key nodes dirty.

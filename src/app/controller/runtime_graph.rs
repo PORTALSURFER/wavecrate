@@ -45,6 +45,11 @@ impl AppController {
         self.runtime.derived_graph.dirty_derived_count()
     }
 
+    /// Return the last dirty reason recorded for one node.
+    pub(crate) fn derived_dirty_reason(&self, node: DerivedNodeId) -> Option<DirtyReason> {
+        self.runtime.derived_graph.last_reason(node)
+    }
+
     #[cfg(test)]
     /// Return true when a specific derived graph node is dirty.
     pub(crate) fn is_derived_node_dirty_for_test(&self, node: DerivedNodeId) -> bool {

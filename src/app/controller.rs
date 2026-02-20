@@ -35,6 +35,7 @@ use playback::audio_loader::{AudioLoadError, AudioLoadJob, AudioLoadOutcome};
 use rfd::FileDialog;
 use std::{
     cell::RefCell,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
@@ -69,6 +70,16 @@ pub struct AppController {
     pub(crate) projected_waveform_image_signature: Option<u64>,
     /// Cached native projection payload for the currently rendered waveform image.
     pub(crate) projected_waveform_image: Option<crate::gui::types::ImageRgba>,
+    /// Visible-row revision for the retained browser row projection cache.
+    pub(crate) projected_browser_rows_revision: u64,
+    /// Static browser-row projection fields keyed by absolute entry index.
+    ///
+    /// Tuple layout: `(relative_path, row_label, column_index, bucket_label)`.
+    pub(crate) projected_browser_rows: HashMap<usize, (PathBuf, String, usize, String)>,
+    /// Signature for the retained browser selected-path lookup cache.
+    pub(crate) projected_selected_paths_signature: Option<u64>,
+    /// Selected-path lookup set reused across native browser projections.
+    pub(crate) projected_selected_paths_lookup: Option<HashSet<PathBuf>>,
     wav_entries: WavEntriesState,
     selection_state: ControllerSelectionState,
     pub(crate) settings: AppSettingsState,
@@ -124,6 +135,10 @@ impl AppController {
             ui_cache: ControllerUiCacheState::new(),
             projected_waveform_image_signature: None,
             projected_waveform_image: None,
+            projected_browser_rows_revision: 0,
+            projected_browser_rows: HashMap::new(),
+            projected_selected_paths_signature: None,
+            projected_selected_paths_lookup: None,
             wav_entries: WavEntriesState::new(0, 1024),
             selection_state: ControllerSelectionState::new(),
             settings: AppSettingsState::new(),

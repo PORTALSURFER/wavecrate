@@ -36,12 +36,17 @@ use crate::gui::types::ImageRgba;
 use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
 use std::{
     collections::HashSet,
+    hash::{Hash, Hasher},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
 use tracing::info;
 
 static PROJECT_APP_MODEL_CALLS: AtomicU64 = AtomicU64::new(0);
+/// Cap retained browser-row projection cache growth per visible-row revision.
+const MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE: usize = MAX_RENDERED_BROWSER_ROWS * 8;
+/// Tuple layout for cached browser-row projection fields.
+type CachedBrowserRow = (PathBuf, String, usize, String);
 
 pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
     let call = PROJECT_APP_MODEL_CALLS.fetch_add(1, Ordering::Relaxed) + 1;
@@ -727,19 +732,8 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
         };
     }
     let mut rows = Vec::new();
-    let selected_paths = if controller.ui.browser.selected_paths.is_empty() {
-        None
-    } else {
-        Some(
-            controller
-                .ui
-                .browser
-                .selected_paths
-                .iter()
-                .cloned()
-                .collect::<HashSet<_>>(),
-        )
-    };
+    refresh_projected_browser_row_cache(controller);
+    refresh_projected_selected_paths_lookup(controller);
     let (window_start, window_len) =
         browser_render_window(visible_count, selected_visible_row, anchor_visible_row);
     let mut visible_rows = Vec::with_capacity(window_len);
@@ -750,10 +744,7 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
         .copy_window_into(window_start, window_len, &mut visible_rows);
     for (offset, absolute_index) in visible_rows.into_iter().enumerate() {
         let visible_row = window_start + offset;
-        let Some((entry_tag, relative_path)) = controller
-            .wav_entry(absolute_index)
-            .map(|entry| (entry.tag, entry.relative_path.clone()))
-        else {
+        let Some(cached_row) = project_cached_browser_row(controller, absolute_index) else {
             let focused = selected_visible_row.is_some_and(|focused| focused == visible_row);
             rows.push(
                 BrowserRowModel::new(
@@ -767,22 +758,12 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
             );
             continue;
         };
-        let label = controller.label_for_ref(absolute_index).map(str::to_string);
-        let selected = selected_paths
-            .as_ref()
-            .is_some_and(|selected_paths| selected_paths.contains(&relative_path));
-        let row_label = label.unwrap_or_else(|| view_model::sample_display_label(&relative_path));
-        let bucket_label = browser_bucket_label(controller, &relative_path, entry_tag);
+        let (relative_path, row_label, column_index, bucket_label) = cached_row;
+        let selected = selected_path_is_selected(controller, &relative_path);
         let focused = selected_visible_row.is_some_and(|focused| focused == visible_row);
         rows.push(
-            BrowserRowModel::new(
-                visible_row,
-                row_label,
-                browser_column_index(entry_tag),
-                selected,
-                focused,
-            )
-            .with_bucket_label(bucket_label),
+            BrowserRowModel::new(visible_row, row_label, column_index, selected, focused)
+                .with_bucket_label(bucket_label),
         );
     }
 
@@ -799,6 +780,85 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
         anchor_visible_row,
         rows,
     }
+}
+
+/// Build a stable signature for the browser selected-path list.
+fn browser_selected_paths_signature(paths: &[PathBuf]) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    paths.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Refresh the retained selected-path lookup cache when selection changes.
+fn refresh_projected_selected_paths_lookup(controller: &mut AppController) {
+    if controller.ui.browser.selected_paths.is_empty() {
+        controller.projected_selected_paths_signature = None;
+        controller.projected_selected_paths_lookup = None;
+        return;
+    }
+    let signature = browser_selected_paths_signature(&controller.ui.browser.selected_paths);
+    if controller.projected_selected_paths_signature == Some(signature)
+        && controller.projected_selected_paths_lookup.is_some()
+    {
+        return;
+    }
+    controller.projected_selected_paths_signature = Some(signature);
+    controller.projected_selected_paths_lookup = Some(
+        controller
+            .ui
+            .browser
+            .selected_paths
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>(),
+    );
+}
+
+/// Return whether `relative_path` is selected in the retained selected-path lookup cache.
+fn selected_path_is_selected(controller: &AppController, relative_path: &Path) -> bool {
+    controller
+        .projected_selected_paths_lookup
+        .as_ref()
+        .is_some_and(|lookup| lookup.contains(relative_path))
+}
+
+/// Reset retained browser-row projection fields when visible rows changed materially.
+fn refresh_projected_browser_row_cache(controller: &mut AppController) {
+    if controller.projected_browser_rows_revision == controller.ui.browser.visible_rows_revision {
+        return;
+    }
+    controller.projected_browser_rows_revision = controller.ui.browser.visible_rows_revision;
+    controller.projected_browser_rows.clear();
+}
+
+/// Resolve static browser-row projection fields from cache, inserting on cache miss.
+fn project_cached_browser_row(
+    controller: &mut AppController,
+    absolute_index: usize,
+) -> Option<CachedBrowserRow> {
+    if let Some(cached) = controller.projected_browser_rows.get(&absolute_index) {
+        return Some(cached.clone());
+    }
+    let (entry_tag, relative_path) = controller
+        .wav_entry(absolute_index)
+        .map(|entry| (entry.tag, entry.relative_path.clone()))?;
+    let row_label = controller
+        .label_for_ref(absolute_index)
+        .map(str::to_string)
+        .unwrap_or_else(|| view_model::sample_display_label(&relative_path));
+    let cached = (
+        relative_path.clone(),
+        row_label,
+        browser_column_index(entry_tag),
+        browser_bucket_label(controller, &relative_path, entry_tag),
+    );
+    if controller.projected_browser_rows.len() >= MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE {
+        controller.projected_browser_rows.clear();
+    }
+    controller
+        .projected_browser_rows
+        .insert(absolute_index, cached.clone());
+    Some(cached)
 }
 
 fn project_browser_chrome_model(ui: &UiState, visible_count: usize) -> BrowserChromeModel {

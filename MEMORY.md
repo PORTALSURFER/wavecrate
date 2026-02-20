@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-20T12:23:12Z
+Last Updated: 2026-02-20T12:53:15Z
 Updated By: Codex
 
 ## Purpose
@@ -10,20 +10,23 @@ Updated By: Codex
 
 ## Current Session (2026-02-20 UTC)
 
-- I am implementing the next runtime performance milestone focused on hover and
-  wheel responsiveness hot paths.
-- In `vendor/radiant/src/gui_runtime/native_vello.rs`, I replaced clone-heavy
-  state/motion overlay fingerprint cache keys with compact deterministic
-  signatures so overlay skip checks avoid repeated model cloning.
-- In `src/app_core/native_bridge.rs`, I moved wheel focus dirty/invalidation
-  handling to flush-time and now skip projection-cache invalidation when queued
-  focus deltas produce no effective model-key change.
-- I updated the corresponding bridge test to assert the no-op focus path keeps
-  the projection cache key.
-- `bash scripts/ci_local.sh` is green after these changes; perf guard reports
-  warn-only drift and remains non-failing.
+- I am implementing the Phase 5 runtime projection optimizations for browser
+  and waveform interaction responsiveness.
+- In `src/app_core/native_shell.rs`, I added retained browser projection caches
+  for static row fields and selected-path lookups, keyed by visible-row
+  revision/signatures to avoid redundant per-row recompute while navigating.
+- In `src/app_core/native_bridge.rs`, I expanded projection cache keys for
+  browser selection and waveform overlay/view state, moved queued waveform dirty
+  marking to flush-time with no-op key-diff skipping, and split waveform dirty
+  reasons into view vs overlay to skip unnecessary waveform image refreshes.
+- In `src/app_core/native_bridge.rs`, I added bridge perf attribution counters
+  for projection-cache hit/miss and waveform-image refresh apply/skip.
+- In `src/app/controller.rs`, I added retained controller-side projection cache
+  fields used by native shell projection.
+- `bash scripts/ci_local.sh` is green after these changes, and the perf guard is
+  now fully within warning limits on this run.
 
 ## Work Notes
 
-- Pending commits (not yet pushed): native-vello overlay fingerprint
-  signature optimization and native bridge no-op wheel focus invalidation skip.
+- Pending commits (not yet pushed): Phase 5 projection caching, waveform
+  dirty/invalidation tightening, and bridge profiling counter expansion.

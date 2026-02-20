@@ -58,8 +58,10 @@ impl DerivedNodeId {
 /// Reason categories used when marking source nodes dirty.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DirtyReason {
-    /// Dirty due to waveform interaction/action flow.
-    WaveformAction,
+    /// Dirty due to waveform view mutations that can change rendered pixels.
+    WaveformViewAction,
+    /// Dirty due to waveform overlay mutations (cursor/selection/seek only).
+    WaveformOverlayAction,
     /// Dirty due to browser interaction/action flow.
     BrowserAction,
     /// Dirty due to map interaction/action flow.
@@ -208,14 +210,17 @@ mod tests {
     #[test]
     fn waveform_source_marks_projection_descendants_dirty() {
         let mut graph = DerivedStateGraph::new();
-        graph.mark_source_dirty(DerivedNodeId::WaveformState, DirtyReason::WaveformAction);
+        graph.mark_source_dirty(
+            DerivedNodeId::WaveformState,
+            DirtyReason::WaveformViewAction,
+        );
         assert!(graph.is_dirty(DerivedNodeId::WaveformState));
         assert!(graph.is_dirty(DerivedNodeId::WaveformRenderInputs));
         assert!(graph.is_dirty(DerivedNodeId::WaveformImageSignature));
         assert!(graph.is_dirty(DerivedNodeId::NativeAppProjectionKey));
         assert_eq!(
             graph.last_reason(DerivedNodeId::WaveformState),
-            Some(DirtyReason::WaveformAction)
+            Some(DirtyReason::WaveformViewAction)
         );
     }
 
