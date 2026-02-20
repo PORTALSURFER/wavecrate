@@ -46,8 +46,8 @@ Write for future selves: be precise, kind, and clear.
 - Product: Sempal (sample manager app)
 - Active program: runtime responsiveness/performance redesign inspired by
   Xilem-style scoped invalidation and cache reuse.
-- Source of truth for active execution: `docs/plans/active/plan.md` under
-  `Runtime Performance Redesign (Multi-Day) Checklist`.
+- Source of truth for active execution:
+  `docs/plans/active/runtime_performance_exec_plan.md`.
 
 ## Wake-Up Sequence
 1. Run mandatory preflight: `bash scripts/run_agent_request.sh`
@@ -56,7 +56,7 @@ Write for future selves: be precise, kind, and clear.
    - `docs/FEATURE_CHECKLIST.md`
    - `docs/ARCHITECTURE.md`
    - `docs/design_principles.md`
-   - `docs/plans/active/plan.md`
+   - `docs/plans/active/runtime_performance_exec_plan.md`
 3. Confirm environment if needed: `bash scripts/doctor.sh`
 4. Before and after edits: `bash scripts/ci_local.sh`
 

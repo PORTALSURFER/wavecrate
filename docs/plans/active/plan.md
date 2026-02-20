@@ -1,3 +1,7 @@
+> Active execution has moved to:
+> `docs/plans/active/runtime_performance_exec_plan.md`.
+> This file remains as historical plan context.
+
 ## Goal
 - Plan a per-source single-file ANN index format that sits alongside each source `library.db`, matching current HNSW performance and flexibility.
 
