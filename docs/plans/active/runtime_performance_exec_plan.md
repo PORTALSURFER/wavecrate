@@ -38,14 +38,14 @@
 
 ### Phase 1: Fast Wins (highest ROI, lowest risk)
 
-- [ ] Introduce finer invalidation routing in native runtime so non-geometry
+- [x] Introduce finer invalidation routing in native runtime so non-geometry
       changes avoid broad layout dirties.
-- [ ] Add overlay fingerprint checks to skip unchanged overlay rebuild/encode.
-- [ ] Replace expensive projection cache equality keys with revision/hash-based
+- [x] Add overlay fingerprint checks to skip unchanged overlay rebuild/encode.
+- [x] Replace expensive projection cache equality keys with revision/hash-based
       keys in app-core bridge paths.
-- [ ] Avoid projection-cache invalidation for motion-only action classes.
-- [ ] Coalesce/debounce waveform image refresh triggers for drag-heavy flows.
-- [ ] Reuse map DB connection/prepared statements for interactive map queries.
+- [x] Avoid projection-cache invalidation for motion-only action classes.
+- [x] Coalesce/debounce waveform image refresh triggers for drag-heavy flows.
+- [x] Reuse map DB connection/prepared statements for interactive map queries.
 
 ### Phase 2: Pipeline Recompute Reduction
 

@@ -71,6 +71,7 @@ pub trait AppControllerNativeRuntimeExt {
 impl AppControllerNativeRuntimeExt for AppController {
     fn prepare_native_frame(&mut self, animation_only: bool) {
         self.flush_pending_volume_setting();
+        self.flush_pending_waveform_image_refresh();
         if animation_only {
             self.record_frame_timing_for_fps();
             if !self.is_playing() {
@@ -98,6 +99,7 @@ impl AppControllerNativeRuntimeExt for AppController {
     }
 
     fn apply_native_ui_action(&mut self, action: NativeUiAction) {
+        self.begin_waveform_refresh_batch();
         match action {
             NativeUiAction::SelectColumn { index } => self.select_column_by_index(index),
             NativeUiAction::MoveColumn { delta } => self.move_selection_column(delta as isize),
@@ -184,6 +186,7 @@ impl AppControllerNativeRuntimeExt for AppController {
             NativeUiAction::InstallUpdate => self.install_update_and_exit(),
             NativeUiAction::DismissUpdate => self.dismiss_update_notification(),
         }
+        self.end_waveform_refresh_batch();
     }
 }
 

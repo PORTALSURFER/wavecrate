@@ -28,6 +28,7 @@ use std::sync::{
 };
 use std::{
     cell::RefCell,
+    hash::{Hash, Hasher},
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -395,6 +396,18 @@ struct MapQueryBoundsKey {
     max_y_bits: u32,
 }
 
+/// Hash an arbitrary projection field into a compact cache-key scalar.
+fn hash_projection_field<T: Hash + ?Sized>(value: &T) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Hash an optional string field into an optional cache-key scalar.
+fn hash_optional_string(value: Option<&str>) -> Option<u64> {
+    value.map(hash_projection_field)
+}
+
 impl MapQueryBoundsKey {
     fn from_bounds(bounds: crate::app_core::state::MapQueryBounds) -> Self {
         Self {
@@ -408,18 +421,18 @@ impl MapQueryBoundsKey {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct NativeProjectionCacheKey {
-    status_text: String,
+    status_text_hash: u64,
     status_tone: u8,
     sources_selected: Option<usize>,
     sources_len: usize,
     folder_rows_len: usize,
     folder_focused: Option<usize>,
-    folder_search_query: String,
+    folder_search_query_hash: u64,
     browser_visible_len: usize,
     browser_selected_visible: Option<usize>,
     browser_anchor_visible: Option<usize>,
     browser_selected_paths_len: usize,
-    browser_search_query: String,
+    browser_search_query_hash: u64,
     browser_filter: u8,
     browser_sort: u8,
     browser_tab: u8,
@@ -429,28 +442,24 @@ struct NativeProjectionCacheKey {
     prompt_active: bool,
     drag_active: bool,
     waveform_signature: Option<u64>,
-    waveform_cursor: Option<u16>,
-    waveform_playhead: Option<u16>,
-    waveform_selection: Option<(u16, u16)>,
-    waveform_view: (u16, u16),
     map_open: bool,
     map_zoom_bits: u32,
     map_pan_x_bits: u32,
     map_pan_y_bits: u32,
-    map_selected_sample_id: Option<String>,
-    map_hovered_sample_id: Option<String>,
-    map_umap_version: String,
-    map_bounds_source_id: Option<String>,
-    map_bounds_umap_version: Option<String>,
-    map_points_source_id: Option<String>,
-    map_points_umap_version: Option<String>,
+    map_selected_sample_id_hash: Option<u64>,
+    map_hovered_sample_id_hash: Option<u64>,
+    map_umap_version_hash: u64,
+    map_bounds_source_id_hash: Option<u64>,
+    map_bounds_umap_version_hash: Option<u64>,
+    map_points_source_id_hash: Option<u64>,
+    map_points_umap_version_hash: Option<u64>,
     map_last_query: Option<MapQueryBoundsKey>,
     map_points_revision: u64,
     update_status: u8,
-    update_available_tag: Option<String>,
-    update_available_url: Option<String>,
-    update_last_error: Option<String>,
-    loaded_wav: Option<String>,
+    update_available_tag_hash: Option<u64>,
+    update_available_url_hash: Option<u64>,
+    update_last_error_hash: Option<u64>,
+    loaded_wav_hash: Option<u64>,
     volume_milli: u16,
     transport_running: bool,
 }
@@ -495,13 +504,8 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
         .map
         .last_query
         .map(|bounds: MapQueryBounds| MapQueryBoundsKey::from_bounds(bounds));
-    let waveform_selection = controller.ui.waveform.selection.map(|range| {
-        let start = (range.start().clamp(0.0, 1.0) * 1000.0).round() as u16;
-        let end = (range.end().clamp(0.0, 1.0) * 1000.0).round() as u16;
-        (start, end)
-    });
     NativeProjectionCacheKey {
-        status_text: controller.ui.status.text.clone(),
+        status_text_hash: hash_projection_field(&controller.ui.status.text),
         status_tone: match controller.ui.status.status_tone {
             StatusTone::Idle => 0,
             StatusTone::Busy => 1,
@@ -513,12 +517,14 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
         sources_len: controller.ui.sources.rows.len(),
         folder_rows_len: controller.ui.sources.folders.rows.len(),
         folder_focused: controller.ui.sources.folders.focused,
-        folder_search_query: controller.ui.sources.folders.search_query.clone(),
+        folder_search_query_hash: hash_projection_field(
+            &controller.ui.sources.folders.search_query,
+        ),
         browser_visible_len: controller.ui.browser.visible.len(),
         browser_selected_visible: controller.ui.browser.selected_visible,
         browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
         browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
-        browser_search_query: controller.ui.browser.search_query.clone(),
+        browser_search_query_hash: hash_projection_field(&controller.ui.browser.search_query),
         browser_filter: match controller.ui.browser.filter {
             TriageFlagFilter::All => 0,
             TriageFlagFilter::Keep => 1,
@@ -544,30 +550,29 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
             || controller.ui.waveform.pending_destructive.is_some(),
         drag_active: controller.ui.drag.payload.is_some(),
         waveform_signature: controller.ui.waveform.waveform_image_signature,
-        waveform_cursor: controller
-            .ui
-            .waveform
-            .cursor
-            .map(|value| (value.clamp(0.0, 1.0) * 1000.0).round() as u16),
-        waveform_playhead: controller.ui.waveform.playhead.visible.then_some(
-            (controller.ui.waveform.playhead.position.clamp(0.0, 1.0) * 1000.0).round() as u16,
-        ),
-        waveform_selection,
-        waveform_view: (
-            (controller.ui.waveform.view.start.clamp(0.0, 1.0) * 1000.0).round() as u16,
-            (controller.ui.waveform.view.end.clamp(0.0, 1.0) * 1000.0).round() as u16,
-        ),
         map_open: controller.ui.map.open,
         map_zoom_bits: controller.ui.map.zoom.to_bits(),
         map_pan_x_bits: controller.ui.map.pan.x.to_bits(),
         map_pan_y_bits: controller.ui.map.pan.y.to_bits(),
-        map_selected_sample_id: controller.ui.map.selected_sample_id.clone(),
-        map_hovered_sample_id: controller.ui.map.hovered_sample_id.clone(),
-        map_umap_version: controller.ui.map.umap_version.clone(),
-        map_bounds_source_id: controller.ui.map.cached_bounds_source_id.clone(),
-        map_bounds_umap_version: controller.ui.map.cached_bounds_umap_version.clone(),
-        map_points_source_id: controller.ui.map.cached_points_source_id.clone(),
-        map_points_umap_version: controller.ui.map.cached_points_umap_version.clone(),
+        map_selected_sample_id_hash: hash_optional_string(
+            controller.ui.map.selected_sample_id.as_deref(),
+        ),
+        map_hovered_sample_id_hash: hash_optional_string(
+            controller.ui.map.hovered_sample_id.as_deref(),
+        ),
+        map_umap_version_hash: hash_projection_field(&controller.ui.map.umap_version),
+        map_bounds_source_id_hash: hash_optional_string(
+            controller.ui.map.cached_bounds_source_id.as_deref(),
+        ),
+        map_bounds_umap_version_hash: hash_optional_string(
+            controller.ui.map.cached_bounds_umap_version.as_deref(),
+        ),
+        map_points_source_id_hash: hash_optional_string(
+            controller.ui.map.cached_points_source_id.as_deref(),
+        ),
+        map_points_umap_version_hash: hash_optional_string(
+            controller.ui.map.cached_points_umap_version.as_deref(),
+        ),
         map_last_query,
         map_points_revision: controller.ui.map.cached_points_revision,
         update_status: match controller.ui.update.status {
@@ -576,17 +581,37 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
             UpdateStatus::UpdateAvailable => 2,
             UpdateStatus::Error => 3,
         },
-        update_available_tag: controller.ui.update.available_tag.clone(),
-        update_available_url: controller.ui.update.available_url.clone(),
-        update_last_error: controller.ui.update.last_error.clone(),
-        loaded_wav: controller
+        update_available_tag_hash: hash_optional_string(
+            controller.ui.update.available_tag.as_deref(),
+        ),
+        update_available_url_hash: hash_optional_string(
+            controller.ui.update.available_url.as_deref(),
+        ),
+        update_last_error_hash: hash_optional_string(controller.ui.update.last_error.as_deref()),
+        loaded_wav_hash: controller
             .ui
             .loaded_wav
             .as_ref()
-            .map(|path| path.display().to_string()),
+            .map(|path| hash_projection_field(path.as_os_str())),
         volume_milli: (controller.ui.volume.clamp(0.0, 1.0) * 1000.0).round() as u16,
         transport_running: controller.is_playing(),
     }
+}
+
+/// Return whether an action requires unconditional projection-cache invalidation.
+fn action_requires_projection_cache_invalidation(action: &NativeUiAction) -> bool {
+    !matches!(
+        action,
+        NativeUiAction::SeekWaveform { .. }
+            | NativeUiAction::SetWaveformCursor { .. }
+            | NativeUiAction::SetWaveformSelectionRange { .. }
+            | NativeUiAction::ClearWaveformSelection
+            | NativeUiAction::ZoomWaveform { .. }
+            | NativeUiAction::ZoomWaveformToSelection
+            | NativeUiAction::ZoomWaveformFull
+            | NativeUiAction::SetVolume { .. }
+            | NativeUiAction::CommitVolumeSetting
+    )
 }
 
 /// Host bridge used by the native `radiant` runtime.
@@ -687,7 +712,9 @@ impl NativeAppBridge for SempalNativeBridge {
         if call <= 64 {
             info!(call, action = ?action, "native bridge: on_action");
         }
-        self.projection_cache.invalidate();
+        if action_requires_projection_cache_invalidation(&action) {
+            self.projection_cache.invalidate();
+        }
         self.controller.apply_native_ui_action(action);
         if profiling {
             let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());

@@ -78,6 +78,16 @@ fn edit_fade_matches(
 }
 
 impl AppController {
+    /// Begin a waveform refresh batch to coalesce repeated refresh requests.
+    pub(crate) fn begin_waveform_refresh_batch(&mut self) {
+        self.runtime.begin_waveform_refresh_batch();
+    }
+
+    /// End the active waveform refresh batch.
+    pub(crate) fn end_waveform_refresh_batch(&mut self) {
+        self.runtime.end_waveform_refresh_batch();
+    }
+
     pub(crate) fn min_view_width(&self) -> f64 {
         if let Some(decoded) = self.sample_view.waveform.decoded.as_ref() {
             min_view_width_for_frames(decoded.frame_count(), self.sample_view.waveform.size[0])
@@ -145,7 +155,27 @@ impl AppController {
         self.refresh_waveform_image();
     }
 
+    /// Request a waveform image refresh, coalescing while a refresh batch is active.
     pub(crate) fn refresh_waveform_image(&mut self) {
+        if self.runtime.waveform_refresh_batch_active() {
+            self.runtime.waveform_refresh_pending = true;
+            return;
+        }
+        self.runtime.waveform_refresh_pending = false;
+        self.refresh_waveform_image_now();
+    }
+
+    /// Flush a queued waveform image refresh once batching has completed.
+    pub(crate) fn flush_pending_waveform_image_refresh(&mut self) {
+        if self.runtime.waveform_refresh_batch_active() || !self.runtime.waveform_refresh_pending {
+            return;
+        }
+        self.runtime.waveform_refresh_pending = false;
+        self.refresh_waveform_image_now();
+    }
+
+    /// Render waveform pixels for the current view immediately.
+    fn refresh_waveform_image_now(&mut self) {
         let Some(decoded) = self.sample_view.waveform.decoded.as_ref() else {
             return;
         };

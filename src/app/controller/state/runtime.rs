@@ -4,6 +4,7 @@ use crate::app::controller::jobs;
 use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
+use rusqlite::Connection;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -23,6 +24,12 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) volume_persist_deadline: Option<Instant>,
     /// Last persisted volume in milli-units (`0..=1000`).
     pub(crate) last_persisted_volume_milli: Option<u16>,
+    /// True when a waveform image rebuild is queued for the next frame prep.
+    pub(crate) waveform_refresh_pending: bool,
+    /// Nesting depth for waveform refresh batching.
+    pub(crate) waveform_refresh_batch_depth: u16,
+    /// Reused map-query SQLite connections keyed by source id.
+    pub(crate) map_query_connections: HashMap<SourceId, Connection>,
     /// Tracks whether staged delete recovery has been scheduled for this session.
     pub(crate) delete_recovery_started: bool,
     #[cfg(test)]
@@ -55,6 +62,9 @@ impl ControllerRuntimeState {
             volume_persist_dirty: false,
             volume_persist_deadline: None,
             last_persisted_volume_milli: None,
+            waveform_refresh_pending: false,
+            waveform_refresh_batch_depth: 0,
+            map_query_connections: HashMap::new(),
             delete_recovery_started: false,
             #[cfg(test)]
             progress_cancel_after: None,
@@ -65,6 +75,21 @@ impl ControllerRuntimeState {
             #[cfg(test)]
             fail_after_folder_delete_db_commit: false,
         }
+    }
+
+    /// Begin a waveform-refresh batch where refresh requests are coalesced.
+    pub(crate) fn begin_waveform_refresh_batch(&mut self) {
+        self.waveform_refresh_batch_depth = self.waveform_refresh_batch_depth.saturating_add(1);
+    }
+
+    /// End the current waveform-refresh batch, saturating at zero depth.
+    pub(crate) fn end_waveform_refresh_batch(&mut self) {
+        self.waveform_refresh_batch_depth = self.waveform_refresh_batch_depth.saturating_sub(1);
+    }
+
+    /// Return true when waveform refresh requests should be deferred.
+    pub(crate) fn waveform_refresh_batch_active(&self) -> bool {
+        self.waveform_refresh_batch_depth > 0
     }
 }
 

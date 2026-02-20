@@ -108,7 +108,7 @@ impl AppController {
         source_id: Option<&SourceId>,
     ) -> Result<Option<UmapBounds>, String> {
         let conn = open_source_db(self, source_id)?;
-        load_umap_bounds(&conn, model_id, umap_version, source_id)
+        load_umap_bounds(conn, model_id, umap_version, source_id)
     }
 
     pub(crate) fn umap_points_in_bounds(
@@ -123,7 +123,7 @@ impl AppController {
     ) -> Result<Vec<UmapPoint>, String> {
         let conn = open_source_db(self, source_id)?;
         load_umap_points(
-            &conn,
+            conn,
             model_id,
             umap_version,
             cluster_method,
@@ -144,7 +144,7 @@ impl AppController {
         let (source_id, _relative) = analysis_jobs::parse_sample_id(sample_id)?;
         let source_id = SourceId::from_string(source_id);
         let conn = open_source_db(self, Some(&source_id))?;
-        load_umap_point_for_sample(&conn, model_id, umap_version, sample_id)
+        load_umap_point_for_sample(conn, model_id, umap_version, sample_id)
     }
 
     /// Load cluster centroids for the requested UMAP layout.
@@ -158,7 +158,7 @@ impl AppController {
     ) -> Result<HashMap<i32, crate::app::state::MapClusterCentroid>, String> {
         let conn = open_source_db(self, source_id)?;
         load_umap_cluster_centroids(
-            &conn,
+            conn,
             model_id,
             umap_version,
             cluster_method,
@@ -203,18 +203,37 @@ pub(crate) fn run_umap_cluster_build(
     )
 }
 
-fn open_source_db(
-    controller: &AppController,
+/// Return a cached per-source map-query connection, opening it on first use.
+fn open_source_db<'a>(
+    controller: &'a mut AppController,
     source_id: Option<&SourceId>,
-) -> Result<Connection, String> {
-    let source_id = source_id.ok_or_else(|| "No source selected".to_string())?;
-    let source = controller
+) -> Result<&'a mut Connection, String> {
+    let source_id = source_id
+        .ok_or_else(|| "No source selected".to_string())?
+        .clone();
+    let source_root = controller
         .library
         .sources
         .iter()
-        .find(|source| &source.id == source_id)
+        .find(|source| source.id == source_id)
+        .map(|source| source.root.clone())
         .ok_or_else(|| "Source not found".to_string())?;
-    analysis_jobs::open_source_db(&source.root)
+    if !controller
+        .runtime
+        .map_query_connections
+        .contains_key(&source_id)
+    {
+        let conn = analysis_jobs::open_source_db(&source_root)?;
+        controller
+            .runtime
+            .map_query_connections
+            .insert(source_id.clone(), conn);
+    }
+    controller
+        .runtime
+        .map_query_connections
+        .get_mut(&source_id)
+        .ok_or_else(|| "Map query connection missing after open".to_string())
 }
 
 fn open_source_db_for_id(source_id: &SourceId) -> Result<Connection, String> {
@@ -228,43 +247,45 @@ fn open_source_db_for_id(source_id: &SourceId) -> Result<Connection, String> {
 }
 
 fn load_umap_bounds(
-    conn: &Connection,
+    conn: &mut Connection,
     model_id: &str,
     umap_version: &str,
     source_id: Option<&SourceId>,
 ) -> Result<Option<UmapBounds>, String> {
     let row = if let Some(source_id) = source_id {
         let prefix = format!("{}::%", source_id.as_str());
-        conn.query_row(
-            "SELECT MIN(x), MAX(x), MIN(y), MAX(y)
-             FROM layout_umap
-             WHERE model_id = ?1 AND umap_version = ?2
-               AND sample_id LIKE ?3",
-            params![model_id, umap_version, prefix],
-            |row| {
-                let min_x: Option<f32> = row.get(0)?;
-                let max_x: Option<f32> = row.get(1)?;
-                let min_y: Option<f32> = row.get(2)?;
-                let max_y: Option<f32> = row.get(3)?;
-                Ok((min_x, max_x, min_y, max_y))
-            },
-        )
+        let mut stmt = conn
+            .prepare_cached(
+                "SELECT MIN(x), MAX(x), MIN(y), MAX(y)
+                 FROM layout_umap
+                 WHERE model_id = ?1 AND umap_version = ?2
+                   AND sample_id LIKE ?3",
+            )
+            .map_err(|err| format!("Prepare t-SNE bounds query failed: {err}"))?;
+        stmt.query_row(params![model_id, umap_version, prefix], |row| {
+            let min_x: Option<f32> = row.get(0)?;
+            let max_x: Option<f32> = row.get(1)?;
+            let min_y: Option<f32> = row.get(2)?;
+            let max_y: Option<f32> = row.get(3)?;
+            Ok((min_x, max_x, min_y, max_y))
+        })
         .optional()
         .map_err(|err| format!("Query t-SNE bounds failed: {err}"))?
     } else {
-        conn.query_row(
-            "SELECT MIN(x), MAX(x), MIN(y), MAX(y)
-             FROM layout_umap
-             WHERE model_id = ?1 AND umap_version = ?2",
-            params![model_id, umap_version],
-            |row| {
-                let min_x: Option<f32> = row.get(0)?;
-                let max_x: Option<f32> = row.get(1)?;
-                let min_y: Option<f32> = row.get(2)?;
-                let max_y: Option<f32> = row.get(3)?;
-                Ok((min_x, max_x, min_y, max_y))
-            },
-        )
+        let mut stmt = conn
+            .prepare_cached(
+                "SELECT MIN(x), MAX(x), MIN(y), MAX(y)
+                 FROM layout_umap
+                 WHERE model_id = ?1 AND umap_version = ?2",
+            )
+            .map_err(|err| format!("Prepare t-SNE bounds query failed: {err}"))?;
+        stmt.query_row(params![model_id, umap_version], |row| {
+            let min_x: Option<f32> = row.get(0)?;
+            let max_x: Option<f32> = row.get(1)?;
+            let min_y: Option<f32> = row.get(2)?;
+            let max_y: Option<f32> = row.get(3)?;
+            Ok((min_x, max_x, min_y, max_y))
+        })
         .optional()
         .map_err(|err| format!("Query t-SNE bounds failed: {err}"))?
     };
@@ -283,7 +304,7 @@ fn load_umap_bounds(
 }
 
 fn load_umap_points(
-    conn: &Connection,
+    conn: &mut Connection,
     model_id: &str,
     umap_version: &str,
     cluster_method: &str,
@@ -349,7 +370,7 @@ fn load_umap_points(
         )
     };
     let mut stmt = conn
-        .prepare(sql)
+        .prepare_cached(sql)
         .map_err(|err| format!("Prepare layout query failed: {err}"))?;
     let rows = stmt
         .query_map(params_from_iter(params), |row| {
@@ -370,28 +391,29 @@ fn load_umap_points(
 }
 
 fn load_umap_point_for_sample(
-    conn: &Connection,
+    conn: &mut Connection,
     model_id: &str,
     umap_version: &str,
     sample_id: &str,
 ) -> Result<Option<(f32, f32)>, String> {
-    conn.query_row(
-        "SELECT x, y
-         FROM layout_umap
-         WHERE model_id = ?1 AND umap_version = ?2 AND sample_id = ?3",
-        params![model_id, umap_version, sample_id],
-        |row| {
-            let x: f32 = row.get(0)?;
-            let y: f32 = row.get(1)?;
-            Ok((x, y))
-        },
-    )
+    let mut stmt = conn
+        .prepare_cached(
+            "SELECT x, y
+             FROM layout_umap
+             WHERE model_id = ?1 AND umap_version = ?2 AND sample_id = ?3",
+        )
+        .map_err(|err| format!("Prepare t-SNE point query failed: {err}"))?;
+    stmt.query_row(params![model_id, umap_version, sample_id], |row| {
+        let x: f32 = row.get(0)?;
+        let y: f32 = row.get(1)?;
+        Ok((x, y))
+    })
     .optional()
     .map_err(|err| format!("Query t-SNE point failed: {err}"))
 }
 
 fn load_umap_cluster_centroids(
-    conn: &Connection,
+    conn: &mut Connection,
     model_id: &str,
     umap_version: &str,
     cluster_method: &str,
@@ -440,7 +462,7 @@ fn load_umap_cluster_centroids(
     };
 
     let mut stmt = conn
-        .prepare(sql)
+        .prepare_cached(sql)
         .map_err(|err| format!("Prepare centroid query failed: {err}"))?;
     let rows = stmt
         .query_map(params_from_iter(params), |row| {
