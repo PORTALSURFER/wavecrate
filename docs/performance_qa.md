@@ -20,7 +20,13 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
   - Profiling prints averages every 240 native redraw frames to stderr; disable feature for normal runs to avoid collection overhead.
 - Run `bash scripts/run_perf_guard.sh` (or `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`) to execute deterministic benchmark scenarios for hover, wheel, map-pan proxy, and waveform interactions.
 - `hover_latency` in perf guard reflects preview-hover behavior (focus-only row hover without commit/load side effects).
-- Tune guard input size and warning limits with `SEMPAL_PERF_GUARD_*` and `SEMPAL_PERF_WARN_P95_US_*` overrides documented in `docs/ENV_VARS.md`.
+- Tune guard input size, run count, and thresholds with `SEMPAL_PERF_GUARD_*`,
+  `SEMPAL_PERF_WARN_P95_US_*`, and `SEMPAL_PERF_FAIL_P95_US_*` overrides
+  documented in `docs/ENV_VARS.md`.
+- For stability checks, prefer a repeated-run protocol:
+  - `SEMPAL_PERF_GUARD_RUNS=3`
+  - keep warmup/measure counts fixed across comparisons
+  - compare median p95/p99 and `p95_spread` deltas between branches
 
 ## Checklist
 - Launch app and select the large source.
@@ -35,7 +41,8 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
 - Initial load time (ms) from status.
 - Frame responsiveness during fast scroll (subjective) and selection latency.
 - Post-scan reload time (ms).
-- Perf guard scenario latencies (p50/p95/max/mean) and warning-threshold drift across runs.
+- Perf guard scenario latencies (p50/p95/p99/max/mean/stddev), outlier counts,
+  and warning/fail-threshold drift across runs.
 
 ## Follow-ups
 - Adjust row height/window size if scroll perf regresses.

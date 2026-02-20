@@ -4,6 +4,8 @@ use std::time::Instant;
 
 #[derive(Clone, Debug, Serialize)]
 pub(super) struct LatencySummary {
+    /// Number of measured latency samples included in this summary.
+    pub(super) sample_count: usize,
     /// Warmup iteration count used for each benchmark action.
     pub(super) warmup_iters: usize,
     /// Measured iteration count used for each benchmark action.
@@ -14,10 +16,24 @@ pub(super) struct LatencySummary {
     pub(super) p50_us: u64,
     /// 95th percentile in microseconds.
     pub(super) p95_us: u64,
+    /// 99th percentile in microseconds.
+    pub(super) p99_us: u64,
+    /// 25th percentile in microseconds.
+    pub(super) p25_us: u64,
+    /// 75th percentile in microseconds.
+    pub(super) p75_us: u64,
+    /// Interquartile range in microseconds.
+    pub(super) iqr_us: u64,
     /// Maximum sampled latency in microseconds.
     pub(super) max_us: u64,
     /// Mean latency in microseconds.
     pub(super) mean_us: f64,
+    /// Standard deviation in microseconds.
+    pub(super) stddev_us: f64,
+    /// Number of high outliers based on Tukey's upper fence.
+    pub(super) outlier_high_count: usize,
+    /// Share of high outliers in the measured sample set (0.0-1.0).
+    pub(super) outlier_high_ratio: f64,
 }
 
 /// Measure benchmark actions and return a latency summary.
@@ -66,23 +82,59 @@ fn run_measure_action(
 fn summarize(warmup_iters: usize, measure_iters: usize, samples_us: Vec<u64>) -> LatencySummary {
     let mut samples_us = samples_us;
     samples_us.sort_unstable();
+    let sample_count = samples_us.len();
     let min_us = *samples_us.first().unwrap_or(&0);
     let max_us = *samples_us.last().unwrap_or(&0);
+    let p25_us = percentile(&samples_us, 0.25);
     let p50_us = percentile(&samples_us, 0.50);
     let p95_us = percentile(&samples_us, 0.95);
+    let p99_us = percentile(&samples_us, 0.99);
+    let p75_us = percentile(&samples_us, 0.75);
+    let iqr_us = p75_us.saturating_sub(p25_us);
     let mean_us = if samples_us.is_empty() {
         0.0
     } else {
         samples_us.iter().copied().map(|v| v as f64).sum::<f64>() / samples_us.len() as f64
     };
+    let stddev_us = if sample_count == 0 {
+        0.0
+    } else {
+        let variance = samples_us
+            .iter()
+            .map(|value| {
+                let delta = *value as f64 - mean_us;
+                delta * delta
+            })
+            .sum::<f64>()
+            / sample_count as f64;
+        variance.sqrt()
+    };
+    let high_outlier_fence = p75_us as f64 + 1.5 * iqr_us as f64;
+    let outlier_high_count = samples_us
+        .iter()
+        .filter(|value| (**value as f64) > high_outlier_fence)
+        .count();
+    let outlier_high_ratio = if sample_count == 0 {
+        0.0
+    } else {
+        outlier_high_count as f64 / sample_count as f64
+    };
     LatencySummary {
+        sample_count,
         warmup_iters,
         measure_iters,
         min_us,
+        p25_us,
         p50_us,
         p95_us,
+        p99_us,
+        p75_us,
+        iqr_us,
         max_us,
         mean_us,
+        stddev_us,
+        outlier_high_count,
+        outlier_high_ratio,
     }
 }
 
@@ -138,8 +190,13 @@ mod tests {
         let summary = summarize(0, 4, vec![40_u64, 10_u64, 30_u64, 20_u64, 50_u64]);
         assert_eq!(summary.min_us, 10);
         assert_eq!(summary.max_us, 50);
+        assert_eq!(summary.p25_us, 20);
         assert_eq!(summary.p50_us, 30);
         assert_eq!(summary.p95_us, 50);
+        assert_eq!(summary.p99_us, 50);
+        assert_eq!(summary.p75_us, 40);
+        assert_eq!(summary.iqr_us, 20);
+        assert_eq!(summary.sample_count, 5);
     }
 
     /// Ensure percentile index rounding and clamping are deterministic.
@@ -207,5 +264,13 @@ mod tests {
         assert_eq!(summary.warmup_iters, 2);
         assert_eq!(summary.measure_iters, 4);
         assert_eq!(calls, 6);
+    }
+
+    /// Ensure high-outlier reporting uses deterministic Tukey-fence counting.
+    #[test]
+    fn summarize_reports_high_outlier_count() {
+        let summary = summarize(0, 6, vec![10, 11, 12, 13, 14, 100]);
+        assert_eq!(summary.outlier_high_count, 1);
+        assert!(summary.outlier_high_ratio > 0.0);
     }
 }

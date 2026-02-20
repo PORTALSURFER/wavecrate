@@ -152,6 +152,11 @@ Default: `3`.
 Measured iteration count used for each guard benchmark action.
 Default: `16`.
 
+- `SEMPAL_PERF_GUARD_RUNS`
+Number of full `sempal-bench` runs executed by `scripts/run_perf_guard.sh`.
+When greater than `1`, the guard reports median percentiles across runs and the
+p95 spread across runs. Default: `1`.
+
 - `SEMPAL_PERF_WARN_P95_US_HOVER`
 Warning-only p95 latency threshold (microseconds) for hover interaction
 benchmark results. Default: `8000`.
@@ -167,6 +172,31 @@ benchmark results. Default: `12000`.
 - `SEMPAL_PERF_WARN_P95_US_WAVEFORM`
 Warning-only p95 latency threshold (microseconds) for waveform interaction
 benchmark results. Default: `10000`.
+
+- `SEMPAL_PERF_FAIL_P95_US_HOVER`
+Optional hard-fail p95 latency threshold (microseconds) for hover interaction
+benchmark results. Unset by default.
+
+- `SEMPAL_PERF_FAIL_P95_US_WHEEL`
+Optional hard-fail p95 latency threshold (microseconds) for wheel interaction
+benchmark results. Unset by default.
+
+- `SEMPAL_PERF_FAIL_P95_US_FOCUS_PREVIEW`
+Optional hard-fail p95 latency threshold (microseconds) for browser-focus
+preview interaction benchmark results. Unset by default.
+
+- `SEMPAL_PERF_FAIL_P95_US_FOCUS_COMMIT`
+Optional hard-fail p95 latency threshold (microseconds) for browser-focus
+commit interaction benchmark results. Unset by default.
+
+- `SEMPAL_PERF_FAIL_P95_US_WAVEFORM`
+Optional hard-fail p95 latency threshold (microseconds) for waveform
+interaction benchmark results. Unset by default.
+
+- `SEMPAL_PERF_FAIL_P95_US_MAP_PAN_PROXY`
+Hard-fail p95 latency threshold (microseconds) for map-pan-proxy interaction
+benchmark results. Default: `4000` (can be overridden; set to a very high value
+to effectively disable).
 
 ## Analysis job tuning and debugging
 

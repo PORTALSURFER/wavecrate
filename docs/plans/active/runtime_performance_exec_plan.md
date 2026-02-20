@@ -75,6 +75,20 @@
 - [x] Reduce worker-pool lock contention in analysis job claim/decode queues.
 - [x] Add per-stage telemetry for invalidation/rebuild rates and queue delays.
 
+### Phase 4: Stability and Guardrail Tightening
+
+- [x] Expand benchmark latency summaries with p99/stddev/outlier metrics for
+      drift analysis.
+- [x] Add perf-guard multi-run aggregation support with p95 spread reporting.
+- [x] Add warning contributor ranking in perf guard output for faster
+      attribution during drift events.
+- [x] Promote one low-noise scenario (`map_pan_proxy_latency`) to a hard-fail
+      p95 threshold while keeping high-variance scenarios warn-only.
+- [ ] Add stage-specific attribution fields in benchmark output for
+      interaction-step internals (input/apply/pull/projection segmentation).
+- [ ] Promote additional scenarios to hard-fail thresholds after variance
+      stabilization evidence across repeated runs.
+
 ## Validation
 
 - Required checks:
