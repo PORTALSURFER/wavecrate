@@ -9,6 +9,7 @@ impl AppController {
     pub(crate) fn sync_after_wav_entries_changed(&mut self) {
         self.rebuild_wav_lookup();
         self.ui_cache.browser.search.invalidate();
+        self.ui_cache.browser.pipeline.invalidate();
         self.refresh_folder_browser();
         self.rebuild_browser_lists();
     }
@@ -226,6 +227,7 @@ impl AppController {
             self.wav_entries.clear();
             self.rebuild_wav_lookup();
             self.ui_cache.browser.search.invalidate();
+            self.ui_cache.browser.pipeline.invalidate();
             self.rebuild_browser_lists();
             self.queue_wav_load();
         } else {

@@ -9,6 +9,8 @@ mod audio_loading;
 mod browser_actions;
 mod browser_history;
 mod browser_lists;
+/// Staged browser row pipeline caching and deterministic recompute helpers.
+mod browser_pipeline;
 mod browser_search;
 pub(crate) mod browser_search_worker;
 mod feature_cache;
@@ -19,6 +21,7 @@ pub mod waveform_rendering;
 
 mod waveform_view;
 
+pub(crate) use browser_pipeline::BrowserPipelineCache;
 pub(crate) use browser_search::BrowserSearchCache;
 pub(crate) use waveform_rendering::WaveformRenderMeta;
 
@@ -438,6 +441,7 @@ impl AppController {
         if updated {
             if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
                 self.ui_cache.browser.search.invalidate();
+                self.ui_cache.browser.pipeline.invalidate();
                 self.rebuild_browser_lists();
             }
             if old_path != new_entry.relative_path {

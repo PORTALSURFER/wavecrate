@@ -35,7 +35,6 @@ impl DbFileStamp {
     }
 }
 
-#[derive(Default)]
 struct SearchWorkerCache {
     db: Option<crate::sample_sources::SourceDatabase>,
     entries: Option<Vec<CompactSearchEntry>>,
@@ -43,6 +42,32 @@ struct SearchWorkerCache {
     source_root: Option<PathBuf>,
     revision: u64,
     db_stamp: Option<DbFileStamp>,
+    query_score_cache: Vec<WorkerQueryScoreCacheEntry>,
+    max_cached_queries: usize,
+}
+
+impl Default for SearchWorkerCache {
+    /// Initialize an empty worker cache with bounded recent-query score retention.
+    fn default() -> Self {
+        Self {
+            db: None,
+            entries: None,
+            source_id: None,
+            source_root: None,
+            revision: 0,
+            db_stamp: None,
+            query_score_cache: Vec::new(),
+            max_cached_queries: 6,
+        }
+    }
+}
+
+/// Cached query score vector keyed by source revision and query text.
+struct WorkerQueryScoreCacheEntry {
+    source_id: String,
+    revision: u64,
+    query: String,
+    scores: Vec<Option<i64>>,
 }
 
 #[derive(Default)]
@@ -212,6 +237,7 @@ fn process_search_job(
                 cache.source_id = Some(job_source_id_str.clone());
                 cache.source_root = Some(job.source_root.clone());
                 cache.db_stamp = db_stamp;
+                cache.query_score_cache.clear();
             }
             Err(_) => {
                 cache.db = None;
@@ -220,6 +246,7 @@ fn process_search_job(
                 cache.source_id = Some(job_source_id_str);
                 cache.source_root = Some(job.source_root.clone());
                 cache.db_stamp = db_stamp;
+                cache.query_score_cache.clear();
                 return empty_search_result(job);
             }
         }
@@ -253,9 +280,11 @@ fn process_search_job(
                     .collect();
                 cache.entries = Some(compact_entries);
                 cache.revision = revision;
+                cache.query_score_cache.clear();
             }
             Err(_) => {
                 cache.entries = None;
+                cache.query_score_cache.clear();
                 return empty_search_result(job);
             }
         }
@@ -288,8 +317,37 @@ fn process_search_job(
     let has_query = !job.query.is_empty();
 
     if has_query {
-        for (index, entry) in entries.iter().enumerate() {
-            scores[index] = matcher.fuzzy_match(&entry.display_label, &job.query);
+        if let Some(index) = cache.query_score_cache.iter().position(|cached| {
+            cached.source_id == job_source_id_str
+                && cached.revision == cache.revision
+                && cached.query == job.query
+                && cached.scores.len() == entries.len()
+        }) {
+            let cached = cache.query_score_cache.remove(index);
+            scores = cached.scores;
+            cache.query_score_cache.insert(
+                0,
+                WorkerQueryScoreCacheEntry {
+                    source_id: job_source_id_str.clone(),
+                    revision: cache.revision,
+                    query: job.query.clone(),
+                    scores: scores.clone(),
+                },
+            );
+        } else {
+            for (index, entry) in entries.iter().enumerate() {
+                scores[index] = matcher.fuzzy_match(&entry.display_label, &job.query);
+            }
+            cache.query_score_cache.insert(
+                0,
+                WorkerQueryScoreCacheEntry {
+                    source_id: job_source_id_str.clone(),
+                    revision: cache.revision,
+                    query: job.query.clone(),
+                    scores: scores.clone(),
+                },
+            );
+            cache.query_score_cache.truncate(cache.max_cached_queries);
         }
     }
 

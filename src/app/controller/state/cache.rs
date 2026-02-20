@@ -66,6 +66,8 @@ pub(crate) struct BrowserCacheState {
     pub(crate) labels: HashMap<SourceId, Vec<String>>,
     pub(crate) analysis_failures: HashMap<SourceId, HashMap<PathBuf, String>>,
     pub(crate) analysis_failures_pending: HashSet<SourceId>,
+    /// Retained staged browser pipeline outputs keyed by revision fingerprints.
+    pub(crate) pipeline: wavs::BrowserPipelineCache,
     pub(crate) search: wavs::BrowserSearchCache,
     pub(crate) features: HashMap<SourceId, FeatureCache>,
     pub(crate) bpm_values: HashMap<SourceId, HashMap<PathBuf, Option<f32>>>,
@@ -112,6 +114,7 @@ impl ControllerUiCacheState {
                 labels: HashMap::new(),
                 analysis_failures: HashMap::new(),
                 analysis_failures_pending: HashSet::new(),
+                pipeline: wavs::BrowserPipelineCache::default(),
                 search: wavs::BrowserSearchCache::default(),
                 features: HashMap::new(),
                 bpm_values: HashMap::new(),

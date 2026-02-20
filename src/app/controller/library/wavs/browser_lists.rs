@@ -22,42 +22,18 @@ impl AppController {
         }
 
         self.reset_browser_ui();
-        let mut trash = Vec::new();
-        let mut neutral = Vec::new();
-        let mut keep = Vec::new();
-        let mut selected = None;
-        let mut loaded = None;
-        let mut loaded_wav = None;
-        let _ = self.for_each_wav_entry(|i, entry| {
-            let flags = RowFlags {
-                focused: Some(i) == focused_index,
-                loaded: Some(i) == loaded_index,
-            };
-            let target = if entry.tag.is_trash() {
-                &mut trash
-            } else if entry.tag.is_keep() {
-                &mut keep
-            } else {
-                &mut neutral
-            };
-            let row_index = target.len();
-            target.push(i);
-            if flags.focused {
-                selected = Some(view_model::sample_browser_index_for(entry.tag, row_index));
-            }
-            if flags.loaded {
-                loaded = Some(view_model::sample_browser_index_for(entry.tag, row_index));
-                loaded_wav = Some(entry.relative_path.clone());
-            }
-        });
-        self.ui.browser.trash = trash;
-        self.ui.browser.neutral = neutral;
-        self.ui.browser.keep = keep;
-        self.ui.browser.selected = selected;
-        self.ui.browser.loaded = loaded;
-        self.ui.loaded_wav = loaded_wav;
         let (visible, selected_visible, loaded_visible) =
-            self.build_visible_rows(focused_index, loaded_index);
+            super::browser_pipeline::build_visible_rows(self, focused_index, loaded_index);
+        self.ui.browser.trash = self.ui_cache.browser.pipeline.trash_rows.clone();
+        self.ui.browser.neutral = self.ui_cache.browser.pipeline.neutral_rows.clone();
+        self.ui.browser.keep = self.ui_cache.browser.pipeline.keep_rows.clone();
+        self.ui.browser.selected =
+            focused_index.and_then(|index| self.browser_index_for_entry(index));
+        self.ui.browser.loaded = loaded_index.and_then(|index| self.browser_index_for_entry(index));
+        self.ui.loaded_wav = loaded_index.and_then(|index| {
+            self.wav_entry(index)
+                .map(|entry| entry.relative_path.clone())
+        });
         self.ui.browser.visible = visible;
         self.ui.browser.selected_visible = selected_visible;
         self.ui.browser.loaded_visible = loaded_visible;

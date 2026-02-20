@@ -3,226 +3,61 @@ use crate::app::state::SampleBrowserSort;
 use crate::app::view_model;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
-use std::cmp::Ordering;
-use std::path::Path;
 
-#[derive(Default)]
+/// Cached score payload for a specific source/query combination.
+#[derive(Clone)]
+struct QueryScoreCacheEntry {
+    /// Source associated with the score vector.
+    source_id: Option<SourceId>,
+    /// Exact query string associated with the score vector.
+    query: String,
+    /// Score vector aligned to absolute entry indices.
+    scores: Vec<Option<i64>>,
+}
+
+/// Cache state for browser search scoring and sort scratch buffers.
 pub(crate) struct BrowserSearchCache {
     source_id: Option<SourceId>,
     query: String,
     pub(crate) scores: Vec<Option<i64>>,
     scratch: Vec<(usize, i64)>,
+    query_score_cache: Vec<QueryScoreCacheEntry>,
+    max_cached_queries: usize,
     pub(crate) matcher: SkimMatcherV2,
 }
 
 impl BrowserSearchCache {
+    /// Construct an empty search cache.
+    pub(crate) fn new() -> Self {
+        Self {
+            source_id: None,
+            query: String::new(),
+            scores: Vec::new(),
+            scratch: Vec::new(),
+            query_score_cache: Vec::new(),
+            max_cached_queries: 6,
+            matcher: SkimMatcherV2::default(),
+        }
+    }
+
+    /// Clear all cached search inputs, scores, and query history.
     pub(crate) fn invalidate(&mut self) {
         self.source_id = None;
         self.query.clear();
         self.scores.clear();
         self.scratch.clear();
+        self.query_score_cache.clear();
+    }
+}
+
+impl Default for BrowserSearchCache {
+    /// Build a search cache with bounded recent-query score retention.
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl AppController {
-    pub(crate) fn build_visible_rows(
-        &mut self,
-        focused_index: Option<usize>,
-        loaded_index: Option<usize>,
-    ) -> (crate::app::state::VisibleRows, Option<usize>, Option<usize>) {
-        let filter = self.ui.browser.filter;
-        let rating_filter = self.ui.browser.rating_filter.clone();
-        let rating_filter_empty = rating_filter.is_empty();
-        let filter_accepts = |tag: crate::sample_sources::Rating| {
-            let triage_ok = match filter {
-                TriageFlagFilter::All => true,
-                TriageFlagFilter::Keep => tag.is_keep(),
-                TriageFlagFilter::Trash => tag.is_trash(),
-                TriageFlagFilter::Untagged => tag.is_neutral(),
-            };
-            let rating_ok = rating_filter_empty || rating_filter.contains(&tag.val());
-            triage_ok && rating_ok
-        };
-        let folder_selection = self.folder_selection_for_filter().cloned();
-        let folder_negated = self.folder_negation_for_filter().cloned();
-        let root_mode = self
-            .root_folder_filter_mode_for_filter()
-            .unwrap_or_default();
-        let has_folder_filters =
-            crate::app::controller::library::source_folders::folder_filters_active(
-                folder_selection.as_ref(),
-                folder_negated.as_ref(),
-                root_mode,
-            );
-        let folder_accepts = |relative_path: &Path| {
-            crate::app::controller::library::source_folders::folder_filter_accepts(
-                relative_path,
-                folder_selection.as_ref(),
-                folder_negated.as_ref(),
-                root_mode,
-            )
-        };
-        let sort_mode = self.ui.browser.sort;
-        if let Some(similar) = self.ui.browser.similar_query.clone() {
-            let mut visible: Vec<usize> = Vec::new();
-            for index in similar.indices.iter().copied() {
-                let Some(entry) = self.wav_entry(index) else {
-                    continue;
-                };
-                if filter_accepts(entry.tag) && folder_accepts(&entry.relative_path) {
-                    visible.push(index);
-                }
-            }
-            match sort_mode {
-                SampleBrowserSort::ListOrder => {
-                    visible.sort_unstable();
-                }
-                SampleBrowserSort::Similarity => {
-                    let mut score_lookup = vec![None; self.wav_entries_len()];
-                    for (&index, &score) in similar.indices.iter().zip(similar.scores.iter()) {
-                        if index < score_lookup.len() {
-                            score_lookup[index] = Some(score);
-                        }
-                    }
-                    visible.sort_by(|a, b| {
-                        let a_score = score_lookup
-                            .get(*a)
-                            .and_then(|score| *score)
-                            .unwrap_or(f32::NEG_INFINITY);
-                        let b_score = score_lookup
-                            .get(*b)
-                            .and_then(|score| *score)
-                            .unwrap_or(f32::NEG_INFINITY);
-                        b_score
-                            .partial_cmp(&a_score)
-                            .unwrap_or(Ordering::Equal)
-                            .then_with(|| a.cmp(b))
-                    });
-                    if let Some(anchor) = similar.anchor_index
-                        && let Some(entry) = self.wav_entry(anchor)
-                        && filter_accepts(entry.tag)
-                        && folder_accepts(&entry.relative_path)
-                    {
-                        if let Some(pos) = visible.iter().position(|i| *i == anchor) {
-                            visible.remove(pos);
-                        }
-                        visible.insert(0, anchor);
-                    }
-                }
-                SampleBrowserSort::PlaybackAgeAsc => {
-                    sort_visible_by_playback_age(self, &mut visible, true);
-                }
-                SampleBrowserSort::PlaybackAgeDesc => {
-                    sort_visible_by_playback_age(self, &mut visible, false);
-                }
-            }
-            let selected_visible =
-                focused_index.and_then(|idx| visible.iter().position(|i| *i == idx));
-            let loaded_visible =
-                loaded_index.and_then(|idx| visible.iter().position(|i| *i == idx));
-            return (
-                crate::app::state::VisibleRows::List(visible),
-                selected_visible,
-                loaded_visible,
-            );
-        }
-        let Some(query) = self.active_search_query().map(str::to_string) else {
-            if !has_folder_filters
-                && self.ui.browser.filter == TriageFlagFilter::All
-                && rating_filter_empty
-                && self.ui.browser.similar_query.is_none()
-                && sort_mode == SampleBrowserSort::ListOrder
-            {
-                let total = self.wav_entries_len();
-                return (
-                    crate::app::state::VisibleRows::All { total },
-                    focused_index,
-                    loaded_index,
-                );
-            }
-            let mut visible = Vec::new();
-            let mut playback_scratch = Vec::new();
-            let _ = self.for_each_wav_entry(|index, entry| {
-                if filter_accepts(entry.tag) && folder_accepts(&entry.relative_path) {
-                    if matches!(
-                        sort_mode,
-                        SampleBrowserSort::PlaybackAgeAsc | SampleBrowserSort::PlaybackAgeDesc
-                    ) {
-                        playback_scratch.push((index, entry.last_played_at.unwrap_or(i64::MIN)));
-                    } else {
-                        visible.push(index);
-                    }
-                }
-            });
-            if matches!(
-                sort_mode,
-                SampleBrowserSort::PlaybackAgeAsc | SampleBrowserSort::PlaybackAgeDesc
-            ) {
-                let ascending = sort_mode == SampleBrowserSort::PlaybackAgeAsc;
-                playback_scratch.sort_by(|a, b| {
-                    let order = if ascending {
-                        a.1.cmp(&b.1)
-                    } else {
-                        b.1.cmp(&a.1)
-                    };
-                    order.then_with(|| a.0.cmp(&b.0))
-                });
-                visible = playback_scratch
-                    .into_iter()
-                    .map(|(index, _)| index)
-                    .collect();
-            }
-            let selected_visible =
-                focused_index.and_then(|idx| visible.iter().position(|i| *i == idx));
-            let loaded_visible =
-                loaded_index.and_then(|idx| visible.iter().position(|i| *i == idx));
-            return (
-                crate::app::state::VisibleRows::List(visible),
-                selected_visible,
-                loaded_visible,
-            );
-        };
-        self.ensure_search_scores(&query);
-        let scores = std::mem::take(&mut self.ui_cache.browser.search.scores);
-        let mut scratch = std::mem::take(&mut self.ui_cache.browser.search.scratch);
-        scratch.clear();
-        scratch.reserve(self.wav_entries_len().min(1024));
-        let _ = self.for_each_wav_entry(|index, entry| {
-            if !filter_accepts(entry.tag) || !folder_accepts(&entry.relative_path) {
-                return;
-            }
-            if let Some(score) = scores.get(index).and_then(|s| *s) {
-                scratch.push((index, score));
-            }
-        });
-        scratch.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-        self.ui_cache.browser.search.scores = scores;
-        self.ui_cache.browser.search.scratch = scratch;
-        let visible: Vec<usize> = self
-            .ui_cache
-            .browser
-            .search
-            .scratch
-            .iter()
-            .map(|(index, _)| *index)
-            .collect();
-        let mut visible = visible;
-        if matches!(
-            sort_mode,
-            SampleBrowserSort::PlaybackAgeAsc | SampleBrowserSort::PlaybackAgeDesc
-        ) {
-            let ascending = sort_mode == SampleBrowserSort::PlaybackAgeAsc;
-            sort_visible_by_playback_age(self, &mut visible, ascending);
-        }
-        let selected_visible = focused_index.and_then(|idx| visible.iter().position(|i| *i == idx));
-        let loaded_visible = loaded_index.and_then(|idx| visible.iter().position(|i| *i == idx));
-        (
-            crate::app::state::VisibleRows::List(visible),
-            selected_visible,
-            loaded_visible,
-        )
-    }
-
     pub(crate) fn should_offload_search(&self) -> bool {
         self.wav_entries_len() > 5000
     }
@@ -240,13 +75,52 @@ impl AppController {
         triage_ok && rating_ok
     }
 
-    fn active_search_query(&self) -> Option<&str> {
+    /// Return the active trimmed browser query, when non-empty.
+    pub(crate) fn active_search_query(&self) -> Option<&str> {
         let query = self.ui.browser.search_query.trim();
         if query.is_empty() { None } else { Some(query) }
     }
 
-    fn ensure_search_scores(&mut self, query: &str) {
+    /// Ensure fuzzy-match scores exist for the query against current visible entries.
+    pub(crate) fn ensure_search_scores(&mut self, query: &str) {
         let source_id = self.selection_state.ctx.selected_source.clone();
+        if self.ui_cache.browser.search.source_id == source_id
+            && self.ui_cache.browser.search.query == query
+            && self.ui_cache.browser.search.scores.len() == self.wav_entries_len()
+        {
+            return;
+        }
+        if let Some(cached_index) = self
+            .ui_cache
+            .browser
+            .search
+            .query_score_cache
+            .iter()
+            .position(|entry| {
+                entry.source_id == source_id
+                    && entry.query == query
+                    && entry.scores.len() == self.wav_entries_len()
+            })
+        {
+            let cached = self
+                .ui_cache
+                .browser
+                .search
+                .query_score_cache
+                .remove(cached_index);
+            self.ui_cache.browser.search.source_id = cached.source_id.clone();
+            self.ui_cache.browser.search.query.clone_from(&cached.query);
+            self.ui_cache.browser.search.scores = cached.scores;
+            self.ui_cache.browser.search.query_score_cache.insert(
+                0,
+                QueryScoreCacheEntry {
+                    source_id: self.ui_cache.browser.search.source_id.clone(),
+                    query: self.ui_cache.browser.search.query.clone(),
+                    scores: self.ui_cache.browser.search.scores.clone(),
+                },
+            );
+            return;
+        }
         if self.ui_cache.browser.search.source_id != source_id
             || self.ui_cache.browser.search.query != query
             || self.ui_cache.browser.search.scores.len() != self.wav_entries_len()
@@ -298,6 +172,19 @@ impl AppController {
                 }
             }
             self.ui_cache.browser.search.scores = new_scores;
+            self.ui_cache.browser.search.query_score_cache.insert(
+                0,
+                QueryScoreCacheEntry {
+                    source_id: self.ui_cache.browser.search.source_id.clone(),
+                    query: self.ui_cache.browser.search.query.clone(),
+                    scores: self.ui_cache.browser.search.scores.clone(),
+                },
+            );
+            self.ui_cache
+                .browser
+                .search
+                .query_score_cache
+                .truncate(self.ui_cache.browser.search.max_cached_queries);
         }
     }
 
@@ -439,27 +326,4 @@ pub(crate) fn set_browser_search(controller: &mut AppController, query: impl Int
     controller.ui.browser.sort = SampleBrowserSort::ListOrder;
     controller.ui.browser.similarity_sort_follow_loaded = false;
     controller.rebuild_browser_lists();
-}
-
-fn sort_visible_by_playback_age(
-    controller: &mut AppController,
-    visible: &mut [usize],
-    ascending: bool,
-) {
-    visible.sort_by(|a, b| {
-        let a_key = controller
-            .wav_entry(*a)
-            .and_then(|entry| entry.last_played_at)
-            .unwrap_or(i64::MIN);
-        let b_key = controller
-            .wav_entry(*b)
-            .and_then(|entry| entry.last_played_at)
-            .unwrap_or(i64::MIN);
-        let order = if ascending {
-            a_key.cmp(&b_key)
-        } else {
-            b_key.cmp(&a_key)
-        };
-        order.then_with(|| a.cmp(b))
-    });
 }

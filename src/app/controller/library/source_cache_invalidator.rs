@@ -18,6 +18,7 @@ pub(crate) struct SourceCacheInvalidator<'a> {
     duration_cache: &'a mut HashMap<SourceId, HashMap<PathBuf, f32>>,
     analysis_failures_cache: &'a mut HashMap<SourceId, HashMap<PathBuf, String>>,
     feature_cache: &'a mut HashMap<SourceId, FeatureCache>,
+    browser_pipeline_cache: &'a mut crate::app::controller::library::wavs::BrowserPipelineCache,
     missing_wavs: &'a mut HashMap<SourceId, HashSet<PathBuf>>,
     folder_browsers: &'a mut HashMap<
         SourceId,
@@ -39,6 +40,7 @@ impl<'a> SourceCacheInvalidator<'a> {
             &mut ui_cache.browser.durations,
             &mut ui_cache.browser.analysis_failures,
             &mut ui_cache.browser.features,
+            &mut ui_cache.browser.pipeline,
             &mut missing.wavs,
             &mut ui_cache.folders.models,
         )
@@ -52,6 +54,7 @@ impl<'a> SourceCacheInvalidator<'a> {
         duration_cache: &'a mut HashMap<SourceId, HashMap<PathBuf, f32>>,
         analysis_failures_cache: &'a mut HashMap<SourceId, HashMap<PathBuf, String>>,
         feature_cache: &'a mut HashMap<SourceId, FeatureCache>,
+        browser_pipeline_cache: &'a mut crate::app::controller::library::wavs::BrowserPipelineCache,
         missing_wavs: &'a mut HashMap<SourceId, HashSet<PathBuf>>,
         folder_browsers: &'a mut HashMap<
             SourceId,
@@ -66,6 +69,7 @@ impl<'a> SourceCacheInvalidator<'a> {
             duration_cache,
             analysis_failures_cache,
             feature_cache,
+            browser_pipeline_cache,
             missing_wavs,
             folder_browsers,
         }
@@ -78,6 +82,7 @@ impl<'a> SourceCacheInvalidator<'a> {
         self.duration_cache.remove(source_id);
         self.analysis_failures_cache.remove(source_id);
         self.feature_cache.remove(source_id);
+        self.browser_pipeline_cache.invalidate();
         self.missing_wavs.remove(source_id);
     }
 

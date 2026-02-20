@@ -1,4 +1,9 @@
+use super::interactions::{
+    adjacent_waveform_action_for_step, execute_interaction_step, interaction_filter_for_step,
+    interaction_query_for_step, interaction_sort_for_step, waveform_action_for_step,
+};
 use super::*;
+use sempal::app_core::actions::NativeUiAction;
 
 /// Panic with context if a GUI benchmark test setup step fails.
 fn must<T, E: std::fmt::Display>(result: Result<T, E>, context: &str) -> T {
@@ -58,10 +63,7 @@ fn interaction_step_cycles_search_filter_and_sort() {
     );
 
     for step in 0..6usize {
-        must(
-            execute_interaction_step(&mut workspace.controller, step),
-            "interaction step",
-        );
+        execute_interaction_step(&mut workspace.controller, step);
         assert_eq!(
             workspace.controller.ui.browser.search_query,
             interaction_query_for_step(step)
@@ -103,5 +105,36 @@ fn waveform_action_sequence_covers_expected_native_actions() {
     assert!(matches!(
         waveform_action_for_step(5),
         NativeUiAction::ZoomWaveformFull
+    ));
+}
+
+/// Ensure adjacent waveform benchmark action sequencing is deterministic.
+#[test]
+fn adjacent_waveform_action_sequence_covers_expected_native_actions() {
+    assert!(matches!(
+        adjacent_waveform_action_for_step(0),
+        NativeUiAction::SeekWaveform {
+            position_milli: 380
+        }
+    ));
+    assert!(matches!(
+        adjacent_waveform_action_for_step(1),
+        NativeUiAction::SeekWaveform {
+            position_milli: 410
+        }
+    ));
+    assert!(matches!(
+        adjacent_waveform_action_for_step(2),
+        NativeUiAction::ZoomWaveform {
+            zoom_in: true,
+            steps: 1
+        }
+    ));
+    assert!(matches!(
+        adjacent_waveform_action_for_step(3),
+        NativeUiAction::ZoomWaveform {
+            zoom_in: false,
+            steps: 1
+        }
     ));
 }

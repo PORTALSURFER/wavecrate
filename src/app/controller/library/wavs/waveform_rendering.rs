@@ -9,6 +9,8 @@ use std::path::Path;
 const MIN_VIEW_WIDTH_BASE: f64 = 1e-9;
 const MIN_SAMPLES_PER_PIXEL: f32 = 1.0;
 pub(crate) const DEFAULT_TRANSIENT_SENSITIVITY: f32 = 0.6;
+/// Pixel tolerance for reusing cached waveform images on adjacent pan/zoom updates.
+const WAVEFORM_VIEW_CACHE_REUSE_PIXELS: f64 = 2.0;
 
 fn min_view_width_for_frames(frame_count: usize, width_px: u32) -> f64 {
     if frame_count == 0 {
@@ -40,7 +42,7 @@ impl WaveformRenderMeta {
             .max((other.view_end - other.view_start).abs())
             .max(1e-9);
         let pixels = self.size[0].max(1) as f64;
-        let eps = (width / pixels).max(1e-9);
+        let eps = (width * WAVEFORM_VIEW_CACHE_REUSE_PIXELS / pixels).max(1e-9);
         let fade_eps = (1.0 / self.size[0].max(1) as f32).max(1e-6);
         self.samples_len == other.samples_len
             && self.size == other.size
