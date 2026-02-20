@@ -96,6 +96,15 @@ static ACTION_VOLUME_COUNT: AtomicU64 = AtomicU64::new(0);
 /// Accumulated volume-class interaction action duration in nanoseconds.
 static ACTION_VOLUME_DURATION_NS: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
+/// Total number of queued waveform flushes applied before projection.
+static WAVEFORM_FLUSH_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Accumulated waveform flush duration in nanoseconds.
+static WAVEFORM_FLUSH_DURATION_NS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Total number of emitted native waveform actions across queued flushes.
+static WAVEFORM_FLUSH_EMITTED_ACTIONS_TOTAL: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static FRAME_RESULT_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 static FRAME_RESULT_ANIMATION_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -179,6 +188,10 @@ fn maybe_log_bridge_profile() {
     let waveform_ns = ACTION_WAVEFORM_DURATION_NS.load(Ordering::Relaxed);
     let volume_count = ACTION_VOLUME_COUNT.load(Ordering::Relaxed);
     let volume_ns = ACTION_VOLUME_DURATION_NS.load(Ordering::Relaxed);
+    let waveform_flush_count = WAVEFORM_FLUSH_COUNT.load(Ordering::Relaxed);
+    let waveform_flush_ns = WAVEFORM_FLUSH_DURATION_NS.load(Ordering::Relaxed);
+    let waveform_flush_emitted_actions =
+        WAVEFORM_FLUSH_EMITTED_ACTIONS_TOTAL.load(Ordering::Relaxed);
     let frame_count = FRAME_RESULT_COUNT.load(Ordering::Relaxed);
     let frame_anim_count = FRAME_RESULT_ANIMATION_COUNT.load(Ordering::Relaxed);
     let primitive_sum = FRAME_RESULT_PRIMITIVES_TOTAL.load(Ordering::Relaxed);
@@ -228,6 +241,16 @@ fn maybe_log_bridge_profile() {
     } else {
         ms_from_ns(volume_ns) / volume_count as f64
     };
+    let waveform_flush_avg_ms = if waveform_flush_count == 0 {
+        0.0
+    } else {
+        ms_from_ns(waveform_flush_ns) / waveform_flush_count as f64
+    };
+    let waveform_flush_avg_actions = if waveform_flush_count == 0 {
+        0.0
+    } else {
+        waveform_flush_emitted_actions as f64 / waveform_flush_count as f64
+    };
     let avg_primitives_per_frame = if frame_count == 0 {
         0.0
     } else {
@@ -251,6 +274,7 @@ fn maybe_log_bridge_profile() {
         "native bridge profiling: pull_model prep_ms={:.3} project_ms={:.3} \
          pull_motion prep_ms={:.3} project_ms={:.3} action_ms={:.3} \
          wheel_action_ms={:.3} map_proxy_action_ms={:.3} waveform_action_ms={:.3} volume_action_ms={:.3} \
+         waveform_flush_ms={:.3} waveform_flush_avg_actions={:.2} \
          avg_primitives_per_frame={:.2} avg_text_runs_per_frame={:.2}",
         pull_model_avg_prep_ms,
         pull_model_avg_project_ms,
@@ -261,6 +285,8 @@ fn maybe_log_bridge_profile() {
         map_proxy_avg_ms,
         waveform_avg_ms,
         volume_avg_ms,
+        waveform_flush_avg_ms,
+        waveform_flush_avg_actions,
         avg_primitives_per_frame,
         avg_text_runs_per_frame
     );
@@ -387,6 +413,19 @@ fn trace_action_interaction(kind: InteractionActionClass, duration: Duration) {
 #[inline(always)]
 /// No-op classified interaction recorder for non-profiling builds.
 fn trace_action_interaction(_kind: InteractionActionClass, _duration: Duration) {}
+
+#[cfg(feature = "native-bridge-metrics")]
+#[inline(always)]
+/// Track end-to-end duration and emission count for queued waveform-action flushes.
+fn trace_waveform_flush(duration: Duration, emitted_actions: u64) {
+    WAVEFORM_FLUSH_COUNT.fetch_add(1, Ordering::Relaxed);
+    saturating_add_duration(&WAVEFORM_FLUSH_DURATION_NS, duration);
+    WAVEFORM_FLUSH_EMITTED_ACTIONS_TOTAL.fetch_add(emitted_actions, Ordering::Relaxed);
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+/// No-op waveform flush tracer for non-profiling builds.
+fn trace_waveform_flush(_duration: Duration, _emitted_actions: u64) {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct MapQueryBoundsKey {
@@ -614,12 +653,98 @@ fn action_requires_projection_cache_invalidation(action: &NativeUiAction) -> boo
     )
 }
 
+/// Queue of high-frequency waveform actions that can be coalesced per pull frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct PendingWaveformActions {
+    /// Latest seek target in normalized milli space.
+    seek_milli: Option<u16>,
+    /// Latest cursor target in normalized milli space.
+    cursor_milli: Option<u16>,
+    /// Latest explicit selection range in normalized milli space.
+    selection_range_milli: Option<(u16, u16)>,
+    /// Whether selection should be cleared when no range override is queued.
+    clear_selection: bool,
+    /// Net signed waveform zoom step delta accumulated this frame.
+    zoom_steps_delta: i16,
+    /// Whether `ZoomWaveformToSelection` is queued for this frame.
+    zoom_to_selection: bool,
+    /// Whether `ZoomWaveformFull` is queued for this frame.
+    zoom_full: bool,
+}
+
+impl PendingWaveformActions {
+    /// Return true when at least one queued waveform action is present.
+    fn has_pending(&self) -> bool {
+        self.seek_milli.is_some()
+            || self.cursor_milli.is_some()
+            || self.selection_range_milli.is_some()
+            || self.clear_selection
+            || self.zoom_steps_delta != 0
+            || self.zoom_to_selection
+            || self.zoom_full
+    }
+
+    /// Queue a coalescable waveform action and return true when absorbed.
+    fn enqueue(&mut self, action: &NativeUiAction) -> bool {
+        match action {
+            NativeUiAction::SeekWaveform { position_milli } => {
+                self.seek_milli = Some(*position_milli);
+                true
+            }
+            NativeUiAction::SetWaveformCursor { position_milli } => {
+                self.cursor_milli = Some(*position_milli);
+                true
+            }
+            NativeUiAction::SetWaveformSelectionRange {
+                start_milli,
+                end_milli,
+            } => {
+                self.selection_range_milli = Some((*start_milli, *end_milli));
+                self.clear_selection = false;
+                true
+            }
+            NativeUiAction::ClearWaveformSelection => {
+                self.selection_range_milli = None;
+                self.clear_selection = true;
+                true
+            }
+            NativeUiAction::ZoomWaveform { zoom_in, steps } => {
+                if self.zoom_full || self.zoom_to_selection {
+                    return true;
+                }
+                let signed_steps = if *zoom_in {
+                    i16::from(*steps)
+                } else {
+                    -i16::from(*steps)
+                };
+                self.zoom_steps_delta = self.zoom_steps_delta.saturating_add(signed_steps);
+                true
+            }
+            NativeUiAction::ZoomWaveformToSelection => {
+                self.zoom_steps_delta = 0;
+                self.zoom_to_selection = true;
+                self.zoom_full = false;
+                true
+            }
+            NativeUiAction::ZoomWaveformFull => {
+                self.zoom_steps_delta = 0;
+                self.zoom_to_selection = false;
+                self.zoom_full = true;
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
 /// Host bridge used by the native `radiant` runtime.
 pub struct SempalNativeBridge {
     controller: AppController,
     projection_cache: NativeProjectionCache,
     /// Coalesced pending browser-focus delta from high-frequency wheel/arrow actions.
     pending_browser_focus_delta: i16,
+    /// Coalesced pending waveform actions from high-frequency drag/wheel input.
+    pending_waveform_actions: PendingWaveformActions,
 }
 
 impl SempalNativeBridge {
@@ -638,6 +763,7 @@ impl SempalNativeBridge {
             controller,
             projection_cache: NativeProjectionCache::default(),
             pending_browser_focus_delta: 0,
+            pending_waveform_actions: PendingWaveformActions::default(),
         })
     }
 
@@ -659,6 +785,77 @@ impl SempalNativeBridge {
         self.projection_cache.invalidate();
         self.controller.focus_browser_delta_action(pending as i8);
     }
+
+    /// Queue a coalescable waveform action and return whether it was absorbed.
+    fn enqueue_waveform_action(&mut self, action: &NativeUiAction) -> bool {
+        self.pending_waveform_actions.enqueue(action)
+    }
+
+    /// Apply queued waveform actions in deterministic order before projection.
+    fn flush_pending_waveform_actions(&mut self) {
+        if !self.pending_waveform_actions.has_pending() {
+            return;
+        }
+        let pending = std::mem::take(&mut self.pending_waveform_actions);
+        let profiling = bridge_profiling_enabled();
+        let flush_start = profiling.then(Instant::now);
+        self.projection_cache.invalidate();
+        let mut emitted_actions = 0u64;
+
+        if pending.zoom_full {
+            self.controller
+                .apply_native_ui_action(NativeUiAction::ZoomWaveformFull);
+            emitted_actions = emitted_actions.saturating_add(1);
+        } else if pending.zoom_to_selection {
+            self.controller
+                .apply_native_ui_action(NativeUiAction::ZoomWaveformToSelection);
+            emitted_actions = emitted_actions.saturating_add(1);
+        } else if pending.zoom_steps_delta != 0 {
+            let zoom_in = pending.zoom_steps_delta.is_positive();
+            let steps = pending
+                .zoom_steps_delta
+                .unsigned_abs()
+                .min(u16::from(u8::MAX)) as u8;
+            self.controller
+                .apply_native_ui_action(NativeUiAction::ZoomWaveform { zoom_in, steps });
+            emitted_actions = emitted_actions.saturating_add(1);
+        }
+
+        if let Some((start_milli, end_milli)) = pending.selection_range_milli {
+            self.controller
+                .apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
+                    start_milli,
+                    end_milli,
+                });
+            emitted_actions = emitted_actions.saturating_add(1);
+        } else if pending.clear_selection {
+            self.controller
+                .apply_native_ui_action(NativeUiAction::ClearWaveformSelection);
+            emitted_actions = emitted_actions.saturating_add(1);
+        }
+
+        if let Some(position_milli) = pending.cursor_milli {
+            self.controller
+                .apply_native_ui_action(NativeUiAction::SetWaveformCursor { position_milli });
+            emitted_actions = emitted_actions.saturating_add(1);
+        }
+        if let Some(position_milli) = pending.seek_milli {
+            self.controller
+                .apply_native_ui_action(NativeUiAction::SeekWaveform { position_milli });
+            emitted_actions = emitted_actions.saturating_add(1);
+        }
+
+        if profiling {
+            let flush_duration = flush_start.map_or(Duration::ZERO, |start| start.elapsed());
+            trace_waveform_flush(flush_duration, emitted_actions);
+        }
+    }
+
+    /// Flush all coalesced high-frequency input action queues before projection.
+    fn flush_pending_input_actions(&mut self) {
+        self.flush_pending_browser_focus_delta();
+        self.flush_pending_waveform_actions();
+    }
 }
 
 impl NativeAppBridge for SempalNativeBridge {
@@ -669,7 +866,7 @@ impl NativeAppBridge for SempalNativeBridge {
         if call <= 24 {
             info!(call, "native bridge: pull_model start");
         }
-        self.flush_pending_browser_focus_delta();
+        self.flush_pending_input_actions();
         self.controller.prepare_native_frame(false);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
@@ -707,7 +904,7 @@ impl NativeAppBridge for SempalNativeBridge {
         if call <= 24 {
             info!(call, "native bridge: pull_motion_model start");
         }
-        self.flush_pending_browser_focus_delta();
+        self.flush_pending_input_actions();
         self.controller.prepare_native_frame(true);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
@@ -744,7 +941,21 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             return;
         }
-        self.flush_pending_browser_focus_delta();
+        if self.enqueue_waveform_action(&action) {
+            let call = trace_action_call();
+            let profiling = bridge_profiling_enabled();
+            let action_start = profiling.then(Instant::now);
+            if call <= 64 {
+                info!(call, action = ?action, "native bridge: queue waveform action");
+            }
+            if profiling {
+                let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
+                trace_action_duration(action_duration);
+                trace_action_interaction(InteractionActionClass::Waveform, action_duration);
+            }
+            return;
+        }
+        self.flush_pending_input_actions();
         let call = trace_action_call();
         let profiling = bridge_profiling_enabled();
         let interaction_class = classify_action_interaction(&action);
@@ -777,7 +988,7 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     fn on_exit(&mut self) {
-        self.flush_pending_browser_focus_delta();
+        self.flush_pending_input_actions();
         if let Err(err) = self.controller.persist_native_exit_config() {
             error!(err = %err, "Failed to persist config on native exit");
             eprintln!("{err}");
@@ -801,7 +1012,11 @@ pub fn new_native_bridge(
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeProjectionCache, SempalNativeBridge, build_projection_cache_key};
+    use super::{
+        NativeProjectionCache, PendingWaveformActions, SempalNativeBridge,
+        build_projection_cache_key,
+    };
+    use crate::app_core::actions::NativeUiAction;
     use crate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
     use crate::app_core::state::UpdateStatus;
     use crate::waveform::WaveformRenderer;
@@ -875,6 +1090,7 @@ mod tests {
             controller,
             projection_cache: NativeProjectionCache::default(),
             pending_browser_focus_delta: 0,
+            pending_waveform_actions: PendingWaveformActions::default(),
         };
 
         bridge.enqueue_browser_focus_delta(70);
@@ -898,11 +1114,92 @@ mod tests {
             controller,
             projection_cache: cache,
             pending_browser_focus_delta: 0,
+            pending_waveform_actions: PendingWaveformActions::default(),
         };
         bridge.enqueue_browser_focus_delta(1);
         bridge.flush_pending_browser_focus_delta();
 
         assert_eq!(bridge.pending_browser_focus_delta, 0);
+        assert!(bridge.projection_cache.app_key.is_none());
+    }
+
+    /// Queued waveform actions should coalesce to last-write-wins semantics.
+    #[test]
+    fn waveform_action_queue_last_write_wins() {
+        let mut queue = PendingWaveformActions::default();
+        assert!(queue.enqueue(&NativeUiAction::SeekWaveform {
+            position_milli: 100,
+        }));
+        assert!(queue.enqueue(&NativeUiAction::SeekWaveform {
+            position_milli: 220,
+        }));
+        assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
+            position_milli: 300,
+        }));
+        assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
+            position_milli: 420,
+        }));
+        assert_eq!(queue.seek_milli, Some(220));
+        assert_eq!(queue.cursor_milli, Some(420));
+    }
+
+    /// Zoom-to-selection and zoom-full should override discrete zoom deltas.
+    #[test]
+    fn waveform_action_queue_zoom_overrides_delta() {
+        let mut queue = PendingWaveformActions::default();
+        assert!(queue.enqueue(&NativeUiAction::ZoomWaveform {
+            zoom_in: true,
+            steps: 3,
+        }));
+        assert!(queue.enqueue(&NativeUiAction::ZoomWaveformToSelection));
+        assert_eq!(queue.zoom_steps_delta, 0);
+        assert!(queue.zoom_to_selection);
+        assert!(!queue.zoom_full);
+
+        assert!(queue.enqueue(&NativeUiAction::ZoomWaveformFull));
+        assert_eq!(queue.zoom_steps_delta, 0);
+        assert!(!queue.zoom_to_selection);
+        assert!(queue.zoom_full);
+    }
+
+    /// Clear-selection requests should yield to later explicit range updates.
+    #[test]
+    fn waveform_action_queue_selection_range_overrides_clear() {
+        let mut queue = PendingWaveformActions::default();
+        assert!(queue.enqueue(&NativeUiAction::ClearWaveformSelection));
+        assert!(queue.clear_selection);
+        assert!(queue.selection_range_milli.is_none());
+        assert!(queue.enqueue(&NativeUiAction::SetWaveformSelectionRange {
+            start_milli: 120,
+            end_milli: 400,
+        }));
+        assert!(!queue.clear_selection);
+        assert_eq!(queue.selection_range_milli, Some((120, 400)));
+    }
+
+    /// Flushing queued waveform actions should clear queue state and projection cache keys.
+    #[test]
+    fn flush_pending_waveform_actions_clears_queue_and_projection_key() {
+        let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        let cache = NativeProjectionCache {
+            app_key: Some(build_projection_cache_key(&controller)),
+            ..NativeProjectionCache::default()
+        };
+        let mut bridge = SempalNativeBridge {
+            controller,
+            projection_cache: cache,
+            pending_browser_focus_delta: 0,
+            pending_waveform_actions: PendingWaveformActions::default(),
+        };
+
+        assert!(
+            bridge.enqueue_waveform_action(&NativeUiAction::SetWaveformCursor {
+                position_milli: 500,
+            })
+        );
+        bridge.flush_pending_waveform_actions();
+
+        assert!(!bridge.pending_waveform_actions.has_pending());
         assert!(bridge.projection_cache.app_key.is_none());
     }
 

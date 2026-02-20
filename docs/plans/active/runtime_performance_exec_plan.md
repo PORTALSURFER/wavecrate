@@ -64,6 +64,8 @@
       interactions.
 - [x] Debounce deferred commit-side metadata/highlight flushes so rapid focus
       interactions avoid synchronous spike work.
+- [x] Coalesce high-frequency waveform seek/cursor/selection/zoom actions in
+      the native bridge before projection pulls.
 - [ ] Introduce explicit derived-state dependency graph with dirty propagation
       for high-churn UI subsystems.
 - [ ] Reduce per-frame allocation churn in shell/text paths via reusable
@@ -71,7 +73,7 @@
 - [x] Reduce input-to-apply latency by tightening pending-input scheduling in
       native event-loop handling.
 - [ ] Reduce worker-pool lock contention in analysis job claim/decode queues.
-- [ ] Add per-stage telemetry for invalidation/rebuild rates and queue delays.
+- [x] Add per-stage telemetry for invalidation/rebuild rates and queue delays.
 
 ## Validation
 

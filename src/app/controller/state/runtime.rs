@@ -10,6 +10,17 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+/// Classified causes for queued waveform image refresh work.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WaveformRefreshReason {
+    /// Waveform sample content changed and requires a rerender.
+    Data,
+    /// Waveform view window/cursor/selection changed.
+    View,
+    /// Waveform render target dimensions changed.
+    Size,
+}
+
 pub(crate) struct ControllerRuntimeState {
     pub(crate) jobs: jobs::ControllerJobs,
     pub(crate) analysis: analysis_jobs::AnalysisWorkerPool,
@@ -27,6 +38,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) last_persisted_volume_milli: Option<u16>,
     /// True when a waveform image rebuild is queued for the next frame prep.
     pub(crate) waveform_refresh_pending: bool,
+    /// Last known cause for a queued waveform refresh request.
+    pub(crate) waveform_refresh_pending_reason: Option<WaveformRefreshReason>,
     /// Nesting depth for waveform refresh batching.
     pub(crate) waveform_refresh_batch_depth: u16,
     /// Pending playback-age DB update moved out of input action handlers.
@@ -72,6 +85,7 @@ impl ControllerRuntimeState {
             volume_persist_deadline: None,
             last_persisted_volume_milli: None,
             waveform_refresh_pending: false,
+            waveform_refresh_pending_reason: None,
             waveform_refresh_batch_depth: 0,
             pending_age_update_commit: None,
             pending_age_update_commit_not_before: None,

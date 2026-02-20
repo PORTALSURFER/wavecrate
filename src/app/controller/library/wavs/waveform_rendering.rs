@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::controller::playback::audio_cache::FileMetadata;
+use crate::app::controller::state::runtime::WaveformRefreshReason;
 use crate::app::state::WaveformView;
 use crate::app::state::waveform_image_signature;
 use crate::waveform::DecodedWaveform;
@@ -11,6 +12,24 @@ const MIN_SAMPLES_PER_PIXEL: f32 = 1.0;
 pub(crate) const DEFAULT_TRANSIENT_SENSITIVITY: f32 = 0.6;
 /// Pixel tolerance for reusing cached waveform images on adjacent pan/zoom updates.
 const WAVEFORM_VIEW_CACHE_REUSE_PIXELS: f64 = 2.0;
+
+/// Return the dominant waveform refresh reason when multiple requests coalesce.
+fn merge_waveform_refresh_reason(
+    existing: Option<WaveformRefreshReason>,
+    incoming: WaveformRefreshReason,
+) -> WaveformRefreshReason {
+    let rank = |reason: WaveformRefreshReason| -> u8 {
+        match reason {
+            WaveformRefreshReason::View => 1,
+            WaveformRefreshReason::Size => 2,
+            WaveformRefreshReason::Data => 3,
+        }
+    };
+    match existing {
+        Some(current) if rank(current) >= rank(incoming) => current,
+        _ => incoming,
+    }
+}
 
 fn min_view_width_for_frames(frame_count: usize, width_px: u32) -> f64 {
     if frame_count == 0 {
@@ -143,7 +162,7 @@ impl AppController {
         } else {
             self.refresh_waveform_transients();
         }
-        self.refresh_waveform_image();
+        self.refresh_waveform_image_with_reason(WaveformRefreshReason::Data);
     }
 
     /// Update the waveform render target to match the current view size.
@@ -154,16 +173,26 @@ impl AppController {
             return;
         }
         self.sample_view.waveform.size = [width, height];
-        self.refresh_waveform_image();
+        self.refresh_waveform_image_with_reason(WaveformRefreshReason::Size);
     }
 
     /// Request a waveform image refresh, coalescing while a refresh batch is active.
     pub(crate) fn refresh_waveform_image(&mut self) {
+        self.refresh_waveform_image_with_reason(WaveformRefreshReason::View);
+    }
+
+    /// Request a waveform refresh with an explicit reason used for coalesced batching.
+    fn refresh_waveform_image_with_reason(&mut self, reason: WaveformRefreshReason) {
         if self.runtime.waveform_refresh_batch_active() {
             self.runtime.waveform_refresh_pending = true;
+            self.runtime.waveform_refresh_pending_reason = Some(merge_waveform_refresh_reason(
+                self.runtime.waveform_refresh_pending_reason,
+                reason,
+            ));
             return;
         }
         self.runtime.waveform_refresh_pending = false;
+        self.runtime.waveform_refresh_pending_reason = None;
         self.refresh_waveform_image_now();
     }
 
@@ -172,8 +201,11 @@ impl AppController {
         if self.runtime.waveform_refresh_batch_active() || !self.runtime.waveform_refresh_pending {
             return;
         }
-        self.runtime.waveform_refresh_pending = false;
-        self.refresh_waveform_image_now();
+        let reason = self
+            .runtime
+            .waveform_refresh_pending_reason
+            .unwrap_or(WaveformRefreshReason::View);
+        self.refresh_waveform_image_with_reason(reason);
     }
 
     /// Render waveform pixels for the current view immediately.
