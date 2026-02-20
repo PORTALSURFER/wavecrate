@@ -7,6 +7,8 @@ use std::sync::OnceLock;
 
 /// Environment override for the browser-search offload threshold.
 const SEARCH_OFFLOAD_THRESHOLD_ENV: &str = "SEMPAL_BROWSER_SEARCH_OFFLOAD_THRESHOLD";
+/// Environment override for enabling/disabling async browser search for UI interactions.
+const SEARCH_ASYNC_PIPELINE_ENV: &str = "SEMPAL_BROWSER_ASYNC_PIPELINE";
 /// Default wav-entry count threshold above which search work offloads to jobs.
 const DEFAULT_SEARCH_OFFLOAD_THRESHOLD: usize = 5_000;
 
@@ -67,6 +69,11 @@ impl AppController {
     /// Return `true` when browser search should run through the async job path.
     pub(crate) fn should_offload_search(&self) -> bool {
         self.wav_entries_len() > browser_search_offload_threshold()
+    }
+
+    /// Return `true` when browser interactions should dispatch async search jobs.
+    pub(crate) fn should_dispatch_browser_search_async(&self) -> bool {
+        browser_async_pipeline_enabled()
     }
 
     #[allow(dead_code)]
@@ -230,8 +237,12 @@ impl AppController {
 
     pub(crate) fn dispatch_search_job(&mut self) {
         let Some(source) = self.current_source() else {
+            self.ui.browser.search_busy = false;
             return;
         };
+        self.ui.browser.latest_search_request_id =
+            self.ui.browser.latest_search_request_id.wrapping_add(1);
+        let request_id = self.ui.browser.latest_search_request_id;
         let query = self.ui.browser.search_query.clone();
         let filter = self.ui.browser.filter;
         let rating_filter = self.ui.browser.rating_filter.clone();
@@ -247,6 +258,7 @@ impl AppController {
         self.runtime
             .jobs
             .send_search_job(crate::app::controller::jobs::SearchJob {
+                request_id,
                 source_id: source.id.clone(),
                 source_root: source.root.clone(),
                 query,
@@ -264,7 +276,11 @@ impl AppController {
 pub(crate) fn set_browser_filter(controller: &mut AppController, filter: TriageFlagFilter) {
     if controller.ui.browser.filter != filter {
         controller.ui.browser.filter = filter;
-        controller.rebuild_browser_lists();
+        if controller.should_dispatch_browser_search_async() {
+            controller.dispatch_search_job();
+        } else {
+            controller.rebuild_browser_lists();
+        }
     }
 }
 
@@ -289,7 +305,11 @@ pub(crate) fn set_browser_rating_filter(controller: &mut AppController, level: i
         changed = true;
     }
     if changed {
-        controller.rebuild_browser_lists();
+        if controller.should_dispatch_browser_search_async() {
+            controller.dispatch_search_job();
+        } else {
+            controller.rebuild_browser_lists();
+        }
     }
 }
 
@@ -299,7 +319,11 @@ pub(crate) fn clear_browser_rating_filter(controller: &mut AppController) {
         return;
     }
     controller.ui.browser.rating_filter.clear();
-    controller.rebuild_browser_lists();
+    if controller.should_dispatch_browser_search_async() {
+        controller.dispatch_search_job();
+    } else {
+        controller.rebuild_browser_lists();
+    }
 }
 
 pub(crate) fn set_browser_sort(controller: &mut AppController, sort: SampleBrowserSort) {
@@ -308,7 +332,11 @@ pub(crate) fn set_browser_sort(controller: &mut AppController, sort: SampleBrows
         if sort != SampleBrowserSort::Similarity {
             controller.ui.browser.similarity_sort_follow_loaded = false;
         }
-        controller.rebuild_browser_lists();
+        if controller.should_dispatch_browser_search_async() {
+            controller.dispatch_search_job();
+        } else {
+            controller.rebuild_browser_lists();
+        }
     }
 }
 
@@ -326,7 +354,11 @@ pub(crate) fn set_browser_search(controller: &mut AppController, query: impl Int
     controller.ui.browser.similar_query = None;
     controller.ui.browser.sort = SampleBrowserSort::ListOrder;
     controller.ui.browser.similarity_sort_follow_loaded = false;
-    controller.rebuild_browser_lists();
+    if controller.should_dispatch_browser_search_async() {
+        controller.dispatch_search_job();
+    } else {
+        controller.rebuild_browser_lists();
+    }
 }
 
 /// Resolve the wav-entry threshold for switching browser search to async jobs.
@@ -340,4 +372,47 @@ fn browser_search_offload_threshold() -> usize {
             .filter(|threshold| *threshold > 0)
             .unwrap_or(DEFAULT_SEARCH_OFFLOAD_THRESHOLD)
     })
+}
+
+/// Resolve whether browser interaction paths should always use async search.
+///
+/// This defaults to `true` for runtime builds and `false` under libtest so
+/// tests keep deterministic immediate list updates.
+fn browser_async_pipeline_enabled() -> bool {
+    #[cfg(test)]
+    {
+        false
+    }
+    #[cfg(not(test))]
+    {
+        /// Cached parsed async pipeline override for browser interactions.
+        static ASYNC_PIPELINE_ENABLED: OnceLock<bool> = OnceLock::new();
+        *ASYNC_PIPELINE_ENABLED.get_or_init(|| {
+            std::env::var(SEARCH_ASYNC_PIPELINE_ENV)
+                .ok()
+                .as_deref()
+                .and_then(parse_env_bool)
+                .unwrap_or(true)
+        })
+    }
+}
+
+/// Parse a permissive boolean environment variable value.
+fn parse_env_bool(value: &str) -> Option<bool> {
+    let normalized = value.trim();
+    if normalized.eq_ignore_ascii_case("1")
+        || normalized.eq_ignore_ascii_case("true")
+        || normalized.eq_ignore_ascii_case("yes")
+        || normalized.eq_ignore_ascii_case("on")
+    {
+        Some(true)
+    } else if normalized.eq_ignore_ascii_case("0")
+        || normalized.eq_ignore_ascii_case("false")
+        || normalized.eq_ignore_ascii_case("no")
+        || normalized.eq_ignore_ascii_case("off")
+    {
+        Some(false)
+    } else {
+        None
+    }
 }

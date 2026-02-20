@@ -15,6 +15,10 @@ fn must<T, E: std::fmt::Display>(result: Result<T, E>, context: &str) -> T {
 
 /// Install an isolated app root for benchmark tests.
 fn with_isolated_app_config() {
+    // Keep GUI benchmark unit tests deterministic by forcing synchronous browser updates.
+    unsafe {
+        std::env::set_var("SEMPAL_BROWSER_ASYNC_PIPELINE", "0");
+    }
     let config_root = must(tempfile::tempdir(), "create isolated app config directory");
     must(
         sempal::app_dirs::set_app_root_override(config_root.path().to_path_buf()),

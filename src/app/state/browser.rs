@@ -60,6 +60,10 @@ pub struct SampleBrowserState {
     pub active_tab: SampleBrowserTab,
     /// True when a background search/filter job is running.
     pub search_busy: bool,
+    /// Latest issued browser search request identifier.
+    pub latest_search_request_id: u64,
+    /// Latest browser search request identifier applied to visible rows.
+    pub latest_applied_search_request_id: u64,
     /// Paths that should flash in the browser list after a copy action.
     pub copy_flash_paths: Vec<PathBuf>,
     /// Start time for the current browser copy flash.
@@ -96,6 +100,8 @@ impl Default for SampleBrowserState {
             rename_focus_requested: false,
             active_tab: SampleBrowserTab::List,
             search_busy: false,
+            latest_search_request_id: 0,
+            latest_applied_search_request_id: 0,
             copy_flash_paths: Vec::new(),
             copy_flash_at: None,
         }

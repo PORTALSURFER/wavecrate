@@ -101,6 +101,8 @@ fn job_message_delivery(message: &JobMessage) -> JobMessageDelivery {
 
 #[derive(Debug)]
 pub(crate) struct SearchJob {
+    /// Monotonic request identifier used to discard stale async search results.
+    pub(super) request_id: u64,
     pub(super) source_id: SourceId,
     pub(super) source_root: PathBuf,
     pub(super) query: String,
@@ -116,6 +118,8 @@ pub(crate) struct SearchJob {
 
 #[derive(Debug)]
 pub(crate) struct SearchResult {
+    /// Request identifier echoed from [`SearchJob::request_id`].
+    pub(crate) request_id: u64,
     pub(crate) source_id: SourceId,
     pub(crate) query: String,
     pub(crate) visible: crate::app::state::VisibleRows,

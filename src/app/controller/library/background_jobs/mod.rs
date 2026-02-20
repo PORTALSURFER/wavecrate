@@ -349,6 +349,7 @@ impl AppController {
                 JobMessage::BrowserSearchFinished(message) => {
                     if Some(&message.source_id) == self.selection_state.ctx.selected_source.as_ref()
                         && message.query == self.ui.browser.search_query
+                        && message.request_id == self.ui.browser.latest_search_request_id
                     {
                         self.ui.browser.visible = message.visible;
                         self.ui.browser.visible_rows_revision =
@@ -357,6 +358,7 @@ impl AppController {
                         self.ui.browser.neutral = message.neutral;
                         self.ui.browser.keep = message.keep;
                         self.ui_cache.browser.search.scores = message.scores;
+                        self.ui.browser.latest_applied_search_request_id = message.request_id;
                         self.ui.browser.search_busy = false;
 
                         // Re-sync selection/loaded hints for the new visible list
