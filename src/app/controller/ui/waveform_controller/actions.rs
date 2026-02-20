@@ -41,17 +41,14 @@ impl WaveformActions for WaveformController<'_> {
         if !self.waveform_ready() {
             return;
         }
-        let steps = steps.max(1);
-        let mut changed = false;
-        for _ in 0..steps {
-            changed |= self.apply_zoom_step(
-                zoom_in,
-                focus,
-                factor_override,
-                playhead_focus_when_playing,
-                keep_playhead_visible,
-            );
-        }
+        let changed = self.apply_zoom_steps(
+            zoom_in,
+            steps.max(1),
+            focus,
+            factor_override,
+            playhead_focus_when_playing,
+            keep_playhead_visible,
+        );
         if changed {
             self.refresh_waveform_image();
         }

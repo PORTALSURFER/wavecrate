@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-20T19:11:30Z
+Last Updated: 2026-02-20T20:40:34Z
 Updated By: Codex
 
 ## Purpose
@@ -10,20 +10,15 @@ Updated By: Codex
 
 ## Current Session (2026-02-20 UTC)
 
-- I am implementing the waveform apply-path fast-lane performance milestone.
-- In `src/app/controller/playback/mod.rs`, I added no-op fast paths for
-  unchanged cursor/selection/zoom updates while waveform focus is already
-  active.
-- In `src/app_core/native_bridge.rs`, queued waveform flush now dedupes
-  redundant cursor+seek pairs and wraps the flush in one outer waveform refresh
-  batch scope.
-- In `scripts/run_perf_guard.sh`, I added
-  `waveform_pan_zoom_adjacent_latency` as a warn-threshold scenario.
-- In docs (`docs/ENV_VARS.md`, `docs/performance_qa.md`), I documented the new
-  adjacent waveform perf guard knobs and QA coverage.
+- I am implementing performance ROI item #1: single-pass waveform zoom math.
+- `src/app/controller/ui/waveform_controller/actions.rs` now routes multi-step
+  zoom through one aggregated solve instead of per-step loops.
+- I split zoom logic into `src/app/controller/ui/waveform_controller/zoom.rs`
+  and kept `helpers.rs` under the file-size guardrail.
+- `src/app/controller/tests/waveform_nav_cursor.rs` includes a regression test
+  proving batched large-step zoom matches repeated single-step zoom.
 - Full `bash scripts/ci_local.sh` is green for this change set.
 
 ## Work Notes
 
-- Pending commit/push: waveform apply-path fast-lane + adjacent waveform
-  perf-guard milestone.
+- Pending commit/push: waveform one-pass zoom milestone (`#1`) + tests/docs.

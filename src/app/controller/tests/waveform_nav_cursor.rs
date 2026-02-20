@@ -25,7 +25,35 @@ fn batched_zoom_matches_sequential_steps() {
     for _ in 0..3 {
         stepped
             .waveform()
-            .zoom_waveform_steps_with_factor(true, 1, None, None, false, false);
+            .apply_zoom_step(true, None, None, false, false);
+    }
+
+    let view_a = batched.ui.waveform.view;
+    let view_b = stepped.ui.waveform.view;
+    assert!((view_a.start - view_b.start).abs() < 1e-6);
+    assert!((view_a.end - view_b.end).abs() < 1e-6);
+}
+
+/// Batched multi-step zoom should match repeated single-step zoom for large step counts.
+#[test]
+fn batched_zoom_many_steps_matches_sequential_steps() {
+    let (mut batched, source_a) = dummy_controller();
+    prepare_browser_sample(&mut batched, &source_a, "zoom-many.wav");
+    batched.update_waveform_size(240, 24);
+    batched.select_wav_by_path(Path::new("zoom-many.wav"));
+    batched.ui.controls.keyboard_zoom_factor = 0.5;
+
+    let (mut stepped, source_b) = dummy_controller();
+    prepare_browser_sample(&mut stepped, &source_b, "zoom-many.wav");
+    stepped.update_waveform_size(240, 24);
+    stepped.select_wav_by_path(Path::new("zoom-many.wav"));
+    stepped.ui.controls.keyboard_zoom_factor = 0.5;
+
+    batched.zoom_waveform_steps(true, 12, None);
+    for _ in 0..12 {
+        stepped
+            .waveform()
+            .apply_zoom_step(true, None, None, false, false);
     }
 
     let view_a = batched.ui.waveform.view;

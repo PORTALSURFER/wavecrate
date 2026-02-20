@@ -1,6 +1,8 @@
 mod actions;
 mod delegates;
 mod helpers;
+/// Waveform zoom math and view update helpers.
+mod zoom;
 
 pub(crate) use actions::WaveformActions;
 pub(crate) use helpers::WaveformController;
