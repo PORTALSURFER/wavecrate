@@ -194,6 +194,10 @@ benchmark results. Default: `12000`.
 Warning-only p95 latency threshold (microseconds) for waveform interaction
 benchmark results. Default: `10000`.
 
+- `SEMPAL_PERF_WARN_P95_US_WAVEFORM_ADJACENT`
+Warning-only p95 latency threshold (microseconds) for adjacent waveform
+pan/zoom interaction benchmark results. Default: `12000`.
+
 - `SEMPAL_PERF_WARN_P95_US_VOLUME`
 Warning-only p95 latency threshold (microseconds) for continuous volume-drag
 interaction benchmark results. Default: `8000`.
@@ -231,6 +235,10 @@ very high value to effectively disable).
 - `SEMPAL_PERF_FAIL_P95_US_WAVEFORM`
 Optional hard-fail p95 latency threshold (microseconds) for waveform
 interaction benchmark results. Unset by default.
+
+- `SEMPAL_PERF_FAIL_P95_US_WAVEFORM_ADJACENT`
+Optional hard-fail p95 latency threshold (microseconds) for adjacent waveform
+pan/zoom interaction benchmark results. Unset by default.
 
 - `SEMPAL_PERF_FAIL_P95_US_VOLUME`
 Optional hard-fail p95 latency threshold (microseconds) for continuous

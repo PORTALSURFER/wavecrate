@@ -1527,6 +1527,18 @@ impl PendingWaveformActions {
             DirtyReason::WaveformOverlayAction
         }
     }
+
+    /// Return the cursor update after removing redundant cursor+seek pairs.
+    ///
+    /// A queued seek already updates cursor position, so sending both actions at
+    /// the same normalized milli target adds no behavior but does add apply cost.
+    fn deduped_cursor_milli(&self) -> Option<u16> {
+        if self.cursor_milli.is_some() && self.cursor_milli == self.seek_milli {
+            None
+        } else {
+            self.cursor_milli
+        }
+    }
 }
 
 /// Host bridge used by the native `radiant` runtime.
@@ -1614,11 +1626,13 @@ impl SempalNativeBridge {
             return;
         }
         let pending = std::mem::take(&mut self.pending_waveform_actions);
+        let cursor_milli = pending.deduped_cursor_milli();
         let profiling = bridge_profiling_enabled();
         let flush_start = profiling.then(Instant::now);
         let before_key = build_projection_cache_key(&self.controller);
         let mut emitted_actions = 0u64;
 
+        self.controller.begin_waveform_refresh_batch();
         if pending.zoom_full {
             self.controller
                 .apply_native_ui_action(NativeUiAction::ZoomWaveformFull);
@@ -1651,7 +1665,7 @@ impl SempalNativeBridge {
             emitted_actions = emitted_actions.saturating_add(1);
         }
 
-        if let Some(position_milli) = pending.cursor_milli {
+        if let Some(position_milli) = cursor_milli {
             self.controller
                 .apply_native_ui_action(NativeUiAction::SetWaveformCursor { position_milli });
             emitted_actions = emitted_actions.saturating_add(1);
@@ -1661,6 +1675,7 @@ impl SempalNativeBridge {
                 .apply_native_ui_action(NativeUiAction::SeekWaveform { position_milli });
             emitted_actions = emitted_actions.saturating_add(1);
         }
+        self.controller.end_waveform_refresh_batch();
         let after_key = build_projection_cache_key(&self.controller);
         if before_key != after_key {
             self.controller
@@ -2055,6 +2070,19 @@ mod tests {
         }));
         assert_eq!(queue.seek_milli, Some(220));
         assert_eq!(queue.cursor_milli, Some(420));
+    }
+
+    /// Cursor updates should be dropped when seek targets the same milli value.
+    #[test]
+    fn waveform_action_queue_dedupes_cursor_when_seek_matches() {
+        let mut queue = PendingWaveformActions::default();
+        assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
+            position_milli: 420,
+        }));
+        assert!(queue.enqueue(&NativeUiAction::SeekWaveform {
+            position_milli: 420,
+        }));
+        assert_eq!(queue.deduped_cursor_milli(), None);
     }
 
     /// Zoom-to-selection and zoom-full should override discrete zoom deltas.

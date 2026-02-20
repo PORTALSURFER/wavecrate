@@ -32,6 +32,10 @@ const SHOULD_PLAY_RANDOM_SAMPLE: bool = false;
 #[cfg(not(test))]
 const SHOULD_PLAY_RANDOM_SAMPLE: bool = true;
 const PLAYHEAD_COMPLETION_EPSILON: f32 = 0.001;
+/// Equality epsilon used for normalized waveform cursor no-op detection.
+const WAVEFORM_CURSOR_NOOP_EPSILON: f32 = 1.0e-6;
+/// Equality epsilon used for waveform view no-op detection.
+const WAVEFORM_VIEW_NOOP_EPSILON: f64 = 1.0e-9;
 /// Debounce duration for deferred playback-age database writes.
 const DEFERRED_PLAYBACK_AGE_COMMIT_DELAY: Duration = Duration::from_millis(160);
 
@@ -177,13 +181,30 @@ impl AppController {
 
     /// Set waveform cursor using a 0..=1000 milli position from UI actions.
     pub fn set_waveform_cursor_milli(&mut self, position_milli: u16) {
-        self.set_waveform_cursor(normalized_from_milli(position_milli));
+        let normalized = normalized_from_milli(position_milli);
+        let cursor_unchanged =
+            self.ui.waveform.cursor.is_some_and(|existing| {
+                (existing - normalized).abs() <= WAVEFORM_CURSOR_NOOP_EPSILON
+            });
+        if cursor_unchanged && waveform_focus_active(self) {
+            return;
+        }
+        self.set_waveform_cursor(normalized);
         self.focus_waveform();
     }
 
     /// Set waveform selection range using 0..=1000 milli positions from UI actions.
     pub fn set_waveform_selection_range_milli(&mut self, start_milli: u16, end_milli: u16) {
-        self.set_selection_range(selection_range_from_milli(start_milli, end_milli));
+        let next_range = selection_range_from_milli(start_milli, end_milli);
+        let existing_range = self
+            .selection_state
+            .range
+            .range()
+            .or(self.ui.waveform.selection);
+        if existing_range == Some(next_range) && waveform_focus_active(self) {
+            return;
+        }
+        self.set_selection_range(next_range);
         self.focus_waveform();
     }
 
@@ -195,6 +216,8 @@ impl AppController {
 
     /// Zoom waveform from UI actions using clamped step counts and focus retention.
     pub fn zoom_waveform_steps_from_ui(&mut self, zoom_in: bool, steps: u8) {
+        let before_view = self.ui.waveform.view;
+        let focused_before = waveform_focus_active(self);
         self.zoom_waveform_steps_with_factor(
             zoom_in,
             zoom_steps_from_ui(steps),
@@ -203,6 +226,9 @@ impl AppController {
             true,
             true,
         );
+        if focused_before && !waveform_view_changed(before_view, self.ui.waveform.view) {
+            return;
+        }
         self.focus_waveform();
     }
 
@@ -512,6 +538,20 @@ fn zoom_steps_from_ui(steps: u8) -> u32 {
     u32::from(steps.max(1))
 }
 
+/// Return whether waveform focus is already active.
+fn waveform_focus_active(controller: &AppController) -> bool {
+    controller.ui.focus.context == crate::app::state::FocusContext::Waveform
+}
+
+/// Return whether two waveform views differ enough to warrant follow-up focus work.
+fn waveform_view_changed(
+    before: crate::app::state::WaveformView,
+    after: crate::app::state::WaveformView,
+) -> bool {
+    (before.start - after.start).abs() > WAVEFORM_VIEW_NOOP_EPSILON
+        || (before.end - after.end).abs() > WAVEFORM_VIEW_NOOP_EPSILON
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -586,6 +626,53 @@ mod tests {
         assert_eq!(zoom_steps_from_ui(0), 1);
         assert_eq!(zoom_steps_from_ui(1), 1);
         assert_eq!(zoom_steps_from_ui(12), 12);
+    }
+
+    /// Tiny floating-point drift should not be treated as a waveform view change.
+    #[test]
+    fn waveform_view_changed_ignores_tiny_float_noise() {
+        let base = crate::app::state::WaveformView {
+            start: 0.25,
+            end: 0.75,
+        };
+        let nearly_equal = crate::app::state::WaveformView {
+            start: 0.25 + (WAVEFORM_VIEW_NOOP_EPSILON * 0.25),
+            end: 0.75 - (WAVEFORM_VIEW_NOOP_EPSILON * 0.25),
+        };
+        assert!(!waveform_view_changed(base, nearly_equal));
+    }
+
+    /// Cursor updates should no-op when the cursor is unchanged and waveform is focused.
+    #[test]
+    fn set_waveform_cursor_milli_noops_when_unchanged_and_focused() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        controller.ui.focus.context = crate::app::state::FocusContext::Waveform;
+        controller.ui.waveform.cursor = Some(0.5);
+        let previous_nav = std::time::Instant::now() - std::time::Duration::from_millis(2);
+        controller.ui.waveform.cursor_last_navigation_at = Some(previous_nav);
+
+        controller.set_waveform_cursor_milli(500);
+
+        assert_eq!(controller.ui.waveform.cursor, Some(0.5));
+        assert_eq!(
+            controller.ui.waveform.cursor_last_navigation_at,
+            Some(previous_nav)
+        );
+    }
+
+    /// Selection updates should no-op when the range is unchanged and waveform is focused.
+    #[test]
+    fn set_waveform_selection_range_milli_noops_when_unchanged_and_focused() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        controller.ui.focus.context = crate::app::state::FocusContext::Waveform;
+        let range = SelectionRange::new(0.25, 0.75);
+        controller.selection_state.range.set_range(Some(range));
+        controller.ui.waveform.selection = Some(range);
+
+        controller.set_waveform_selection_range_milli(250, 750);
+
+        assert_eq!(controller.selection_state.range.range(), Some(range));
+        assert_eq!(controller.ui.waveform.selection, Some(range));
     }
 
     /// Deferred playback-age writes should remain queued until debounce expires.
