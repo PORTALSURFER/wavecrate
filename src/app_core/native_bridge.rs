@@ -1482,6 +1482,37 @@ mod tests {
         assert_eq!(queue.selection_range_milli, Some((120, 400)));
     }
 
+    /// Pending queue dirty reasons should distinguish overlay-only from view edits.
+    #[test]
+    fn waveform_queue_dirty_reason_matches_enqueued_actions() {
+        let mut queue = PendingWaveformActions::default();
+        assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
+            position_milli: 400,
+        }));
+        assert_eq!(
+            queue.dirty_reason(),
+            super::DirtyReason::WaveformOverlayAction
+        );
+
+        assert!(queue.enqueue(&NativeUiAction::ZoomWaveform {
+            zoom_in: true,
+            steps: 1,
+        }));
+        assert_eq!(queue.dirty_reason(), super::DirtyReason::WaveformViewAction);
+    }
+
+    /// Overlay-only dirty reasons should skip waveform image refresh work.
+    #[test]
+    fn waveform_render_inputs_refresh_policy_skips_overlay_only() {
+        assert!(!super::waveform_render_inputs_require_refresh(Some(
+            super::DirtyReason::WaveformOverlayAction
+        )));
+        assert!(super::waveform_render_inputs_require_refresh(Some(
+            super::DirtyReason::WaveformViewAction
+        )));
+        assert!(super::waveform_render_inputs_require_refresh(None));
+    }
+
     /// Flushing queued waveform actions should clear queue state and mark waveform dirties.
     #[test]
     fn flush_pending_waveform_actions_clears_queue_and_marks_waveform_dirty() {
@@ -1607,5 +1638,59 @@ mod tests {
         assert!(!super::parse_bridge_profile_enabled("0"));
         assert!(!super::parse_bridge_profile_enabled("no"));
         assert!(!super::parse_bridge_profile_enabled(""));
+    }
+
+    #[cfg(feature = "native-bridge-metrics")]
+    #[test]
+    /// Bridge metrics should record projection cache and waveform refresh decisions.
+    fn bridge_metrics_track_projection_cache_and_waveform_refresh_paths() {
+        let projection_hit_before =
+            super::PROJECTION_CACHE_HIT_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+        let projection_miss_before =
+            super::PROJECTION_CACHE_MISS_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+        let refresh_apply_before =
+            super::WAVEFORM_IMAGE_REFRESH_APPLY_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+        let refresh_skip_before =
+            super::WAVEFORM_IMAGE_REFRESH_SKIP_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+
+        let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        let mut cache = NativeProjectionCache::default();
+        let _ = cache.resolve_or_project(&mut controller, |controller| {
+            controller.project_native_app_model()
+        });
+        let _ = cache.resolve_or_project(&mut controller, |controller| {
+            controller.project_native_app_model()
+        });
+
+        let mut bridge = SempalNativeBridge {
+            controller,
+            projection_cache: NativeProjectionCache::default(),
+            pending_browser_focus_delta: 0,
+            pending_waveform_actions: PendingWaveformActions::default(),
+        };
+        bridge.controller.mark_derived_source_dirty(
+            DerivedNodeId::WaveformState,
+            super::DirtyReason::WaveformOverlayAction,
+        );
+        bridge.flush_derived_updates_before_pull(false);
+        bridge.controller.mark_derived_source_dirty(
+            DerivedNodeId::WaveformState,
+            super::DirtyReason::WaveformViewAction,
+        );
+        bridge.flush_derived_updates_before_pull(false);
+
+        let projection_hit_after =
+            super::PROJECTION_CACHE_HIT_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+        let projection_miss_after =
+            super::PROJECTION_CACHE_MISS_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+        let refresh_apply_after =
+            super::WAVEFORM_IMAGE_REFRESH_APPLY_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+        let refresh_skip_after =
+            super::WAVEFORM_IMAGE_REFRESH_SKIP_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+
+        assert!(projection_hit_after >= projection_hit_before.saturating_add(1));
+        assert!(projection_miss_after >= projection_miss_before.saturating_add(1));
+        assert!(refresh_apply_after >= refresh_apply_before.saturating_add(1));
+        assert!(refresh_skip_after >= refresh_skip_before.saturating_add(1));
     }
 }

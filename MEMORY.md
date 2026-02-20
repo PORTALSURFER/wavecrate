@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-20T12:53:15Z
+Last Updated: 2026-02-20T13:14:20Z
 Updated By: Codex
 
 ## Purpose
@@ -10,23 +10,21 @@ Updated By: Codex
 
 ## Current Session (2026-02-20 UTC)
 
-- I am implementing the Phase 5 runtime projection optimizations for browser
-  and waveform interaction responsiveness.
-- In `src/app_core/native_shell.rs`, I added retained browser projection caches
-  for static row fields and selected-path lookups, keyed by visible-row
-  revision/signatures to avoid redundant per-row recompute while navigating.
-- In `src/app_core/native_bridge.rs`, I expanded projection cache keys for
-  browser selection and waveform overlay/view state, moved queued waveform dirty
-  marking to flush-time with no-op key-diff skipping, and split waveform dirty
-  reasons into view vs overlay to skip unnecessary waveform image refreshes.
-- In `src/app_core/native_bridge.rs`, I added bridge perf attribution counters
-  for projection-cache hit/miss and waveform-image refresh apply/skip.
-- In `src/app/controller.rs`, I added retained controller-side projection cache
-  fields used by native shell projection.
-- `bash scripts/ci_local.sh` is green after these changes, and the perf guard is
-  now fully within warning limits on this run.
+- I am finalizing and shipping the Phase 5 stabilization batch for runtime
+  projection and dirty-path behavior.
+- In `src/app_core/native_shell.rs`, I hardened browser retained-cache lifecycle
+  handling and cache-entry validation, and added targeted tests for revision
+  invalidation, same-length selected-path updates, and stale cached-row
+  refreshes.
+- In `src/app_core/native_bridge.rs`, I added tests that lock waveform
+  overlay-vs-view dirty classification semantics and refresh policy behavior.
+- In `src/app/controller/state/runtime/derived_graph.rs`, I added test coverage
+  for overlay dirty-reason propagation through descendants.
+- In `docs/plans/active/runtime_performance_exec_plan.md`, I documented Phase 5
+  stabilization milestones as complete.
+- Full `bash scripts/ci_local.sh` is now green after the stabilization updates.
 
 ## Work Notes
 
-- Pending commits (not yet pushed): Phase 5 projection caching, waveform
-  dirty/invalidation tightening, and bridge profiling counter expansion.
+- Pending commit/push: Phase 5 stabilization hardening/tests/docs on top of the
+  prior projection and dirty-path performance work.

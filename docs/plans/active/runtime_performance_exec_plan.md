@@ -92,6 +92,21 @@
   - [x] Promote `wheel_latency` to a conservative default hard-fail threshold
         and add stability-readiness tooling for future tightening.
 
+### Phase 5: Projection + Dirty-Path Stabilization
+
+- [x] Harden retained browser projection cache lifecycle behavior so row caches
+      and selected-path lookup caches reset/rebuild deterministically.
+- [x] Add targeted browser projection cache tests for:
+  - visible-row revision rollover invalidation,
+  - same-length selected-path updates,
+  - stale cached-row column/tag refresh.
+- [x] Tighten waveform dirty-path semantics with explicit overlay-vs-view
+      behavior checks and helper tests.
+- [x] Add derived-graph test coverage for overlay dirty-reason propagation.
+- [x] Keep bridge profiling attribution counters for projection cache hit/miss
+      and waveform image refresh apply/skip, and retain existing feature-gated
+      metric tests.
+
 ## Validation
 
 - Required checks:

@@ -717,6 +717,8 @@ fn project_browser_model(controller: &mut AppController) -> BrowserPanelModel {
     let anchor_visible_row = controller.ui.browser.selection_anchor_visible;
     let visible_count = controller.ui.browser.visible.len();
     if controller.ui.browser.active_tab == SampleBrowserTab::Map {
+        clear_projected_browser_row_cache(controller);
+        clear_projected_selected_paths_lookup(controller);
         return BrowserPanelModel {
             visible_count,
             selected_visible_row,
@@ -789,11 +791,16 @@ fn browser_selected_paths_signature(paths: &[PathBuf]) -> u64 {
     hasher.finish()
 }
 
+/// Clear the retained selected-path lookup cache.
+fn clear_projected_selected_paths_lookup(controller: &mut AppController) {
+    controller.projected_selected_paths_signature = None;
+    controller.projected_selected_paths_lookup = None;
+}
+
 /// Refresh the retained selected-path lookup cache when selection changes.
 fn refresh_projected_selected_paths_lookup(controller: &mut AppController) {
     if controller.ui.browser.selected_paths.is_empty() {
-        controller.projected_selected_paths_signature = None;
-        controller.projected_selected_paths_lookup = None;
+        clear_projected_selected_paths_lookup(controller);
         return;
     }
     let signature = browser_selected_paths_signature(&controller.ui.browser.selected_paths);
@@ -822,13 +829,27 @@ fn selected_path_is_selected(controller: &AppController, relative_path: &Path) -
         .is_some_and(|lookup| lookup.contains(relative_path))
 }
 
+/// Clear retained browser-row projection fields.
+fn clear_projected_browser_row_cache(controller: &mut AppController) {
+    controller.projected_browser_rows.clear();
+}
+
 /// Reset retained browser-row projection fields when visible rows changed materially.
 fn refresh_projected_browser_row_cache(controller: &mut AppController) {
     if controller.projected_browser_rows_revision == controller.ui.browser.visible_rows_revision {
         return;
     }
     controller.projected_browser_rows_revision = controller.ui.browser.visible_rows_revision;
-    controller.projected_browser_rows.clear();
+    clear_projected_browser_row_cache(controller);
+}
+
+/// Return true when one cached browser-row projection still matches the entry snapshot.
+fn cached_browser_row_matches_entry(
+    cached: &CachedBrowserRow,
+    relative_path: &Path,
+    column_index: usize,
+) -> bool {
+    cached.0.as_path() == relative_path && cached.2 == column_index
 }
 
 /// Resolve static browser-row projection fields from cache, inserting on cache miss.
@@ -836,12 +857,15 @@ fn project_cached_browser_row(
     controller: &mut AppController,
     absolute_index: usize,
 ) -> Option<CachedBrowserRow> {
-    if let Some(cached) = controller.projected_browser_rows.get(&absolute_index) {
-        return Some(cached.clone());
-    }
     let (entry_tag, relative_path) = controller
         .wav_entry(absolute_index)
         .map(|entry| (entry.tag, entry.relative_path.clone()))?;
+    let column_index = browser_column_index(entry_tag);
+    if let Some(cached) = controller.projected_browser_rows.get(&absolute_index)
+        && cached_browser_row_matches_entry(cached, &relative_path, column_index)
+    {
+        return Some(cached.clone());
+    }
     let row_label = controller
         .label_for_ref(absolute_index)
         .map(str::to_string)
@@ -849,11 +873,11 @@ fn project_cached_browser_row(
     let cached = (
         relative_path.clone(),
         row_label,
-        browser_column_index(entry_tag),
+        column_index,
         browser_bucket_label(controller, &relative_path, entry_tag),
     );
     if controller.projected_browser_rows.len() >= MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE {
-        controller.projected_browser_rows.clear();
+        clear_projected_browser_row_cache(controller);
     }
     controller
         .projected_browser_rows
@@ -1602,6 +1626,89 @@ mod tests {
         ui.sources.folders.delete_recovery.in_progress = true;
         let projected = project_sources_model(&ui);
         assert!(!projected.folder_actions.can_clear_recovery_log);
+    }
+
+    #[test]
+    /// Retained browser row cache should clear when visible-row revisions roll over.
+    fn browser_row_cache_clears_when_visible_revision_changes() {
+        let mut controller =
+            AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
+        controller.projected_browser_rows_revision = 7;
+        controller.projected_browser_rows.insert(
+            0,
+            (
+                std::path::PathBuf::from("kick.wav"),
+                String::from("Kick"),
+                1,
+                String::from("SAMPLE"),
+            ),
+        );
+        controller.ui.browser.visible_rows_revision = 8;
+
+        refresh_projected_browser_row_cache(&mut controller);
+
+        assert_eq!(controller.projected_browser_rows_revision, 8);
+        assert!(controller.projected_browser_rows.is_empty());
+    }
+
+    #[test]
+    /// Selected-path lookup cache should refresh when path content changes at equal length.
+    fn selected_path_lookup_refreshes_for_same_len_path_changes() {
+        let mut controller =
+            AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
+        controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("first.wav")];
+        refresh_projected_selected_paths_lookup(&mut controller);
+        assert!(selected_path_is_selected(
+            &controller,
+            std::path::Path::new("first.wav")
+        ));
+        assert!(!selected_path_is_selected(
+            &controller,
+            std::path::Path::new("second.wav")
+        ));
+
+        controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("second.wav")];
+        refresh_projected_selected_paths_lookup(&mut controller);
+        assert!(!selected_path_is_selected(
+            &controller,
+            std::path::Path::new("first.wav")
+        ));
+        assert!(selected_path_is_selected(
+            &controller,
+            std::path::Path::new("second.wav")
+        ));
+    }
+
+    #[test]
+    /// Cached browser rows should rebuild when stored tag/column metadata is stale.
+    fn cached_browser_row_rebuilds_when_stored_tag_column_is_stale() {
+        let mut controller =
+            AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
+        controller.set_wav_entries_for_tests(vec![crate::sample_sources::WavEntry {
+            relative_path: std::path::PathBuf::from("kick.wav"),
+            file_size: 0,
+            modified_ns: 0,
+            content_hash: Some(String::from("hash")),
+            tag: crate::sample_sources::Rating::KEEP_1,
+            looped: false,
+            missing: false,
+            last_played_at: None,
+        }]);
+        controller.projected_browser_rows.insert(
+            0,
+            (
+                std::path::PathBuf::from("kick.wav"),
+                String::from("Kick"),
+                1,
+                String::from("SAMPLE"),
+            ),
+        );
+
+        let Some(cached) = project_cached_browser_row(&mut controller, 0) else {
+            panic!("cached row should exist");
+        };
+
+        assert_eq!(cached.2, 2);
     }
 
     #[test]

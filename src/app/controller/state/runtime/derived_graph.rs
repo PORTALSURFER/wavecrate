@@ -225,6 +225,24 @@ mod tests {
     }
 
     #[test]
+    /// Overlay dirty reasons should be preserved across derived descendants.
+    fn waveform_overlay_reason_propagates_through_descendants() {
+        let mut graph = DerivedStateGraph::new();
+        graph.mark_source_dirty(
+            DerivedNodeId::WaveformState,
+            DirtyReason::WaveformOverlayAction,
+        );
+        assert_eq!(
+            graph.last_reason(DerivedNodeId::WaveformRenderInputs),
+            Some(DirtyReason::WaveformOverlayAction)
+        );
+        assert_eq!(
+            graph.last_reason(DerivedNodeId::NativeAppProjectionKey),
+            Some(DirtyReason::WaveformOverlayAction)
+        );
+    }
+
+    #[test]
     fn multiple_sources_merge_dirty_sets_and_counts() {
         let mut graph = DerivedStateGraph::new();
         graph.mark_source_dirty(DerivedNodeId::BrowserState, DirtyReason::BrowserAction);
