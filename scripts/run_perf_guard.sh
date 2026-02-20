@@ -151,6 +151,13 @@ scenarios = [
         "SEMPAL_PERF_FAIL_P95_US_WAVEFORM",
         None,
     ),
+    (
+        "volume_drag_latency",
+        "SEMPAL_PERF_WARN_P95_US_VOLUME",
+        8_000,
+        "SEMPAL_PERF_FAIL_P95_US_VOLUME",
+        None,
+    ),
 ]
 
 stage_names = (
@@ -285,6 +292,7 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
                 "browser_focus_commit_latency": "browser_rows_window",
                 "map_pan_proxy_latency": "map_panel",
                 "waveform_interaction_latency": "waveform_overlay",
+                "volume_drag_latency": "status_bar",
             }
             segment_name = segment_name_by_scenario.get(key)
             if segment_name is not None:

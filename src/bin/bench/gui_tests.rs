@@ -1,6 +1,7 @@
-use super::interactions::{
-    adjacent_waveform_action_for_step, execute_interaction_step, interaction_filter_for_step,
-    interaction_query_for_step, interaction_sort_for_step, waveform_action_for_step,
+use super::interactions::execute_interaction_step;
+use super::interactions::step_patterns::{
+    adjacent_waveform_action_for_step, interaction_filter_for_step, interaction_query_for_step,
+    interaction_sort_for_step, volume_milli_for_step, waveform_action_for_step,
 };
 use super::*;
 use sempal::app_core::actions::NativeUiAction;
@@ -149,4 +150,14 @@ fn adjacent_waveform_action_sequence_covers_expected_native_actions() {
             steps: 1
         }
     ));
+}
+
+/// Ensure synthetic volume-drag benchmark steps remain in normalized bounds.
+#[test]
+fn volume_milli_sequence_stays_normalized() {
+    let a = volume_milli_for_step(0);
+    let b = volume_milli_for_step(1);
+    let c = volume_milli_for_step(42);
+    assert!(a <= 1000 && b <= 1000 && c <= 1000);
+    assert_ne!(a, b);
 }

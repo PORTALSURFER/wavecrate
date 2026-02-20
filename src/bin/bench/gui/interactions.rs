@@ -1,10 +1,18 @@
 //! Focused interaction latency scenarios used by the GUI benchmark harness.
 
+/// Deterministic step-selection helpers shared by interaction scenarios and tests.
+pub(super) mod step_patterns;
+
 use super::{BenchOptions, stats, wait_for_rows};
 use sempal::app_core::actions::{NativeAppModel, NativeMotionModel, NativeUiAction};
 use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
 use sempal::app_core::state::{
     MapBounds, MapPoint, MapQueryBounds, SampleBrowserSort, TriageFlagFilter,
+};
+
+use self::step_patterns::{
+    adjacent_waveform_action_for_step, interaction_filter_for_step, interaction_query_for_step,
+    interaction_sort_for_step, volume_milli_for_step, waveform_action_for_step,
 };
 
 /// Apply one deterministic interaction cycle across browser query/filter/sort knobs.
@@ -250,6 +258,31 @@ pub(super) fn bench_waveform_interactions(
     )
 }
 
+/// Measure continuous volume-drag update latency.
+pub(super) fn bench_volume_drag_latency(
+    options: &BenchOptions,
+    controller: &mut AppController,
+) -> Result<stats::StagedLatencySummary, String> {
+    wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
+    let mut step = 0usize;
+    stats::bench_staged_action_with_iters(
+        interaction_warmup(options),
+        interaction_iters(options),
+        |timer| {
+            timer.mark_input_done();
+            controller.apply_native_ui_action(NativeUiAction::SetVolume {
+                value_milli: volume_milli_for_step(step),
+            });
+            step = step.saturating_add(1);
+            timer.mark_apply_done();
+            controller.prepare_native_frame(false);
+            timer.mark_pull_done();
+            let _: NativeAppModel = controller.project_native_app_model();
+            Ok(())
+        },
+    )
+}
+
 /// Measure adjacent waveform pan/zoom interactions.
 pub(super) fn bench_waveform_pan_zoom_adjacent_latency(
     options: &BenchOptions,
@@ -268,48 +301,6 @@ pub(super) fn bench_waveform_pan_zoom_adjacent_latency(
             Ok(())
         },
     )
-}
-
-/// Return a deterministic waveform action for a benchmark step index.
-pub(super) fn waveform_action_for_step(step: usize) -> NativeUiAction {
-    match step % 6 {
-        0 => NativeUiAction::SeekWaveform {
-            position_milli: 320,
-        },
-        1 => NativeUiAction::SetWaveformCursor {
-            position_milli: 480,
-        },
-        2 => NativeUiAction::SetWaveformSelectionRange {
-            start_milli: 220,
-            end_milli: 660,
-        },
-        3 => NativeUiAction::ZoomWaveform {
-            zoom_in: true,
-            steps: 2,
-        },
-        4 => NativeUiAction::ZoomWaveformToSelection,
-        _ => NativeUiAction::ZoomWaveformFull,
-    }
-}
-
-/// Return an adjacent pan/zoom waveform action for a benchmark step index.
-pub(super) fn adjacent_waveform_action_for_step(step: usize) -> NativeUiAction {
-    match step % 4 {
-        0 => NativeUiAction::SeekWaveform {
-            position_milli: 380,
-        },
-        1 => NativeUiAction::SeekWaveform {
-            position_milli: 410,
-        },
-        2 => NativeUiAction::ZoomWaveform {
-            zoom_in: true,
-            steps: 1,
-        },
-        _ => NativeUiAction::ZoomWaveform {
-            zoom_in: false,
-            steps: 1,
-        },
-    }
 }
 
 /// Resolve measured-iteration count for focused interaction scenarios.
@@ -367,25 +358,4 @@ fn prime_map_cache_for_benchmark(controller: &mut AppController) -> Result<(), S
     ];
     controller.ui.map.cached_points_revision = 1;
     Ok(())
-}
-
-pub(super) fn interaction_query_for_step(step: usize) -> &'static str {
-    const SEARCH_QUERIES: [&str; 4] = ["sample_", "sample_00", "sample_000", "sample_001"];
-    SEARCH_QUERIES[step % SEARCH_QUERIES.len()]
-}
-
-pub(super) fn interaction_filter_for_step(step: usize) -> TriageFlagFilter {
-    match step % 3 {
-        0 => TriageFlagFilter::All,
-        1 => TriageFlagFilter::Keep,
-        _ => TriageFlagFilter::Trash,
-    }
-}
-
-pub(super) fn interaction_sort_for_step(step: usize) -> SampleBrowserSort {
-    if step.is_multiple_of(2) {
-        SampleBrowserSort::ListOrder
-    } else {
-        SampleBrowserSort::PlaybackAgeDesc
-    }
 }
