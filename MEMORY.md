@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-21T09:58:56Z
+Last Updated: 2026-02-21T16:38:43Z
 Updated By: Codex
 
 ## Purpose
@@ -10,17 +10,16 @@ Updated By: Codex
 
 ## Current Session (2026-02-21 UTC)
 
-- I am tightening runtime responsiveness in the Phase 7 invalidation-scope lane.
-- I changed radiant static-scene rebuild behavior so model refreshes stay
-  dirty-mask-driven unless static rebuild is explicitly requested.
-- I added focused radiant tests for static rebuild resolution behavior when the
-  bridge dirty mask is empty, explicitly static-invalidated, and static-dirty.
-- I optimized browser row projection in `src/app_core/native_shell.rs` by
-  removing a temporary visible-window copy and iterating visible indexes
-  directly with bounded pre-allocation.
-- I validated with `bash scripts/ci_local.sh`; perf guard reports p95 values
-  well under warning thresholds (for example `hover_latency` ~699us,
-  `wheel_latency` ~742us, `volume_drag_latency` ~101us).
+- I implemented the next ROI batch across sempal + radiant:
+  immediate volume drag emits for smooth slider rendering, static-rebuild cause
+  telemetry counters in radiant profiling output, and lower-allocation browser
+  row projection (hashed selected-path lookup + reduced cached-row cloning).
+- I added/updated focused runtime tests in
+  `vendor/radiant/src/gui_runtime/native_vello.rs` and
+  `src/app_core/native_shell.rs` for new helper behavior.
+- I validated with `bash scripts/ci_local.sh`; perf guard remained healthy with
+  low p95 values (for example `hover_latency` ~874us, `wheel_latency` ~1120us,
+  `volume_drag_latency` ~140us in the latest run).
 
 ## Work Notes
 

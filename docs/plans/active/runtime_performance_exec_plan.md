@@ -135,6 +135,17 @@
 - [x] Keep static segment rebuilds fully dirty-mask-driven across radiant
       frame segments and expand targeted tests for action-to-segment behavior.
 
+### Phase 8: Input/Paint + Projection Hot Path Polish
+
+- [x] Tighten volume slider drag responsiveness so drag deltas emit
+      immediately and repaint does not depend on release or idle flush.
+- [x] Add radiant runtime telemetry counters for rebuild causes
+      (explicit static invalidations, dirty-mask static rebuilds, and bridge
+      model/motion pull rebuild paths).
+- [x] Reduce browser projection hot-path allocation churn by hashing retained
+      selected-path lookup membership and removing `PathBuf` cloning from
+      cached-row projection hits.
+
 ## Validation
 
 - Required checks:
@@ -155,10 +166,10 @@
 
 ### Latest Perf-Guard Snapshot (2026-02-21)
 
-- `hover_latency` p95: `699us`
-- `wheel_latency` p95: `742us`
-- `waveform_pan_zoom_adjacent_latency` p95: `139us`
-- `volume_drag_latency` p95: `101us`
+- `hover_latency` p95: `874us`
+- `wheel_latency` p95: `1120us`
+- `waveform_pan_zoom_adjacent_latency` p95: `121us`
+- `volume_drag_latency` p95: `140us`
 - All perf-guard scenarios remained below warning thresholds.
 
 ## Milestone Exit Criteria

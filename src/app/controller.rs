@@ -78,8 +78,8 @@ pub struct AppController {
     pub(crate) projected_browser_rows: HashMap<usize, (PathBuf, String, usize, String)>,
     /// Signature for the retained browser selected-path lookup cache.
     pub(crate) projected_selected_paths_signature: Option<u64>,
-    /// Selected-path lookup set reused across native browser projections.
-    pub(crate) projected_selected_paths_lookup: Option<HashSet<PathBuf>>,
+    /// Selected-path hash lookup reused across native browser projections.
+    pub(crate) projected_selected_paths_lookup: Option<HashSet<u64>>,
     wav_entries: WavEntriesState,
     selection_state: ControllerSelectionState,
     pub(crate) settings: AppSettingsState,

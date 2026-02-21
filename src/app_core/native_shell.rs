@@ -785,8 +785,7 @@ pub(crate) fn project_browser_rows_model(
             );
             continue;
         };
-        let (relative_path, row_label, column_index, bucket_label) = cached_row;
-        let selected = selected_path_is_selected(controller, &relative_path);
+        let (row_label, column_index, bucket_label, selected) = cached_row;
         let focused = selected_visible_row.is_some_and(|focused| focused == visible_row);
         rows.push(
             BrowserRowModel::new(visible_row, row_label, column_index, selected, focused)
@@ -815,6 +814,13 @@ fn browser_selected_paths_signature(paths: &[PathBuf]) -> u64 {
     hasher.finish()
 }
 
+/// Hash one path for selected-row lookup checks.
+fn selected_path_lookup_hash(path: &Path) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut hasher);
+    hasher.finish()
+}
+
 /// Clear the retained selected-path lookup cache.
 fn clear_projected_selected_paths_lookup(controller: &mut AppController) {
     controller.projected_selected_paths_signature = None;
@@ -840,7 +846,7 @@ fn refresh_projected_selected_paths_lookup(controller: &mut AppController) {
             .browser
             .selected_paths
             .iter()
-            .cloned()
+            .map(|path| selected_path_lookup_hash(path.as_path()))
             .collect::<HashSet<_>>(),
     );
 }
@@ -850,7 +856,7 @@ fn selected_path_is_selected(controller: &AppController, relative_path: &Path) -
     controller
         .projected_selected_paths_lookup
         .as_ref()
-        .is_some_and(|lookup| lookup.contains(relative_path))
+        .is_some_and(|lookup| lookup.contains(&selected_path_lookup_hash(relative_path)))
 }
 
 /// Clear retained browser-row projection fields.
@@ -880,33 +886,47 @@ fn cached_browser_row_matches_entry(
 fn project_cached_browser_row(
     controller: &mut AppController,
     absolute_index: usize,
-) -> Option<CachedBrowserRow> {
+) -> Option<(String, usize, String, bool)> {
     let (entry_tag, relative_path) = controller
         .wav_entry(absolute_index)
         .map(|entry| (entry.tag, entry.relative_path.clone()))?;
     let column_index = browser_column_index(entry_tag);
-    if let Some(cached) = controller.projected_browser_rows.get(&absolute_index)
-        && cached_browser_row_matches_entry(cached, &relative_path, column_index)
-    {
-        return Some(cached.clone());
-    }
-    let row_label = controller
-        .label_for_ref(absolute_index)
-        .map(str::to_string)
-        .unwrap_or_else(|| view_model::sample_display_label(&relative_path));
-    let cached = (
-        relative_path.clone(),
-        row_label,
-        column_index,
-        browser_bucket_label(controller, &relative_path, entry_tag),
-    );
-    if controller.projected_browser_rows.len() >= MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE {
-        clear_projected_browser_row_cache(controller);
-    }
-    controller
+    let cache_hit = controller
         .projected_browser_rows
-        .insert(absolute_index, cached.clone());
-    Some(cached)
+        .get(&absolute_index)
+        .is_some_and(|cached| {
+            cached_browser_row_matches_entry(cached, &relative_path, column_index)
+        });
+    if !cache_hit {
+        let row_label = controller
+            .label_for_ref(absolute_index)
+            .map(str::to_string)
+            .unwrap_or_else(|| view_model::sample_display_label(&relative_path));
+        let cached = (
+            relative_path.clone(),
+            row_label,
+            column_index,
+            browser_bucket_label(controller, &relative_path, entry_tag),
+        );
+        if controller.projected_browser_rows.len() >= MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE {
+            clear_projected_browser_row_cache(controller);
+        }
+        controller
+            .projected_browser_rows
+            .insert(absolute_index, cached);
+    }
+    let projected = controller
+        .projected_browser_rows
+        .get(&absolute_index)
+        .map(|cached| {
+            (
+                cached.1.clone(),
+                cached.2,
+                cached.3.clone(),
+                selected_path_is_selected(controller, cached.0.as_path()),
+            )
+        })?;
+    Some(projected)
 }
 
 /// Project browser toolbar/tab/footer labels.
@@ -1738,7 +1758,7 @@ mod tests {
             panic!("cached row should exist");
         };
 
-        assert_eq!(cached.2, 2);
+        assert_eq!(cached.1, 2);
     }
 
     #[test]

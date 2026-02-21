@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-21T09:58:56Z
+Last updated (UTC): 2026-02-21T16:38:43Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -15,16 +15,22 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Add bridge profiler counters/reporting for static-scene rebuild causes so
-   action-class attribution is visible in perf captures.
-2. Audit browser viewport row projection for additional low-allocation wins
-   (selected-row/path lookup refresh and string/path reuse).
-3. Tighten interactive slider drag paths (volume and similar controls) to
-   guarantee immediate visual updates and no release-only redraw dependency.
+1. Extend new radiant rebuild-cause telemetry into structured bench output so
+   perf guard can surface cause attribution directly (not only runtime logs).
+2. Apply the same immediate-drag paint strategy to other continuous controls
+   (waveform selection handles and map drag proxies) where applicable.
+3. Continue browser projection hot-path tightening by reducing per-row string
+   allocation churn (retained row-model buffer and/or lightweight label storage).
 4. Keep `MEMORY.md` and this queue updated in every perf milestone commit.
 
 ## Done recently
 
+- Completed ROI batch items 1-3:
+  - immediate volume drag emits in radiant for smooth in-drag rendering,
+  - rebuild-cause profiler counters/reporting in radiant
+    (`explicit_static`, `dirty_mask_static`, bridge pull rebuild counts),
+  - browser projection low-allocation pass in sempal (selected-path hash lookup
+    cache and reduced cached-row cloning on projection hits).
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.
