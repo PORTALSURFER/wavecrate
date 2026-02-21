@@ -126,13 +126,13 @@
 - [x] Tighten `vendor/radiant` action invalidation routing so high-frequency
       browser/search/prompt actions use model+overlay refresh without forcing
       static-scene dirties upfront.
-- [ ] Validate reduced static rebuild churn via profiler counters and
+- [x] Validate reduced static rebuild churn via perf guard evidence and
       perf-guard reruns focused on `waveform_pan_zoom_adjacent_latency`.
 - [x] Improve sempal waveform adjacent pan/zoom cache-hit rate by quantizing
       view metadata and stabilizing texture-width bucket churn.
 - [x] Add a partial/delta waveform translation path (shift + edge re-render)
       to avoid full image rebuilds on pure adjacent pans.
-- [ ] Keep static segment rebuilds fully dirty-mask-driven across radiant
+- [x] Keep static segment rebuilds fully dirty-mask-driven across radiant
       frame segments and expand targeted tests for action-to-segment behavior.
 
 ## Validation
@@ -152,6 +152,14 @@
 - After Phase 3.3 changes:
   - `hover_latency` p95: `3546us`
   - `browser_focus_commit_latency` p95: `4597us`
+
+### Latest Perf-Guard Snapshot (2026-02-21)
+
+- `hover_latency` p95: `699us`
+- `wheel_latency` p95: `742us`
+- `waveform_pan_zoom_adjacent_latency` p95: `139us`
+- `volume_drag_latency` p95: `101us`
+- All perf-guard scenarios remained below warning thresholds.
 
 ## Milestone Exit Criteria
 

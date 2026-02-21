@@ -761,19 +761,16 @@ pub(crate) fn project_browser_rows_model(
         clear_projected_selected_paths_lookup(controller);
         return Vec::new();
     }
-    let mut rows = Vec::new();
+    let mut rows = Vec::with_capacity(visible_count.min(MAX_RENDERED_BROWSER_ROWS));
     refresh_projected_browser_row_cache(controller);
     refresh_projected_selected_paths_lookup(controller);
     let (window_start, window_len) =
         browser_render_window(visible_count, selected_visible_row, anchor_visible_row);
-    let mut visible_rows = Vec::with_capacity(window_len);
-    controller
-        .ui
-        .browser
-        .visible
-        .copy_window_into(window_start, window_len, &mut visible_rows);
-    for (offset, absolute_index) in visible_rows.into_iter().enumerate() {
+    for offset in 0..window_len {
         let visible_row = window_start + offset;
+        let Some(absolute_index) = controller.ui.browser.visible.get(visible_row) else {
+            continue;
+        };
         let Some(cached_row) = project_cached_browser_row(controller, absolute_index) else {
             let focused = selected_visible_row.is_some_and(|focused| focused == visible_row);
             rows.push(
