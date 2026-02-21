@@ -756,12 +756,36 @@ pub(crate) fn project_browser_rows_model(
     selected_visible_row: Option<usize>,
     anchor_visible_row: Option<usize>,
 ) -> Vec<BrowserRowModel> {
+    let mut rows = Vec::with_capacity(visible_count.min(MAX_RENDERED_BROWSER_ROWS));
+    project_browser_rows_model_into(
+        controller,
+        visible_count,
+        selected_visible_row,
+        anchor_visible_row,
+        &mut rows,
+    );
+    rows
+}
+
+/// Project browser row content into an existing row-model buffer.
+///
+/// Callers that retain `rows` across frames can reuse vector capacity to
+/// reduce allocation churn in high-frequency browser projection paths.
+pub(crate) fn project_browser_rows_model_into(
+    controller: &mut AppController,
+    visible_count: usize,
+    selected_visible_row: Option<usize>,
+    anchor_visible_row: Option<usize>,
+    rows: &mut Vec<BrowserRowModel>,
+) {
     if controller.ui.browser.active_tab == SampleBrowserTab::Map {
         clear_projected_browser_row_cache(controller);
         clear_projected_selected_paths_lookup(controller);
-        return Vec::new();
+        rows.clear();
+        return;
     }
-    let mut rows = Vec::with_capacity(visible_count.min(MAX_RENDERED_BROWSER_ROWS));
+    rows.clear();
+    rows.reserve(visible_count.min(MAX_RENDERED_BROWSER_ROWS));
     refresh_projected_browser_row_cache(controller);
     refresh_projected_selected_paths_lookup(controller);
     let (window_start, window_len) =
@@ -792,7 +816,6 @@ pub(crate) fn project_browser_rows_model(
                 .with_bucket_label(bucket_label),
         );
     }
-    rows
 }
 
 /// Project browser panel metadata and row window into one panel model.
@@ -1759,6 +1782,36 @@ mod tests {
         };
 
         assert_eq!(cached.1, 2);
+    }
+
+    #[test]
+    /// Reusing the projection buffer should preserve the existing allocation.
+    fn browser_rows_projection_reuses_provided_buffer_capacity() {
+        let mut controller =
+            AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
+        controller.set_wav_entries_for_tests(vec![crate::sample_sources::WavEntry {
+            relative_path: std::path::PathBuf::from("snare.wav"),
+            file_size: 0,
+            modified_ns: 0,
+            content_hash: Some(String::from("hash")),
+            tag: crate::sample_sources::Rating::NEUTRAL,
+            looped: false,
+            missing: false,
+            last_played_at: None,
+        }]);
+        controller.ui.browser.visible =
+            crate::app_core::app_api::state::VisibleRows::List(vec![0usize]);
+        let mut rows = Vec::new();
+
+        project_browser_rows_model_into(&mut controller, 1, Some(0), None, &mut rows);
+        let first_capacity = rows.capacity();
+        let first_ptr = rows.as_ptr();
+
+        project_browser_rows_model_into(&mut controller, 1, Some(0), None, &mut rows);
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows.capacity(), first_capacity);
+        assert_eq!(rows.as_ptr(), first_ptr);
     }
 
     #[test]

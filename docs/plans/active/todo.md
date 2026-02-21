@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-21T16:38:43Z
+Last updated (UTC): 2026-02-21T21:11:28Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -15,12 +15,12 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Extend new radiant rebuild-cause telemetry into structured bench output so
-   perf guard can surface cause attribution directly (not only runtime logs).
+1. Replace controller-mode zeroed segment hit/miss placeholders with real
+   bridge/runtime counters in bench output where feasible.
 2. Apply the same immediate-drag paint strategy to other continuous controls
    (waveform selection handles and map drag proxies) where applicable.
 3. Continue browser projection hot-path tightening by reducing per-row string
-   allocation churn (retained row-model buffer and/or lightweight label storage).
+   allocation churn (lightweight label storage / incremental row text updates).
 4. Keep `MEMORY.md` and this queue updated in every perf milestone commit.
 
 ## Done recently
@@ -31,6 +31,11 @@ Purpose:
     (`explicit_static`, `dirty_mask_static`, bridge pull rebuild counts),
   - browser projection low-allocation pass in sempal (selected-path hash lookup
     cache and reduced cached-row cloning on projection hits).
+- Completed next ROI follow-up batch:
+  - GUI bench JSON now includes `interaction_rebuild_cause_attribution`.
+  - Perf guard now prints rebuild-cause counters per scenario.
+  - Native bridge now reuses retained browser row-model `Vec` allocation.
+  - Radiant cursor-move events process immediately when layout is ready.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.

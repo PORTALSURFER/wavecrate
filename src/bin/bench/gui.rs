@@ -1,8 +1,11 @@
 //! GUI-oriented benchmark scenarios for the native controller.
-
 /// Interaction benchmark scenarios split from `gui.rs` to keep modules focused.
+mod attribution;
 mod interactions;
-
+use self::attribution::{
+    GuiInteractionRebuildCauseAttribution, GuiInteractionSegmentAttribution,
+    SegmentAttributionSummary, build_rebuild_cause_summary,
+};
 use self::interactions::{
     bench_browser_filter_churn_latency, bench_browser_focus_commit_latency,
     bench_browser_focus_preview_latency, bench_browser_query_churn_latency,
@@ -59,6 +62,9 @@ pub(super) struct GuiBenchResult {
     /// Segment-attributed latency/counter summaries for retained projection slices.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) interaction_segment_attribution: Option<GuiInteractionSegmentAttribution>,
+    /// Rebuild-cause attribution proxies for interaction scenarios.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) interaction_rebuild_cause_attribution: Option<GuiInteractionRebuildCauseAttribution>,
 }
 
 /// Stage-attributed interaction latency summaries keyed by scenario.
@@ -86,32 +92,6 @@ pub(super) struct GuiInteractionStageAttribution {
     pub(super) waveform_interaction_latency: stats::StageLatencyBreakdown,
     /// Stage-attributed latency for volume drag interactions.
     pub(super) volume_drag_latency: stats::StageLatencyBreakdown,
-}
-
-/// Segment-level latency/counter summary emitted in benchmark reports.
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct SegmentAttributionSummary {
-    /// Segment-level cache hit count when available.
-    pub(super) hit_count: u64,
-    /// Segment-level cache miss count when available.
-    pub(super) miss_count: u64,
-    /// Segment-level p95 latency proxy in microseconds.
-    pub(super) p95_us: u64,
-}
-
-/// Segment-attributed benchmark summaries keyed by projection segment.
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct GuiInteractionSegmentAttribution {
-    /// Status-bar segment summary.
-    pub(super) status_bar: SegmentAttributionSummary,
-    /// Browser-frame metadata/chrome segment summary.
-    pub(super) browser_frame: SegmentAttributionSummary,
-    /// Browser row-window segment summary.
-    pub(super) browser_rows_window: SegmentAttributionSummary,
-    /// Map-panel segment summary.
-    pub(super) map_panel: SegmentAttributionSummary,
-    /// Waveform overlay/panel segment summary.
-    pub(super) waveform_overlay: SegmentAttributionSummary,
 }
 
 /// Scoped benchmark workspace that keeps seed artifacts alive for the benchmark
@@ -215,8 +195,7 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         total: volume_drag_latency_total,
         stages: volume_drag_latency_stages,
     } = volume_drag_latency;
-    // Bench runs in controller-only mode, so cache hit/miss counters are not
-    // available here; keep counts at zero while still emitting p95 segment proxies.
+    // Bench runs in controller-only mode; cache hit/miss counters stay at zero while still emitting p95 segment proxies.
     let interaction_segment_attribution = Some(GuiInteractionSegmentAttribution {
         status_bar: SegmentAttributionSummary {
             hit_count: 0,
@@ -243,6 +222,41 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
             miss_count: 0,
             p95_us: waveform_interaction_latency_stages.projection_stage.p95_us,
         },
+    });
+    let interaction_rebuild_cause_attribution = Some(GuiInteractionRebuildCauseAttribution {
+        interactive_projection: build_rebuild_cause_summary(&interactive_projection_total, true),
+        hover_latency: build_rebuild_cause_summary(&hover_latency_total, false),
+        wheel_latency: build_rebuild_cause_summary(&wheel_latency_total, false),
+        browser_filter_churn_latency: build_rebuild_cause_summary(
+            &browser_filter_churn_latency_total,
+            false,
+        ),
+        browser_query_churn_latency: build_rebuild_cause_summary(
+            &browser_query_churn_latency_total,
+            false,
+        ),
+        browser_sort_toggle_latency: build_rebuild_cause_summary(
+            &browser_sort_toggle_latency_total,
+            false,
+        ),
+        browser_focus_preview_latency: build_rebuild_cause_summary(
+            &browser_focus_preview_latency_total,
+            false,
+        ),
+        browser_focus_commit_latency: build_rebuild_cause_summary(
+            &browser_focus_commit_latency_total,
+            false,
+        ),
+        map_pan_proxy_latency: build_rebuild_cause_summary(&map_pan_proxy_latency_total, false),
+        waveform_interaction_latency: build_rebuild_cause_summary(
+            &waveform_interaction_latency_total,
+            true,
+        ),
+        volume_drag_latency: build_rebuild_cause_summary(&volume_drag_latency_total, false),
+        waveform_pan_zoom_adjacent_latency: build_rebuild_cause_summary(
+            &waveform_pan_zoom_adjacent_latency,
+            true,
+        ),
     });
     Ok(GuiBenchResult {
         seeded_rows,
@@ -274,6 +288,7 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
             volume_drag_latency: volume_drag_latency_stages,
         },
         interaction_segment_attribution,
+        interaction_rebuild_cause_attribution,
     })
 }
 
@@ -314,7 +329,6 @@ fn wait_for_rows(controller: &mut AppController, target: usize) -> Result<(), St
     ))
 }
 
-/// Return a resilient browser visible-row count for benchmark readiness checks.
 fn observed_visible_rows(controller: &mut AppController) -> usize {
     let direct = controller.visible_browser_len();
     let projected = controller.project_native_app_model();

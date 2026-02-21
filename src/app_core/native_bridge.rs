@@ -962,12 +962,15 @@ impl NativeProjectionCache {
         let browser_rows_changed = self.browser_rows_key.as_ref() != Some(&browser_rows_key);
         if browser_frame_changed || browser_rows_changed {
             trace_projection_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
-            model.browser.rows = native_shell::project_browser_rows_model(
+            let mut rows = std::mem::take(&mut model.browser.rows);
+            native_shell::project_browser_rows_model_into(
                 controller,
                 model.browser.visible_count,
                 model.browser.selected_visible_row,
                 model.browser.anchor_visible_row,
+                &mut rows,
             );
+            model.browser.rows = rows;
             self.browser_rows_key = Some(browser_rows_key);
             dirty_segments.insert(NativeDirtySegments::BROWSER_ROWS_WINDOW);
         } else {

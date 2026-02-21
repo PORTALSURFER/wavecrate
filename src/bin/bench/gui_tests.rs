@@ -59,6 +59,12 @@ fn run_gui_benchmark_uses_one_row_when_gui_rows_is_zero() {
             .measure_iters,
         2
     );
+    let rebuild = report
+        .interaction_rebuild_cause_attribution
+        .as_ref()
+        .expect("rebuild-cause attribution");
+    assert_eq!(rebuild.hover_latency.bridge_model_pull_rebuild_count, 2);
+    assert_eq!(rebuild.hover_latency.bridge_motion_pull_rebuild_count, 0);
 }
 
 /// Ensure interaction-step sequencing rotates search/filter/sort settings.

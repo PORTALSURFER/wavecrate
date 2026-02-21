@@ -145,6 +145,12 @@
 - [x] Reduce browser projection hot-path allocation churn by hashing retained
       selected-path lookup membership and removing `PathBuf` cloning from
       cached-row projection hits.
+- [x] Emit rebuild-cause attribution directly in GUI benchmark JSON/perf guard
+      output for scenario-by-scenario cause visibility.
+- [x] Reuse retained browser row-model buffers during bridge projection refresh
+      to reduce repeated allocation churn in browser-heavy interactions.
+- [x] Process cursor-move events immediately (when layout is available) so
+      hover-driven interactions do not wait for queued flushes.
 
 ## Validation
 
@@ -166,10 +172,10 @@
 
 ### Latest Perf-Guard Snapshot (2026-02-21)
 
-- `hover_latency` p95: `874us`
-- `wheel_latency` p95: `1120us`
-- `waveform_pan_zoom_adjacent_latency` p95: `121us`
-- `volume_drag_latency` p95: `140us`
+- `hover_latency` p95: `925us`
+- `wheel_latency` p95: `896us`
+- `waveform_pan_zoom_adjacent_latency` p95: `345us`
+- `volume_drag_latency` p95: `187us`
 - All perf-guard scenarios remained below warning thresholds.
 
 ## Milestone Exit Criteria

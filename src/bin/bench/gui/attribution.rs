@@ -1,0 +1,91 @@
+//! Attribution payloads emitted by GUI benchmark reports.
+
+use crate::bench::stats;
+use serde::Serialize;
+
+/// Segment-level latency/counter summary emitted in benchmark reports.
+#[derive(Clone, Debug, Serialize)]
+pub(in crate::bench) struct SegmentAttributionSummary {
+    /// Segment-level cache hit count when available.
+    pub(in crate::bench) hit_count: u64,
+    /// Segment-level cache miss count when available.
+    pub(in crate::bench) miss_count: u64,
+    /// Segment-level p95 latency proxy in microseconds.
+    pub(in crate::bench) p95_us: u64,
+}
+
+/// Segment-attributed benchmark summaries keyed by projection segment.
+#[derive(Clone, Debug, Serialize)]
+pub(in crate::bench) struct GuiInteractionSegmentAttribution {
+    /// Status-bar segment summary.
+    pub(in crate::bench) status_bar: SegmentAttributionSummary,
+    /// Browser-frame metadata/chrome segment summary.
+    pub(in crate::bench) browser_frame: SegmentAttributionSummary,
+    /// Browser row-window segment summary.
+    pub(in crate::bench) browser_rows_window: SegmentAttributionSummary,
+    /// Map-panel segment summary.
+    pub(in crate::bench) map_panel: SegmentAttributionSummary,
+    /// Waveform overlay/panel segment summary.
+    pub(in crate::bench) waveform_overlay: SegmentAttributionSummary,
+}
+
+/// Rebuild-cause counters emitted for one interaction scenario.
+#[derive(Clone, Debug, Serialize)]
+pub(in crate::bench) struct RebuildCauseAttributionSummary {
+    /// Explicit static invalidations observed in this scenario.
+    pub(in crate::bench) explicit_static_rebuild_count: u64,
+    /// Dirty-mask-driven static rebuilds observed in this scenario.
+    pub(in crate::bench) dirty_mask_static_rebuild_count: u64,
+    /// Model-pull refresh rebuild count observed in this scenario.
+    pub(in crate::bench) bridge_model_pull_rebuild_count: u64,
+    /// Motion-pull refresh rebuild count observed in this scenario.
+    pub(in crate::bench) bridge_motion_pull_rebuild_count: u64,
+}
+
+/// Rebuild-cause attribution summaries keyed by GUI interaction scenario.
+#[derive(Clone, Debug, Serialize)]
+pub(in crate::bench) struct GuiInteractionRebuildCauseAttribution {
+    /// Mixed browser interaction-step churn.
+    pub(in crate::bench) interactive_projection: RebuildCauseAttributionSummary,
+    /// Pointer-hover style row focus changes.
+    pub(in crate::bench) hover_latency: RebuildCauseAttributionSummary,
+    /// Wheel-like row nudges.
+    pub(in crate::bench) wheel_latency: RebuildCauseAttributionSummary,
+    /// Filter-only browser churn.
+    pub(in crate::bench) browser_filter_churn_latency: RebuildCauseAttributionSummary,
+    /// Query-only browser churn.
+    pub(in crate::bench) browser_query_churn_latency: RebuildCauseAttributionSummary,
+    /// Sort-only browser churn.
+    pub(in crate::bench) browser_sort_toggle_latency: RebuildCauseAttributionSummary,
+    /// Browser-row preview focus navigation.
+    pub(in crate::bench) browser_focus_preview_latency: RebuildCauseAttributionSummary,
+    /// Browser-row commit actions.
+    pub(in crate::bench) browser_focus_commit_latency: RebuildCauseAttributionSummary,
+    /// Map pan/zoom proxy updates.
+    pub(in crate::bench) map_pan_proxy_latency: RebuildCauseAttributionSummary,
+    /// Waveform interaction actions.
+    pub(in crate::bench) waveform_interaction_latency: RebuildCauseAttributionSummary,
+    /// Volume drag interactions.
+    pub(in crate::bench) volume_drag_latency: RebuildCauseAttributionSummary,
+    /// Adjacent waveform pan/zoom interactions.
+    pub(in crate::bench) waveform_pan_zoom_adjacent_latency: RebuildCauseAttributionSummary,
+}
+
+/// Build one rebuild-cause attribution summary from benchmark latency metadata.
+pub(in crate::bench) fn build_rebuild_cause_summary(
+    latency: &stats::LatencySummary,
+    includes_motion_pull: bool,
+) -> RebuildCauseAttributionSummary {
+    RebuildCauseAttributionSummary {
+        // Controller-mode benchmark paths do not execute native static-scene
+        // rebuild scheduling, so keep static counters at zero.
+        explicit_static_rebuild_count: 0,
+        dirty_mask_static_rebuild_count: 0,
+        bridge_model_pull_rebuild_count: latency.measure_iters as u64,
+        bridge_motion_pull_rebuild_count: if includes_motion_pull {
+            latency.measure_iters as u64
+        } else {
+            0
+        },
+    }
+}

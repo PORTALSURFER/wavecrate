@@ -331,6 +331,46 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
                         f"[perf_guard]   {key} segment[{segment_name}] "
                         f"hit={hits} miss={misses} p95={segment_p95}us"
                     )
+    rebuild_reports = []
+    for gui in gui_reports:
+        attribution = gui.get("interaction_rebuild_cause_attribution")
+        if not isinstance(attribution, dict):
+            rebuild_reports.append(None)
+            continue
+        rebuild_reports.append(attribution.get(key))
+    if any(isinstance(rebuild, dict) for rebuild in rebuild_reports):
+        if not all(isinstance(rebuild, dict) for rebuild in rebuild_reports):
+            print(
+                f"[perf_guard] WARN: {key} rebuild-cause attribution missing for one or more runs",
+                file=sys.stderr,
+            )
+        else:
+            values = []
+            missing_rebuild_field = False
+            for rebuild in rebuild_reports:
+                explicit = rebuild.get("explicit_static_rebuild_count")
+                dirty_mask = rebuild.get("dirty_mask_static_rebuild_count")
+                model_pull = rebuild.get("bridge_model_pull_rebuild_count")
+                motion_pull = rebuild.get("bridge_motion_pull_rebuild_count")
+                if not all(isinstance(value, int) for value in (explicit, dirty_mask, model_pull, motion_pull)):
+                    missing_rebuild_field = True
+                    break
+                values.append((explicit, dirty_mask, model_pull, motion_pull))
+            if missing_rebuild_field:
+                print(
+                    f"[perf_guard] WARN: {key} rebuild-cause attribution has missing counters",
+                    file=sys.stderr,
+                )
+            else:
+                explicit = int(median([value[0] for value in values]))
+                dirty_mask = int(median([value[1] for value in values]))
+                model_pull = int(median([value[2] for value in values]))
+                motion_pull = int(median([value[3] for value in values]))
+                print(
+                    f"[perf_guard]   {key} rebuild_causes: "
+                    f"explicit_static={explicit} dirty_mask_static={dirty_mask} "
+                    f"model_pull={model_pull} motion_pull={motion_pull}"
+                )
 
     if p95 > warn_limit:
         warned = True
