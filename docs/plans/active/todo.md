@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-22T12:00:49Z
+Last updated (UTC): 2026-02-22T12:05:32Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -99,6 +99,14 @@ Purpose:
     `SEMPAL_PERF_GUARD_STARTUP_LOCK_MIN_VALID_RUNS`,
   - local startup calibration rerun remained blocked in this environment with
     `no_wayland_compositor`, so compositor-backed lock run is still pending.
+- Completed waveform immediate-preview larger-window A/B rerun milestone
+  (local host):
+  - ran `SEMPAL_NATIVE_BRIDGE_IMMEDIATE_WAVEFORM_PREVIEW=1/0` with
+    `SEMPAL_PERF_GUARD_RUNS=5` and standard interaction windows,
+  - observed mixed directional deltas (ON improved adjacent pan/zoom p95 but
+    regressed direct waveform interaction p95 in this batch),
+  - decision unchanged: keep current split, do not extend immediate mode beyond
+    overlay actions until compositor-backed repeats are stable.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.

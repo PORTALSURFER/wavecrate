@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T12:00:49Z
+Last Updated: 2026-02-22T12:05:32Z
 Updated By: Codex
 
 ## Purpose
@@ -64,6 +64,16 @@ Updated By: Codex
     `SEMPAL_PERF_GUARD_STARTUP_LOCK_MIN_VALID_RUNS` guard) to write that env
     file automatically after successful startup-summary parsing,
   - updated `docs/ENV_VARS.md` and `docs/performance_qa.md` with the new flow.
+- I re-ran item #2 A/B with larger run windows (`SEMPAL_PERF_GUARD_RUNS=5`,
+  `SEMPAL_PERF_GUARD_GUI_INTERACTION_ITERS=24`) for
+  `SEMPAL_NATIVE_BRIDGE_IMMEDIATE_WAVEFORM_PREVIEW=1` vs `0`:
+  - immediate preview ON improved `waveform_pan_zoom_adjacent_latency` median
+    p95 in this batch,
+  - immediate preview ON regressed `waveform_interaction_latency` median p95
+    and `volume_drag_latency` median p95 in this batch.
+- Decision remains unchanged: keep current immediate overlay preview behavior,
+  but do not extend immediate mode to additional waveform actions until
+  compositor-backed A/B runs produce stable directional evidence.
 
 ## Work Notes
 
