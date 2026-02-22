@@ -51,6 +51,16 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
   - `SEMPAL_PERF_GUARD_RUNS=3`
   - keep warmup/measure counts fixed across comparisons
   - compare median p95/p99 and `p95_spread` deltas between branches
+- For frame-quality threshold calibration runs, prefer:
+  - `SEMPAL_PERF_GUARD_RUNS=7` (or higher)
+  - optional lock-file output:
+    `SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_ENV_OUT=target/perf/frame_quality_thresholds.env`
+  - optional stricter gating:
+    `SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_MIN_RUNS=5`
+  - if lock-file output is enabled, load the generated env file in future runs
+    so `SEMPAL_PERF_WARN/FAIL_FRAME_JANK_RATIO` and
+    `SEMPAL_PERF_WARN/FAIL_MISSED_PRESENT_PROXY_RATIO` stay calibrated to
+    recent medians.
 - For wheel promotion readiness, run:
   - `bash scripts/run_perf_wheel_stability.sh collect-and-evaluate`
   - review `target/perf/wheel_stability/wheel_stability_summary.json`

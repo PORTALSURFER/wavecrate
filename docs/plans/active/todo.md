@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-22T12:30:30Z
+Last updated (UTC): 2026-02-22T13:09:10Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -25,6 +25,15 @@ Purpose:
 
 ## Done recently
 
+- Completed frame-quality lock-automation follow-up milestone:
+  - added `scripts/perf_frame_quality_lock_thresholds.py` to compute
+    conservative frame-jank and missed-present threshold env assignments from
+    multi-run perf-guard reports,
+  - `scripts/run_perf_guard.sh` now supports
+    `SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_ENV_OUT` plus
+    `SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_MIN_RUNS`,
+  - documented frame-quality lock calibration flow in
+    `docs/ENV_VARS.md` and `docs/performance_qa.md`.
 - Completed ROI batch items 1-3:
   - immediate volume drag emits in radiant for smooth in-drag rendering,
   - rebuild-cause profiler counters/reporting in radiant

@@ -23,6 +23,7 @@ STARTUP_PROFILE_RAW="${SEMPAL_PERF_GUARD_STARTUP_PROFILE:-0}"
 STARTUP_TIMEOUT_SECS="${SEMPAL_PERF_GUARD_STARTUP_TIMEOUT_SECS:-6}"
 STARTUP_REQUIRE_VALID_RAW="${SEMPAL_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS:-0}"
 STARTUP_LOCK_ENV_OUT="${SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT:-}"
+FRAME_QUALITY_LOCK_ENV_OUT="${SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_ENV_OUT:-}"
 
 startup_profile_enabled=0
 case "${STARTUP_PROFILE_RAW,,}" in
@@ -70,6 +71,13 @@ if (( startup_profile_enabled == 1 )); then
   fi
   STARTUP_MIN_VALID_RUNS="${SEMPAL_PERF_GUARD_STARTUP_MIN_VALID_RUNS:-$startup_min_valid_runs_default}"
 fi
+
+if [[ "$RUNS" -ge 3 ]]; then
+  frame_quality_min_runs_default=3
+else
+  frame_quality_min_runs_default=1
+fi
+FRAME_QUALITY_LOCK_MIN_RUNS="${SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_MIN_RUNS:-$frame_quality_min_runs_default}"
 
 for run in $(seq 1 "$RUNS"); do
   run_out="$OUT_PATH"
@@ -551,6 +559,13 @@ else:
 if failed:
     sys.exit(2)
 PY
+
+if [[ -n "$FRAME_QUALITY_LOCK_ENV_OUT" ]]; then
+  python3 scripts/perf_frame_quality_lock_thresholds.py \
+    --out "$FRAME_QUALITY_LOCK_ENV_OUT" \
+    --min-runs "$FRAME_QUALITY_LOCK_MIN_RUNS" \
+    "${REPORT_PATHS[@]}"
+fi
 
 if (( startup_profile_enabled == 1 )); then
   startup_summary_out="${SEMPAL_PERF_GUARD_STARTUP_SUMMARY_OUT:-${OUT_PATH%.json}.startup_summary.json}"

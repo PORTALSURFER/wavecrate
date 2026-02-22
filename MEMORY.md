@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T12:30:30Z
+Last Updated: 2026-02-22T13:09:20Z
 Updated By: Codex
 
 ## Purpose
@@ -10,6 +10,12 @@ Updated By: Codex
 
 ## Current Session (2026-02-22 UTC)
 
+- I am finishing perf-guard frame-quality threshold lock automation so repeated
+  calibration runs can emit reusable env defaults directly from measured
+  benchmark medians.
+- I am wiring the new lock flow into `scripts/run_perf_guard.sh`, documenting
+  envs/workflow in `docs/ENV_VARS.md` and `docs/performance_qa.md`, then
+  running `bash scripts/ci_local.sh` before commit/push.
 - I attacked startup-baseline item #1 by tightening startup capture and
   calibration tooling:
   - `scripts/run_perf_guard.sh` now prebuilds `sempal` for startup captures,

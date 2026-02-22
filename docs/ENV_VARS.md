@@ -210,6 +210,17 @@ Minimum valid startup-profile run count required before writing
 `SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT`. Defaults to
 `SEMPAL_PERF_GUARD_STARTUP_MIN_VALID_RUNS`.
 
+- `SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_ENV_OUT`
+Optional output env file path for frame-quality threshold locking. When set,
+`scripts/run_perf_guard.sh` writes calibrated frame-jank and missed-present
+threshold assignments to this path using
+`scripts/perf_frame_quality_lock_thresholds.py`.
+
+- `SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_MIN_RUNS`
+Minimum benchmark-report run count required before writing
+`SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_ENV_OUT`. Defaults to `3` when
+`SEMPAL_PERF_GUARD_RUNS >= 3`, otherwise `1`.
+
 - `SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_MS`
 Warning threshold (milliseconds) for median startup `first_present_ms` in
 startup profile summaries. Default: `800`.
