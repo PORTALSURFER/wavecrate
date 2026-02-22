@@ -46,6 +46,10 @@ const BRIDGE_PROFILE_INTERVAL: u64 = 1;
 
 #[cfg(feature = "native-bridge-metrics")]
 const BRIDGE_PROFILE_ENV: &str = "SEMPAL_NATIVE_BRIDGE_PROFILE";
+/// Toggle immediate application of waveform overlay preview actions.
+const IMMEDIATE_WAVEFORM_PREVIEW_ENV: &str = "SEMPAL_NATIVE_BRIDGE_IMMEDIATE_WAVEFORM_PREVIEW";
+/// Default mode for immediate waveform overlay preview actions.
+const IMMEDIATE_WAVEFORM_PREVIEW_DEFAULT: bool = true;
 
 /// Interaction classes tracked by native bridge profiling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -230,6 +234,8 @@ static FRAME_RESULT_PRIMITIVES_TOTAL: AtomicU64 = AtomicU64::new(0);
 static FRAME_RESULT_TEXT_RUNS_TOTAL: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 static BRIDGE_PROFILE_ENABLED: OnceLock<bool> = OnceLock::new();
+/// Cached immediate-waveform-preview mode resolved from environment.
+static IMMEDIATE_WAVEFORM_PREVIEW_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 #[cfg(feature = "native-bridge-metrics")]
 fn parse_bridge_profile_enabled(value: &str) -> bool {
@@ -252,6 +258,26 @@ fn bridge_profiling_enabled() -> bool {
 #[inline]
 fn bridge_profiling_enabled() -> bool {
     false
+}
+
+/// Parse immediate waveform-preview env values.
+fn parse_immediate_waveform_preview(value: &str) -> bool {
+    let normalized = value.trim();
+    normalized == "1"
+        || normalized.eq_ignore_ascii_case("true")
+        || normalized.eq_ignore_ascii_case("on")
+        || normalized.eq_ignore_ascii_case("yes")
+}
+
+/// Resolve whether waveform preview actions should apply immediately.
+fn immediate_waveform_preview_enabled() -> bool {
+    *IMMEDIATE_WAVEFORM_PREVIEW_ENABLED.get_or_init(|| {
+        std::env::var(IMMEDIATE_WAVEFORM_PREVIEW_ENV)
+            .ok()
+            .map_or(IMMEDIATE_WAVEFORM_PREVIEW_DEFAULT, |value| {
+                parse_immediate_waveform_preview(&value)
+            })
+    })
 }
 
 #[cfg(feature = "native-bridge-metrics")]
@@ -1935,7 +1961,7 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             return;
         }
-        if is_immediate_waveform_preview_action(&action) {
+        if is_immediate_waveform_preview_action(&action) && immediate_waveform_preview_enabled() {
             let call = trace_action_call();
             let profiling = bridge_profiling_enabled();
             let action_start = profiling.then(Instant::now);
@@ -2416,6 +2442,18 @@ mod tests {
         assert!(!super::parse_bridge_profile_enabled("0"));
         assert!(!super::parse_bridge_profile_enabled("no"));
         assert!(!super::parse_bridge_profile_enabled(""));
+    }
+
+    /// Immediate waveform preview parser should accept canonical truthy variants.
+    #[test]
+    fn parse_immediate_waveform_preview_is_case_insensitive() {
+        assert!(super::parse_immediate_waveform_preview("TRUE"));
+        assert!(super::parse_immediate_waveform_preview("on"));
+        assert!(super::parse_immediate_waveform_preview("Yes"));
+        assert!(super::parse_immediate_waveform_preview("  true  "));
+        assert!(!super::parse_immediate_waveform_preview("0"));
+        assert!(!super::parse_immediate_waveform_preview("no"));
+        assert!(!super::parse_immediate_waveform_preview(""));
     }
 
     #[cfg(feature = "native-bridge-metrics")]

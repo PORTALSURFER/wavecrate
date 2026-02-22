@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T11:07:43Z
+Last Updated: 2026-02-22T11:40:38Z
 Updated By: Codex
 
 ## Purpose
@@ -34,6 +34,16 @@ Updated By: Codex
   - added regression tests proving preview actions bypass queueing while seek
     stays queued.
 - I validated with `bash scripts/ci_local.sh`; all checks passed.
+- I measured A/B perf impact with
+  `SEMPAL_NATIVE_BRIDGE_IMMEDIATE_WAVEFORM_PREVIEW=0/1` under identical
+  `run_perf_guard` settings:
+  - `waveform_interaction_latency` was neutral-to-better with immediate preview
+    in the second pass,
+  - `waveform_pan_zoom_adjacent_latency` showed higher variance/outliers with
+    immediate preview in one pass.
+- Decision: keep immediate overlay preview behavior for UX, but do not extend
+  immediate mode to additional waveform actions yet until we have lower-noise
+  comparative runs on the compositor-backed target host.
 
 ## Work Notes
 

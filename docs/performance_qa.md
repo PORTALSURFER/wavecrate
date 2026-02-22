@@ -31,6 +31,12 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
   - then apply the printed `startup_first_paint_recommended` values as
     `SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_MS` /
     `SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS` and optional spread limits.
+- For waveform immediate-preview A/B checks, compare:
+  - default behavior (immediate preview enabled),
+  - `SEMPAL_NATIVE_BRIDGE_IMMEDIATE_WAVEFORM_PREVIEW=0`
+  with identical `SEMPAL_PERF_GUARD_*` settings and compare
+  `waveform_interaction_latency`, `waveform_pan_zoom_adjacent_latency`, and
+  `volume_drag_latency` p95/p99 plus stage attribution.
 - `hover_latency` in perf guard reflects preview-hover behavior (focus-only row hover without commit/load side effects).
 - Tune guard input size, run count, and thresholds with `SEMPAL_PERF_GUARD_*`,
   `SEMPAL_PERF_WARN_P95_US_*`, and `SEMPAL_PERF_FAIL_P95_US_*` overrides

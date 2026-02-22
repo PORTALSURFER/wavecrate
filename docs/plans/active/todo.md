@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-22T11:07:43Z
+Last updated (UTC): 2026-02-22T11:40:38Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -17,9 +17,9 @@ Purpose:
 
 1. Run startup-profile calibration on a compositor-backed host and lock
    threshold env defaults from `startup_first_paint_recommended` output.
-2. Measure waveform preview-latency/frame-cost deltas after immediate overlay
-   action split, then decide whether to extend immediate path to additional
-   waveform interactions.
+2. Repeat waveform immediate-preview A/B on compositor-backed host with larger
+   run windows to reduce variance, then decide whether to extend immediate path
+   to additional waveform actions.
 3. Keep `MEMORY.md` and this queue updated in every perf milestone commit.
 
 ## Done recently
@@ -77,6 +77,14 @@ Purpose:
   - seek/zoom actions remain queued/coalesced to cap apply-stage cost,
   - added focused bridge tests for immediate preview behavior and queued seek
     behavior.
+- Completed waveform immediate-preview A/B evaluation milestone (local host):
+  - measured `SEMPAL_NATIVE_BRIDGE_IMMEDIATE_WAVEFORM_PREVIEW=0/1` under
+    identical perf-guard settings,
+  - observed neutral-to-better direct `waveform_interaction_latency` with
+    immediate preview in one pass,
+  - observed higher variance on adjacent waveform pan/zoom in one pass,
+  - decision: keep immediate overlay preview behavior, but do not extend
+    immediate mode beyond overlay actions until compositor-backed A/B repeats.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.
