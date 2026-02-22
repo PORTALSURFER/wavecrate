@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T11:40:38Z
+Last Updated: 2026-02-22T11:50:41Z
 Updated By: Codex
 
 ## Purpose
@@ -44,6 +44,12 @@ Updated By: Codex
 - Decision: keep immediate overlay preview behavior for UX, but do not extend
   immediate mode to additional waveform actions yet until we have lower-noise
   comparative runs on the compositor-backed target host.
+- I implemented startup artifact suppression in radiant native-vello startup:
+  - first present remains hidden while deferred startup model refresh is still
+    pending,
+  - the window reveal now happens only after a stable post-refresh present,
+    avoiding the black/placeholder startup flash.
+- I re-ran `bash scripts/ci_local.sh`; all checks passed.
 
 ## Work Notes
 

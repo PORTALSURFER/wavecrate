@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-22T11:40:38Z
+Last updated (UTC): 2026-02-22T11:50:41Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -85,6 +85,11 @@ Purpose:
   - observed higher variance on adjacent waveform pan/zoom in one pass,
   - decision: keep immediate overlay preview behavior, but do not extend
     immediate mode beyond overlay actions until compositor-backed A/B repeats.
+- Completed startup visual-cleanup milestone:
+  - native-vello startup now keeps the window hidden through the deferred
+    startup model refresh,
+  - window reveal now occurs only after the first stable post-refresh present
+    to avoid black/placeholder startup artifacts.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.
