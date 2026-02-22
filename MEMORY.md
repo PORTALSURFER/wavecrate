@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T11:50:41Z
+Last Updated: 2026-02-22T12:00:49Z
 Updated By: Codex
 
 ## Purpose
@@ -50,6 +50,20 @@ Updated By: Codex
   - the window reveal now happens only after a stable post-refresh present,
     avoiding the black/placeholder startup flash.
 - I re-ran `bash scripts/ci_local.sh`; all checks passed.
+- I retried startup calibration with required valid runs:
+  - `SEMPAL_PERF_GUARD_STARTUP_PROFILE=1`
+  - `SEMPAL_PERF_GUARD_RUNS=5`
+  - `SEMPAL_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS=1`
+  - result stayed blocked in this environment:
+    `startup_profile_missing_reasons: no_wayland_compositor=5`.
+- I implemented startup-threshold lock automation for compositor-backed runs:
+  - added `scripts/perf_startup_lock_thresholds.py` to convert
+    `bench.startup_summary.json` recommendations into reusable env assignments,
+  - `scripts/run_perf_guard.sh` now supports optional
+    `SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT` output (with
+    `SEMPAL_PERF_GUARD_STARTUP_LOCK_MIN_VALID_RUNS` guard) to write that env
+    file automatically after successful startup-summary parsing,
+  - updated `docs/ENV_VARS.md` and `docs/performance_qa.md` with the new flow.
 
 ## Work Notes
 

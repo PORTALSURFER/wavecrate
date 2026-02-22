@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-22T11:50:41Z
+Last updated (UTC): 2026-02-22T12:00:49Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -16,7 +16,8 @@ Purpose:
 ## Next tasks (ordered)
 
 1. Run startup-profile calibration on a compositor-backed host and lock
-   threshold env defaults from `startup_first_paint_recommended` output.
+   threshold env defaults from `startup_first_paint_recommended` output
+   (use `SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT` for one-shot lock-file output).
 2. Repeat waveform immediate-preview A/B on compositor-backed host with larger
    run windows to reduce variance, then decide whether to extend immediate path
    to additional waveform actions.
@@ -90,6 +91,14 @@ Purpose:
     startup model refresh,
   - window reveal now occurs only after the first stable post-refresh present
     to avoid black/placeholder startup artifacts.
+- Completed startup-threshold lock-automation milestone:
+  - added `scripts/perf_startup_lock_thresholds.py` to write startup threshold
+    env assignments from startup summary recommendations,
+  - `scripts/run_perf_guard.sh` now supports
+    `SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT` plus
+    `SEMPAL_PERF_GUARD_STARTUP_LOCK_MIN_VALID_RUNS`,
+  - local startup calibration rerun remained blocked in this environment with
+    `no_wayland_compositor`, so compositor-backed lock run is still pending.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.

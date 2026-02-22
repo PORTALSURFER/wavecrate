@@ -22,6 +22,7 @@ PERF_STATE_ROOT="${SEMPAL_PERF_GUARD_STATE_ROOT:-$ROOT_DIR/target/perf/runtime}"
 STARTUP_PROFILE_RAW="${SEMPAL_PERF_GUARD_STARTUP_PROFILE:-0}"
 STARTUP_TIMEOUT_SECS="${SEMPAL_PERF_GUARD_STARTUP_TIMEOUT_SECS:-6}"
 STARTUP_REQUIRE_VALID_RAW="${SEMPAL_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS:-0}"
+STARTUP_LOCK_ENV_OUT="${SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT:-}"
 
 startup_profile_enabled=0
 case "${STARTUP_PROFILE_RAW,,}" in
@@ -489,4 +490,11 @@ if (( startup_profile_enabled == 1 )); then
   fi
   startup_summary_cmd+=("${STARTUP_LOG_PATHS[@]}")
   "${startup_summary_cmd[@]}"
+  if [[ -n "$STARTUP_LOCK_ENV_OUT" ]]; then
+    STARTUP_LOCK_MIN_VALID_RUNS="${SEMPAL_PERF_GUARD_STARTUP_LOCK_MIN_VALID_RUNS:-$STARTUP_MIN_VALID_RUNS}"
+    python3 scripts/perf_startup_lock_thresholds.py \
+      --summary "$startup_summary_out" \
+      --out "$STARTUP_LOCK_ENV_OUT" \
+      --min-valid-runs "$STARTUP_LOCK_MIN_VALID_RUNS"
+  fi
 fi
