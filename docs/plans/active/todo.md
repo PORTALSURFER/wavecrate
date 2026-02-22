@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-22T09:49:21Z
+Last updated (UTC): 2026-02-22T10:23:50Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -15,11 +15,11 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Profile startup-first-paint timing breakdown (window/surface, first scene
-   encode, first present, deferred full-model refresh) and add a bench/log
-   summary hook for regression tracking.
-2. Continue narrowing high-frequency input latency by removing any remaining
-   queued flush-only paths where immediate emission is safe.
+1. Add perf-tooling ingestion for runtime startup timing summaries so
+   `SEMPAL_NATIVE_STARTUP_PROFILE` output can be tracked over time in guard
+   workflows.
+2. Audit native bridge/controller pending-input queues for additional
+   safe immediate-emission conversions beyond runtime wheel/cursor paths.
 3. Keep `MEMORY.md` and this queue updated in every perf milestone commit.
 
 ## Done recently
@@ -51,6 +51,12 @@ Purpose:
     of waiting for pending flush boundaries,
   - startup first frame now defers full model/overlay pulls until after first
     successful present.
+- Completed startup timing + remaining runtime queue cleanup milestone:
+  - added startup first-paint timing summary hooks (including deferred full
+    model refresh) for log/benchmark tracking,
+  - removed runtime wheel pending-flush queue path so wheel actions emit
+    immediately,
+  - process queued cursor movement immediately when layout becomes available.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.

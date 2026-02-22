@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T09:49:21Z
+Last Updated: 2026-02-22T10:23:50Z
 Updated By: Codex
 
 ## Purpose
@@ -10,15 +10,17 @@ Updated By: Codex
 
 ## Current Session (2026-02-22 UTC)
 
-- I implemented the next performance pass items in radiant runtime:
-  - mouse-wheel browser focus actions now emit immediately instead of waiting
-    for pending-input flush,
-  - startup now uses a lean first-frame path that defers full model/overlay
-    pulls until after first successful present.
-- I added focused runtime tests for:
+- I completed the next runtime pass by:
+  - adding startup first-paint timing instrumentation and summary output hooks
+    (`SEMPAL_NATIVE_STARTUP_PROFILE`) with a one-line startup timing breakdown,
+  - removing wheel pending-flush queueing so wheel focus updates emit
+    immediately,
+  - applying queued cursor motion immediately when layout becomes available.
+- I added/updated runtime tests for:
   - immediate wheel emission behavior,
   - startup fast-path dirty-state behavior,
-  - deferred full-model refresh scheduling after first present.
+  - deferred full-model refresh scheduling after first present,
+  - new startup deferred-refresh state expectations.
 - I validated with `bash scripts/ci_local.sh`; all checks passed and perf guard
   remained within thresholds.
 
