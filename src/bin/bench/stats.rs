@@ -2,6 +2,11 @@ use super::options::BenchOptions;
 use serde::Serialize;
 use std::time::Instant;
 
+/// Frame-budget proxy used to flag action-loop jank in benchmark summaries.
+const FRAME_BUDGET_US: u64 = 16_667;
+/// Two-frame budget proxy used as a missed-present estimate in benchmark summaries.
+const MISSED_PRESENT_PROXY_BUDGET_US: u64 = FRAME_BUDGET_US * 2;
+
 /// Stage-attributed benchmark helpers split from this module for size limits.
 #[path = "stats/staged.rs"]
 mod staged;
@@ -42,6 +47,16 @@ pub(super) struct LatencySummary {
     pub(crate) outlier_high_count: usize,
     /// Share of high outliers in the measured sample set (0.0-1.0).
     pub(crate) outlier_high_ratio: f64,
+    /// Frame-budget threshold used to derive jank proxy counters.
+    pub(crate) frame_budget_us: u64,
+    /// Samples above `frame_budget_us` as a frame-jank proxy.
+    pub(crate) frame_jank_count: usize,
+    /// Ratio of `frame_jank_count` to `sample_count`.
+    pub(crate) frame_jank_ratio: f64,
+    /// Samples above `2 * frame_budget_us` as a missed-present proxy.
+    pub(crate) missed_present_proxy_count: usize,
+    /// Ratio of `missed_present_proxy_count` to `sample_count`.
+    pub(crate) missed_present_proxy_ratio: f64,
 }
 
 /// Measure benchmark actions and return a latency summary.
@@ -127,6 +142,24 @@ fn summarize(warmup_iters: usize, measure_iters: usize, samples_us: Vec<u64>) ->
     } else {
         outlier_high_count as f64 / sample_count as f64
     };
+    let frame_jank_count = samples_us
+        .iter()
+        .filter(|value| **value > FRAME_BUDGET_US)
+        .count();
+    let frame_jank_ratio = if sample_count == 0 {
+        0.0
+    } else {
+        frame_jank_count as f64 / sample_count as f64
+    };
+    let missed_present_proxy_count = samples_us
+        .iter()
+        .filter(|value| **value > MISSED_PRESENT_PROXY_BUDGET_US)
+        .count();
+    let missed_present_proxy_ratio = if sample_count == 0 {
+        0.0
+    } else {
+        missed_present_proxy_count as f64 / sample_count as f64
+    };
     LatencySummary {
         sample_count,
         warmup_iters,
@@ -143,6 +176,11 @@ fn summarize(warmup_iters: usize, measure_iters: usize, samples_us: Vec<u64>) ->
         stddev_us,
         outlier_high_count,
         outlier_high_ratio,
+        frame_budget_us: FRAME_BUDGET_US,
+        frame_jank_count,
+        frame_jank_ratio,
+        missed_present_proxy_count,
+        missed_present_proxy_ratio,
     }
 }
 
@@ -205,6 +243,9 @@ mod tests {
         assert_eq!(summary.p75_us, 40);
         assert_eq!(summary.iqr_us, 20);
         assert_eq!(summary.sample_count, 5);
+        assert_eq!(summary.frame_budget_us, FRAME_BUDGET_US);
+        assert_eq!(summary.frame_jank_count, 0);
+        assert_eq!(summary.missed_present_proxy_count, 0);
     }
 
     /// Ensure percentile index rounding and clamping are deterministic.
@@ -280,5 +321,24 @@ mod tests {
         let summary = summarize(0, 6, vec![10, 11, 12, 13, 14, 100]);
         assert_eq!(summary.outlier_high_count, 1);
         assert!(summary.outlier_high_ratio > 0.0);
+    }
+
+    /// Ensure frame-budget proxy counters classify jank and missed-present samples.
+    #[test]
+    fn summarize_reports_frame_budget_proxy_counts() {
+        let summary = summarize(
+            0,
+            4,
+            vec![
+                100,
+                FRAME_BUDGET_US + 1,
+                MISSED_PRESENT_PROXY_BUDGET_US + 1,
+                400,
+            ],
+        );
+        assert_eq!(summary.frame_jank_count, 2);
+        assert_eq!(summary.missed_present_proxy_count, 1);
+        assert!(summary.frame_jank_ratio > 0.0);
+        assert!(summary.missed_present_proxy_ratio > 0.0);
     }
 }

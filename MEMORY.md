@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T12:05:32Z
+Last Updated: 2026-02-22T12:30:30Z
 Updated By: Codex
 
 ## Purpose
@@ -74,6 +74,20 @@ Updated By: Codex
 - Decision remains unchanged: keep current immediate overlay preview behavior,
   but do not extend immediate mode to additional waveform actions until
   compositor-backed A/B runs produce stable directional evidence.
+- I am closing the next perf milestone by wiring frame-quality telemetry from
+  radiant redraw execution into bridge frame results:
+  - `FrameBuildResult` now carries `frame_total_us`, `present_us`,
+    `frame_budget_us`, `jank`, `presented`, and `missed_present`.
+  - native-vello now emits those fields on every redraw attempt (including
+    expected-present failures) so bridge-side metrics can classify jank and
+    missed presents deterministically.
+- I am keeping perf guard actionable by adding frame-quality proxy guardrails:
+  - GUI latency summaries now include `frame_jank_*` and
+    `missed_present_proxy_*` fields using a `16667us` frame budget baseline.
+  - `scripts/run_perf_guard.sh` now prints per-scenario frame-quality proxy
+    stats and supports warn/fail env thresholds for jank/missed-present ratios.
+- I re-ran `bash scripts/ci_local.sh`; all checks passed with the new
+  frame-quality telemetry and guardrails active.
 
 ## Work Notes
 

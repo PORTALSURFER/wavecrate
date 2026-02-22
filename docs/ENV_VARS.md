@@ -262,6 +262,24 @@ pan/zoom interaction benchmark results. Default: `12000`.
 Warning-only p95 latency threshold (microseconds) for continuous volume-drag
 interaction benchmark results. Default: `8000`.
 
+- `SEMPAL_PERF_WARN_FRAME_JANK_RATIO`
+Warning threshold (ratio `0.0..=1.0`) for per-scenario frame-jank proxy share
+reported by `scripts/run_perf_guard.sh` from benchmark latency samples above
+`frame_budget_us` (`16667us`). Default: `0.10`.
+
+- `SEMPAL_PERF_FAIL_FRAME_JANK_RATIO`
+Optional hard-fail threshold (ratio `0.0..=1.0`) for per-scenario frame-jank
+proxy share. Unset by default.
+
+- `SEMPAL_PERF_WARN_MISSED_PRESENT_PROXY_RATIO`
+Warning threshold (ratio `0.0..=1.0`) for per-scenario missed-present proxy
+share reported by `scripts/run_perf_guard.sh` from benchmark latency samples
+above `2 * frame_budget_us` (`33334us`). Default: `0.05`.
+
+- `SEMPAL_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO`
+Optional hard-fail threshold (ratio `0.0..=1.0`) for per-scenario
+missed-present proxy share. Unset by default.
+
 - `SEMPAL_PERF_FAIL_P95_US_HOVER`
 Optional hard-fail p95 latency threshold (microseconds) for hover interaction
 benchmark results. Unset by default.

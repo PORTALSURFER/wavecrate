@@ -43,8 +43,10 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
   `volume_drag_latency` p95/p99 plus stage attribution.
 - `hover_latency` in perf guard reflects preview-hover behavior (focus-only row hover without commit/load side effects).
 - Tune guard input size, run count, and thresholds with `SEMPAL_PERF_GUARD_*`,
-  `SEMPAL_PERF_WARN_P95_US_*`, and `SEMPAL_PERF_FAIL_P95_US_*` overrides
-  documented in `docs/ENV_VARS.md`.
+  `SEMPAL_PERF_WARN_P95_US_*`, `SEMPAL_PERF_FAIL_P95_US_*`,
+  `SEMPAL_PERF_WARN_FRAME_JANK_RATIO`, and
+  `SEMPAL_PERF_WARN_MISSED_PRESENT_PROXY_RATIO` overrides documented in
+  `docs/ENV_VARS.md`.
 - For stability checks, prefer a repeated-run protocol:
   - `SEMPAL_PERF_GUARD_RUNS=3`
   - keep warmup/measure counts fixed across comparisons
@@ -69,6 +71,9 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
 - Post-scan reload time (ms).
 - Perf guard scenario latencies (p50/p95/p99/max/mean/stddev), outlier counts,
   and warning/fail-threshold drift across runs.
+- Perf guard frame-quality proxies (`frame_jank_ratio`,
+  `missed_present_proxy_ratio`) and top contributors when threshold warnings
+  trigger.
 - Perf guard stage attribution (where available) for `input`, `apply`, `pull`,
   and `projection` p95 values so drift can be localized quickly.
 - Wheel-promotion readiness summary (`ready_for_fail_promotion`, reasons, and

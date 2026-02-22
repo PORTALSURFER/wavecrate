@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-22T12:05:32Z
+Last updated (UTC): 2026-02-22T12:30:30Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -108,6 +108,16 @@ Purpose:
   - decision unchanged: keep current split, do not extend immediate mode beyond
     overlay actions until compositor-backed repeats are stable.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
+- Completed frame-quality telemetry + guardrail milestone:
+  - radiant `FrameBuildResult` now carries frame/present timing plus
+    `jank` and `missed_present` flags for bridge telemetry,
+  - native bridge profiling logs now include frame average/present average,
+    frame budget, jank ratio, and missed-present ratio,
+  - GUI benchmark latency summaries now expose `frame_jank_*` and
+    `missed_present_proxy_*` fields (budget baseline `16667us`),
+  - perf guard now prints per-scenario frame-quality proxy stats and supports
+    `SEMPAL_PERF_WARN/FAIL_FRAME_JANK_RATIO` plus
+    `SEMPAL_PERF_WARN/FAIL_MISSED_PRESENT_PROXY_RATIO`.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.
 - Completed Phase 7 static rebuild scope follow-up: model-refresh static

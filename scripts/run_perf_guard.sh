@@ -228,6 +228,19 @@ stage_names = (
 warned = False
 failed = False
 contributors = []
+jank_contributors = []
+warn_jank_ratio = float(os.getenv("SEMPAL_PERF_WARN_FRAME_JANK_RATIO", "0.10"))
+warn_missed_present_ratio = float(
+    os.getenv("SEMPAL_PERF_WARN_MISSED_PRESENT_PROXY_RATIO", "0.05")
+)
+fail_jank_ratio_raw = os.getenv("SEMPAL_PERF_FAIL_FRAME_JANK_RATIO")
+fail_jank_ratio = float(fail_jank_ratio_raw) if fail_jank_ratio_raw is not None else None
+fail_missed_present_ratio_raw = os.getenv("SEMPAL_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO")
+fail_missed_present_ratio = (
+    float(fail_missed_present_ratio_raw)
+    if fail_missed_present_ratio_raw is not None
+    else None
+)
 
 for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in scenarios:
     run_summaries = []
@@ -255,6 +268,16 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
     stddev_values = [float(summary.get("stddev_us", 0.0)) for summary in run_summaries]
     outlier_count_values = [int(summary.get("outlier_high_count", 0)) for summary in run_summaries]
     outlier_ratio_values = [float(summary.get("outlier_high_ratio", 0.0)) for summary in run_summaries]
+    frame_budget_values = [int(summary.get("frame_budget_us", 0)) for summary in run_summaries]
+    frame_jank_count_values = [int(summary.get("frame_jank_count", 0)) for summary in run_summaries]
+    frame_jank_ratio_values = [float(summary.get("frame_jank_ratio", 0.0)) for summary in run_summaries]
+    missed_present_count_values = [
+        int(summary.get("missed_present_proxy_count", 0)) for summary in run_summaries
+    ]
+    missed_present_ratio_values = [
+        float(summary.get("missed_present_proxy_ratio", 0.0))
+        for summary in run_summaries
+    ]
 
     p50 = int(median(p50_values))
     p95 = int(median(p95_values))
@@ -265,6 +288,11 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
     outlier_high_count = int(median(outlier_count_values))
     outlier_high_ratio = float(median(outlier_ratio_values))
     spread_p95_us = (max(p95_values) - min(p95_values)) if len(p95_values) > 1 else 0
+    frame_budget_us = int(median(frame_budget_values))
+    frame_jank_count = int(median(frame_jank_count_values))
+    frame_jank_ratio = float(median(frame_jank_ratio_values))
+    missed_present_count = int(median(missed_present_count_values))
+    missed_present_ratio = float(median(missed_present_ratio_values))
 
     warn_limit = int(os.getenv(warn_env_name, str(warn_default_limit)))
     fail_limit = None
@@ -283,6 +311,12 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
         f"max={max_us}us mean={mean_us:.1f}us stddev={stddev_us:.1f}us "
         f"outliers={outlier_high_count} ({outlier_high_ratio * 100.0:.1f}%) "
         f"runs={len(run_summaries)} p95_spread={spread_p95_us}us {status}"
+    )
+    print(
+        f"[perf_guard]   {key} frame_quality_proxy: budget={frame_budget_us}us "
+        f"jank={frame_jank_count} ({frame_jank_ratio * 100.0:.1f}%) "
+        f"missed_present={missed_present_count} ({missed_present_ratio * 100.0:.1f}%) "
+        f"(warn_jank>{warn_jank_ratio * 100.0:.1f}% warn_missed>{warn_missed_present_ratio * 100.0:.1f}%)"
     )
 
     stage_reports = []
@@ -437,6 +471,61 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
             f"[perf_guard] ERROR: {key} median p95 {p95}us exceeded fail limit {fail_limit}us",
             file=sys.stderr,
         )
+    if frame_jank_ratio > warn_jank_ratio:
+        warned = True
+        over_ratio = frame_jank_ratio / max(warn_jank_ratio, 1e-9)
+        jank_contributors.append(
+            (
+                over_ratio,
+                key,
+                "jank_ratio",
+                frame_jank_ratio * 100.0,
+                warn_jank_ratio * 100.0,
+            )
+        )
+        print(
+            f"[perf_guard] WARN: {key} median frame_jank_ratio "
+            f"{frame_jank_ratio * 100.0:.1f}% exceeded warning limit "
+            f"{warn_jank_ratio * 100.0:.1f}%",
+            file=sys.stderr,
+        )
+    if fail_jank_ratio is not None and frame_jank_ratio > fail_jank_ratio:
+        failed = True
+        print(
+            f"[perf_guard] ERROR: {key} median frame_jank_ratio "
+            f"{frame_jank_ratio * 100.0:.1f}% exceeded fail limit "
+            f"{fail_jank_ratio * 100.0:.1f}%",
+            file=sys.stderr,
+        )
+    if missed_present_ratio > warn_missed_present_ratio:
+        warned = True
+        over_ratio = missed_present_ratio / max(warn_missed_present_ratio, 1e-9)
+        jank_contributors.append(
+            (
+                over_ratio,
+                key,
+                "missed_present_ratio",
+                missed_present_ratio * 100.0,
+                warn_missed_present_ratio * 100.0,
+            )
+        )
+        print(
+            f"[perf_guard] WARN: {key} median missed_present_proxy_ratio "
+            f"{missed_present_ratio * 100.0:.1f}% exceeded warning limit "
+            f"{warn_missed_present_ratio * 100.0:.1f}%",
+            file=sys.stderr,
+        )
+    if (
+        fail_missed_present_ratio is not None
+        and missed_present_ratio > fail_missed_present_ratio
+    ):
+        failed = True
+        print(
+            f"[perf_guard] ERROR: {key} median missed_present_proxy_ratio "
+            f"{missed_present_ratio * 100.0:.1f}% exceeded fail limit "
+            f"{fail_missed_present_ratio * 100.0:.1f}%",
+            file=sys.stderr,
+        )
 
 if contributors:
     contributors.sort(reverse=True)
@@ -445,6 +534,14 @@ if contributors:
         print(
             f"[perf_guard]   - {key}: p95={p95}us limit={limit}us "
             f"ratio={over_ratio:.2f}x"
+        )
+if jank_contributors:
+    jank_contributors.sort(reverse=True)
+    print("[perf_guard] top frame-quality warning contributors:")
+    for over_ratio, key, metric_name, value_pct, limit_pct in jank_contributors[:3]:
+        print(
+            f"[perf_guard]   - {key} {metric_name}: value={value_pct:.1f}% "
+            f"limit={limit_pct:.1f}% ratio={over_ratio:.2f}x"
         )
 
 if warned:

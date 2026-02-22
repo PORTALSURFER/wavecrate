@@ -233,6 +233,24 @@ static FRAME_RESULT_PRIMITIVES_TOTAL: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 static FRAME_RESULT_TEXT_RUNS_TOTAL: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
+/// Number of redraws that completed a successful surface present.
+static FRAME_RESULT_PRESENTED_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Number of redraws that missed an expected present.
+static FRAME_RESULT_MISSED_PRESENT_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Number of presented redraws that exceeded the configured frame budget.
+static FRAME_RESULT_JANK_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Sum of reported redraw frame durations in microseconds.
+static FRAME_RESULT_TOTAL_US: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Sum of reported present-stage durations in microseconds.
+static FRAME_RESULT_PRESENT_US_TOTAL: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Last observed frame budget in microseconds.
+static FRAME_RESULT_FRAME_BUDGET_US: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static BRIDGE_PROFILE_ENABLED: OnceLock<bool> = OnceLock::new();
 /// Cached immediate-waveform-preview mode resolved from environment.
 static IMMEDIATE_WAVEFORM_PREVIEW_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
@@ -363,6 +381,12 @@ fn maybe_log_bridge_profile() {
     let frame_anim_count = FRAME_RESULT_ANIMATION_COUNT.load(Ordering::Relaxed);
     let primitive_sum = FRAME_RESULT_PRIMITIVES_TOTAL.load(Ordering::Relaxed);
     let text_run_sum = FRAME_RESULT_TEXT_RUNS_TOTAL.load(Ordering::Relaxed);
+    let presented_frame_count = FRAME_RESULT_PRESENTED_COUNT.load(Ordering::Relaxed);
+    let missed_present_count = FRAME_RESULT_MISSED_PRESENT_COUNT.load(Ordering::Relaxed);
+    let jank_count = FRAME_RESULT_JANK_COUNT.load(Ordering::Relaxed);
+    let frame_total_us = FRAME_RESULT_TOTAL_US.load(Ordering::Relaxed);
+    let present_total_us = FRAME_RESULT_PRESENT_US_TOTAL.load(Ordering::Relaxed);
+    let frame_budget_us = FRAME_RESULT_FRAME_BUDGET_US.load(Ordering::Relaxed);
     let pull_model_avg_prep_ms = if pull_model_count == 0 {
         0.0
     } else {
@@ -443,6 +467,26 @@ fn maybe_log_bridge_profile() {
     } else {
         text_run_sum as f64 / frame_count as f64
     };
+    let frame_total_avg_ms = if frame_count == 0 {
+        0.0
+    } else {
+        frame_total_us as f64 / frame_count as f64 / 1000.0
+    };
+    let present_avg_ms = if presented_frame_count == 0 {
+        0.0
+    } else {
+        present_total_us as f64 / presented_frame_count as f64 / 1000.0
+    };
+    let jank_ratio = if frame_count == 0 {
+        0.0
+    } else {
+        jank_count as f64 / frame_count as f64
+    };
+    let missed_present_ratio = if frame_count == 0 {
+        0.0
+    } else {
+        missed_present_count as f64 / frame_count as f64
+    };
     info!(
         pull_model_count,
         pull_motion_count,
@@ -461,7 +505,9 @@ fn maybe_log_bridge_profile() {
          waveform_flush_ms={:.3} waveform_flush_avg_actions={:.2} \
          waveform_image_refresh apply={} skip={} \
          derived_flush_ms={:.3} derived_dirty_sources={:.2} derived_dirty_computed={:.2} \
-         avg_primitives_per_frame={:.2} avg_text_runs_per_frame={:.2}",
+         avg_primitives_per_frame={:.2} avg_text_runs_per_frame={:.2} \
+         frame_avg_ms={:.3} present_avg_ms={:.3} frame_budget_us={} \
+         jank_count={} jank_ratio={:.3} missed_present_count={} missed_present_ratio={:.3}",
         pull_model_avg_prep_ms,
         pull_model_avg_project_ms,
         pull_motion_avg_prep_ms,
@@ -491,7 +537,14 @@ fn maybe_log_bridge_profile() {
         derived_flush_avg_dirty_sources,
         derived_flush_avg_dirty_computed,
         avg_primitives_per_frame,
-        avg_text_runs_per_frame
+        avg_text_runs_per_frame,
+        frame_total_avg_ms,
+        present_avg_ms,
+        frame_budget_us,
+        jank_count,
+        jank_ratio,
+        missed_present_count,
+        missed_present_ratio
     );
 }
 #[cfg(not(feature = "native-bridge-metrics"))]
@@ -534,6 +587,18 @@ fn trace_frame_result(result: &NativeFrameBuildResult) -> u64 {
     if result.needs_animation {
         FRAME_RESULT_ANIMATION_COUNT.fetch_add(1, Ordering::Relaxed);
     }
+    if result.presented {
+        FRAME_RESULT_PRESENTED_COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+    if result.missed_present {
+        FRAME_RESULT_MISSED_PRESENT_COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+    if result.jank {
+        FRAME_RESULT_JANK_COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+    FRAME_RESULT_TOTAL_US.fetch_add(result.frame_total_us as u64, Ordering::Relaxed);
+    FRAME_RESULT_PRESENT_US_TOTAL.fetch_add(result.present_us as u64, Ordering::Relaxed);
+    FRAME_RESULT_FRAME_BUDGET_US.store(result.frame_budget_us as u64, Ordering::Relaxed);
     FRAME_RESULT_PRIMITIVES_TOTAL.fetch_add(result.primitive_count as u64, Ordering::Relaxed);
     FRAME_RESULT_TEXT_RUNS_TOTAL.fetch_add(result.text_run_count as u64, Ordering::Relaxed);
     frame_count
