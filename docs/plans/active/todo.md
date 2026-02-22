@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-22T10:23:50Z
+Last updated (UTC): 2026-02-22T10:38:26Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -15,11 +15,10 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Add perf-tooling ingestion for runtime startup timing summaries so
-   `SEMPAL_NATIVE_STARTUP_PROFILE` output can be tracked over time in guard
-   workflows.
-2. Audit native bridge/controller pending-input queues for additional
-   safe immediate-emission conversions beyond runtime wheel/cursor paths.
+1. Stabilize startup-profile guard baselines (median + spread) over multi-run
+   captures, then set calibrated warning/fail thresholds.
+2. Audit remaining waveform input queue/coalescing paths for optional immediate
+   preview modes without regressing total frame cost.
 3. Keep `MEMORY.md` and this queue updated in every perf milestone commit.
 
 ## Done recently
@@ -57,6 +56,13 @@ Purpose:
   - removed runtime wheel pending-flush queue path so wheel actions emit
     immediately,
   - process queued cursor movement immediately when layout becomes available.
+- Completed startup guard ingestion + bridge immediate-focus milestone:
+  - perf guard now supports optional startup profiling capture and startup
+    summary output (`SEMPAL_PERF_GUARD_STARTUP_PROFILE` and summary sidecar),
+  - added `scripts/perf_startup_summary.py` to parse startup profile logs and
+    enforce warning/fail thresholds for first-present latency,
+  - native bridge now applies `MoveBrowserFocus` actions immediately instead of
+    queueing them for later flush.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.

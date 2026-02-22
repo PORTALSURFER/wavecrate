@@ -1651,8 +1651,6 @@ pub struct SempalNativeBridge {
     last_dirty_segments: NativeDirtySegments,
     /// Monotonic static-segment revisions from projection updates.
     segment_revisions: NativeSegmentRevisions,
-    /// Coalesced pending browser-focus delta from high-frequency wheel/arrow actions.
-    pending_browser_focus_delta: i16,
     /// Coalesced pending waveform actions from high-frequency drag/wheel input.
     pending_waveform_actions: PendingWaveformActions,
 }
@@ -1674,31 +1672,19 @@ impl SempalNativeBridge {
             projection_cache: NativeProjectionCache::default(),
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
-            pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         })
     }
 
-    /// Queue browser-focus movement so repeated wheel/arrow actions can coalesce.
-    fn enqueue_browser_focus_delta(&mut self, delta: i8) {
-        self.pending_browser_focus_delta = self
-            .pending_browser_focus_delta
-            .saturating_add(i16::from(delta))
-            .clamp(i16::from(i8::MIN), i16::from(i8::MAX));
-    }
-
-    /// Apply any queued browser-focus movement before pulling/projecting state.
-    fn flush_pending_browser_focus_delta(&mut self) {
-        let pending = self.pending_browser_focus_delta;
-        if pending == 0 {
+    /// Apply browser-focus movement immediately so wheel/arrow nudges are visible
+    /// in the same frame instead of waiting for a pending-input flush boundary.
+    fn apply_browser_focus_delta_immediately(&mut self, delta: i8) {
+        if delta == 0 {
             return;
         }
-        self.pending_browser_focus_delta = 0;
-        let action = NativeUiAction::MoveBrowserFocus {
-            delta: pending as i8,
-        };
+        let action = NativeUiAction::MoveBrowserFocus { delta };
         let before_key = build_projection_cache_key(&self.controller);
-        self.controller.focus_browser_delta_action(pending as i8);
+        self.controller.focus_browser_delta_action(delta);
         let after_key = build_projection_cache_key(&self.controller);
         if before_key != after_key {
             self.mark_dirty_for_action(&action);
@@ -1790,9 +1776,8 @@ impl SempalNativeBridge {
         }
     }
 
-    /// Flush all coalesced high-frequency input action queues before projection.
+    /// Flush all coalesced high-frequency waveform action queues before projection.
     fn flush_pending_input_actions(&mut self) {
-        self.flush_pending_browser_focus_delta();
         self.flush_pending_waveform_actions();
     }
 
@@ -1920,9 +1905,9 @@ impl NativeAppBridge for SempalNativeBridge {
             let profiling = bridge_profiling_enabled();
             let action_start = profiling.then(Instant::now);
             if call <= 64 {
-                info!(call, delta, "native bridge: queue MoveBrowserFocus");
+                info!(call, delta, "native bridge: apply MoveBrowserFocus");
             }
-            self.enqueue_browser_focus_delta(delta);
+            self.apply_browser_focus_delta_immediately(delta);
             if profiling {
                 let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
                 trace_action_duration(action_duration);
@@ -2092,7 +2077,6 @@ mod tests {
             projection_cache: NativeProjectionCache::default(),
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
-            pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
 
@@ -2108,30 +2092,9 @@ mod tests {
         assert!(revisions.global_static > 0);
     }
 
-    /// Queued browser focus deltas should clamp into i8-safe bounds.
+    /// No-op immediate focus movement should keep projection cache keys intact.
     #[test]
-    fn browser_focus_delta_queue_coalesces_and_clamps() {
-        let controller = AppController::new(WaveformRenderer::new(16, 16), None);
-        let mut bridge = SempalNativeBridge {
-            controller,
-            projection_cache: NativeProjectionCache::default(),
-            last_dirty_segments: NativeDirtySegments::all(),
-            segment_revisions: NativeSegmentRevisions::default(),
-            pending_browser_focus_delta: 0,
-            pending_waveform_actions: PendingWaveformActions::default(),
-        };
-
-        bridge.enqueue_browser_focus_delta(70);
-        bridge.enqueue_browser_focus_delta(70);
-        assert_eq!(bridge.pending_browser_focus_delta, i16::from(i8::MAX));
-
-        bridge.enqueue_browser_focus_delta(-120);
-        assert_eq!(bridge.pending_browser_focus_delta, 7);
-    }
-
-    /// No-op queued focus movement should keep projection cache keys intact.
-    #[test]
-    fn flush_pending_browser_focus_noop_keeps_projection_cache_key() {
+    fn apply_browser_focus_delta_immediate_noop_keeps_projection_cache_key() {
         let controller = AppController::new(WaveformRenderer::new(16, 16), None);
         let key = build_projection_cache_key(&controller);
         let cache = NativeProjectionCache {
@@ -2144,13 +2107,9 @@ mod tests {
             projection_cache: cache,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
-            pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
-        bridge.enqueue_browser_focus_delta(1);
-        bridge.flush_pending_browser_focus_delta();
-
-        assert_eq!(bridge.pending_browser_focus_delta, 0);
+        bridge.apply_browser_focus_delta_immediately(1);
         assert_eq!(bridge.projection_cache.app_key, Some(key));
     }
 
@@ -2265,7 +2224,6 @@ mod tests {
             projection_cache: cache,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
-            pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
 
@@ -2293,7 +2251,6 @@ mod tests {
             projection_cache: NativeProjectionCache::default(),
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
-            pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
 
@@ -2329,7 +2286,6 @@ mod tests {
             projection_cache: NativeProjectionCache::default(),
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
-            pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
 
@@ -2362,7 +2318,6 @@ mod tests {
             projection_cache: cache,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
-            pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
 
@@ -2414,7 +2369,6 @@ mod tests {
             projection_cache: NativeProjectionCache::default(),
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
-            pending_browser_focus_delta: 0,
             pending_waveform_actions: PendingWaveformActions::default(),
         };
         bridge.controller.mark_derived_source_dirty(

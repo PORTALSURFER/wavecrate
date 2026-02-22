@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T10:23:50Z
+Last Updated: 2026-02-22T10:38:26Z
 Updated By: Codex
 
 ## Purpose
@@ -10,19 +10,19 @@ Updated By: Codex
 
 ## Current Session (2026-02-22 UTC)
 
-- I completed the next runtime pass by:
-  - adding startup first-paint timing instrumentation and summary output hooks
-    (`SEMPAL_NATIVE_STARTUP_PROFILE`) with a one-line startup timing breakdown,
-  - removing wheel pending-flush queueing so wheel focus updates emit
-    immediately,
-  - applying queued cursor motion immediately when layout becomes available.
-- I added/updated runtime tests for:
-  - immediate wheel emission behavior,
-  - startup fast-path dirty-state behavior,
-  - deferred full-model refresh scheduling after first present,
-  - new startup deferred-refresh state expectations.
-- I validated with `bash scripts/ci_local.sh`; all checks passed and perf guard
-  remained within thresholds.
+- I completed the next perf workflow batch by:
+  - adding perf-guard startup-profile ingestion in `scripts/run_perf_guard.sh`
+    (optional `SEMPAL_PERF_GUARD_STARTUP_PROFILE=1` capture path plus startup
+    summary emission),
+  - adding `scripts/perf_startup_summary.py` to parse
+    `SEMPAL_NATIVE_STARTUP_PROFILE` logs and emit aggregated startup metrics +
+    warning/fail threshold checks,
+  - updating runtime bridge handling so `MoveBrowserFocus` is applied
+    immediately in `app_core` instead of waiting for queued flush.
+- I updated docs for the new startup profiling/perf-guard knobs in
+  `docs/ENV_VARS.md` and `docs/performance_qa.md`.
+- I validated with `bash scripts/ci_local.sh`; all checks passed (perf guard
+  stayed non-failing, with one warning-only hover latency drift run).
 
 ## Work Notes
 

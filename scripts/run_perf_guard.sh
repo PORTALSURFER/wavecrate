@@ -19,6 +19,15 @@ WARMUP_ITERS="${SEMPAL_PERF_GUARD_WARMUP_ITERS:-3}"
 MEASURE_ITERS="${SEMPAL_PERF_GUARD_MEASURE_ITERS:-16}"
 RUNS="${SEMPAL_PERF_GUARD_RUNS:-1}"
 PERF_STATE_ROOT="${SEMPAL_PERF_GUARD_STATE_ROOT:-$ROOT_DIR/target/perf/runtime}"
+STARTUP_PROFILE_RAW="${SEMPAL_PERF_GUARD_STARTUP_PROFILE:-0}"
+STARTUP_TIMEOUT_SECS="${SEMPAL_PERF_GUARD_STARTUP_TIMEOUT_SECS:-6}"
+
+startup_profile_enabled=0
+case "${STARTUP_PROFILE_RAW,,}" in
+  1|true|yes|on)
+    startup_profile_enabled=1
+    ;;
+esac
 
 mkdir -p "$(dirname "$OUT_PATH")"
 mkdir -p "$PERF_STATE_ROOT/config" "$PERF_STATE_ROOT/data" "$PERF_STATE_ROOT/state"
@@ -34,6 +43,13 @@ export XDG_DATA_HOME="${XDG_DATA_HOME:-$PERF_STATE_ROOT/data}"
 export XDG_STATE_HOME="${XDG_STATE_HOME:-$PERF_STATE_ROOT/state}"
 
 declare -a REPORT_PATHS=()
+declare -a STARTUP_LOG_PATHS=()
+
+if (( startup_profile_enabled == 1 )) && ! command -v timeout >/dev/null 2>&1; then
+  echo "[perf_guard] WARN: startup profiling requested but \`timeout\` is unavailable; skipping startup capture" >&2
+  startup_profile_enabled=0
+fi
+
 for run in $(seq 1 "$RUNS"); do
   run_out="$OUT_PATH"
   if [ "$RUNS" -gt 1 ]; then
@@ -51,6 +67,20 @@ for run in $(seq 1 "$RUNS"); do
     --gui-interaction-iters "$GUI_INTERACTION_ITERS" \
     --warmup-iters "$WARMUP_ITERS" \
     --measure-iters "$MEASURE_ITERS"
+  if (( startup_profile_enabled == 1 )); then
+    startup_log="${OUT_PATH%.json}.startup.run${run}.log"
+    STARTUP_LOG_PATHS+=("$startup_log")
+    echo "[perf_guard] capturing native startup profile (run ${run}/${RUNS})"
+    set +e
+    SEMPAL_NATIVE_STARTUP_PROFILE=1 \
+      timeout --signal=TERM --kill-after=1s "${STARTUP_TIMEOUT_SECS}s" \
+      cargo run --bin sempal -- >"$startup_log" 2>&1
+    startup_status=$?
+    set -e
+    if [[ "$startup_status" -ne 0 && "$startup_status" -ne 124 && "$startup_status" -ne 143 ]]; then
+      echo "[perf_guard] WARN: startup profiling exited with status ${startup_status}; see ${startup_log}" >&2
+    fi
+  fi
 done
 
 if [ "$RUNS" -gt 1 ]; then
@@ -403,3 +433,23 @@ else:
 if failed:
     sys.exit(2)
 PY
+
+if (( startup_profile_enabled == 1 )); then
+  startup_summary_out="${SEMPAL_PERF_GUARD_STARTUP_SUMMARY_OUT:-${OUT_PATH%.json}.startup_summary.json}"
+  startup_summary_cmd=(
+    python3
+    scripts/perf_startup_summary.py
+    --output
+    "$startup_summary_out"
+    --warn-first-present-ms
+    "${SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_MS:-800}"
+  )
+  if [[ -n "${SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS:-}" ]]; then
+    startup_summary_cmd+=(
+      --fail-first-present-ms
+      "$SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS"
+    )
+  fi
+  startup_summary_cmd+=("${STARTUP_LOG_PATHS[@]}")
+  "${startup_summary_cmd[@]}"
+fi
