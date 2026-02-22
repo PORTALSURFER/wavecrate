@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T09:18:47Z
+Last Updated: 2026-02-22T09:49:21Z
 Updated By: Codex
 
 ## Purpose
@@ -10,15 +10,17 @@ Updated By: Codex
 
 ## Current Session (2026-02-22 UTC)
 
-- I completed the browser-projection allocation-churn milestone by:
-  - replacing tuple-based retained browser-row cache entries with a typed cache
-    entry that stores a precomputed selected-path lookup hash,
-  - reworking browser row projection to reuse existing row-model slots and
-    mutate `String` buffers in place instead of rebuilding rows every frame.
-- I kept migration boundary rules intact by routing the new cache-entry type
-  through `app_core/app_api.rs`.
+- I implemented the next performance pass items in radiant runtime:
+  - mouse-wheel browser focus actions now emit immediately instead of waiting
+    for pending-input flush,
+  - startup now uses a lean first-frame path that defers full model/overlay
+    pulls until after first successful present.
+- I added focused runtime tests for:
+  - immediate wheel emission behavior,
+  - startup fast-path dirty-state behavior,
+  - deferred full-model refresh scheduling after first present.
 - I validated with `bash scripts/ci_local.sh`; all checks passed and perf guard
-  stayed within thresholds.
+  remained within thresholds.
 
 ## Work Notes
 
