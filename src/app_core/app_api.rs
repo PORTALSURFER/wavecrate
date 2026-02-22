@@ -5,6 +5,8 @@
 pub(crate) mod controller {
     /// Legacy application controller implementation.
     pub(crate) use crate::app::controller::AppController;
+    /// Legacy retained browser-row projection cache entry type.
+    pub(crate) use crate::app::controller::ProjectedBrowserRowCacheEntry;
 }
 
 /// Legacy controller-internal state types needed by migration glue.

@@ -57,6 +57,21 @@ pub(crate) const FOCUS_HISTORY_LIMIT: usize = 100;
 pub(crate) const UNDO_LIMIT: usize = 20;
 pub(crate) const STATUS_LOG_LIMIT: usize = 200;
 
+/// Retained browser-row projection fields keyed by absolute entry index.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ProjectedBrowserRowCacheEntry {
+    /// Relative sample path used to validate cache hits against live entry data.
+    pub relative_path: PathBuf,
+    /// Pre-hashed relative-path key used by selected-path lookup checks.
+    pub selected_lookup_hash: u64,
+    /// Stable rendered row label for the browser list.
+    pub row_label: String,
+    /// Triage column index (`0..=2`) for this row.
+    pub column_index: usize,
+    /// Stable rendered bucket/chip label for the browser list.
+    pub bucket_label: String,
+}
+
 /// Maintains app state and bridges core logic to the active GUI runtime.
 pub struct AppController {
     /// Mutable UI state shared with native rendering.
@@ -73,9 +88,7 @@ pub struct AppController {
     /// Visible-row revision for the retained browser row projection cache.
     pub(crate) projected_browser_rows_revision: u64,
     /// Static browser-row projection fields keyed by absolute entry index.
-    ///
-    /// Tuple layout: `(relative_path, row_label, column_index, bucket_label)`.
-    pub(crate) projected_browser_rows: HashMap<usize, (PathBuf, String, usize, String)>,
+    pub(crate) projected_browser_rows: HashMap<usize, ProjectedBrowserRowCacheEntry>,
     /// Signature for the retained browser selected-path lookup cache.
     pub(crate) projected_selected_paths_signature: Option<u64>,
     /// Selected-path hash lookup reused across native browser projections.

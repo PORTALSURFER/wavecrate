@@ -4,7 +4,7 @@
 //! backend-neutral `radiant::app` models and to translate normalized UI ranges
 //! back into controller-domain selection math.
 
-use super::controller::AppController;
+use super::controller::{AppController, ProjectedBrowserRowCacheEntry};
 use crate::app_core::actions::{
     NativeAppModel as AppModel, NativeBrowserActionsModel as BrowserActionsModel,
     NativeBrowserChromeModel as BrowserChromeModel, NativeBrowserPanelModel as BrowserPanelModel,
@@ -45,8 +45,6 @@ use tracing::info;
 static PROJECT_APP_MODEL_CALLS: AtomicU64 = AtomicU64::new(0);
 /// Cap retained browser-row projection cache growth per visible-row revision.
 const MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE: usize = MAX_RENDERED_BROWSER_ROWS * 8;
-/// Tuple layout for cached browser-row projection fields.
-type CachedBrowserRow = (PathBuf, String, usize, String);
 
 pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
     let call = PROJECT_APP_MODEL_CALLS.fetch_add(1, Ordering::Relaxed) + 1;
@@ -784,38 +782,50 @@ pub(crate) fn project_browser_rows_model_into(
         rows.clear();
         return;
     }
-    rows.clear();
-    rows.reserve(visible_count.min(MAX_RENDERED_BROWSER_ROWS));
     refresh_projected_browser_row_cache(controller);
     refresh_projected_selected_paths_lookup(controller);
     let (window_start, window_len) =
         browser_render_window(visible_count, selected_visible_row, anchor_visible_row);
+    if rows.capacity() < window_len {
+        rows.reserve(window_len.saturating_sub(rows.len()));
+    }
     for offset in 0..window_len {
         let visible_row = window_start + offset;
         let Some(absolute_index) = controller.ui.browser.visible.get(visible_row) else {
             continue;
         };
-        let Some(cached_row) = project_cached_browser_row(controller, absolute_index) else {
+        let Some((cached_row, selected)) = project_cached_browser_row(controller, absolute_index)
+        else {
             let focused = selected_visible_row.is_some_and(|focused| focused == visible_row);
-            rows.push(
-                BrowserRowModel::new(
+            write_browser_row_into_slot(
+                rows,
+                offset,
+                (
                     visible_row,
-                    format!("row {}", visible_row + 1),
+                    &format!("row {}", visible_row + 1),
                     1,
+                    "SAMPLE",
                     false,
                     focused,
-                )
-                .with_bucket_label(String::from("SAMPLE")),
+                ),
             );
             continue;
         };
-        let (row_label, column_index, bucket_label, selected) = cached_row;
         let focused = selected_visible_row.is_some_and(|focused| focused == visible_row);
-        rows.push(
-            BrowserRowModel::new(visible_row, row_label, column_index, selected, focused)
-                .with_bucket_label(bucket_label),
+        write_browser_row_into_slot(
+            rows,
+            offset,
+            (
+                visible_row,
+                &cached_row.row_label,
+                cached_row.column_index,
+                &cached_row.bucket_label,
+                selected,
+                focused,
+            ),
         );
     }
+    rows.truncate(window_len);
 }
 
 /// Project browser panel metadata and row window into one panel model.
@@ -875,11 +885,20 @@ fn refresh_projected_selected_paths_lookup(controller: &mut AppController) {
 }
 
 /// Return whether `relative_path` is selected in the retained selected-path lookup cache.
+#[cfg(test)]
 fn selected_path_is_selected(controller: &AppController, relative_path: &Path) -> bool {
     controller
         .projected_selected_paths_lookup
         .as_ref()
         .is_some_and(|lookup| lookup.contains(&selected_path_lookup_hash(relative_path)))
+}
+
+/// Return whether one precomputed selected-path hash is selected.
+fn selected_hash_is_selected(controller: &AppController, selected_lookup_hash: u64) -> bool {
+    controller
+        .projected_selected_paths_lookup
+        .as_ref()
+        .is_some_and(|lookup| lookup.contains(&selected_lookup_hash))
 }
 
 /// Clear retained browser-row projection fields.
@@ -898,18 +917,18 @@ fn refresh_projected_browser_row_cache(controller: &mut AppController) {
 
 /// Return true when one cached browser-row projection still matches the entry snapshot.
 fn cached_browser_row_matches_entry(
-    cached: &CachedBrowserRow,
+    cached: &ProjectedBrowserRowCacheEntry,
     relative_path: &Path,
     column_index: usize,
 ) -> bool {
-    cached.0.as_path() == relative_path && cached.2 == column_index
+    cached.relative_path.as_path() == relative_path && cached.column_index == column_index
 }
 
 /// Resolve static browser-row projection fields from cache, inserting on cache miss.
 fn project_cached_browser_row(
     controller: &mut AppController,
     absolute_index: usize,
-) -> Option<(String, usize, String, bool)> {
+) -> Option<(&ProjectedBrowserRowCacheEntry, bool)> {
     let (entry_tag, relative_path) = controller
         .wav_entry(absolute_index)
         .map(|entry| (entry.tag, entry.relative_path.clone()))?;
@@ -925,12 +944,13 @@ fn project_cached_browser_row(
             .label_for_ref(absolute_index)
             .map(str::to_string)
             .unwrap_or_else(|| view_model::sample_display_label(&relative_path));
-        let cached = (
-            relative_path.clone(),
+        let cached = ProjectedBrowserRowCacheEntry {
+            selected_lookup_hash: selected_path_lookup_hash(relative_path.as_path()),
             row_label,
             column_index,
-            browser_bucket_label(controller, &relative_path, entry_tag),
-        );
+            bucket_label: browser_bucket_label(controller, &relative_path, entry_tag),
+            relative_path: relative_path.clone(),
+        };
         if controller.projected_browser_rows.len() >= MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE {
             clear_projected_browser_row_cache(controller);
         }
@@ -938,18 +958,39 @@ fn project_cached_browser_row(
             .projected_browser_rows
             .insert(absolute_index, cached);
     }
-    let projected = controller
-        .projected_browser_rows
-        .get(&absolute_index)
-        .map(|cached| {
-            (
-                cached.1.clone(),
-                cached.2,
-                cached.3.clone(),
-                selected_path_is_selected(controller, cached.0.as_path()),
-            )
-        })?;
-    Some(projected)
+    let projected = controller.projected_browser_rows.get(&absolute_index)?;
+    Some((
+        projected,
+        selected_hash_is_selected(controller, projected.selected_lookup_hash),
+    ))
+}
+
+/// Write one browser row into `rows[offset]`, reusing existing `String` buffers.
+fn write_browser_row_into_slot(
+    rows: &mut Vec<BrowserRowModel>,
+    offset: usize,
+    projection: (usize, &str, usize, &str, bool, bool),
+) {
+    let (visible_row, row_label, column_index, bucket_label, selected, focused) = projection;
+    if let Some(row) = rows.get_mut(offset) {
+        row.visible_row = visible_row;
+        row.label.clear();
+        row.label.push_str(row_label);
+        row.column = column_index.min(2);
+        row.selected = selected;
+        row.focused = focused;
+        if let Some(existing_bucket_label) = row.bucket_label.as_mut() {
+            existing_bucket_label.clear();
+            existing_bucket_label.push_str(bucket_label);
+        } else {
+            row.bucket_label = Some(bucket_label.to_owned());
+        }
+        return;
+    }
+    rows.push(
+        BrowserRowModel::new(visible_row, row_label, column_index, selected, focused)
+            .with_bucket_label(bucket_label),
+    );
 }
 
 /// Project browser toolbar/tab/footer labels.
@@ -1709,12 +1750,13 @@ mod tests {
         controller.projected_browser_rows_revision = 7;
         controller.projected_browser_rows.insert(
             0,
-            (
-                std::path::PathBuf::from("kick.wav"),
-                String::from("Kick"),
-                1,
-                String::from("SAMPLE"),
-            ),
+            ProjectedBrowserRowCacheEntry {
+                relative_path: std::path::PathBuf::from("kick.wav"),
+                selected_lookup_hash: selected_path_lookup_hash(std::path::Path::new("kick.wav")),
+                row_label: String::from("Kick"),
+                column_index: 1,
+                bucket_label: String::from("SAMPLE"),
+            },
         );
         controller.ui.browser.visible_rows_revision = 8;
 
@@ -1769,19 +1811,20 @@ mod tests {
         }]);
         controller.projected_browser_rows.insert(
             0,
-            (
-                std::path::PathBuf::from("kick.wav"),
-                String::from("Kick"),
-                1,
-                String::from("SAMPLE"),
-            ),
+            ProjectedBrowserRowCacheEntry {
+                relative_path: std::path::PathBuf::from("kick.wav"),
+                selected_lookup_hash: selected_path_lookup_hash(std::path::Path::new("kick.wav")),
+                row_label: String::from("Kick"),
+                column_index: 1,
+                bucket_label: String::from("SAMPLE"),
+            },
         );
 
         let Some(cached) = project_cached_browser_row(&mut controller, 0) else {
             panic!("cached row should exist");
         };
 
-        assert_eq!(cached.1, 2);
+        assert_eq!(cached.0.column_index, 2);
     }
 
     #[test]

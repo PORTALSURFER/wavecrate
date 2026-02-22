@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-22T08:38:25Z
+Last updated (UTC): 2026-02-22T09:18:47Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -15,10 +15,10 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Continue browser projection hot-path tightening by reducing per-row string
-   allocation churn (lightweight label storage / incremental row text updates).
-2. Extend immediate drag-path behavior to remaining continuous controls that
+1. Extend immediate drag-path behavior to remaining continuous controls that
    still queue updates to release/flush boundaries.
+2. Keep startup first-frame path lean by deferring non-critical projection/cache
+   work until after initial present.
 3. Keep `MEMORY.md` and this queue updated in every perf milestone commit.
 
 ## Done recently
@@ -40,6 +40,11 @@ Purpose:
   - Perf guard now prints non-zero segment hit/miss values from those probes.
   - Radiant waveform drag now emits immediate updates while dragging.
   - Radiant map focus drag now emits immediate focus updates while dragging.
+- Completed browser projection allocation-churn milestone:
+  - retained browser-row cache now stores typed cache entries with precomputed
+    selected-path lookup hashes,
+  - browser row projection now reuses row-model slots and mutates row/bucket
+    strings in place instead of rebuilding row objects every frame.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.

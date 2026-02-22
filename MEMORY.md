@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T08:40:38Z
+Last Updated: 2026-02-22T09:18:47Z
 Updated By: Codex
 
 ## Purpose
@@ -10,21 +10,15 @@ Updated By: Codex
 
 ## Current Session (2026-02-22 UTC)
 
-- I implemented the next plugin/runtime responsiveness milestone:
-  - real retained segment hit/miss counters in GUI bench output (replacing
-    zeroed placeholders),
-  - immediate waveform drag updates on cursor move (`seek/cursor/selection`),
-  - immediate map sample focus updates during active map drag.
-- I added benchmark/runtime support code in:
-  - `src/app_core/native_bridge.rs`,
-  - `src/bin/bench/gui/segment_probe.rs`,
-  - `src/bin/bench/gui.rs`,
-  - `vendor/radiant/src/gui_runtime/native_vello.rs`.
-- I added/updated regression coverage in:
-  - `src/bin/bench/gui_tests.rs`,
-  - `vendor/radiant/src/gui_runtime/native_vello.rs`.
+- I completed the browser-projection allocation-churn milestone by:
+  - replacing tuple-based retained browser-row cache entries with a typed cache
+    entry that stores a precomputed selected-path lookup hash,
+  - reworking browser row projection to reuse existing row-model slots and
+    mutate `String` buffers in place instead of rebuilding rows every frame.
+- I kept migration boundary rules intact by routing the new cache-entry type
+  through `app_core/app_api.rs`.
 - I validated with `bash scripts/ci_local.sh`; all checks passed and perf guard
-  remained within thresholds while emitting non-zero segment hit/miss counts.
+  stayed within thresholds.
 
 ## Work Notes
 
