@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-22T10:49:31Z
+Last updated (UTC): 2026-02-22T11:07:43Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -17,8 +17,9 @@ Purpose:
 
 1. Run startup-profile calibration on a compositor-backed host and lock
    threshold env defaults from `startup_first_paint_recommended` output.
-2. Audit remaining waveform input queue/coalescing paths for optional immediate
-   preview modes without regressing total frame cost.
+2. Measure waveform preview-latency/frame-cost deltas after immediate overlay
+   action split, then decide whether to extend immediate path to additional
+   waveform interactions.
 3. Keep `MEMORY.md` and this queue updated in every perf milestone commit.
 
 ## Done recently
@@ -70,6 +71,12 @@ Purpose:
     `no_wayland_compositor`) and supports minimum-valid-run enforcement,
   - perf guard now prebuilds startup binary for capture runs and supports
     startup spread thresholds + required valid-run gate.
+- Completed waveform queue split milestone (first pass):
+  - waveform overlay preview actions now apply immediately in the native bridge
+    (`SetWaveformCursor`, selection-range set/clear),
+  - seek/zoom actions remain queued/coalesced to cap apply-stage cost,
+  - added focused bridge tests for immediate preview behavior and queued seek
+    behavior.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.

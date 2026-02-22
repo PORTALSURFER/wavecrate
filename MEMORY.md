@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T10:49:31Z
+Last Updated: 2026-02-22T11:07:43Z
 Updated By: Codex
 
 ## Purpose
@@ -24,6 +24,16 @@ Updated By: Codex
   explicitly instead of silently producing empty output.
 - I updated startup profiling docs in `docs/ENV_VARS.md` and
   `docs/performance_qa.md` for min-valid-run enforcement and calibration flow.
+- I started item #2 and implemented the first queue-splitting pass in
+  `app_core::native_bridge`:
+  - waveform overlay preview actions (`SetWaveformCursor`,
+    `SetWaveformSelectionRange`, `ClearWaveformSelection`) now apply
+    immediately for smoother drag/selection feedback,
+  - heavier waveform commit actions (`SeekWaveform`, zoom actions) remain
+    queued/coalesced to protect apply-stage cost,
+  - added regression tests proving preview actions bypass queueing while seek
+    stays queued.
+- I validated with `bash scripts/ci_local.sh`; all checks passed.
 
 ## Work Notes
 

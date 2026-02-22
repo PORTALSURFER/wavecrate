@@ -1538,6 +1538,19 @@ fn waveform_render_inputs_require_refresh(reason: Option<DirtyReason>) -> bool {
     !matches!(reason, Some(DirtyReason::WaveformOverlayAction))
 }
 
+/// Return whether a waveform action should apply immediately for smooth preview.
+///
+/// These actions update overlay state frequently (cursor and selection edits) and
+/// benefit from immediate feedback more than queue coalescing.
+fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> bool {
+    matches!(
+        action,
+        NativeUiAction::SetWaveformCursor { .. }
+            | NativeUiAction::SetWaveformSelectionRange { .. }
+            | NativeUiAction::ClearWaveformSelection
+    )
+}
+
 /// Queue of high-frequency waveform actions that can be coalesced per pull frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct PendingWaveformActions {
@@ -1695,6 +1708,13 @@ impl SempalNativeBridge {
     /// Queue a coalescable waveform action and return whether it was absorbed.
     fn enqueue_waveform_action(&mut self, action: &NativeUiAction) -> bool {
         self.pending_waveform_actions.enqueue(action)
+    }
+
+    /// Apply one action immediately using the standard dirty + queue-flush flow.
+    fn apply_action_immediately(&mut self, action: NativeUiAction) {
+        self.mark_dirty_for_action(&action);
+        self.flush_pending_input_actions();
+        self.controller.apply_native_ui_action(action);
     }
 
     /// Mark derived graph sources affected by one action.
@@ -1915,6 +1935,21 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             return;
         }
+        if is_immediate_waveform_preview_action(&action) {
+            let call = trace_action_call();
+            let profiling = bridge_profiling_enabled();
+            let action_start = profiling.then(Instant::now);
+            if call <= 64 {
+                info!(call, action = ?action, "native bridge: apply waveform preview action");
+            }
+            self.apply_action_immediately(action);
+            if profiling {
+                let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
+                trace_action_duration(action_duration);
+                trace_action_interaction(InteractionActionClass::Waveform, action_duration);
+            }
+            return;
+        }
         if self.enqueue_waveform_action(&action) {
             let call = trace_action_call();
             let profiling = bridge_profiling_enabled();
@@ -1929,8 +1964,6 @@ impl NativeAppBridge for SempalNativeBridge {
             }
             return;
         }
-        self.mark_dirty_for_action(&action);
-        self.flush_pending_input_actions();
         let call = trace_action_call();
         let profiling = bridge_profiling_enabled();
         let interaction_class = classify_action_interaction(&action);
@@ -1938,7 +1971,7 @@ impl NativeAppBridge for SempalNativeBridge {
         if call <= 64 {
             info!(call, action = ?action, "native bridge: on_action");
         }
-        self.controller.apply_native_ui_action(action);
+        self.apply_action_immediately(action);
         if profiling {
             let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
             trace_action_duration(action_duration);
@@ -2111,6 +2144,49 @@ mod tests {
         };
         bridge.apply_browser_focus_delta_immediately(1);
         assert_eq!(bridge.projection_cache.app_key, Some(key));
+    }
+
+    /// Waveform preview-class actions should bypass queueing for immediate feedback.
+    #[test]
+    fn on_action_applies_waveform_preview_actions_immediately() {
+        let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        let mut bridge = SempalNativeBridge {
+            controller,
+            projection_cache: NativeProjectionCache::default(),
+            last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
+            pending_waveform_actions: PendingWaveformActions::default(),
+        };
+
+        bridge.on_action(NativeUiAction::SetWaveformCursor {
+            position_milli: 420,
+        });
+
+        assert_eq!(bridge.pending_waveform_actions.cursor_milli, None);
+        assert!(
+            bridge
+                .controller
+                .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+        );
+    }
+
+    /// Seek actions should remain coalesced in the queue to cap apply-stage cost.
+    #[test]
+    fn on_action_keeps_seek_actions_queued() {
+        let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        let mut bridge = SempalNativeBridge {
+            controller,
+            projection_cache: NativeProjectionCache::default(),
+            last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
+            pending_waveform_actions: PendingWaveformActions::default(),
+        };
+
+        bridge.on_action(NativeUiAction::SeekWaveform {
+            position_milli: 333,
+        });
+
+        assert_eq!(bridge.pending_waveform_actions.seek_milli, Some(333));
     }
 
     /// Queued waveform actions should coalesce to last-write-wins semantics.
