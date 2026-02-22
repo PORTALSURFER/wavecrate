@@ -151,6 +151,10 @@
       to reduce repeated allocation churn in browser-heavy interactions.
 - [x] Process cursor-move events immediately (when layout is available) so
       hover-driven interactions do not wait for queued flushes.
+- [x] Replace bench segment-attribution placeholders with measured retained
+      segment hit/miss counters from native-bridge projection-cache probes.
+- [x] Extend immediate drag-path updates to waveform and map drag interactions
+      so visuals update continuously before release/flush boundaries.
 
 ## Validation
 

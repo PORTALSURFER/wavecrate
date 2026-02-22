@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-21T21:11:28Z
+Last updated (UTC): 2026-02-22T08:38:25Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -15,13 +15,11 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Replace controller-mode zeroed segment hit/miss placeholders with real
-   bridge/runtime counters in bench output where feasible.
-2. Apply the same immediate-drag paint strategy to other continuous controls
-   (waveform selection handles and map drag proxies) where applicable.
-3. Continue browser projection hot-path tightening by reducing per-row string
+1. Continue browser projection hot-path tightening by reducing per-row string
    allocation churn (lightweight label storage / incremental row text updates).
-4. Keep `MEMORY.md` and this queue updated in every perf milestone commit.
+2. Extend immediate drag-path behavior to remaining continuous controls that
+   still queue updates to release/flush boundaries.
+3. Keep `MEMORY.md` and this queue updated in every perf milestone commit.
 
 ## Done recently
 
@@ -36,6 +34,12 @@ Purpose:
   - Perf guard now prints rebuild-cause counters per scenario.
   - Native bridge now reuses retained browser row-model `Vec` allocation.
   - Radiant cursor-move events process immediately when layout is ready.
+- Completed next plugin/runtime milestone:
+  - GUI bench now probes real retained segment hit/miss counters via
+    `native_bridge` projection-cache measurement loops.
+  - Perf guard now prints non-zero segment hit/miss values from those probes.
+  - Radiant waveform drag now emits immediate updates while dragging.
+  - Radiant map focus drag now emits immediate focus updates while dragging.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.

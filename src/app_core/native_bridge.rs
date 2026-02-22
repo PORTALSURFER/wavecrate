@@ -75,6 +75,48 @@ enum ProjectionSegment {
     WaveformOverlay,
 }
 
+/// Hit/miss counters for one retained projection segment.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProjectionSegmentLookupCount {
+    /// Number of model pulls that reused retained projection output.
+    pub hit_count: u64,
+    /// Number of model pulls that recomputed this projection segment.
+    pub miss_count: u64,
+}
+
+/// Aggregated hit/miss counters for all retained projection segments.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProjectionSegmentLookupCounts {
+    /// Status-bar segment counters.
+    pub status_bar: ProjectionSegmentLookupCount,
+    /// Browser-frame segment counters.
+    pub browser_frame: ProjectionSegmentLookupCount,
+    /// Browser rows-window segment counters.
+    pub browser_rows_window: ProjectionSegmentLookupCount,
+    /// Map-panel segment counters.
+    pub map_panel: ProjectionSegmentLookupCount,
+    /// Waveform-overlay segment counters.
+    pub waveform_overlay: ProjectionSegmentLookupCount,
+}
+
+impl ProjectionSegmentLookupCounts {
+    /// Record one segment-level lookup decision for the current projection pull.
+    fn record_lookup(&mut self, segment: ProjectionSegment, hit: bool) {
+        let counts = match segment {
+            ProjectionSegment::StatusBar => &mut self.status_bar,
+            ProjectionSegment::BrowserFrame => &mut self.browser_frame,
+            ProjectionSegment::BrowserRowsWindow => &mut self.browser_rows_window,
+            ProjectionSegment::MapPanel => &mut self.map_panel,
+            ProjectionSegment::WaveformOverlay => &mut self.waveform_overlay,
+        };
+        if hit {
+            counts.hit_count = counts.hit_count.saturating_add(1);
+        } else {
+            counts.miss_count = counts.miss_count.saturating_add(1);
+        }
+    }
+}
+
 #[cfg(feature = "native-bridge-metrics")]
 static PULL_MODEL_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
@@ -578,6 +620,17 @@ fn trace_projection_segment_lookup(segment: ProjectionSegment, hit: bool) {
 /// No-op segment-level projection-cache tracer for non-profiling builds.
 fn trace_projection_segment_lookup(_segment: ProjectionSegment, _hit: bool) {}
 
+#[inline(always)]
+/// Track and locally record one segment-level projection-cache lookup decision.
+fn trace_and_record_projection_segment_lookup(
+    counters: &mut ProjectionSegmentLookupCounts,
+    segment: ProjectionSegment,
+    hit: bool,
+) {
+    trace_projection_segment_lookup(segment, hit);
+    counters.record_lookup(segment, hit);
+}
+
 #[cfg(feature = "native-bridge-metrics")]
 #[inline(always)]
 /// Track classified interaction action timings for bridge profiling logs.
@@ -843,9 +896,20 @@ struct NativeProjectionCache {
     map_key: Option<MapProjectionCacheKey>,
     waveform_key: Option<WaveformProjectionCacheKey>,
     non_segment_static_key: Option<NonSegmentStaticProjectionCacheKey>,
+    segment_lookup_counts: ProjectionSegmentLookupCounts,
 }
 
 impl NativeProjectionCache {
+    /// Record one projection segment lookup decision.
+    fn record_segment_lookup(&mut self, segment: ProjectionSegment, hit: bool) {
+        trace_and_record_projection_segment_lookup(&mut self.segment_lookup_counts, segment, hit);
+    }
+
+    /// Return and clear segment lookup counters accumulated so far.
+    fn take_segment_lookup_counts(&mut self) -> ProjectionSegmentLookupCounts {
+        std::mem::take(&mut self.segment_lookup_counts)
+    }
+
     /// Copy browser metadata fields while preserving any retained row vector.
     fn apply_browser_frame(
         model: &mut NativeAppModel,
@@ -898,10 +962,15 @@ impl NativeProjectionCache {
     ) -> (NativeAppModel, NativeDirtySegments) {
         let key = build_projection_cache_key(controller);
         if self.app_key.as_ref() == Some(&key)
-            && let Some(model) = self.app_model.as_ref()
+            && let Some(model) = self.app_model.as_ref().cloned()
         {
             trace_projection_cache_lookup(true);
-            return (model.clone(), NativeDirtySegments::empty());
+            self.record_segment_lookup(ProjectionSegment::StatusBar, true);
+            self.record_segment_lookup(ProjectionSegment::BrowserFrame, true);
+            self.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, true);
+            self.record_segment_lookup(ProjectionSegment::MapPanel, true);
+            self.record_segment_lookup(ProjectionSegment::WaveformOverlay, true);
+            return (model, NativeDirtySegments::empty());
         }
         trace_projection_cache_lookup(false);
         let selected_column = native_shell::selected_column_index(&controller.ui);
@@ -914,11 +983,11 @@ impl NativeProjectionCache {
         let mut model = if let Some(existing) = self.app_model.clone() {
             existing
         } else {
-            trace_projection_segment_lookup(ProjectionSegment::StatusBar, false);
-            trace_projection_segment_lookup(ProjectionSegment::BrowserFrame, false);
-            trace_projection_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
-            trace_projection_segment_lookup(ProjectionSegment::MapPanel, false);
-            trace_projection_segment_lookup(ProjectionSegment::WaveformOverlay, false);
+            self.record_segment_lookup(ProjectionSegment::StatusBar, false);
+            self.record_segment_lookup(ProjectionSegment::BrowserFrame, false);
+            self.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
+            self.record_segment_lookup(ProjectionSegment::MapPanel, false);
+            self.record_segment_lookup(ProjectionSegment::WaveformOverlay, false);
             let model = project(controller);
             self.app_key = Some(key);
             self.app_model = Some(model.clone());
@@ -934,9 +1003,9 @@ impl NativeProjectionCache {
         let mut dirty_segments = NativeDirtySegments::empty();
 
         if self.status_key.as_ref() == Some(&status_key) {
-            trace_projection_segment_lookup(ProjectionSegment::StatusBar, true);
+            self.record_segment_lookup(ProjectionSegment::StatusBar, true);
         } else {
-            trace_projection_segment_lookup(ProjectionSegment::StatusBar, false);
+            self.record_segment_lookup(ProjectionSegment::StatusBar, false);
             model.status = native_shell::project_status_model(controller, selected_column);
             model.status_text = controller.ui.status.text.clone();
             self.status_key = Some(status_key);
@@ -945,7 +1014,7 @@ impl NativeProjectionCache {
 
         let browser_frame_changed = self.browser_frame_key.as_ref() != Some(&browser_frame_key);
         if browser_frame_changed {
-            trace_projection_segment_lookup(ProjectionSegment::BrowserFrame, false);
+            self.record_segment_lookup(ProjectionSegment::BrowserFrame, false);
             let frame = native_shell::project_browser_panel_frame_model(controller);
             Self::apply_browser_frame(&mut model, frame);
             model.browser_chrome = native_shell::project_browser_chrome_model(
@@ -956,12 +1025,12 @@ impl NativeProjectionCache {
             self.browser_frame_key = Some(browser_frame_key);
             dirty_segments.insert(NativeDirtySegments::BROWSER_FRAME);
         } else {
-            trace_projection_segment_lookup(ProjectionSegment::BrowserFrame, true);
+            self.record_segment_lookup(ProjectionSegment::BrowserFrame, true);
         }
 
         let browser_rows_changed = self.browser_rows_key.as_ref() != Some(&browser_rows_key);
         if browser_frame_changed || browser_rows_changed {
-            trace_projection_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
+            self.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
             let mut rows = std::mem::take(&mut model.browser.rows);
             native_shell::project_browser_rows_model_into(
                 controller,
@@ -974,22 +1043,22 @@ impl NativeProjectionCache {
             self.browser_rows_key = Some(browser_rows_key);
             dirty_segments.insert(NativeDirtySegments::BROWSER_ROWS_WINDOW);
         } else {
-            trace_projection_segment_lookup(ProjectionSegment::BrowserRowsWindow, true);
+            self.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, true);
         }
 
         if self.map_key.as_ref() == Some(&map_key) {
-            trace_projection_segment_lookup(ProjectionSegment::MapPanel, true);
+            self.record_segment_lookup(ProjectionSegment::MapPanel, true);
         } else {
-            trace_projection_segment_lookup(ProjectionSegment::MapPanel, false);
+            self.record_segment_lookup(ProjectionSegment::MapPanel, false);
             model.map = native_shell::project_map_model(controller);
             self.map_key = Some(map_key);
             dirty_segments.insert(NativeDirtySegments::MAP_PANEL);
         }
 
         if self.waveform_key.as_ref() == Some(&waveform_key) {
-            trace_projection_segment_lookup(ProjectionSegment::WaveformOverlay, true);
+            self.record_segment_lookup(ProjectionSegment::WaveformOverlay, true);
         } else {
-            trace_projection_segment_lookup(ProjectionSegment::WaveformOverlay, false);
+            self.record_segment_lookup(ProjectionSegment::WaveformOverlay, false);
             model.waveform = native_shell::project_waveform_model(controller);
             model.waveform_chrome = native_shell::project_waveform_chrome_model(&controller.ui);
             self.waveform_key = Some(waveform_key);
@@ -1347,6 +1416,36 @@ fn build_non_segment_static_projection_key(
         neutral_count: controller.ui.browser.neutral.len(),
         keep_count: controller.ui.browser.keep.len(),
     }
+}
+
+/// Measure retained projection segment hit/miss counters over a fixed action loop.
+///
+/// The callback mutates controller state once per iteration. After each action
+/// mutation, this helper runs native frame preparation and retained projection.
+/// Warmup iterations are excluded from the returned counters.
+pub fn measure_projection_segment_lookup_counts(
+    controller: &mut AppController,
+    warmup_iters: usize,
+    measure_iters: usize,
+    mut apply_step: impl FnMut(&mut AppController, usize),
+) -> ProjectionSegmentLookupCounts {
+    let mut cache = NativeProjectionCache::default();
+    for step in 0..warmup_iters.max(1) {
+        apply_step(controller, step);
+        controller.prepare_native_frame(false);
+        let _ = cache.resolve_or_project(controller, |controller| {
+            controller.project_native_app_model()
+        });
+    }
+    let _ = cache.take_segment_lookup_counts();
+    for step in 0..measure_iters.max(1) {
+        apply_step(controller, step);
+        controller.prepare_native_frame(false);
+        let _ = cache.resolve_or_project(controller, |controller| {
+            controller.project_native_app_model()
+        });
+    }
+    cache.take_segment_lookup_counts()
 }
 
 /// Return whether an action requires unconditional projection-cache invalidation.

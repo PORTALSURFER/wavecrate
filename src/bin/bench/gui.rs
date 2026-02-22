@@ -2,9 +2,11 @@
 /// Interaction benchmark scenarios split from `gui.rs` to keep modules focused.
 mod attribution;
 mod interactions;
+/// Segment counter probes for retained projection attribution reporting.
+mod segment_probe;
 use self::attribution::{
     GuiInteractionRebuildCauseAttribution, GuiInteractionSegmentAttribution,
-    SegmentAttributionSummary, build_rebuild_cause_summary,
+    build_rebuild_cause_summary,
 };
 use self::interactions::{
     bench_browser_filter_churn_latency, bench_browser_focus_commit_latency,
@@ -13,6 +15,7 @@ use self::interactions::{
     bench_volume_drag_latency, bench_waveform_interactions,
     bench_waveform_pan_zoom_adjacent_latency, bench_wheel_latency, execute_interaction_step,
 };
+use self::segment_probe::collect_interaction_segment_attribution;
 use super::{options::BenchOptions, stats};
 use hound::{SampleFormat, WavSpec, WavWriter};
 use sempal::app_core::actions::{NativeAppModel, NativeMotionModel};
@@ -195,34 +198,24 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         total: volume_drag_latency_total,
         stages: volume_drag_latency_stages,
     } = volume_drag_latency;
-    // Bench runs in controller-only mode; cache hit/miss counters stay at zero while still emitting p95 segment proxies.
-    let interaction_segment_attribution = Some(GuiInteractionSegmentAttribution {
-        status_bar: SegmentAttributionSummary {
-            hit_count: 0,
-            miss_count: 0,
-            p95_us: interactive_projection_stages.projection_stage.p95_us,
-        },
-        browser_frame: SegmentAttributionSummary {
-            hit_count: 0,
-            miss_count: 0,
-            p95_us: browser_focus_preview_latency_stages.projection_stage.p95_us,
-        },
-        browser_rows_window: SegmentAttributionSummary {
-            hit_count: 0,
-            miss_count: 0,
-            p95_us: wheel_latency_stages.projection_stage.p95_us,
-        },
-        map_panel: SegmentAttributionSummary {
-            hit_count: 0,
-            miss_count: 0,
-            p95_us: map_pan_proxy_latency_stages.projection_stage.p95_us,
-        },
-        waveform_overlay: SegmentAttributionSummary {
-            hit_count: 0,
-            miss_count: 0,
-            p95_us: waveform_interaction_latency_stages.projection_stage.p95_us,
-        },
-    });
+    let interaction_stage_attribution = GuiInteractionStageAttribution {
+        interactive_projection: interactive_projection_stages,
+        hover_latency: hover_latency_stages,
+        wheel_latency: wheel_latency_stages,
+        browser_filter_churn_latency: browser_filter_churn_latency_stages,
+        browser_query_churn_latency: browser_query_churn_latency_stages,
+        browser_sort_toggle_latency: browser_sort_toggle_latency_stages,
+        browser_focus_preview_latency: browser_focus_preview_latency_stages,
+        browser_focus_commit_latency: browser_focus_commit_latency_stages,
+        map_pan_proxy_latency: map_pan_proxy_latency_stages,
+        waveform_interaction_latency: waveform_interaction_latency_stages,
+        volume_drag_latency: volume_drag_latency_stages,
+    };
+    let interaction_segment_attribution = Some(collect_interaction_segment_attribution(
+        options,
+        &mut workspace.controller,
+        &interaction_stage_attribution,
+    )?);
     let interaction_rebuild_cause_attribution = Some(GuiInteractionRebuildCauseAttribution {
         interactive_projection: build_rebuild_cause_summary(&interactive_projection_total, true),
         hover_latency: build_rebuild_cause_summary(&hover_latency_total, false),
@@ -274,19 +267,7 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         waveform_interaction_latency: waveform_interaction_latency_total,
         volume_drag_latency: volume_drag_latency_total,
         waveform_pan_zoom_adjacent_latency,
-        interaction_stage_attribution: GuiInteractionStageAttribution {
-            interactive_projection: interactive_projection_stages,
-            hover_latency: hover_latency_stages,
-            wheel_latency: wheel_latency_stages,
-            browser_filter_churn_latency: browser_filter_churn_latency_stages,
-            browser_query_churn_latency: browser_query_churn_latency_stages,
-            browser_sort_toggle_latency: browser_sort_toggle_latency_stages,
-            browser_focus_preview_latency: browser_focus_preview_latency_stages,
-            browser_focus_commit_latency: browser_focus_commit_latency_stages,
-            map_pan_proxy_latency: map_pan_proxy_latency_stages,
-            waveform_interaction_latency: waveform_interaction_latency_stages,
-            volume_drag_latency: volume_drag_latency_stages,
-        },
+        interaction_stage_attribution,
         interaction_segment_attribution,
         interaction_rebuild_cause_attribution,
     })

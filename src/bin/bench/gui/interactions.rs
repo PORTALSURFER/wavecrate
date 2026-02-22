@@ -314,7 +314,7 @@ fn interaction_warmup(options: &BenchOptions) -> usize {
 }
 
 /// Prime map cache fields so interaction benchmarks avoid cold-start query cost.
-fn prime_map_cache_for_benchmark(controller: &mut AppController) -> Result<(), String> {
+pub(super) fn prime_map_cache_for_benchmark(controller: &mut AppController) -> Result<(), String> {
     controller.apply_native_ui_action(NativeUiAction::SetBrowserTab { map: true });
     let source_id = controller
         .ui
