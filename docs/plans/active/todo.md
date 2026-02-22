@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-22T10:38:26Z
+Last updated (UTC): 2026-02-22T10:49:31Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -15,8 +15,8 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Stabilize startup-profile guard baselines (median + spread) over multi-run
-   captures, then set calibrated warning/fail thresholds.
+1. Run startup-profile calibration on a compositor-backed host and lock
+   threshold env defaults from `startup_first_paint_recommended` output.
 2. Audit remaining waveform input queue/coalescing paths for optional immediate
    preview modes without regressing total frame cost.
 3. Keep `MEMORY.md` and this queue updated in every perf milestone commit.
@@ -63,6 +63,13 @@ Purpose:
     enforce warning/fail thresholds for first-present latency,
   - native bridge now applies `MoveBrowserFocus` actions immediately instead of
     queueing them for later flush.
+- Completed startup calibration hardening milestone:
+  - startup summary now reports first-present median/p95/p99/max/spread and
+    emits calibrated threshold recommendations,
+  - startup summary now classifies missing-capture reasons (for example
+    `no_wayland_compositor`) and supports minimum-valid-run enforcement,
+  - perf guard now prebuilds startup binary for capture runs and supports
+    startup spread thresholds + required valid-run gate.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
 - Completed Phase 7 item 1 foundation: tightened radiant invalidation scope routing so
   high-frequency browser/search/prompt actions use model+overlay invalidation.

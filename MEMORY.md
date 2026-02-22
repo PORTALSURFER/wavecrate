@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T10:38:26Z
+Last Updated: 2026-02-22T10:49:31Z
 Updated By: Codex
 
 ## Purpose
@@ -10,19 +10,20 @@ Updated By: Codex
 
 ## Current Session (2026-02-22 UTC)
 
-- I completed the next perf workflow batch by:
-  - adding perf-guard startup-profile ingestion in `scripts/run_perf_guard.sh`
-    (optional `SEMPAL_PERF_GUARD_STARTUP_PROFILE=1` capture path plus startup
-    summary emission),
-  - adding `scripts/perf_startup_summary.py` to parse
-    `SEMPAL_NATIVE_STARTUP_PROFILE` logs and emit aggregated startup metrics +
-    warning/fail threshold checks,
-  - updating runtime bridge handling so `MoveBrowserFocus` is applied
-    immediately in `app_core` instead of waiting for queued flush.
-- I updated docs for the new startup profiling/perf-guard knobs in
-  `docs/ENV_VARS.md` and `docs/performance_qa.md`.
-- I validated with `bash scripts/ci_local.sh`; all checks passed (perf guard
-  stayed non-failing, with one warning-only hover latency drift run).
+- I attacked startup-baseline item #1 by tightening startup capture and
+  calibration tooling:
+  - `scripts/run_perf_guard.sh` now prebuilds `sempal` for startup captures,
+    supports minimum-valid startup run requirements, and forwards startup spread
+    thresholds to summary parsing,
+  - `scripts/perf_startup_summary.py` now emits richer startup stats
+    (median/p95/p99/max/spread), missing-reason classification, and calibrated
+    threshold recommendations (`startup_first_paint_recommended`).
+- I ran multi-run startup capture attempts and confirmed this environment cannot
+  produce first-present samples because no Wayland compositor is available
+  (`no_wayland_compositor`), so guard calibration now reports that reason
+  explicitly instead of silently producing empty output.
+- I updated startup profiling docs in `docs/ENV_VARS.md` and
+  `docs/performance_qa.md` for min-valid-run enforcement and calibration flow.
 
 ## Work Notes
 

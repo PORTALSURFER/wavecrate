@@ -24,6 +24,13 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
   `startup_first_paint` summary and
   `target/perf/bench.startup_summary.json` (or your configured
   `SEMPAL_PERF_GUARD_STARTUP_SUMMARY_OUT` path).
+- For startup threshold calibration runs, prefer:
+  - `SEMPAL_PERF_GUARD_STARTUP_PROFILE=1`
+  - `SEMPAL_PERF_GUARD_RUNS=7` (or higher)
+  - `SEMPAL_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS=1`
+  - then apply the printed `startup_first_paint_recommended` values as
+    `SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_MS` /
+    `SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS` and optional spread limits.
 - `hover_latency` in perf guard reflects preview-hover behavior (focus-only row hover without commit/load side effects).
 - Tune guard input size, run count, and thresholds with `SEMPAL_PERF_GUARD_*`,
   `SEMPAL_PERF_WARN_P95_US_*`, and `SEMPAL_PERF_FAIL_P95_US_*` overrides

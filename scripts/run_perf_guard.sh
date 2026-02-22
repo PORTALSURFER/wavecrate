@@ -21,11 +21,19 @@ RUNS="${SEMPAL_PERF_GUARD_RUNS:-1}"
 PERF_STATE_ROOT="${SEMPAL_PERF_GUARD_STATE_ROOT:-$ROOT_DIR/target/perf/runtime}"
 STARTUP_PROFILE_RAW="${SEMPAL_PERF_GUARD_STARTUP_PROFILE:-0}"
 STARTUP_TIMEOUT_SECS="${SEMPAL_PERF_GUARD_STARTUP_TIMEOUT_SECS:-6}"
+STARTUP_REQUIRE_VALID_RAW="${SEMPAL_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS:-0}"
 
 startup_profile_enabled=0
 case "${STARTUP_PROFILE_RAW,,}" in
   1|true|yes|on)
     startup_profile_enabled=1
+    ;;
+esac
+
+startup_require_valid_runs=0
+case "${STARTUP_REQUIRE_VALID_RAW,,}" in
+  1|true|yes|on)
+    startup_require_valid_runs=1
     ;;
 esac
 
@@ -48,6 +56,18 @@ declare -a STARTUP_LOG_PATHS=()
 if (( startup_profile_enabled == 1 )) && ! command -v timeout >/dev/null 2>&1; then
   echo "[perf_guard] WARN: startup profiling requested but \`timeout\` is unavailable; skipping startup capture" >&2
   startup_profile_enabled=0
+fi
+
+if (( startup_profile_enabled == 1 )); then
+  startup_binary="${ROOT_DIR}/target/debug/sempal"
+  echo "[perf_guard] building sempal startup binary for profile capture"
+  cargo build --bin sempal >/dev/null
+  if [[ "$RUNS" -ge 3 ]]; then
+    startup_min_valid_runs_default=3
+  else
+    startup_min_valid_runs_default=1
+  fi
+  STARTUP_MIN_VALID_RUNS="${SEMPAL_PERF_GUARD_STARTUP_MIN_VALID_RUNS:-$startup_min_valid_runs_default}"
 fi
 
 for run in $(seq 1 "$RUNS"); do
@@ -74,7 +94,7 @@ for run in $(seq 1 "$RUNS"); do
     set +e
     SEMPAL_NATIVE_STARTUP_PROFILE=1 \
       timeout --signal=TERM --kill-after=1s "${STARTUP_TIMEOUT_SECS}s" \
-      cargo run --bin sempal -- >"$startup_log" 2>&1
+      "$startup_binary" >"$startup_log" 2>&1
     startup_status=$?
     set -e
     if [[ "$startup_status" -ne 0 && "$startup_status" -ne 124 && "$startup_status" -ne 143 ]]; then
@@ -443,12 +463,29 @@ if (( startup_profile_enabled == 1 )); then
     "$startup_summary_out"
     --warn-first-present-ms
     "${SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_MS:-800}"
+    --min-valid-runs
+    "$STARTUP_MIN_VALID_RUNS"
   )
   if [[ -n "${SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS:-}" ]]; then
     startup_summary_cmd+=(
       --fail-first-present-ms
       "$SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS"
     )
+  fi
+  if [[ -n "${SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_SPREAD_MS:-}" ]]; then
+    startup_summary_cmd+=(
+      --warn-first-present-spread-ms
+      "$SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_SPREAD_MS"
+    )
+  fi
+  if [[ -n "${SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_SPREAD_MS:-}" ]]; then
+    startup_summary_cmd+=(
+      --fail-first-present-spread-ms
+      "$SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_SPREAD_MS"
+    )
+  fi
+  if (( startup_require_valid_runs == 1 )); then
+    startup_summary_cmd+=(--require-min-valid-runs)
   fi
   startup_summary_cmd+=("${STARTUP_LOG_PATHS[@]}")
   "${startup_summary_cmd[@]}"
