@@ -1052,7 +1052,17 @@ impl NativeProjectionCache {
         project: impl FnOnce(&mut AppController) -> NativeAppModel,
     ) -> (NativeAppModel, NativeDirtySegments) {
         let key = build_projection_cache_key(controller);
-        if self.app_key.as_ref() == Some(&key)
+        self.resolve_or_project_with_key(controller, &key, project)
+    }
+
+    /// Resolve retained projection output using a caller-provided cache key.
+    fn resolve_or_project_with_key(
+        &mut self,
+        controller: &mut AppController,
+        key: &NativeProjectionCacheKey,
+        project: impl FnOnce(&mut AppController) -> NativeAppModel,
+    ) -> (NativeAppModel, NativeDirtySegments) {
+        if self.app_key.as_ref() == Some(key)
             && let Some(model) = self.app_model.as_ref().cloned()
         {
             trace_projection_cache_lookup(true);
@@ -1080,7 +1090,7 @@ impl NativeProjectionCache {
             self.record_segment_lookup(ProjectionSegment::MapPanel, false);
             self.record_segment_lookup(ProjectionSegment::WaveformOverlay, false);
             let model = project(controller);
-            self.app_key = Some(key);
+            self.app_key = Some(key.clone());
             self.app_model = Some(model.clone());
             self.status_key = Some(status_key);
             self.browser_frame_key = Some(browser_frame_key);
@@ -1164,7 +1174,7 @@ impl NativeProjectionCache {
         self.non_segment_static_key = Some(non_segment_static_key);
 
         Self::refresh_non_segment_fields(&mut model, controller);
-        self.app_key = Some(key);
+        self.app_key = Some(key.clone());
         self.app_model = Some(model.clone());
         (model, dirty_segments)
     }
@@ -1751,6 +1761,8 @@ impl PendingWaveformActions {
 pub struct SempalNativeBridge {
     controller: AppController,
     projection_cache: NativeProjectionCache,
+    /// Lazily recomputed projection cache key snapshot for controller state.
+    projection_key_snapshot: Option<NativeProjectionCacheKey>,
     /// Dirty segments produced by the latest `pull_model` projection update.
     last_dirty_segments: NativeDirtySegments,
     /// Monotonic static-segment revisions from projection updates.
@@ -1774,10 +1786,26 @@ impl SempalNativeBridge {
         Ok(Self {
             controller,
             projection_cache: NativeProjectionCache::default(),
+            projection_key_snapshot: None,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
         })
+    }
+
+    /// Mark the cached projection key snapshot stale after controller mutation.
+    fn invalidate_projection_key_snapshot(&mut self) {
+        self.projection_key_snapshot = None;
+    }
+
+    /// Return a cached projection key snapshot, recomputing only when stale.
+    fn projection_key_snapshot(&mut self) -> NativeProjectionCacheKey {
+        if let Some(key) = self.projection_key_snapshot.as_ref().cloned() {
+            return key;
+        }
+        let key = build_projection_cache_key(&self.controller);
+        self.projection_key_snapshot = Some(key.clone());
+        key
     }
 
     /// Apply browser-focus movement immediately so wheel/arrow nudges are visible
@@ -1787,9 +1815,10 @@ impl SempalNativeBridge {
             return;
         }
         let action = NativeUiAction::MoveBrowserFocus { delta };
-        let before_key = build_projection_cache_key(&self.controller);
+        let before_key = self.projection_key_snapshot();
         self.controller.focus_browser_delta_action(delta);
-        let after_key = build_projection_cache_key(&self.controller);
+        self.invalidate_projection_key_snapshot();
+        let after_key = self.projection_key_snapshot();
         if before_key != after_key {
             self.mark_dirty_for_action(&action);
             self.projection_cache.invalidate_key_only();
@@ -1806,6 +1835,7 @@ impl SempalNativeBridge {
         self.mark_dirty_for_action(&action);
         self.flush_pending_input_actions();
         self.controller.apply_native_ui_action(action);
+        self.invalidate_projection_key_snapshot();
     }
 
     /// Mark derived graph sources affected by one action.
@@ -1828,10 +1858,11 @@ impl SempalNativeBridge {
         let cursor_milli = pending.deduped_cursor_milli();
         let profiling = bridge_profiling_enabled();
         let flush_start = profiling.then(Instant::now);
-        let before_key = build_projection_cache_key(&self.controller);
+        let before_key = self.projection_key_snapshot();
         let mut emitted_actions = 0u64;
 
         self.controller.begin_waveform_refresh_batch();
+        self.invalidate_projection_key_snapshot();
         if pending.zoom_full {
             self.controller
                 .apply_native_ui_action(NativeUiAction::ZoomWaveformFull);
@@ -1875,7 +1906,7 @@ impl SempalNativeBridge {
             emitted_actions = emitted_actions.saturating_add(1);
         }
         self.controller.end_waveform_refresh_batch();
-        let after_key = build_projection_cache_key(&self.controller);
+        let after_key = self.projection_key_snapshot();
         if before_key != after_key {
             self.controller
                 .mark_derived_source_dirty(DerivedNodeId::WaveformState, pending.dirty_reason());
@@ -1910,6 +1941,7 @@ impl SempalNativeBridge {
                 );
                 if should_refresh {
                     self.controller.refresh_waveform_image();
+                    self.invalidate_projection_key_snapshot();
                 }
                 trace_waveform_image_refresh(should_refresh);
             }
@@ -1920,6 +1952,7 @@ impl SempalNativeBridge {
         }
         if projection_key_dirty {
             self.projection_cache.invalidate_key_only();
+            self.invalidate_projection_key_snapshot();
         }
         if profiling {
             let flush_duration = flush_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -1937,6 +1970,7 @@ impl NativeAppBridge for SempalNativeBridge {
             info!(call, "native bridge: pull_model start");
         }
         self.flush_pending_input_actions();
+        self.invalidate_projection_key_snapshot();
         self.controller.prepare_native_frame(false);
         self.flush_derived_updates_before_pull(false);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -1944,11 +1978,12 @@ impl NativeAppBridge for SempalNativeBridge {
             trace_pull_model_preparation(prepare_duration);
         }
         let project_start = profiling.then(Instant::now);
-        let (model, dirty_segments) = self
-            .projection_cache
-            .resolve_or_project(&mut self.controller, |controller| {
-                controller.project_native_app_model()
-            });
+        let projection_key = self.projection_key_snapshot();
+        let (model, dirty_segments) = self.projection_cache.resolve_or_project_with_key(
+            &mut self.controller,
+            &projection_key,
+            |controller| controller.project_native_app_model(),
+        );
         self.last_dirty_segments = dirty_segments;
         self.segment_revisions
             .bump_for_dirty_segments(self.last_dirty_segments);
@@ -1989,6 +2024,7 @@ impl NativeAppBridge for SempalNativeBridge {
             info!(call, "native bridge: pull_motion_model start");
         }
         self.flush_pending_input_actions();
+        self.invalidate_projection_key_snapshot();
         self.controller.prepare_native_frame(true);
         self.flush_derived_updates_before_pull(true);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -2199,6 +2235,7 @@ mod tests {
         let mut bridge = SempalNativeBridge {
             controller,
             projection_cache: NativeProjectionCache::default(),
+            projection_key_snapshot: None,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
@@ -2229,6 +2266,7 @@ mod tests {
         let mut bridge = SempalNativeBridge {
             controller,
             projection_cache: cache,
+            projection_key_snapshot: None,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
@@ -2244,6 +2282,7 @@ mod tests {
         let mut bridge = SempalNativeBridge {
             controller,
             projection_cache: NativeProjectionCache::default(),
+            projection_key_snapshot: None,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
@@ -2268,6 +2307,7 @@ mod tests {
         let mut bridge = SempalNativeBridge {
             controller,
             projection_cache: NativeProjectionCache::default(),
+            projection_key_snapshot: None,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
@@ -2389,6 +2429,7 @@ mod tests {
         let mut bridge = SempalNativeBridge {
             controller,
             projection_cache: cache,
+            projection_key_snapshot: None,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
@@ -2416,6 +2457,7 @@ mod tests {
         let mut bridge = SempalNativeBridge {
             controller: AppController::new(WaveformRenderer::new(16, 16), None),
             projection_cache: NativeProjectionCache::default(),
+            projection_key_snapshot: None,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
@@ -2451,6 +2493,7 @@ mod tests {
         let mut bridge = SempalNativeBridge {
             controller,
             projection_cache: NativeProjectionCache::default(),
+            projection_key_snapshot: None,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
@@ -2483,6 +2526,7 @@ mod tests {
         let mut bridge = SempalNativeBridge {
             controller,
             projection_cache: cache,
+            projection_key_snapshot: None,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
@@ -2546,6 +2590,7 @@ mod tests {
         let mut bridge = SempalNativeBridge {
             controller,
             projection_cache: NativeProjectionCache::default(),
+            projection_key_snapshot: None,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
