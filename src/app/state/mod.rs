@@ -13,6 +13,8 @@ mod hotkeys;
 mod loop_crossfade;
 mod map;
 mod progress;
+/// Canonical projection invalidation revision counters.
+mod revisions;
 mod sources;
 mod status;
 mod update;
@@ -29,6 +31,7 @@ pub use hotkeys::*;
 pub use loop_crossfade::*;
 pub use map::*;
 pub use progress::*;
+pub use revisions::*;
 pub use sources::*;
 pub use status::*;
 pub use update::*;
@@ -71,6 +74,8 @@ pub struct UiState {
     pub update: UpdateUiState,
     /// Currently loaded wav path, if any.
     pub loaded_wav: Option<PathBuf>,
+    /// Canonical revision counters for projection invalidation.
+    pub projection_revisions: UiProjectionRevisions,
     /// Optional trash folder path configured by the user.
     pub trash_folder: Option<PathBuf>,
 }
@@ -94,6 +99,7 @@ impl Default for UiState {
             volume: 1.0,
             update: UpdateUiState::default(),
             loaded_wav: None,
+            projection_revisions: UiProjectionRevisions::default(),
             trash_folder: None,
         }
     }

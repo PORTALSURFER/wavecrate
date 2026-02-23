@@ -87,10 +87,12 @@ impl AppControllerNativeRuntimeExt for AppController {
         if animation_only {
             self.record_frame_timing_for_fps();
             if !self.is_playing() {
+                let _ = self.refresh_projection_revision_bus();
                 return;
             }
         }
         self.tick_playhead();
+        let _ = self.refresh_projection_revision_bus();
         if animation_only {
             return;
         }

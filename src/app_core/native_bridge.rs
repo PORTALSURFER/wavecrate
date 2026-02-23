@@ -33,7 +33,6 @@ use std::sync::{
 };
 use std::{
     cell::RefCell,
-    hash::{Hash, Hasher},
     rc::Rc,
     sync::Arc,
     time::{Duration, Instant},
@@ -851,53 +850,21 @@ fn trace_projection_key_assertion(stale: bool) {
 /// No-op projection-key snapshot assertion tracer for non-profiling builds.
 fn trace_projection_key_assertion(_stale: bool) {}
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct MapQueryBoundsKey {
-    min_x_bits: u32,
-    max_x_bits: u32,
-    min_y_bits: u32,
-    max_y_bits: u32,
-}
-
-/// Hash an arbitrary projection field into a compact cache-key scalar.
-fn hash_projection_field<T: Hash + ?Sized>(value: &T) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
-}
-
-/// Hash an optional string field into an optional cache-key scalar.
-fn hash_optional_string(value: Option<&str>) -> Option<u64> {
-    value.map(hash_projection_field)
-}
-
-impl MapQueryBoundsKey {
-    fn from_bounds(bounds: crate::app_core::state::MapQueryBounds) -> Self {
-        Self {
-            min_x_bits: bounds.min_x.to_bits(),
-            max_x_bits: bounds.max_x.to_bits(),
-            min_y_bits: bounds.min_y.to_bits(),
-            max_y_bits: bounds.max_y.to_bits(),
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct NativeProjectionCacheKey {
-    status_text_hash: u64,
-    status_tone: u8,
+    status_revision: u64,
     sources_selected: Option<usize>,
     sources_len: usize,
     folder_rows_len: usize,
     folder_focused: Option<usize>,
-    folder_search_query_hash: u64,
+    folder_search_revision: u64,
     browser_visible_len: usize,
     browser_visible_rows_revision: u64,
     browser_selected_visible: Option<usize>,
     browser_anchor_visible: Option<usize>,
     browser_selected_paths_len: usize,
     browser_selected_paths_revision: u64,
-    browser_search_query_hash: u64,
+    browser_search_revision: u64,
     browser_filter: u8,
     browser_sort: u8,
     browser_tab: u8,
@@ -919,20 +886,14 @@ struct NativeProjectionCacheKey {
     map_zoom_bits: u32,
     map_pan_x_bits: u32,
     map_pan_y_bits: u32,
-    map_selected_sample_id_hash: Option<u64>,
-    map_hovered_sample_id_hash: Option<u64>,
-    map_umap_version_hash: u64,
-    map_bounds_source_id_hash: Option<u64>,
-    map_bounds_umap_version_hash: Option<u64>,
-    map_points_source_id_hash: Option<u64>,
-    map_points_umap_version_hash: Option<u64>,
-    map_last_query: Option<MapQueryBoundsKey>,
+    map_selection_revision: u64,
+    map_hover_revision: u64,
+    map_dataset_revision: u64,
+    map_query_revision: u64,
     map_points_revision: u64,
     update_status: u8,
-    update_available_tag_hash: Option<u64>,
-    update_available_url_hash: Option<u64>,
-    update_last_error_hash: Option<u64>,
-    loaded_wav_hash: Option<u64>,
+    update_revision: u64,
+    loaded_wav_revision: u64,
     volume_milli: u16,
     transport_running: bool,
 }
@@ -940,12 +901,11 @@ struct NativeProjectionCacheKey {
 /// Status-bar projection key scoped to status and footer-affecting state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct StatusProjectionCacheKey {
-    status_text_hash: u64,
-    status_tone: u8,
+    status_revision: u64,
     browser_visible_len: usize,
     browser_selected_paths_len: usize,
     browser_anchor_visible: Option<usize>,
-    browser_search_query_hash: u64,
+    browser_search_revision: u64,
     browser_search_busy: bool,
     selected_column: usize,
 }
@@ -957,12 +917,12 @@ struct BrowserFrameProjectionCacheKey {
     browser_selected_visible: Option<usize>,
     browser_anchor_visible: Option<usize>,
     browser_selected_paths_len: usize,
-    browser_search_query_hash: u64,
+    browser_search_revision: u64,
     browser_search_busy: bool,
     browser_sort: u8,
     browser_tab: u8,
     browser_similarity_follow_loaded: bool,
-    loaded_wav_hash: Option<u64>,
+    loaded_wav_revision: u64,
 }
 
 /// Browser rows projection key scoped to windowed row content.
@@ -984,14 +944,10 @@ struct MapProjectionCacheKey {
     map_zoom_bits: u32,
     map_pan_x_bits: u32,
     map_pan_y_bits: u32,
-    map_selected_sample_id_hash: Option<u64>,
-    map_hovered_sample_id_hash: Option<u64>,
-    map_umap_version_hash: u64,
-    map_bounds_source_id_hash: Option<u64>,
-    map_bounds_umap_version_hash: Option<u64>,
-    map_points_source_id_hash: Option<u64>,
-    map_points_umap_version_hash: Option<u64>,
-    map_last_query: Option<MapQueryBoundsKey>,
+    map_selection_revision: u64,
+    map_hover_revision: u64,
+    map_dataset_revision: u64,
+    map_query_revision: u64,
     map_points_revision: u64,
     browser_tab: u8,
 }
@@ -1008,7 +964,7 @@ struct WaveformProjectionCacheKey {
     waveform_view_end_milli: u16,
     waveform_loop_enabled: bool,
     waveform_bpm_bits: Option<u32>,
-    loaded_wav_hash: Option<u64>,
+    loaded_wav_revision: u64,
     transport_running: bool,
 }
 
@@ -1019,11 +975,9 @@ struct NonSegmentStaticProjectionCacheKey {
     sources_len: usize,
     folder_rows_len: usize,
     folder_focused: Option<usize>,
-    folder_search_query_hash: u64,
+    folder_search_revision: u64,
     update_status: u8,
-    update_available_tag_hash: Option<u64>,
-    update_available_url_hash: Option<u64>,
-    update_last_error_hash: Option<u64>,
+    update_revision: u64,
     volume_milli: u16,
     transport_running: bool,
     trash_count: usize,
@@ -1105,6 +1059,7 @@ impl NativeProjectionCache {
         controller: &mut AppController,
         project: impl FnOnce(&mut AppController) -> NativeAppModel,
     ) -> (Arc<NativeAppModel>, NativeDirtySegments) {
+        let _ = controller.refresh_projection_revision_bus();
         let key = build_projection_cache_key(controller);
         self.resolve_or_project_with_key(controller, &key, project)
     }
@@ -1272,14 +1227,8 @@ impl NativeProjectionCache {
 
 fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCacheKey {
     use crate::app_core::state::{
-        MapQueryBounds, SampleBrowserSort, SampleBrowserTab, StatusTone, TriageFlagFilter,
-        UpdateStatus,
+        SampleBrowserSort, SampleBrowserTab, TriageFlagFilter, UpdateStatus,
     };
-    let map_last_query = controller
-        .ui
-        .map
-        .last_query
-        .map(|bounds: MapQueryBounds| MapQueryBoundsKey::from_bounds(bounds));
     let waveform_cursor_milli = controller
         .ui
         .waveform
@@ -1299,28 +1248,19 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
         })
         .unwrap_or((None, None));
     NativeProjectionCacheKey {
-        status_text_hash: hash_projection_field(&controller.ui.status.text),
-        status_tone: match controller.ui.status.status_tone {
-            StatusTone::Idle => 0,
-            StatusTone::Busy => 1,
-            StatusTone::Info => 2,
-            StatusTone::Warning => 3,
-            StatusTone::Error => 4,
-        },
+        status_revision: controller.ui.projection_revisions.status,
         sources_selected: controller.ui.sources.selected,
         sources_len: controller.ui.sources.rows.len(),
         folder_rows_len: controller.ui.sources.folders.rows.len(),
         folder_focused: controller.ui.sources.folders.focused,
-        folder_search_query_hash: hash_projection_field(
-            &controller.ui.sources.folders.search_query,
-        ),
+        folder_search_revision: controller.ui.projection_revisions.folder_search,
         browser_visible_len: controller.ui.browser.visible.len(),
         browser_visible_rows_revision: controller.ui.browser.visible_rows_revision,
         browser_selected_visible: controller.ui.browser.selected_visible,
         browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
         browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
         browser_selected_paths_revision: controller.ui.browser.selected_paths_revision,
-        browser_search_query_hash: hash_projection_field(&controller.ui.browser.search_query),
+        browser_search_revision: controller.ui.projection_revisions.browser_search,
         browser_filter: match controller.ui.browser.filter {
             TriageFlagFilter::All => 0,
             TriageFlagFilter::Keep => 1,
@@ -1360,26 +1300,10 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
         map_zoom_bits: controller.ui.map.zoom.to_bits(),
         map_pan_x_bits: controller.ui.map.pan.x.to_bits(),
         map_pan_y_bits: controller.ui.map.pan.y.to_bits(),
-        map_selected_sample_id_hash: hash_optional_string(
-            controller.ui.map.selected_sample_id.as_deref(),
-        ),
-        map_hovered_sample_id_hash: hash_optional_string(
-            controller.ui.map.hovered_sample_id.as_deref(),
-        ),
-        map_umap_version_hash: hash_projection_field(&controller.ui.map.umap_version),
-        map_bounds_source_id_hash: hash_optional_string(
-            controller.ui.map.cached_bounds_source_id.as_deref(),
-        ),
-        map_bounds_umap_version_hash: hash_optional_string(
-            controller.ui.map.cached_bounds_umap_version.as_deref(),
-        ),
-        map_points_source_id_hash: hash_optional_string(
-            controller.ui.map.cached_points_source_id.as_deref(),
-        ),
-        map_points_umap_version_hash: hash_optional_string(
-            controller.ui.map.cached_points_umap_version.as_deref(),
-        ),
-        map_last_query,
+        map_selection_revision: controller.ui.projection_revisions.map_selection,
+        map_hover_revision: controller.ui.projection_revisions.map_hover,
+        map_dataset_revision: controller.ui.projection_revisions.map_dataset,
+        map_query_revision: controller.ui.projection_revisions.map_query,
         map_points_revision: controller.ui.map.cached_points_revision,
         update_status: match controller.ui.update.status {
             UpdateStatus::Idle => 0,
@@ -1387,18 +1311,8 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
             UpdateStatus::UpdateAvailable => 2,
             UpdateStatus::Error => 3,
         },
-        update_available_tag_hash: hash_optional_string(
-            controller.ui.update.available_tag.as_deref(),
-        ),
-        update_available_url_hash: hash_optional_string(
-            controller.ui.update.available_url.as_deref(),
-        ),
-        update_last_error_hash: hash_optional_string(controller.ui.update.last_error.as_deref()),
-        loaded_wav_hash: controller
-            .ui
-            .loaded_wav
-            .as_ref()
-            .map(|path| hash_projection_field(path.as_os_str())),
+        update_revision: controller.ui.projection_revisions.update,
+        loaded_wav_revision: controller.ui.projection_revisions.loaded_wav,
         volume_milli: (controller.ui.volume.clamp(0.0, 1.0) * 1000.0).round() as u16,
         transport_running: controller.is_playing(),
     }
@@ -1409,20 +1323,12 @@ fn build_status_projection_key(
     controller: &AppController,
     selected_column: usize,
 ) -> StatusProjectionCacheKey {
-    use crate::app_core::state::StatusTone;
     StatusProjectionCacheKey {
-        status_text_hash: hash_projection_field(&controller.ui.status.text),
-        status_tone: match controller.ui.status.status_tone {
-            StatusTone::Idle => 0,
-            StatusTone::Busy => 1,
-            StatusTone::Info => 2,
-            StatusTone::Warning => 3,
-            StatusTone::Error => 4,
-        },
+        status_revision: controller.ui.projection_revisions.status,
         browser_visible_len: controller.ui.browser.visible.len(),
         browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
         browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
-        browser_search_query_hash: hash_projection_field(&controller.ui.browser.search_query),
+        browser_search_revision: controller.ui.projection_revisions.browser_search,
         browser_search_busy: controller.ui.browser.search_busy,
         selected_column,
     }
@@ -1438,7 +1344,7 @@ fn build_browser_frame_projection_key(
         browser_selected_visible: controller.ui.browser.selected_visible,
         browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
         browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
-        browser_search_query_hash: hash_projection_field(&controller.ui.browser.search_query),
+        browser_search_revision: controller.ui.projection_revisions.browser_search,
         browser_search_busy: controller.ui.browser.search_busy,
         browser_sort: match controller.ui.browser.sort {
             SampleBrowserSort::ListOrder => 0,
@@ -1451,11 +1357,7 @@ fn build_browser_frame_projection_key(
             SampleBrowserTab::Map => 1,
         },
         browser_similarity_follow_loaded: controller.ui.browser.similarity_sort_follow_loaded,
-        loaded_wav_hash: controller
-            .ui
-            .loaded_wav
-            .as_ref()
-            .map(|path| hash_projection_field(path.as_os_str())),
+        loaded_wav_revision: controller.ui.projection_revisions.loaded_wav,
     }
 }
 
@@ -1478,36 +1380,16 @@ fn build_browser_rows_projection_key(controller: &AppController) -> BrowserRowsP
 
 /// Build a map-panel projection key from the current controller snapshot.
 fn build_map_projection_key(controller: &AppController) -> MapProjectionCacheKey {
-    use crate::app_core::state::{MapQueryBounds, SampleBrowserTab};
+    use crate::app_core::state::SampleBrowserTab;
     MapProjectionCacheKey {
         map_open: controller.ui.map.open,
         map_zoom_bits: controller.ui.map.zoom.to_bits(),
         map_pan_x_bits: controller.ui.map.pan.x.to_bits(),
         map_pan_y_bits: controller.ui.map.pan.y.to_bits(),
-        map_selected_sample_id_hash: hash_optional_string(
-            controller.ui.map.selected_sample_id.as_deref(),
-        ),
-        map_hovered_sample_id_hash: hash_optional_string(
-            controller.ui.map.hovered_sample_id.as_deref(),
-        ),
-        map_umap_version_hash: hash_projection_field(&controller.ui.map.umap_version),
-        map_bounds_source_id_hash: hash_optional_string(
-            controller.ui.map.cached_bounds_source_id.as_deref(),
-        ),
-        map_bounds_umap_version_hash: hash_optional_string(
-            controller.ui.map.cached_bounds_umap_version.as_deref(),
-        ),
-        map_points_source_id_hash: hash_optional_string(
-            controller.ui.map.cached_points_source_id.as_deref(),
-        ),
-        map_points_umap_version_hash: hash_optional_string(
-            controller.ui.map.cached_points_umap_version.as_deref(),
-        ),
-        map_last_query: controller
-            .ui
-            .map
-            .last_query
-            .map(|bounds: MapQueryBounds| MapQueryBoundsKey::from_bounds(bounds)),
+        map_selection_revision: controller.ui.projection_revisions.map_selection,
+        map_hover_revision: controller.ui.projection_revisions.map_hover,
+        map_dataset_revision: controller.ui.projection_revisions.map_dataset,
+        map_query_revision: controller.ui.projection_revisions.map_query,
         map_points_revision: controller.ui.map.cached_points_revision,
         browser_tab: match controller.ui.browser.active_tab {
             SampleBrowserTab::List => 0,
@@ -1548,11 +1430,7 @@ fn build_waveform_projection_key(controller: &AppController) -> WaveformProjecti
             as u16,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_bpm_bits: controller.ui.waveform.bpm_value.map(f32::to_bits),
-        loaded_wav_hash: controller
-            .ui
-            .loaded_wav
-            .as_ref()
-            .map(|path| hash_projection_field(path.as_os_str())),
+        loaded_wav_revision: controller.ui.projection_revisions.loaded_wav,
         transport_running: controller.is_playing(),
     }
 }
@@ -1567,22 +1445,14 @@ fn build_non_segment_static_projection_key(
         sources_len: controller.ui.sources.rows.len(),
         folder_rows_len: controller.ui.sources.folders.rows.len(),
         folder_focused: controller.ui.sources.folders.focused,
-        folder_search_query_hash: hash_projection_field(
-            &controller.ui.sources.folders.search_query,
-        ),
+        folder_search_revision: controller.ui.projection_revisions.folder_search,
         update_status: match controller.ui.update.status {
             UpdateStatus::Idle => 0,
             UpdateStatus::Checking => 1,
             UpdateStatus::UpdateAvailable => 2,
             UpdateStatus::Error => 3,
         },
-        update_available_tag_hash: hash_optional_string(
-            controller.ui.update.available_tag.as_deref(),
-        ),
-        update_available_url_hash: hash_optional_string(
-            controller.ui.update.available_url.as_deref(),
-        ),
-        update_last_error_hash: hash_optional_string(controller.ui.update.last_error.as_deref()),
+        update_revision: controller.ui.projection_revisions.update,
         volume_milli: (controller.ui.volume.clamp(0.0, 1.0) * 1000.0).round() as u16,
         transport_running: controller.is_playing(),
         trash_count: controller.ui.browser.trash.len(),
@@ -1872,6 +1742,9 @@ impl SempalNativeBridge {
 
     /// Return a cached projection key snapshot, recomputing only when stale.
     fn projection_key_snapshot(&mut self) -> NativeProjectionCacheKey {
+        if self.controller.refresh_projection_revision_bus() {
+            self.projection_key_snapshot = None;
+        }
         if let Some(key) = self.projection_key_snapshot.as_ref().cloned() {
             return key;
         }
@@ -2004,6 +1877,7 @@ impl SempalNativeBridge {
             }
             return;
         }
+        let _ = self.controller.refresh_projection_revision_bus();
         let after_key = build_projection_cache_key(&self.controller);
         if before_key != after_key {
             self.projection_key_snapshot = Some(after_key);
