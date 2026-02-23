@@ -891,7 +891,7 @@ struct NativeProjectionCacheKey {
     browser_selected_visible: Option<usize>,
     browser_anchor_visible: Option<usize>,
     browser_selected_paths_len: usize,
-    browser_selected_paths_hash: u64,
+    browser_selected_paths_revision: u64,
     browser_search_query_hash: u64,
     browser_filter: u8,
     browser_sort: u8,
@@ -968,7 +968,7 @@ struct BrowserRowsProjectionCacheKey {
     browser_selected_visible: Option<usize>,
     browser_anchor_visible: Option<usize>,
     browser_selected_paths_len: usize,
-    browser_selected_paths_hash: u64,
+    browser_selected_paths_revision: u64,
     browser_tab: u8,
 }
 
@@ -1298,7 +1298,7 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
         browser_selected_visible: controller.ui.browser.selected_visible,
         browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
         browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
-        browser_selected_paths_hash: hash_projection_field(&controller.ui.browser.selected_paths),
+        browser_selected_paths_revision: controller.ui.browser.selected_paths_revision,
         browser_search_query_hash: hash_projection_field(&controller.ui.browser.search_query),
         browser_filter: match controller.ui.browser.filter {
             TriageFlagFilter::All => 0,
@@ -1447,7 +1447,7 @@ fn build_browser_rows_projection_key(controller: &AppController) -> BrowserRowsP
         browser_selected_visible: controller.ui.browser.selected_visible,
         browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
         browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
-        browser_selected_paths_hash: hash_projection_field(&controller.ui.browser.selected_paths),
+        browser_selected_paths_revision: controller.ui.browser.selected_paths_revision,
         browser_tab: match controller.ui.browser.active_tab {
             SampleBrowserTab::List => 0,
             SampleBrowserTab::Map => 1,
@@ -2261,12 +2261,13 @@ mod tests {
     }
 
     #[test]
-    /// Projection cache keys must change when selected paths change with stable counts.
-    fn projection_cache_key_changes_when_selected_paths_change_with_same_len() {
+    /// Projection cache keys must change when selected-path revisions change.
+    fn projection_cache_key_changes_when_selected_path_revision_changes() {
         let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
         controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("first.wav")];
         let first = build_projection_cache_key(&controller);
         controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("second.wav")];
+        controller.mark_browser_selected_paths_changed();
         let second = build_projection_cache_key(&controller);
         assert_ne!(first, second);
     }
