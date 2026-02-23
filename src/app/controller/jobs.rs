@@ -123,10 +123,14 @@ pub(crate) struct SearchResult {
     pub(crate) source_id: SourceId,
     pub(crate) query: String,
     pub(crate) visible: crate::app::state::VisibleRows,
-    pub(crate) trash: Vec<usize>,
-    pub(crate) neutral: Vec<usize>,
-    pub(crate) keep: Vec<usize>,
-    pub(crate) scores: Vec<Option<i64>>,
+    /// Shared triage row indexes tagged as trash.
+    pub(crate) trash: Arc<[usize]>,
+    /// Shared triage row indexes tagged as neutral.
+    pub(crate) neutral: Arc<[usize]>,
+    /// Shared triage row indexes tagged as keep.
+    pub(crate) keep: Arc<[usize]>,
+    /// Shared query score payload aligned to absolute row indexes.
+    pub(crate) scores: Arc<[Option<i64>]>,
 }
 
 /// Result of a background folder scan for a source root.

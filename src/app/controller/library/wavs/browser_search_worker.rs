@@ -382,10 +382,10 @@ fn process_search_job(
             source_id: job.source_id,
             query: job.query,
             visible: VisibleRows::All { total: entries_len },
-            trash: trash.as_ref().to_vec(),
-            neutral: neutral.as_ref().to_vec(),
-            keep: keep.as_ref().to_vec(),
-            scores: Vec::new(),
+            trash: Arc::clone(&trash),
+            neutral: Arc::clone(&neutral),
+            keep: Arc::clone(&keep),
+            scores: Arc::from([]),
         };
     }
 
@@ -492,14 +492,10 @@ fn process_search_job(
         source_id: job.source_id,
         query: job.query,
         visible: VisibleRows::List(visible.into()),
-        trash: trash.as_ref().to_vec(),
-        neutral: neutral.as_ref().to_vec(),
-        keep: keep.as_ref().to_vec(),
-        scores: if has_query {
-            scores.as_ref().to_vec()
-        } else {
-            Vec::new()
-        },
+        trash: Arc::clone(&trash),
+        neutral: Arc::clone(&neutral),
+        keep: Arc::clone(&keep),
+        scores: if has_query { scores } else { Arc::from([]) },
     }
 }
 
@@ -672,10 +668,10 @@ fn empty_search_result(job: SearchJob) -> SearchResult {
         source_id: job.source_id,
         query: job.query,
         visible: VisibleRows::List(Vec::new().into()),
-        trash: Vec::new(),
-        neutral: Vec::new(),
-        keep: Vec::new(),
-        scores: Vec::new(),
+        trash: Arc::from([]),
+        neutral: Arc::from([]),
+        keep: Arc::from([]),
+        scores: Arc::from([]),
     }
 }
 

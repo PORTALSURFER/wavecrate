@@ -354,10 +354,10 @@ impl AppController {
                         self.ui.browser.visible = message.visible;
                         self.ui.browser.visible_rows_revision =
                             self.ui.browser.visible_rows_revision.wrapping_add(1);
-                        self.ui.browser.trash = message.trash;
-                        self.ui.browser.neutral = message.neutral;
-                        self.ui.browser.keep = message.keep;
-                        self.ui_cache.browser.search.scores = message.scores;
+                        self.ui.browser.trash = message.trash.as_ref().to_vec();
+                        self.ui.browser.neutral = message.neutral.as_ref().to_vec();
+                        self.ui.browser.keep = message.keep.as_ref().to_vec();
+                        self.ui_cache.browser.search.scores = message.scores.as_ref().to_vec();
                         self.ui.browser.latest_applied_search_request_id = message.request_id;
                         self.ui.browser.search_busy = false;
 
