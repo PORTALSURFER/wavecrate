@@ -38,6 +38,7 @@ use std::{
     collections::HashSet,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
+    sync::Arc,
     sync::atomic::{AtomicU64, Ordering},
 };
 use tracing::info;
@@ -1068,7 +1069,8 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
     }
 }
 
-fn project_waveform_image(controller: &mut AppController) -> Option<ImageRgba> {
+/// Reuse or rebuild the projected waveform raster payload for the native model.
+fn project_waveform_image(controller: &mut AppController) -> Option<Arc<ImageRgba>> {
     let has_source_image = controller.ui.waveform.image.is_some();
     let has_cached_image = controller.projected_waveform_image.is_some();
     if controller.projected_waveform_image_signature
@@ -1085,7 +1087,7 @@ fn project_waveform_image(controller: &mut AppController) -> Option<ImageRgba> {
 
 fn project_waveform_image_data(
     image: &Option<crate::waveform::WaveformImage>,
-) -> Option<ImageRgba> {
+) -> Option<Arc<ImageRgba>> {
     let image = image.as_ref()?;
     if image.size[0] == 0 || image.size[1] == 0 {
         return None;
@@ -1101,7 +1103,7 @@ fn project_waveform_image_data(
         pixels.push(pixel.b());
         pixels.push(pixel.a());
     }
-    ImageRgba::new(image.size[0], image.size[1], pixels)
+    ImageRgba::new(image.size[0], image.size[1], pixels).map(Arc::new)
 }
 
 /// Project waveform chrome labels and action-hint copy.
@@ -1378,7 +1380,10 @@ mod tests {
             .expect("waveform image should be projected");
         assert_eq!(waveform_image.width, 2);
         assert_eq!(waveform_image.height, 1);
-        assert_eq!(waveform_image.pixels, vec![10, 20, 30, 40, 11, 21, 31, 41]);
+        assert_eq!(
+            waveform_image.pixels.as_ref(),
+            &[10, 20, 30, 40, 11, 21, 31, 41]
+        );
     }
 
     #[test]

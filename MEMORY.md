@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-23T11:02:22Z
+Last Updated: 2026-02-23T11:14:38Z
 Updated By: Codex
 
 ## Purpose
@@ -9,6 +9,17 @@ Updated By: Codex
 - Record the latest objective and current execution state.
 
 ## Current Session (2026-02-23 UTC)
+
+- I am finalizing ROI item #9 in the native projection path: avoid waveform
+  image payload clones across projection/cache updates.
+- I switched waveform projection and model payload ownership to shared
+  `Arc<ImageRgba>` buffers so cache hits clone only pointer handles, not full
+  RGBA byte vectors.
+- I updated radiant model/native-shell call sites and fixtures for
+  `Option<Arc<ImageRgba>>`, and moved `ImageRgba` pixel backing to `Arc<[u8]>`
+  so image clones are cheap and deterministic.
+- I validated with `bash scripts/ci_local.sh`; all checks are green, including
+  perf guard.
 
 - I am finalizing ROI item #8 for list responsiveness: avoid selected-path
   lookup hash rebuilds unless the browser selection revision changes.

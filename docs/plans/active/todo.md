@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-23T11:02:22Z
+Last updated (UTC): 2026-02-23T11:14:38Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -25,6 +25,12 @@ Purpose:
 
 ## Done recently
 
+- Completed ROI item #9 waveform projection clone-elision milestone:
+  - waveform projection/model payloads now use `Arc<ImageRgba>`,
+  - radiant `ImageRgba` now stores pixels as `Arc<[u8]>` so clone-heavy paths
+    avoid deep RGBA buffer copies,
+  - native-shell waveform projection now reuses cached shared payload handles
+    on signature hits.
 - Completed Windows startup-visibility hardening follow-up:
   - radiant native-vello now launches visible-by-default on Windows to avoid
     hidden-window redraw starvation,
