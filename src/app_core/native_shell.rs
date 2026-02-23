@@ -1843,7 +1843,7 @@ mod tests {
             last_played_at: None,
         }]);
         controller.ui.browser.visible =
-            crate::app_core::app_api::state::VisibleRows::List(vec![0usize]);
+            crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
         let mut rows = Vec::new();
 
         project_browser_rows_model_into(&mut controller, 1, Some(0), None, &mut rows);

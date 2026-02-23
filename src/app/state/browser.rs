@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 
 /// Sample browser state for wav entries with filterable rows.
@@ -76,7 +77,7 @@ impl Default for SampleBrowserState {
             trash: Vec::new(),
             neutral: Vec::new(),
             keep: Vec::new(),
-            visible: VisibleRows::List(Vec::new()),
+            visible: VisibleRows::List(Vec::new().into()),
             visible_rows_revision: 0,
             selected: None,
             loaded: None,
@@ -216,7 +217,7 @@ pub enum VisibleRows {
         total: usize,
     },
     /// Only the provided indices are visible.
-    List(Vec<usize>),
+    List(Arc<[usize]>),
 }
 
 impl VisibleRows {
@@ -269,7 +270,7 @@ impl VisibleRows {
 
     /// Reset the visible rows to an empty list.
     pub fn clear_to_list(&mut self) {
-        *self = VisibleRows::List(Vec::new());
+        *self = VisibleRows::List(Vec::new().into());
     }
 
     /// Iterate over visible absolute indices.
@@ -370,7 +371,7 @@ mod tests {
 
     #[test]
     fn visible_rows_list_copy_window_is_sliced() {
-        let rows = VisibleRows::List(vec![10, 20, 30, 40, 50]);
+        let rows = VisibleRows::List(vec![10, 20, 30, 40, 50].into());
         let mut out = Vec::new();
         rows.copy_window_into(1, 3, &mut out);
         assert_eq!(out, vec![20, 30, 40]);
@@ -378,7 +379,7 @@ mod tests {
 
     #[test]
     fn visible_rows_list_copy_window_respects_limits() {
-        let rows = VisibleRows::List(vec![10, 20]);
+        let rows = VisibleRows::List(vec![10, 20].into());
         let mut out = Vec::new();
         rows.copy_window_into(3, 2, &mut out);
         assert!(out.is_empty());

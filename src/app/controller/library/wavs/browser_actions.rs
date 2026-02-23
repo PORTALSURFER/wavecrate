@@ -372,7 +372,7 @@ impl AppController {
                 }
             }
             crate::app::state::VisibleRows::List(rows) => {
-                for index in rows {
+                for index in rows.iter().copied() {
                     let path = self
                         .wav_entry(index)
                         .map(|entry| entry.relative_path.clone());

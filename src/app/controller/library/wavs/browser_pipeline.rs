@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::state::{SampleBrowserSort, TriageFlagFilter, VisibleRows};
+use std::sync::Arc;
 
 /// Shared stage helper functions for sort/filter/hash operations.
 mod helpers;
@@ -27,8 +28,8 @@ pub(crate) struct BrowserPipelineCache {
     scored_rows: Vec<(usize, i64)>,
     /// Fingerprint for the sorted stage rows.
     sorted_fingerprint: Option<u64>,
-    /// Sorted visible absolute entry indices.
-    sorted_rows: Vec<usize>,
+    /// Sorted visible absolute entry indices, retained for cheap sharing.
+    sorted_rows: Arc<[usize]>,
 }
 
 impl BrowserPipelineCache {
@@ -44,7 +45,7 @@ impl BrowserPipelineCache {
         self.scored_fingerprint = None;
         self.scored_rows.clear();
         self.sorted_fingerprint = None;
-        self.sorted_rows.clear();
+        self.sorted_rows = Vec::new().into();
     }
 }
 
@@ -158,7 +159,7 @@ pub(crate) fn build_visible_rows(
                 visible.push(index);
             }
             helpers::apply_sort_for_similar(controller, &mut visible, sort_mode, &similar);
-            controller.ui_cache.browser.pipeline.sorted_rows = visible;
+            controller.ui_cache.browser.pipeline.sorted_rows = visible.into();
             controller.ui_cache.browser.pipeline.sorted_fingerprint = Some(sorted_fingerprint);
         }
         return visible_result_from_sorted(controller, focused_index, loaded_index);
@@ -216,7 +217,7 @@ pub(crate) fn build_visible_rows(
                     sort_mode == SampleBrowserSort::PlaybackAgeAsc,
                 );
             }
-            controller.ui_cache.browser.pipeline.sorted_rows = visible;
+            controller.ui_cache.browser.pipeline.sorted_rows = visible.into();
             controller.ui_cache.browser.pipeline.sorted_fingerprint = Some(sorted_fingerprint);
         }
 
@@ -237,7 +238,7 @@ pub(crate) fn build_visible_rows(
                 sort_mode == SampleBrowserSort::PlaybackAgeAsc,
             );
         }
-        controller.ui_cache.browser.pipeline.sorted_rows = visible;
+        controller.ui_cache.browser.pipeline.sorted_rows = visible.into();
         controller.ui_cache.browser.pipeline.sorted_fingerprint = Some(sorted_fingerprint);
     }
 
@@ -297,7 +298,7 @@ fn visible_result_from_sorted(
     focused_index: Option<usize>,
     loaded_index: Option<usize>,
 ) -> (VisibleRows, Option<usize>, Option<usize>) {
-    let visible = controller.ui_cache.browser.pipeline.sorted_rows.clone();
+    let visible = Arc::clone(&controller.ui_cache.browser.pipeline.sorted_rows);
     let selected_visible =
         focused_index.and_then(|index| visible.iter().position(|row| *row == index));
     let loaded_visible =
