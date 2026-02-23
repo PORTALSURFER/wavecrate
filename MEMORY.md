@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-23T08:11:47Z
+Last Updated: 2026-02-23T09:05:55Z
 Updated By: Codex
 
 ## Purpose
@@ -9,6 +9,18 @@ Updated By: Codex
 - Record the latest objective and current execution state.
 
 ## Current Session (2026-02-23 UTC)
+
+- I am shipping a stronger Windows startup visibility fix after user
+  confirmation that the first fallback still left the window invisible.
+- In radiant native-vello startup:
+  - Windows now launches with the native window visible by default instead of
+    hidden-first sequencing.
+  - Hidden-launch paths (non-Windows) now keep a pre-first-present fallback
+    reveal deadline so redraw stalls cannot keep the app invisible forever.
+  - Deferred-refresh reveal fallback remains in place and now only arms when
+    the window is still hidden.
+- I added regression coverage for pre-first-present fallback reveal behavior and
+  re-ran `bash scripts/ci_local.sh` (green).
 
 - I am fixing a Windows startup regression where the native window can remain
   hidden after first present if redraw delivery stalls while hidden.

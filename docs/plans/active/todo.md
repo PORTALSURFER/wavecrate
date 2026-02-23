@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-23T08:11:47Z
+Last updated (UTC): 2026-02-23T09:05:55Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -25,6 +25,12 @@ Purpose:
 
 ## Done recently
 
+- Completed Windows startup-visibility hardening follow-up:
+  - radiant native-vello now launches visible-by-default on Windows to avoid
+    hidden-window redraw starvation,
+  - hidden-launch startup flow now includes pre-first-present fallback reveal
+    deadline enforcement,
+  - added focused runtime regression coverage for pre-first-present fallback.
 - Completed Windows startup-visibility regression fix:
   - radiant native-vello startup now includes a bounded reveal fallback when
     deferred-refresh redraw delivery stalls while the window is hidden,
