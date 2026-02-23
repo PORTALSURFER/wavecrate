@@ -1135,17 +1135,33 @@ impl NativeProjectionCache {
         let map_key = build_map_projection_key(controller);
         let waveform_key = build_waveform_projection_key(controller);
         let non_segment_static_key = build_non_segment_static_projection_key(controller);
+        let init_full_projection =
+            |cache: &mut Self, controller: &mut AppController| -> Arc<NativeAppModel> {
+                cache.record_segment_lookup(ProjectionSegment::StatusBar, false);
+                cache.record_segment_lookup(ProjectionSegment::BrowserFrame, false);
+                cache.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
+                cache.record_segment_lookup(ProjectionSegment::MapPanel, false);
+                cache.record_segment_lookup(ProjectionSegment::WaveformOverlay, false);
+                Arc::new(project(controller))
+            };
         let mut model = if let Some(existing) = self.app_model.take() {
-            Arc::unwrap_or_clone(existing)
+            if let Some(model) = Arc::into_inner(existing) {
+                model
+            } else {
+                let model = init_full_projection(self, controller);
+                self.app_key = Some(key.clone());
+                self.app_model = Some(Arc::clone(&model));
+                self.status_key = Some(status_key);
+                self.browser_frame_key = Some(browser_frame_key);
+                self.browser_rows_key = Some(browser_rows_key);
+                self.map_key = Some(map_key);
+                self.waveform_key = Some(waveform_key);
+                self.non_segment_static_key = Some(non_segment_static_key);
+                return (model, NativeDirtySegments::all());
+            }
         } else {
-            self.record_segment_lookup(ProjectionSegment::StatusBar, false);
-            self.record_segment_lookup(ProjectionSegment::BrowserFrame, false);
-            self.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
-            self.record_segment_lookup(ProjectionSegment::MapPanel, false);
-            self.record_segment_lookup(ProjectionSegment::WaveformOverlay, false);
-            let model = project(controller);
+            let model = init_full_projection(self, controller);
             self.app_key = Some(key.clone());
-            let model = Arc::new(model);
             self.app_model = Some(Arc::clone(&model));
             self.status_key = Some(status_key);
             self.browser_frame_key = Some(browser_frame_key);
