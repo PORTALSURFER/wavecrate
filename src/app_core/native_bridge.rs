@@ -985,6 +985,56 @@ struct NonSegmentStaticProjectionCacheKey {
     keep_count: usize,
 }
 
+/// Lightweight derived projection snapshot computed before materialization.
+///
+/// The derive phase collects only revisions/keys and scalar selectors needed to
+/// decide which materialization segments are dirty.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct DerivedProjectionState {
+    /// Full app projection cache key for immediate whole-model hit checks.
+    app_key: NativeProjectionCacheKey,
+    /// Selected browser column index used by status projection.
+    selected_column: usize,
+    /// Status-bar segment key.
+    status_key: StatusProjectionCacheKey,
+    /// Browser-frame segment key.
+    browser_frame_key: BrowserFrameProjectionCacheKey,
+    /// Browser visible-row window segment key.
+    browser_rows_key: BrowserRowsProjectionCacheKey,
+    /// Similarity-map segment key.
+    map_key: MapProjectionCacheKey,
+    /// Waveform segment key.
+    waveform_key: WaveformProjectionCacheKey,
+    /// Non-segment static-field key.
+    non_segment_static_key: NonSegmentStaticProjectionCacheKey,
+}
+
+impl DerivedProjectionState {
+    /// Derive projection keys from controller state.
+    fn from_controller(controller: &AppController) -> Self {
+        let app_key = build_projection_cache_key(controller);
+        Self::from_controller_with_app_key(controller, app_key)
+    }
+
+    /// Derive projection keys while reusing a caller-provided app key snapshot.
+    fn from_controller_with_app_key(
+        controller: &AppController,
+        app_key: NativeProjectionCacheKey,
+    ) -> Self {
+        let selected_column = native_shell::selected_column_index(&controller.ui);
+        Self {
+            app_key,
+            selected_column,
+            status_key: build_status_projection_key(controller, selected_column),
+            browser_frame_key: build_browser_frame_projection_key(controller),
+            browser_rows_key: build_browser_rows_projection_key(controller),
+            map_key: build_map_projection_key(controller),
+            waveform_key: build_waveform_projection_key(controller),
+            non_segment_static_key: build_non_segment_static_projection_key(controller),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct NativeProjectionCache {
     app_key: Option<NativeProjectionCacheKey>,
@@ -1057,21 +1107,19 @@ impl NativeProjectionCache {
     fn resolve_or_project(
         &mut self,
         controller: &mut AppController,
-        project: impl FnOnce(&mut AppController) -> NativeAppModel,
     ) -> (Arc<NativeAppModel>, NativeDirtySegments) {
         let _ = controller.refresh_projection_revision_bus();
-        let key = build_projection_cache_key(controller);
-        self.resolve_or_project_with_key(controller, &key, project)
+        let derived = DerivedProjectionState::from_controller(controller);
+        self.resolve_or_project_with_derived(controller, &derived)
     }
 
-    /// Resolve retained projection output using a caller-provided cache key.
-    fn resolve_or_project_with_key(
+    /// Resolve retained projection output using a caller-provided derive state.
+    fn resolve_or_project_with_derived(
         &mut self,
         controller: &mut AppController,
-        key: &NativeProjectionCacheKey,
-        project: impl FnOnce(&mut AppController) -> NativeAppModel,
+        derived: &DerivedProjectionState,
     ) -> (Arc<NativeAppModel>, NativeDirtySegments) {
-        if self.app_key.as_ref() == Some(key)
+        if self.app_key.as_ref() == Some(&derived.app_key)
             && let Some(model) = self.app_model.as_ref().map(Arc::clone)
         {
             trace_projection_cache_lookup(true);
@@ -1083,63 +1131,29 @@ impl NativeProjectionCache {
             return (model, NativeDirtySegments::empty());
         }
         trace_projection_cache_lookup(false);
-        let selected_column = native_shell::selected_column_index(&controller.ui);
-        let status_key = build_status_projection_key(controller, selected_column);
-        let browser_frame_key = build_browser_frame_projection_key(controller);
-        let browser_rows_key = build_browser_rows_projection_key(controller);
-        let map_key = build_map_projection_key(controller);
-        let waveform_key = build_waveform_projection_key(controller);
-        let non_segment_static_key = build_non_segment_static_projection_key(controller);
-        let init_full_projection =
-            |cache: &mut Self, controller: &mut AppController| -> Arc<NativeAppModel> {
-                cache.record_segment_lookup(ProjectionSegment::StatusBar, false);
-                cache.record_segment_lookup(ProjectionSegment::BrowserFrame, false);
-                cache.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
-                cache.record_segment_lookup(ProjectionSegment::MapPanel, false);
-                cache.record_segment_lookup(ProjectionSegment::WaveformOverlay, false);
-                Arc::new(project(controller))
-            };
-        let mut model = if let Some(existing) = self.app_model.take() {
-            if let Some(model) = Arc::into_inner(existing) {
-                model
-            } else {
-                let model = init_full_projection(self, controller);
-                self.app_key = Some(key.clone());
-                self.app_model = Some(Arc::clone(&model));
-                self.status_key = Some(status_key);
-                self.browser_frame_key = Some(browser_frame_key);
-                self.browser_rows_key = Some(browser_rows_key);
-                self.map_key = Some(map_key);
-                self.waveform_key = Some(waveform_key);
-                self.non_segment_static_key = Some(non_segment_static_key);
-                return (model, NativeDirtySegments::all());
-            }
-        } else {
-            let model = init_full_projection(self, controller);
-            self.app_key = Some(key.clone());
-            self.app_model = Some(Arc::clone(&model));
-            self.status_key = Some(status_key);
-            self.browser_frame_key = Some(browser_frame_key);
-            self.browser_rows_key = Some(browser_rows_key);
-            self.map_key = Some(map_key);
-            self.waveform_key = Some(waveform_key);
-            self.non_segment_static_key = Some(non_segment_static_key);
-            return (model, NativeDirtySegments::all());
-        };
+        let has_retained_model = self.app_model.is_some();
+        let mut model = self
+            .app_model
+            .take()
+            .map(Arc::unwrap_or_clone)
+            .unwrap_or_default();
 
         let mut dirty_segments = NativeDirtySegments::empty();
 
-        if self.status_key.as_ref() == Some(&status_key) {
-            self.record_segment_lookup(ProjectionSegment::StatusBar, true);
-        } else {
+        let status_changed =
+            !has_retained_model || self.status_key.as_ref() != Some(&derived.status_key);
+        if status_changed {
             self.record_segment_lookup(ProjectionSegment::StatusBar, false);
-            model.status = native_shell::project_status_model(controller, selected_column);
+            model.status = native_shell::project_status_model(controller, derived.selected_column);
             model.status_text = controller.ui.status.text.clone();
-            self.status_key = Some(status_key);
+            self.status_key = Some(derived.status_key.clone());
             dirty_segments.insert(NativeDirtySegments::STATUS_BAR);
+        } else {
+            self.record_segment_lookup(ProjectionSegment::StatusBar, true);
         }
 
-        let browser_frame_changed = self.browser_frame_key.as_ref() != Some(&browser_frame_key);
+        let browser_frame_changed = !has_retained_model
+            || self.browser_frame_key.as_ref() != Some(&derived.browser_frame_key);
         if browser_frame_changed {
             self.record_segment_lookup(ProjectionSegment::BrowserFrame, false);
             let frame = native_shell::project_browser_panel_frame_model(controller);
@@ -1149,13 +1163,14 @@ impl NativeProjectionCache {
                 model.browser.visible_count,
             );
             model.browser_actions = native_shell::project_browser_actions_model(&controller.ui);
-            self.browser_frame_key = Some(browser_frame_key);
+            self.browser_frame_key = Some(derived.browser_frame_key.clone());
             dirty_segments.insert(NativeDirtySegments::BROWSER_FRAME);
         } else {
             self.record_segment_lookup(ProjectionSegment::BrowserFrame, true);
         }
 
-        let browser_rows_changed = self.browser_rows_key.as_ref() != Some(&browser_rows_key);
+        let browser_rows_changed = !has_retained_model
+            || self.browser_rows_key.as_ref() != Some(&derived.browser_rows_key);
         if browser_frame_changed || browser_rows_changed {
             self.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
             let mut rows = std::mem::take(&mut model.browser.rows);
@@ -1167,40 +1182,43 @@ impl NativeProjectionCache {
                 &mut rows,
             );
             model.browser.rows = rows;
-            self.browser_rows_key = Some(browser_rows_key);
+            self.browser_rows_key = Some(derived.browser_rows_key.clone());
             dirty_segments.insert(NativeDirtySegments::BROWSER_ROWS_WINDOW);
         } else {
             self.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, true);
         }
 
-        if self.map_key.as_ref() == Some(&map_key) {
-            self.record_segment_lookup(ProjectionSegment::MapPanel, true);
-        } else {
+        let map_changed = !has_retained_model || self.map_key.as_ref() != Some(&derived.map_key);
+        if map_changed {
             self.record_segment_lookup(ProjectionSegment::MapPanel, false);
             model.map = native_shell::project_map_model(controller);
-            self.map_key = Some(map_key);
+            self.map_key = Some(derived.map_key.clone());
             dirty_segments.insert(NativeDirtySegments::MAP_PANEL);
+        } else {
+            self.record_segment_lookup(ProjectionSegment::MapPanel, true);
         }
 
-        if self.waveform_key.as_ref() == Some(&waveform_key) {
-            self.record_segment_lookup(ProjectionSegment::WaveformOverlay, true);
-        } else {
+        let waveform_changed =
+            !has_retained_model || self.waveform_key.as_ref() != Some(&derived.waveform_key);
+        if waveform_changed {
             self.record_segment_lookup(ProjectionSegment::WaveformOverlay, false);
             model.waveform = native_shell::project_waveform_model(controller);
             model.waveform_chrome = native_shell::project_waveform_chrome_model(&controller.ui);
-            self.waveform_key = Some(waveform_key);
+            self.waveform_key = Some(derived.waveform_key.clone());
             dirty_segments.insert(NativeDirtySegments::WAVEFORM_OVERLAY);
+        } else {
+            self.record_segment_lookup(ProjectionSegment::WaveformOverlay, true);
         }
 
-        let non_segment_static_changed =
-            self.non_segment_static_key.as_ref() != Some(&non_segment_static_key);
+        let non_segment_static_changed = !has_retained_model
+            || self.non_segment_static_key.as_ref() != Some(&derived.non_segment_static_key);
         if non_segment_static_changed {
             dirty_segments.insert(NativeDirtySegments::GLOBAL_STATIC);
         }
-        self.non_segment_static_key = Some(non_segment_static_key);
+        self.non_segment_static_key = Some(derived.non_segment_static_key.clone());
 
         Self::refresh_non_segment_fields(&mut model, controller);
-        self.app_key = Some(key.clone());
+        self.app_key = Some(derived.app_key.clone());
         let model = Arc::new(model);
         self.app_model = Some(Arc::clone(&model));
         (model, dirty_segments)
@@ -1476,17 +1494,13 @@ pub fn measure_projection_segment_lookup_counts(
     for step in 0..warmup_iters.max(1) {
         apply_step(controller, step);
         controller.prepare_native_frame(false);
-        let _ = cache.resolve_or_project(controller, |controller| {
-            controller.project_native_app_model()
-        });
+        let _ = cache.resolve_or_project(controller);
     }
     let _ = cache.take_segment_lookup_counts();
     for step in 0..measure_iters.max(1) {
         apply_step(controller, step);
         controller.prepare_native_frame(false);
-        let _ = cache.resolve_or_project(controller, |controller| {
-            controller.project_native_app_model()
-        });
+        let _ = cache.resolve_or_project(controller);
     }
     cache.take_segment_lookup_counts()
 }
@@ -1950,11 +1964,11 @@ impl SempalNativeBridge {
         }
         let project_start = profiling.then(Instant::now);
         let projection_key = self.projection_key_snapshot_for_pull();
-        let (model, dirty_segments) = self.projection_cache.resolve_or_project_with_key(
-            &mut self.controller,
-            &projection_key,
-            |controller| controller.project_native_app_model(),
-        );
+        let derived =
+            DerivedProjectionState::from_controller_with_app_key(&self.controller, projection_key);
+        let (model, dirty_segments) = self
+            .projection_cache
+            .resolve_or_project_with_derived(&mut self.controller, &derived);
         self.last_dirty_segments = dirty_segments;
         self.segment_revisions
             .bump_for_dirty_segments(self.last_dirty_segments);
@@ -2139,7 +2153,7 @@ mod tests {
     use crate::app_core::actions::{
         NativeAppBridge, NativeDirtySegments, NativeSegmentRevisions, NativeUiAction,
     };
-    use crate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
+    use crate::app_core::controller::AppController;
     use crate::app_core::state::UpdateStatus;
     use crate::waveform::WaveformRenderer;
     use std::sync::Arc;
@@ -2178,24 +2192,14 @@ mod tests {
     fn projection_cache_reuses_model_when_key_unchanged() {
         let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
         let mut cache = NativeProjectionCache::default();
-        let mut projections = 0usize;
-
-        let _ = cache.resolve_or_project(&mut controller, |controller| {
-            projections += 1;
-            controller.project_native_app_model()
-        });
-        let _ = cache.resolve_or_project(&mut controller, |controller| {
-            projections += 1;
-            controller.project_native_app_model()
-        });
-        assert_eq!(projections, 1);
+        let first = cache.resolve_or_project(&mut controller);
+        let second = cache.resolve_or_project(&mut controller);
+        assert!(Arc::ptr_eq(&first.0, &second.0));
+        assert_eq!(second.1, NativeDirtySegments::empty());
 
         controller.ui.status.text = String::from("changed");
-        let refreshed = cache.resolve_or_project(&mut controller, |controller| {
-            projections += 1;
-            controller.project_native_app_model()
-        });
-        assert_eq!(projections, 1);
+        let refreshed = cache.resolve_or_project(&mut controller);
+        assert!(!Arc::ptr_eq(&second.0, &refreshed.0));
         assert_eq!(refreshed.0.status_text.as_str(), "changed");
     }
 
@@ -2203,19 +2207,21 @@ mod tests {
     fn projection_cache_invalidate_forces_refresh() {
         let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
         let mut cache = NativeProjectionCache::default();
-        let mut projections = 0usize;
-
-        let _ = cache.resolve_or_project(&mut controller, |controller| {
-            projections += 1;
-            controller.project_native_app_model()
-        });
+        let first = cache.resolve_or_project(&mut controller);
         cache.invalidate();
-        let _ = cache.resolve_or_project(&mut controller, |controller| {
-            projections += 1;
-            controller.project_native_app_model()
-        });
-
-        assert_eq!(projections, 2);
+        let second = cache.resolve_or_project(&mut controller);
+        assert!(!Arc::ptr_eq(&first.0, &second.0));
+        assert_eq!(
+            second.1,
+            NativeDirtySegments::from_bits(
+                NativeDirtySegments::STATUS_BAR
+                    | NativeDirtySegments::BROWSER_FRAME
+                    | NativeDirtySegments::BROWSER_ROWS_WINDOW
+                    | NativeDirtySegments::MAP_PANEL
+                    | NativeDirtySegments::WAVEFORM_OVERLAY
+                    | NativeDirtySegments::GLOBAL_STATIC
+            )
+        );
     }
 
     /// Initial full projection should bump all static segment revisions.
@@ -2609,12 +2615,8 @@ mod tests {
 
         let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
         let mut cache = NativeProjectionCache::default();
-        let _ = cache.resolve_or_project(&mut controller, |controller| {
-            controller.project_native_app_model()
-        });
-        let _ = cache.resolve_or_project(&mut controller, |controller| {
-            controller.project_native_app_model()
-        });
+        let _ = cache.resolve_or_project(&mut controller);
+        let _ = cache.resolve_or_project(&mut controller);
 
         let mut bridge = SempalNativeBridge {
             controller,
