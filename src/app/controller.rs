@@ -70,6 +70,38 @@ pub(crate) struct ProjectedBrowserRowCacheEntry {
     pub bucket_label: String,
 }
 
+/// Cache key for retained map-point projection payloads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ProjectedMapPointsCacheKey {
+    /// Stable hash of the active source identifier.
+    pub source_id_hash: u64,
+    /// Stable hash of the active UMAP version.
+    pub umap_version_hash: u64,
+    /// Monotonic revision for cached map points.
+    pub points_revision: u64,
+    /// Bitwise query minimum X bound.
+    pub query_min_x_bits: u32,
+    /// Bitwise query maximum X bound.
+    pub query_max_x_bits: u32,
+    /// Bitwise query minimum Y bound.
+    pub query_min_y_bits: u32,
+    /// Bitwise query maximum Y bound.
+    pub query_max_y_bits: u32,
+}
+
+/// Retained normalized map-point projection fields.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ProjectedMapPointCacheEntry {
+    /// Stable sample id used to build the final map model.
+    pub sample_id: String,
+    /// X position normalized to milli-units (`0..=1000`).
+    pub x_milli: u16,
+    /// Y position normalized to milli-units (`0..=1000`).
+    pub y_milli: u16,
+    /// Optional cluster id for cluster summaries/coloring.
+    pub cluster_id: Option<i32>,
+}
+
 /// Maintains app state and bridges core logic to the active GUI runtime.
 pub struct AppController {
     /// Mutable UI state shared with native rendering.
@@ -91,6 +123,12 @@ pub struct AppController {
     pub(crate) projected_selected_paths_revision: Option<u64>,
     /// Selected absolute-index bitset reused across native browser projections.
     pub(crate) projected_selected_paths_lookup: Option<Vec<bool>>,
+    /// Retained key for normalized map-point projection payloads.
+    pub(crate) projected_map_points_key: Option<ProjectedMapPointsCacheKey>,
+    /// Retained map points normalized into render-ready milli-units.
+    pub(crate) projected_map_points: Vec<ProjectedMapPointCacheEntry>,
+    /// Retained unique cluster count aligned with `projected_map_points`.
+    pub(crate) projected_map_cluster_count: usize,
     wav_entries: WavEntriesState,
     selection_state: ControllerSelectionState,
     pub(crate) settings: AppSettingsState,
@@ -150,6 +188,9 @@ impl AppController {
             projected_browser_rows: HashMap::new(),
             projected_selected_paths_revision: None,
             projected_selected_paths_lookup: None,
+            projected_map_points_key: None,
+            projected_map_points: Vec::new(),
+            projected_map_cluster_count: 0,
             wav_entries: WavEntriesState::new(0, 1024),
             selection_state: ControllerSelectionState::new(),
             settings: AppSettingsState::new(),

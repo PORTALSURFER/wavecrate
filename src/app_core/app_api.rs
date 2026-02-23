@@ -7,6 +7,10 @@ pub(crate) mod controller {
     pub(crate) use crate::app::controller::AppController;
     /// Legacy retained browser-row projection cache entry type.
     pub(crate) use crate::app::controller::ProjectedBrowserRowCacheEntry;
+    /// Legacy retained normalized map-point projection cache entry type.
+    pub(crate) use crate::app::controller::ProjectedMapPointCacheEntry;
+    /// Legacy retained map-point projection cache key type.
+    pub(crate) use crate::app::controller::ProjectedMapPointsCacheKey;
 }
 
 /// Legacy controller-internal state types needed by migration glue.

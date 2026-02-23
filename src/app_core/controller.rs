@@ -11,6 +11,12 @@ pub type AppController = LegacyAppController;
 /// Retained browser-row cache entry used by native-shell projection helpers.
 pub(crate) type ProjectedBrowserRowCacheEntry =
     crate::app_core::app_api::controller::ProjectedBrowserRowCacheEntry;
+/// Retained map-point cache key used by native-shell projection helpers.
+pub(crate) type ProjectedMapPointsCacheKey =
+    crate::app_core::app_api::controller::ProjectedMapPointsCacheKey;
+/// Retained normalized map-point cache entry used by native-shell projection helpers.
+pub(crate) type ProjectedMapPointCacheEntry =
+    crate::app_core::app_api::controller::ProjectedMapPointCacheEntry;
 
 use std::{cell::RefCell, rc::Rc};
 
