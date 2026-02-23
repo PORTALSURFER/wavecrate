@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-22T13:09:10Z
+Last updated (UTC): 2026-02-23T08:11:47Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -25,6 +25,13 @@ Purpose:
 
 ## Done recently
 
+- Completed Windows startup-visibility regression fix:
+  - radiant native-vello startup now includes a bounded reveal fallback when
+    deferred-refresh redraw delivery stalls while the window is hidden,
+  - fallback force-reveals the window and requests redraw so GUI startup cannot
+    remain invisible indefinitely,
+  - added focused runtime regression coverage in
+    `vendor/radiant/src/gui_runtime/native_vello.rs`.
 - Completed frame-quality lock-automation follow-up milestone:
   - added `scripts/perf_frame_quality_lock_thresholds.py` to compute
     conservative frame-jank and missed-present threshold env assignments from

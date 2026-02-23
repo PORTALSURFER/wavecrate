@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-22T13:09:20Z
+Last Updated: 2026-02-23T08:11:47Z
 Updated By: Codex
 
 ## Purpose
@@ -8,7 +8,17 @@ Updated By: Codex
 - Keep session handoff durable for agents and automation.
 - Record the latest objective and current execution state.
 
-## Current Session (2026-02-22 UTC)
+## Current Session (2026-02-23 UTC)
+
+- I am fixing a Windows startup regression where the native window can remain
+  hidden after first present if redraw delivery stalls while hidden.
+- I added a bounded startup reveal fallback in
+  `vendor/radiant/src/gui_runtime/native_vello.rs`:
+  after first present, if deferred-refresh reveal has not occurred by a short
+  deadline, runtime force-reveals the window and requests redraw so startup
+  cannot stay invisible indefinitely.
+- I added regression coverage for this fallback in radiant runtime tests and
+  validated with `bash scripts/ci_local.sh` (green).
 
 - I am finishing perf-guard frame-quality threshold lock automation so repeated
   calibration runs can emit reusable env defaults directly from measured
