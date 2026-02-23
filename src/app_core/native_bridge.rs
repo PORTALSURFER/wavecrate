@@ -47,6 +47,9 @@ const BRIDGE_PROFILE_INTERVAL: u64 = 1;
 
 #[cfg(feature = "native-bridge-metrics")]
 const BRIDGE_PROFILE_ENV: &str = "SEMPAL_NATIVE_BRIDGE_PROFILE";
+#[cfg(feature = "native-bridge-metrics")]
+/// Enable runtime validation that cached projection-key snapshots stay in sync.
+const PROJECTION_KEY_ASSERT_ENV: &str = "SEMPAL_NATIVE_BRIDGE_ASSERT_PROJECTION_SNAPSHOT";
 /// Toggle immediate application of waveform overlay preview actions.
 const IMMEDIATE_WAVEFORM_PREVIEW_ENV: &str = "SEMPAL_NATIVE_BRIDGE_IMMEDIATE_WAVEFORM_PREVIEW";
 /// Default mode for immediate waveform overlay preview actions.
@@ -252,7 +255,16 @@ static FRAME_RESULT_PRESENT_US_TOTAL: AtomicU64 = AtomicU64::new(0);
 /// Last observed frame budget in microseconds.
 static FRAME_RESULT_FRAME_BUDGET_US: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
+/// Number of projection-key snapshot validation checks performed.
+static PROJECTION_KEY_ASSERT_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Number of stale projection-key snapshots detected by validation checks.
+static PROJECTION_KEY_ASSERT_STALE_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
 static BRIDGE_PROFILE_ENABLED: OnceLock<bool> = OnceLock::new();
+#[cfg(feature = "native-bridge-metrics")]
+/// Cached projection-snapshot assertion mode resolved from environment.
+static PROJECTION_KEY_ASSERT_ENABLED: OnceLock<bool> = OnceLock::new();
 /// Cached immediate-waveform-preview mode resolved from environment.
 static IMMEDIATE_WAVEFORM_PREVIEW_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
@@ -276,6 +288,22 @@ fn bridge_profiling_enabled() -> bool {
 #[cfg(not(feature = "native-bridge-metrics"))]
 #[inline]
 fn bridge_profiling_enabled() -> bool {
+    false
+}
+
+#[cfg(feature = "native-bridge-metrics")]
+/// Resolve whether projection-key snapshot assertions should run.
+fn projection_key_assertions_enabled() -> bool {
+    *PROJECTION_KEY_ASSERT_ENABLED.get_or_init(|| {
+        std::env::var(PROJECTION_KEY_ASSERT_ENV)
+            .ok()
+            .is_some_and(|value| parse_bridge_profile_enabled(&value))
+    })
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline]
+/// Disable projection-key assertions when bridge metrics are compiled out.
+fn projection_key_assertions_enabled() -> bool {
     false
 }
 
@@ -388,6 +416,9 @@ fn maybe_log_bridge_profile() {
     let frame_total_us = FRAME_RESULT_TOTAL_US.load(Ordering::Relaxed);
     let present_total_us = FRAME_RESULT_PRESENT_US_TOTAL.load(Ordering::Relaxed);
     let frame_budget_us = FRAME_RESULT_FRAME_BUDGET_US.load(Ordering::Relaxed);
+    let projection_key_assert_count = PROJECTION_KEY_ASSERT_COUNT.load(Ordering::Relaxed);
+    let projection_key_assert_stale_count =
+        PROJECTION_KEY_ASSERT_STALE_COUNT.load(Ordering::Relaxed);
     let pull_model_avg_prep_ms = if pull_model_count == 0 {
         0.0
     } else {
@@ -508,6 +539,7 @@ fn maybe_log_bridge_profile() {
          derived_flush_ms={:.3} derived_dirty_sources={:.2} derived_dirty_computed={:.2} \
          avg_primitives_per_frame={:.2} avg_text_runs_per_frame={:.2} \
          frame_avg_ms={:.3} present_avg_ms={:.3} frame_budget_us={} \
+         projection_key_assert_count={} projection_key_assert_stale_count={} \
          jank_count={} jank_ratio={:.3} missed_present_count={} missed_present_ratio={:.3}",
         pull_model_avg_prep_ms,
         pull_model_avg_project_ms,
@@ -542,6 +574,8 @@ fn maybe_log_bridge_profile() {
         frame_total_avg_ms,
         present_avg_ms,
         frame_budget_us,
+        projection_key_assert_count,
+        projection_key_assert_stale_count,
         jank_count,
         jank_ratio,
         missed_present_count,
@@ -797,6 +831,20 @@ fn trace_derived_flush(
     _dirty_derived_count: usize,
 ) {
 }
+
+#[cfg(feature = "native-bridge-metrics")]
+#[inline(always)]
+/// Track projection-key snapshot validation checks and stale detections.
+fn trace_projection_key_assertion(stale: bool) {
+    PROJECTION_KEY_ASSERT_COUNT.fetch_add(1, Ordering::Relaxed);
+    if stale {
+        PROJECTION_KEY_ASSERT_STALE_COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+}
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+/// No-op projection-key snapshot assertion tracer for non-profiling builds.
+fn trace_projection_key_assertion(_stale: bool) {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct MapQueryBoundsKey {
@@ -1811,6 +1859,26 @@ impl SempalNativeBridge {
         key
     }
 
+    /// Return a projection key snapshot and optionally validate it against fresh state.
+    ///
+    /// Validation is opt-in (`SEMPAL_NATIVE_BRIDGE_ASSERT_PROJECTION_SNAPSHOT`) so
+    /// production paths avoid extra hash work. When enabled, stale snapshots are
+    /// counted and immediately corrected to protect correctness during perf audits.
+    fn projection_key_snapshot_for_pull(&mut self) -> NativeProjectionCacheKey {
+        let mut key = self.projection_key_snapshot();
+        if !projection_key_assertions_enabled() {
+            return key;
+        }
+        let fresh_key = build_projection_cache_key(&self.controller);
+        let stale = key != fresh_key;
+        trace_projection_key_assertion(stale);
+        if stale {
+            self.projection_key_snapshot = Some(fresh_key.clone());
+            key = fresh_key;
+        }
+        key
+    }
+
     /// Apply browser-focus movement immediately so wheel/arrow nudges are visible
     /// in the same frame instead of waiting for a pending-input flush boundary.
     fn apply_browser_focus_delta_immediately(&mut self, delta: i8) {
@@ -1972,7 +2040,6 @@ impl SempalNativeBridge {
             info!(call, "native bridge: pull_model start");
         }
         self.flush_pending_input_actions();
-        self.invalidate_projection_key_snapshot();
         self.controller.prepare_native_frame(false);
         self.flush_derived_updates_before_pull(false);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -1980,7 +2047,7 @@ impl SempalNativeBridge {
             trace_pull_model_preparation(prepare_duration);
         }
         let project_start = profiling.then(Instant::now);
-        let projection_key = self.projection_key_snapshot();
+        let projection_key = self.projection_key_snapshot_for_pull();
         let (model, dirty_segments) = self.projection_cache.resolve_or_project_with_key(
             &mut self.controller,
             &projection_key,
@@ -2044,7 +2111,6 @@ impl NativeAppBridge for SempalNativeBridge {
             info!(call, "native bridge: pull_motion_model start");
         }
         self.flush_pending_input_actions();
-        self.invalidate_projection_key_snapshot();
         self.controller.prepare_native_frame(true);
         self.flush_derived_updates_before_pull(true);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -2174,6 +2240,7 @@ mod tests {
     use crate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
     use crate::app_core::state::UpdateStatus;
     use crate::waveform::WaveformRenderer;
+    use std::sync::Arc;
 
     #[test]
     fn projection_cache_key_changes_when_map_cache_revision_changes() {
@@ -2551,6 +2618,8 @@ mod tests {
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
         };
+        let _ = bridge.projection_key_snapshot();
+        assert!(bridge.projection_key_snapshot.is_some());
 
         bridge.mark_dirty_for_action(&NativeUiAction::SetBrowserSearch {
             query: String::from("kick"),
@@ -2559,6 +2628,36 @@ mod tests {
 
         assert!(!bridge.controller.has_dirty_derived_nodes());
         assert!(bridge.projection_cache.app_key.is_none());
+        assert!(bridge.projection_key_snapshot.is_none());
+    }
+
+    /// Repeated no-op pulls should preserve snapshot/cache reuse and avoid full reprojection.
+    #[test]
+    fn pull_model_snapshot_noop_pull_reuses_cached_projection() {
+        let mut bridge = SempalNativeBridge {
+            controller: AppController::new(WaveformRenderer::new(16, 16), None),
+            projection_cache: NativeProjectionCache::default(),
+            projection_key_snapshot: None,
+            last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
+            pending_waveform_actions: PendingWaveformActions::default(),
+        };
+
+        let first_model = bridge.pull_model_arc_snapshot();
+        let Some(first_snapshot) = bridge.projection_key_snapshot.as_ref().cloned() else {
+            panic!("pull should populate projection key snapshot");
+        };
+        let Some(first_cache_key) = bridge.projection_cache.app_key.as_ref().cloned() else {
+            panic!("pull should populate projection cache key");
+        };
+        assert_eq!(first_snapshot, first_cache_key);
+
+        let second_model = bridge.pull_model_arc_snapshot();
+        assert!(Arc::ptr_eq(&first_model, &second_model));
+        assert_eq!(
+            bridge.projection_key_snapshot.as_ref(),
+            Some(&first_snapshot)
+        );
     }
 
     #[cfg(feature = "native-bridge-metrics")]
