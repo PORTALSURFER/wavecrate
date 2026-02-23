@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-23T09:05:55Z
+Last Updated: 2026-02-23T10:13:05Z
 Updated By: Codex
 
 ## Purpose
@@ -9,6 +9,18 @@ Updated By: Codex
 - Record the latest objective and current execution state.
 
 ## Current Session (2026-02-23 UTC)
+
+- I am finalizing ROI item #4 for waveform rendering performance: rewriting
+  `smooth_columns` to avoid repeated iterator-window rescans in the hot path.
+- I replaced the smoothing inner loop in
+  `src/waveform/render/paint.rs` with bounded slice iteration over the active
+  window and precomputed max-weight math, preserving output semantics while
+  reducing per-column overhead.
+- I added regression coverage in `src/waveform/render.rs` to assert the new
+  smoothing path matches a reference implementation of the prior behavior for
+  multiple radii.
+- I ran `bash scripts/ci_local.sh` and it is green; I am committing and pushing
+  this optimization now.
 
 - I am shipping a stronger Windows startup visibility fix after user
   confirmation that the first fallback still left the window invisible.

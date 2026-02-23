@@ -427,4 +427,53 @@ mod tests {
         assert_eq!(WaveformRenderer::smoothing_radius(8.01, 5), 2);
         assert_eq!(WaveformRenderer::smoothing_radius(9.0, 2), 0);
     }
+
+    #[test]
+    /// Smoothing output must remain byte-for-byte stable versus the reference kernel.
+    fn smooth_columns_matches_reference_window() {
+        let columns = vec![
+            (-0.2, 0.3),
+            (-0.5, 0.8),
+            (-0.1, 0.2),
+            (-0.6, 0.7),
+            (-0.3, 0.4),
+            (-0.9, 1.0),
+        ];
+        for radius in [1usize, 2, 3] {
+            let smoothed = WaveformRenderer::smooth_columns(&columns, radius);
+            let reference = reference_smooth_columns(&columns, radius);
+            assert_eq!(smoothed, reference);
+        }
+    }
+
+    /// Reference implementation used to validate smoothing-kernel equivalence.
+    fn reference_smooth_columns(columns: &[(f32, f32)], radius: usize) -> Vec<(f32, f32)> {
+        if radius == 0 || columns.len() < 2 {
+            return columns.to_vec();
+        }
+        let mut smoothed = Vec::with_capacity(columns.len());
+        let len = columns.len();
+        for idx in 0..len {
+            let start = idx.saturating_sub(radius);
+            let end = (idx + radius + 1).min(len);
+            let mut min_sum = 0.0_f32;
+            let mut max_sum = 0.0_f32;
+            let mut weight_sum = 0.0_f32;
+            for (i, &(min, max)) in columns.iter().enumerate().take(end).skip(start) {
+                let dist = idx.abs_diff(i) as f32;
+                let weight = (radius as f32 + 1.0 - dist).max(0.0);
+                min_sum += min * weight;
+                max_sum += max * weight;
+                weight_sum += weight;
+            }
+            let denom = weight_sum.max(1.0);
+            let mut min = min_sum / denom;
+            let mut max = max_sum / denom;
+            let (orig_min, orig_max) = columns[idx];
+            min = min.min(orig_min);
+            max = max.max(orig_max);
+            smoothed.push((min, max));
+        }
+        smoothed
+    }
 }

@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-23T09:05:55Z
+Last updated (UTC): 2026-02-23T10:13:05Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -130,6 +130,9 @@ Purpose:
   - decision unchanged: keep current split, do not extend immediate mode beyond
     overlay actions until compositor-backed repeats are stable.
 - Completed ROI item #1: switched waveform multi-step zoom to single-pass math with regression coverage.
+- Completed ROI item #4: rewrote waveform `smooth_columns` hot loop to use
+  bounded slice iteration and added regression coverage to preserve smoothing
+  semantics.
 - Completed frame-quality telemetry + guardrail milestone:
   - radiant `FrameBuildResult` now carries frame/present timing plus
     `jank` and `missed_present` flags for bridge telemetry,
