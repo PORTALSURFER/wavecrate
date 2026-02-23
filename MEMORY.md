@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-23T10:13:05Z
+Last Updated: 2026-02-23T10:42:00Z
 Updated By: Codex
 
 ## Purpose
@@ -9,6 +9,22 @@ Updated By: Codex
 - Record the latest objective and current execution state.
 
 ## Current Session (2026-02-23 UTC)
+
+- I am finalizing ROI item #5 for browser responsiveness by reducing repeated
+  folder-filter and triage work in browser pipelines.
+- In `src/app/controller/library/wavs/browser_pipeline.rs`, I added a retained
+  folder-filter acceptance stage cache keyed by base snapshot + folder-filter
+  fingerprint and switched filtered/similar stage checks to reuse that cached
+  acceptance map instead of recomputing path checks in each loop.
+- In `src/app/controller/library/wavs/browser_search_worker.rs`, I added:
+  - revision-keyed triage partition caching (`trash`/`neutral`/`keep`),
+  - source+revision+filter-key folder acceptance caching (Arc-backed),
+  - fast-path short-circuit for `VisibleRows::All` before expensive loops,
+  - similar-query path cleanup to avoid the redundant full-entry pass.
+- I added focused regression tests for triage-cache behavior and folder-filter
+  hash-key invalidation behavior in the search worker.
+- I ran `bash scripts/ci_local.sh` successfully (green; perf guard warning-only
+  drift in browser scenarios).
 
 - I am finalizing ROI item #4 for waveform rendering performance: rewriting
   `smooth_columns` to avoid repeated iterator-window rescans in the hot path.

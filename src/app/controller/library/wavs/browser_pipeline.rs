@@ -18,6 +18,10 @@ pub(crate) struct BrowserPipelineCache {
     pub(crate) neutral_rows: Vec<usize>,
     /// Cached triage keep bucket in source list order.
     pub(crate) keep_rows: Vec<usize>,
+    /// Fingerprint for the cached folder-filter acceptance map.
+    folder_accepts_fingerprint: Option<u64>,
+    /// Cached folder-filter acceptance by absolute wav-entry index.
+    folder_accepts_by_index: Vec<bool>,
     /// Fingerprint for the filtered stage rows.
     filtered_fingerprint: Option<u64>,
     /// Filtered absolute entry indices.
@@ -40,6 +44,8 @@ impl BrowserPipelineCache {
         self.trash_rows.clear();
         self.neutral_rows.clear();
         self.keep_rows.clear();
+        self.folder_accepts_fingerprint = None;
+        self.folder_accepts_by_index.clear();
         self.filtered_fingerprint = None;
         self.filtered_rows.clear();
         self.scored_fingerprint = None;
@@ -86,6 +92,14 @@ pub(crate) fn build_visible_rows(
         folder_negated.as_ref(),
         root_mode,
     );
+    ensure_folder_acceptance_stage(
+        controller,
+        folder_selection.as_ref(),
+        folder_negated.as_ref(),
+        root_mode,
+        folder_hash,
+        has_folder_filters,
+    );
 
     if query.is_none()
         && similar_query.is_none()
@@ -117,12 +131,7 @@ pub(crate) fn build_visible_rows(
             if !helpers::filter_accepts(filter, &rating_filter, entry.tag) {
                 continue;
             }
-            if !crate::app::controller::library::source_folders::folder_filter_accepts(
-                &entry.relative_path,
-                folder_selection.as_ref(),
-                folder_negated.as_ref(),
-                root_mode,
-            ) {
+            if !folder_accepts(controller, index) {
                 continue;
             }
             filtered_rows.push(index);
@@ -148,12 +157,7 @@ pub(crate) fn build_visible_rows(
                 if !helpers::filter_accepts(filter, &rating_filter, entry.tag) {
                     continue;
                 }
-                if !crate::app::controller::library::source_folders::folder_filter_accepts(
-                    &entry.relative_path,
-                    folder_selection.as_ref(),
-                    folder_negated.as_ref(),
-                    root_mode,
-                ) {
+                if !folder_accepts(controller, index) {
                     continue;
                 }
                 visible.push(index);
@@ -287,9 +291,85 @@ fn ensure_base_stage(controller: &mut AppController) {
     controller.ui_cache.browser.pipeline.neutral_rows = neutral_rows;
     controller.ui_cache.browser.pipeline.keep_rows = keep_rows;
     controller.ui_cache.browser.pipeline.base_fingerprint = Some(fingerprint);
+    controller
+        .ui_cache
+        .browser
+        .pipeline
+        .folder_accepts_fingerprint = None;
+    controller
+        .ui_cache
+        .browser
+        .pipeline
+        .folder_accepts_by_index
+        .clear();
     controller.ui_cache.browser.pipeline.filtered_fingerprint = None;
     controller.ui_cache.browser.pipeline.scored_fingerprint = None;
     controller.ui_cache.browser.pipeline.sorted_fingerprint = None;
+}
+
+/// Ensure folder-filter acceptance values are cached for the current base snapshot.
+fn ensure_folder_acceptance_stage(
+    controller: &mut AppController,
+    folder_selection: Option<&std::collections::BTreeSet<std::path::PathBuf>>,
+    folder_negated: Option<&std::collections::BTreeSet<std::path::PathBuf>>,
+    root_mode: crate::app::state::RootFolderFilterMode,
+    folder_hash: u64,
+    has_folder_filters: bool,
+) {
+    let base_fingerprint_hash =
+        helpers::hash_value(&controller.ui_cache.browser.pipeline.base_fingerprint);
+    let fingerprint = helpers::hash_value(&(base_fingerprint_hash, folder_hash));
+    let entries_len = controller.wav_entries_len();
+    if controller
+        .ui_cache
+        .browser
+        .pipeline
+        .folder_accepts_fingerprint
+        == Some(fingerprint)
+        && controller
+            .ui_cache
+            .browser
+            .pipeline
+            .folder_accepts_by_index
+            .len()
+            == entries_len
+    {
+        return;
+    }
+
+    let mut accepts = vec![true; entries_len];
+    if has_folder_filters {
+        for (index, slot) in accepts.iter_mut().enumerate() {
+            let accepted = controller.wav_entry(index).is_some_and(|entry| {
+                crate::app::controller::library::source_folders::folder_filter_accepts(
+                    &entry.relative_path,
+                    folder_selection,
+                    folder_negated,
+                    root_mode,
+                )
+            });
+            *slot = accepted;
+        }
+    }
+
+    controller.ui_cache.browser.pipeline.folder_accepts_by_index = accepts;
+    controller
+        .ui_cache
+        .browser
+        .pipeline
+        .folder_accepts_fingerprint = Some(fingerprint);
+}
+
+/// Return cached folder-filter acceptance for an absolute wav-entry index.
+fn folder_accepts(controller: &AppController, index: usize) -> bool {
+    controller
+        .ui_cache
+        .browser
+        .pipeline
+        .folder_accepts_by_index
+        .get(index)
+        .copied()
+        .unwrap_or(false)
 }
 
 /// Return the visible rows output from the sorted stage cache.
