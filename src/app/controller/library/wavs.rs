@@ -524,6 +524,7 @@ impl AppController {
                 }
                 if replaced {
                     self.ui.browser.selected_paths = updated;
+                    self.mark_browser_selected_paths_changed();
                 }
             }
             if self.sample_view.wav.selected_wav.as_deref() == Some(old_path) {
@@ -758,7 +759,10 @@ impl AppController {
         }
         self.focus_browser_context();
         self.ui.browser.autoscroll = true;
-        self.ui.browser.selected_paths.clear();
+        if !self.ui.browser.selected_paths.is_empty() {
+            self.ui.browser.selected_paths.clear();
+            self.mark_browser_selected_paths_changed();
+        }
         self.ui.browser.selection_anchor_visible = None;
         self.selection_state.suppress_autoplay_once = true;
         self.select_wav_by_path(&relative_path);

@@ -89,8 +89,8 @@ pub struct AppController {
     pub(crate) projected_browser_rows_revision: u64,
     /// Static browser-row projection fields keyed by absolute entry index.
     pub(crate) projected_browser_rows: HashMap<usize, ProjectedBrowserRowCacheEntry>,
-    /// Signature for the retained browser selected-path lookup cache.
-    pub(crate) projected_selected_paths_signature: Option<u64>,
+    /// Selected-path revision for the retained browser selected-path lookup cache.
+    pub(crate) projected_selected_paths_revision: Option<u64>,
     /// Selected-path hash lookup reused across native browser projections.
     pub(crate) projected_selected_paths_lookup: Option<HashSet<u64>>,
     wav_entries: WavEntriesState,
@@ -150,7 +150,7 @@ impl AppController {
             projected_waveform_image: None,
             projected_browser_rows_revision: 0,
             projected_browser_rows: HashMap::new(),
-            projected_selected_paths_signature: None,
+            projected_selected_paths_revision: None,
             projected_selected_paths_lookup: None,
             wav_entries: WavEntriesState::new(0, 1024),
             selection_state: ControllerSelectionState::new(),

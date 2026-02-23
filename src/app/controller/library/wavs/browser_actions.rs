@@ -5,6 +5,13 @@ use crate::app::view_model;
 use std::path::Path;
 
 impl AppController {
+    /// Bump selected-path revision and invalidate marker cache after selection-path edits.
+    pub(crate) fn mark_browser_selected_paths_changed(&mut self) {
+        self.ui.browser.selected_paths_revision =
+            self.ui.browser.selected_paths_revision.wrapping_add(1);
+        self.ui.browser.marker_cache = None;
+    }
+
     /// Move browser column selection to the requested triage-column index.
     pub fn select_column_by_index(&mut self, target_index: usize) {
         let target_index = target_index.min(2);
@@ -94,8 +101,19 @@ impl AppController {
     }
 
     fn set_single_browser_selection(&mut self, path: &Path) {
+        if self.ui.browser.selected_paths.len() == 1
+            && self
+                .ui
+                .browser
+                .selected_paths
+                .first()
+                .is_some_and(|selected| selected == path)
+        {
+            return;
+        }
         self.ui.browser.selected_paths.clear();
         self.ui.browser.selected_paths.push(path.to_path_buf());
+        self.mark_browser_selected_paths_changed();
     }
 
     fn toggle_browser_selection(&mut self, path: &Path) {
@@ -110,6 +128,7 @@ impl AppController {
         } else {
             self.ui.browser.selected_paths.push(path.to_path_buf());
         }
+        self.mark_browser_selected_paths_changed();
     }
 
     fn extend_browser_selection_to(&mut self, target_visible: usize, additive: bool) {
@@ -127,7 +146,11 @@ impl AppController {
             .min(max_row);
         let start = anchor.min(target_visible);
         let end = anchor.max(target_visible);
+        let mut selection_changed = false;
         if !additive {
+            if !self.ui.browser.selected_paths.is_empty() {
+                selection_changed = true;
+            }
             self.ui.browser.selected_paths.clear();
         }
         for row in start..=end {
@@ -135,7 +158,11 @@ impl AppController {
                 && !self.ui.browser.selected_paths.iter().any(|p| p == &path)
             {
                 self.ui.browser.selected_paths.push(path);
+                selection_changed = true;
             }
+        }
+        if selection_changed {
+            self.mark_browser_selected_paths_changed();
         }
         self.ui.browser.selection_anchor_visible = Some(anchor);
     }
@@ -343,6 +370,7 @@ impl AppController {
             return;
         }
         self.ui.browser.selected_paths.clear();
+        self.mark_browser_selected_paths_changed();
         self.ui.browser.selection_anchor_visible = None;
         self.rebuild_browser_lists();
     }
@@ -354,6 +382,7 @@ impl AppController {
         }
         self.focus_browser_context();
         self.ui.browser.autoscroll = false;
+        let previous_paths = self.ui.browser.selected_paths.clone();
         self.ui.browser.selected_paths.clear();
         self.ui
             .browser
@@ -381,6 +410,9 @@ impl AppController {
                     }
                 }
             }
+        }
+        if self.ui.browser.selected_paths != previous_paths {
+            self.mark_browser_selected_paths_changed();
         }
         let anchor = self
             .ui
@@ -430,7 +462,11 @@ impl AppController {
         self.ui.browser.selected = None;
         self.ui.browser.selected_visible = None;
         self.ui.browser.selection_anchor_visible = None;
+        let had_selected_paths = !self.ui.browser.selected_paths.is_empty();
         self.ui.browser.selected_paths.clear();
+        if had_selected_paths {
+            self.mark_browser_selected_paths_changed();
+        }
         self.rebuild_browser_lists();
     }
 

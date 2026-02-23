@@ -29,6 +29,8 @@ pub struct SampleBrowserState {
     pub selection_anchor_visible: Option<usize>,
     /// Paths currently included in the multi-selection set.
     pub selected_paths: Vec<PathBuf>,
+    /// Monotonic revision bumped whenever `selected_paths` changes.
+    pub selected_paths_revision: u64,
     /// Last marker-input snapshot used to short-circuit redundant marker recomputes.
     pub marker_cache: Option<BrowserMarkerCacheState>,
     /// Last focused browser item to restore focus after context changes.
@@ -85,6 +87,7 @@ impl Default for SampleBrowserState {
             loaded_visible: None,
             selection_anchor_visible: None,
             selected_paths: Vec::new(),
+            selected_paths_revision: 0,
             marker_cache: None,
             last_focused_path: None,
             autoscroll: false,

@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-23T10:42:00Z
+Last Updated: 2026-02-23T11:02:22Z
 Updated By: Codex
 
 ## Purpose
@@ -9,6 +9,17 @@ Updated By: Codex
 - Record the latest objective and current execution state.
 
 ## Current Session (2026-02-23 UTC)
+
+- I am finalizing ROI item #8 for list responsiveness: avoid selected-path
+  lookup hash rebuilds unless the browser selection revision changes.
+- I added `selected_paths_revision` to browser UI state and switched
+  native-shell selected-path lookup refresh to gate on that revision instead of
+  re-hashing the full selected-path vector every projection pass.
+- I added selection-revision bump wiring across browser selection mutation
+  paths (single/toggle/range/select-all/clear/blur/prune/rename-map updates) so
+  lookup cache invalidation remains correct.
+- I updated native-shell retained-lookup tests to bump revision when mutating
+  selected paths directly and validated with `bash scripts/ci_local.sh` (green).
 
 - I am finalizing ROI item #5 for browser responsiveness by reducing repeated
   folder-filter and triage work in browser pipelines.

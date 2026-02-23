@@ -840,13 +840,6 @@ pub(crate) fn project_browser_model(controller: &mut AppController) -> BrowserPa
     panel
 }
 
-/// Build a stable signature for the browser selected-path list.
-fn browser_selected_paths_signature(paths: &[PathBuf]) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    paths.hash(&mut hasher);
-    hasher.finish()
-}
-
 /// Hash one path for selected-row lookup checks.
 fn selected_path_lookup_hash(path: &Path) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -856,23 +849,28 @@ fn selected_path_lookup_hash(path: &Path) -> u64 {
 
 /// Clear the retained selected-path lookup cache.
 fn clear_projected_selected_paths_lookup(controller: &mut AppController) {
-    controller.projected_selected_paths_signature = None;
+    controller.projected_selected_paths_revision =
+        Some(controller.ui.browser.selected_paths_revision);
     controller.projected_selected_paths_lookup = None;
 }
 
 /// Refresh the retained selected-path lookup cache when selection changes.
 fn refresh_projected_selected_paths_lookup(controller: &mut AppController) {
+    let selection_revision = controller.ui.browser.selected_paths_revision;
     if controller.ui.browser.selected_paths.is_empty() {
-        clear_projected_selected_paths_lookup(controller);
+        if controller.projected_selected_paths_lookup.is_some()
+            || controller.projected_selected_paths_revision != Some(selection_revision)
+        {
+            clear_projected_selected_paths_lookup(controller);
+        }
         return;
     }
-    let signature = browser_selected_paths_signature(&controller.ui.browser.selected_paths);
-    if controller.projected_selected_paths_signature == Some(signature)
+    if controller.projected_selected_paths_revision == Some(selection_revision)
         && controller.projected_selected_paths_lookup.is_some()
     {
         return;
     }
-    controller.projected_selected_paths_signature = Some(signature);
+    controller.projected_selected_paths_revision = Some(selection_revision);
     controller.projected_selected_paths_lookup = Some(
         controller
             .ui
@@ -1772,6 +1770,11 @@ mod tests {
         let mut controller =
             AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
         controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("first.wav")];
+        controller.ui.browser.selected_paths_revision = controller
+            .ui
+            .browser
+            .selected_paths_revision
+            .wrapping_add(1);
         refresh_projected_selected_paths_lookup(&mut controller);
         assert!(selected_path_is_selected(
             &controller,
@@ -1783,6 +1786,11 @@ mod tests {
         ));
 
         controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("second.wav")];
+        controller.ui.browser.selected_paths_revision = controller
+            .ui
+            .browser
+            .selected_paths_revision
+            .wrapping_add(1);
         refresh_projected_selected_paths_lookup(&mut controller);
         assert!(!selected_path_is_selected(
             &controller,

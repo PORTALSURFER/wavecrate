@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-23T10:42:00Z
+Last updated (UTC): 2026-02-23T11:02:22Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -136,6 +136,9 @@ Purpose:
 - Completed ROI item #5: cached folder-filter acceptance in retained browser
   pipeline + async worker, and switched search-worker triage partitions to
   revision-keyed cache reuse.
+- Completed ROI item #8: switched native-shell selected-path lookup refresh to
+  selection-revision gating and wired revision bumps through browser
+  selected-path mutation flows.
 - Completed frame-quality telemetry + guardrail milestone:
   - radiant `FrameBuildResult` now carries frame/present timing plus
     `jank` and `missed_present` flags for bridge telemetry,

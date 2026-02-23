@@ -110,7 +110,7 @@ impl AppController {
         }
         self.ui.browser.selected_paths = kept;
         if self.ui.browser.selected_paths != previous_paths {
-            self.ui.browser.marker_cache = None;
+            self.mark_browser_selected_paths_changed();
         }
         let selected_wav = self.sample_view.wav.selected_wav.clone();
         if let Some(path) = selected_wav
