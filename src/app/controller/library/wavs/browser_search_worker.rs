@@ -74,7 +74,7 @@ struct WorkerQueryScoreCacheEntry {
     source_id: String,
     revision: u64,
     query: String,
-    scores: Vec<Option<i64>>,
+    scores: Arc<[Option<i64>]>,
 }
 
 /// Cached folder-filter acceptance vector for one source revision + folder filter shape.
@@ -90,10 +90,13 @@ struct WorkerTriageCacheEntry {
     source_id: String,
     revision: u64,
     len: usize,
-    trash: Vec<usize>,
-    neutral: Vec<usize>,
-    keep: Vec<usize>,
+    trash: Arc<[usize]>,
+    neutral: Arc<[usize]>,
+    keep: Arc<[usize]>,
 }
+
+/// Shared triage partitions in source-list index order.
+type TriagePartitions = (Arc<[usize]>, Arc<[usize]>, Arc<[usize]>);
 
 #[derive(Default)]
 struct SearchJobQueueState {
@@ -330,7 +333,7 @@ fn process_search_job(
         job.folder_negated.as_ref(),
         job.root_mode,
     );
-    let mut scores = vec![None; entries_len];
+    let mut scores: Arc<[Option<i64>]> = Arc::from([]);
 
     if has_query {
         let Some(entries) = cache.entries.as_ref() else {
@@ -343,30 +346,25 @@ fn process_search_job(
                 && cached.scores.len() == entries_len
         }) {
             let cached = cache.query_score_cache.remove(index);
-            scores = cached.scores;
-            cache.query_score_cache.insert(
-                0,
-                WorkerQueryScoreCacheEntry {
-                    source_id: job_source_id_str.clone(),
-                    revision: cache.revision,
-                    query: job.query.clone(),
-                    scores: scores.clone(),
-                },
-            );
+            scores = Arc::clone(&cached.scores);
+            cache.query_score_cache.insert(0, cached);
         } else {
+            let mut computed_scores = vec![None; entries_len];
             for (index, entry) in entries.iter().enumerate() {
-                scores[index] = matcher.fuzzy_match(&entry.display_label, &job.query);
+                computed_scores[index] = matcher.fuzzy_match(&entry.display_label, &job.query);
             }
+            let computed_scores: Arc<[Option<i64>]> = computed_scores.into();
             cache.query_score_cache.insert(
                 0,
                 WorkerQueryScoreCacheEntry {
                     source_id: job_source_id_str.clone(),
                     revision: cache.revision,
                     query: job.query.clone(),
-                    scores: scores.clone(),
+                    scores: Arc::clone(&computed_scores),
                 },
             );
             cache.query_score_cache.truncate(cache.max_cached_queries);
+            scores = computed_scores;
         }
     }
 
@@ -384,10 +382,10 @@ fn process_search_job(
             source_id: job.source_id,
             query: job.query,
             visible: VisibleRows::All { total: entries_len },
-            trash,
-            neutral,
-            keep,
-            scores,
+            trash: trash.as_ref().to_vec(),
+            neutral: neutral.as_ref().to_vec(),
+            keep: keep.as_ref().to_vec(),
+            scores: Vec::new(),
         };
     }
 
@@ -466,7 +464,7 @@ fn process_search_job(
                 continue;
             }
             if has_query {
-                if let Some(score) = scores[index] {
+                if let Some(score) = scores.get(index).and_then(|score| *score) {
                     scratch.push((index, score));
                 }
             } else {
@@ -494,10 +492,14 @@ fn process_search_job(
         source_id: job.source_id,
         query: job.query,
         visible: VisibleRows::List(visible.into()),
-        trash,
-        neutral,
-        keep,
-        scores,
+        trash: trash.as_ref().to_vec(),
+        neutral: neutral.as_ref().to_vec(),
+        keep: keep.as_ref().to_vec(),
+        scores: if has_query {
+            scores.as_ref().to_vec()
+        } else {
+            Vec::new()
+        },
     }
 }
 
@@ -594,10 +596,10 @@ fn triage_partitions_for_revision(
     cache: &mut SearchWorkerCache,
     source_id: &str,
     revision: u64,
-) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
+) -> TriagePartitions {
     let entries = match cache.entries.as_ref() {
         Some(entries) => entries,
-        None => return (Vec::new(), Vec::new(), Vec::new()),
+        None => return (Arc::from([]), Arc::from([]), Arc::from([])),
     };
     let needs_rebuild = cache
         .triage_cache
@@ -625,19 +627,19 @@ fn triage_partitions_for_revision(
             source_id: source_id.to_string(),
             revision,
             len: entries.len(),
-            trash,
-            neutral,
-            keep,
+            trash: trash.into(),
+            neutral: neutral.into(),
+            keep: keep.into(),
         });
     }
     if let Some(cached) = cache.triage_cache.as_ref() {
         return (
-            cached.trash.clone(),
-            cached.neutral.clone(),
-            cached.keep.clone(),
+            Arc::clone(&cached.trash),
+            Arc::clone(&cached.neutral),
+            Arc::clone(&cached.keep),
         );
     }
-    (Vec::new(), Vec::new(), Vec::new())
+    (Arc::from([]), Arc::from([]), Arc::from([]))
 }
 
 /// Hash a folder-filter payload into a stable worker cache key.
@@ -830,10 +832,12 @@ mod tests {
         let first = triage_partitions_for_revision(&mut cache, "source", 7);
         let second = triage_partitions_for_revision(&mut cache, "source", 7);
 
-        assert_eq!(first.0, vec![0]);
-        assert_eq!(first.1, vec![1]);
-        assert_eq!(first.2, vec![2]);
-        assert_eq!(first, second);
+        assert_eq!(first.0.as_ref(), &[0]);
+        assert_eq!(first.1.as_ref(), &[1]);
+        assert_eq!(first.2.as_ref(), &[2]);
+        assert!(Arc::ptr_eq(&first.0, &second.0));
+        assert!(Arc::ptr_eq(&first.1, &second.1));
+        assert!(Arc::ptr_eq(&first.2, &second.2));
         assert!(cache.triage_cache.is_some());
     }
 
