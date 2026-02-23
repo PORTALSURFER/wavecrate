@@ -35,6 +35,7 @@ use std::{
     cell::RefCell,
     hash::{Hash, Hasher},
     rc::Rc,
+    sync::Arc,
     time::{Duration, Instant},
 };
 use tracing::{error, info};
@@ -980,7 +981,7 @@ struct NonSegmentStaticProjectionCacheKey {
 #[derive(Clone, Debug, Default)]
 struct NativeProjectionCache {
     app_key: Option<NativeProjectionCacheKey>,
-    app_model: Option<NativeAppModel>,
+    app_model: Option<Arc<NativeAppModel>>,
     status_key: Option<StatusProjectionCacheKey>,
     browser_frame_key: Option<BrowserFrameProjectionCacheKey>,
     browser_rows_key: Option<BrowserRowsProjectionCacheKey>,
@@ -1050,7 +1051,7 @@ impl NativeProjectionCache {
         &mut self,
         controller: &mut AppController,
         project: impl FnOnce(&mut AppController) -> NativeAppModel,
-    ) -> (NativeAppModel, NativeDirtySegments) {
+    ) -> (Arc<NativeAppModel>, NativeDirtySegments) {
         let key = build_projection_cache_key(controller);
         self.resolve_or_project_with_key(controller, &key, project)
     }
@@ -1061,9 +1062,9 @@ impl NativeProjectionCache {
         controller: &mut AppController,
         key: &NativeProjectionCacheKey,
         project: impl FnOnce(&mut AppController) -> NativeAppModel,
-    ) -> (NativeAppModel, NativeDirtySegments) {
+    ) -> (Arc<NativeAppModel>, NativeDirtySegments) {
         if self.app_key.as_ref() == Some(key)
-            && let Some(model) = self.app_model.as_ref().cloned()
+            && let Some(model) = self.app_model.as_ref().map(Arc::clone)
         {
             trace_projection_cache_lookup(true);
             self.record_segment_lookup(ProjectionSegment::StatusBar, true);
@@ -1081,8 +1082,8 @@ impl NativeProjectionCache {
         let map_key = build_map_projection_key(controller);
         let waveform_key = build_waveform_projection_key(controller);
         let non_segment_static_key = build_non_segment_static_projection_key(controller);
-        let mut model = if let Some(existing) = self.app_model.clone() {
-            existing
+        let mut model = if let Some(existing) = self.app_model.take() {
+            Arc::unwrap_or_clone(existing)
         } else {
             self.record_segment_lookup(ProjectionSegment::StatusBar, false);
             self.record_segment_lookup(ProjectionSegment::BrowserFrame, false);
@@ -1091,7 +1092,8 @@ impl NativeProjectionCache {
             self.record_segment_lookup(ProjectionSegment::WaveformOverlay, false);
             let model = project(controller);
             self.app_key = Some(key.clone());
-            self.app_model = Some(model.clone());
+            let model = Arc::new(model);
+            self.app_model = Some(Arc::clone(&model));
             self.status_key = Some(status_key);
             self.browser_frame_key = Some(browser_frame_key);
             self.browser_rows_key = Some(browser_rows_key);
@@ -1175,7 +1177,8 @@ impl NativeProjectionCache {
 
         Self::refresh_non_segment_fields(&mut model, controller);
         self.app_key = Some(key.clone());
-        self.app_model = Some(model.clone());
+        let model = Arc::new(model);
+        self.app_model = Some(Arc::clone(&model));
         (model, dirty_segments)
     }
 
@@ -1959,10 +1962,9 @@ impl SempalNativeBridge {
             trace_derived_flush(flush_duration, dirty_sources, dirty_computed);
         }
     }
-}
 
-impl NativeAppBridge for SempalNativeBridge {
-    fn pull_model(&mut self) -> NativeAppModel {
+    /// Pull and project the latest app model snapshot as a shared retained arc.
+    fn pull_model_arc_snapshot(&mut self) -> Arc<NativeAppModel> {
         let call = trace_pull_model_call();
         let profiling = bridge_profiling_enabled();
         let prepare_start = profiling.then(Instant::now);
@@ -2004,6 +2006,24 @@ impl NativeAppBridge for SempalNativeBridge {
             maybe_log_bridge_profile();
         }
         model
+    }
+}
+
+impl NativeAppBridge for SempalNativeBridge {
+    /// Pull the latest app model snapshot for runtimes expecting owned values.
+    ///
+    /// This compatibility path may clone when shared ownership exists; native
+    /// Vello consumes `pull_model_arc` to avoid full-model clone churn.
+    fn pull_model(&mut self) -> NativeAppModel {
+        Arc::unwrap_or_clone(self.pull_model_arc_snapshot())
+    }
+
+    /// Pull the latest app model snapshot as a shared immutable arc.
+    ///
+    /// Returning shared ownership lets retained projection caches reuse model
+    /// snapshots across pulls without cloning the full `AppModel`.
+    fn pull_model_arc(&mut self) -> Arc<NativeAppModel> {
+        self.pull_model_arc_snapshot()
     }
 
     /// Return and clear the bridge segment mask from the most recent model pull.
@@ -2206,7 +2226,7 @@ mod tests {
             controller.project_native_app_model()
         });
         assert_eq!(projections, 1);
-        assert_eq!(refreshed.0.status_text, "changed");
+        assert_eq!(refreshed.0.status_text.as_str(), "changed");
     }
 
     #[test]
