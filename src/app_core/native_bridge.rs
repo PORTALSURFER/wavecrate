@@ -419,6 +419,8 @@ fn maybe_log_bridge_profile() {
     let projection_key_assert_count = PROJECTION_KEY_ASSERT_COUNT.load(Ordering::Relaxed);
     let projection_key_assert_stale_count =
         PROJECTION_KEY_ASSERT_STALE_COUNT.load(Ordering::Relaxed);
+    let (browser_row_cache_hit_count, browser_row_cache_miss_count) =
+        native_shell::browser_row_cache_lookup_counts();
     let pull_model_avg_prep_ms = if pull_model_count == 0 {
         0.0
     } else {
@@ -539,6 +541,7 @@ fn maybe_log_bridge_profile() {
          derived_flush_ms={:.3} derived_dirty_sources={:.2} derived_dirty_computed={:.2} \
          avg_primitives_per_frame={:.2} avg_text_runs_per_frame={:.2} \
          frame_avg_ms={:.3} present_avg_ms={:.3} frame_budget_us={} \
+         browser_row_cache hits={} misses={} \
          projection_key_assert_count={} projection_key_assert_stale_count={} \
          jank_count={} jank_ratio={:.3} missed_present_count={} missed_present_ratio={:.3}",
         pull_model_avg_prep_ms,
@@ -574,6 +577,8 @@ fn maybe_log_bridge_profile() {
         frame_total_avg_ms,
         present_avg_ms,
         frame_budget_us,
+        browser_row_cache_hit_count,
+        browser_row_cache_miss_count,
         projection_key_assert_count,
         projection_key_assert_stale_count,
         jank_count,

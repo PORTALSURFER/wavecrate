@@ -44,8 +44,38 @@ use std::{
 use tracing::info;
 
 static PROJECT_APP_MODEL_CALLS: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Number of browser-row cache lookups that reused retained row projection data.
+static BROWSER_ROW_CACHE_HIT_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(feature = "native-bridge-metrics")]
+/// Number of browser-row cache lookups that rebuilt retained row projection data.
+static BROWSER_ROW_CACHE_MISS_COUNT: AtomicU64 = AtomicU64::new(0);
 /// Cap retained browser-row projection cache growth per visible-row revision.
 const MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE: usize = MAX_RENDERED_BROWSER_ROWS * 8;
+
+/// Record one browser-row cache hit/miss lookup decision.
+#[cfg(feature = "native-bridge-metrics")]
+fn trace_browser_row_cache_lookup(hit: bool) {
+    if hit {
+        BROWSER_ROW_CACHE_HIT_COUNT.fetch_add(1, Ordering::Relaxed);
+    } else {
+        BROWSER_ROW_CACHE_MISS_COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+/// No-op browser-row cache lookup tracer when bridge metrics are disabled.
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+fn trace_browser_row_cache_lookup(_hit: bool) {}
+
+/// Return browser-row cache hit/miss counters for bridge profiling summaries.
+#[cfg(feature = "native-bridge-metrics")]
+pub(crate) fn browser_row_cache_lookup_counts() -> (u64, u64) {
+    (
+        BROWSER_ROW_CACHE_HIT_COUNT.load(Ordering::Relaxed),
+        BROWSER_ROW_CACHE_MISS_COUNT.load(Ordering::Relaxed),
+    )
+}
 
 pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
     let call = PROJECT_APP_MODEL_CALLS.fetch_add(1, Ordering::Relaxed) + 1;
@@ -841,8 +871,8 @@ pub(crate) fn project_browser_model(controller: &mut AppController) -> BrowserPa
     panel
 }
 
-/// Hash one path for selected-row lookup checks.
-fn selected_path_lookup_hash(path: &Path) -> u64 {
+/// Hash one relative path into a stable row-identity scalar.
+fn browser_row_identity_hash(path: &Path) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     path.hash(&mut hasher);
     hasher.finish()
@@ -855,7 +885,7 @@ fn clear_projected_selected_paths_lookup(controller: &mut AppController) {
     controller.projected_selected_paths_lookup = None;
 }
 
-/// Refresh the retained selected-path lookup cache when selection changes.
+/// Refresh the retained selected-index bitset when selection changes.
 fn refresh_projected_selected_paths_lookup(controller: &mut AppController) {
     let selection_revision = controller.ui.browser.selected_paths_revision;
     if controller.ui.browser.selected_paths.is_empty() {
@@ -871,33 +901,27 @@ fn refresh_projected_selected_paths_lookup(controller: &mut AppController) {
     {
         return;
     }
+    let mut selected_index_lookup = vec![false; controller.wav_entries_len()];
+    for selected_path_idx in 0..controller.ui.browser.selected_paths.len() {
+        let selected_path = controller.ui.browser.selected_paths[selected_path_idx].clone();
+        if let Some(absolute_index) = controller.wav_index_for_path(selected_path.as_path())
+            && let Some(selected) = selected_index_lookup.get_mut(absolute_index)
+        {
+            *selected = true;
+        }
+    }
     controller.projected_selected_paths_revision = Some(selection_revision);
-    controller.projected_selected_paths_lookup = Some(
-        controller
-            .ui
-            .browser
-            .selected_paths
-            .iter()
-            .map(|path| selected_path_lookup_hash(path.as_path()))
-            .collect::<HashSet<_>>(),
-    );
+    controller.projected_selected_paths_lookup = Some(selected_index_lookup);
 }
 
-/// Return whether `relative_path` is selected in the retained selected-path lookup cache.
-#[cfg(test)]
-fn selected_path_is_selected(controller: &AppController, relative_path: &Path) -> bool {
+/// Return whether one absolute row index is selected in the retained lookup bitset.
+fn selected_index_is_selected(controller: &AppController, absolute_index: usize) -> bool {
     controller
         .projected_selected_paths_lookup
         .as_ref()
-        .is_some_and(|lookup| lookup.contains(&selected_path_lookup_hash(relative_path)))
-}
-
-/// Return whether one precomputed selected-path hash is selected.
-fn selected_hash_is_selected(controller: &AppController, selected_lookup_hash: u64) -> bool {
-    controller
-        .projected_selected_paths_lookup
-        .as_ref()
-        .is_some_and(|lookup| lookup.contains(&selected_lookup_hash))
+        .and_then(|lookup| lookup.get(absolute_index))
+        .copied()
+        .unwrap_or(false)
 }
 
 /// Clear retained browser-row projection fields.
@@ -917,10 +941,10 @@ fn refresh_projected_browser_row_cache(controller: &mut AppController) {
 /// Return true when one cached browser-row projection still matches the entry snapshot.
 fn cached_browser_row_matches_entry(
     cached: &ProjectedBrowserRowCacheEntry,
-    relative_path: &Path,
+    row_identity_hash: u64,
     column_index: usize,
 ) -> bool {
-    cached.relative_path.as_path() == relative_path && cached.column_index == column_index
+    cached.row_identity_hash == row_identity_hash && cached.column_index == column_index
 }
 
 /// Resolve static browser-row projection fields from cache, inserting on cache miss.
@@ -928,27 +952,33 @@ fn project_cached_browser_row(
     controller: &mut AppController,
     absolute_index: usize,
 ) -> Option<(&ProjectedBrowserRowCacheEntry, bool)> {
-    let (entry_tag, relative_path) = controller
-        .wav_entry(absolute_index)
-        .map(|entry| (entry.tag, entry.relative_path.clone()))?;
+    let (entry_tag, row_identity_hash) = controller.wav_entry(absolute_index).map(|entry| {
+        (
+            entry.tag,
+            browser_row_identity_hash(entry.relative_path.as_path()),
+        )
+    })?;
     let column_index = browser_column_index(entry_tag);
     let cache_hit = controller
         .projected_browser_rows
         .get(&absolute_index)
         .is_some_and(|cached| {
-            cached_browser_row_matches_entry(cached, &relative_path, column_index)
+            cached_browser_row_matches_entry(cached, row_identity_hash, column_index)
         });
+    trace_browser_row_cache_lookup(cache_hit);
     if !cache_hit {
+        let relative_path = controller
+            .wav_entry(absolute_index)
+            .map(|entry| entry.relative_path.clone())?;
         let row_label = controller
             .label_for_ref(absolute_index)
             .map(str::to_string)
-            .unwrap_or_else(|| view_model::sample_display_label(&relative_path));
+            .unwrap_or_else(|| view_model::sample_display_label(relative_path.as_path()));
         let cached = ProjectedBrowserRowCacheEntry {
-            selected_lookup_hash: selected_path_lookup_hash(relative_path.as_path()),
+            row_identity_hash,
             row_label,
             column_index,
-            bucket_label: browser_bucket_label(controller, &relative_path, entry_tag),
-            relative_path: relative_path.clone(),
+            bucket_label: browser_bucket_label(controller, relative_path.as_path(), entry_tag),
         };
         if controller.projected_browser_rows.len() >= MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE {
             clear_projected_browser_row_cache(controller);
@@ -960,7 +990,7 @@ fn project_cached_browser_row(
     let projected = controller.projected_browser_rows.get(&absolute_index)?;
     Some((
         projected,
-        selected_hash_is_selected(controller, projected.selected_lookup_hash),
+        selected_index_is_selected(controller, absolute_index),
     ))
 }
 
@@ -1754,8 +1784,7 @@ mod tests {
         controller.projected_browser_rows.insert(
             0,
             ProjectedBrowserRowCacheEntry {
-                relative_path: std::path::PathBuf::from("kick.wav"),
-                selected_lookup_hash: selected_path_lookup_hash(std::path::Path::new("kick.wav")),
+                row_identity_hash: browser_row_identity_hash(std::path::Path::new("kick.wav")),
                 row_label: String::from("Kick"),
                 column_index: 1,
                 bucket_label: String::from("SAMPLE"),
@@ -1774,6 +1803,28 @@ mod tests {
     fn selected_path_lookup_refreshes_for_same_len_path_changes() {
         let mut controller =
             AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
+        controller.set_wav_entries_for_tests(vec![
+            crate::sample_sources::WavEntry {
+                relative_path: std::path::PathBuf::from("first.wav"),
+                file_size: 0,
+                modified_ns: 0,
+                content_hash: Some(String::from("hash-a")),
+                tag: crate::sample_sources::Rating::NEUTRAL,
+                looped: false,
+                missing: false,
+                last_played_at: None,
+            },
+            crate::sample_sources::WavEntry {
+                relative_path: std::path::PathBuf::from("second.wav"),
+                file_size: 0,
+                modified_ns: 0,
+                content_hash: Some(String::from("hash-b")),
+                tag: crate::sample_sources::Rating::NEUTRAL,
+                looped: false,
+                missing: false,
+                last_played_at: None,
+            },
+        ]);
         controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("first.wav")];
         controller.ui.browser.selected_paths_revision = controller
             .ui
@@ -1781,14 +1832,8 @@ mod tests {
             .selected_paths_revision
             .wrapping_add(1);
         refresh_projected_selected_paths_lookup(&mut controller);
-        assert!(selected_path_is_selected(
-            &controller,
-            std::path::Path::new("first.wav")
-        ));
-        assert!(!selected_path_is_selected(
-            &controller,
-            std::path::Path::new("second.wav")
-        ));
+        assert!(selected_index_is_selected(&controller, 0));
+        assert!(!selected_index_is_selected(&controller, 1));
 
         controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("second.wav")];
         controller.ui.browser.selected_paths_revision = controller
@@ -1797,14 +1842,8 @@ mod tests {
             .selected_paths_revision
             .wrapping_add(1);
         refresh_projected_selected_paths_lookup(&mut controller);
-        assert!(!selected_path_is_selected(
-            &controller,
-            std::path::Path::new("first.wav")
-        ));
-        assert!(selected_path_is_selected(
-            &controller,
-            std::path::Path::new("second.wav")
-        ));
+        assert!(!selected_index_is_selected(&controller, 0));
+        assert!(selected_index_is_selected(&controller, 1));
     }
 
     #[test]
@@ -1825,8 +1864,7 @@ mod tests {
         controller.projected_browser_rows.insert(
             0,
             ProjectedBrowserRowCacheEntry {
-                relative_path: std::path::PathBuf::from("kick.wav"),
-                selected_lookup_hash: selected_path_lookup_hash(std::path::Path::new("kick.wav")),
+                row_identity_hash: browser_row_identity_hash(std::path::Path::new("kick.wav")),
                 row_label: String::from("Kick"),
                 column_index: 1,
                 bucket_label: String::from("SAMPLE"),

@@ -35,7 +35,7 @@ use playback::audio_loader::{AudioLoadError, AudioLoadJob, AudioLoadOutcome};
 use rfd::FileDialog;
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
@@ -60,10 +60,8 @@ pub(crate) const STATUS_LOG_LIMIT: usize = 200;
 /// Retained browser-row projection fields keyed by absolute entry index.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ProjectedBrowserRowCacheEntry {
-    /// Relative sample path used to validate cache hits against live entry data.
-    pub relative_path: PathBuf,
-    /// Pre-hashed relative-path key used by selected-path lookup checks.
-    pub selected_lookup_hash: u64,
+    /// Stable row-identity hash derived from the live entry relative path.
+    pub row_identity_hash: u64,
     /// Stable rendered row label for the browser list.
     pub row_label: String,
     /// Triage column index (`0..=2`) for this row.
@@ -91,8 +89,8 @@ pub struct AppController {
     pub(crate) projected_browser_rows: HashMap<usize, ProjectedBrowserRowCacheEntry>,
     /// Selected-path revision for the retained browser selected-path lookup cache.
     pub(crate) projected_selected_paths_revision: Option<u64>,
-    /// Selected-path hash lookup reused across native browser projections.
-    pub(crate) projected_selected_paths_lookup: Option<HashSet<u64>>,
+    /// Selected absolute-index bitset reused across native browser projections.
+    pub(crate) projected_selected_paths_lookup: Option<Vec<bool>>,
     wav_entries: WavEntriesState,
     selection_state: ControllerSelectionState,
     pub(crate) settings: AppSettingsState,
