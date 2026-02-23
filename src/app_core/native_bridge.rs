@@ -1954,7 +1954,6 @@ impl SempalNativeBridge {
         let mut emitted_actions = 0u64;
 
         self.controller.begin_waveform_refresh_batch();
-        self.invalidate_projection_key_snapshot();
         if pending.zoom_full {
             self.controller
                 .apply_native_ui_action(NativeUiAction::ZoomWaveformFull);
@@ -1998,8 +1997,16 @@ impl SempalNativeBridge {
             emitted_actions = emitted_actions.saturating_add(1);
         }
         self.controller.end_waveform_refresh_batch();
-        let after_key = self.projection_key_snapshot();
+        if emitted_actions == 0 {
+            if profiling {
+                let flush_duration = flush_start.map_or(Duration::ZERO, |start| start.elapsed());
+                trace_waveform_flush(flush_duration, emitted_actions);
+            }
+            return;
+        }
+        let after_key = build_projection_cache_key(&self.controller);
         if before_key != after_key {
+            self.projection_key_snapshot = Some(after_key);
             self.controller
                 .mark_derived_source_dirty(DerivedNodeId::WaveformState, pending.dirty_reason());
         }
@@ -2578,6 +2585,9 @@ mod tests {
             })
         );
         bridge.flush_pending_waveform_actions();
+        let Some(first_snapshot) = bridge.projection_key_snapshot.as_ref().cloned() else {
+            panic!("waveform flush should retain a projection key snapshot");
+        };
         bridge.flush_derived_updates_before_pull(false);
         assert!(!bridge.controller.has_dirty_derived_nodes());
 
@@ -2592,6 +2602,10 @@ mod tests {
             !bridge
                 .controller
                 .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+        );
+        assert_eq!(
+            bridge.projection_key_snapshot.as_ref(),
+            Some(&first_snapshot)
         );
     }
 
