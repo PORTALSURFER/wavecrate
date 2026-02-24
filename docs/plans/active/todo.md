@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-24T11:33:24Z
+Last updated (UTC): 2026-02-24T14:11:37Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -25,6 +25,16 @@ Purpose:
 
 ## Done recently
 
+- Implemented first browser-projection drift reduction pass for item 1:
+  - added single-selection fast path for retained selected-path lookup
+    (`ProjectedSelectedPathsLookup::Single`) to avoid dense bitset rebuild
+    churn on focus/wheel-heavy interactions.
+  - reduced browser row rewrite churn by skipping label/bucket string rewrites
+    when row slot content is unchanged.
+  - validated with `bash scripts/run_perf_guard.sh` artifact
+    `target/perf/bench.post_item1.clean2.json` (clean run showed lower
+    p95s for filter/wheel/hover versus pre-change local sample).
+  - CI remained green (`bash scripts/ci_local.sh`).
 - Completed startup-profile threshold calibration on compositor-backed runs:
   - `target/perf/bench.startup_calibration2.startup_summary.json`
   - 5/5 valid startup profiles

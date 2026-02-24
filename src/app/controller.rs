@@ -104,6 +104,15 @@ pub(crate) struct ProjectedMapPointCacheEntry {
     pub cluster_id: Option<i32>,
 }
 
+/// Retained selected-row lookup representation for browser projections.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ProjectedSelectedPathsLookup {
+    /// Fast path for the common single-selection case.
+    Single(usize),
+    /// Dense lookup used for larger multi-selections.
+    Dense(Vec<bool>),
+}
+
 /// Maintains app state and bridges core logic to the active GUI runtime.
 pub struct AppController {
     /// Mutable UI state shared with native rendering.
@@ -123,8 +132,8 @@ pub struct AppController {
     pub(crate) projected_browser_rows: HashMap<usize, ProjectedBrowserRowCacheEntry>,
     /// Selected-path revision for the retained browser selected-path lookup cache.
     pub(crate) projected_selected_paths_revision: Option<u64>,
-    /// Selected absolute-index bitset reused across native browser projections.
-    pub(crate) projected_selected_paths_lookup: Option<Vec<bool>>,
+    /// Selected absolute-index lookup reused across native browser projections.
+    pub(crate) projected_selected_paths_lookup: Option<ProjectedSelectedPathsLookup>,
     /// Retained key for normalized map-point projection payloads.
     pub(crate) projected_map_points_key: Option<ProjectedMapPointsCacheKey>,
     /// Retained map points normalized into render-ready milli-units.

@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-24T11:33:24Z
+Last Updated: 2026-02-24T14:13:06Z
 Updated By: Codex
 
 ## Purpose
@@ -21,6 +21,11 @@ Updated By: Codex
 - Immediate waveform-preview A/B with larger windows is complete (7-run median
   comparison); results favor preview-off latencies for waveform scenarios, so
   immediate-apply scope remains limited to overlay actions for now.
+- I just shipped a first browser-projection optimization pass for item 1:
+  single-selection lookup fast path + row-slot string rewrite short-circuit in
+  `src/app_core/native_shell.rs` / `src/app/controller.rs` integration paths.
+- Local perf evidence was captured in `target/perf/bench.post_item1.clean2.json`
+  and full `bash scripts/ci_local.sh` completed green.
 
 ## Immediate Next Actions
 

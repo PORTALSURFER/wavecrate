@@ -17,6 +17,9 @@ pub(crate) type ProjectedMapPointsCacheKey =
 /// Retained normalized map-point cache entry used by native-shell projection helpers.
 pub(crate) type ProjectedMapPointCacheEntry =
     crate::app_core::app_api::controller::ProjectedMapPointCacheEntry;
+/// Retained selected-path lookup cache entry used by native-shell projection helpers.
+pub(crate) type ProjectedSelectedPathsLookup =
+    crate::app_core::app_api::controller::ProjectedSelectedPathsLookup;
 
 use std::{cell::RefCell, rc::Rc};
 

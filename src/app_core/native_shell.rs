@@ -6,7 +6,7 @@
 
 use super::controller::{
     AppController, ProjectedBrowserRowCacheEntry, ProjectedMapPointCacheEntry,
-    ProjectedMapPointsCacheKey,
+    ProjectedMapPointsCacheKey, ProjectedSelectedPathsLookup,
 };
 use crate::app_core::actions::{
     NativeAppModel as AppModel, NativeBrowserActionsModel as BrowserActionsModel,
@@ -1059,27 +1059,42 @@ fn refresh_projected_selected_paths_lookup(controller: &mut AppController) {
     {
         return;
     }
-    let mut selected_index_lookup = vec![false; controller.wav_entries_len()];
-    for selected_path_idx in 0..controller.ui.browser.selected_paths.len() {
-        let selected_path = controller.ui.browser.selected_paths[selected_path_idx].clone();
-        if let Some(absolute_index) = controller.wav_index_for_path(selected_path.as_path())
-            && let Some(selected) = selected_index_lookup.get_mut(absolute_index)
-        {
-            *selected = true;
+    let lookup = if controller.ui.browser.selected_paths.len() == 1 {
+        controller
+            .ui
+            .browser
+            .selected_paths
+            .first()
+            .cloned()
+            .and_then(|path| controller.wav_index_for_path(path.as_path()))
+            .map(ProjectedSelectedPathsLookup::Single)
+    } else {
+        let mut selected_index_lookup = vec![false; controller.wav_entries_len()];
+        for selected_path_idx in 0..controller.ui.browser.selected_paths.len() {
+            let selected_path = controller.ui.browser.selected_paths[selected_path_idx].clone();
+            if let Some(absolute_index) = controller.wav_index_for_path(selected_path.as_path())
+                && let Some(selected) = selected_index_lookup.get_mut(absolute_index)
+            {
+                *selected = true;
+            }
         }
-    }
+        Some(ProjectedSelectedPathsLookup::Dense(selected_index_lookup))
+    };
     controller.projected_selected_paths_revision = Some(selection_revision);
-    controller.projected_selected_paths_lookup = Some(selected_index_lookup);
+    controller.projected_selected_paths_lookup = lookup;
 }
 
 /// Return whether one absolute row index is selected in the retained lookup bitset.
 fn selected_index_is_selected(controller: &AppController, absolute_index: usize) -> bool {
-    controller
-        .projected_selected_paths_lookup
-        .as_ref()
-        .and_then(|lookup| lookup.get(absolute_index))
-        .copied()
-        .unwrap_or(false)
+    match controller.projected_selected_paths_lookup.as_ref() {
+        Some(ProjectedSelectedPathsLookup::Single(selected_index)) => {
+            *selected_index == absolute_index
+        }
+        Some(ProjectedSelectedPathsLookup::Dense(lookup)) => {
+            lookup.get(absolute_index).copied().unwrap_or(false)
+        }
+        None => false,
+    }
 }
 
 /// Clear retained browser-row projection fields.
@@ -1159,16 +1174,28 @@ fn write_browser_row_into_slot(
     projection: (usize, &str, usize, &str, bool, bool),
 ) {
     let (visible_row, row_label, column_index, bucket_label, selected, focused) = projection;
+    let clamped_column_index = column_index.min(2);
     if let Some(row) = rows.get_mut(offset) {
+        if row.visible_row == visible_row && row.column == clamped_column_index {
+            row.selected = selected;
+            row.focused = focused;
+            if row.label == row_label && row.bucket_label.as_deref() == Some(bucket_label) {
+                return;
+            }
+        }
         row.visible_row = visible_row;
-        row.label.clear();
-        row.label.push_str(row_label);
-        row.column = column_index.min(2);
+        if row.label != row_label {
+            row.label.clear();
+            row.label.push_str(row_label);
+        }
+        row.column = clamped_column_index;
         row.selected = selected;
         row.focused = focused;
         if let Some(existing_bucket_label) = row.bucket_label.as_mut() {
-            existing_bucket_label.clear();
-            existing_bucket_label.push_str(bucket_label);
+            if existing_bucket_label != bucket_label {
+                existing_bucket_label.clear();
+                existing_bucket_label.push_str(bucket_label);
+            }
         } else {
             row.bucket_label = Some(bucket_label.to_owned());
         }
