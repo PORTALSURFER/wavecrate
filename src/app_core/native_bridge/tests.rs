@@ -10,6 +10,30 @@ use crate::app_core::state::{SampleBrowserSort, SampleBrowserTab, TriageFlagFilt
 use crate::waveform::WaveformRenderer;
 use std::sync::Arc;
 
+/// Run one retained projection step after warming cache and return dirty mask + lookup counters.
+fn project_after_warm_cache(
+    mutate: impl FnOnce(&mut AppController),
+) -> (NativeDirtySegments, super::ProjectionSegmentLookupCounts) {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let mut cache = NativeProjectionCache::default();
+    let _ = cache.resolve_or_project(&mut controller);
+    let _ = cache.take_segment_lookup_counts();
+    mutate(&mut controller);
+    let (_, dirty_segments) = cache.resolve_or_project(&mut controller);
+    let lookup_counts = cache.take_segment_lookup_counts();
+    (dirty_segments, lookup_counts)
+}
+
+/// Assert one segment lookup bucket equals the expected hit/miss counters.
+fn assert_segment_lookup_counts(
+    actual: super::ProjectionSegmentLookupCount,
+    expected_hit: u64,
+    expected_miss: u64,
+) {
+    assert_eq!(actual.hit_count, expected_hit);
+    assert_eq!(actual.miss_count, expected_miss);
+}
+
 #[test]
 fn projection_cache_key_changes_when_map_cache_revision_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
@@ -518,6 +542,124 @@ fn pull_model_snapshot_noop_pull_reuses_cached_projection() {
         bridge.projection_key_snapshot.as_ref(),
         Some(&first_snapshot)
     );
+}
+
+/// No-op pulls should report all retained segment hits and no dirty mask bits.
+#[test]
+fn projection_segment_noop_pull_hits_all_segments() {
+    let (dirty_segments, lookup_counts) = project_after_warm_cache(|_| {});
+    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
+}
+
+/// Status-key changes should rematerialize only the status segment.
+#[test]
+fn projection_segment_status_dirty_mask_and_lookup_counts() {
+    let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
+        controller.ui.projection_revisions.status =
+            controller.ui.projection_revisions.status.wrapping_add(1);
+    });
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::STATUS_BAR)
+    );
+    assert_segment_lookup_counts(lookup_counts.status_bar, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
+}
+
+/// Browser-frame changes should also force browser-rows rematerialization.
+#[test]
+fn projection_segment_browser_frame_dirty_mask_and_lookup_counts() {
+    let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
+        controller.ui.browser.sort = SampleBrowserSort::PlaybackAgeAsc;
+    });
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(
+            NativeDirtySegments::BROWSER_FRAME | NativeDirtySegments::BROWSER_ROWS_WINDOW
+        )
+    );
+    assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
+}
+
+/// Browser row-revision changes should only rematerialize browser rows.
+#[test]
+fn projection_segment_browser_rows_dirty_mask_and_lookup_counts() {
+    let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
+        controller.mark_browser_selected_paths_changed();
+    });
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::BROWSER_ROWS_WINDOW)
+    );
+    assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
+}
+
+/// Map-key changes should rematerialize only the map segment.
+#[test]
+fn projection_segment_map_dirty_mask_and_lookup_counts() {
+    let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
+        controller.ui.map.cached_points_revision =
+            controller.ui.map.cached_points_revision.wrapping_add(1);
+    });
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::MAP_PANEL)
+    );
+    assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.map_panel, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
+}
+
+/// Waveform-key changes should rematerialize only the waveform segment.
+#[test]
+fn projection_segment_waveform_dirty_mask_and_lookup_counts() {
+    let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
+        controller.ui.waveform.view.start = 0.25;
+    });
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::WAVEFORM_OVERLAY)
+    );
+    assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.waveform_overlay, 0, 1);
+}
+
+/// Non-segment static-key changes should only set the global static dirty bit.
+#[test]
+fn projection_segment_non_segment_static_dirty_mask_and_lookup_counts() {
+    let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
+        controller.ui.volume = 0.75;
+    });
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::GLOBAL_STATIC)
+    );
+    assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
 }
 
 #[cfg(feature = "native-bridge-metrics")]
