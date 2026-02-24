@@ -114,127 +114,191 @@ impl AppControllerNativeRuntimeExt for AppController {
 
     fn apply_native_ui_action(&mut self, action: NativeUiAction) {
         self.begin_waveform_refresh_batch();
-        match action {
-            NativeUiAction::SelectColumn { index } => self.select_column_by_index(index),
-            NativeUiAction::MoveColumn { delta } => self.move_selection_column(delta as isize),
-            NativeUiAction::ToggleTransport => self.toggle_play_pause(),
-            NativeUiAction::HandleEscape => self.handle_escape(),
-            NativeUiAction::FocusBrowserPanel => self.focus_browser_list(),
-            NativeUiAction::FocusSourcesPanel => self.focus_sources_list(),
-            NativeUiAction::FocusWaveformPanel => self.focus_waveform(),
-            NativeUiAction::FocusLoadedSampleInBrowser => self.focus_loaded_sample_in_browser(),
-            NativeUiAction::FocusBrowserSearch => self.focus_browser_search(),
-            NativeUiAction::FocusFolderSearch => self.focus_folder_search(),
-            NativeUiAction::SetFolderSearch { query } => self.set_folder_search(query),
-            NativeUiAction::SelectSourceRow { index } => self.select_source_by_index(index),
-            NativeUiAction::FocusFolderRow { index } => self.focus_folder_row(index),
-            NativeUiAction::MoveFolderFocus { delta } => self.nudge_folder_focus_action(delta),
-            NativeUiAction::StartNewFolder => self.start_new_folder(),
-            NativeUiAction::StartNewFolderAtRoot => self.start_new_folder_at_root(),
-            NativeUiAction::StartFolderRename => self.start_folder_rename(),
-            NativeUiAction::DeleteFocusedFolder => self.delete_focused_folder(),
-            NativeUiAction::ClearFolderDeleteRecoveryLog => self.clear_folder_delete_recovery_log(),
-            NativeUiAction::MoveBrowserFocus { delta } => self.focus_browser_delta_action(delta),
-            NativeUiAction::FocusBrowserRow { visible_row } => {
-                self.focus_browser_row_only(visible_row)
+        let action = match apply_transport_native_ui_action(self, action) {
+            Ok(()) => {
+                self.end_waveform_refresh_batch();
+                return;
             }
-            NativeUiAction::CommitFocusedBrowserRow => {
-                self.commit_browser_focus_or_toggle_transport()
+            Err(action) => action,
+        };
+        let action = match apply_browser_native_ui_action(self, action) {
+            Ok(()) => {
+                self.end_waveform_refresh_batch();
+                return;
             }
-            NativeUiAction::ToggleBrowserRowSelection { visible_row } => {
-                self.toggle_browser_row_selection(visible_row)
+            Err(action) => action,
+        };
+        let action = match apply_map_native_ui_action(self, action) {
+            Ok(()) => {
+                self.end_waveform_refresh_batch();
+                return;
             }
-            NativeUiAction::ExtendBrowserSelectionToRow { visible_row } => {
-                self.extend_browser_selection_to_row(visible_row)
+            Err(action) => action,
+        };
+        let action = match apply_waveform_native_ui_action(self, action) {
+            Ok(()) => {
+                self.end_waveform_refresh_batch();
+                return;
             }
-            NativeUiAction::AddRangeBrowserSelection { visible_row } => {
-                self.add_range_browser_selection(visible_row)
-            }
-            NativeUiAction::ExtendBrowserSelectionFromFocus { delta } => {
-                self.extend_browser_selection_from_focus_action(delta)
-            }
-            NativeUiAction::AddRangeBrowserSelectionFromFocus { delta } => {
-                self.add_range_browser_selection_from_focus_action(delta)
-            }
-            NativeUiAction::ToggleFocusedBrowserRowSelection => self.toggle_focused_selection(),
-            NativeUiAction::SelectAllBrowserRows => self.select_all_browser_rows(),
-            NativeUiAction::SetBrowserSearch { query } => self.set_browser_search(query),
-            NativeUiAction::SetBrowserTab { map } => self.set_browser_tab(map),
-            NativeUiAction::FocusMapSample { sample_id } => {
-                self.focus_map_sample_and_preview(&sample_id)
-            }
-            NativeUiAction::SetPromptInput { value } => self.set_active_prompt_input(value),
-            NativeUiAction::StartBrowserRename => self.start_browser_rename(),
-            NativeUiAction::ConfirmBrowserRename => self.apply_pending_browser_rename(),
-            NativeUiAction::CancelBrowserRename => self.cancel_browser_rename(),
-            NativeUiAction::TagBrowserSelection { target } => {
-                self.tag_selected_browser_target(target.into())
-            }
-            NativeUiAction::DeleteBrowserSelection => self.delete_active_browser_selection_action(),
-            NativeUiAction::ConfirmPrompt => self.confirm_active_prompt_action(),
-            NativeUiAction::CancelPrompt => self.cancel_active_prompt_action(),
-            NativeUiAction::CancelProgress => self.request_progress_cancel(),
-            NativeUiAction::ToggleLoopPlayback => self.toggle_loop(),
-            NativeUiAction::SetVolume { value_milli } => {
-                self.set_volume_live((f32::from(value_milli.min(1000)) / 1000.0).clamp(0.0, 1.0))
-            }
-            NativeUiAction::CommitVolumeSetting => self.commit_volume_setting(),
-            NativeUiAction::SeekWaveform { position_milli } => {
-                self.queue_waveform_seek_milli(position_milli)
-            }
-            NativeUiAction::SetWaveformCursor { position_milli } => {
-                self.set_waveform_cursor_milli(position_milli)
-            }
-            NativeUiAction::SetWaveformSelectionRange {
-                start_milli,
-                end_milli,
-            } => self.set_waveform_selection_range_milli(start_milli, end_milli),
-            NativeUiAction::ClearWaveformSelection => self.clear_waveform_selection_with_focus(),
-            NativeUiAction::ZoomWaveform { zoom_in, steps } => {
-                self.zoom_waveform_steps_from_ui(zoom_in, steps)
-            }
-            NativeUiAction::ZoomWaveformToSelection => self.zoom_waveform_to_selection_with_focus(),
-            NativeUiAction::ZoomWaveformFull => self.zoom_waveform_full_with_focus(),
-            NativeUiAction::Undo => self.undo(),
-            NativeUiAction::Redo => self.redo(),
-            NativeUiAction::CheckForUpdates => self.check_for_updates_now(),
-            NativeUiAction::OpenUpdateLink => self.open_update_link(),
-            NativeUiAction::InstallUpdate => self.install_update_and_exit(),
-            NativeUiAction::DismissUpdate => self.dismiss_update_notification(),
+            Err(action) => action,
+        };
+        if let Err(unhandled) = apply_prompt_and_update_native_ui_action(self, action) {
+            debug_assert!(
+                false,
+                "native ui action was not handled by any dispatcher group: {unhandled:?}"
+            );
         }
         self.end_waveform_refresh_batch();
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{AppController, AppControllerNativeRuntimeExt, WaveformRenderer};
-    use std::thread::sleep;
-    use std::time::Duration;
-
-    #[test]
-    fn prepare_native_frame_animation_only_updates_fps_when_not_playing() {
-        let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-
-        assert!(controller.average_fps().is_none());
-        controller.prepare_native_frame(true);
-        assert!(controller.average_fps().is_none());
-
-        sleep(Duration::from_millis(2));
-        controller.prepare_native_frame(true);
-
-        assert!(controller.average_fps().is_some());
+/// Try to dispatch transport-oriented native actions.
+fn apply_transport_native_ui_action(
+    controller: &mut AppController,
+    action: NativeUiAction,
+) -> Result<(), NativeUiAction> {
+    match action {
+        NativeUiAction::SelectColumn { index } => controller.select_column_by_index(index),
+        NativeUiAction::MoveColumn { delta } => controller.move_selection_column(delta as isize),
+        NativeUiAction::ToggleTransport => controller.toggle_play_pause(),
+        NativeUiAction::HandleEscape => controller.handle_escape(),
+        NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
+        NativeUiAction::SetVolume { value_milli } => {
+            controller.set_volume_live((f32::from(value_milli.min(1000)) / 1000.0).clamp(0.0, 1.0))
+        }
+        NativeUiAction::CommitVolumeSetting => controller.commit_volume_setting(),
+        NativeUiAction::Undo => controller.undo(),
+        NativeUiAction::Redo => controller.redo(),
+        action => return Err(action),
     }
-
-    #[test]
-    /// Native seek actions should queue deferred playback commit work.
-    fn apply_native_seek_queues_deferred_seek_commit() {
-        let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-
-        controller.apply_native_ui_action(crate::app_core::actions::NativeUiAction::SeekWaveform {
-            position_milli: 420,
-        });
-
-        assert_eq!(controller.pending_waveform_seek_milli_for_test(), Some(420));
-    }
+    Ok(())
 }
+
+/// Try to dispatch browser-and-sources native actions.
+fn apply_browser_native_ui_action(
+    controller: &mut AppController,
+    action: NativeUiAction,
+) -> Result<(), NativeUiAction> {
+    match action {
+        NativeUiAction::FocusBrowserPanel => controller.focus_browser_list(),
+        NativeUiAction::FocusSourcesPanel => controller.focus_sources_list(),
+        NativeUiAction::FocusWaveformPanel => controller.focus_waveform(),
+        NativeUiAction::FocusLoadedSampleInBrowser => controller.focus_loaded_sample_in_browser(),
+        NativeUiAction::FocusBrowserSearch => controller.focus_browser_search(),
+        NativeUiAction::FocusFolderSearch => controller.focus_folder_search(),
+        NativeUiAction::SetFolderSearch { query } => controller.set_folder_search(query),
+        NativeUiAction::SelectSourceRow { index } => controller.select_source_by_index(index),
+        NativeUiAction::FocusFolderRow { index } => controller.focus_folder_row(index),
+        NativeUiAction::MoveFolderFocus { delta } => controller.nudge_folder_focus_action(delta),
+        NativeUiAction::StartNewFolder => controller.start_new_folder(),
+        NativeUiAction::StartNewFolderAtRoot => controller.start_new_folder_at_root(),
+        NativeUiAction::StartFolderRename => controller.start_folder_rename(),
+        NativeUiAction::DeleteFocusedFolder => controller.delete_focused_folder(),
+        NativeUiAction::ClearFolderDeleteRecoveryLog => {
+            controller.clear_folder_delete_recovery_log()
+        }
+        NativeUiAction::MoveBrowserFocus { delta } => controller.focus_browser_delta_action(delta),
+        NativeUiAction::FocusBrowserRow { visible_row } => {
+            controller.focus_browser_row_only(visible_row)
+        }
+        NativeUiAction::CommitFocusedBrowserRow => {
+            controller.commit_browser_focus_or_toggle_transport()
+        }
+        NativeUiAction::ToggleBrowserRowSelection { visible_row } => {
+            controller.toggle_browser_row_selection(visible_row)
+        }
+        NativeUiAction::ExtendBrowserSelectionToRow { visible_row } => {
+            controller.extend_browser_selection_to_row(visible_row)
+        }
+        NativeUiAction::AddRangeBrowserSelection { visible_row } => {
+            controller.add_range_browser_selection(visible_row)
+        }
+        NativeUiAction::ExtendBrowserSelectionFromFocus { delta } => {
+            controller.extend_browser_selection_from_focus_action(delta)
+        }
+        NativeUiAction::AddRangeBrowserSelectionFromFocus { delta } => {
+            controller.add_range_browser_selection_from_focus_action(delta)
+        }
+        NativeUiAction::ToggleFocusedBrowserRowSelection => controller.toggle_focused_selection(),
+        NativeUiAction::SelectAllBrowserRows => controller.select_all_browser_rows(),
+        NativeUiAction::SetBrowserSearch { query } => controller.set_browser_search(query),
+        NativeUiAction::StartBrowserRename => controller.start_browser_rename(),
+        NativeUiAction::ConfirmBrowserRename => controller.apply_pending_browser_rename(),
+        NativeUiAction::CancelBrowserRename => controller.cancel_browser_rename(),
+        NativeUiAction::TagBrowserSelection { target } => {
+            controller.tag_selected_browser_target(target.into())
+        }
+        NativeUiAction::DeleteBrowserSelection => {
+            controller.delete_active_browser_selection_action()
+        }
+        action => return Err(action),
+    }
+    Ok(())
+}
+
+/// Try to dispatch map/native tab actions.
+fn apply_map_native_ui_action(
+    controller: &mut AppController,
+    action: NativeUiAction,
+) -> Result<(), NativeUiAction> {
+    match action {
+        NativeUiAction::SetBrowserTab { map } => controller.set_browser_tab(map),
+        NativeUiAction::FocusMapSample { sample_id } => {
+            controller.focus_map_sample_and_preview(&sample_id)
+        }
+        action => return Err(action),
+    }
+    Ok(())
+}
+
+/// Try to dispatch waveform/cursor/zoom native actions.
+fn apply_waveform_native_ui_action(
+    controller: &mut AppController,
+    action: NativeUiAction,
+) -> Result<(), NativeUiAction> {
+    match action {
+        NativeUiAction::SeekWaveform { position_milli } => {
+            controller.queue_waveform_seek_milli(position_milli)
+        }
+        NativeUiAction::SetWaveformCursor { position_milli } => {
+            controller.set_waveform_cursor_milli(position_milli)
+        }
+        NativeUiAction::SetWaveformSelectionRange {
+            start_milli,
+            end_milli,
+        } => controller.set_waveform_selection_range_milli(start_milli, end_milli),
+        NativeUiAction::ClearWaveformSelection => controller.clear_waveform_selection_with_focus(),
+        NativeUiAction::ZoomWaveform { zoom_in, steps } => {
+            controller.zoom_waveform_steps_from_ui(zoom_in, steps)
+        }
+        NativeUiAction::ZoomWaveformToSelection => {
+            controller.zoom_waveform_to_selection_with_focus()
+        }
+        NativeUiAction::ZoomWaveformFull => controller.zoom_waveform_full_with_focus(),
+        action => return Err(action),
+    }
+    Ok(())
+}
+
+/// Try to dispatch prompt/update/progress native actions.
+fn apply_prompt_and_update_native_ui_action(
+    controller: &mut AppController,
+    action: NativeUiAction,
+) -> Result<(), NativeUiAction> {
+    match action {
+        NativeUiAction::SetPromptInput { value } => controller.set_active_prompt_input(value),
+        NativeUiAction::ConfirmPrompt => controller.confirm_active_prompt_action(),
+        NativeUiAction::CancelPrompt => controller.cancel_active_prompt_action(),
+        NativeUiAction::CancelProgress => controller.request_progress_cancel(),
+        NativeUiAction::CheckForUpdates => controller.check_for_updates_now(),
+        NativeUiAction::OpenUpdateLink => controller.open_update_link(),
+        NativeUiAction::InstallUpdate => controller.install_update_and_exit(),
+        NativeUiAction::DismissUpdate => controller.dismiss_update_notification(),
+        action => return Err(action),
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+/// Dispatcher coverage and frame-maintenance regression tests.
+mod tests;

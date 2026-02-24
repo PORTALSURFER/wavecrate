@@ -47,7 +47,9 @@ src/app/controller/ui/hotkeys/actions.rs
 src/app/controller/ui/hotkeys_controller/waveform.rs
 src/app/controller/ui/map_view.rs
 src/app_core/native_bridge.rs
+src/app_core/native_bridge/tests.rs
 src/app_core/native_shell.rs
+src/app_core/native_shell/tests.rs
 src/audio/output.rs
 src/audio/source.rs
 src/bin/sempal-installer/ui.rs
@@ -72,4 +74,3 @@ vendor/radiant/src/gui/native_shell/shots.rs
 vendor/radiant/src/gui/native_shell/state.rs
 vendor/radiant/src/gui/native_shell/style.rs
 vendor/radiant/src/gui_runtime/native_vello.rs
-
