@@ -6,7 +6,7 @@ use crate::app_core::actions::{
     NativeAppBridge, NativeDirtySegments, NativeSegmentRevisions, NativeUiAction,
 };
 use crate::app_core::controller::AppController;
-use crate::app_core::state::UpdateStatus;
+use crate::app_core::state::{SampleBrowserSort, SampleBrowserTab, TriageFlagFilter, UpdateStatus};
 use crate::waveform::WaveformRenderer;
 use std::sync::Arc;
 
@@ -24,6 +24,47 @@ fn projection_cache_key_changes_when_update_status_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
     let first = build_projection_cache_key(&controller);
     controller.ui.update.status = UpdateStatus::Checking;
+    let second = build_projection_cache_key(&controller);
+    assert_ne!(first, second);
+}
+
+#[test]
+/// Projection cache key should change when browser filter enum encoding changes.
+fn projection_cache_key_changes_when_browser_filter_encoding_changes() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let first = build_projection_cache_key(&controller);
+    controller.ui.browser.filter = TriageFlagFilter::Keep;
+    let second = build_projection_cache_key(&controller);
+    assert_ne!(first, second);
+}
+
+#[test]
+/// Projection cache key should change when browser sort enum encoding changes.
+fn projection_cache_key_changes_when_browser_sort_encoding_changes() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let first = build_projection_cache_key(&controller);
+    controller.ui.browser.sort = SampleBrowserSort::PlaybackAgeAsc;
+    let second = build_projection_cache_key(&controller);
+    assert_ne!(first, second);
+}
+
+#[test]
+/// Projection cache key should change when browser tab enum encoding changes.
+fn projection_cache_key_changes_when_browser_tab_encoding_changes() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let first = build_projection_cache_key(&controller);
+    controller.ui.browser.active_tab = SampleBrowserTab::Map;
+    let second = build_projection_cache_key(&controller);
+    assert_ne!(first, second);
+}
+
+#[test]
+/// Projection cache key should change when normalized volume rounds to a new milli bucket.
+fn projection_cache_key_changes_when_volume_milli_changes() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.ui.volume = 0.2001;
+    let first = build_projection_cache_key(&controller);
+    controller.ui.volume = 0.2009;
     let second = build_projection_cache_key(&controller);
     assert_ne!(first, second);
 }
@@ -62,6 +103,21 @@ fn projection_and_waveform_keys_share_waveform_milli_conversion() {
         full.waveform_view_end_milli,
         segment.waveform_view_end_milli
     );
+}
+
+#[test]
+/// Waveform key should change when normalized view-range scalars round to new milli values.
+fn waveform_projection_key_changes_when_view_milli_changes() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.view.start = 0.1001;
+    controller.ui.waveform.view.end = 0.8001;
+    let first = build_waveform_projection_key(&controller);
+
+    controller.ui.waveform.view.start = 0.1009;
+    controller.ui.waveform.view.end = 0.8009;
+    let second = build_waveform_projection_key(&controller);
+
+    assert_ne!(first, second);
 }
 
 #[test]

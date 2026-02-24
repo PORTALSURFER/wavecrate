@@ -11,6 +11,13 @@
 //! When the feature is disabled, all profiling calls are compiled out to keep
 //! default builds on the hot path with zero added overhead.
 
+/// Shared projection-key enum/scalar encoding helpers.
+mod projection_key_encoding;
+
+use self::projection_key_encoding::{
+    encode_browser_filter, encode_browser_sort, encode_browser_tab, encode_update_status,
+    normalized_f32_to_milli, normalized_f64_to_milli,
+};
 use crate::{
     app_core::actions::NativeAppBridge,
     app_core::actions::NativeMotionModel,
@@ -1354,9 +1361,6 @@ impl NativeProjectionCache {
 }
 
 fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCacheKey {
-    use crate::app_core::state::{
-        SampleBrowserSort, SampleBrowserTab, TriageFlagFilter, UpdateStatus,
-    };
     let waveform_millis = derive_waveform_projection_millis(controller);
     NativeProjectionCacheKey {
         status_revision: controller.ui.projection_revisions.status,
@@ -1372,22 +1376,9 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
         browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
         browser_selected_paths_revision: controller.ui.browser.selected_paths_revision,
         browser_search_revision: controller.ui.projection_revisions.browser_search,
-        browser_filter: match controller.ui.browser.filter {
-            TriageFlagFilter::All => 0,
-            TriageFlagFilter::Keep => 1,
-            TriageFlagFilter::Trash => 2,
-            TriageFlagFilter::Untagged => 3,
-        },
-        browser_sort: match controller.ui.browser.sort {
-            SampleBrowserSort::ListOrder => 0,
-            SampleBrowserSort::Similarity => 1,
-            SampleBrowserSort::PlaybackAgeAsc => 2,
-            SampleBrowserSort::PlaybackAgeDesc => 3,
-        },
-        browser_tab: match controller.ui.browser.active_tab {
-            SampleBrowserTab::List => 0,
-            SampleBrowserTab::Map => 1,
-        },
+        browser_filter: encode_browser_filter(controller.ui.browser.filter),
+        browser_sort: encode_browser_sort(controller.ui.browser.sort),
+        browser_tab: encode_browser_tab(controller.ui.browser.active_tab),
         progress_visible: controller.ui.progress.visible,
         progress_completed: controller.ui.progress.completed,
         progress_total: controller.ui.progress.total,
@@ -1414,15 +1405,10 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
         map_dataset_revision: controller.ui.projection_revisions.map_dataset,
         map_query_revision: controller.ui.projection_revisions.map_query,
         map_points_revision: controller.ui.map.cached_points_revision,
-        update_status: match controller.ui.update.status {
-            UpdateStatus::Idle => 0,
-            UpdateStatus::Checking => 1,
-            UpdateStatus::UpdateAvailable => 2,
-            UpdateStatus::Error => 3,
-        },
+        update_status: encode_update_status(&controller.ui.update.status),
         update_revision: controller.ui.projection_revisions.update,
         loaded_wav_revision: controller.ui.projection_revisions.loaded_wav,
-        volume_milli: (controller.ui.volume.clamp(0.0, 1.0) * 1000.0).round() as u16,
+        volume_milli: normalized_f32_to_milli(controller.ui.volume),
         transport_running: controller.is_playing(),
     }
 }
@@ -1446,21 +1432,23 @@ struct WaveformProjectionMillis {
 
 /// Derive normalized waveform projection key fields once for cache-key builders.
 fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProjectionMillis {
-    let cursor_milli = controller
-        .ui
-        .waveform
-        .cursor
-        .map(|value| (value.clamp(0.0, 1.0) * 1000.0).round() as u16);
-    let playhead_milli = controller.ui.waveform.playhead.visible.then_some(
-        (controller.ui.waveform.playhead.position.clamp(0.0, 1.0) * 1000.0).round() as u16,
-    );
+    let cursor_milli = controller.ui.waveform.cursor.map(normalized_f32_to_milli);
+    let playhead_milli =
+        controller
+            .ui
+            .waveform
+            .playhead
+            .visible
+            .then_some(normalized_f32_to_milli(
+                controller.ui.waveform.playhead.position,
+            ));
     let (selection_start_milli, selection_end_milli) = controller
         .ui
         .waveform
         .selection
         .map(|selection| {
-            let start = (selection.start().clamp(0.0, 1.0) * 1000.0).round() as u16;
-            let end = (selection.end().clamp(0.0, 1.0) * 1000.0).round() as u16;
+            let start = normalized_f32_to_milli(selection.start());
+            let end = normalized_f32_to_milli(selection.end());
             (Some(start.min(end)), Some(start.max(end)))
         })
         .unwrap_or((None, None));
@@ -1469,9 +1457,8 @@ fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProj
         playhead_milli,
         selection_start_milli,
         selection_end_milli,
-        view_start_milli: (controller.ui.waveform.view.start.clamp(0.0, 1.0) * 1000.0).round()
-            as u16,
-        view_end_milli: (controller.ui.waveform.view.end.clamp(0.0, 1.0) * 1000.0).round() as u16,
+        view_start_milli: normalized_f64_to_milli(controller.ui.waveform.view.start),
+        view_end_milli: normalized_f64_to_milli(controller.ui.waveform.view.end),
     }
 }
 
@@ -1495,7 +1482,6 @@ fn build_status_projection_key(
 fn build_browser_frame_projection_key(
     controller: &AppController,
 ) -> BrowserFrameProjectionCacheKey {
-    use crate::app_core::state::{SampleBrowserSort, SampleBrowserTab};
     BrowserFrameProjectionCacheKey {
         browser_visible_len: controller.ui.browser.visible.len(),
         browser_selected_visible: controller.ui.browser.selected_visible,
@@ -1503,16 +1489,8 @@ fn build_browser_frame_projection_key(
         browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
         browser_search_revision: controller.ui.projection_revisions.browser_search,
         browser_search_busy: controller.ui.browser.search_busy,
-        browser_sort: match controller.ui.browser.sort {
-            SampleBrowserSort::ListOrder => 0,
-            SampleBrowserSort::Similarity => 1,
-            SampleBrowserSort::PlaybackAgeAsc => 2,
-            SampleBrowserSort::PlaybackAgeDesc => 3,
-        },
-        browser_tab: match controller.ui.browser.active_tab {
-            SampleBrowserTab::List => 0,
-            SampleBrowserTab::Map => 1,
-        },
+        browser_sort: encode_browser_sort(controller.ui.browser.sort),
+        browser_tab: encode_browser_tab(controller.ui.browser.active_tab),
         browser_similarity_follow_loaded: controller.ui.browser.similarity_sort_follow_loaded,
         loaded_wav_revision: controller.ui.projection_revisions.loaded_wav,
     }
@@ -1520,7 +1498,6 @@ fn build_browser_frame_projection_key(
 
 /// Build a browser-rows projection key from the current controller snapshot.
 fn build_browser_rows_projection_key(controller: &AppController) -> BrowserRowsProjectionCacheKey {
-    use crate::app_core::state::SampleBrowserTab;
     BrowserRowsProjectionCacheKey {
         browser_visible_rows_revision: controller.ui.browser.visible_rows_revision,
         browser_visible_len: controller.ui.browser.visible.len(),
@@ -1528,16 +1505,12 @@ fn build_browser_rows_projection_key(controller: &AppController) -> BrowserRowsP
         browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
         browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
         browser_selected_paths_revision: controller.ui.browser.selected_paths_revision,
-        browser_tab: match controller.ui.browser.active_tab {
-            SampleBrowserTab::List => 0,
-            SampleBrowserTab::Map => 1,
-        },
+        browser_tab: encode_browser_tab(controller.ui.browser.active_tab),
     }
 }
 
 /// Build a map-panel projection key from the current controller snapshot.
 fn build_map_projection_key(controller: &AppController) -> MapProjectionCacheKey {
-    use crate::app_core::state::SampleBrowserTab;
     MapProjectionCacheKey {
         map_open: controller.ui.map.open,
         map_zoom_bits: controller.ui.map.zoom.to_bits(),
@@ -1548,10 +1521,7 @@ fn build_map_projection_key(controller: &AppController) -> MapProjectionCacheKey
         map_dataset_revision: controller.ui.projection_revisions.map_dataset,
         map_query_revision: controller.ui.projection_revisions.map_query,
         map_points_revision: controller.ui.map.cached_points_revision,
-        browser_tab: match controller.ui.browser.active_tab {
-            SampleBrowserTab::List => 0,
-            SampleBrowserTab::Map => 1,
-        },
+        browser_tab: encode_browser_tab(controller.ui.browser.active_tab),
     }
 }
 
@@ -1577,21 +1547,15 @@ fn build_waveform_projection_key(controller: &AppController) -> WaveformProjecti
 fn build_non_segment_static_projection_key(
     controller: &AppController,
 ) -> NonSegmentStaticProjectionCacheKey {
-    use crate::app_core::state::UpdateStatus;
     NonSegmentStaticProjectionCacheKey {
         sources_selected: controller.ui.sources.selected,
         sources_len: controller.ui.sources.rows.len(),
         folder_rows_len: controller.ui.sources.folders.rows.len(),
         folder_focused: controller.ui.sources.folders.focused,
         folder_search_revision: controller.ui.projection_revisions.folder_search,
-        update_status: match controller.ui.update.status {
-            UpdateStatus::Idle => 0,
-            UpdateStatus::Checking => 1,
-            UpdateStatus::UpdateAvailable => 2,
-            UpdateStatus::Error => 3,
-        },
+        update_status: encode_update_status(&controller.ui.update.status),
         update_revision: controller.ui.projection_revisions.update,
-        volume_milli: (controller.ui.volume.clamp(0.0, 1.0) * 1000.0).round() as u16,
+        volume_milli: normalized_f32_to_milli(controller.ui.volume),
         transport_running: controller.is_playing(),
         trash_count: controller.ui.browser.trash.len(),
         neutral_count: controller.ui.browser.neutral.len(),
