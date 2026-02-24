@@ -1111,7 +1111,11 @@ impl NativeProjectionCache {
         model.update = native_shell::project_update_model(&controller.ui);
     }
 
-    /// Return true when one segment key needs rematerialization.
+    /// Return `true` when one segment key needs rematerialization.
+    ///
+    /// Example:
+    /// - First projection: `has_retained_model == false` => always `true`.
+    /// - Retained projection with identical key: `cached_key == Some(next_key)` => `false`.
     fn segment_key_changed<T: PartialEq>(
         has_retained_model: bool,
         cached_key: &Option<T>,
@@ -1121,6 +1125,11 @@ impl NativeProjectionCache {
     }
 
     /// Materialize status/footer fields when the status segment is dirty.
+    ///
+    /// Example:
+    /// - If `status_key` changes, this returns `true` and the caller sets
+    ///   `NativeDirtySegments::STATUS_BAR`.
+    /// - On key hit, this returns `false` and records a segment cache hit.
     fn materialize_status_segment(
         &mut self,
         model: &mut NativeAppModel,
@@ -1142,6 +1151,11 @@ impl NativeProjectionCache {
     }
 
     /// Materialize browser frame/chrome/action fields when the frame segment is dirty.
+    ///
+    /// Example:
+    /// - Changing browser sort/tab/focus metadata updates this segment and returns `true`,
+    ///   so the caller sets `NativeDirtySegments::BROWSER_FRAME`.
+    /// - On cache hit this returns `false`; browser rows may still update separately.
     fn materialize_browser_frame_segment(
         &mut self,
         model: &mut NativeAppModel,
@@ -1171,6 +1185,11 @@ impl NativeProjectionCache {
     }
 
     /// Materialize browser visible-row window when either row or frame state is dirty.
+    ///
+    /// Example:
+    /// - If `browser_rows_key` changes, rows rematerialize and this returns `true`.
+    /// - If `browser_frame_changed == true`, rows also rematerialize even when
+    ///   `browser_rows_key` is unchanged, keeping row projection consistent with frame state.
     fn materialize_browser_rows_segment(
         &mut self,
         model: &mut NativeAppModel,
@@ -1203,6 +1222,10 @@ impl NativeProjectionCache {
     }
 
     /// Materialize map-panel fields when the map segment is dirty.
+    ///
+    /// Example:
+    /// - Any `map_key` revision change (pan/zoom/query/dataset) returns `true` and the caller
+    ///   sets `NativeDirtySegments::MAP_PANEL`.
     fn materialize_map_segment(
         &mut self,
         model: &mut NativeAppModel,
@@ -1223,6 +1246,10 @@ impl NativeProjectionCache {
     }
 
     /// Materialize waveform panel/chrome fields when the waveform segment is dirty.
+    ///
+    /// Example:
+    /// - View/cursor/selection/transport-dependent waveform key changes return `true`,
+    ///   and the caller sets `NativeDirtySegments::WAVEFORM_OVERLAY`.
     fn materialize_waveform_segment(
         &mut self,
         model: &mut NativeAppModel,
@@ -1247,6 +1274,10 @@ impl NativeProjectionCache {
     }
 
     /// Update static non-segment cache key and report whether it changed.
+    ///
+    /// Example:
+    /// - Changing volume/update/source-count fields flips this key and returns `true`,
+    ///   which maps to `NativeDirtySegments::GLOBAL_STATIC`.
     fn update_non_segment_static_key(
         &mut self,
         derived: &DerivedProjectionState,
@@ -1272,6 +1303,11 @@ impl NativeProjectionCache {
     }
 
     /// Resolve retained projection output using a caller-provided derive state.
+    ///
+    /// Example:
+    /// - Full cache hit (`app_key` unchanged): returns retained model and `NativeDirtySegments::empty()`.
+    /// - Partial segment misses: rematerializes only changed segments and returns a bitmask union of
+    ///   the exact dirty segment flags touched in this pass.
     fn resolve_or_project_with_derived(
         &mut self,
         controller: &mut AppController,
