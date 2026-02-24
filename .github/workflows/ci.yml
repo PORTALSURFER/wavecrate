@@ -119,6 +119,15 @@ jobs:
           CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: ./scripts/knowledge_lint.sh --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+      - name: Dead dependency/unused code sweep (advisory)
+        if: ${{ matrix.platform == 'linux' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          SEMPAL_DEAD_SWEEP_INSTALL_MISSING: "1"
+          SEMPAL_DEAD_SWEEP_RUN_UDEPS: "0"
+          SEMPAL_DEAD_SWEEP_REPORT_PATH: "target/dead_sweep_ci.txt"
+        run: ./scripts/check_rust_dead_deps_advisory.sh --advisory
       - name: Env var docs drift (nudge)
         if: ${{ matrix.platform == 'linux' }}
         shell: bash

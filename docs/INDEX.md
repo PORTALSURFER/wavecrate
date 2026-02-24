@@ -55,6 +55,7 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
   - `scripts/check_migration_boundary.*` (scans `src/app_core/**`)
   - `scripts/check_docs_index.*` (scans `docs/README.md` references)
   - `scripts/check_codeowners_coverage.*` (scans `.github/CODEOWNERS` for bucket coverage)
+  - `scripts/check_rust_dead_deps_advisory.sh` (advisory lane for `cargo machete` + optional `cargo udeps`)
 
 ## When a check fires (what to do)
 
@@ -93,6 +94,7 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
 | `scripts/check_rust_taste_invariants.ps1` | PowerShell equivalent of the Rust taste invariants check. | Same remediation as the bash version. |
 | `scripts/check_rust_no_todos.sh` | Disallow added `TODO`/`FIXME` markers in non-test Rust (diff-aware). | Implement the fix now, file an issue instead, or capture the plan in `docs/plans/` instead of in-code TODOs; last resort: allowlist. |
 | `scripts/check_rust_no_todos.ps1` | PowerShell equivalent of the no-TODO/FIXME check. | Same remediation as the bash version. |
+| `scripts/check_rust_dead_deps_advisory.sh` | Advisory sweep for unused dependencies/dead code using `cargo machete` and optional `cargo udeps`; non-blocking by default. | Install missing tools (`--install-missing`), review findings, and promote to `--strict` only after false positives are tuned out. |
 | `scripts/check_rust_public_docs.sh` | Newly added `pub` Rust items must have nearby doc comments (`///` or `#[doc = ...]`), diff-aware. | Add `///` docs describing what/why/constraints; include examples if non-obvious; last resort: allowlist. |
 | `scripts/check_rust_public_docs.ps1` | PowerShell equivalent of the public-docs check. | Same remediation as the bash version. |
 | `scripts/check_app_core_dependency_boundary.sh` | `src/app_core/**` must not take new dependencies on `crate::legacy_runtime::`, `crate::gui_app::`, `crate::gui_runtime::` (diff-aware). | Move UI/runtime coupling into the appropriate layer (`src/gui_app`, `src/gui_runtime`, `src/legacy_runtime`) or invert the dependency. |

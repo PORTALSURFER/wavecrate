@@ -71,6 +71,29 @@ Default freshness for `run_agent_ci_checks.sh`/`ci_local.sh` when
 Optional required updater for `run_agent_ci_checks.sh` and `ci_local.sh` when
 `--required-updater` is not provided.
 
+- `SEMPAL_DEAD_SWEEP_STRICT`
+When set to `1`/`true`/`yes`/`on`, `scripts/check_rust_dead_deps_advisory.sh`
+exits non-zero when it detects unused dependency/dead-code findings. Default:
+advisory mode (`0`).
+
+- `SEMPAL_DEAD_SWEEP_RUN_UDEPS`
+When set to `1`/`true`/`yes`/`on`,
+`scripts/check_rust_dead_deps_advisory.sh` also runs `cargo udeps` using
+`SEMPAL_DEAD_SWEEP_UDEPS_TOOLCHAIN` (or its default).
+
+- `SEMPAL_DEAD_SWEEP_INSTALL_MISSING`
+When set to `1`/`true`/`yes`/`on`,
+`scripts/check_rust_dead_deps_advisory.sh` attempts to install missing
+`cargo-machete`/`cargo-udeps` tools before running checks.
+
+- `SEMPAL_DEAD_SWEEP_UDEPS_TOOLCHAIN`
+Rust toolchain string passed to `cargo +<toolchain> udeps` by
+`scripts/check_rust_dead_deps_advisory.sh`. Default: `nightly`.
+
+- `SEMPAL_DEAD_SWEEP_REPORT_PATH`
+Optional output path for `scripts/check_rust_dead_deps_advisory.sh` to write
+the full advisory sweep report.
+
 ## Paths and directories
 
 - `SEMPAL_CONFIG_HOME`

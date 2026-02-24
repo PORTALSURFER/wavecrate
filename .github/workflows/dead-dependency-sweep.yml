@@ -1,0 +1,59 @@
+name: Dead Dependency Sweep
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 1"
+
+jobs:
+  advisory_sweep:
+    name: Advisory dead dependency/unused code sweep
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Read pinned Rust toolchain
+        id: rust_toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="$(python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          data = tomllib.loads(Path("rust-toolchain.toml").read_text(encoding="utf-8"))
+          print(data.get("toolchain", {}).get("channel", "stable"))
+          PY
+          )"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust_toolchain.outputs.channel }}
+      - name: Install Linux audio deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev pkg-config
+      - name: Install udeps toolchain
+        shell: bash
+        env:
+          UDEPS_TOOLCHAIN: nightly
+        run: |
+          set -euo pipefail
+          rustup toolchain install "${UDEPS_TOOLCHAIN}" --profile minimal --component rust-src
+      - name: Run advisory dependency sweep
+        shell: bash
+        env:
+          SEMPAL_DEAD_SWEEP_INSTALL_MISSING: "1"
+          SEMPAL_DEAD_SWEEP_RUN_UDEPS: "1"
+          SEMPAL_DEAD_SWEEP_UDEPS_TOOLCHAIN: nightly
+          SEMPAL_DEAD_SWEEP_REPORT_PATH: target/dead_sweep_report.txt
+        run: ./scripts/check_rust_dead_deps_advisory.sh --advisory
+      - name: Upload advisory sweep report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dead-sweep-report
+          path: target/dead_sweep_report.txt
+          if-no-files-found: warn
