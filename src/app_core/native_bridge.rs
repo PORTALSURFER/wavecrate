@@ -1104,6 +1104,157 @@ impl NativeProjectionCache {
         model.update = native_shell::project_update_model(&controller.ui);
     }
 
+    /// Return true when one segment key needs rematerialization.
+    fn segment_key_changed<T: PartialEq>(
+        has_retained_model: bool,
+        cached_key: &Option<T>,
+        next_key: &T,
+    ) -> bool {
+        !has_retained_model || cached_key.as_ref() != Some(next_key)
+    }
+
+    /// Materialize status/footer fields when the status segment is dirty.
+    fn materialize_status_segment(
+        &mut self,
+        model: &mut NativeAppModel,
+        controller: &mut AppController,
+        derived: &DerivedProjectionState,
+        has_retained_model: bool,
+    ) -> bool {
+        let changed =
+            Self::segment_key_changed(has_retained_model, &self.status_key, &derived.status_key);
+        if changed {
+            self.record_segment_lookup(ProjectionSegment::StatusBar, false);
+            model.status = native_shell::project_status_model(controller, derived.selected_column);
+            model.status_text = controller.ui.status.text.clone();
+            self.status_key = Some(derived.status_key.clone());
+        } else {
+            self.record_segment_lookup(ProjectionSegment::StatusBar, true);
+        }
+        changed
+    }
+
+    /// Materialize browser frame/chrome/action fields when the frame segment is dirty.
+    fn materialize_browser_frame_segment(
+        &mut self,
+        model: &mut NativeAppModel,
+        controller: &mut AppController,
+        derived: &DerivedProjectionState,
+        has_retained_model: bool,
+    ) -> bool {
+        let changed = Self::segment_key_changed(
+            has_retained_model,
+            &self.browser_frame_key,
+            &derived.browser_frame_key,
+        );
+        if changed {
+            self.record_segment_lookup(ProjectionSegment::BrowserFrame, false);
+            let frame = native_shell::project_browser_panel_frame_model(controller);
+            Self::apply_browser_frame(model, frame);
+            model.browser_chrome = native_shell::project_browser_chrome_model(
+                &controller.ui,
+                model.browser.visible_count,
+            );
+            model.browser_actions = native_shell::project_browser_actions_model(&controller.ui);
+            self.browser_frame_key = Some(derived.browser_frame_key.clone());
+        } else {
+            self.record_segment_lookup(ProjectionSegment::BrowserFrame, true);
+        }
+        changed
+    }
+
+    /// Materialize browser visible-row window when either row or frame state is dirty.
+    fn materialize_browser_rows_segment(
+        &mut self,
+        model: &mut NativeAppModel,
+        controller: &mut AppController,
+        derived: &DerivedProjectionState,
+        has_retained_model: bool,
+        browser_frame_changed: bool,
+    ) -> bool {
+        let browser_rows_changed = Self::segment_key_changed(
+            has_retained_model,
+            &self.browser_rows_key,
+            &derived.browser_rows_key,
+        );
+        if browser_frame_changed || browser_rows_changed {
+            self.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
+            let mut rows = std::mem::take(&mut model.browser.rows);
+            native_shell::project_browser_rows_model_into(
+                controller,
+                model.browser.visible_count,
+                model.browser.selected_visible_row,
+                model.browser.anchor_visible_row,
+                &mut rows,
+            );
+            model.browser.rows = rows;
+            self.browser_rows_key = Some(derived.browser_rows_key.clone());
+            return true;
+        }
+        self.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, true);
+        false
+    }
+
+    /// Materialize map-panel fields when the map segment is dirty.
+    fn materialize_map_segment(
+        &mut self,
+        model: &mut NativeAppModel,
+        controller: &mut AppController,
+        derived: &DerivedProjectionState,
+        has_retained_model: bool,
+    ) -> bool {
+        let changed =
+            Self::segment_key_changed(has_retained_model, &self.map_key, &derived.map_key);
+        if changed {
+            self.record_segment_lookup(ProjectionSegment::MapPanel, false);
+            model.map = native_shell::project_map_model(controller);
+            self.map_key = Some(derived.map_key.clone());
+        } else {
+            self.record_segment_lookup(ProjectionSegment::MapPanel, true);
+        }
+        changed
+    }
+
+    /// Materialize waveform panel/chrome fields when the waveform segment is dirty.
+    fn materialize_waveform_segment(
+        &mut self,
+        model: &mut NativeAppModel,
+        controller: &mut AppController,
+        derived: &DerivedProjectionState,
+        has_retained_model: bool,
+    ) -> bool {
+        let changed = Self::segment_key_changed(
+            has_retained_model,
+            &self.waveform_key,
+            &derived.waveform_key,
+        );
+        if changed {
+            self.record_segment_lookup(ProjectionSegment::WaveformOverlay, false);
+            model.waveform = native_shell::project_waveform_model(controller);
+            model.waveform_chrome = native_shell::project_waveform_chrome_model(&controller.ui);
+            self.waveform_key = Some(derived.waveform_key.clone());
+        } else {
+            self.record_segment_lookup(ProjectionSegment::WaveformOverlay, true);
+        }
+        changed
+    }
+
+    /// Update static non-segment cache key and report whether it changed.
+    fn update_non_segment_static_key(
+        &mut self,
+        derived: &DerivedProjectionState,
+        has_retained_model: bool,
+    ) -> bool {
+        let changed = Self::segment_key_changed(
+            has_retained_model,
+            &self.non_segment_static_key,
+            &derived.non_segment_static_key,
+        );
+        self.non_segment_static_key = Some(derived.non_segment_static_key.clone());
+        changed
+    }
+
+    /// Resolve the retained app-model snapshot using derived projection state.
     fn resolve_or_project(
         &mut self,
         controller: &mut AppController,
@@ -1140,82 +1291,41 @@ impl NativeProjectionCache {
 
         let mut dirty_segments = NativeDirtySegments::empty();
 
-        let status_changed =
-            !has_retained_model || self.status_key.as_ref() != Some(&derived.status_key);
-        if status_changed {
-            self.record_segment_lookup(ProjectionSegment::StatusBar, false);
-            model.status = native_shell::project_status_model(controller, derived.selected_column);
-            model.status_text = controller.ui.status.text.clone();
-            self.status_key = Some(derived.status_key.clone());
+        if self.materialize_status_segment(&mut model, controller, derived, has_retained_model) {
             dirty_segments.insert(NativeDirtySegments::STATUS_BAR);
-        } else {
-            self.record_segment_lookup(ProjectionSegment::StatusBar, true);
         }
 
-        let browser_frame_changed = !has_retained_model
-            || self.browser_frame_key.as_ref() != Some(&derived.browser_frame_key);
+        let browser_frame_changed = self.materialize_browser_frame_segment(
+            &mut model,
+            controller,
+            derived,
+            has_retained_model,
+        );
         if browser_frame_changed {
-            self.record_segment_lookup(ProjectionSegment::BrowserFrame, false);
-            let frame = native_shell::project_browser_panel_frame_model(controller);
-            Self::apply_browser_frame(&mut model, frame);
-            model.browser_chrome = native_shell::project_browser_chrome_model(
-                &controller.ui,
-                model.browser.visible_count,
-            );
-            model.browser_actions = native_shell::project_browser_actions_model(&controller.ui);
-            self.browser_frame_key = Some(derived.browser_frame_key.clone());
             dirty_segments.insert(NativeDirtySegments::BROWSER_FRAME);
-        } else {
-            self.record_segment_lookup(ProjectionSegment::BrowserFrame, true);
         }
 
-        let browser_rows_changed = !has_retained_model
-            || self.browser_rows_key.as_ref() != Some(&derived.browser_rows_key);
-        if browser_frame_changed || browser_rows_changed {
-            self.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
-            let mut rows = std::mem::take(&mut model.browser.rows);
-            native_shell::project_browser_rows_model_into(
-                controller,
-                model.browser.visible_count,
-                model.browser.selected_visible_row,
-                model.browser.anchor_visible_row,
-                &mut rows,
-            );
-            model.browser.rows = rows;
-            self.browser_rows_key = Some(derived.browser_rows_key.clone());
+        if self.materialize_browser_rows_segment(
+            &mut model,
+            controller,
+            derived,
+            has_retained_model,
+            browser_frame_changed,
+        ) {
             dirty_segments.insert(NativeDirtySegments::BROWSER_ROWS_WINDOW);
-        } else {
-            self.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, true);
         }
 
-        let map_changed = !has_retained_model || self.map_key.as_ref() != Some(&derived.map_key);
-        if map_changed {
-            self.record_segment_lookup(ProjectionSegment::MapPanel, false);
-            model.map = native_shell::project_map_model(controller);
-            self.map_key = Some(derived.map_key.clone());
+        if self.materialize_map_segment(&mut model, controller, derived, has_retained_model) {
             dirty_segments.insert(NativeDirtySegments::MAP_PANEL);
-        } else {
-            self.record_segment_lookup(ProjectionSegment::MapPanel, true);
         }
 
-        let waveform_changed =
-            !has_retained_model || self.waveform_key.as_ref() != Some(&derived.waveform_key);
-        if waveform_changed {
-            self.record_segment_lookup(ProjectionSegment::WaveformOverlay, false);
-            model.waveform = native_shell::project_waveform_model(controller);
-            model.waveform_chrome = native_shell::project_waveform_chrome_model(&controller.ui);
-            self.waveform_key = Some(derived.waveform_key.clone());
+        if self.materialize_waveform_segment(&mut model, controller, derived, has_retained_model) {
             dirty_segments.insert(NativeDirtySegments::WAVEFORM_OVERLAY);
-        } else {
-            self.record_segment_lookup(ProjectionSegment::WaveformOverlay, true);
         }
 
-        let non_segment_static_changed = !has_retained_model
-            || self.non_segment_static_key.as_ref() != Some(&derived.non_segment_static_key);
-        if non_segment_static_changed {
+        if self.update_non_segment_static_key(derived, has_retained_model) {
             dirty_segments.insert(NativeDirtySegments::GLOBAL_STATIC);
         }
-        self.non_segment_static_key = Some(derived.non_segment_static_key.clone());
 
         Self::refresh_non_segment_fields(&mut model, controller);
         self.app_key = Some(derived.app_key.clone());
@@ -1247,24 +1357,7 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
     use crate::app_core::state::{
         SampleBrowserSort, SampleBrowserTab, TriageFlagFilter, UpdateStatus,
     };
-    let waveform_cursor_milli = controller
-        .ui
-        .waveform
-        .cursor
-        .map(|value| (value.clamp(0.0, 1.0) * 1000.0).round() as u16);
-    let waveform_playhead_milli = controller.ui.waveform.playhead.visible.then_some(
-        (controller.ui.waveform.playhead.position.clamp(0.0, 1.0) * 1000.0).round() as u16,
-    );
-    let (waveform_selection_start_milli, waveform_selection_end_milli) = controller
-        .ui
-        .waveform
-        .selection
-        .map(|selection| {
-            let start = (selection.start().clamp(0.0, 1.0) * 1000.0).round() as u16;
-            let end = (selection.end().clamp(0.0, 1.0) * 1000.0).round() as u16;
-            (Some(start.min(end)), Some(start.max(end)))
-        })
-        .unwrap_or((None, None));
+    let waveform_millis = derive_waveform_projection_millis(controller);
     NativeProjectionCacheKey {
         status_revision: controller.ui.projection_revisions.status,
         sources_selected: controller.ui.sources.selected,
@@ -1304,14 +1397,12 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
             || controller.ui.waveform.pending_destructive.is_some(),
         drag_active: controller.ui.drag.payload.is_some(),
         waveform_signature: controller.ui.waveform.waveform_image_signature,
-        waveform_cursor_milli,
-        waveform_playhead_milli,
-        waveform_selection_start_milli,
-        waveform_selection_end_milli,
-        waveform_view_start_milli: (controller.ui.waveform.view.start.clamp(0.0, 1.0) * 1000.0)
-            .round() as u16,
-        waveform_view_end_milli: (controller.ui.waveform.view.end.clamp(0.0, 1.0) * 1000.0).round()
-            as u16,
+        waveform_cursor_milli: waveform_millis.cursor_milli,
+        waveform_playhead_milli: waveform_millis.playhead_milli,
+        waveform_selection_start_milli: waveform_millis.selection_start_milli,
+        waveform_selection_end_milli: waveform_millis.selection_end_milli,
+        waveform_view_start_milli: waveform_millis.view_start_milli,
+        waveform_view_end_milli: waveform_millis.view_end_milli,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_bpm_bits: controller.ui.waveform.bpm_value.map(f32::to_bits),
         map_open: controller.ui.map.open,
@@ -1333,6 +1424,54 @@ fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCac
         loaded_wav_revision: controller.ui.projection_revisions.loaded_wav,
         volume_milli: (controller.ui.volume.clamp(0.0, 1.0) * 1000.0).round() as u16,
         transport_running: controller.is_playing(),
+    }
+}
+
+/// Normalized waveform projection values converted to milli-space key fields.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct WaveformProjectionMillis {
+    /// Cursor position in normalized milli-space.
+    cursor_milli: Option<u16>,
+    /// Playhead position in normalized milli-space.
+    playhead_milli: Option<u16>,
+    /// Selection start in normalized milli-space.
+    selection_start_milli: Option<u16>,
+    /// Selection end in normalized milli-space.
+    selection_end_milli: Option<u16>,
+    /// View start in normalized milli-space.
+    view_start_milli: u16,
+    /// View end in normalized milli-space.
+    view_end_milli: u16,
+}
+
+/// Derive normalized waveform projection key fields once for cache-key builders.
+fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProjectionMillis {
+    let cursor_milli = controller
+        .ui
+        .waveform
+        .cursor
+        .map(|value| (value.clamp(0.0, 1.0) * 1000.0).round() as u16);
+    let playhead_milli = controller.ui.waveform.playhead.visible.then_some(
+        (controller.ui.waveform.playhead.position.clamp(0.0, 1.0) * 1000.0).round() as u16,
+    );
+    let (selection_start_milli, selection_end_milli) = controller
+        .ui
+        .waveform
+        .selection
+        .map(|selection| {
+            let start = (selection.start().clamp(0.0, 1.0) * 1000.0).round() as u16;
+            let end = (selection.end().clamp(0.0, 1.0) * 1000.0).round() as u16;
+            (Some(start.min(end)), Some(start.max(end)))
+        })
+        .unwrap_or((None, None));
+    WaveformProjectionMillis {
+        cursor_milli,
+        playhead_milli,
+        selection_start_milli,
+        selection_end_milli,
+        view_start_milli: (controller.ui.waveform.view.start.clamp(0.0, 1.0) * 1000.0).round()
+            as u16,
+        view_end_milli: (controller.ui.waveform.view.end.clamp(0.0, 1.0) * 1000.0).round() as u16,
     }
 }
 
@@ -1418,34 +1557,15 @@ fn build_map_projection_key(controller: &AppController) -> MapProjectionCacheKey
 
 /// Build a waveform projection key from the current controller snapshot.
 fn build_waveform_projection_key(controller: &AppController) -> WaveformProjectionCacheKey {
-    let waveform_cursor_milli = controller
-        .ui
-        .waveform
-        .cursor
-        .map(|value| (value.clamp(0.0, 1.0) * 1000.0).round() as u16);
-    let waveform_playhead_milli = controller.ui.waveform.playhead.visible.then_some(
-        (controller.ui.waveform.playhead.position.clamp(0.0, 1.0) * 1000.0).round() as u16,
-    );
-    let (waveform_selection_start_milli, waveform_selection_end_milli) = controller
-        .ui
-        .waveform
-        .selection
-        .map(|selection| {
-            let start = (selection.start().clamp(0.0, 1.0) * 1000.0).round() as u16;
-            let end = (selection.end().clamp(0.0, 1.0) * 1000.0).round() as u16;
-            (Some(start.min(end)), Some(start.max(end)))
-        })
-        .unwrap_or((None, None));
+    let waveform_millis = derive_waveform_projection_millis(controller);
     WaveformProjectionCacheKey {
         waveform_signature: controller.ui.waveform.waveform_image_signature,
-        waveform_cursor_milli,
-        waveform_playhead_milli,
-        waveform_selection_start_milli,
-        waveform_selection_end_milli,
-        waveform_view_start_milli: (controller.ui.waveform.view.start.clamp(0.0, 1.0) * 1000.0)
-            .round() as u16,
-        waveform_view_end_milli: (controller.ui.waveform.view.end.clamp(0.0, 1.0) * 1000.0).round()
-            as u16,
+        waveform_cursor_milli: waveform_millis.cursor_milli,
+        waveform_playhead_milli: waveform_millis.playhead_milli,
+        waveform_selection_start_milli: waveform_millis.selection_start_milli,
+        waveform_selection_end_milli: waveform_millis.selection_end_milli,
+        waveform_view_start_milli: waveform_millis.view_start_milli,
+        waveform_view_end_milli: waveform_millis.view_end_milli,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_bpm_bits: controller.ui.waveform.bpm_value.map(f32::to_bits),
         loaded_wav_revision: controller.ui.projection_revisions.loaded_wav,
@@ -2148,7 +2268,7 @@ pub fn new_native_bridge(
 mod tests {
     use super::{
         DerivedNodeId, NativeProjectionCache, PendingWaveformActions, SempalNativeBridge,
-        build_projection_cache_key,
+        build_projection_cache_key, build_waveform_projection_key,
     };
     use crate::app_core::actions::{
         NativeAppBridge, NativeDirtySegments, NativeSegmentRevisions, NativeUiAction,
@@ -2174,6 +2294,42 @@ mod tests {
         controller.ui.update.status = UpdateStatus::Checking;
         let second = build_projection_cache_key(&controller);
         assert_ne!(first, second);
+    }
+
+    #[test]
+    /// Full and segment waveform keys must keep milli conversion behavior aligned.
+    fn projection_and_waveform_keys_share_waveform_milli_conversion() {
+        let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+        controller.ui.waveform.cursor = Some(0.1234);
+        controller.ui.waveform.playhead.visible = true;
+        controller.ui.waveform.playhead.position = 0.4321;
+        controller.ui.waveform.selection = Some(crate::selection::SelectionRange::new(0.8, 0.2));
+        controller.ui.waveform.view.start = 0.1;
+        controller.ui.waveform.view.end = 0.9;
+
+        let full = build_projection_cache_key(&controller);
+        let segment = build_waveform_projection_key(&controller);
+        assert_eq!(full.waveform_cursor_milli, segment.waveform_cursor_milli);
+        assert_eq!(
+            full.waveform_playhead_milli,
+            segment.waveform_playhead_milli
+        );
+        assert_eq!(
+            full.waveform_selection_start_milli,
+            segment.waveform_selection_start_milli
+        );
+        assert_eq!(
+            full.waveform_selection_end_milli,
+            segment.waveform_selection_end_milli
+        );
+        assert_eq!(
+            full.waveform_view_start_milli,
+            segment.waveform_view_start_milli
+        );
+        assert_eq!(
+            full.waveform_view_end_milli,
+            segment.waveform_view_end_milli
+        );
     }
 
     #[test]
