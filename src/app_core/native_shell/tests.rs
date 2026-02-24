@@ -1,4 +1,5 @@
 use super::*;
+use crate::app_core::app_api::state::SampleBrowserIndex;
 
 #[test]
 fn selected_column_defaults_to_middle_column_without_selection() {
@@ -136,6 +137,44 @@ fn waveform_projection_passes_raster_image_payload() {
         waveform_image.pixels.as_ref(),
         &[10, 20, 30, 40, 11, 21, 31, 41]
     );
+}
+
+/// Build a controller fixture with non-default fields for full app-model parity checks.
+fn app_model_projection_fixture_controller() -> AppController {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.status.text = String::from("Projection fixture status");
+    controller.ui.volume = 1.25;
+    controller.ui.browser.visible = crate::app_core::app_api::state::VisibleRows::All { total: 24 };
+    controller.ui.browser.sort = SampleBrowserSort::PlaybackAgeAsc;
+    controller.ui.browser.search_query = String::from("kick");
+    controller.ui.browser.search_busy = true;
+    controller.ui.browser.selected = Some(SampleBrowserIndex {
+        column: TriageFlagColumn::Keep,
+        row: 0,
+    });
+    controller.ui.browser.active_tab = SampleBrowserTab::List;
+    controller.ui.waveform.loop_enabled = true;
+    controller.ui.update.status = UpdateStatus::Checking;
+    controller
+}
+
+#[test]
+/// Staged projection helpers should assemble the same app model as `project_app_model`.
+fn project_app_model_matches_staged_projection_helpers() {
+    let mut expected_controller = app_model_projection_fixture_controller();
+    let derived_inputs = derive_project_app_model_inputs(&expected_controller);
+    let core_models = materialize_project_app_model_core(&mut expected_controller, &derived_inputs);
+    let overlay_and_chrome_models = materialize_project_app_model_overlay_and_chrome(
+        &expected_controller.ui,
+        core_models.browser.visible_count,
+    );
+    let expected =
+        assemble_project_app_model(derived_inputs, core_models, overlay_and_chrome_models);
+
+    let mut actual_controller = app_model_projection_fixture_controller();
+    let actual = project_app_model(&mut actual_controller);
+
+    assert_eq!(actual, expected);
 }
 
 #[test]
