@@ -182,6 +182,31 @@
 - `volume_drag_latency` p95: `187us`
 - All perf-guard scenarios remained below warning thresholds.
 
+### Latest Compositor Calibration (2026-02-24)
+
+- Startup profile calibration (compositor-backed, 5 runs) completed with 5/5
+  valid startup captures:
+  - summary: `target/perf/bench.startup_calibration2.startup_summary.json`
+  - locked thresholds: `target/perf/startup_thresholds.lock.env`
+  - `SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_MS=4515`
+  - `SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS=7224`
+  - `SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_SPREAD_MS=2187`
+  - `SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_SPREAD_MS=3937`
+- Immediate waveform-preview A/B repeated with larger run windows
+  (`SEMPAL_PERF_GUARD_RUNS=7`, compositor-backed):
+  - on: `target/perf/wave_preview_on_calib.json`
+    - `waveform_interaction_latency` p95/p99: `440us` / `10456us`
+    - `waveform_pan_zoom_adjacent_latency` p95/p99: `108us` / `164us`
+    - `volume_drag_latency` p95/p99: `120us` / `215us`
+  - off: `target/perf/wave_preview_off_calib.json`
+    - `waveform_interaction_latency` p95/p99: `156us` / `1046us`
+    - `waveform_pan_zoom_adjacent_latency` p95/p99: `89us` / `90us`
+    - `volume_drag_latency` p95/p99: `99us` / `181us`
+- Decision gate outcome:
+  - do not extend immediate-apply scope beyond overlay actions at this time;
+    keep scope unchanged until projection-stage outlier behavior under
+    immediate-preview-on is reduced.
+
 ## Milestone Exit Criteria
 
 - Each completed milestone must:

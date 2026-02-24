@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-23T11:40:12Z
+Last updated (UTC): 2026-02-24T11:33:24Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -15,17 +15,30 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Run startup-profile calibration on a compositor-backed host and lock
-   threshold env defaults from `startup_first_paint_recommended` output
-   (use `SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT` for one-shot lock-file output).
-2. Repeat immediate waveform-preview A/B on a compositor-backed host with
-   larger run windows to reduce variance, then decide whether to extend
-   immediate apply beyond overlay actions.
+1. Investigate compositor-run warning drift in browser/scroll interactions
+   (`hover_latency`, `wheel_latency`, `browser_filter_churn_latency`) and
+   prioritize projection-stage reductions from latest 7-run evidence.
+2. Keep immediate waveform preview scope limited to overlay actions; revisit
+   any wider immediate-apply scope only after a dedicated UX+perf gate.
 3. Maintain handoff hygiene on every milestone commit:
    update `AGENTS.md`, `MEMORY.md`, and this queue in the same change set.
 
 ## Done recently
 
+- Completed startup-profile threshold calibration on compositor-backed runs:
+  - `target/perf/bench.startup_calibration2.startup_summary.json`
+  - 5/5 valid startup profiles
+  - locked thresholds in `target/perf/startup_thresholds.lock.env`:
+    - `SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_MS=4515`
+    - `SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS=7224`
+    - `SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_SPREAD_MS=2187`
+    - `SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_SPREAD_MS=3937`
+- Completed immediate waveform-preview A/B with larger run windows
+  (`SEMPAL_PERF_GUARD_RUNS=7`) on compositor-backed runs:
+  - on (`target/perf/wave_preview_on_calib.json`) vs off
+    (`target/perf/wave_preview_off_calib.json`) showed lower waveform p95/p99
+    when off; decision recorded: do not extend immediate-apply scope beyond
+    overlay actions at this time.
 - Completed ROI item #9 waveform projection clone-elision:
   - waveform projection/model payloads now use `Arc<ImageRgba>`.
   - radiant `ImageRgba` pixels now use `Arc<[u8]>`.

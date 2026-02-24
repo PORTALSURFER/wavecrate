@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-23T11:40:12Z
+Last Updated: 2026-02-24T11:33:24Z
 Updated By: Codex
 
 ## Purpose
@@ -10,23 +10,27 @@ Updated By: Codex
 
 ## Current State (Present Tense)
 
-- I am running a docs-only housekeeping pass to improve wake-up clarity and
-  reduce handoff drift.
+- I am executing the runtime responsiveness/performance redesign and closing
+  the latest calibration/decision tasks from the active queue.
 - The active mission remains runtime responsiveness/performance redesign from
   `docs/plans/active/runtime_performance_exec_plan.md`.
-- The latest shipped milestone is ROI item #9: waveform projection now avoids
-  deep image payload clones by using shared `Arc`-backed image buffers.
-- Preflight (`bash scripts/run_agent_request.sh`) is green in this session,
-  including full local CI (perf guard warnings are warn-only).
+- Startup-profile calibration on a compositor-backed host is complete with 5/5
+  valid runs (`target/perf/bench.startup_calibration2.startup_summary.json`),
+  and startup threshold defaults are locked in
+  `target/perf/startup_thresholds.lock.env`.
+- Immediate waveform-preview A/B with larger windows is complete (7-run median
+  comparison); results favor preview-off latencies for waveform scenarios, so
+  immediate-apply scope remains limited to overlay actions for now.
 
 ## Immediate Next Actions
 
-1. Calibrate startup-profile thresholds on a compositor-backed host and lock
-   environment defaults.
-2. Re-run immediate waveform-preview A/B on a compositor-backed host with
-   larger run windows, then decide whether to widen immediate apply scope.
-3. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized
-   on every milestone commit.
+1. Reduce compositor-run warning drift in browser-heavy scenarios
+   (`hover_latency`, `wheel_latency`, `browser_filter_churn_latency`) from the
+   latest 7-run perf guard evidence.
+2. Root-cause projection-stage spikes seen in waveform interaction outliers
+   under immediate-preview-on runs before revisiting immediate-apply scope.
+3. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md`
+   synchronized on every milestone commit.
 
 ## Work Notes
 
@@ -34,3 +38,8 @@ Updated By: Codex
   `docs/plans/active/runtime_performance_exec_plan.md`.
 - Short ordered queue lives in:
   `docs/plans/active/todo.md`.
+- Latest calibration artifacts:
+  - `target/perf/bench.startup_calibration2.startup_summary.json`
+  - `target/perf/startup_thresholds.lock.env`
+  - `target/perf/wave_preview_on_calib.json`
+  - `target/perf/wave_preview_off_calib.json`
