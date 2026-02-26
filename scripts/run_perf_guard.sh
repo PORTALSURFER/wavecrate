@@ -11,6 +11,24 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+RADIANT_RUNTIME_FILE="$ROOT_DIR/vendor/radiant/src/gui_runtime/native_vello.rs"
+RADIANT_NESTED_RUNTIME_FILE="$ROOT_DIR/vendor/radiant/vendor/radiant/src/gui_runtime/native_vello.rs"
+
+if [ ! -f "$RADIANT_RUNTIME_FILE" ]; then
+  echo "[perf_guard] runtime internals missing; initializing git submodules recursively"
+  git submodule update --init --recursive vendor/radiant >/dev/null
+fi
+
+if [ ! -f "$RADIANT_RUNTIME_FILE" ]; then
+  if [ -f "$RADIANT_NESTED_RUNTIME_FILE" ]; then
+    echo "[perf_guard] ERROR: detected nested radiant checkout at vendor/radiant/vendor/radiant; expected top-level vendor/radiant crate" >&2
+    echo "[perf_guard] ERROR: repin vendor/radiant to a commit where vendor/radiant/Cargo.toml has name = \"radiant\"" >&2
+  else
+    echo "[perf_guard] ERROR: missing runtime internals at $RADIANT_RUNTIME_FILE" >&2
+  fi
+  exit 1
+fi
+
 OUT_PATH="${SEMPAL_PERF_GUARD_OUT:-target/perf/bench.json}"
 GUI_ROWS="${SEMPAL_PERF_GUARD_GUI_ROWS:-2500}"
 GUI_INTERACTION_ROWS="${SEMPAL_PERF_GUARD_GUI_INTERACTION_ROWS:-1500}"
