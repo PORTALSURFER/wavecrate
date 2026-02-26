@@ -357,6 +357,7 @@ impl AppController {
                         self.ui.browser.trash = message.trash.as_ref().to_vec();
                         self.ui.browser.neutral = message.neutral.as_ref().to_vec();
                         self.ui.browser.keep = message.keep.as_ref().to_vec();
+                        self.rebuild_browser_lookup_maps();
                         self.ui_cache.browser.search.scores = message.scores.as_ref().to_vec();
                         self.ui.browser.latest_applied_search_request_id = message.request_id;
                         self.ui.browser.search_busy = false;
@@ -365,9 +366,9 @@ impl AppController {
                         let focused_index = self.selected_row_index();
                         let loaded_index = self.loaded_row_index();
                         self.ui.browser.selected_visible =
-                            focused_index.and_then(|idx| self.ui.browser.visible.position(idx));
+                            focused_index.and_then(|idx| self.browser_visible_row_for_entry(idx));
                         self.ui.browser.loaded_visible =
-                            loaded_index.and_then(|idx| self.ui.browser.visible.position(idx));
+                            loaded_index.and_then(|idx| self.browser_visible_row_for_entry(idx));
                         self.ui.browser.marker_cache = None;
                     }
                 }

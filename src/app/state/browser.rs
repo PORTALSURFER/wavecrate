@@ -27,6 +27,10 @@ pub struct SampleBrowserState {
     pub loaded_visible: Option<usize>,
     /// Visible row anchor used for range selection (shift + click/arrow).
     pub selection_anchor_visible: Option<usize>,
+    /// Cached visible-row lookup by absolute wav-entry index.
+    pub visible_row_by_absolute: Vec<Option<usize>>,
+    /// Cached triage-column lookup by absolute wav-entry index.
+    pub triage_index_by_absolute: Vec<Option<SampleBrowserIndex>>,
     /// Paths currently included in the multi-selection set.
     pub selected_paths: Vec<PathBuf>,
     /// Monotonic revision bumped whenever `selected_paths` changes.
@@ -86,6 +90,8 @@ impl Default for SampleBrowserState {
             selected_visible: None,
             loaded_visible: None,
             selection_anchor_visible: None,
+            visible_row_by_absolute: Vec::new(),
+            triage_index_by_absolute: Vec::new(),
             selected_paths: Vec::new(),
             selected_paths_revision: 0,
             marker_cache: None,

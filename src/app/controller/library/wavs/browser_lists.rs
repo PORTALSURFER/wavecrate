@@ -27,6 +27,10 @@ impl AppController {
         self.ui.browser.trash = self.ui_cache.browser.pipeline.trash_rows.clone();
         self.ui.browser.neutral = self.ui_cache.browser.pipeline.neutral_rows.clone();
         self.ui.browser.keep = self.ui_cache.browser.pipeline.keep_rows.clone();
+        self.ui.browser.visible = visible;
+        self.ui.browser.visible_rows_revision =
+            self.ui.browser.visible_rows_revision.wrapping_add(1);
+        self.rebuild_browser_lookup_maps();
         self.ui.browser.selected =
             focused_index.and_then(|index| self.browser_index_for_entry(index));
         self.ui.browser.loaded = loaded_index.and_then(|index| self.browser_index_for_entry(index));
@@ -34,11 +38,10 @@ impl AppController {
             self.wav_entry(index)
                 .map(|entry| entry.relative_path.clone())
         });
-        self.ui.browser.visible = visible;
-        self.ui.browser.visible_rows_revision =
-            self.ui.browser.visible_rows_revision.wrapping_add(1);
-        self.ui.browser.selected_visible = selected_visible;
-        self.ui.browser.loaded_visible = loaded_visible;
+        self.ui.browser.selected_visible = selected_visible
+            .or_else(|| focused_index.and_then(|index| self.browser_visible_row_for_entry(index)));
+        self.ui.browser.loaded_visible = loaded_visible
+            .or_else(|| loaded_index.and_then(|index| self.browser_visible_row_for_entry(index)));
         self.ui.browser.marker_cache = None;
         let visible_len = self.ui.browser.visible.len();
         if let Some(anchor) = self.ui.browser.selection_anchor_visible
@@ -73,6 +76,8 @@ impl AppController {
         self.ui.browser.selected = None;
         self.ui.browser.loaded = None;
         self.ui.browser.loaded_visible = None;
+        self.ui.browser.visible_row_by_absolute.clear();
+        self.ui.browser.triage_index_by_absolute.clear();
         self.ui.browser.autoscroll = autoscroll;
         self.ui.loaded_wav = None;
     }
@@ -152,9 +157,9 @@ impl AppController {
             selected_index.and_then(|index| self.browser_index_for_entry(index));
         self.ui.browser.loaded = loaded_index.and_then(|index| self.browser_index_for_entry(index));
         self.ui.browser.selected_visible =
-            selected_index.and_then(|index| self.ui.browser.visible.position(index));
+            selected_index.and_then(|index| self.browser_visible_row_for_entry(index));
         self.ui.browser.loaded_visible =
-            loaded_index.and_then(|index| self.ui.browser.visible.position(index));
+            loaded_index.and_then(|index| self.browser_visible_row_for_entry(index));
         self.ui.loaded_wav = loaded_index.and_then(|index| {
             self.wav_entry(index)
                 .map(|entry| entry.relative_path.clone())
@@ -168,8 +173,123 @@ impl AppController {
         self.ui.browser.marker_cache = Some(self.browser_marker_cache_state());
     }
 
+    /// Rebuild absolute-index lookups for visible rows and triage-column positions.
+    pub(crate) fn rebuild_browser_lookup_maps(&mut self) {
+        let entries_len = self.wav_entries_len();
+        self.ui.browser.visible_row_by_absolute.clear();
+        self.ui
+            .browser
+            .visible_row_by_absolute
+            .resize(entries_len, None);
+        match &self.ui.browser.visible {
+            crate::app::state::VisibleRows::All { total } => {
+                let limit = (*total).min(entries_len);
+                for index in 0..limit {
+                    self.ui.browser.visible_row_by_absolute[index] = Some(index);
+                }
+            }
+            crate::app::state::VisibleRows::List(rows) => {
+                for (row, index) in rows.iter().copied().enumerate() {
+                    if index < entries_len {
+                        self.ui.browser.visible_row_by_absolute[index] = Some(row);
+                    }
+                }
+            }
+        }
+
+        self.ui.browser.triage_index_by_absolute.clear();
+        self.ui
+            .browser
+            .triage_index_by_absolute
+            .resize(entries_len, None);
+        for (row, index) in self.ui.browser.trash.iter().copied().enumerate() {
+            if index < entries_len {
+                self.ui.browser.triage_index_by_absolute[index] = Some(SampleBrowserIndex {
+                    column: crate::app::state::TriageFlagColumn::Trash,
+                    row,
+                });
+            }
+        }
+        for (row, index) in self.ui.browser.neutral.iter().copied().enumerate() {
+            if index < entries_len {
+                self.ui.browser.triage_index_by_absolute[index] = Some(SampleBrowserIndex {
+                    column: crate::app::state::TriageFlagColumn::Neutral,
+                    row,
+                });
+            }
+        }
+        for (row, index) in self.ui.browser.keep.iter().copied().enumerate() {
+            if index < entries_len {
+                self.ui.browser.triage_index_by_absolute[index] = Some(SampleBrowserIndex {
+                    column: crate::app::state::TriageFlagColumn::Keep,
+                    row,
+                });
+            }
+        }
+    }
+
+    /// Resolve the visible-row index for an absolute wav-entry index.
+    pub(crate) fn browser_visible_row_for_entry(&self, entry_index: usize) -> Option<usize> {
+        if let Some(row) = self
+            .ui
+            .browser
+            .visible_row_by_absolute
+            .get(entry_index)
+            .copied()
+            .flatten()
+            && self.ui.browser.visible.get(row) == Some(entry_index)
+        {
+            return Some(row);
+        }
+        self.ui.browser.visible.position(entry_index)
+    }
+
     /// Resolve a triage-column browser index for an absolute wav entry index.
     fn browser_index_for_entry(&self, entry_index: usize) -> Option<SampleBrowserIndex> {
+        if let Some(mapped) = self
+            .ui
+            .browser
+            .triage_index_by_absolute
+            .get(entry_index)
+            .copied()
+            .flatten()
+            && self.browser_index_lookup_matches_entry(mapped, entry_index)
+        {
+            return Some(mapped);
+        }
+        self.browser_index_for_entry_linear(entry_index)
+    }
+
+    /// Return whether a cached triage lookup still points to the requested entry.
+    fn browser_index_lookup_matches_entry(
+        &self,
+        index: SampleBrowserIndex,
+        entry_index: usize,
+    ) -> bool {
+        match index.column {
+            crate::app::state::TriageFlagColumn::Trash => self
+                .ui
+                .browser
+                .trash
+                .get(index.row)
+                .is_some_and(|value| *value == entry_index),
+            crate::app::state::TriageFlagColumn::Neutral => self
+                .ui
+                .browser
+                .neutral
+                .get(index.row)
+                .is_some_and(|value| *value == entry_index),
+            crate::app::state::TriageFlagColumn::Keep => self
+                .ui
+                .browser
+                .keep
+                .get(index.row)
+                .is_some_and(|value| *value == entry_index),
+        }
+    }
+
+    /// Resolve a triage-column browser index via linear fallback scans.
+    fn browser_index_for_entry_linear(&self, entry_index: usize) -> Option<SampleBrowserIndex> {
         use crate::sample_sources::Rating;
         self.ui
             .browser
