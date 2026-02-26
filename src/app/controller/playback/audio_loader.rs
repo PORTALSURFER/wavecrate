@@ -6,7 +6,7 @@ use std::{
     path::{Component, Path, PathBuf},
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc::{Receiver, Sender},
     },
     thread,
@@ -49,10 +49,16 @@ pub(crate) struct AudioLoadResult {
 /// Join handle and shutdown signal for the audio loader thread.
 pub(crate) struct AudioLoaderHandle {
     shutdown: Arc<AtomicBool>,
+    latest_request_id: Arc<AtomicU64>,
     join_handle: Option<thread::JoinHandle<()>>,
 }
 
 impl AudioLoaderHandle {
+    /// Publish the most recent queued request id so stale decode work can abort early.
+    pub(crate) fn publish_latest_request_id(&self, request_id: u64) {
+        self.latest_request_id.store(request_id, Ordering::Relaxed);
+    }
+
     /// Signal the loader thread to exit and wait for it to finish.
     pub(crate) fn shutdown(&mut self) {
         self.shutdown.store(true, Ordering::Relaxed);
@@ -74,16 +80,28 @@ pub(crate) fn spawn_audio_loader(
     let (result_tx, result_rx) = std::sync::mpsc::channel::<AudioLoadResult>();
     let shutdown = Arc::new(AtomicBool::new(false));
     let shutdown_worker = Arc::clone(&shutdown);
+    let latest_request_id = Arc::new(AtomicU64::new(0));
+    let latest_request_id_worker = Arc::clone(&latest_request_id);
     let handle = thread::spawn(move || {
         while !shutdown_worker.load(Ordering::Relaxed) {
             match rx.recv_timeout(AUDIO_LOADER_POLL_INTERVAL) {
                 Ok(job) => {
-                    let outcome = load_audio(&renderer, &job);
+                    let job = drain_to_latest_job(job, &rx);
+                    let outcome = load_audio(&renderer, &job, &latest_request_id_worker);
+                    if !matches!(outcome, AudioLoadExecution::Completed(_)) {
+                        continue;
+                    }
+                    if is_stale_request(job.request_id, &latest_request_id_worker) {
+                        continue;
+                    }
+                    let AudioLoadExecution::Completed(result) = outcome else {
+                        continue;
+                    };
                     let _ = result_tx.send(AudioLoadResult {
                         request_id: job.request_id,
                         source_id: job.source_id.clone(),
                         relative_path: job.relative_path.clone(),
-                        result: outcome,
+                        result,
                     });
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
@@ -96,16 +114,54 @@ pub(crate) fn spawn_audio_loader(
         result_rx,
         AudioLoaderHandle {
             shutdown,
+            latest_request_id,
             join_handle: Some(handle),
         },
     )
 }
 
+enum AudioLoadExecution {
+    Completed(Result<AudioLoadOutcome, AudioLoadError>),
+    DroppedStale,
+}
+
+fn drain_to_latest_job(mut latest_job: AudioLoadJob, rx: &Receiver<AudioLoadJob>) -> AudioLoadJob {
+    while let Ok(next_job) = rx.try_recv() {
+        latest_job = next_job;
+    }
+    latest_job
+}
+
+fn is_stale_request(request_id: u64, latest_request_id: &AtomicU64) -> bool {
+    let latest = latest_request_id.load(Ordering::Relaxed);
+    latest != 0 && latest != request_id
+}
+
 fn load_audio(
     renderer: &WaveformRenderer,
     job: &AudioLoadJob,
-) -> Result<AudioLoadOutcome, AudioLoadError> {
+    latest_request_id: &AtomicU64,
+) -> AudioLoadExecution {
+    if is_stale_request(job.request_id, latest_request_id) {
+        return AudioLoadExecution::DroppedStale;
+    }
+    let result = load_audio_inner(renderer, job, latest_request_id);
+    match result {
+        Ok(Some(outcome)) => AudioLoadExecution::Completed(Ok(outcome)),
+        Ok(None) => AudioLoadExecution::DroppedStale,
+        Err(err) => AudioLoadExecution::Completed(Err(err)),
+    }
+}
+
+fn load_audio_inner(
+    renderer: &WaveformRenderer,
+    job: &AudioLoadJob,
+    latest_request_id: &AtomicU64,
+) -> Result<Option<AudioLoadOutcome>, AudioLoadError> {
     ensure_safe_relative_path(&job.relative_path)?;
+    if is_stale_request(job.request_id, latest_request_id) {
+        return Ok(None);
+    }
     let full_path = job.root.join(&job.relative_path);
     let metadata = fs::metadata(&full_path).map_err(|err| {
         let missing = err.kind() == std::io::ErrorKind::NotFound;
@@ -126,6 +182,9 @@ fn load_audio(
             AudioLoadError::Failed(format!("Failed to read {}: {err}", full_path.display()))
         }
     })?;
+    if is_stale_request(job.request_id, latest_request_id) {
+        return Ok(None);
+    }
     let bytes = crate::wav_sanitize::sanitize_wav_bytes(bytes);
     let modified_ns = metadata
         .modified()
@@ -143,16 +202,28 @@ fn load_audio(
             ))
         })?
         .as_nanos() as i64;
+    if is_stale_request(job.request_id, latest_request_id) {
+        return Ok(None);
+    }
     let mut decoded = renderer
         .decode_from_bytes(&bytes)
         .map_err(|err| AudioLoadError::Failed(err.to_string()))?;
+    if is_stale_request(job.request_id, latest_request_id) {
+        return Ok(None);
+    }
 
     let mut stretched = false;
     let mut final_bytes = bytes;
 
     if let Some(ratio) = job.stretch_ratio {
+        if is_stale_request(job.request_id, latest_request_id) {
+            return Ok(None);
+        }
         let wsola = crate::audio::Wsola::new(decoded.sample_rate);
         let stretched_samples = wsola.stretch(&decoded.samples, decoded.channel_count(), ratio);
+        if is_stale_request(job.request_id, latest_request_id) {
+            return Ok(None);
+        }
         match crate::app::controller::playback::audio_samples::wav_bytes_from_samples(
             &stretched_samples,
             decoded.sample_rate,
@@ -172,12 +243,18 @@ fn load_audio(
         }
     }
 
+    if is_stale_request(job.request_id, latest_request_id) {
+        return Ok(None);
+    }
     let transients = crate::waveform::transients::detect_transients(
         &decoded,
         crate::app::controller::library::wavs::waveform_rendering::DEFAULT_TRANSIENT_SENSITIVITY,
     );
+    if is_stale_request(job.request_id, latest_request_id) {
+        return Ok(None);
+    }
 
-    Ok(AudioLoadOutcome {
+    Ok(Some(AudioLoadOutcome {
         decoded,
         bytes: final_bytes,
         metadata: FileMetadata {
@@ -186,7 +263,7 @@ fn load_audio(
         },
         transients,
         stretched,
-    })
+    }))
 }
 
 fn ensure_safe_relative_path(path: &Path) -> Result<(), AudioLoadError> {
@@ -216,8 +293,20 @@ fn ensure_safe_relative_path(path: &Path) -> Result<(), AudioLoadError> {
 
 #[cfg(test)]
 mod tests {
-    use super::ensure_safe_relative_path;
+    use super::{AudioLoadJob, drain_to_latest_job, ensure_safe_relative_path, is_stale_request};
     use std::path::Path;
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicU64;
+
+    fn test_job(request_id: u64, relative_path: &str) -> AudioLoadJob {
+        AudioLoadJob {
+            request_id,
+            source_id: crate::sample_sources::SourceId::from_string("source"),
+            root: PathBuf::from("/tmp"),
+            relative_path: PathBuf::from(relative_path),
+            stretch_ratio: None,
+        }
+    }
 
     #[test]
     fn ensure_safe_relative_path_rejects_parent_dir() {
@@ -228,5 +317,24 @@ mod tests {
     #[test]
     fn ensure_safe_relative_path_accepts_normal_relative_paths() {
         ensure_safe_relative_path(Path::new("folder/./file.wav")).unwrap();
+    }
+
+    #[test]
+    fn drain_to_latest_job_keeps_most_recent_request() {
+        let (tx, rx) = std::sync::mpsc::channel::<AudioLoadJob>();
+        tx.send(test_job(2, "two.wav")).unwrap();
+        tx.send(test_job(3, "three.wav")).unwrap();
+        let drained = drain_to_latest_job(test_job(1, "one.wav"), &rx);
+        assert_eq!(drained.request_id, 3);
+        assert_eq!(drained.relative_path, Path::new("three.wav"));
+    }
+
+    #[test]
+    fn stale_request_detection_ignores_zero_and_matches_latest_only() {
+        let latest = AtomicU64::new(0);
+        assert!(!is_stale_request(1, &latest));
+        latest.store(5, std::sync::atomic::Ordering::Relaxed);
+        assert!(is_stale_request(4, &latest));
+        assert!(!is_stale_request(5, &latest));
     }
 }

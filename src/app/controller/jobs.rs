@@ -950,6 +950,7 @@ impl ControllerJobs {
     }
 
     pub(super) fn send_audio_job(&self, job: AudioLoadJob) -> Result<(), ()> {
+        self.audio_loader.publish_latest_request_id(job.request_id);
         self.audio_job_tx.send(job).map_err(|_| ())
     }
 
