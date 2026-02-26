@@ -970,6 +970,7 @@ pub(crate) fn project_browser_rows_model_into(
     refresh_projected_selected_paths_lookup(controller);
     let (window_start, window_len) =
         browser_render_window(visible_count, selected_visible_row, anchor_visible_row);
+    preload_browser_window_bpms(controller, window_start, window_len);
     if rows.capacity() < window_len {
         rows.reserve(window_len.saturating_sub(rows.len()));
     }
@@ -1010,6 +1011,31 @@ pub(crate) fn project_browser_rows_model_into(
         );
     }
     rows.truncate(window_len);
+}
+
+/// Preload BPM metadata for the current visible browser window in one batch query.
+fn preload_browser_window_bpms(
+    controller: &mut AppController,
+    window_start: usize,
+    window_len: usize,
+) {
+    if window_len == 0 {
+        return;
+    }
+    let mut visible_paths = Vec::with_capacity(window_len);
+    for offset in 0..window_len {
+        let visible_row = window_start + offset;
+        let Some(absolute_index) = controller.ui.browser.visible.get(visible_row) else {
+            continue;
+        };
+        if let Some(relative_path) = controller
+            .wav_entry(absolute_index)
+            .map(|entry| entry.relative_path.clone())
+        {
+            visible_paths.push(relative_path);
+        }
+    }
+    controller.preload_bpm_values_for_paths(&visible_paths);
 }
 
 /// Project browser panel metadata and row window into one panel model.

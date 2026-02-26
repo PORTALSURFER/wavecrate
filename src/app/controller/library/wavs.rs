@@ -122,6 +122,62 @@ impl AppController {
         bpm
     }
 
+    /// Preload BPM metadata for a visible row window to avoid per-row DB lookups.
+    pub(crate) fn preload_bpm_values_for_paths(&mut self, paths: &[PathBuf]) {
+        if paths.is_empty() {
+            return;
+        }
+        let Some(source) = self.current_source() else {
+            return;
+        };
+        let source_id = source.id.clone();
+        let cache = self
+            .ui_cache
+            .browser
+            .bpm_values
+            .entry(source_id.clone())
+            .or_default();
+        let mut missing_paths = Vec::new();
+        let mut missing_sample_ids = Vec::new();
+        for path in paths {
+            if cache.contains_key(path) {
+                continue;
+            }
+            missing_paths.push(path.clone());
+            missing_sample_ids.push(analysis_jobs::build_sample_id(source_id.as_str(), path));
+        }
+        if missing_paths.is_empty() {
+            return;
+        }
+        let db = match self.database_for(&source) {
+            Ok(db) => db,
+            Err(err) => {
+                tracing::debug!("Skipping BPM preload (database unavailable): {err}");
+                return;
+            }
+        };
+        let bpm_lookup = match db.bpms_for_sample_ids(&missing_sample_ids) {
+            Ok(values) => values,
+            Err(err) => {
+                tracing::debug!("Skipping BPM preload (batch lookup failed): {err}");
+                return;
+            }
+        };
+        let cache = self
+            .ui_cache
+            .browser
+            .bpm_values
+            .entry(source_id)
+            .or_default();
+        for (path, sample_id) in missing_paths
+            .into_iter()
+            .zip(missing_sample_ids.into_iter())
+        {
+            let bpm = bpm_lookup.get(sample_id.as_str()).copied().flatten();
+            cache.insert(path, bpm);
+        }
+    }
+
     /// Visible wav indices after applying the active sample browser filter.
     pub fn visible_browser_rows(&self) -> &crate::app::state::VisibleRows {
         &self.ui.browser.visible

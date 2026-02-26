@@ -745,4 +745,36 @@ mod tests {
             .unwrap();
         assert_eq!(idx.as_deref(), Some("idx_wav_files_missing"));
     }
+
+    #[test]
+    fn batch_bpm_lookup_returns_requested_sample_rows() {
+        let dir = tempdir().unwrap();
+        let db = SourceDatabase::open(dir.path()).unwrap();
+        db.connection
+            .execute(
+                "INSERT INTO samples (sample_id, content_hash, size, mtime_ns, bpm)
+                 VALUES (?1, 'h1', 1, 1, ?2)",
+                params!["source::one.wav", 124.0f64],
+            )
+            .unwrap();
+        db.connection
+            .execute(
+                "INSERT INTO samples (sample_id, content_hash, size, mtime_ns, bpm)
+                 VALUES (?1, 'h2', 1, 1, NULL)",
+                params!["source::two.wav"],
+            )
+            .unwrap();
+
+        let lookup = db
+            .bpms_for_sample_ids(&[
+                String::from("source::one.wav"),
+                String::from("source::two.wav"),
+                String::from("source::missing.wav"),
+            ])
+            .unwrap();
+
+        assert_eq!(lookup.get("source::one.wav"), Some(&Some(124.0)));
+        assert_eq!(lookup.get("source::two.wav"), Some(&None));
+        assert!(!lookup.contains_key("source::missing.wav"));
+    }
 }
