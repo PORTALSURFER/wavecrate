@@ -149,10 +149,11 @@ impl AppController {
         view
     }
 
-    pub(crate) fn apply_waveform_image(
+    /// Apply waveform payloads using shared immutable buffers.
+    pub(crate) fn apply_waveform_image_shared(
         &mut self,
-        decoded: DecodedWaveform,
-        transients: Option<Vec<f32>>,
+        decoded: Arc<DecodedWaveform>,
+        transients: Option<Arc<[f32]>>,
     ) {
         if self
             .sample_view
@@ -185,6 +186,18 @@ impl AppController {
             self.refresh_waveform_transients();
         }
         self.refresh_waveform_image_with_reason(WaveformRefreshReason::Data);
+    }
+
+    /// Apply waveform payloads using owned values.
+    ///
+    /// This compatibility path adapts legacy call sites to the shared immutable
+    /// payload pipeline and should be removed once all callers are Arc-first.
+    pub(crate) fn apply_waveform_image(
+        &mut self,
+        decoded: DecodedWaveform,
+        transients: Option<Vec<f32>>,
+    ) {
+        self.apply_waveform_image_shared(Arc::new(decoded), transients.map(Arc::from));
     }
 
     /// Update the waveform render target to match the current view size.
@@ -324,7 +337,7 @@ impl AppController {
 
     pub(crate) fn refresh_waveform_transients(&mut self) {
         let Some(decoded) = self.sample_view.waveform.decoded.as_ref() else {
-            self.ui.waveform.transients.clear();
+            self.ui.waveform.transients = Arc::from([]);
             self.ui.waveform.transient_cache_token = None;
             return;
         };
@@ -332,7 +345,8 @@ impl AppController {
             return;
         }
         self.ui.waveform.transients =
-            crate::waveform::transients::detect_transients(decoded, DEFAULT_TRANSIENT_SENSITIVITY);
+            crate::waveform::transients::detect_transients(decoded, DEFAULT_TRANSIENT_SENSITIVITY)
+                .into();
         self.ui.waveform.transient_cache_token = Some(decoded.cache_token);
     }
 

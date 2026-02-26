@@ -3,6 +3,7 @@ use crate::selection::SelectionRange;
 use crate::waveform::{WaveformChannelView, WaveformImage};
 use std::collections::VecDeque;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 
 /// Cached waveform image and playback overlays.
@@ -45,7 +46,7 @@ pub struct WaveformState {
     /// Parsed waveform BPM value used by snapping and stretching when valid.
     pub bpm_value: Option<f32>,
     /// Cached transient positions (normalized 0-1) for the loaded waveform.
-    pub transients: Vec<f32>,
+    pub transients: Arc<[f32]>,
     /// When true, transient markers are rendered on the waveform.
     pub transient_markers_enabled: bool,
     /// When true, selection drags snap to nearby transient markers (disabled while hidden).
@@ -103,7 +104,7 @@ impl Default for WaveformState {
             bpm_stretch_enabled: false,
             bpm_input: "142".to_string(),
             bpm_value: Some(142.0),
-            transients: Vec::new(),
+            transients: Arc::from([]),
             transient_markers_enabled: true,
             transient_snap_enabled: false,
             transient_cache_token: None,

@@ -66,7 +66,7 @@ fn batched_zoom_many_steps_matches_sequential_steps() {
 fn mouse_zoom_prefers_pointer_over_playhead() {
     let (mut controller, _source) = dummy_controller();
     controller.sample_view.waveform.size = [240, 24];
-    controller.sample_view.waveform.decoded = Some(DecodedWaveform {
+    controller.sample_view.waveform.decoded = Some(std::sync::Arc::new(DecodedWaveform {
         cache_token: 1,
         samples: std::sync::Arc::from(vec![0.0; 10_000]),
         analysis_samples: std::sync::Arc::from(Vec::new()),
@@ -76,7 +76,7 @@ fn mouse_zoom_prefers_pointer_over_playhead() {
         duration_seconds: 1.0,
         sample_rate: 48_000,
         channels: 1,
-    });
+    }));
     controller.ui.waveform.playhead.position = 0.1;
     controller.ui.waveform.playhead.visible = true;
 
@@ -203,7 +203,7 @@ fn play_from_cursor_prefers_cursor_position() {
     let (mut controller, source) = dummy_controller();
     prepare_browser_sample(&mut controller, &source, "cursor.wav");
     controller.select_wav_by_path(Path::new("cursor.wav"));
-    controller.sample_view.waveform.decoded = Some(DecodedWaveform {
+    controller.sample_view.waveform.decoded = Some(std::sync::Arc::new(DecodedWaveform {
         cache_token: 1,
         samples: std::sync::Arc::from(vec![0.0; 10_000]),
         analysis_samples: std::sync::Arc::from(Vec::new()),
@@ -213,7 +213,7 @@ fn play_from_cursor_prefers_cursor_position() {
         duration_seconds: 1.0,
         sample_rate: 48_000,
         channels: 1,
-    });
+    }));
     controller.ui.waveform.cursor = Some(0.33);
     controller.ui.waveform.cursor_last_navigation_at = Some(Instant::now());
     controller.ui.waveform.cursor_last_hover_at = None;
@@ -237,7 +237,7 @@ fn play_from_cursor_ignores_hover_cursor_when_replaying() {
     let (mut controller, source) = dummy_controller();
     prepare_browser_sample(&mut controller, &source, "cursor.wav");
     controller.select_wav_by_path(Path::new("cursor.wav"));
-    controller.sample_view.waveform.decoded = Some(DecodedWaveform {
+    controller.sample_view.waveform.decoded = Some(std::sync::Arc::new(DecodedWaveform {
         cache_token: 1,
         samples: std::sync::Arc::from(vec![0.0; 10_000]),
         analysis_samples: std::sync::Arc::from(Vec::new()),
@@ -247,7 +247,7 @@ fn play_from_cursor_ignores_hover_cursor_when_replaying() {
         duration_seconds: 1.0,
         sample_rate: 48_000,
         channels: 1,
-    });
+    }));
     controller.ui.waveform.cursor = Some(0.33);
     controller.ui.waveform.cursor_last_navigation_at =
         Some(Instant::now() - Duration::from_secs(5));
@@ -271,7 +271,7 @@ fn play_from_cursor_ignores_hover_cursor_when_replaying() {
 fn cursor_alpha_fades_before_reset() {
     let (mut controller, source) = dummy_controller();
     prepare_browser_sample(&mut controller, &source, "cursor.wav");
-    controller.sample_view.waveform.decoded = Some(DecodedWaveform {
+    controller.sample_view.waveform.decoded = Some(std::sync::Arc::new(DecodedWaveform {
         cache_token: 1,
         samples: std::sync::Arc::from(vec![0.0; 10_000]),
         analysis_samples: std::sync::Arc::from(Vec::new()),
@@ -281,7 +281,7 @@ fn cursor_alpha_fades_before_reset() {
         duration_seconds: 1.0,
         sample_rate: 48_000,
         channels: 1,
-    });
+    }));
     controller.ui.waveform.cursor = Some(0.4);
     controller.ui.waveform.cursor_last_navigation_at =
         Some(Instant::now() - Duration::from_millis(250));
@@ -296,7 +296,7 @@ fn cursor_alpha_fades_before_reset() {
 fn cursor_alpha_resets_after_idle_timeout() {
     let (mut controller, source) = dummy_controller();
     prepare_browser_sample(&mut controller, &source, "cursor.wav");
-    controller.sample_view.waveform.decoded = Some(DecodedWaveform {
+    controller.sample_view.waveform.decoded = Some(std::sync::Arc::new(DecodedWaveform {
         cache_token: 1,
         samples: std::sync::Arc::from(vec![0.0; 10_000]),
         analysis_samples: std::sync::Arc::from(Vec::new()),
@@ -306,7 +306,7 @@ fn cursor_alpha_resets_after_idle_timeout() {
         duration_seconds: 1.0,
         sample_rate: 48_000,
         channels: 1,
-    });
+    }));
     controller.ui.waveform.cursor = Some(0.4);
     controller.ui.waveform.cursor_last_navigation_at =
         Some(Instant::now() - Duration::from_millis(600));
@@ -321,7 +321,7 @@ fn cursor_alpha_resets_after_idle_timeout() {
 fn cursor_does_not_fade_when_waveform_focused() {
     let (mut controller, source) = dummy_controller();
     prepare_browser_sample(&mut controller, &source, "cursor.wav");
-    controller.sample_view.waveform.decoded = Some(DecodedWaveform {
+    controller.sample_view.waveform.decoded = Some(std::sync::Arc::new(DecodedWaveform {
         cache_token: 1,
         samples: std::sync::Arc::from(vec![0.0; 10_000]),
         analysis_samples: std::sync::Arc::from(Vec::new()),
@@ -331,7 +331,7 @@ fn cursor_does_not_fade_when_waveform_focused() {
         duration_seconds: 1.0,
         sample_rate: 48_000,
         channels: 1,
-    });
+    }));
     controller.ui.waveform.cursor = Some(0.4);
     controller.ui.waveform.cursor_last_navigation_at =
         Some(Instant::now() - Duration::from_millis(800));

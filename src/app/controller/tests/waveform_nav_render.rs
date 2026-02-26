@@ -15,7 +15,7 @@ fn waveform_refresh_respects_view_slice_and_caps_width() {
         start: 0.25,
         end: 0.5,
     };
-    controller.sample_view.waveform.decoded = Some(DecodedWaveform {
+    controller.sample_view.waveform.decoded = Some(std::sync::Arc::new(DecodedWaveform {
         cache_token: 1,
         samples: std::sync::Arc::from((0..1000).map(|i| i as f32).collect::<Vec<_>>()),
         analysis_samples: std::sync::Arc::from(Vec::new()),
@@ -25,7 +25,7 @@ fn waveform_refresh_respects_view_slice_and_caps_width() {
         duration_seconds: 1.0,
         sample_rate: 48_000,
         channels: 1,
-    });
+    }));
     controller.sample_view.waveform.render_meta = None;
     controller.refresh_waveform_image();
     let image = controller
@@ -105,7 +105,7 @@ fn adjacent_pan_translation_matches_full_render_output() {
         start: 0.20,
         end: 0.60,
     };
-    controller.sample_view.waveform.decoded = Some(DecodedWaveform {
+    controller.sample_view.waveform.decoded = Some(std::sync::Arc::new(DecodedWaveform {
         cache_token: 1,
         samples: std::sync::Arc::from(
             (0..2_000)
@@ -119,7 +119,7 @@ fn adjacent_pan_translation_matches_full_render_output() {
         duration_seconds: 1.0,
         sample_rate: 48_000,
         channels: 1,
-    });
+    }));
 
     controller.refresh_waveform_image();
     controller.ui.waveform.view = WaveformView {
@@ -177,7 +177,7 @@ fn adjacent_pan_translation_matches_full_render_output() {
 /// Adjacent viewport sizes should retain stable texture-width bucketing.
 fn waveform_texture_width_is_stable_for_adjacent_sizes() {
     let (mut controller, _source) = dummy_controller();
-    controller.sample_view.waveform.decoded = Some(DecodedWaveform {
+    controller.sample_view.waveform.decoded = Some(std::sync::Arc::new(DecodedWaveform {
         cache_token: 1,
         samples: std::sync::Arc::from(
             (0..4_096)
@@ -191,7 +191,7 @@ fn waveform_texture_width_is_stable_for_adjacent_sizes() {
         duration_seconds: 1.0,
         sample_rate: 48_000,
         channels: 1,
-    });
+    }));
     controller.ui.waveform.view = WaveformView::default();
 
     controller.update_waveform_size(511, 24);

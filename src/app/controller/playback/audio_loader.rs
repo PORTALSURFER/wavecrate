@@ -25,10 +25,10 @@ pub(crate) struct AudioLoadJob {
 
 #[derive(Debug)]
 pub(crate) struct AudioLoadOutcome {
-    pub decoded: DecodedWaveform,
+    pub decoded: Arc<DecodedWaveform>,
     pub bytes: Arc<[u8]>,
     pub metadata: FileMetadata,
-    pub transients: Vec<f32>,
+    pub transients: Arc<[f32]>,
     pub stretched: bool,
 }
 
@@ -205,9 +205,11 @@ fn load_audio_inner(
     if is_stale_request(job.request_id, latest_request_id) {
         return Ok(None);
     }
-    let mut decoded = renderer
-        .decode_from_bytes(&bytes)
-        .map_err(|err| AudioLoadError::Failed(err.to_string()))?;
+    let mut decoded = Arc::new(
+        renderer
+            .decode_from_bytes(&bytes)
+            .map_err(|err| AudioLoadError::Failed(err.to_string()))?,
+    );
     if is_stale_request(job.request_id, latest_request_id) {
         return Ok(None);
     }
@@ -234,7 +236,7 @@ fn load_audio_inner(
                 stretched = true;
                 // Decode the stretched bytes to get the correct duration and cache token
                 if let Ok(d) = renderer.decode_from_bytes(&final_bytes) {
-                    decoded = d;
+                    decoded = Arc::new(d);
                 }
             }
             Err(err) => {
@@ -246,10 +248,11 @@ fn load_audio_inner(
     if is_stale_request(job.request_id, latest_request_id) {
         return Ok(None);
     }
-    let transients = crate::waveform::transients::detect_transients(
-        &decoded,
+    let transients: Arc<[f32]> = crate::waveform::transients::detect_transients(
+        decoded.as_ref(),
         crate::app::controller::library::wavs::waveform_rendering::DEFAULT_TRANSIENT_SENSITIVITY,
-    );
+    )
+    .into();
     if is_stale_request(job.request_id, latest_request_id) {
         return Ok(None);
     }

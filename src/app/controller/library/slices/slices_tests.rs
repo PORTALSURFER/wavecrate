@@ -67,7 +67,7 @@ fn detect_waveform_slices_uses_transients_when_enabled() {
         .unwrap();
     controller.ui.waveform.transient_markers_enabled = true;
     controller.ui.waveform.transient_snap_enabled = true;
-    controller.ui.waveform.transients = vec![0.25, 0.5, 0.75];
+    controller.ui.waveform.transients = vec![0.25, 0.5, 0.75].into();
 
     let count = controller.detect_waveform_slices_from_silence().unwrap();
 
@@ -121,7 +121,7 @@ fn detect_waveform_slices_skips_silent_segments_with_transients() {
         .unwrap();
     controller.ui.waveform.transient_markers_enabled = true;
     controller.ui.waveform.transient_snap_enabled = true;
-    controller.ui.waveform.transients = vec![0.25, 0.5, 0.75];
+    controller.ui.waveform.transients = vec![0.25, 0.5, 0.75].into();
 
     let count = controller.detect_waveform_slices_from_silence().unwrap();
 
