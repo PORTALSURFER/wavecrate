@@ -17,6 +17,11 @@ pub struct SampleBrowserState {
     pub visible: VisibleRows,
     /// Monotonic revision bumped whenever the visible-row projection changes.
     pub visible_rows_revision: u64,
+    /// Revision for the current absolute-index lookup maps.
+    ///
+    /// This tracks which visible-row projection revision last rebuilt
+    /// `visible_row_by_absolute` and `triage_index_by_absolute`.
+    pub lookup_maps_revision: u64,
     /// Focused row used for playback/navigation (mirrors previously “selected”).
     pub selected: Option<SampleBrowserIndex>,
     /// Loaded row used for playback.
@@ -85,6 +90,7 @@ impl Default for SampleBrowserState {
             keep: Arc::from([]),
             visible: VisibleRows::List(Vec::new().into()),
             visible_rows_revision: 0,
+            lookup_maps_revision: 0,
             selected: None,
             loaded: None,
             selected_visible: None,

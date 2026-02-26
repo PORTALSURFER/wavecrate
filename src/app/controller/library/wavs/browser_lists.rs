@@ -78,6 +78,7 @@ impl AppController {
         self.ui.browser.loaded_visible = None;
         self.ui.browser.visible_row_by_absolute.clear();
         self.ui.browser.triage_index_by_absolute.clear();
+        self.ui.browser.lookup_maps_revision = 0;
         self.ui.browser.autoscroll = autoscroll;
         self.ui.loaded_wav = None;
     }
@@ -165,6 +166,7 @@ impl AppController {
             return;
         }
         self.prune_browser_selection();
+        self.ensure_browser_lookup_maps_current();
         let selected_index = self.selected_row_index();
         let loaded_index = self.loaded_row_index();
         self.ui.browser.selected =
@@ -185,6 +187,22 @@ impl AppController {
             self.ui.browser.selection_anchor_visible = self.ui.browser.selected_visible;
         }
         self.ui.browser.marker_cache = Some(self.browser_marker_cache_state());
+    }
+
+    /// Ensure absolute-index lookup maps match the current browser projection revision.
+    ///
+    /// This keeps marker-path lookups O(1) by rebuilding maps only when visible
+    /// rows changed or wav-entry capacity changed.
+    fn ensure_browser_lookup_maps_current(&mut self) {
+        let entries_len = self.wav_entries_len();
+        let maps_match_entries = self.ui.browser.visible_row_by_absolute.len() == entries_len
+            && self.ui.browser.triage_index_by_absolute.len() == entries_len;
+        if self.ui.browser.lookup_maps_revision == self.ui.browser.visible_rows_revision
+            && maps_match_entries
+        {
+            return;
+        }
+        self.rebuild_browser_lookup_maps();
     }
 
     /// Rebuild absolute-index lookups for visible rows and triage-column positions.
@@ -240,93 +258,29 @@ impl AppController {
                 });
             }
         }
+        self.ui.browser.lookup_maps_revision = self.ui.browser.visible_rows_revision;
     }
 
     /// Resolve the visible-row index for an absolute wav-entry index.
-    pub(crate) fn browser_visible_row_for_entry(&self, entry_index: usize) -> Option<usize> {
-        if let Some(row) = self
-            .ui
+    pub(crate) fn browser_visible_row_for_entry(&mut self, entry_index: usize) -> Option<usize> {
+        self.ensure_browser_lookup_maps_current();
+        self.ui
             .browser
             .visible_row_by_absolute
             .get(entry_index)
             .copied()
             .flatten()
-            && self.ui.browser.visible.get(row) == Some(entry_index)
-        {
-            return Some(row);
-        }
-        self.ui.browser.visible.position(entry_index)
     }
 
     /// Resolve a triage-column browser index for an absolute wav entry index.
-    fn browser_index_for_entry(&self, entry_index: usize) -> Option<SampleBrowserIndex> {
-        if let Some(mapped) = self
-            .ui
+    fn browser_index_for_entry(&mut self, entry_index: usize) -> Option<SampleBrowserIndex> {
+        self.ensure_browser_lookup_maps_current();
+        self.ui
             .browser
             .triage_index_by_absolute
             .get(entry_index)
             .copied()
             .flatten()
-            && self.browser_index_lookup_matches_entry(mapped, entry_index)
-        {
-            return Some(mapped);
-        }
-        self.browser_index_for_entry_linear(entry_index)
-    }
-
-    /// Return whether a cached triage lookup still points to the requested entry.
-    fn browser_index_lookup_matches_entry(
-        &self,
-        index: SampleBrowserIndex,
-        entry_index: usize,
-    ) -> bool {
-        match index.column {
-            crate::app::state::TriageFlagColumn::Trash => self
-                .ui
-                .browser
-                .trash
-                .get(index.row)
-                .is_some_and(|value| *value == entry_index),
-            crate::app::state::TriageFlagColumn::Neutral => self
-                .ui
-                .browser
-                .neutral
-                .get(index.row)
-                .is_some_and(|value| *value == entry_index),
-            crate::app::state::TriageFlagColumn::Keep => self
-                .ui
-                .browser
-                .keep
-                .get(index.row)
-                .is_some_and(|value| *value == entry_index),
-        }
-    }
-
-    /// Resolve a triage-column browser index via linear fallback scans.
-    fn browser_index_for_entry_linear(&self, entry_index: usize) -> Option<SampleBrowserIndex> {
-        use crate::sample_sources::Rating;
-        self.ui
-            .browser
-            .trash
-            .iter()
-            .position(|index| *index == entry_index)
-            .map(|row| view_model::sample_browser_index_for(Rating::TRASH_3, row))
-            .or_else(|| {
-                self.ui
-                    .browser
-                    .neutral
-                    .iter()
-                    .position(|index| *index == entry_index)
-                    .map(|row| view_model::sample_browser_index_for(Rating::NEUTRAL, row))
-            })
-            .or_else(|| {
-                self.ui
-                    .browser
-                    .keep
-                    .iter()
-                    .position(|index| *index == entry_index)
-                    .map(|row| view_model::sample_browser_index_for(Rating::KEEP_1, row))
-            })
     }
 
     pub(crate) fn browser_path_for_visible(&mut self, visible_row: usize) -> Option<PathBuf> {
