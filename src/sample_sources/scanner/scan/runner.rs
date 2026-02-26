@@ -51,7 +51,14 @@ fn scan(
     let root = ensure_root_dir(db)?;
     let mut context = ScanContext::new(db, mode)?;
     let mut batch = db.write_batch()?;
-    walk_phase(&root, cancel, &mut on_progress, &mut context, &mut batch)?;
+    walk_phase(
+        db,
+        &root,
+        cancel,
+        &mut on_progress,
+        &mut context,
+        &mut batch,
+    )?;
     db_sync_phase(db, batch, &mut context)?;
     Ok(context.stats)
 }
@@ -61,9 +68,28 @@ fn scan(
 #[allow(dead_code)]
 pub fn scan_in_background(root: PathBuf) -> thread::JoinHandle<Result<ScanStats, ScanError>> {
     thread::spawn(move || {
-        let db = SourceDatabase::open(root)?;
+        let db = SourceDatabase::open_fast(&root)?;
         let stats = scan_once(&db)?;
-        let _ = super::super::scan_hash::deep_hash_scan(&db, None)?;
+        if stats.hashes_pending > 0 {
+            schedule_deep_hash_scan(root);
+        }
         Ok(stats)
     })
+}
+
+/// Spawn a detached deep-hash pass to backfill content hashes after quick scans.
+///
+/// This keeps incremental scans responsive by moving full hashing and rename
+/// reconciliation for large files to a best-effort background worker.
+pub fn schedule_deep_hash_scan(root: PathBuf) {
+    thread::spawn(move || {
+        let result = (|| -> Result<(), ScanError> {
+            let db = SourceDatabase::open_fast(root)?;
+            let _ = super::super::scan_hash::deep_hash_scan(&db, None)?;
+            Ok(())
+        })();
+        if let Err(err) = result {
+            tracing::warn!("Deferred deep-hash scan failed: {err}");
+        }
+    });
 }

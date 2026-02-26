@@ -8,5 +8,5 @@ mod scan_walk;
 
 pub use scan::{
     ChangedSample, ScanError, ScanMode, ScanStats, hard_rescan, scan_in_background, scan_once,
-    scan_with_progress,
+    scan_with_progress, schedule_deep_hash_scan,
 };

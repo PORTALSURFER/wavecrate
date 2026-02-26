@@ -109,6 +109,75 @@ impl SourceDatabase {
         Ok(rows.into_iter().flatten().collect())
     }
 
+    /// Fetch tracked paths that currently have the provided content hash.
+    ///
+    /// This is used by scan rename reconciliation to resolve candidates without
+    /// building a full in-memory hash index for all rows.
+    pub fn list_paths_with_content_hash(&self, hash: &str) -> Result<Vec<PathBuf>, SourceDbError> {
+        let filter = crate::sample_sources::supported_audio_where_clause();
+        let sql = format!(
+            "SELECT path
+             FROM wav_files
+             WHERE {filter}
+               AND content_hash = ?1"
+        );
+        let mut stmt = self.connection.prepare(&sql).map_err(map_sql_error)?;
+        let rows = stmt
+            .query_map(rusqlite::params![hash], |row| {
+                let path: String = row.get(0)?;
+                match parse_relative_path_from_db(&path) {
+                    Ok(relative_path) => Ok(Some(relative_path)),
+                    Err(err) => {
+                        tracing::warn!(
+                            "Skipping wav row with invalid relative path during hash lookup: {path} ({err})"
+                        );
+                        Ok(None)
+                    }
+                }
+            })
+            .map_err(map_sql_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(map_sql_error)?;
+        Ok(rows.into_iter().flatten().collect())
+    }
+
+    /// Fetch tracked paths that currently match file-size and modified timestamp.
+    ///
+    /// Quick scans use this to reconcile rename candidates for files whose full
+    /// content hash is deferred to a later deep-hash pass.
+    pub fn list_paths_with_file_facts(
+        &self,
+        file_size: u64,
+        modified_ns: i64,
+    ) -> Result<Vec<PathBuf>, SourceDbError> {
+        let filter = crate::sample_sources::supported_audio_where_clause();
+        let sql = format!(
+            "SELECT path
+             FROM wav_files
+             WHERE {filter}
+               AND file_size = ?1
+               AND modified_ns = ?2"
+        );
+        let mut stmt = self.connection.prepare(&sql).map_err(map_sql_error)?;
+        let rows = stmt
+            .query_map(rusqlite::params![file_size as i64, modified_ns], |row| {
+                let path: String = row.get(0)?;
+                match parse_relative_path_from_db(&path) {
+                    Ok(relative_path) => Ok(Some(relative_path)),
+                    Err(err) => {
+                        tracing::warn!(
+                            "Skipping wav row with invalid relative path during facts lookup: {path} ({err})"
+                        );
+                        Ok(None)
+                    }
+                }
+            })
+            .map_err(map_sql_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(map_sql_error)?;
+        Ok(rows.into_iter().flatten().collect())
+    }
+
     /// Count all tracked wav files for this source.
     pub fn count_files(&self) -> Result<usize, SourceDbError> {
         let filter = crate::sample_sources::supported_audio_where_clause();

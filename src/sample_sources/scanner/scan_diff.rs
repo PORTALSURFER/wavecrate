@@ -1,62 +1,29 @@
-#![allow(clippy::too_many_arguments)]
-
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::atomic::AtomicBool,
 };
 
+use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
 
-use super::scan::{ChangedSample, ScanError, ScanMode, ScanStats};
+use super::scan::{ChangedSample, ScanContext, ScanError, ScanMode, ScanStats};
 use super::scan_fs::{FileFacts, compute_content_hash};
 
 const QUICK_HASH_MAX_BYTES: u64 = 8 * 1024 * 1024;
 
-pub(super) fn index_by_hash(
-    existing: &HashMap<PathBuf, WavEntry>,
-) -> HashMap<String, HashSet<PathBuf>> {
-    let mut map: HashMap<String, HashSet<PathBuf>> = HashMap::new();
-    for entry in existing.values() {
-        let Some(hash) = entry.content_hash.as_deref() else {
-            continue;
-        };
-        map.entry(hash.to_string())
-            .or_default()
-            .insert(entry.relative_path.clone());
-    }
-    map
-}
-
-pub(super) fn index_by_facts(
-    existing: &HashMap<PathBuf, WavEntry>,
-) -> HashMap<(u64, i64), HashSet<PathBuf>> {
-    let mut map: HashMap<(u64, i64), HashSet<PathBuf>> = HashMap::new();
-    for entry in existing.values() {
-        map.entry((entry.file_size, entry.modified_ns))
-            .or_default()
-            .insert(entry.relative_path.clone());
-    }
-    map
-}
-
 pub(super) fn apply_diff(
+    db: &SourceDatabase,
     batch: &mut SourceWriteBatch<'_>,
     facts: FileFacts,
-    existing: &mut HashMap<PathBuf, WavEntry>,
-    existing_by_hash: &mut HashMap<String, HashSet<PathBuf>>,
-    existing_by_facts: &mut HashMap<(u64, i64), HashSet<PathBuf>>,
-    stats: &mut ScanStats,
+    context: &mut ScanContext,
     root: &Path,
-    mode: ScanMode,
     cancel: Option<&AtomicBool>,
 ) -> Result<(), ScanError> {
     let path = facts.relative.clone();
-    let should_hash = should_compute_full_hash(mode, facts.size);
-    match existing.remove(&path) {
+    let should_hash = should_compute_full_hash(context.mode, facts.size);
+    match context.existing.remove(&path) {
         Some(entry) if entry.file_size == facts.size && entry.modified_ns == facts.modified_ns => {
-            remove_from_hash_index(existing_by_hash, entry.content_hash.as_deref(), &path);
-            remove_from_facts_index(existing_by_facts, entry.file_size, entry.modified_ns, &path);
             if entry.missing {
                 batch.set_missing(&path, false)?;
             }
@@ -65,24 +32,22 @@ pub(super) fn apply_diff(
                     let absolute = root.join(&path);
                     let hash = compute_content_hash(&absolute, cancel)?;
                     batch.upsert_file_with_hash(&path, facts.size, facts.modified_ns, &hash)?;
-                    stats.hashes_computed += 1;
+                    context.stats.hashes_computed += 1;
                 } else {
-                    stats.hashes_pending += 1;
+                    context.stats.hashes_pending += 1;
                 }
             }
         }
         Some(entry) => {
-            remove_from_hash_index(existing_by_hash, entry.content_hash.as_deref(), &path);
-            remove_from_facts_index(existing_by_facts, entry.file_size, entry.modified_ns, &path);
             let absolute = root.join(&path);
             let previous_hash = entry.content_hash.as_deref();
             if should_hash {
                 let hash = compute_content_hash(&absolute, cancel)?;
                 batch.upsert_file_with_hash(&path, facts.size, facts.modified_ns, &hash)?;
-                stats.hashes_computed += 1;
+                context.stats.hashes_computed += 1;
                 if previous_hash != Some(hash.as_str()) {
-                    stats.content_changed += 1;
-                    stats.changed_samples.push(ChangedSample {
+                    context.stats.content_changed += 1;
+                    context.stats.changed_samples.push(ChangedSample {
                         relative_path: path.clone(),
                         file_size: facts.size,
                         modified_ns: facts.modified_ns,
@@ -91,53 +56,43 @@ pub(super) fn apply_diff(
                 }
             } else {
                 batch.upsert_file_without_hash(&path, facts.size, facts.modified_ns)?;
-                stats.hashes_pending += 1;
+                context.stats.hashes_pending += 1;
             }
-            stats.updated += 1;
+            context.stats.updated += 1;
         }
         None => {
             let absolute = root.join(&path);
             if should_hash {
                 let hash = compute_content_hash(&absolute, cancel)?;
-                if let Some(entry) =
-                    take_rename_candidate(existing, existing_by_hash, existing_by_facts, &hash)
-                {
+                if let Some(entry) = take_rename_candidate_by_hash(db, context, &hash)? {
                     apply_rename(batch, &path, &facts, &hash, entry)?;
-                    stats.updated += 1;
-                    stats.renames_reconciled += 1;
+                    context.stats.updated += 1;
+                    context.stats.renames_reconciled += 1;
                     return Ok(());
                 }
                 batch.upsert_file_with_hash(&path, facts.size, facts.modified_ns, &hash)?;
-                stats.added += 1;
-                stats.content_changed += 1;
-                stats.hashes_computed += 1;
-                stats.changed_samples.push(ChangedSample {
+                context.stats.added += 1;
+                context.stats.content_changed += 1;
+                context.stats.hashes_computed += 1;
+                context.stats.changed_samples.push(ChangedSample {
                     relative_path: path.clone(),
                     file_size: facts.size,
                     modified_ns: facts.modified_ns,
                     content_hash: hash,
                 });
             } else {
-                if let Some(entry) = take_rename_candidate_by_facts(
-                    existing,
-                    existing_by_facts,
-                    facts.size,
-                    facts.modified_ns,
-                ) {
-                    remove_from_hash_index(
-                        existing_by_hash,
-                        entry.content_hash.as_deref(),
-                        &entry.relative_path,
-                    );
+                if let Some(entry) =
+                    take_rename_candidate_by_facts(db, context, facts.size, facts.modified_ns)?
+                {
                     apply_rename_without_hash(batch, &path, &facts, entry)?;
-                    stats.updated += 1;
-                    stats.renames_reconciled += 1;
-                    stats.hashes_pending += 1;
+                    context.stats.updated += 1;
+                    context.stats.renames_reconciled += 1;
+                    context.stats.hashes_pending += 1;
                     return Ok(());
                 }
                 batch.upsert_file_without_hash(&path, facts.size, facts.modified_ns)?;
-                stats.added += 1;
-                stats.hashes_pending += 1;
+                context.stats.added += 1;
+                context.stats.hashes_pending += 1;
             }
         }
     }
@@ -211,37 +166,47 @@ fn apply_rename_without_hash(
     Ok(())
 }
 
-fn take_rename_candidate(
-    existing: &mut HashMap<PathBuf, WavEntry>,
-    existing_by_hash: &mut HashMap<String, HashSet<PathBuf>>,
-    existing_by_facts: &mut HashMap<(u64, i64), HashSet<PathBuf>>,
+fn take_rename_candidate_by_hash(
+    db: &SourceDatabase,
+    context: &mut ScanContext,
     hash: &str,
-) -> Option<WavEntry> {
-    let candidates = existing_by_hash.get(hash)?;
-    let path = unique_existing_path(candidates, existing)?;
-    let entry = existing.remove(&path)?;
-    remove_from_hash_index(existing_by_hash, entry.content_hash.as_deref(), &path);
-    remove_from_facts_index(existing_by_facts, entry.file_size, entry.modified_ns, &path);
-    Some(entry)
+) -> Result<Option<WavEntry>, ScanError> {
+    if !context.rename_candidates_by_hash.contains_key(hash) {
+        let paths = db.list_paths_with_content_hash(hash)?;
+        context
+            .rename_candidates_by_hash
+            .insert(hash.to_string(), paths);
+    }
+    let path = unique_existing_path(
+        context.rename_candidates_by_hash.get(hash),
+        &context.existing,
+    );
+    Ok(path.and_then(|path| context.existing.remove(&path)))
 }
 
 fn take_rename_candidate_by_facts(
-    existing: &mut HashMap<PathBuf, WavEntry>,
-    existing_by_facts: &mut HashMap<(u64, i64), HashSet<PathBuf>>,
+    db: &SourceDatabase,
+    context: &mut ScanContext,
     size: u64,
     modified_ns: i64,
-) -> Option<WavEntry> {
-    let candidates = existing_by_facts.get(&(size, modified_ns))?;
-    let path = unique_existing_path(candidates, existing)?;
-    let entry = existing.remove(&path)?;
-    remove_from_facts_index(existing_by_facts, entry.file_size, entry.modified_ns, &path);
-    Some(entry)
+) -> Result<Option<WavEntry>, ScanError> {
+    let key = (size, modified_ns);
+    if !context.rename_candidates_by_facts.contains_key(&key) {
+        let paths = db.list_paths_with_file_facts(size, modified_ns)?;
+        context.rename_candidates_by_facts.insert(key, paths);
+    }
+    let path = unique_existing_path(
+        context.rename_candidates_by_facts.get(&key),
+        &context.existing,
+    );
+    Ok(path.and_then(|path| context.existing.remove(&path)))
 }
 
 fn unique_existing_path(
-    candidates: &HashSet<PathBuf>,
+    candidates: Option<&Vec<PathBuf>>,
     existing: &HashMap<PathBuf, WavEntry>,
 ) -> Option<PathBuf> {
+    let candidates = candidates?;
     let mut match_path: Option<PathBuf> = None;
     for path in candidates {
         if !existing.contains_key(path) {
@@ -255,37 +220,6 @@ fn unique_existing_path(
     match_path
 }
 
-fn remove_from_hash_index(
-    existing_by_hash: &mut HashMap<String, HashSet<PathBuf>>,
-    hash: Option<&str>,
-    path: &Path,
-) {
-    let Some(hash) = hash else {
-        return;
-    };
-    if let Some(paths) = existing_by_hash.get_mut(hash) {
-        paths.remove(path);
-        if paths.is_empty() {
-            existing_by_hash.remove(hash);
-        }
-    }
-}
-
-fn remove_from_facts_index(
-    existing_by_facts: &mut HashMap<(u64, i64), HashSet<PathBuf>>,
-    size: u64,
-    modified_ns: i64,
-    path: &Path,
-) {
-    let key = (size, modified_ns);
-    if let Some(paths) = existing_by_facts.get_mut(&key) {
-        paths.remove(path);
-        if paths.is_empty() {
-            existing_by_facts.remove(&key);
-        }
-    }
-}
-
 fn should_compute_full_hash(mode: ScanMode, size: u64) -> bool {
     match mode {
         ScanMode::Quick => size <= QUICK_HASH_MAX_BYTES,
@@ -297,7 +231,7 @@ fn should_compute_full_hash(mode: ScanMode, size: u64) -> bool {
 mod tests {
     use super::unique_existing_path;
     use crate::sample_sources::{Rating, WavEntry};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::PathBuf;
 
     fn entry(path: &str) -> WavEntry {
@@ -318,11 +252,9 @@ mod tests {
         let mut existing = HashMap::new();
         existing.insert(PathBuf::from("one.wav"), entry("one.wav"));
         existing.insert(PathBuf::from("two.wav"), entry("two.wav"));
-        let mut candidates = HashSet::new();
-        candidates.insert(PathBuf::from("one.wav"));
-        candidates.insert(PathBuf::from("missing.wav"));
+        let candidates = vec![PathBuf::from("one.wav"), PathBuf::from("missing.wav")];
 
-        let matched = unique_existing_path(&candidates, &existing);
+        let matched = unique_existing_path(Some(&candidates), &existing);
 
         assert_eq!(matched, Some(PathBuf::from("one.wav")));
     }
@@ -332,9 +264,9 @@ mod tests {
         let mut existing = HashMap::new();
         existing.insert(PathBuf::from("one.wav"), entry("one.wav"));
         existing.insert(PathBuf::from("two.wav"), entry("two.wav"));
-        let candidates = HashSet::from([PathBuf::from("one.wav"), PathBuf::from("two.wav")]);
+        let candidates = vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")];
 
-        let matched = unique_existing_path(&candidates, &existing);
+        let matched = unique_existing_path(Some(&candidates), &existing);
 
         assert_eq!(matched, None);
     }
