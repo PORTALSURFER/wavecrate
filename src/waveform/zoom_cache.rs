@@ -2,13 +2,163 @@ use super::{WaveformChannelView, WaveformColumnView, WaveformRenderer};
 use std::{
     collections::{HashMap, VecDeque},
     hash::{Hash, Hasher},
-    sync::Mutex,
+    mem::size_of,
+    sync::{
+        Mutex, OnceLock,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
 };
 use tracing::warn;
 
 /// Cache of precomputed waveform columns keyed by token, view, and width.
 pub(super) struct WaveformZoomCache {
     inner: Mutex<CacheInner>,
+}
+
+const HOTPATH_TELEMETRY_ENV: &str = "SEMPAL_HOTPATH_TELEMETRY";
+const ZOOM_CACHE_TELEMETRY_LOG_EVERY: u64 = 1_024;
+static ZOOM_CACHE_TELEMETRY_ENABLED: OnceLock<bool> = OnceLock::new();
+static ZOOM_CACHE_LOCK_ACQUIRE_COUNT: AtomicU64 = AtomicU64::new(0);
+static ZOOM_CACHE_LOCK_WAIT_NS: AtomicU64 = AtomicU64::new(0);
+static ZOOM_CACHE_LOCK_POISON_RECOVERY_COUNT: AtomicU64 = AtomicU64::new(0);
+static ZOOM_CACHE_HIT_COUNT: AtomicU64 = AtomicU64::new(0);
+static ZOOM_CACHE_MISS_COUNT: AtomicU64 = AtomicU64::new(0);
+static ZOOM_CACHE_INSERT_COUNT: AtomicU64 = AtomicU64::new(0);
+static ZOOM_CACHE_EVICT_COUNT: AtomicU64 = AtomicU64::new(0);
+static ZOOM_CACHE_COMPACT_COUNT: AtomicU64 = AtomicU64::new(0);
+static ZOOM_CACHE_RESIDENT_BYTES: AtomicU64 = AtomicU64::new(0);
+static ZOOM_CACHE_PEAK_RESIDENT_BYTES: AtomicU64 = AtomicU64::new(0);
+
+fn parse_hotpath_telemetry_enabled(value: &str) -> bool {
+    let normalized = value.trim();
+    normalized == "1"
+        || normalized.eq_ignore_ascii_case("true")
+        || normalized.eq_ignore_ascii_case("on")
+        || normalized.eq_ignore_ascii_case("yes")
+}
+
+fn zoom_cache_telemetry_enabled() -> bool {
+    *ZOOM_CACHE_TELEMETRY_ENABLED.get_or_init(|| {
+        std::env::var(HOTPATH_TELEMETRY_ENV)
+            .ok()
+            .is_some_and(|value| parse_hotpath_telemetry_enabled(&value))
+    })
+}
+
+fn saturating_add_duration_ns(counter: &AtomicU64, duration: Duration) {
+    let dur_ns = duration.as_nanos().min(u64::MAX as u128) as u64;
+    counter.fetch_add(dur_ns, Ordering::Relaxed);
+}
+
+fn record_zoom_cache_lock_wait(duration: Duration) {
+    if !zoom_cache_telemetry_enabled() {
+        return;
+    }
+    let sample_tick = ZOOM_CACHE_LOCK_ACQUIRE_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+    saturating_add_duration_ns(&ZOOM_CACHE_LOCK_WAIT_NS, duration);
+    maybe_emit_zoom_cache_telemetry(sample_tick);
+}
+
+fn record_zoom_cache_hit() {
+    if !zoom_cache_telemetry_enabled() {
+        return;
+    }
+    let sample_tick = ZOOM_CACHE_HIT_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+    maybe_emit_zoom_cache_telemetry(sample_tick);
+}
+
+fn record_zoom_cache_miss() {
+    if !zoom_cache_telemetry_enabled() {
+        return;
+    }
+    let sample_tick = ZOOM_CACHE_MISS_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+    maybe_emit_zoom_cache_telemetry(sample_tick);
+}
+
+fn record_zoom_cache_insert() {
+    if !zoom_cache_telemetry_enabled() {
+        return;
+    }
+    let sample_tick = ZOOM_CACHE_INSERT_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+    maybe_emit_zoom_cache_telemetry(sample_tick);
+}
+
+fn record_zoom_cache_evict() {
+    if !zoom_cache_telemetry_enabled() {
+        return;
+    }
+    let sample_tick = ZOOM_CACHE_EVICT_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+    maybe_emit_zoom_cache_telemetry(sample_tick);
+}
+
+fn record_zoom_cache_compaction() {
+    if !zoom_cache_telemetry_enabled() {
+        return;
+    }
+    let sample_tick = ZOOM_CACHE_COMPACT_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+    maybe_emit_zoom_cache_telemetry(sample_tick);
+}
+
+fn update_zoom_cache_resident_bytes(resident_bytes: usize) {
+    if !zoom_cache_telemetry_enabled() {
+        return;
+    }
+    let resident = resident_bytes.min(u64::MAX as usize) as u64;
+    ZOOM_CACHE_RESIDENT_BYTES.store(resident, Ordering::Relaxed);
+    ZOOM_CACHE_PEAK_RESIDENT_BYTES.fetch_max(resident, Ordering::Relaxed);
+}
+
+fn maybe_emit_zoom_cache_telemetry(sample_tick: u64) {
+    if !zoom_cache_telemetry_enabled()
+        || sample_tick == 0
+        || sample_tick % ZOOM_CACHE_TELEMETRY_LOG_EVERY != 0
+    {
+        return;
+    }
+
+    let lock_acquires = ZOOM_CACHE_LOCK_ACQUIRE_COUNT.load(Ordering::Relaxed);
+    let lock_wait_ns = ZOOM_CACHE_LOCK_WAIT_NS.load(Ordering::Relaxed);
+    let lock_poison_recoveries = ZOOM_CACHE_LOCK_POISON_RECOVERY_COUNT.load(Ordering::Relaxed);
+    let hits = ZOOM_CACHE_HIT_COUNT.load(Ordering::Relaxed);
+    let misses = ZOOM_CACHE_MISS_COUNT.load(Ordering::Relaxed);
+    let inserts = ZOOM_CACHE_INSERT_COUNT.load(Ordering::Relaxed);
+    let evicts = ZOOM_CACHE_EVICT_COUNT.load(Ordering::Relaxed);
+    let compactions = ZOOM_CACHE_COMPACT_COUNT.load(Ordering::Relaxed);
+    let resident_bytes = ZOOM_CACHE_RESIDENT_BYTES.load(Ordering::Relaxed);
+    let peak_resident_bytes = ZOOM_CACHE_PEAK_RESIDENT_BYTES.load(Ordering::Relaxed);
+    let avg_lock_wait_us = if lock_acquires == 0 {
+        0.0
+    } else {
+        lock_wait_ns as f64 / lock_acquires as f64 / 1_000.0
+    };
+
+    tracing::info!(
+        target: "perf::hotpath",
+        module = "waveform_zoom_cache",
+        lock_acquires,
+        avg_lock_wait_us,
+        lock_poison_recoveries,
+        hits,
+        misses,
+        inserts,
+        evicts,
+        compactions,
+        resident_bytes,
+        peak_resident_bytes,
+        "Waveform zoom cache telemetry snapshot"
+    );
+}
+
+fn cached_columns_bytes(columns: &CachedColumns) -> usize {
+    let pair_size = size_of::<(f32, f32)>();
+    match columns {
+        CachedColumns::Mono(cols) => cols.len().saturating_mul(pair_size),
+        CachedColumns::SplitStereo { left, right } => left
+            .len()
+            .saturating_add(right.len())
+            .saturating_mul(pair_size),
+    }
 }
 
 impl WaveformZoomCache {
@@ -55,7 +205,8 @@ impl WaveformZoomCache {
     }
 
     fn lock_inner(&self) -> std::sync::MutexGuard<'_, CacheInner> {
-        match self.inner.lock() {
+        let lock_start = zoom_cache_telemetry_enabled().then(Instant::now);
+        let guard = match self.inner.lock() {
             Ok(guard) => guard,
             Err(poisoned) => {
                 warn!("Waveform zoom cache mutex poisoned; recovering with cleared cache.");
@@ -63,9 +214,18 @@ impl WaveformZoomCache {
                 inner.map.clear();
                 inner.order.clear();
                 inner.next_stamp = 1;
+                inner.resident_bytes = 0;
+                if zoom_cache_telemetry_enabled() {
+                    ZOOM_CACHE_LOCK_POISON_RECOVERY_COUNT.fetch_add(1, Ordering::Relaxed);
+                    update_zoom_cache_resident_bytes(0);
+                }
                 inner
             }
+        };
+        if let Some(start) = lock_start {
+            record_zoom_cache_lock_wait(start.elapsed());
         }
+        guard
     }
 }
 
@@ -131,6 +291,7 @@ struct CacheInner {
     order: VecDeque<TouchEntry>,
     max_entries: usize,
     next_stamp: u64,
+    resident_bytes: usize,
 }
 
 impl CacheInner {
@@ -140,16 +301,26 @@ impl CacheInner {
             order: VecDeque::new(),
             max_entries: 12,
             next_stamp: 1,
+            resident_bytes: 0,
         }
     }
 
     fn get(&mut self, key: CacheKey) -> Option<CachedColumns> {
         let stamp = self.next_stamp();
-        let entry = self.map.get_mut(&key)?;
-        entry.stamp = stamp;
+        let columns = match self.map.get_mut(&key) {
+            Some(entry) => {
+                entry.stamp = stamp;
+                entry.columns.clone()
+            }
+            None => {
+                record_zoom_cache_miss();
+                return None;
+            }
+        };
         self.order.push_back(TouchEntry { key, stamp });
         self.compact_order_if_needed();
-        Some(entry.columns.clone())
+        record_zoom_cache_hit();
+        Some(columns)
     }
 
     #[cfg(test)]
@@ -164,13 +335,20 @@ impl CacheInner {
 
     fn insert(&mut self, key: CacheKey, value: CachedColumns) {
         let stamp = self.next_stamp();
-        self.map.insert(
+        let bytes_estimate = cached_columns_bytes(&value);
+        if let Some(replaced) = self.map.insert(
             key,
             CacheEntry {
                 columns: value,
                 stamp,
+                bytes_estimate,
             },
-        );
+        ) {
+            self.resident_bytes = self.resident_bytes.saturating_sub(replaced.bytes_estimate);
+        }
+        self.resident_bytes = self.resident_bytes.saturating_add(bytes_estimate);
+        update_zoom_cache_resident_bytes(self.resident_bytes);
+        record_zoom_cache_insert();
         self.order.push_back(TouchEntry { key, stamp });
         self.compact_order_if_needed();
         self.evict();
@@ -186,7 +364,12 @@ impl CacheInner {
                 .get(&touch.key)
                 .is_some_and(|entry| entry.stamp == touch.stamp);
             if is_current {
-                self.map.remove(&touch.key);
+                if let Some(removed) = self.map.remove(&touch.key) {
+                    self.resident_bytes =
+                        self.resident_bytes.saturating_sub(removed.bytes_estimate);
+                    update_zoom_cache_resident_bytes(self.resident_bytes);
+                    record_zoom_cache_evict();
+                }
             }
         }
     }
@@ -207,6 +390,7 @@ impl CacheInner {
             .collect();
         active.sort_by_key(|entry| entry.stamp);
         self.order = active.into_iter().collect();
+        record_zoom_cache_compaction();
     }
 
     fn next_stamp(&mut self) -> u64 {
@@ -223,6 +407,7 @@ impl CacheInner {
 struct CacheEntry {
     columns: CachedColumns,
     stamp: u64,
+    bytes_estimate: usize,
 }
 
 #[derive(Clone, Copy)]

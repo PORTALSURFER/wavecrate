@@ -6,11 +6,12 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 use tracing::warn;
 
 struct CompactSearchEntry {
@@ -118,6 +119,120 @@ struct SearchJobQueue {
     ready: Condvar,
 }
 
+const HOTPATH_TELEMETRY_ENV: &str = "SEMPAL_HOTPATH_TELEMETRY";
+const SEARCH_QUEUE_TELEMETRY_LOG_EVERY: u64 = 2_048;
+static SEARCH_QUEUE_TELEMETRY_ENABLED: OnceLock<bool> = OnceLock::new();
+static SEARCH_QUEUE_LOCK_ACQUIRE_COUNT: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_LOCK_WAIT_NS: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_WAIT_COUNT: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_WAIT_NS: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_SEND_COUNT: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_PENDING_REPLACED_COUNT: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_TAKE_COUNT: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_CANCEL_COUNT: AtomicU64 = AtomicU64::new(0);
+static SEARCH_WORKER_SCORE_ALLOC_BYTES: AtomicU64 = AtomicU64::new(0);
+static SEARCH_WORKER_SCRATCH_ALLOC_BYTES: AtomicU64 = AtomicU64::new(0);
+static SEARCH_WORKER_SIMILAR_LOOKUP_ALLOC_BYTES: AtomicU64 = AtomicU64::new(0);
+static SEARCH_WORKER_VISIBLE_ROWS_TOTAL: AtomicU64 = AtomicU64::new(0);
+
+fn parse_hotpath_telemetry_enabled(value: &str) -> bool {
+    let normalized = value.trim();
+    normalized == "1"
+        || normalized.eq_ignore_ascii_case("true")
+        || normalized.eq_ignore_ascii_case("on")
+        || normalized.eq_ignore_ascii_case("yes")
+}
+
+fn search_queue_telemetry_enabled() -> bool {
+    *SEARCH_QUEUE_TELEMETRY_ENABLED.get_or_init(|| {
+        std::env::var(HOTPATH_TELEMETRY_ENV)
+            .ok()
+            .is_some_and(|value| parse_hotpath_telemetry_enabled(&value))
+    })
+}
+
+fn saturating_add_duration_ns(counter: &AtomicU64, duration: Duration) {
+    let dur_ns = duration.as_nanos().min(u64::MAX as u128) as u64;
+    counter.fetch_add(dur_ns, AtomicOrdering::Relaxed);
+}
+
+fn record_search_queue_lock_wait(duration: Duration) {
+    if !search_queue_telemetry_enabled() {
+        return;
+    }
+    let sample_tick = SEARCH_QUEUE_LOCK_ACQUIRE_COUNT.fetch_add(1, AtomicOrdering::Relaxed) + 1;
+    saturating_add_duration_ns(&SEARCH_QUEUE_LOCK_WAIT_NS, duration);
+    maybe_emit_search_worker_telemetry(sample_tick);
+}
+
+fn record_search_queue_wait(duration: Duration) {
+    if !search_queue_telemetry_enabled() {
+        return;
+    }
+    let sample_tick = SEARCH_QUEUE_WAIT_COUNT.fetch_add(1, AtomicOrdering::Relaxed) + 1;
+    saturating_add_duration_ns(&SEARCH_QUEUE_WAIT_NS, duration);
+    maybe_emit_search_worker_telemetry(sample_tick);
+}
+
+fn record_search_worker_allocation(counter: &AtomicU64, bytes: usize) {
+    if !search_queue_telemetry_enabled() || bytes == 0 {
+        return;
+    }
+    counter.fetch_add(bytes.min(u64::MAX as usize) as u64, AtomicOrdering::Relaxed);
+}
+
+fn maybe_emit_search_worker_telemetry(sample_tick: u64) {
+    if !search_queue_telemetry_enabled()
+        || sample_tick == 0
+        || sample_tick % SEARCH_QUEUE_TELEMETRY_LOG_EVERY != 0
+    {
+        return;
+    }
+
+    let lock_acquires = SEARCH_QUEUE_LOCK_ACQUIRE_COUNT.load(AtomicOrdering::Relaxed);
+    let lock_wait_ns = SEARCH_QUEUE_LOCK_WAIT_NS.load(AtomicOrdering::Relaxed);
+    let wait_count = SEARCH_QUEUE_WAIT_COUNT.load(AtomicOrdering::Relaxed);
+    let wait_ns = SEARCH_QUEUE_WAIT_NS.load(AtomicOrdering::Relaxed);
+    let send_count = SEARCH_QUEUE_SEND_COUNT.load(AtomicOrdering::Relaxed);
+    let replaced_count = SEARCH_QUEUE_PENDING_REPLACED_COUNT.load(AtomicOrdering::Relaxed);
+    let take_count = SEARCH_QUEUE_TAKE_COUNT.load(AtomicOrdering::Relaxed);
+    let cancel_count = SEARCH_QUEUE_CANCEL_COUNT.load(AtomicOrdering::Relaxed);
+    let score_alloc_bytes = SEARCH_WORKER_SCORE_ALLOC_BYTES.load(AtomicOrdering::Relaxed);
+    let scratch_alloc_bytes = SEARCH_WORKER_SCRATCH_ALLOC_BYTES.load(AtomicOrdering::Relaxed);
+    let similar_lookup_alloc_bytes =
+        SEARCH_WORKER_SIMILAR_LOOKUP_ALLOC_BYTES.load(AtomicOrdering::Relaxed);
+    let visible_rows_total = SEARCH_WORKER_VISIBLE_ROWS_TOTAL.load(AtomicOrdering::Relaxed);
+
+    let avg_lock_wait_us = if lock_acquires == 0 {
+        0.0
+    } else {
+        lock_wait_ns as f64 / lock_acquires as f64 / 1_000.0
+    };
+    let avg_wait_ms = if wait_count == 0 {
+        0.0
+    } else {
+        wait_ns as f64 / wait_count as f64 / 1_000_000.0
+    };
+
+    tracing::info!(
+        target: "perf::hotpath",
+        module = "browser_search_worker",
+        lock_acquires,
+        avg_lock_wait_us,
+        condvar_waits = wait_count,
+        avg_condvar_wait_ms = avg_wait_ms,
+        sends = send_count,
+        pending_replaced = replaced_count,
+        takes = take_count,
+        cancels = cancel_count,
+        score_alloc_bytes,
+        scratch_alloc_bytes,
+        similar_lookup_alloc_bytes,
+        visible_rows_total,
+        "Search worker queue telemetry snapshot"
+    );
+}
+
 impl SearchJobQueue {
     fn new() -> Self {
         Self {
@@ -131,6 +246,12 @@ impl SearchJobQueue {
         let mut state = self.lock_state();
         if state.shutdown {
             return;
+        }
+        if search_queue_telemetry_enabled() {
+            SEARCH_QUEUE_SEND_COUNT.fetch_add(1, AtomicOrdering::Relaxed);
+            if state.pending.is_some() {
+                SEARCH_QUEUE_PENDING_REPLACED_COUNT.fetch_add(1, AtomicOrdering::Relaxed);
+            }
         }
         state.pending = Some(QueuedSearchJob {
             job,
@@ -154,6 +275,11 @@ impl SearchJobQueue {
                 return None;
             }
             if let Some(job) = state.pending.take() {
+                if search_queue_telemetry_enabled() {
+                    let sample_tick =
+                        SEARCH_QUEUE_TAKE_COUNT.fetch_add(1, AtomicOrdering::Relaxed) + 1;
+                    maybe_emit_search_worker_telemetry(sample_tick);
+                }
                 return Some(job);
             }
             state = self.wait_ready(state);
@@ -171,19 +297,30 @@ impl SearchJobQueue {
     }
 
     fn lock_state(&self) -> std::sync::MutexGuard<'_, SearchJobQueueState> {
-        match self.state.lock() {
+        let lock_start = search_queue_telemetry_enabled().then(Instant::now);
+        let guard = match self.state.lock() {
             Ok(guard) => guard,
             Err(poisoned) => self.recover_state("lock", poisoned),
+        };
+        if let Some(start) = lock_start {
+            record_search_queue_lock_wait(start.elapsed());
         }
+        guard
     }
 
     fn wait_ready<'a>(
         &self,
         guard: std::sync::MutexGuard<'a, SearchJobQueueState>,
     ) -> std::sync::MutexGuard<'a, SearchJobQueueState> {
-        self.ready
+        let wait_start = search_queue_telemetry_enabled().then(Instant::now);
+        let guard = self
+            .ready
             .wait(guard)
-            .unwrap_or_else(|poisoned| self.recover_state("condvar", poisoned))
+            .unwrap_or_else(|poisoned| self.recover_state("condvar", poisoned));
+        if let Some(start) = wait_start {
+            record_search_queue_wait(start.elapsed());
+        }
+        guard
     }
 
     fn recover_state<'a>(
@@ -384,6 +521,10 @@ fn process_search_job(
             cache.query_score_cache.insert(0, cached);
         } else {
             let mut computed_scores = vec![None; entries_len];
+            record_search_worker_allocation(
+                &SEARCH_WORKER_SCORE_ALLOC_BYTES,
+                entries_len.saturating_mul(std::mem::size_of::<Option<i64>>()),
+            );
             for (index, entry) in entries.iter().enumerate() {
                 if search_job_canceled_for_index(queue, generation, index) {
                     return None;
@@ -423,6 +564,9 @@ fn process_search_job(
         && job.sort == SampleBrowserSort::ListOrder
         && job.rating_filter.is_empty()
     {
+        if search_queue_telemetry_enabled() {
+            SEARCH_WORKER_VISIBLE_ROWS_TOTAL.fetch_add(entries_len as u64, AtomicOrdering::Relaxed);
+        }
         return Some(SearchResult {
             request_id: job.request_id,
             source_id: job.source_id,
@@ -466,6 +610,12 @@ fn process_search_job(
         match job.sort {
             SampleBrowserSort::Similarity => {
                 let mut score_lookup = vec![None; entries.len()];
+                record_search_worker_allocation(
+                    &SEARCH_WORKER_SIMILAR_LOOKUP_ALLOC_BYTES,
+                    entries
+                        .len()
+                        .saturating_mul(std::mem::size_of::<Option<f32>>()),
+                );
                 for (offset, (&index, &score)) in similar
                     .indices
                     .iter()
@@ -531,7 +681,12 @@ fn process_search_job(
             }
         }
     } else {
-        let mut scratch = Vec::with_capacity(entries.len().min(1024));
+        let scratch_capacity = entries.len().min(1024);
+        let mut scratch = Vec::with_capacity(scratch_capacity);
+        record_search_worker_allocation(
+            &SEARCH_WORKER_SCRATCH_ALLOC_BYTES,
+            scratch_capacity.saturating_mul(std::mem::size_of::<(usize, i64)>()),
+        );
         for (index, entry) in entries.iter().enumerate() {
             if search_job_canceled_for_index(queue, generation, index) {
                 return None;
@@ -577,6 +732,9 @@ fn process_search_job(
         }
     }
 
+    if search_queue_telemetry_enabled() {
+        SEARCH_WORKER_VISIBLE_ROWS_TOTAL.fetch_add(visible.len() as u64, AtomicOrdering::Relaxed);
+    }
     Some(SearchResult {
         request_id: job.request_id,
         source_id: job.source_id,
@@ -592,7 +750,12 @@ fn process_search_job(
 const SEARCH_CANCEL_CHECK_INTERVAL: usize = 64;
 
 fn search_job_canceled(queue: &SearchJobQueue, generation: u64) -> bool {
-    !queue.is_generation_current(generation)
+    let canceled = !queue.is_generation_current(generation);
+    if canceled && search_queue_telemetry_enabled() {
+        let sample_tick = SEARCH_QUEUE_CANCEL_COUNT.fetch_add(1, AtomicOrdering::Relaxed) + 1;
+        maybe_emit_search_worker_telemetry(sample_tick);
+    }
+    canceled
 }
 
 fn search_job_canceled_for_index(queue: &SearchJobQueue, generation: u64, index: usize) -> bool {
