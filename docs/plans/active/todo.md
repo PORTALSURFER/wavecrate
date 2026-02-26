@@ -15,9 +15,10 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Run startup-profile calibration on a compositor-backed host and lock
-   threshold env defaults from `startup_first_paint_recommended` output
-   (use `SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT` for one-shot lock-file output).
+1. Recalibrate the tracked startup threshold lock file on a compositor-backed
+   host using `bash scripts/calibrate_startup_thresholds.sh`, then verify
+   `scripts/perf_locks/startup_thresholds.env` values against
+   `startup_first_paint_recommended`.
 2. Repeat immediate waveform-preview A/B on a compositor-backed host with
    larger run windows to reduce variance, then decide whether to extend
    immediate apply beyond overlay actions.
@@ -26,6 +27,9 @@ Purpose:
 
 ## Done recently
 
+- Added tracked startup threshold lock-file defaults at
+  `scripts/perf_locks/startup_thresholds.env` and auto-loading in
+  `scripts/run_perf_guard.sh`.
 - Completed ROI item #9 waveform projection clone-elision:
   - waveform projection/model payloads now use `Arc<ImageRgba>`.
   - radiant `ImageRgba` pixels now use `Arc<[u8]>`.

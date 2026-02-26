@@ -228,6 +228,12 @@ Optional output env file path for startup threshold locking. When set and
 startup profiling succeeds, `scripts/run_perf_guard.sh` writes startup threshold
 assignments to this file using `scripts/perf_startup_lock_thresholds.py`.
 
+- `SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_IN`
+Optional startup threshold lock-file input path sourced by
+`scripts/run_perf_guard.sh` before threshold parsing. Defaults to the tracked
+lock file at `scripts/perf_locks/startup_thresholds.env`. Set to an empty value
+to disable auto-loading.
+
 - `SEMPAL_PERF_GUARD_STARTUP_LOCK_MIN_VALID_RUNS`
 Minimum valid startup-profile run count required before writing
 `SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT`. Defaults to

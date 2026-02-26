@@ -80,6 +80,7 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
 | `scripts/run_agent_request.ps1` | PowerShell equivalent of the agent preflight + local CI entrypoint. | Same remediation as the bash version. |
 | `scripts/run_perf_guard.sh` | Runs deterministic runtime interaction benchmarks and evaluates warn/fail thresholds (including stage attribution where available). | Use for local perf regression checks and CI parity before push. |
 | `scripts/run_perf_guard.ps1` | PowerShell wrapper for `scripts/run_perf_guard.sh`. | Same remediation as the bash version. |
+| `scripts/calibrate_startup_thresholds.sh` | Runs compositor-backed startup calibration and refreshes the tracked startup threshold lock file. | Run this on compositor-backed hosts when startup-first-paint budgets drift or after major startup-path changes. |
 | `scripts/run_perf_wheel_stability.sh` | Collects repeated wheel-latency perf windows and evaluates hard-fail promotion readiness. | Use when deciding whether wheel fail thresholds are stable enough to tighten. |
 | `scripts/run_perf_wheel_stability.ps1` | PowerShell wrapper for `scripts/run_perf_wheel_stability.sh`. | Same remediation as the bash version. |
 | `scripts/run_agent_preflight.sh` | Runs mandatory preflight checks (`run_agent_ci_checks.sh`) with configurable MEMORY refresh behavior. | Use from branch/pull entrypoints when you need the mandatory checks without full local CI. |

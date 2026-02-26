@@ -59,7 +59,7 @@ Write for future selves: be precise, kind, and clear.
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
 
 ## Immediate Next Actions
-1. Run startup-profile calibration on a compositor-backed host and lock startup thresholds.
+1. Recalibrate tracked startup lock-file thresholds on a compositor-backed host (`bash scripts/calibrate_startup_thresholds.sh`).
 2. Repeat immediate waveform-preview A/B with larger run windows on compositor-backed host.
 3. Keep handoff docs synchronized every milestone (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
 

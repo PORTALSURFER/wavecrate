@@ -41,6 +41,7 @@ STARTUP_PROFILE_RAW="${SEMPAL_PERF_GUARD_STARTUP_PROFILE:-0}"
 STARTUP_TIMEOUT_SECS="${SEMPAL_PERF_GUARD_STARTUP_TIMEOUT_SECS:-6}"
 STARTUP_REQUIRE_VALID_RAW="${SEMPAL_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS:-0}"
 STARTUP_LOCK_ENV_OUT="${SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT:-}"
+STARTUP_LOCK_ENV_IN="${SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_IN:-$ROOT_DIR/scripts/perf_locks/startup_thresholds.env}"
 FRAME_QUALITY_LOCK_ENV_OUT="${SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_ENV_OUT:-}"
 
 startup_profile_enabled=0
@@ -56,6 +57,22 @@ case "${STARTUP_REQUIRE_VALID_RAW,,}" in
     startup_require_valid_runs=1
     ;;
 esac
+
+load_threshold_lock_env() {
+  local lock_path="$1"
+  local lock_label="$2"
+  if [[ -z "$lock_path" ]]; then
+    return
+  fi
+  if [[ ! -f "$lock_path" ]]; then
+    return
+  fi
+  # shellcheck disable=SC1090
+  source "$lock_path"
+  echo "[perf_guard] loaded ${lock_label} threshold lock env: $lock_path"
+}
+
+load_threshold_lock_env "$STARTUP_LOCK_ENV_IN" "startup"
 
 mkdir -p "$(dirname "$OUT_PATH")"
 mkdir -p "$PERF_STATE_ROOT/config" "$PERF_STATE_ROOT/data" "$PERF_STATE_ROOT/state"
