@@ -60,6 +60,7 @@ impl WaveformRenderer {
                 }
             }
         }
+        Self::apply_gradient_waveform_style(&mut image, foreground, background);
         image
     }
 

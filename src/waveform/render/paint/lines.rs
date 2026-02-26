@@ -69,6 +69,7 @@ impl WaveformRenderer {
             }
             prev_y = Some(y);
         }
+        Self::apply_gradient_waveform_style(&mut image, foreground, background);
         image
     }
 

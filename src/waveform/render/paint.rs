@@ -3,6 +3,16 @@ mod lines;
 
 use super::WaveformImage;
 use super::WaveformRenderer;
+use crate::waveform::WaveformRgba;
+
+/// Precomputed gradient colors for waveform recoloring.
+#[derive(Clone, Copy)]
+struct WaveformGradientPalette {
+    fill_top: [f32; 3],
+    fill_bottom: [f32; 3],
+    outline_top: [f32; 3],
+    outline_bottom: [f32; 3],
+}
 
 impl WaveformRenderer {
     /// Compute the smoothing radius for column-based waveform rendering.
@@ -82,5 +92,115 @@ impl WaveformRenderer {
                 dest.copy_from_slice(src);
             }
         }
+    }
+
+    /// Apply a gradient-outline + soft-fill styling pass on non-transparent waveform pixels.
+    ///
+    /// The source render pass defines the waveform coverage mask (alpha). This pass
+    /// recolors only existing non-transparent runs so visual style changes do not
+    /// alter geometry, hit regions, or transparent background behavior.
+    pub(super) fn apply_gradient_waveform_style(
+        image: &mut WaveformImage,
+        foreground: WaveformRgba,
+        background: WaveformRgba,
+    ) {
+        let width = image.size[0];
+        let height = image.size[1];
+        if width == 0 || height == 0 {
+            return;
+        }
+        let palette = WaveformGradientPalette {
+            fill_top: Self::mix_rgb(background, foreground, 0.62),
+            fill_bottom: Self::mix_rgb(background, foreground, 0.28),
+            outline_top: Self::mix_rgb(foreground, WaveformRgba::from_rgb(255, 255, 255), 0.18),
+            outline_bottom: Self::mix_rgb(foreground, background, 0.22),
+        };
+
+        for x in 0..width {
+            let mut y = 0usize;
+            while y < height {
+                while y < height && image.pixels[y * width + x].a() == 0 {
+                    y += 1;
+                }
+                if y >= height {
+                    break;
+                }
+                let run_start = y;
+                while y < height && image.pixels[y * width + x].a() > 0 {
+                    y += 1;
+                }
+                let run_end = y.saturating_sub(1);
+                Self::style_waveform_column_run(image, width, x, run_start, run_end, palette);
+            }
+        }
+    }
+
+    /// Recolor one contiguous non-transparent run in a waveform column.
+    fn style_waveform_column_run(
+        image: &mut WaveformImage,
+        width: usize,
+        x: usize,
+        run_start: usize,
+        run_end: usize,
+        palette: WaveformGradientPalette,
+    ) {
+        let span = (run_end.saturating_sub(run_start) + 1) as f32;
+        let outline_width = (span * 0.16).clamp(1.0, 3.0);
+        for y in run_start..=run_end {
+            let idx = y * width + x;
+            let source_alpha = image.pixels[idx].a() as f32 / 255.0;
+            if source_alpha <= 0.0 {
+                continue;
+            }
+            let t = ((y.saturating_sub(run_start)) as f32 + 0.5) / span.max(1.0);
+            let center_strength = (1.0 - (t * 2.0 - 1.0).abs()).clamp(0.0, 1.0);
+            let edge_distance =
+                (y.saturating_sub(run_start).min(run_end.saturating_sub(y)) as f32) + 0.5;
+            let outline_weight = (1.0 - edge_distance / outline_width).clamp(0.0, 1.0);
+
+            let fill = Self::mix_rgb_triplet(palette.fill_top, palette.fill_bottom, t);
+            let outline = Self::mix_rgb_triplet(palette.outline_top, palette.outline_bottom, t);
+            let rgb = Self::mix_rgb_triplet(fill, outline, outline_weight);
+            let fill_alpha = source_alpha * (0.45 + 0.35 * center_strength);
+            let outline_alpha = source_alpha * (0.30 + 0.70 * outline_weight);
+            let alpha = (fill_alpha + outline_alpha * outline_weight).clamp(0.0, 1.0);
+
+            image.pixels[idx] = WaveformRgba::from_rgba_unmultiplied(
+                Self::to_u8(rgb[0]),
+                Self::to_u8(rgb[1]),
+                Self::to_u8(rgb[2]),
+                Self::to_u8(alpha),
+            );
+        }
+    }
+
+    /// Mix two RGB colors (`0..=255`) and return normalized float channels.
+    fn mix_rgb(left: WaveformRgba, right: WaveformRgba, t: f32) -> [f32; 3] {
+        let l = [
+            left.r() as f32 / 255.0,
+            left.g() as f32 / 255.0,
+            left.b() as f32 / 255.0,
+        ];
+        let r = [
+            right.r() as f32 / 255.0,
+            right.g() as f32 / 255.0,
+            right.b() as f32 / 255.0,
+        ];
+        Self::mix_rgb_triplet(l, r, t)
+    }
+
+    /// Linearly interpolate between two normalized RGB triplets.
+    fn mix_rgb_triplet(left: [f32; 3], right: [f32; 3], t: f32) -> [f32; 3] {
+        let t = t.clamp(0.0, 1.0);
+        [
+            left[0] + (right[0] - left[0]) * t,
+            left[1] + (right[1] - left[1]) * t,
+            left[2] + (right[2] - left[2]) * t,
+        ]
+    }
+
+    /// Convert a normalized float channel into `u8`.
+    fn to_u8(value: f32) -> u8 {
+        (value.clamp(0.0, 1.0) * 255.0).round() as u8
     }
 }
