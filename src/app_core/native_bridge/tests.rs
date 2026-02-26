@@ -6,7 +6,10 @@ use crate::app_core::actions::{
     NativeAppBridge, NativeDirtySegments, NativeSegmentRevisions, NativeUiAction,
 };
 use crate::app_core::controller::AppController;
-use crate::app_core::state::{SampleBrowserSort, SampleBrowserTab, TriageFlagFilter, UpdateStatus};
+use crate::app_core::state::{
+    SampleBrowserIndex, SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, TriageFlagFilter,
+    UpdateStatus,
+};
 use crate::waveform::WaveformRenderer;
 use std::sync::Arc;
 
@@ -660,6 +663,65 @@ fn projection_segment_non_segment_static_dirty_mask_and_lookup_counts() {
     assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
     assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
+}
+
+/// Prompt/progress/drag app-key misses should not flip static dirty segments.
+#[test]
+fn projection_segment_overlay_only_changes_keep_segment_hits_and_static_clean() {
+    let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
+        controller.ui.progress.visible = true;
+        controller.ui.progress.completed = 2;
+        controller.ui.progress.total = 5;
+    });
+    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
+}
+
+/// Overlay-only misses should preserve retained static fields while refreshing overlays.
+#[test]
+fn projection_overlay_only_miss_skips_static_non_segment_refresh() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let mut cache = NativeProjectionCache::default();
+    let (first_model, _) = cache.resolve_or_project(&mut controller);
+    let mut retained = Arc::unwrap_or_clone(first_model);
+    retained.sources_label = String::from("sentinel");
+    cache.app_model = Some(Arc::new(retained));
+
+    controller.ui.progress.visible = true;
+    controller.ui.progress.completed = 1;
+    controller.ui.progress.total = 3;
+
+    let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
+    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert_eq!(model.sources_label.as_str(), "sentinel");
+    assert!(model.progress_overlay.visible);
+}
+
+/// Status-key misses should still refresh selected-column metadata.
+#[test]
+fn projection_status_miss_updates_selected_column_without_static_dirty() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let mut cache = NativeProjectionCache::default();
+    let (first_model, _) = cache.resolve_or_project(&mut controller);
+    assert_eq!(first_model.selected_column, 1);
+
+    controller.ui.browser.selected = Some(SampleBrowserIndex {
+        column: TriageFlagColumn::Trash,
+        row: 0,
+    });
+    controller.ui.projection_revisions.status =
+        controller.ui.projection_revisions.status.wrapping_add(1);
+
+    let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
+    assert_eq!(model.selected_column, 0);
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::STATUS_BAR)
+    );
 }
 
 #[cfg(feature = "native-bridge-metrics")]

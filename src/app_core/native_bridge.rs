@@ -1083,10 +1083,16 @@ impl NativeProjectionCache {
         model.browser.anchor_visible_row = frame.anchor_visible_row;
     }
 
-    /// Refresh non-segmented app-model fields from current controller state.
-    fn refresh_non_segment_fields(model: &mut NativeAppModel, controller: &mut AppController) {
-        let selected_column = native_shell::selected_column_index(&controller.ui);
+    /// Refresh always-on non-segment metadata that is not covered by static keys.
+    fn refresh_non_segment_always_fields(model: &mut NativeAppModel, selected_column: usize) {
         model.selected_column = selected_column;
+    }
+
+    /// Refresh static non-segment app-model fields from current controller state.
+    fn refresh_non_segment_static_fields(
+        model: &mut NativeAppModel,
+        controller: &mut AppController,
+    ) {
         model.transport_running = controller.is_playing();
         model.volume = controller.ui.volume.clamp(0.0, 1.0);
         model.sources = native_shell::project_sources_model(&controller.ui);
@@ -1105,10 +1111,14 @@ impl NativeProjectionCache {
                 controller.ui.browser.keep.len(),
             ),
         ];
+        model.update = native_shell::project_update_model(&controller.ui);
+    }
+
+    /// Refresh transient non-segment overlays from current controller state.
+    fn refresh_non_segment_overlay_fields(model: &mut NativeAppModel, controller: &AppController) {
         model.progress_overlay = native_shell::project_progress_overlay_model(&controller.ui);
         model.confirm_prompt = native_shell::project_confirm_prompt_model(&controller.ui);
         model.drag_overlay = native_shell::project_drag_overlay_model(&controller.ui);
-        model.update = native_shell::project_update_model(&controller.ui);
     }
 
     /// Return `true` when one segment key needs rematerialization.
@@ -1366,11 +1376,15 @@ impl NativeProjectionCache {
             dirty_segments.insert(NativeDirtySegments::WAVEFORM_OVERLAY);
         }
 
-        if self.update_non_segment_static_key(derived, has_retained_model) {
+        let non_segment_static_changed =
+            self.update_non_segment_static_key(derived, has_retained_model);
+        if non_segment_static_changed {
             dirty_segments.insert(NativeDirtySegments::GLOBAL_STATIC);
+            Self::refresh_non_segment_static_fields(&mut model, controller);
         }
 
-        Self::refresh_non_segment_fields(&mut model, controller);
+        Self::refresh_non_segment_always_fields(&mut model, derived.selected_column);
+        Self::refresh_non_segment_overlay_fields(&mut model, controller);
         self.app_key = Some(derived.app_key.clone());
         let model = Arc::new(model);
         self.app_model = Some(Arc::clone(&model));
