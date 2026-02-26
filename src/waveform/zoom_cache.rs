@@ -33,8 +33,7 @@ impl WaveformZoomCache {
         let key = CacheKey::new(cache_token, samples, channels, view, width);
         {
             let mut inner = self.lock_inner();
-            if let Some(hit) = inner.map.get(&key).cloned() {
-                inner.touch(key);
+            if let Some(hit) = inner.get(key) {
                 return hit;
             }
         }
@@ -48,8 +47,7 @@ impl WaveformZoomCache {
                 },
             };
         let mut inner = self.lock_inner();
-        if let Some(hit) = inner.map.get(&key).cloned() {
-            inner.touch(key);
+        if let Some(hit) = inner.get(key) {
             return hit;
         }
         inner.insert(key, computed.clone());
@@ -64,6 +62,7 @@ impl WaveformZoomCache {
                 let mut inner = poisoned.into_inner();
                 inner.map.clear();
                 inner.order.clear();
+                inner.next_stamp = 1;
                 inner
             }
         }
@@ -128,9 +127,10 @@ impl Hash for CacheKey {
 }
 
 struct CacheInner {
-    map: HashMap<CacheKey, CachedColumns>,
-    order: VecDeque<CacheKey>,
+    map: HashMap<CacheKey, CacheEntry>,
+    order: VecDeque<TouchEntry>,
     max_entries: usize,
+    next_stamp: u64,
 }
 
 impl CacheInner {
@@ -139,30 +139,96 @@ impl CacheInner {
             map: HashMap::new(),
             order: VecDeque::new(),
             max_entries: 12,
+            next_stamp: 1,
         }
     }
 
+    fn get(&mut self, key: CacheKey) -> Option<CachedColumns> {
+        let stamp = self.next_stamp();
+        let entry = self.map.get_mut(&key)?;
+        entry.stamp = stamp;
+        self.order.push_back(TouchEntry { key, stamp });
+        self.compact_order_if_needed();
+        Some(entry.columns.clone())
+    }
+
+    #[cfg(test)]
     fn touch(&mut self, key: CacheKey) {
-        self.order.retain(|existing| existing != &key);
-        self.order.push_back(key);
+        if let Some(entry) = self.map.get_mut(&key) {
+            let stamp = self.next_stamp();
+            entry.stamp = stamp;
+            self.order.push_back(TouchEntry { key, stamp });
+            self.compact_order_if_needed();
+        }
     }
 
     fn insert(&mut self, key: CacheKey, value: CachedColumns) {
-        self.map.insert(key, value);
-        self.touch(key);
+        let stamp = self.next_stamp();
+        self.map.insert(
+            key,
+            CacheEntry {
+                columns: value,
+                stamp,
+            },
+        );
+        self.order.push_back(TouchEntry { key, stamp });
+        self.compact_order_if_needed();
         self.evict();
     }
 
     fn evict(&mut self) {
         while self.map.len() > self.max_entries {
-            let Some(key) = self.order.pop_front() else {
+            let Some(touch) = self.order.pop_front() else {
                 break;
             };
-            if self.map.remove(&key).is_some() {
-                break;
+            let is_current = self
+                .map
+                .get(&touch.key)
+                .is_some_and(|entry| entry.stamp == touch.stamp);
+            if is_current {
+                self.map.remove(&touch.key);
             }
         }
     }
+
+    fn compact_order_if_needed(&mut self) {
+        let compact_threshold = self.max_entries.saturating_mul(8).max(self.max_entries + 1);
+        if self.order.len() <= compact_threshold {
+            return;
+        }
+
+        let mut active: Vec<_> = self
+            .map
+            .iter()
+            .map(|(key, entry)| TouchEntry {
+                key: *key,
+                stamp: entry.stamp,
+            })
+            .collect();
+        active.sort_by_key(|entry| entry.stamp);
+        self.order = active.into_iter().collect();
+    }
+
+    fn next_stamp(&mut self) -> u64 {
+        let stamp = self.next_stamp;
+        self.next_stamp = self.next_stamp.wrapping_add(1);
+        if self.next_stamp == 0 {
+            self.next_stamp = 1;
+        }
+        stamp
+    }
+}
+
+#[derive(Clone)]
+struct CacheEntry {
+    columns: CachedColumns,
+    stamp: u64,
+}
+
+#[derive(Clone, Copy)]
+struct TouchEntry {
+    key: CacheKey,
+    stamp: u64,
 }
 
 #[cfg(test)]
@@ -196,17 +262,18 @@ mod tests {
     #[test]
     fn cache_order_stays_bounded_for_repeated_touch() {
         let mut inner = CacheInner::new();
+        inner.max_entries = 1;
         let samples = vec![0.0_f32, 1.0];
         let key = CacheKey::new(1, &samples, 1, WaveformChannelView::Mono, 10);
         let value = CachedColumns::Mono(std::sync::Arc::from([(0.0, 1.0)]));
 
         inner.insert(key, value);
-        for _ in 0..10 {
+        for _ in 0..128 {
             inner.touch(key);
         }
 
-        assert_eq!(inner.order.len(), inner.map.len());
-        assert_eq!(inner.order.len(), 1);
+        assert_eq!(inner.map.len(), 1);
+        assert!(inner.order.len() <= 8);
     }
 
     #[test]

@@ -7,7 +7,7 @@ use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
-    process::{self, Command},
+    process,
     time::{SystemTime, UNIX_EPOCH},
 };
 use tracing::error;
@@ -26,6 +26,7 @@ pub(crate) const MILESTONE_RUNTIME_STARTED: &str = "runtime_started";
 pub(crate) const MILESTONE_STARTUP_BEGIN: &str = "startup_begin";
 /// Startup milestone emitted when startup fails.
 pub(crate) const MILESTONE_STARTUP_FAILED: &str = "startup_failed";
+const BUILD_GIT_SHA: Option<&str> = option_env!("SEMPAL_BUILD_GIT_SHA");
 
 #[derive(Serialize)]
 struct RunContractEvent {
@@ -260,58 +261,25 @@ fn make_run_contract_id() -> String {
 
 fn resolve_git_sha() -> String {
     if let Ok(git_sha) = std::env::var("SEMPAL_GIT_SHA") {
-        let trimmed = git_sha.trim();
-        if !trimmed.is_empty() {
+        if let Some(trimmed) = trim_nonempty(&git_sha) {
             return trimmed.to_string();
         }
     }
 
-    let current_dir = std::env::current_dir().ok();
-    let exe_dir = std::env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(Path::to_path_buf));
-
-    let mut candidates = Vec::new();
-    if let Some(dir) = current_dir {
-        candidates.push(dir);
-    }
-    if let Some(dir) = exe_dir {
-        candidates.push(dir);
-    }
-
-    for base in candidates {
-        if let Some(sha) = find_git_sha_in_tree(base.as_path()) {
-            return sha;
-        }
+    if let Some(git_sha) = BUILD_GIT_SHA.and_then(trim_nonempty) {
+        return git_sha.to_string();
     }
 
     String::from("<unknown>")
 }
 
-fn find_git_sha_in_tree(base: &Path) -> Option<String> {
-    let mut current = Some(base);
-    while let Some(dir) = current {
-        if let Some(sha) = resolve_git_sha_in_dir(dir) {
-            return Some(sha);
-        }
-        current = dir.parent();
+fn trim_nonempty(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
     }
-    None
-}
-
-fn resolve_git_sha_in_dir(dir: &Path) -> Option<String> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(dir)
-        .args(["rev-parse", "--short", "HEAD"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-
-    let sha = String::from_utf8(output.stdout).ok()?.trim().to_string();
-    if sha.is_empty() { None } else { Some(sha) }
 }
 
 /// Creates and returns a run contract if all metadata paths can be resolved.
