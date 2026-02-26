@@ -1639,6 +1639,112 @@ pub fn measure_projection_segment_lookup_counts(
     cache.take_segment_lookup_counts()
 }
 
+/// Rebuild-cause counters observed while probing retained projection updates.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProjectionRebuildCauseCounts {
+    /// Explicit static invalidations observed by the probe.
+    ///
+    /// Controller-only probes do not execute runtime scene invalidation scopes,
+    /// so this counter remains zero for benchmark-mode measurements.
+    pub explicit_static_rebuild_count: u64,
+    /// Static rebuilds forced by dirty-segment masks during model pulls.
+    pub dirty_mask_static_rebuild_count: u64,
+    /// App-model pulls that produced a new retained model snapshot.
+    pub bridge_model_pull_rebuild_count: u64,
+    /// Motion-model-only pulls that changed motion state without model rebuild.
+    pub bridge_motion_pull_rebuild_count: u64,
+}
+
+/// Measure rebuild-cause counters over a fixed action loop.
+///
+/// The callback mutates controller state once per iteration. After each action
+/// mutation, this helper runs native frame preparation and retained projection.
+/// When `include_motion_pull` is `true`, an additional motion-model pull runs
+/// after model projection to approximate runtime motion-only refresh behavior.
+/// Warmup iterations are excluded from returned counts.
+pub fn measure_projection_rebuild_cause_counts(
+    controller: &mut AppController,
+    warmup_iters: usize,
+    measure_iters: usize,
+    include_motion_pull: bool,
+    mut apply_step: impl FnMut(&mut AppController, usize),
+) -> ProjectionRebuildCauseCounts {
+    let mut cache = NativeProjectionCache::default();
+    let mut counts = ProjectionRebuildCauseCounts::default();
+    let mut previous_model: Option<Arc<NativeAppModel>> = None;
+    let mut previous_motion: Option<NativeMotionModel> = None;
+    run_rebuild_cause_probe_iters(
+        controller,
+        &mut cache,
+        &mut previous_model,
+        &mut previous_motion,
+        warmup_iters,
+        include_motion_pull,
+        &mut apply_step,
+        false,
+        &mut counts,
+    );
+    run_rebuild_cause_probe_iters(
+        controller,
+        &mut cache,
+        &mut previous_model,
+        &mut previous_motion,
+        measure_iters,
+        include_motion_pull,
+        &mut apply_step,
+        true,
+        &mut counts,
+    );
+    counts
+}
+
+fn run_rebuild_cause_probe_iters(
+    controller: &mut AppController,
+    cache: &mut NativeProjectionCache,
+    previous_model: &mut Option<Arc<NativeAppModel>>,
+    previous_motion: &mut Option<NativeMotionModel>,
+    iterations: usize,
+    include_motion_pull: bool,
+    apply_step: &mut impl FnMut(&mut AppController, usize),
+    count_results: bool,
+    counts: &mut ProjectionRebuildCauseCounts,
+) {
+    for step in 0..iterations.max(1) {
+        apply_step(controller, step);
+        controller.prepare_native_frame(false);
+        let (model, dirty_segments) = cache.resolve_or_project(controller);
+        let model_rebuild = previous_model
+            .as_ref()
+            .is_none_or(|previous| !Arc::ptr_eq(previous, &model));
+        *previous_model = Some(model);
+
+        let mut motion_rebuild = false;
+        if include_motion_pull {
+            controller.prepare_native_frame(true);
+            let motion = controller.project_native_motion_model();
+            motion_rebuild = previous_motion
+                .as_ref()
+                .is_some_and(|previous| previous != &motion);
+            *previous_motion = Some(motion);
+        }
+
+        if !count_results {
+            continue;
+        }
+        if model_rebuild {
+            counts.bridge_model_pull_rebuild_count =
+                counts.bridge_model_pull_rebuild_count.saturating_add(1);
+            if dirty_segments.requires_static_rebuild() {
+                counts.dirty_mask_static_rebuild_count =
+                    counts.dirty_mask_static_rebuild_count.saturating_add(1);
+            }
+        } else if include_motion_pull && motion_rebuild {
+            counts.bridge_motion_pull_rebuild_count =
+                counts.bridge_motion_pull_rebuild_count.saturating_add(1);
+        }
+    }
+}
+
 /// Return whether an action requires unconditional projection-cache invalidation.
 fn action_requires_projection_cache_invalidation(action: &NativeUiAction) -> bool {
     !matches!(
