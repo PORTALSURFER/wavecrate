@@ -1,7 +1,6 @@
 use super::*;
 use crate::app::controller::library::wav_io;
 use crate::app::controller::playback::audio_cache::CacheKey;
-use crate::app::view_model;
 use crate::waveform::DecodedWaveform;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};

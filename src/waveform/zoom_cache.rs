@@ -325,8 +325,8 @@ impl CacheInner {
 
     #[cfg(test)]
     fn touch(&mut self, key: CacheKey) {
+        let stamp = self.next_stamp();
         if let Some(entry) = self.map.get_mut(&key) {
-            let stamp = self.next_stamp();
             entry.stamp = stamp;
             self.order.push_back(TouchEntry { key, stamp });
             self.compact_order_if_needed();

@@ -153,7 +153,7 @@ impl AppController {
                                             &source,
                                             &pending.relative_path,
                                             decoded,
-                                            bytes,
+                                            bytes.into(),
                                             AudioLoadIntent::Selection,
                                             false,
                                             None,
