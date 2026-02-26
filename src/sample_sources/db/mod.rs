@@ -26,6 +26,10 @@ pub const DB_FILE_NAME: &str = ".sempal_samples.db";
 pub const META_LAST_SCAN_COMPLETED_AT: &str = "last_scan_completed_at";
 /// Metadata key for the last similarity-prep scan timestamp.
 pub const META_LAST_SIMILARITY_PREP_SCAN_AT: &str = "last_similarity_prep_scan_at";
+/// Metadata key storing the last data revision cleaned by deferred maintenance.
+pub const META_DEFERRED_MAINTENANCE_REVISION: &str = "deferred_maintenance_revision_v1";
+/// Metadata key storing the last deferred-maintenance schema token.
+pub const META_DEFERRED_MAINTENANCE_SCHEMA: &str = "deferred_maintenance_schema_v1";
 /// Env var that enables read-only source DB opening by default.
 pub const SOURCE_DB_READ_ONLY_ENV: &str = "SEMPAL_SOURCE_DB_READ_ONLY";
 /// Env var that allows writing source DB files in user-library-like roots.
@@ -171,6 +175,21 @@ impl SourceDatabase {
             root,
             should_open_source_db_read_only(),
             allow_user_library_db_write(),
+            SourceDatabaseOpenMode::Full,
+        )
+    }
+
+    /// Open (or create) the database using startup-friendly schema work only.
+    ///
+    /// This preserves required table/index compatibility while deferring expensive
+    /// path validation/cleanup to a background maintenance job.
+    pub fn open_fast(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+        let root = root.as_ref();
+        open_source_database(
+            root,
+            should_open_source_db_read_only(),
+            allow_user_library_db_write(),
+            SourceDatabaseOpenMode::Fast,
         )
     }
 
@@ -243,15 +262,26 @@ impl SourceDatabase {
         schema::apply_schema(&self.connection)
     }
 
+    fn apply_schema_fast(&self) -> Result<(), SourceDbError> {
+        schema::apply_schema_fast(&self.connection)
+    }
+
     fn into_connection(self) -> Connection {
         self.connection
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SourceDatabaseOpenMode {
+    Fast,
+    Full,
 }
 
 fn open_source_database(
     root: &Path,
     read_only: bool,
     allow_user_library_write: bool,
+    mode: SourceDatabaseOpenMode,
 ) -> Result<SourceDatabase, SourceDbError> {
     if !root.is_dir() {
         return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
@@ -275,7 +305,10 @@ fn open_source_database(
         root: root.to_path_buf(),
     };
     db.apply_pragmas()?;
-    db.apply_schema()?;
+    match mode {
+        SourceDatabaseOpenMode::Fast => db.apply_schema_fast()?,
+        SourceDatabaseOpenMode::Full => db.apply_schema()?,
+    }
     Ok(db)
 }
 
@@ -586,6 +619,44 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM wav_files", [], |row| row.get(0))
             .unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn open_fast_defers_invalid_relative_path_cleanup() {
+        let dir = tempdir().unwrap();
+        let db_file = dir.path().join(DB_FILE_NAME);
+        {
+            let conn = Connection::open(&db_file).unwrap();
+            conn.execute(
+                "CREATE TABLE wav_files (
+                    path TEXT PRIMARY KEY,
+                    file_size INTEGER NOT NULL,
+                    modified_ns INTEGER NOT NULL
+                )",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO wav_files (path, file_size, modified_ns) VALUES (?1, ?2, ?3)",
+                params!["../escape.wav", 1i64, 1i64],
+            )
+            .unwrap();
+        }
+
+        let fast = SourceDatabase::open_fast(dir.path()).unwrap();
+        let fast_count: i64 = fast
+            .connection
+            .query_row("SELECT COUNT(*) FROM wav_files", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(fast_count, 1);
+        drop(fast);
+
+        let full = SourceDatabase::open(dir.path()).unwrap();
+        let full_count: i64 = full
+            .connection
+            .query_row("SELECT COUNT(*) FROM wav_files", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(full_count, 0);
     }
 
     #[test]

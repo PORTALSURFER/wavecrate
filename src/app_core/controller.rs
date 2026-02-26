@@ -84,6 +84,7 @@ impl AppControllerNativeRuntimeExt for AppController {
         self.flush_pending_focused_similarity_highlight_refresh();
         self.flush_pending_waveform_seek_commit();
         self.flush_pending_waveform_image_refresh();
+        self.flush_deferred_startup_source_db_maintenance();
         if animation_only {
             self.record_frame_timing_for_fps();
             if !self.is_playing() {

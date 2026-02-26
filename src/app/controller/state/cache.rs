@@ -56,7 +56,7 @@ impl LibraryCacheState {
         if let Some(existing) = self.db.get(&source.id) {
             return Ok(existing.clone());
         }
-        let db = Rc::new(SourceDatabase::open(&source.root)?);
+        let db = Rc::new(SourceDatabase::open_fast(&source.root)?);
         self.db.insert(source.id.clone(), db.clone());
         Ok(db)
     }

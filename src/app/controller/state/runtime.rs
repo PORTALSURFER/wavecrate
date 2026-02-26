@@ -131,6 +131,12 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) projection_revision_snapshot: ProjectionRevisionSnapshot,
     /// Tracks whether staged delete recovery has been scheduled for this session.
     pub(crate) delete_recovery_started: bool,
+    /// Startup-deferred source DB maintenance jobs waiting for background launch.
+    pub(crate) deferred_startup_source_db_maintenance_jobs: Vec<jobs::SourceDbMaintenanceJob>,
+    /// True when deferred startup source DB maintenance should start after first paint.
+    pub(crate) deferred_startup_source_db_maintenance_armed: bool,
+    /// Number of prepared frame passes since startup configuration was applied.
+    pub(crate) startup_frame_prepare_count: u32,
     #[cfg(test)]
     pub(crate) progress_cancel_after: Option<usize>,
     #[cfg(test)]
@@ -174,6 +180,9 @@ impl ControllerRuntimeState {
             map_query_connections: HashMap::new(),
             projection_revision_snapshot: ProjectionRevisionSnapshot::default(),
             delete_recovery_started: false,
+            deferred_startup_source_db_maintenance_jobs: Vec::new(),
+            deferred_startup_source_db_maintenance_armed: false,
+            startup_frame_prepare_count: 0,
             #[cfg(test)]
             progress_cancel_after: None,
             #[cfg(test)]

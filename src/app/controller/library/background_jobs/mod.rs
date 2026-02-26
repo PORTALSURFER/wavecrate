@@ -346,6 +346,30 @@ impl AppController {
                 JobMessage::IssueTokenDeleted(message) => {
                     updates::handle_issue_token_deleted(self, message);
                 }
+                JobMessage::SourceDbMaintenanceFinished(message) => {
+                    self.runtime.jobs.clear_source_db_maintenance();
+                    let mut failed = 0usize;
+                    for outcome in message.outcomes {
+                        if let Some(err) = outcome.error {
+                            failed = failed.saturating_add(1);
+                            tracing::warn!(
+                                "Deferred source DB maintenance failed for {} ({}): {}",
+                                outcome.source_id,
+                                outcome.source_root.display(),
+                                err
+                            );
+                        }
+                    }
+                    if failed > 0 {
+                        let suffix = if failed == 1 { "" } else { "s" };
+                        self.set_status(
+                            format!(
+                                "Deferred source DB maintenance failed for {failed} source{suffix}"
+                            ),
+                            StatusTone::Warning,
+                        );
+                    }
+                }
                 JobMessage::BrowserSearchFinished(message) => {
                     if Some(&message.source_id) == self.selection_state.ctx.selected_source.as_ref()
                         && message.query == self.ui.browser.search_query

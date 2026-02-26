@@ -5,6 +5,23 @@ use super::SourceDbError;
 use super::util::{map_sql_error, parse_relative_path_from_db};
 
 pub(super) fn apply_schema(connection: &Connection) -> Result<(), SourceDbError> {
+    apply_schema_internal(connection, SchemaApplyMode::Full)
+}
+
+pub(super) fn apply_schema_fast(connection: &Connection) -> Result<(), SourceDbError> {
+    apply_schema_internal(connection, SchemaApplyMode::Fast)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SchemaApplyMode {
+    Fast,
+    Full,
+}
+
+fn apply_schema_internal(
+    connection: &Connection,
+    mode: SchemaApplyMode,
+) -> Result<(), SourceDbError> {
     connection
         .execute_batch(
             "CREATE TABLE IF NOT EXISTS metadata (
@@ -145,7 +162,9 @@ pub(super) fn apply_schema(connection: &Connection) -> Result<(), SourceDbError>
         )
         .map_err(map_sql_error)?;
     ensure_optional_columns(connection)?;
-    remove_invalid_relative_paths(connection)?;
+    if mode == SchemaApplyMode::Full {
+        remove_invalid_relative_paths(connection)?;
+    }
     connection
         .execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_wav_files_missing

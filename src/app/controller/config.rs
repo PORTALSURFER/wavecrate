@@ -98,20 +98,7 @@ impl AppController {
                 StatusTone::Warning,
             );
         }
-        let mut purge_failures = Vec::new();
-        for source in &self.library.sources {
-            if let Ok(mut conn) = super::library::analysis_jobs::open_source_db(&source.root)
-                && let Err(err) = super::library::analysis_jobs::purge_orphaned_samples(&mut conn)
-            {
-                purge_failures.push((source.root.display().to_string(), err));
-            }
-        }
-        for (root, err) in purge_failures {
-            self.set_status(
-                format!("Failed to purge orphaned sample data for {root}: {err}"),
-                StatusTone::Warning,
-            );
-        }
+        self.stage_deferred_startup_source_db_maintenance();
         self.selection_state.ctx.selected_source = cfg
             .core
             .last_selected_source
@@ -133,6 +120,46 @@ impl AppController {
             .analysis
             .start(self.runtime.jobs.message_sender());
         Ok(())
+    }
+
+    /// Queue deferred source-db maintenance so startup can reach first paint quickly.
+    fn stage_deferred_startup_source_db_maintenance(&mut self) {
+        let jobs = self
+            .library
+            .sources
+            .iter()
+            .filter(|source| source.root.is_dir())
+            .map(
+                |source| crate::app::controller::jobs::SourceDbMaintenanceJob {
+                    source_id: source.id.clone(),
+                    source_root: source.root.clone(),
+                },
+            )
+            .collect::<Vec<_>>();
+        self.runtime.deferred_startup_source_db_maintenance_jobs = jobs;
+        self.runtime.deferred_startup_source_db_maintenance_armed = !self
+            .runtime
+            .deferred_startup_source_db_maintenance_jobs
+            .is_empty();
+        self.runtime.startup_frame_prepare_count = 0;
+    }
+
+    /// Launch deferred startup source-db maintenance after the first prepared frame.
+    pub(crate) fn flush_deferred_startup_source_db_maintenance(&mut self) {
+        if !self.runtime.deferred_startup_source_db_maintenance_armed {
+            return;
+        }
+        self.runtime.startup_frame_prepare_count =
+            self.runtime.startup_frame_prepare_count.saturating_add(1);
+        if self.runtime.startup_frame_prepare_count < 2 {
+            return;
+        }
+        if self.runtime.jobs.source_db_maintenance_in_progress() {
+            return;
+        }
+        let jobs = std::mem::take(&mut self.runtime.deferred_startup_source_db_maintenance_jobs);
+        self.runtime.deferred_startup_source_db_maintenance_armed = false;
+        self.runtime.jobs.begin_source_db_maintenance(jobs);
     }
 
     pub(super) fn persist_config(&mut self, error_prefix: &str) -> Result<(), String> {
