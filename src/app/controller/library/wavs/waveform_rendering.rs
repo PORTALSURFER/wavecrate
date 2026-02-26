@@ -2,9 +2,11 @@ use super::*;
 use crate::app::controller::playback::audio_cache::FileMetadata;
 use crate::app::controller::state::runtime::WaveformRefreshReason;
 use crate::app::state::WaveformView;
+use crate::gui::types::ImageRgba;
 use crate::waveform::DecodedWaveform;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 
 /// Waveform render-cache reuse and translation helpers.
 mod reuse;
@@ -12,6 +14,27 @@ mod reuse;
 const MIN_VIEW_WIDTH_BASE: f64 = 1e-9;
 const MIN_SAMPLES_PER_PIXEL: f32 = 1.0;
 pub(crate) const DEFAULT_TRANSIENT_SENSITIVITY: f32 = 0.6;
+
+/// Convert a rendered waveform image into the native immutable RGBA payload.
+pub(crate) fn waveform_image_to_native_rgba(
+    image: &crate::waveform::WaveformImage,
+) -> Option<Arc<ImageRgba>> {
+    if image.size[0] == 0 || image.size[1] == 0 {
+        return None;
+    }
+    let mut pixels = Vec::with_capacity(
+        image.size[0]
+            .saturating_mul(image.size[1])
+            .saturating_mul(4),
+    );
+    for pixel in &image.pixels {
+        pixels.push(pixel.r());
+        pixels.push(pixel.g());
+        pixels.push(pixel.b());
+        pixels.push(pixel.a());
+    }
+    ImageRgba::new(image.size[0], image.size[1], pixels).map(Arc::new)
+}
 
 /// Return the dominant waveform refresh reason when multiple requests coalesce.
 fn merge_waveform_refresh_reason(
@@ -222,6 +245,8 @@ impl AppController {
         if (decoded.samples.is_empty() && decoded.peaks.is_none()) || total_frames == 0 {
             self.ui.waveform.image = None;
             self.ui.waveform.waveform_image_signature = None;
+            self.projected_waveform_image_signature = None;
+            self.projected_waveform_image = None;
             return;
         }
         let start_frame = ((view.start * total_frames as f64).floor() as usize)

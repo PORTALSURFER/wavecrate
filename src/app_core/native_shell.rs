@@ -1259,39 +1259,33 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
 
 /// Reuse or rebuild the projected waveform raster payload for the native model.
 fn project_waveform_image(controller: &mut AppController) -> Option<Arc<ImageRgba>> {
+    let signature = controller.ui.waveform.waveform_image_signature;
     let has_source_image = controller.ui.waveform.image.is_some();
     let has_cached_image = controller.projected_waveform_image.is_some();
-    if controller.projected_waveform_image_signature
-        == controller.ui.waveform.waveform_image_signature
+    if signature.is_some()
+        && controller.projected_waveform_image_signature == signature
         && has_source_image == has_cached_image
     {
         return controller.projected_waveform_image.clone();
     }
-    let projected_waveform_image = project_waveform_image_data(&controller.ui.waveform.image);
-    controller.projected_waveform_image_signature = controller.ui.waveform.waveform_image_signature;
+    // Producer-side waveform rendering now publishes shared immutable RGBA payloads and
+    // versioned identities. Keep a projection-side fallback for tests/manual image assignment.
+    let projected_waveform_image = controller
+        .projected_waveform_image
+        .clone()
+        .or_else(|| {
+            controller
+                .ui
+                .waveform
+                .image
+                .as_ref()
+                .and_then(
+                    crate::app::controller::library::wavs::waveform_rendering::waveform_image_to_native_rgba,
+                )
+        });
+    controller.projected_waveform_image_signature = signature;
     controller.projected_waveform_image = projected_waveform_image.clone();
     projected_waveform_image
-}
-
-fn project_waveform_image_data(
-    image: &Option<crate::waveform::WaveformImage>,
-) -> Option<Arc<ImageRgba>> {
-    let image = image.as_ref()?;
-    if image.size[0] == 0 || image.size[1] == 0 {
-        return None;
-    }
-    let mut pixels = Vec::with_capacity(
-        image.size[0]
-            .saturating_mul(image.size[1])
-            .saturating_mul(4),
-    );
-    for pixel in &image.pixels {
-        pixels.push(pixel.r());
-        pixels.push(pixel.g());
-        pixels.push(pixel.b());
-        pixels.push(pixel.a());
-    }
-    ImageRgba::new(image.size[0], image.size[1], pixels).map(Arc::new)
 }
 
 /// Project waveform chrome labels and action-hint copy.

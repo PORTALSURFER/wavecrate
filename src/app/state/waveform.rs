@@ -10,7 +10,7 @@ use std::time::Instant;
 pub struct WaveformState {
     /// Cached rendered waveform image.
     pub image: Option<WaveformImage>,
-    /// Cached waveform image signature used to avoid full-frame hashing on motion ticks.
+    /// Producer-side waveform image identity used for projection/cache invalidation.
     pub waveform_image_signature: Option<u64>,
     /// Playhead position and trail state.
     pub playhead: PlayheadState,
@@ -125,32 +125,6 @@ impl Default for WaveformState {
     }
 }
 
-pub(crate) fn waveform_image_signature(image: &WaveformImage) -> Option<u64> {
-    if image.size[0] == 0 || image.size[1] == 0 {
-        return None;
-    }
-    let mut signature = 0x00cb_f29c_e482_2325_u64;
-    for byte in (image.size[0] as u64).to_le_bytes() {
-        signature ^= u64::from(byte);
-        signature = signature.wrapping_mul(0x0100_0000_01b3);
-    }
-    for byte in (image.size[1] as u64).to_le_bytes() {
-        signature ^= u64::from(byte);
-        signature = signature.wrapping_mul(0x0100_0000_01b3);
-    }
-    for pixel in &image.pixels {
-        signature ^= u64::from(pixel.r());
-        signature = signature.wrapping_mul(0x0100_0000_01b3);
-        signature ^= u64::from(pixel.g());
-        signature = signature.wrapping_mul(0x0100_0000_01b3);
-        signature ^= u64::from(pixel.b());
-        signature = signature.wrapping_mul(0x0100_0000_01b3);
-        signature ^= u64::from(pixel.a());
-        signature = signature.wrapping_mul(0x0100_0000_01b3);
-    }
-    Some(signature)
-}
-
 /// Normalized bounds describing the visible region of the waveform.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WaveformView {
@@ -244,30 +218,12 @@ pub struct PlayheadTrailSample {
 
 #[cfg(test)]
 mod tests {
-    use super::waveform_image_signature;
-    use crate::waveform::{WaveformImage, WaveformRgba};
+    use super::WaveformState;
 
     #[test]
-    fn waveform_image_signature_tracks_pixel_changes() {
-        let mut image = WaveformImage {
-            size: [2, 1],
-            pixels: vec![
-                WaveformRgba::from_rgba_unmultiplied(10, 20, 30, 40),
-                WaveformRgba::from_rgba_unmultiplied(11, 21, 31, 41),
-            ],
-        };
-        let first_signature = waveform_image_signature(&image).unwrap();
-        image.pixels[0] = WaveformRgba::from_rgba_unmultiplied(11, 20, 30, 40);
-        let changed_signature = waveform_image_signature(&image).unwrap();
-        assert_ne!(first_signature, changed_signature);
-    }
-
-    #[test]
-    fn waveform_image_signature_ignores_empty_image() {
-        let image = WaveformImage {
-            size: [0, 1],
-            pixels: Vec::new(),
-        };
-        assert_eq!(waveform_image_signature(&image), None);
+    fn waveform_state_defaults_without_image_signature() {
+        let state = WaveformState::default();
+        assert!(state.image.is_none());
+        assert!(state.waveform_image_signature.is_none());
     }
 }

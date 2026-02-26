@@ -4,6 +4,8 @@ use crate::app::state::WaveformView;
 pub(crate) fn clear_waveform_view(controller: &mut AppController) {
     controller.ui.waveform.image = None;
     controller.ui.waveform.waveform_image_signature = None;
+    controller.projected_waveform_image_signature = None;
+    controller.projected_waveform_image = None;
     controller.ui.waveform.notice = None;
     controller.ui.waveform.loading = None;
     controller.ui.waveform.transients.clear();

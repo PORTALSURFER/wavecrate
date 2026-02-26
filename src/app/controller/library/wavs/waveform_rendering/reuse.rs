@@ -1,5 +1,6 @@
 use super::*;
 use crate::waveform::WaveformImage;
+use std::sync::Arc;
 
 /// Pixel tolerance for reusing cached waveform images on adjacent pan/zoom updates.
 const WAVEFORM_VIEW_CACHE_REUSE_PIXELS: f64 = 2.0;
@@ -84,13 +85,27 @@ fn blit_waveform_image_at_x(target: &mut WaveformImage, source: &WaveformImage, 
 impl AppController {
     /// Store a freshly rendered waveform image and update metadata/signature caches.
     pub(super) fn store_waveform_image(&mut self, image: WaveformImage, meta: WaveformRenderMeta) {
+        let signature = if image.size[0] == 0 || image.size[1] == 0 {
+            None
+        } else {
+            let signature = self.runtime.next_waveform_image_signature;
+            self.runtime.next_waveform_image_signature = self
+                .runtime
+                .next_waveform_image_signature
+                .wrapping_add(1)
+                .max(1);
+            Some(signature)
+        };
+        let projected_image: Option<Arc<crate::gui::types::ImageRgba>> = image
+            .size
+            .iter()
+            .all(|component| *component > 0)
+            .then(|| super::waveform_image_to_native_rgba(&image))
+            .flatten();
         self.ui.waveform.image = Some(image);
-        self.ui.waveform.waveform_image_signature = self
-            .ui
-            .waveform
-            .image
-            .as_ref()
-            .and_then(waveform_image_signature);
+        self.ui.waveform.waveform_image_signature = signature;
+        self.projected_waveform_image_signature = signature;
+        self.projected_waveform_image = projected_image;
         self.sample_view.waveform.render_meta = Some(meta);
     }
 
