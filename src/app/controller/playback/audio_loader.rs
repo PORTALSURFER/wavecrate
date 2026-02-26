@@ -26,7 +26,7 @@ pub(crate) struct AudioLoadJob {
 #[derive(Debug)]
 pub(crate) struct AudioLoadOutcome {
     pub decoded: DecodedWaveform,
-    pub bytes: Vec<u8>,
+    pub bytes: Arc<[u8]>,
     pub metadata: FileMetadata,
     pub transients: Vec<f32>,
     pub stretched: bool,
@@ -213,7 +213,7 @@ fn load_audio_inner(
     }
 
     let mut stretched = false;
-    let mut final_bytes = bytes;
+    let mut final_bytes: Arc<[u8]> = bytes.into();
 
     if let Some(ratio) = job.stretch_ratio {
         if is_stale_request(job.request_id, latest_request_id) {
@@ -230,7 +230,7 @@ fn load_audio_inner(
             decoded.channels,
         ) {
             Ok(b) => {
-                final_bytes = b;
+                final_bytes = b.into();
                 stretched = true;
                 // Decode the stretched bytes to get the correct duration and cache token
                 if let Ok(d) = renderer.decode_from_bytes(&final_bytes) {

@@ -95,9 +95,9 @@ impl AppController {
     /// Expose wav indices for a given triage flag column (used by virtualized rendering).
     pub fn browser_indices(&self, column: TriageFlagColumn) -> &[usize] {
         match column {
-            TriageFlagColumn::Trash => &self.ui.browser.trash,
-            TriageFlagColumn::Neutral => &self.ui.browser.neutral,
-            TriageFlagColumn::Keep => &self.ui.browser.keep,
+            TriageFlagColumn::Trash => self.ui.browser.trash.as_ref(),
+            TriageFlagColumn::Neutral => self.ui.browser.neutral.as_ref(),
+            TriageFlagColumn::Keep => self.ui.browser.keep.as_ref(),
         }
     }
 

@@ -24,9 +24,9 @@ impl AppController {
         self.reset_browser_ui();
         let (visible, selected_visible, loaded_visible) =
             super::browser_pipeline::build_visible_rows(self, focused_index, loaded_index);
-        self.ui.browser.trash = self.ui_cache.browser.pipeline.trash_rows.clone();
-        self.ui.browser.neutral = self.ui_cache.browser.pipeline.neutral_rows.clone();
-        self.ui.browser.keep = self.ui_cache.browser.pipeline.keep_rows.clone();
+        self.ui.browser.trash = self.ui_cache.browser.pipeline.trash_rows.clone().into();
+        self.ui.browser.neutral = self.ui_cache.browser.pipeline.neutral_rows.clone().into();
+        self.ui.browser.keep = self.ui_cache.browser.pipeline.keep_rows.clone().into();
         self.ui.browser.visible = visible;
         self.ui.browser.visible_rows_revision =
             self.ui.browser.visible_rows_revision.wrapping_add(1);
@@ -67,9 +67,9 @@ impl AppController {
 
     fn reset_browser_ui(&mut self) {
         let autoscroll = self.ui.browser.autoscroll;
-        self.ui.browser.trash.clear();
-        self.ui.browser.neutral.clear();
-        self.ui.browser.keep.clear();
+        self.ui.browser.trash = std::sync::Arc::from([]);
+        self.ui.browser.neutral = std::sync::Arc::from([]);
+        self.ui.browser.keep = std::sync::Arc::from([]);
         self.ui.browser.visible.clear_to_list();
         self.ui.browser.selected_visible = None;
         self.ui.browser.search_busy = false;
@@ -84,22 +84,36 @@ impl AppController {
 
     #[allow(dead_code)]
     fn push_browser_row(&mut self, entry_index: usize, entry: &WavEntry, flags: RowFlags) {
-        let target = if entry.tag.is_trash() {
-            &mut self.ui.browser.trash
+        let (target, row_index) = if entry.tag.is_trash() {
+            let mut rows = self.ui.browser.trash.as_ref().to_vec();
+            let row = rows.len();
+            rows.push(entry_index);
+            self.ui.browser.trash = rows.into();
+            (crate::app::state::TriageFlagColumn::Trash, row)
         } else if entry.tag.is_keep() {
-            &mut self.ui.browser.keep
+            let mut rows = self.ui.browser.keep.as_ref().to_vec();
+            let row = rows.len();
+            rows.push(entry_index);
+            self.ui.browser.keep = rows.into();
+            (crate::app::state::TriageFlagColumn::Keep, row)
         } else {
-            &mut self.ui.browser.neutral
+            let mut rows = self.ui.browser.neutral.as_ref().to_vec();
+            let row = rows.len();
+            rows.push(entry_index);
+            self.ui.browser.neutral = rows.into();
+            (crate::app::state::TriageFlagColumn::Neutral, row)
         };
-        let row_index = target.len();
-        target.push(entry_index);
         if flags.focused {
-            self.ui.browser.selected =
-                Some(view_model::sample_browser_index_for(entry.tag, row_index));
+            self.ui.browser.selected = Some(SampleBrowserIndex {
+                column: target,
+                row: row_index,
+            });
         }
         if flags.loaded {
-            self.ui.browser.loaded =
-                Some(view_model::sample_browser_index_for(entry.tag, row_index));
+            self.ui.browser.loaded = Some(SampleBrowserIndex {
+                column: target,
+                row: row_index,
+            });
             self.ui.loaded_wav = Some(entry.relative_path.clone());
         }
     }

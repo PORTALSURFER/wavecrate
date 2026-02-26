@@ -5,6 +5,7 @@ use crate::app::controller::playback::audio_samples::{
     decode_samples_from_bytes, wav_bytes_from_samples,
 };
 use crate::app::state::WaveformView;
+use std::sync::Arc;
 
 impl AppController {
     pub(crate) fn load_waveform_for_selection(
@@ -53,7 +54,7 @@ impl AppController {
             source,
             relative_path,
             None,
-            bytes,
+            bytes.into(),
             AudioLoadIntent::Selection,
         )?;
         let duration_seconds = decoded.duration_seconds;
@@ -85,7 +86,7 @@ impl AppController {
         source: &SampleSource,
         relative_path: &Path,
         decoded: DecodedWaveform,
-        bytes: Vec<u8>,
+        bytes: Arc<[u8]>,
         intent: AudioLoadIntent,
         preserve_selections: bool,
         transients: Option<Vec<f32>>,
@@ -117,9 +118,9 @@ impl AppController {
         source: &SampleSource,
         relative_path: &Path,
         decoded: Option<DecodedWaveform>,
-        bytes: Vec<u8>,
+        bytes: Arc<[u8]>,
         intent: AudioLoadIntent,
-    ) -> Result<(DecodedWaveform, Vec<u8>, bool), String> {
+    ) -> Result<(DecodedWaveform, Arc<[u8]>, bool), String> {
         let original_decoded = match decoded {
             Some(decoded) => decoded,
             None => self
@@ -133,6 +134,7 @@ impl AppController {
             && let Some(ratio) = self.stretch_ratio_for_sample(source, relative_path)
         {
             let stretched = self.stretch_wav_bytes(&bytes, ratio)?;
+            let stretched: Arc<[u8]> = stretched.into();
             // Decode the stretched bytes to get the correct duration
             let stretched_decoded = self
                 .sample_view
@@ -246,13 +248,13 @@ impl AppController {
         relative_path: &Path,
         duration_seconds: f32,
         sample_rate: u32,
-        bytes: Vec<u8>,
+        bytes: Arc<[u8]>,
     ) -> Result<(), String> {
         self.sample_view.wav.loaded_audio = Some(LoadedAudio {
             source_id: source.id.clone(),
             root: source.root.clone(),
             relative_path: relative_path.to_path_buf(),
-            bytes: bytes.clone(),
+            bytes: Arc::clone(&bytes),
             duration_seconds,
             sample_rate,
         });

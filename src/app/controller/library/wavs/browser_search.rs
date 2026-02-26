@@ -3,7 +3,7 @@ use crate::app::state::SampleBrowserSort;
 use crate::app::view_model;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 /// Environment override for the browser-search offload threshold.
 const SEARCH_OFFLOAD_THRESHOLD_ENV: &str = "SEMPAL_BROWSER_SEARCH_OFFLOAD_THRESHOLD";
@@ -20,14 +20,14 @@ struct QueryScoreCacheEntry {
     /// Exact query string associated with the score vector.
     query: String,
     /// Score vector aligned to absolute entry indices.
-    scores: Vec<Option<i64>>,
+    scores: Arc<[Option<i64>]>,
 }
 
 /// Cache state for browser search scoring and sort scratch buffers.
 pub(crate) struct BrowserSearchCache {
     source_id: Option<SourceId>,
     query: String,
-    pub(crate) scores: Vec<Option<i64>>,
+    pub(crate) scores: Arc<[Option<i64>]>,
     scratch: Vec<(usize, i64)>,
     query_score_cache: Vec<QueryScoreCacheEntry>,
     max_cached_queries: usize,
@@ -40,7 +40,7 @@ impl BrowserSearchCache {
         Self {
             source_id: None,
             query: String::new(),
-            scores: Vec::new(),
+            scores: Arc::from([]),
             scratch: Vec::new(),
             query_score_cache: Vec::new(),
             max_cached_queries: 6,
@@ -52,7 +52,7 @@ impl BrowserSearchCache {
     pub(crate) fn invalidate(&mut self) {
         self.source_id = None;
         self.query.clear();
-        self.scores.clear();
+        self.scores = Arc::from([]);
         self.scratch.clear();
         self.query_score_cache.clear();
     }
@@ -179,7 +179,7 @@ impl AppController {
                 }
             }
             new_scores.resize(entries_len, None);
-            self.ui_cache.browser.search.scores = new_scores;
+            self.ui_cache.browser.search.scores = new_scores.into();
             self.ui_cache.browser.search.query_score_cache.insert(
                 0,
                 QueryScoreCacheEntry {

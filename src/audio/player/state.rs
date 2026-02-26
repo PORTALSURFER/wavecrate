@@ -50,11 +50,11 @@ impl AudioPlayer {
     }
 
     /// Store audio bytes and duration for later playback.
-    pub fn set_audio(&mut self, data: Vec<u8>, duration: f32) {
+    pub fn set_audio(&mut self, data: impl Into<Arc<[u8]>>, duration: f32) {
         use super::super::mixer::{
             decoder_duration, decoder_sample_rate, wav_header_duration, wav_spec_from_bytes,
         };
-        let audio = Arc::from(data);
+        let audio: Arc<[u8]> = data.into();
         let provided = duration.max(0.0);
         let fallback = decoder_duration(&audio)
             .or_else(|| wav_header_duration(&audio))

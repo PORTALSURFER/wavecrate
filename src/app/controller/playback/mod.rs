@@ -583,7 +583,7 @@ mod tests {
             source_id: source.id.clone(),
             root: source.root.clone(),
             relative_path: PathBuf::from("clip.wav"),
-            bytes: Vec::new(),
+            bytes: Vec::new().into(),
             duration_seconds: 4.0,
             sample_rate: 48_000,
         });

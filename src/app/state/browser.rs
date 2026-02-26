@@ -8,11 +8,11 @@ use std::time::Instant;
 #[derive(Clone, Debug)]
 pub struct SampleBrowserState {
     /// Absolute indices per tag for keyboard navigation and tagging.
-    pub trash: Vec<usize>,
+    pub trash: Arc<[usize]>,
     /// Absolute indices for neutral-tagged rows.
-    pub neutral: Vec<usize>,
+    pub neutral: Arc<[usize]>,
     /// Absolute indices for keep-tagged rows.
-    pub keep: Vec<usize>,
+    pub keep: Arc<[usize]>,
     /// Visible rows after applying the active filter.
     pub visible: VisibleRows,
     /// Monotonic revision bumped whenever the visible-row projection changes.
@@ -80,9 +80,9 @@ pub struct SampleBrowserState {
 impl Default for SampleBrowserState {
     fn default() -> Self {
         Self {
-            trash: Vec::new(),
-            neutral: Vec::new(),
-            keep: Vec::new(),
+            trash: Arc::from([]),
+            neutral: Arc::from([]),
+            keep: Arc::from([]),
             visible: VisibleRows::List(Vec::new().into()),
             visible_rows_revision: 0,
             selected: None,
