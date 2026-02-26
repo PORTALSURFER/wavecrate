@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::sample_sources::SourceDatabase;
@@ -9,8 +9,8 @@ use super::{ScanError, ScanMode, ScanStats};
 
 pub(crate) struct ScanContext {
     pub(crate) existing: HashMap<PathBuf, WavEntry>,
-    pub(crate) existing_by_hash: HashMap<String, Vec<PathBuf>>,
-    pub(crate) existing_by_facts: HashMap<(u64, i64), Vec<PathBuf>>,
+    pub(crate) existing_by_hash: HashMap<String, HashSet<PathBuf>>,
+    pub(crate) existing_by_facts: HashMap<(u64, i64), HashSet<PathBuf>>,
     pub(crate) stats: ScanStats,
     pub(crate) mode: ScanMode,
 }

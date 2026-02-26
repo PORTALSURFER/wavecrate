@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::atomic::AtomicBool,
 };
@@ -15,27 +15,27 @@ const QUICK_HASH_MAX_BYTES: u64 = 8 * 1024 * 1024;
 
 pub(super) fn index_by_hash(
     existing: &HashMap<PathBuf, WavEntry>,
-) -> HashMap<String, Vec<PathBuf>> {
-    let mut map: HashMap<String, Vec<PathBuf>> = HashMap::new();
+) -> HashMap<String, HashSet<PathBuf>> {
+    let mut map: HashMap<String, HashSet<PathBuf>> = HashMap::new();
     for entry in existing.values() {
         let Some(hash) = entry.content_hash.as_deref() else {
             continue;
         };
         map.entry(hash.to_string())
             .or_default()
-            .push(entry.relative_path.clone());
+            .insert(entry.relative_path.clone());
     }
     map
 }
 
 pub(super) fn index_by_facts(
     existing: &HashMap<PathBuf, WavEntry>,
-) -> HashMap<(u64, i64), Vec<PathBuf>> {
-    let mut map: HashMap<(u64, i64), Vec<PathBuf>> = HashMap::new();
+) -> HashMap<(u64, i64), HashSet<PathBuf>> {
+    let mut map: HashMap<(u64, i64), HashSet<PathBuf>> = HashMap::new();
     for entry in existing.values() {
         map.entry((entry.file_size, entry.modified_ns))
             .or_default()
-            .push(entry.relative_path.clone());
+            .insert(entry.relative_path.clone());
     }
     map
 }
@@ -44,8 +44,8 @@ pub(super) fn apply_diff(
     batch: &mut SourceWriteBatch<'_>,
     facts: FileFacts,
     existing: &mut HashMap<PathBuf, WavEntry>,
-    existing_by_hash: &mut HashMap<String, Vec<PathBuf>>,
-    existing_by_facts: &mut HashMap<(u64, i64), Vec<PathBuf>>,
+    existing_by_hash: &mut HashMap<String, HashSet<PathBuf>>,
+    existing_by_facts: &mut HashMap<(u64, i64), HashSet<PathBuf>>,
     stats: &mut ScanStats,
     root: &Path,
     mode: ScanMode,
@@ -213,20 +213,12 @@ fn apply_rename_without_hash(
 
 fn take_rename_candidate(
     existing: &mut HashMap<PathBuf, WavEntry>,
-    existing_by_hash: &mut HashMap<String, Vec<PathBuf>>,
-    existing_by_facts: &mut HashMap<(u64, i64), Vec<PathBuf>>,
+    existing_by_hash: &mut HashMap<String, HashSet<PathBuf>>,
+    existing_by_facts: &mut HashMap<(u64, i64), HashSet<PathBuf>>,
     hash: &str,
 ) -> Option<WavEntry> {
     let candidates = existing_by_hash.get(hash)?;
-    let matching: Vec<PathBuf> = candidates
-        .iter()
-        .filter(|path| existing.contains_key(*path))
-        .cloned()
-        .collect();
-    if matching.len() != 1 {
-        return None;
-    }
-    let path = matching[0].clone();
+    let path = unique_existing_path(candidates, existing)?;
     let entry = existing.remove(&path)?;
     remove_from_hash_index(existing_by_hash, entry.content_hash.as_deref(), &path);
     remove_from_facts_index(existing_by_facts, entry.file_size, entry.modified_ns, &path);
@@ -235,27 +227,36 @@ fn take_rename_candidate(
 
 fn take_rename_candidate_by_facts(
     existing: &mut HashMap<PathBuf, WavEntry>,
-    existing_by_facts: &mut HashMap<(u64, i64), Vec<PathBuf>>,
+    existing_by_facts: &mut HashMap<(u64, i64), HashSet<PathBuf>>,
     size: u64,
     modified_ns: i64,
 ) -> Option<WavEntry> {
     let candidates = existing_by_facts.get(&(size, modified_ns))?;
-    let matching: Vec<PathBuf> = candidates
-        .iter()
-        .filter(|path| existing.contains_key(*path))
-        .cloned()
-        .collect();
-    if matching.len() != 1 {
-        return None;
-    }
-    let path = matching[0].clone();
+    let path = unique_existing_path(candidates, existing)?;
     let entry = existing.remove(&path)?;
     remove_from_facts_index(existing_by_facts, entry.file_size, entry.modified_ns, &path);
     Some(entry)
 }
 
+fn unique_existing_path(
+    candidates: &HashSet<PathBuf>,
+    existing: &HashMap<PathBuf, WavEntry>,
+) -> Option<PathBuf> {
+    let mut match_path: Option<PathBuf> = None;
+    for path in candidates {
+        if !existing.contains_key(path) {
+            continue;
+        }
+        if match_path.is_some() {
+            return None;
+        }
+        match_path = Some(path.clone());
+    }
+    match_path
+}
+
 fn remove_from_hash_index(
-    existing_by_hash: &mut HashMap<String, Vec<PathBuf>>,
+    existing_by_hash: &mut HashMap<String, HashSet<PathBuf>>,
     hash: Option<&str>,
     path: &Path,
 ) {
@@ -263,7 +264,7 @@ fn remove_from_hash_index(
         return;
     };
     if let Some(paths) = existing_by_hash.get_mut(hash) {
-        paths.retain(|candidate| candidate != path);
+        paths.remove(path);
         if paths.is_empty() {
             existing_by_hash.remove(hash);
         }
@@ -271,14 +272,14 @@ fn remove_from_hash_index(
 }
 
 fn remove_from_facts_index(
-    existing_by_facts: &mut HashMap<(u64, i64), Vec<PathBuf>>,
+    existing_by_facts: &mut HashMap<(u64, i64), HashSet<PathBuf>>,
     size: u64,
     modified_ns: i64,
     path: &Path,
 ) {
     let key = (size, modified_ns);
     if let Some(paths) = existing_by_facts.get_mut(&key) {
-        paths.retain(|candidate| candidate != path);
+        paths.remove(path);
         if paths.is_empty() {
             existing_by_facts.remove(&key);
         }
@@ -289,5 +290,52 @@ fn should_compute_full_hash(mode: ScanMode, size: u64) -> bool {
     match mode {
         ScanMode::Quick => size <= QUICK_HASH_MAX_BYTES,
         ScanMode::Hard => true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::unique_existing_path;
+    use crate::sample_sources::{Rating, WavEntry};
+    use std::collections::{HashMap, HashSet};
+    use std::path::PathBuf;
+
+    fn entry(path: &str) -> WavEntry {
+        WavEntry {
+            relative_path: PathBuf::from(path),
+            file_size: 1,
+            modified_ns: 1,
+            content_hash: None,
+            tag: Rating::NEUTRAL,
+            looped: false,
+            missing: false,
+            last_played_at: None,
+        }
+    }
+
+    #[test]
+    fn unique_existing_path_returns_single_match() {
+        let mut existing = HashMap::new();
+        existing.insert(PathBuf::from("one.wav"), entry("one.wav"));
+        existing.insert(PathBuf::from("two.wav"), entry("two.wav"));
+        let mut candidates = HashSet::new();
+        candidates.insert(PathBuf::from("one.wav"));
+        candidates.insert(PathBuf::from("missing.wav"));
+
+        let matched = unique_existing_path(&candidates, &existing);
+
+        assert_eq!(matched, Some(PathBuf::from("one.wav")));
+    }
+
+    #[test]
+    fn unique_existing_path_rejects_ambiguous_matches() {
+        let mut existing = HashMap::new();
+        existing.insert(PathBuf::from("one.wav"), entry("one.wav"));
+        existing.insert(PathBuf::from("two.wav"), entry("two.wav"));
+        let candidates = HashSet::from([PathBuf::from("one.wav"), PathBuf::from("two.wav")]);
+
+        let matched = unique_existing_path(&candidates, &existing);
+
+        assert_eq!(matched, None);
     }
 }
