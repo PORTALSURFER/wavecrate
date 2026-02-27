@@ -97,15 +97,15 @@ pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel
         && controller.ui.map.cached_points_umap_version.as_deref() == Some(umap_version.as_str())
         && controller.ui.map.last_query == Some(query_bounds);
     if !has_matching_points_cache {
-        match controller.umap_points_in_bounds(
-            SIMILARITY_MODEL_ID,
-            &umap_version,
-            "umap",
-            &umap_version,
-            source_id.as_ref(),
-            query_bounds,
-            MAX_RENDERED_MAP_POINTS,
-        ) {
+        match controller.umap_points_in_bounds(UmapPointQuery {
+            model_id: SIMILARITY_MODEL_ID,
+            umap_version: &umap_version,
+            cluster_method: "umap",
+            cluster_umap_version: &umap_version,
+            source_id: source_id.as_ref(),
+            bounds: query_bounds,
+            limit: MAX_RENDERED_MAP_POINTS,
+        }) {
             Ok(points) => {
                 controller.ui.map.cached_points = points
                     .iter()

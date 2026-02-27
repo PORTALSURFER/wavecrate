@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use super::*;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::state::SampleBrowserTab;
@@ -19,6 +17,17 @@ pub(crate) struct UmapPoint {
     pub x: f32,
     pub y: f32,
     pub cluster_id: Option<i32>,
+}
+
+/// Query payload for loading visible UMAP points and optional cluster metadata.
+pub(crate) struct UmapPointQuery<'a> {
+    pub model_id: &'a str,
+    pub umap_version: &'a str,
+    pub cluster_method: &'a str,
+    pub cluster_umap_version: &'a str,
+    pub source_id: Option<&'a SourceId>,
+    pub bounds: crate::app::state::MapQueryBounds,
+    pub limit: usize,
 }
 
 impl AppController {
@@ -109,25 +118,10 @@ impl AppController {
 
     pub(crate) fn umap_points_in_bounds(
         &mut self,
-        model_id: &str,
-        umap_version: &str,
-        cluster_method: &str,
-        cluster_umap_version: &str,
-        source_id: Option<&SourceId>,
-        bounds: crate::app::state::MapQueryBounds,
-        limit: usize,
+        query: UmapPointQuery<'_>,
     ) -> Result<Vec<UmapPoint>, String> {
-        let conn = open_source_db(self, source_id)?;
-        load_umap_points(
-            conn,
-            model_id,
-            umap_version,
-            cluster_method,
-            cluster_umap_version,
-            source_id,
-            bounds,
-            limit,
-        )
+        let conn = open_source_db(self, query.source_id)?;
+        load_umap_points(conn, &query)
     }
 
     /// Lookup a UMAP point for a specific sample id.
@@ -301,15 +295,9 @@ fn load_umap_bounds(
 
 fn load_umap_points(
     conn: &mut Connection,
-    model_id: &str,
-    umap_version: &str,
-    cluster_method: &str,
-    cluster_umap_version: &str,
-    source_id: Option<&SourceId>,
-    bounds: crate::app::state::MapQueryBounds,
-    limit: usize,
+    query: &UmapPointQuery<'_>,
 ) -> Result<Vec<UmapPoint>, String> {
-    let (sql, params) = if let Some(source_id) = source_id {
+    let (sql, params) = if let Some(source_id) = query.source_id {
         let prefix = format!("{}::%", source_id.as_str());
         (
             "SELECT layout_umap.sample_id, layout_umap.x, layout_umap.y, hdbscan_clusters.cluster_id
@@ -326,16 +314,16 @@ fn load_umap_points(
              ORDER BY layout_umap.sample_id ASC
              LIMIT ?10",
             vec![
-                Value::Text(model_id.to_string()),
-                Value::Text(umap_version.to_string()),
-                Value::Text(cluster_method.to_string()),
-                Value::Text(cluster_umap_version.to_string()),
+                Value::Text(query.model_id.to_string()),
+                Value::Text(query.umap_version.to_string()),
+                Value::Text(query.cluster_method.to_string()),
+                Value::Text(query.cluster_umap_version.to_string()),
                 Value::Text(prefix),
-                Value::Real(bounds.min_x as f64),
-                Value::Real(bounds.max_x as f64),
-                Value::Real(bounds.min_y as f64),
-                Value::Real(bounds.max_y as f64),
-                Value::Integer(limit as i64),
+                Value::Real(query.bounds.min_x as f64),
+                Value::Real(query.bounds.max_x as f64),
+                Value::Real(query.bounds.min_y as f64),
+                Value::Real(query.bounds.max_y as f64),
+                Value::Integer(query.limit as i64),
             ],
         )
     } else {
@@ -353,15 +341,15 @@ fn load_umap_points(
              ORDER BY layout_umap.sample_id ASC
              LIMIT ?9",
             vec![
-                Value::Text(model_id.to_string()),
-                Value::Text(umap_version.to_string()),
-                Value::Text(cluster_method.to_string()),
-                Value::Text(cluster_umap_version.to_string()),
-                Value::Real(bounds.min_x as f64),
-                Value::Real(bounds.max_x as f64),
-                Value::Real(bounds.min_y as f64),
-                Value::Real(bounds.max_y as f64),
-                Value::Integer(limit as i64),
+                Value::Text(query.model_id.to_string()),
+                Value::Text(query.umap_version.to_string()),
+                Value::Text(query.cluster_method.to_string()),
+                Value::Text(query.cluster_umap_version.to_string()),
+                Value::Real(query.bounds.min_x as f64),
+                Value::Real(query.bounds.max_x as f64),
+                Value::Real(query.bounds.min_y as f64),
+                Value::Real(query.bounds.max_y as f64),
+                Value::Integer(query.limit as i64),
             ],
         )
     };

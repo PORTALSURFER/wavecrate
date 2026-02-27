@@ -20,6 +20,8 @@ pub(crate) type ProjectedMapPointCacheEntry =
 /// Retained selected-path lookup cache entry used by native-shell projection helpers.
 pub(crate) type ProjectedSelectedPathsLookup =
     crate::app_core::app_api::controller::ProjectedSelectedPathsLookup;
+/// Map-point query payload alias used by native-shell map projection.
+pub(crate) type UmapPointQuery<'a> = crate::app_core::app_api::controller::UmapPointQuery<'a>;
 
 use std::{cell::RefCell, rc::Rc};
 

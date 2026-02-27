@@ -48,6 +48,7 @@ use std::{
 /// Re-export hotkey definitions for controller tests that use the bare `hotkeys`
 /// module path.
 pub(crate) use ui::hotkeys;
+pub(crate) use ui::map_view::UmapPointQuery;
 pub(crate) use ui::status_message::StatusMessage;
 
 pub(crate) const MIN_SELECTION_WIDTH: f32 = 0.001;

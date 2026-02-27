@@ -13,6 +13,8 @@ pub(crate) mod controller {
     pub(crate) use crate::app::controller::ProjectedMapPointsCacheKey;
     /// Legacy retained selected-path lookup projection cache type.
     pub(crate) use crate::app::controller::ProjectedSelectedPathsLookup;
+    /// Legacy map-point query payload used by map projection loading.
+    pub(crate) use crate::app::controller::UmapPointQuery;
 }
 
 /// Legacy controller-internal state types needed by migration glue.

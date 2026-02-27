@@ -6,7 +6,7 @@
 
 use super::controller::{
     AppController, ProjectedBrowserRowCacheEntry, ProjectedMapPointCacheEntry,
-    ProjectedMapPointsCacheKey, ProjectedSelectedPathsLookup,
+    ProjectedMapPointsCacheKey, ProjectedSelectedPathsLookup, UmapPointQuery,
 };
 use crate::app_core::actions::{
     NativeAppModel as AppModel, NativeBrowserActionsModel as BrowserActionsModel,
