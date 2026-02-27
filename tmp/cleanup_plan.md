@@ -68,13 +68,14 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: folder drag/drop tests, file-op journal tests, `bash scripts/ci_local.sh`.
   - Completed: 2026-02-27 (UTC) - `sempal` commit `000edada`
 
-- [ ] 8) Replace `clippy::too_many_arguments` hotspots with typed parameter structs
+- [x] 8) Replace `clippy::too_many_arguments` hotspots with typed parameter structs
   - ROI/Effort: High / M
   - Why it matters: Multiple core modules suppress argument-arity warnings, signaling high cognitive load and weak call-site clarity.
   - Evidence: file-level/line-level suppressions in `src/waveform/render.rs`, `src/waveform/render/cache.rs`, `src/app/controller/ui/map_view.rs`, `src/sample_sources/db/file_ops_journal.rs`, and others from audit scan.
   - Recommended change: Introduce cohesive input structs (`RenderParams`, `MovePlan`, `DbWriteOpts`, etc.) and migrate callsites incrementally.
   - Risk/tradeoffs: Low-medium; broad signature churn across modules.
   - Suggested validation: `cargo clippy --all-targets`, touched unit tests, `bash scripts/ci_local.sh`.
+  - Completed: 2026-02-27 (UTC) - `sempal` commit `1fef4787`
 
 - [ ] 9) Refactor native-bridge metrics counter registry into grouped structs
   - ROI/Effort: Medium / M
@@ -134,5 +135,5 @@ Status legend: `[ ]` pending, `[x]` done
 
 ## Progress Log
 
-- Items 1-7 completed in strict ROI order and pushed.
-- Next active item: 8) replace `clippy::too_many_arguments` hotspots with typed parameter structs.
+- Items 1-8 completed in strict ROI order and pushed.
+- Next active item: 9) refactor native-bridge metrics counter registry into grouped structs.
