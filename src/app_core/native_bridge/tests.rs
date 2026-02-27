@@ -11,6 +11,7 @@ use crate::app_core::state::{
     SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, TriageFlagFilter, UpdateStatus,
 };
 use crate::waveform::WaveformRenderer;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Run one retained projection step after warming cache and return dirty mask + lookup counters.
@@ -193,6 +194,27 @@ fn projection_cache_invalidate_forces_refresh() {
                 | NativeDirtySegments::GLOBAL_STATIC
         )
     );
+}
+
+#[test]
+/// Async revision-bus updates must invalidate the retained projection key on first pull.
+fn bridge_reprojects_after_async_loaded_wav_revision_change() {
+    let controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let mut bridge = SempalNativeBridge {
+        controller,
+        projection_cache: NativeProjectionCache::default(),
+        projection_key_snapshot: None,
+        last_dirty_segments: NativeDirtySegments::all(),
+        segment_revisions: NativeSegmentRevisions::default(),
+        pending_waveform_actions: PendingWaveformActions::default(),
+    };
+
+    let first = bridge.project_model();
+    assert!(first.waveform.loaded_label.is_none());
+
+    bridge.controller.ui.loaded_wav = Some(PathBuf::from("fresh_take.wav"));
+    let second = bridge.project_model();
+    assert_eq!(second.waveform.loaded_label.as_deref(), Some("fresh_take"));
 }
 
 /// Initial full projection should bump all static segment revisions.

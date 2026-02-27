@@ -475,7 +475,11 @@ impl SempalNativeBridge {
             info!(call, "native bridge: pull_model start");
         }
         self.flush_pending_input_actions();
+        let revisions_before_prepare = self.controller.ui.projection_revisions;
         self.controller.prepare_native_frame(false);
+        if revisions_before_prepare != self.controller.ui.projection_revisions {
+            self.invalidate_projection_key_snapshot();
+        }
         self.flush_derived_updates_before_pull(false);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
@@ -539,7 +543,11 @@ impl NativeAppBridge for SempalNativeBridge {
             info!(call, "native bridge: pull_motion_model start");
         }
         self.flush_pending_input_actions();
+        let revisions_before_prepare = self.controller.ui.projection_revisions;
         self.controller.prepare_native_frame(true);
+        if revisions_before_prepare != self.controller.ui.projection_revisions {
+            self.invalidate_projection_key_snapshot();
+        }
         self.flush_derived_updates_before_pull(true);
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
