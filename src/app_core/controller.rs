@@ -203,7 +203,7 @@ fn apply_browser_native_ui_action(
         }
         NativeUiAction::MoveBrowserFocus { delta } => controller.focus_browser_delta_action(delta),
         NativeUiAction::FocusBrowserRow { visible_row } => {
-            controller.focus_browser_row_only(visible_row)
+            controller.focus_browser_row(visible_row)
         }
         NativeUiAction::CommitFocusedBrowserRow => {
             controller.commit_browser_focus_or_toggle_transport()

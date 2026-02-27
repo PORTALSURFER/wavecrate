@@ -7,6 +7,8 @@ use super::common::visible_indices;
 use crate::app::controller::state::audio::PendingAgeUpdate;
 use crate::app::controller::ui::hotkeys;
 use crate::app::state::FocusContext;
+use crate::app_core::actions::NativeUiAction;
+use crate::app_core::controller::AppControllerNativeRuntimeExt;
 use crate::sample_sources::Rating;
 use hound::WavReader;
 use std::cell::RefCell;
@@ -87,6 +89,38 @@ fn moving_browser_focus_is_load_free_until_explicit_commit() {
     assert!(controller.runtime.jobs.pending_playback.is_none());
 
     assert!(controller.commit_focused_browser_row());
+    let queued_or_loaded_two = controller
+        .runtime
+        .jobs
+        .pending_audio
+        .as_ref()
+        .is_some_and(|pending| pending.relative_path == PathBuf::from("two.wav"))
+        || controller.ui.waveform.loading.as_deref() == Some(Path::new("two.wav"))
+        || controller.sample_view.wav.loaded_wav.as_deref() == Some(Path::new("two.wav"));
+    assert!(queued_or_loaded_two);
+}
+
+/// Native row focus actions from pointer selection should commit sample loading.
+#[test]
+fn native_focus_browser_row_commits_selection_load() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+
+    controller.focus_browser_row_only(0);
+    controller.sample_view.wav.loaded_wav = Some(PathBuf::from("one.wav"));
+    controller.ui.loaded_wav = Some(PathBuf::from("one.wav"));
+    controller.runtime.jobs.pending_audio = None;
+
+    controller.apply_native_ui_action(NativeUiAction::FocusBrowserRow { visible_row: 1 });
+
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
     let queued_or_loaded_two = controller
         .runtime
         .jobs
