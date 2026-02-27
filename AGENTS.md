@@ -52,16 +52,17 @@ Write for future selves: be precise, kind, and clear.
 3. If environment issues are suspected: `bash scripts/doctor.sh`
 
 ## Current Mission
-- Repository: `/home/uhx/dev/sempal`
+- Repository: `/home/portalsurfer/dev/sempal`
 - Product: Sempal
 - Branch: `next`
 - Program: runtime responsiveness/performance redesign (Xilem-inspired scoped invalidation + cache reuse)
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
+- Current status: startup-threshold calibration and larger-window immediate-preview A/B are complete; focus has shifted to warning-drift reduction and waveform outlier root-cause analysis.
 
 ## Immediate Next Actions
-1. Recalibrate tracked startup lock-file thresholds on a compositor-backed host (`bash scripts/calibrate_startup_thresholds.sh`).
-2. Repeat immediate waveform-preview A/B with larger run windows on compositor-backed host.
-3. Keep handoff docs synchronized every milestone (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
+1. Reduce compositor-run warning drift in browser-heavy scenarios (`hover_latency`, `wheel_latency`, `browser_filter_churn_latency`) using the latest 7-run perf-guard evidence.
+2. Root-cause projection-stage spikes in waveform interaction outliers under immediate-preview-on runs before revisiting immediate-apply scope.
+3. Keep handoff docs synchronized on every milestone (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now

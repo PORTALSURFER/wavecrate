@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-27T08:59:28Z
+Last Updated: 2026-02-27T11:13:47Z
 Updated By: Codex
 
 ## Purpose
@@ -10,8 +10,8 @@ Updated By: Codex
 
 ## Current State (Present Tense)
 
-- I am executing the runtime responsiveness/performance redesign and closing
-  the latest calibration/decision tasks from the active queue.
+- I am maintaining handoff clarity for stateless sessions while continuing
+  runtime responsiveness/performance execution.
 - The active mission remains runtime responsiveness/performance redesign from
   `docs/plans/active/runtime_performance_exec_plan.md`.
 - Startup-profile calibration on a compositor-backed host is complete with 5/5
@@ -21,11 +21,11 @@ Updated By: Codex
 - Immediate waveform-preview A/B with larger windows is complete (7-run median
   comparison); results favor preview-off latencies for waveform scenarios, so
   immediate-apply scope remains limited to overlay actions for now.
-- I just shipped a first browser-projection optimization pass for item 1:
+- The latest shipped milestone is a first browser-projection optimization pass:
   single-selection lookup fast path + row-slot string rewrite short-circuit in
   `src/app_core/native_shell.rs` / `src/app/controller.rs` integration paths.
-- Local perf evidence was captured in `target/perf/bench.post_item1.clean2.json`
-  and full `bash scripts/ci_local.sh` completed green.
+- Local preflight and CI are green in this session (`bash scripts/run_agent_request.sh`
+  and `bash scripts/ci_local.sh`), with perf-guard warnings at warn-only levels.
 
 ## Immediate Next Actions
 
@@ -34,8 +34,8 @@ Updated By: Codex
    latest 7-run perf guard evidence.
 2. Root-cause projection-stage spikes seen in waveform interaction outliers
    under immediate-preview-on runs before revisiting immediate-apply scope.
-3. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md`
-   synchronized on every milestone commit.
+3. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized
+   on every milestone.
 
 ## Work Notes
 
