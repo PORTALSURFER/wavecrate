@@ -76,19 +76,6 @@ impl AppController {
         browser_async_pipeline_enabled()
     }
 
-    #[allow(dead_code)]
-    fn browser_filter_accepts(&self, tag: crate::sample_sources::Rating) -> bool {
-        let triage_ok = match self.ui.browser.filter {
-            TriageFlagFilter::All => true,
-            TriageFlagFilter::Keep => tag.is_keep(),
-            TriageFlagFilter::Trash => tag.is_trash(),
-            TriageFlagFilter::Untagged => tag.is_neutral(),
-        };
-        let rating_ok = self.ui.browser.rating_filter.is_empty()
-            || self.ui.browser.rating_filter.contains(&tag.val());
-        triage_ok && rating_ok
-    }
-
     /// Return the active trimmed browser query, when non-empty.
     pub(crate) fn active_search_query(&self) -> Option<&str> {
         let query = self.ui.browser.search_query.trim();

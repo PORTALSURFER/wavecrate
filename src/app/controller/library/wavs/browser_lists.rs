@@ -83,42 +83,6 @@ impl AppController {
         self.ui.loaded_wav = None;
     }
 
-    #[allow(dead_code)]
-    fn push_browser_row(&mut self, entry_index: usize, entry: &WavEntry, flags: RowFlags) {
-        let (target, row_index) = if entry.tag.is_trash() {
-            let mut rows = self.ui.browser.trash.as_ref().to_vec();
-            let row = rows.len();
-            rows.push(entry_index);
-            self.ui.browser.trash = rows.into();
-            (crate::app::state::TriageFlagColumn::Trash, row)
-        } else if entry.tag.is_keep() {
-            let mut rows = self.ui.browser.keep.as_ref().to_vec();
-            let row = rows.len();
-            rows.push(entry_index);
-            self.ui.browser.keep = rows.into();
-            (crate::app::state::TriageFlagColumn::Keep, row)
-        } else {
-            let mut rows = self.ui.browser.neutral.as_ref().to_vec();
-            let row = rows.len();
-            rows.push(entry_index);
-            self.ui.browser.neutral = rows.into();
-            (crate::app::state::TriageFlagColumn::Neutral, row)
-        };
-        if flags.focused {
-            self.ui.browser.selected = Some(SampleBrowserIndex {
-                column: target,
-                row: row_index,
-            });
-        }
-        if flags.loaded {
-            self.ui.browser.loaded = Some(SampleBrowserIndex {
-                column: target,
-                row: row_index,
-            });
-            self.ui.loaded_wav = Some(entry.relative_path.clone());
-        }
-    }
-
     fn prune_browser_selection(&mut self) {
         let previous_paths = self.ui.browser.selected_paths.clone();
         let selected_paths = self.ui.browser.selected_paths.clone();

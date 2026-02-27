@@ -442,7 +442,7 @@ impl AppController {
         player::tick_playhead(self);
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn update_playhead_from_progress(
         &mut self,
         progress: Option<f32>,
@@ -482,7 +482,7 @@ impl AppController {
         player::update_waveform_hover_time(self, position);
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn selection_duration_label(&self, range: SelectionRange) -> Option<String> {
         player::selection_duration_label(self, range)
     }

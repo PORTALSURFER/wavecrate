@@ -144,16 +144,6 @@ impl AppController {
         }
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn apply_view_bounds_with_min(&mut self, min_width: f64) -> WaveformView {
-        let mut view = self.ui.waveform.view.clamp();
-        let width = view.width().max(min_width);
-        view.start = view.start.min(1.0 - width);
-        view.end = (view.start + width).min(1.0);
-        self.ui.waveform.view = view;
-        view
-    }
-
     /// Apply waveform payloads using shared immutable buffers.
     pub(crate) fn apply_waveform_image_shared(
         &mut self,

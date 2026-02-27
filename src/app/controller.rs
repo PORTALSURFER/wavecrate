@@ -328,19 +328,6 @@ impl AppController {
         self.runtime.performance.average_fps()
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn has_active_background_jobs(&self) -> bool {
-        self.runtime.jobs.scan_in_progress()
-            || self.runtime.jobs.trash_move_in_progress()
-            || self.runtime.jobs.file_ops_in_progress()
-            || self.runtime.jobs.umap_build_in_progress()
-            || self.runtime.jobs.umap_cluster_build_in_progress()
-            || self.runtime.jobs.update_check_in_progress()
-            || self.runtime.jobs.issue_gateway_in_progress
-            || self.runtime.jobs.issue_gateway_auth_in_progress
-            || self.runtime.jobs.issue_gateway_poll_in_progress
-    }
-
     pub(crate) fn set_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
         self.runtime.jobs.set_repaint_signal(signal.clone());
         self.runtime.analysis.set_repaint_signal(signal);

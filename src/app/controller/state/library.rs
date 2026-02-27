@@ -4,12 +4,6 @@ use super::super::{SampleSource, SourceId};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-#[derive(Clone)]
-pub(crate) struct RowFlags {
-    pub(crate) focused: bool,
-    pub(crate) loaded: bool,
-}
-
 pub(crate) struct MissingState {
     pub(crate) sources: HashSet<SourceId>,
     pub(crate) wavs: HashMap<SourceId, HashSet<PathBuf>>,
