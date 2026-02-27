@@ -437,6 +437,12 @@ fn fallback_allowed() -> bool {
     env_var_truthy(FALLBACK_ALLOW_ENV)
 }
 
+/// Resolve security-sensitive env toggles using strict tokens only.
+///
+/// This intentionally accepts only `1` and `true` (ASCII case-insensitive).
+/// Unlike the broader shared env parser, we do **not** accept aliases like
+/// `yes`/`on` to reduce accidental enablement of keyring-bypass and fallback
+/// secret-storage paths.
 fn env_var_truthy(key: &str) -> bool {
     std::env::var(key)
         .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
@@ -1034,5 +1040,46 @@ mod tests {
         }
         disallow_fallback();
         clear_env_key();
+    }
+
+    /// Security toggles must only accept strict `1`/`true` tokens.
+    #[test]
+    fn strict_env_var_truthy_only_accepts_one_and_true() {
+        let _env_guard = env_lock();
+        /// Test-only env var for strict token parsing behavior.
+        const STRICT_ENV: &str = "SEMPAL_TOKEN_STORE_STRICT_PARSE_TEST";
+        unsafe {
+            std::env::remove_var(STRICT_ENV);
+        }
+        assert!(!env_var_truthy(STRICT_ENV));
+
+        unsafe {
+            std::env::set_var(STRICT_ENV, "1");
+        }
+        assert!(env_var_truthy(STRICT_ENV));
+
+        unsafe {
+            std::env::set_var(STRICT_ENV, "TrUe");
+        }
+        assert!(env_var_truthy(STRICT_ENV));
+
+        unsafe {
+            std::env::set_var(STRICT_ENV, "on");
+        }
+        assert!(!env_var_truthy(STRICT_ENV));
+
+        unsafe {
+            std::env::set_var(STRICT_ENV, "yes");
+        }
+        assert!(!env_var_truthy(STRICT_ENV));
+
+        unsafe {
+            std::env::set_var(STRICT_ENV, "true ");
+        }
+        assert!(!env_var_truthy(STRICT_ENV));
+
+        unsafe {
+            std::env::remove_var(STRICT_ENV);
+        }
     }
 }
