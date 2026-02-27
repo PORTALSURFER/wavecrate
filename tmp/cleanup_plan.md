@@ -48,15 +48,16 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Extract `recording/waveform_loader/{queue.rs,decode.rs,aggregation.rs,result.rs}` and keep worker API unchanged.
   - Risk/tradeoffs: Medium; subtle waveform equivalence and incremental update behavior must not change.
   - Suggested validation: existing recording waveform tests + regression fixtures + `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit pending in this item batch
+  - Completed: 2026-02-27 (UTC) - `sempal` commit `53cb2557`
 
-- [ ] 6) Complete browser search worker split (telemetry/queue/pipeline)
+- [x] 6) Complete browser search worker split (telemetry/queue/pipeline)
   - ROI/Effort: High / M
   - Why it matters: Search worker mixes cache invalidation, queue semantics, telemetry counters, and filtering/scoring pipeline in one module.
   - Evidence: `src/app/controller/library/wavs/browser_search_worker.rs` (~1140 LOC); queue/telemetry starts around lines 104-216.
   - Recommended change: Extract `browser_search_worker/{queue.rs,telemetry.rs,pipeline.rs,cache.rs}` preserving `SearchWorkerHandle` API and stale-generation behavior.
   - Risk/tradeoffs: Medium; high-frequency search latency and cancellation correctness are sensitive.
   - Suggested validation: browser search tests + perf guard + `bash scripts/ci_local.sh`.
+  - Completed: 2026-02-27 (UTC) - `sempal` commits `ae1c39f3`, `8fcdd201`
 
 - [ ] 7) Split folder move drag-effects into planning/execution/result-apply layers
   - ROI/Effort: High / M
@@ -132,5 +133,5 @@ Status legend: `[ ]` pending, `[x]` done
 
 ## Progress Log
 
-- No implementation started yet.
-- Waiting for explicit confirmation before Phase 2 sequential execution.
+- Items 1-6 completed in strict ROI order and pushed.
+- Next active item: 7) split folder move drag-effects into plan/worker/apply/journal modules.
