@@ -122,13 +122,14 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `cargo clippy --all-targets`, platform-specific smoke checks, full CI.
   - Completed: 2026-02-27 (UTC) - `sempal` commit `48a0c79d`
 
-- [ ] 14) Refresh quality scorecard review date and reconcile with current hotspots
+- [x] 14) Refresh quality scorecard review date and reconcile with current hotspots
   - ROI/Effort: Low / S
   - Why it matters: Current quality scorecard is stale and under-represents current large-file and perf-guard realities.
   - Evidence: `docs/QUALITY_SCORE.md` last reviewed date is `2026-02-18` with open known-gap bullets.
   - Recommended change: update review date/scores and cross-link active cleanup plan status.
   - Risk/tradeoffs: Low; documentation-only.
   - Suggested validation: docs lint/guardrails via `bash scripts/ci_local.sh`.
+  - Completed: 2026-02-27 (UTC) - `sempal` commit `59b37ac4`
 
 - [ ] 15) Add an automated cleanup audit script snapshot for repeatability
   - ROI/Effort: Low / S
@@ -141,4 +142,4 @@ Status legend: `[ ]` pending, `[x]` done
 ## Progress Log
 
 - Items 1-13 completed in strict ROI order and pushed.
-- Next active item: 14) refresh quality scorecard review date and reconcile hotspots.
+- Next active item: 15) add automated cleanup audit script snapshot for repeatability.
