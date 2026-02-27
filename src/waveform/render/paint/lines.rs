@@ -235,7 +235,7 @@ impl WaveformRenderer {
     }
 
     /// Draw an anti-aliased line segment with steep-line and vertical-line handling.
-    fn draw_line_aa(
+    pub(super) fn draw_line_aa(
         image: &mut WaveformImage,
         stride: usize,
         width: usize,

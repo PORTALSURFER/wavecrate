@@ -61,6 +61,26 @@ impl WaveformRenderer {
         smoothed
     }
 
+    /// Quantize columns to a fixed horizontal step to reduce visual spikiness.
+    ///
+    /// This mirrors the WPF rendering strategy from the reference design where
+    /// neighboring pixels share a min/max envelope instead of changing every
+    /// single column.
+    pub(super) fn stepped_columns(columns: &[(f32, f32)], step: usize) -> Vec<(f32, f32)> {
+        if step <= 1 || columns.len() < 2 {
+            return columns.to_vec();
+        }
+        let mut stepped = Vec::with_capacity(columns.len());
+        let mut idx = 0usize;
+        while idx < columns.len() {
+            let value = columns[idx];
+            let block_end = (idx + step).min(columns.len());
+            stepped.extend(std::iter::repeat_n(value, block_end - idx));
+            idx = block_end;
+        }
+        stepped
+    }
+
     /// Copy a rendered source row band into a target image with vertical offset.
     ///
     /// Rows outside the destination bounds are clipped; valid source rows are copied

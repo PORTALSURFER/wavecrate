@@ -446,6 +446,17 @@ mod tests {
         }
     }
 
+    #[test]
+    /// Stepped envelope output should duplicate each source value within a block.
+    fn stepped_columns_repeats_block_values() {
+        let columns = vec![(-0.1, 0.1), (-0.2, 0.2), (-0.3, 0.3), (-0.4, 0.4)];
+        let stepped = WaveformRenderer::stepped_columns(&columns, 2);
+        assert_eq!(
+            stepped,
+            vec![(-0.1, 0.1), (-0.1, 0.1), (-0.3, 0.3), (-0.3, 0.3),]
+        );
+    }
+
     /// Reference implementation used to validate smoothing-kernel equivalence.
     fn reference_smooth_columns(columns: &[(f32, f32)], radius: usize) -> Vec<(f32, f32)> {
         if radius == 0 || columns.len() < 2 {

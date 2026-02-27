@@ -2,10 +2,11 @@ use super::WaveformRenderer;
 use crate::waveform::{WaveformImage, WaveformRgba};
 
 impl WaveformRenderer {
-    /// Render column-based waveform geometry with a density-adjusted thickness and alpha.
+    /// Render a stepped min/max waveform envelope with fill and outline.
     ///
-    /// The fill is computed with weighted anti-aliased vertical overlap so narrow
-    /// features stay visible at low width and dense regions stay smooth at larger zooms.
+    /// This mirrors the reference WPF approach: neighboring horizontal pixels share
+    /// the same min/max envelope, the body is filled, and dark top/bottom strokes
+    /// are drawn to keep transients crisp.
     pub(in crate::waveform::render) fn paint_color_image_for_size_with_density(
         columns: &[(f32, f32)],
         width: u32,
@@ -20,46 +21,62 @@ impl WaveformRenderer {
             [width as usize, height as usize],
             vec![fill; (width as usize) * (height as usize)],
         );
+        if columns.is_empty() || width == 0 || height == 0 {
+            return image;
+        }
+
         let stride = width as usize;
         let half_height = (height.saturating_sub(1)) as f32 / 2.0;
         let mid = half_height;
         let limit = height.saturating_sub(1) as f32;
-        let thickness = Self::band_thickness(frames_per_column, height);
-        let density_boost = Self::density_alpha_boost(frames_per_column);
-        let fg = (
+        let stepped =
+            Self::stepped_columns(columns, Self::horizontal_step(width, frames_per_column));
+        let render_width = stride.min(stepped.len());
+        let fill_color = (
             foreground.r(),
             foreground.g(),
             foreground.b(),
-            foreground.a(),
+            foreground.a().min(220),
         );
+        let outline_color = (8, 8, 8, 255);
+        let mut top_outline = Vec::with_capacity(render_width);
+        let mut bottom_outline = Vec::with_capacity(render_width);
 
-        for (x, (min, max)) in columns.iter().enumerate() {
+        for (x, (min, max)) in stepped.iter().take(render_width).enumerate() {
             let top = (mid - max * half_height).clamp(0.0, limit);
             let bottom = (mid - min * half_height).clamp(0.0, limit);
-            let amp_span = (max - min).abs();
-            let amp_scale = (amp_span * 12.0).clamp(0.0, 1.0);
-            let column_thickness = 0.8 + (thickness - 0.8) * amp_scale;
-            let band_min = top.min(bottom) - column_thickness * 0.5;
-            let band_max = top.max(bottom) + column_thickness * 0.5;
-            let span = (band_max - band_min).max(column_thickness);
-            let start_y = band_min.floor().clamp(0.0, limit) as u32;
-            let end_y = band_max.ceil().clamp(0.0, limit) as u32;
-            for y in start_y..=end_y {
-                let pixel_min = y as f32;
-                let pixel_max = pixel_min + 1.0;
-                let overlap = (band_max.min(pixel_max) - band_min.max(pixel_min)).max(0.0);
-                if overlap <= 0.0 {
-                    continue;
-                }
-                let coverage = (overlap / span).clamp(0.0, 1.0);
-                let boosted = (coverage.sqrt() + density_boost).clamp(0.45, 1.0);
-                let alpha = ((fg.3 as f32) * boosted).round() as u8;
-                let idx = y as usize * stride + x;
+            let band_min = top.min(bottom).floor().clamp(0.0, limit) as usize;
+            let band_max = top.max(bottom).ceil().clamp(0.0, limit) as usize;
+            top_outline.push(top);
+            bottom_outline.push(bottom);
+            for y in band_min..=band_max {
+                let idx = y * stride + x;
                 if let Some(pixel) = image.pixels.get_mut(idx) {
-                    *pixel = WaveformRgba::from_rgba_unmultiplied(fg.0, fg.1, fg.2, alpha);
+                    *pixel = WaveformRgba::from_rgba_unmultiplied(
+                        fill_color.0,
+                        fill_color.1,
+                        fill_color.2,
+                        fill_color.3,
+                    );
                 }
             }
         }
+        Self::draw_envelope_outline(
+            &mut image,
+            stride,
+            render_width,
+            height as usize,
+            &top_outline,
+            outline_color,
+        );
+        Self::draw_envelope_outline(
+            &mut image,
+            stride,
+            render_width,
+            height as usize,
+            &bottom_outline,
+            outline_color,
+        );
         image
     }
 
@@ -111,27 +128,50 @@ impl WaveformRenderer {
         image
     }
 
-    /// Compute stroke thickness for column rendering based on zoom density.
+    /// Choose the horizontal envelope quantization step.
     ///
-    /// As fewer samples map into each output column, stroke thickness increases
-    /// gradually, capped by image height to avoid overdraw.
-    fn band_thickness(frames_per_column: f32, height: u32) -> f32 {
-        if !frames_per_column.is_finite() || frames_per_column <= 1.0 {
-            return 2.2;
+    /// A two-pixel step matches the reference implementation and smooths high-density
+    /// content without hiding large waveform shape changes.
+    fn horizontal_step(width: u32, frames_per_column: f32) -> usize {
+        if width < 2 || !frames_per_column.is_finite() || frames_per_column < 0.75 {
+            1
+        } else {
+            2
         }
-        let boost = (frames_per_column.log2().max(0.0) * 1.8).min(10.0);
-        let max_thickness = (height as f32 * 0.78).max(2.2);
-        (2.2 + boost).min(max_thickness)
     }
 
-    /// Compute alpha boost to keep low-density waveforms visible.
-    ///
-    /// The boost is bounded and increases only once a zoom level starts losing
-    /// vertical detail in the density path.
-    fn density_alpha_boost(frames_per_column: f32) -> f32 {
-        if !frames_per_column.is_finite() || frames_per_column <= 1.0 {
-            return 0.0;
+    /// Draw an anti-aliased polyline for a waveform envelope edge.
+    fn draw_envelope_outline(
+        image: &mut WaveformImage,
+        stride: usize,
+        width: usize,
+        height: usize,
+        points: &[f32],
+        color: (u8, u8, u8, u8),
+    ) {
+        if points.is_empty() || width == 0 || height == 0 {
+            return;
         }
-        (frames_per_column.log2().max(0.0) * 0.12).min(0.5)
+        if points.len() == 1 {
+            Self::draw_line_aa(
+                image, stride, width, height, 0.0, points[0], 0.0, points[0], color,
+            );
+            return;
+        }
+        for x in 1..points.len() {
+            let prev = points[x - 1];
+            let current = points[x];
+            Self::draw_line_aa(
+                image,
+                stride,
+                width,
+                height,
+                (x - 1) as f32,
+                prev,
+                x as f32,
+                current,
+                color,
+            );
+        }
     }
 }
