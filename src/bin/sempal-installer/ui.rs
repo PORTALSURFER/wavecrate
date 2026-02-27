@@ -10,7 +10,7 @@ use sempal::{
         NativeUiAction as UiAction, NativeUpdatePanelModel as UpdatePanelModel,
         NativeUpdateStatusModel as UpdateStatusModel,
     },
-    gui_runtime::{NativeRunOptions, WindowIconRgba, run_native_vello_app},
+    gui_runtime::{NativeRunOptions, WindowIconRgba, run_native_vello_app_declarative},
 };
 
 use crate::{APP_NAME, install, paths};
@@ -343,12 +343,14 @@ impl InstallerNativeBridge {
 }
 
 impl NativeAppBridge for InstallerNativeBridge {
-    fn pull_model(&mut self) -> AppModel {
+    /// Project the current installer workflow state into a UI model snapshot.
+    fn project_model(&mut self) -> std::sync::Arc<AppModel> {
         self.poll_installer();
-        self.app_model()
+        std::sync::Arc::new(self.app_model())
     }
 
-    fn on_action(&mut self, action: UiAction) {
+    /// Reduce one emitted UI action into installer workflow state.
+    fn reduce_action(&mut self, action: UiAction) {
         match action {
             UiAction::InstallUpdate => self.advance_step(),
             UiAction::OpenUpdateLink => {
@@ -391,7 +393,7 @@ pub(crate) fn run_installer_app() -> Result<(), String> {
         target_fps: 120,
         icon: load_installer_icon(),
     };
-    run_native_vello_app(options, InstallerNativeBridge::new())
+    run_native_vello_app_declarative(options, InstallerNativeBridge::new())
 }
 
 fn load_installer_icon() -> Option<WindowIconRgba> {

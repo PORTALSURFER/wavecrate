@@ -10,7 +10,7 @@
 use sempal::app_core::native_bridge::new_native_bridge;
 use sempal::app_core::ui::MIN_VIEWPORT_SIZE;
 use sempal::audio::AudioPlayer;
-use sempal::gui_runtime::{NativeRunOptions, run_native_vello_app};
+use sempal::gui_runtime::{NativeRunOptions, run_native_vello_app_declarative};
 use sempal::logging;
 use sempal::waveform::WaveformRenderer;
 use std::any::Any;
@@ -124,7 +124,7 @@ fn run_application(
     }
     *runtime_started = true;
 
-    let result = run_native_vello_app(options, bridge);
+    let result = run_native_vello_app_declarative(options, bridge);
     let exit_status = match &result {
         Ok(_) => {
             info!("sempal startup: native runtime exited normally");

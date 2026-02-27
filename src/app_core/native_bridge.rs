@@ -511,19 +511,11 @@ impl SempalNativeBridge {
 }
 
 impl NativeAppBridge for SempalNativeBridge {
-    /// Pull the latest app model snapshot for runtimes expecting owned values.
-    ///
-    /// This compatibility path may clone when shared ownership exists; native
-    /// Vello consumes `pull_model_arc` to avoid full-model clone churn.
-    fn pull_model(&mut self) -> NativeAppModel {
-        Arc::unwrap_or_clone(self.pull_model_arc_snapshot())
-    }
-
-    /// Pull the latest app model snapshot as a shared immutable arc.
+    /// Project the latest app model snapshot as a shared immutable arc.
     ///
     /// Returning shared ownership lets retained projection caches reuse model
     /// snapshots across pulls without cloning the full `AppModel`.
-    fn pull_model_arc(&mut self) -> Arc<NativeAppModel> {
+    fn project_model(&mut self) -> Arc<NativeAppModel> {
         self.pull_model_arc_snapshot()
     }
 
@@ -537,7 +529,8 @@ impl NativeAppBridge for SempalNativeBridge {
         self.segment_revisions
     }
 
-    fn pull_motion_model(&mut self) -> Option<NativeMotionModel> {
+    /// Project motion-only fields for animation-only redraw phases.
+    fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
         let call = trace_pull_motion_call();
         let profiling = bridge_profiling_enabled();
         let prepare_start = profiling.then(Instant::now);
@@ -566,7 +559,8 @@ impl NativeAppBridge for SempalNativeBridge {
         model
     }
 
-    fn on_action(&mut self, action: NativeUiAction) {
+    /// Reduce one runtime UI action into controller state.
+    fn reduce_action(&mut self, action: NativeUiAction) {
         if let NativeUiAction::MoveBrowserFocus { delta } = action {
             let call = trace_action_call();
             let profiling = bridge_profiling_enabled();
@@ -628,7 +622,8 @@ impl NativeAppBridge for SempalNativeBridge {
         }
     }
 
-    fn on_frame_result(&mut self, result: NativeFrameBuildResult) {
+    /// Observe one frame-build result for optional profiling telemetry.
+    fn observe_frame_result(&mut self, result: NativeFrameBuildResult) {
         let profiling = bridge_profiling_enabled();
         if !profiling {
             return;
@@ -639,7 +634,8 @@ impl NativeAppBridge for SempalNativeBridge {
         }
     }
 
-    fn on_exit(&mut self) {
+    /// Flush pending work and persist config during runtime shutdown.
+    fn on_runtime_exit(&mut self) {
         self.flush_pending_input_actions();
         if let Err(err) = self.controller.persist_native_exit_config() {
             error!(err = %err, "Failed to persist config on native exit");

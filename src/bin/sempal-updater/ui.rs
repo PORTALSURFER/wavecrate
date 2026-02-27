@@ -8,7 +8,7 @@ use sempal::{
         NativeUiAction as UiAction, NativeUpdatePanelModel as UpdatePanelModel,
         NativeUpdateStatusModel as UpdateStatusModel,
     },
-    gui_runtime::{NativeRunOptions, run_native_vello_app},
+    gui_runtime::{NativeRunOptions, run_native_vello_app_declarative},
     updater::{
         APP_NAME, ApplyPlan, ReleaseSummary, UpdateChannel, UpdateProgress, UpdaterRunArgs,
         apply_update_with_progress, list_recent_releases, open_release_page,
@@ -32,7 +32,7 @@ pub fn run_gui(args: UpdaterRunArgs) -> Result<(), String> {
         target_fps: 120,
         icon: None,
     };
-    run_native_vello_app(options, UpdateNativeBridge::new(args))
+    run_native_vello_app_declarative(options, UpdateNativeBridge::new(args))
 }
 
 #[derive(Debug, Clone)]
@@ -422,13 +422,15 @@ impl UpdateNativeBridge {
 }
 
 impl NativeAppBridge for UpdateNativeBridge {
-    fn pull_model(&mut self) -> AppModel {
+    /// Project updater state into the latest immutable UI model snapshot.
+    fn project_model(&mut self) -> std::sync::Arc<AppModel> {
         self.poll_background_updates();
         self.ensure_selected_tag();
-        self.app_model()
+        std::sync::Arc::new(self.app_model())
     }
 
-    fn on_action(&mut self, action: UiAction) {
+    /// Reduce one runtime UI action into updater state transitions.
+    fn reduce_action(&mut self, action: UiAction) {
         match action {
             UiAction::CheckForUpdates => {
                 self.refresh_release_list();

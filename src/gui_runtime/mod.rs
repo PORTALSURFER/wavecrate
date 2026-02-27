@@ -100,6 +100,28 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
     result
 }
 
+/// Run the native Vello backend with a declarative host bridge.
+///
+/// This entrypoint is equivalent to [`run_native_vello_app`] and is provided to
+/// make declarative runtime usage explicit at call sites.
+pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
+    options: NativeRunOptions,
+    bridge: B,
+) -> Result<(), String> {
+    info!("Launching radiant native Vello runtime (declarative host)");
+    let result = radiant::gui_runtime::run_native_vello_app_declarative(options.into(), bridge)
+        .map_err(|err| {
+            error!(%err, "radiant native Vello runtime returned error");
+            err
+        });
+
+    if result.is_ok() {
+        info!("Radiant native Vello runtime returned successfully");
+    }
+
+    result
+}
+
 /// Run the native Vello backend preview shell for backend smoke testing.
 ///
 /// This is typically used to validate host integration behavior without passing a

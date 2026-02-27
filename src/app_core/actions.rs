@@ -93,5 +93,9 @@ pub type NativeWaveformChromeModel = radiant::app::WaveformChromeModel;
 /// Native runtime waveform panel model.
 pub type NativeWaveformPanelModel = radiant::app::WaveformPanelModel;
 
+/// Closure-driven declarative bridge helper used by host launchers.
+pub use radiant::app::DeclarativeBridge as NativeDeclarativeBridge;
 /// Native runtime bridge trait used by host launchers.
 pub use radiant::app::NativeAppBridge;
+/// Helper constructor for closure-driven declarative bridge hosts.
+pub use radiant::app::declarative_bridge as native_declarative_bridge;
