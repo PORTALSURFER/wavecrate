@@ -8,7 +8,7 @@ use std::thread;
 use std::time::Duration;
 
 /// Keep test expectations aligned with waveform render supersampling.
-const TEST_WAVEFORM_RENDER_SUPERSAMPLE_X: u32 = 2;
+const TEST_WAVEFORM_RENDER_SUPERSAMPLE_X: u32 = 4;
 
 #[test]
 fn waveform_refresh_respects_view_slice_and_caps_width() {

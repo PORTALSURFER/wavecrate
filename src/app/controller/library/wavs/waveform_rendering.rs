@@ -15,9 +15,9 @@ const MIN_VIEW_WIDTH_BASE: f64 = 1e-9;
 const MIN_SAMPLES_PER_PIXEL: f32 = 1.0;
 /// Horizontal supersampling factor for waveform raster generation.
 ///
-/// Rendering at 2x viewport width materially reduces blockiness in the native
+/// Rendering at 4x viewport width materially reduces blockiness in the native
 /// shell where the waveform image is repacked into span rectangles.
-const WAVEFORM_RENDER_SUPERSAMPLE_X: u32 = 2;
+const WAVEFORM_RENDER_SUPERSAMPLE_X: u32 = 4;
 pub(crate) const DEFAULT_TRANSIENT_SENSITIVITY: f32 = 0.6;
 
 /// Convert a rendered waveform image into the native immutable RGBA payload.

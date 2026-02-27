@@ -178,7 +178,7 @@ impl WaveformRenderer {
 
     /// Return a supersampled sample for a single output column.
     ///
-    /// Uses a fixed 4-sample subdivision within each column and interpolates each
+    /// Uses a fixed 8-sample subdivision within each column and interpolates each
     /// sample point before averaging to reduce aliasing.
     fn supersampled_frame(
         samples: &[f32],
@@ -191,7 +191,7 @@ impl WaveformRenderer {
         if width <= 1 || frame_count == 0 {
             return Self::sample_at_frame(samples, channels, 0.0, channel_index);
         }
-        let sub_samples = 4;
+        let sub_samples = 8;
         let mut sum = 0.0_f32;
         for i in 0..sub_samples {
             let offset = (i as f32 + 0.5) / sub_samples as f32;
