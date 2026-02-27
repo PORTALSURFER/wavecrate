@@ -1,0 +1,90 @@
+//! Search result shaping helpers for empty states, triage partitions, and sorting.
+
+use super::*;
+
+/// Resolve revision-keyed triage partitions, rebuilding only when revision changes.
+pub(super) fn triage_partitions_for_revision(
+    cache: &mut SearchWorkerCache,
+    source_id: &str,
+    revision: u64,
+) -> TriagePartitions {
+    let entries = match cache.entries.as_ref() {
+        Some(entries) => entries,
+        None => return (Arc::from([]), Arc::from([]), Arc::from([])),
+    };
+    let needs_rebuild = cache
+        .triage_cache
+        .as_ref()
+        .map(|cached| {
+            cached.source_id != source_id
+                || cached.revision != revision
+                || cached.len != entries.len()
+        })
+        .unwrap_or(true);
+    if needs_rebuild {
+        let mut trash = Vec::new();
+        let mut neutral = Vec::new();
+        let mut keep = Vec::new();
+        for (index, entry) in entries.iter().enumerate() {
+            if entry.tag.is_trash() {
+                trash.push(index);
+            } else if entry.tag.is_keep() {
+                keep.push(index);
+            } else {
+                neutral.push(index);
+            }
+        }
+        cache.triage_cache = Some(WorkerTriageCacheEntry {
+            source_id: source_id.to_string(),
+            revision,
+            len: entries.len(),
+            trash: trash.into(),
+            neutral: neutral.into(),
+            keep: keep.into(),
+        });
+    }
+    if let Some(cached) = cache.triage_cache.as_ref() {
+        return (
+            Arc::clone(&cached.trash),
+            Arc::clone(&cached.neutral),
+            Arc::clone(&cached.keep),
+        );
+    }
+    (Arc::from([]), Arc::from([]), Arc::from([]))
+}
+
+pub(super) fn empty_search_result(job: SearchJob) -> SearchResult {
+    SearchResult {
+        request_id: job.request_id,
+        source_id: job.source_id,
+        query: job.query,
+        visible: VisibleRows::List(Vec::new().into()),
+        trash: Arc::from([]),
+        neutral: Arc::from([]),
+        keep: Arc::from([]),
+        scores: Arc::from([]),
+    }
+}
+
+pub(super) fn sort_visible_by_playback_age(
+    entries: &[CompactSearchEntry],
+    visible: &mut [usize],
+    ascending: bool,
+) {
+    visible.sort_by(|a, b| {
+        let a_key = entries
+            .get(*a)
+            .and_then(|entry| entry.last_played_at)
+            .unwrap_or(i64::MIN);
+        let b_key = entries
+            .get(*b)
+            .and_then(|entry| entry.last_played_at)
+            .unwrap_or(i64::MIN);
+        let order = if ascending {
+            a_key.cmp(&b_key)
+        } else {
+            b_key.cmp(&a_key)
+        };
+        order.then_with(|| a.cmp(b))
+    });
+}
