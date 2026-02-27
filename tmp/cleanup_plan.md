@@ -131,15 +131,16 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: docs lint/guardrails via `bash scripts/ci_local.sh`.
   - Completed: 2026-02-27 (UTC) - `sempal` commit `59b37ac4`
 
-- [ ] 15) Add an automated cleanup audit script snapshot for repeatability
+- [x] 15) Add an automated cleanup audit script snapshot for repeatability
   - ROI/Effort: Low / S
   - Why it matters: This audit required ad-hoc commands; a scripted snapshot would reduce drift and speed future cleanup planning.
   - Evidence: current audit uses manual `rg/wc/allow` scans with no canonical report script in `scripts/`.
   - Recommended change: add `scripts/audit_cleanup_hotspots.sh` producing deterministic top-file/suppression/test-gap summary into `tmp/`.
   - Risk/tradeoffs: Low; minor maintenance overhead for script itself.
   - Suggested validation: script run in CI preflight or local docs runbook, then `bash scripts/ci_local.sh`.
+  - Completed: 2026-02-27 (UTC) - `sempal` commit `5a99f480`
 
 ## Progress Log
 
-- Items 1-13 completed in strict ROI order and pushed.
-- Next active item: 15) add automated cleanup audit script snapshot for repeatability.
+- Items 1-15 completed in strict ROI order and pushed.
+- Next active item: none (cleanup backlog complete).
