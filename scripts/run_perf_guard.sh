@@ -10,6 +10,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+# shellcheck source=scripts/setup_headless_audio.sh
+source "$ROOT_DIR/scripts/setup_headless_audio.sh"
+sempal_setup_headless_audio "perf_guard"
 
 RADIANT_RUNTIME_FILE="$ROOT_DIR/vendor/radiant/src/gui_runtime/native_vello.rs"
 RADIANT_NESTED_RUNTIME_FILE="$ROOT_DIR/vendor/radiant/vendor/radiant/src/gui_runtime/native_vello.rs"

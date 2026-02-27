@@ -38,6 +38,9 @@ Local CI parity command (canonical):
 
 The CI-parity scripts run formatting, linting, docs, tests, and perf guardrails
 in the same order used by repository workflows.
+On headless Linux hosts, `scripts/ci_local.sh` and `scripts/run_perf_guard.sh`
+automatically set `ALSA_CONFIG_PATH=scripts/alsa_headless.conf` (unless already
+set) to route audio probing to a dummy sink and reduce ALSA warning noise.
 
 ## Architecture
 

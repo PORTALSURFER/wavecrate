@@ -137,6 +137,15 @@ system font discovery fails.
 Controls logging verbosity via `tracing_subscriber::EnvFilter`. When unset,
 Sempal defaults to `info`.
 
+## Headless audio
+
+- `ALSA_CONFIG_PATH`
+When set, ALSA uses the provided config file path instead of system defaults.
+On headless Linux runs, `scripts/ci_local.sh` and `scripts/run_perf_guard.sh`
+set this automatically to `scripts/alsa_headless.conf` unless already defined.
+This routes default playback probing to a dummy sink to reduce `ALSA lib`
+warning noise in test/bench logs.
+
 ## UI and runtime profiling
 
 - `SEMPAL_BROWSER_SEARCH_OFFLOAD_THRESHOLD`
@@ -414,9 +423,11 @@ fails due to I/O or permission errors. Accepted values: `1`, `true`, `yes`
 ## Tests and ad-hoc debugging
 
 - `SEMPAL_TEST_AUDIO_OUTPUT`
-Windows test override. When running tests on Windows, set `SEMPAL_TEST_AUDIO_OUTPUT=1`
-to exercise the real audio output device; otherwise tests avoid opening audio
-devices to reduce driver crash risk.
+Test-only audio-device override. When running tests, set
+`SEMPAL_TEST_AUDIO_OUTPUT=1` (or `true`/`yes`/`on`) to exercise real audio
+output devices. By default this is disabled so tests avoid opening host audio
+devices, which keeps headless CI runs deterministic and reduces ALSA/driver
+noise.
 
 - `SEMPAL_TRANSIENT_DEBUG`
 When set (to any value), enables transient detection debug logs.

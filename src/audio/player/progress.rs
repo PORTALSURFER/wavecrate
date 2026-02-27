@@ -118,7 +118,7 @@ impl AudioPlayer {
 mod tests {
     use super::*;
     use crate::audio::output::{AudioOutputConfig, open_output_stream};
-    use crate::audio::timebase::duration_for_frames;
+    use crate::audio::timebase::{duration_for_frames, duration_to_frames_floor};
     use std::time::Instant;
 
     #[test]
@@ -151,6 +151,7 @@ mod tests {
             return;
         };
         let stream = outcome.stream;
+        let elapsed = duration_for_frames(950, 48_000);
         let mut player = AudioPlayer::test_with_state(
             stream,
             Some(2.0),
@@ -158,7 +159,7 @@ mod tests {
             Some((0.0, 2.0)),
             true,
             Some(0.0),
-            Some(duration_for_frames(950, 48_000)),
+            Some(elapsed),
         );
         player.sample_rate = Some(48_000);
         player.track_total_frames = Some(5_000);
@@ -166,7 +167,9 @@ mod tests {
         player.loop_offset_frames = Some(100);
 
         let progress = player.progress().expect("progress");
-        let expected = 1_050.0 / 5_000.0;
+        let elapsed_frames = duration_to_frames_floor(elapsed, 48_000);
+        let expected_frame = 1_000 + ((100 + elapsed_frames) % 1_000);
+        let expected = expected_frame as f32 / 5_000.0;
         assert!((progress - expected).abs() < 1e-6);
     }
 }

@@ -400,20 +400,15 @@ pub fn supported_sample_rates(
 
 /// Open an audio stream honoring user preferences with safe fallbacks.
 ///
-/// On Windows test builds, set `SEMPAL_TEST_AUDIO_OUTPUT=1` to exercise the
-/// real output device; otherwise the function returns `NoOutputDevices` to
-/// avoid driver crashes during automated runs.
+/// On test builds, set `SEMPAL_TEST_AUDIO_OUTPUT=1` to exercise real output
+/// devices; otherwise the function returns `NoOutputDevices` to keep automated
+/// test runs deterministic on hosts without stable audio hardware.
 pub fn open_output_stream(
     config: &AudioOutputConfig,
 ) -> Result<OpenStreamOutcome, AudioOutputError> {
-    #[cfg(all(test, windows))]
+    #[cfg(test)]
     {
-        // Avoid CPAL driver crashes in Windows test runs unless explicitly enabled.
-        if std::env::var("SEMPAL_TEST_AUDIO_OUTPUT")
-            .ok()
-            .map(|value| value.trim() == "1")
-            != Some(true)
-        {
+        if !crate::env_flags::env_var_truthy("SEMPAL_TEST_AUDIO_OUTPUT") {
             return Err(AudioOutputError::NoOutputDevices);
         }
     }

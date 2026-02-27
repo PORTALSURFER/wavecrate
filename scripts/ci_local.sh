@@ -10,6 +10,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+# shellcheck source=scripts/setup_headless_audio.sh
+source "$ROOT_DIR/scripts/setup_headless_audio.sh"
+sempal_setup_headless_audio "ci_local"
 
 SKIP_AGENT_PREFLIGHT=0
 MEMORY_MAX_AGE_HOURS="${AGENT_CI_MEMORY_MAX_AGE_HOURS:-24}"
