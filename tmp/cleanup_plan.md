@@ -86,13 +86,14 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: native bridge metric tests + `bash scripts/run_perf_guard.sh` + full CI.
   - Completed: 2026-02-27 (UTC) - `sempal` commit `d4762f89`
 
-- [ ] 10) Add focused unit tests for waveform transport selection/loop behavior
+- [x] 10) Add focused unit tests for waveform transport selection/loop behavior
   - ROI/Effort: Medium / M
   - Why it matters: Complex transport selection/edit/loop interactions are implemented in a large file with no local test module, increasing regression risk.
   - Evidence: `src/app/controller/playback/transport.rs` (~643 LOC), no `#[cfg(test)]`/`mod tests` markers in file scan.
   - Recommended change: Add transport-focused tests (selection drag snapping, loop toggle side effects, seek debounce commit boundaries).
   - Risk/tradeoffs: Low; primarily test-only additions.
   - Suggested validation: `cargo test --lib transport`-focused filters + `bash scripts/ci_local.sh`.
+  - Completed: 2026-02-27 (UTC) - `sempal` commit `c0da7163`
 
 - [ ] 11) Add focused tests for browser action commit/preview semantics
   - ROI/Effort: Medium / M
@@ -136,5 +137,5 @@ Status legend: `[ ]` pending, `[x]` done
 
 ## Progress Log
 
-- Items 1-9 completed in strict ROI order and pushed.
-- Next active item: 10) add focused unit tests for waveform transport selection/loop behavior.
+- Items 1-10 completed in strict ROI order and pushed.
+- Next active item: 11) add focused tests for browser action commit/preview semantics.
