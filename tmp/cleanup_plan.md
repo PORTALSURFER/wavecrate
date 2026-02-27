@@ -39,15 +39,16 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Extract issue gateway/token worker runners into `src/app/controller/jobs/issue_gateway_jobs.rs` plus typed parameter structs for high-arity job builders.
   - Risk/tradeoffs: Medium; async cancellation and progress interactions can regress.
   - Suggested validation: targeted job-controller tests + `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit pending in this item batch
+  - Completed: 2026-02-27 (UTC) - `sempal` commit `b8018a3a`
 
-- [ ] 5) Split recording waveform loader into queue, decode, and assembly modules
+- [x] 5) Split recording waveform loader into queue, decode, and assembly modules
   - ROI/Effort: High / L
   - Why it matters: The recording loader combines queueing/state, decoding, bucket/analysis computation, and output shaping; this hurts maintainability in a hot path.
   - Evidence: `src/app/controller/playback/recording/waveform_loader.rs` (~1156 LOC); `RecordingWaveformState` and decode/aggregation logic start near lines 84+.
   - Recommended change: Extract `recording/waveform_loader/{queue.rs,decode.rs,aggregation.rs,result.rs}` and keep worker API unchanged.
   - Risk/tradeoffs: Medium; subtle waveform equivalence and incremental update behavior must not change.
   - Suggested validation: existing recording waveform tests + regression fixtures + `bash scripts/ci_local.sh`.
+  - Completed: 2026-02-27 (UTC) - `sempal` commit pending in this item batch
 
 - [ ] 6) Complete browser search worker split (telemetry/queue/pipeline)
   - ROI/Effort: High / M
