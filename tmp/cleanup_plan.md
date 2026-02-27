@@ -113,13 +113,14 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: add parser unit tests in `radiant`; run `cargo test --manifest-path vendor/radiant/Cargo.toml`.
   - Completed: 2026-02-27 (UTC) - `radiant` commit `8189ee37`; `sempal` commit `5e3bbb07`
 
-- [ ] 13) Reduce `dead_code` suppressions by deleting or test-gating unused paths
+- [x] 13) Reduce `dead_code` suppressions by deleting or test-gating unused paths
   - ROI/Effort: Medium / M
   - Why it matters: High suppression count can hide stale code and increase maintenance burden.
   - Evidence: broad `#[allow(dead_code)]` usage across `src/` and `vendor/radiant/src/` from audit scan (many occurrences in layout/runtime modules and controller layers).
   - Recommended change: triage each suppression: delete dead code, gate to tests/features, or document explicit compatibility rationale.
   - Risk/tradeoffs: Low-medium; false positives if code is reflection/FFI/platform-conditional.
   - Suggested validation: `cargo clippy --all-targets`, platform-specific smoke checks, full CI.
+  - Completed: 2026-02-27 (UTC) - `sempal` commit `48a0c79d`
 
 - [ ] 14) Refresh quality scorecard review date and reconcile with current hotspots
   - ROI/Effort: Low / S
@@ -139,5 +140,5 @@ Status legend: `[ ]` pending, `[x]` done
 
 ## Progress Log
 
-- Items 1-12 completed in strict ROI order and pushed.
-- Next active item: 13) reduce `dead_code` suppressions by deleting or test-gating unused paths.
+- Items 1-13 completed in strict ROI order and pushed.
+- Next active item: 14) refresh quality scorecard review date and reconcile hotspots.
