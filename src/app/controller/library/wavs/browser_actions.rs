@@ -35,6 +35,15 @@ impl AppController {
     ///
     /// Returns `true` when a row was focused, or `false` when the browser has no visible rows.
     pub fn focus_browser_delta(&mut self, delta: i8) -> bool {
+        self.focus_browser_delta_with_intent(delta, BrowserFocusIntent::Preview)
+    }
+
+    /// Focus a browser row by delta with explicit preview-vs-commit semantics.
+    pub fn focus_browser_delta_with_intent(
+        &mut self,
+        delta: i8,
+        intent: BrowserFocusIntent,
+    ) -> bool {
         let visible_count = self.ui.browser.visible.len();
         if visible_count == 0 {
             return false;
@@ -46,13 +55,23 @@ impl AppController {
             .unwrap_or(0)
             .min(visible_count - 1);
         let target = (base as isize + delta as isize).clamp(0, visible_count as isize - 1) as usize;
-        self.focus_browser_row_only(target);
+        self.focus_browser_row_with_intent(target, intent);
         true
     }
 
     /// Focus browser row using UI delta input, ignoring no-op outcomes.
     pub fn focus_browser_delta_action(&mut self, delta: i8) {
         let _ = self.focus_browser_delta(delta);
+    }
+
+    /// Focus browser row by UI delta and immediately request playback.
+    ///
+    /// Used by native keyboard/browser focus actions where focus should commit
+    /// loading side effects and begin playback without requiring Enter.
+    pub fn focus_browser_delta_and_play_action(&mut self, delta: i8) {
+        if self.focus_browser_delta_with_intent(delta, BrowserFocusIntent::Commit) {
+            self.request_playback_for_focused_selection();
+        }
     }
 
     /// Extend browser selection by `delta` rows from the current focus.
@@ -167,6 +186,15 @@ impl AppController {
         self.focus_browser_row_with_intent(visible_row, BrowserFocusIntent::Commit);
     }
 
+    /// Focus and commit a browser row, then request immediate playback.
+    ///
+    /// Used by native pointer row selection so click-focus behavior matches
+    /// keyboard focus progression expectations.
+    pub fn focus_browser_row_and_play_action(&mut self, visible_row: usize) {
+        self.focus_browser_row_with_intent(visible_row, BrowserFocusIntent::Commit);
+        self.request_playback_for_focused_selection();
+    }
+
     /// Focus a browser row with explicit preview-vs-commit semantics.
     pub fn focus_browser_row_with_intent(
         &mut self,
@@ -219,6 +247,14 @@ impl AppController {
             return;
         }
         self.toggle_play_pause();
+    }
+
+    /// Request playback for the currently selected/focused browser sample.
+    ///
+    /// Errors are ignored here because this helper is called from focus actions
+    /// where playback may be unavailable (for example in headless tests).
+    fn request_playback_for_focused_selection(&mut self) {
+        let _ = self.play_audio(false, None);
     }
 
     pub(crate) fn start_browser_rename(&mut self) {

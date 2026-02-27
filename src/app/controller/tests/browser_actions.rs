@@ -107,6 +107,7 @@ fn native_focus_browser_row_commits_selection_load() {
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
         sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
     ]);
+    controller.settings.feature_flags.autoplay_selection = false;
     write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
 
@@ -114,6 +115,7 @@ fn native_focus_browser_row_commits_selection_load() {
     controller.sample_view.wav.loaded_wav = Some(PathBuf::from("one.wav"));
     controller.ui.loaded_wav = Some(PathBuf::from("one.wav"));
     controller.runtime.jobs.pending_audio = None;
+    controller.runtime.jobs.pending_playback = None;
 
     controller.apply_native_ui_action(NativeUiAction::FocusBrowserRow { visible_row: 1 });
 
@@ -130,6 +132,58 @@ fn native_focus_browser_row_commits_selection_load() {
         || controller.ui.waveform.loading.as_deref() == Some(Path::new("two.wav"))
         || controller.sample_view.wav.loaded_wav.as_deref() == Some(Path::new("two.wav"));
     assert!(queued_or_loaded_two);
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_playback
+            .as_ref()
+            .map(|pending| pending.relative_path.clone()),
+        Some(PathBuf::from("two.wav"))
+    );
+}
+
+#[test]
+/// Native browser focus-delta actions should commit loading and queue playback.
+fn native_move_browser_focus_commits_selection_and_requests_playback() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.settings.feature_flags.autoplay_selection = false;
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+
+    controller.focus_browser_row_only(0);
+    controller.sample_view.wav.loaded_wav = Some(PathBuf::from("one.wav"));
+    controller.ui.loaded_wav = Some(PathBuf::from("one.wav"));
+    controller.runtime.jobs.pending_audio = None;
+    controller.runtime.jobs.pending_playback = None;
+
+    controller.apply_native_ui_action(NativeUiAction::MoveBrowserFocus { delta: 1 });
+
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    let queued_or_loaded_two = controller
+        .runtime
+        .jobs
+        .pending_audio
+        .as_ref()
+        .is_some_and(|pending| pending.relative_path == PathBuf::from("two.wav"))
+        || controller.ui.waveform.loading.as_deref() == Some(Path::new("two.wav"))
+        || controller.sample_view.wav.loaded_wav.as_deref() == Some(Path::new("two.wav"));
+    assert!(queued_or_loaded_two);
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_playback
+            .as_ref()
+            .map(|pending| pending.relative_path.clone()),
+        Some(PathBuf::from("two.wav"))
+    );
 }
 
 /// Preview focus should defer pending playback-age writes until commit.

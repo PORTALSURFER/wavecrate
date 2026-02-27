@@ -301,7 +301,7 @@ impl SempalNativeBridge {
         }
         let action = NativeUiAction::MoveBrowserFocus { delta };
         let before_key = self.projection_key_snapshot();
-        self.controller.focus_browser_delta_action(delta);
+        self.controller.focus_browser_delta_and_play_action(delta);
         self.invalidate_projection_key_snapshot();
         let after_key = self.projection_key_snapshot();
         if before_key != after_key {

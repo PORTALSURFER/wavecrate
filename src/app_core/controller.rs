@@ -201,9 +201,11 @@ fn apply_browser_native_ui_action(
         NativeUiAction::ClearFolderDeleteRecoveryLog => {
             controller.clear_folder_delete_recovery_log()
         }
-        NativeUiAction::MoveBrowserFocus { delta } => controller.focus_browser_delta_action(delta),
+        NativeUiAction::MoveBrowserFocus { delta } => {
+            controller.focus_browser_delta_and_play_action(delta)
+        }
         NativeUiAction::FocusBrowserRow { visible_row } => {
-            controller.focus_browser_row(visible_row)
+            controller.focus_browser_row_and_play_action(visible_row)
         }
         NativeUiAction::CommitFocusedBrowserRow => {
             controller.commit_browser_focus_or_toggle_transport()
