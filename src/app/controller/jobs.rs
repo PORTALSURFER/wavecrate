@@ -1,22 +1,25 @@
 #![allow(clippy::result_large_err)]
 
+/// Background audio normalization worker helpers.
+mod normalization_worker;
 /// Worker/result forwarding helpers for progress and completion messages.
 mod progress_reporting;
 /// Bounded job-queue sender/drop policy helpers.
 mod queue_orchestration;
 /// Retry/backoff policy helpers for async gateway and maintenance jobs.
 mod retry_policy;
+/// Deferred source-db maintenance worker helpers.
+mod source_db_maintenance;
 
+use self::normalization_worker::run_normalization_job;
 use self::progress_reporting::{
     JobForwarderHandles, JobForwarderSpawnConfig, ProgressForwarderConfig, spawn_progress_forwarder,
 };
 use self::queue_orchestration::new_job_message_queue;
 #[cfg(test)]
 use self::retry_policy::IssueGatewayPollConfig;
-use self::retry_policy::{
-    DEFERRED_MAINTENANCE_MAX_ATTEMPTS, DEFERRED_MAINTENANCE_RETRY_DELAY,
-    DEFERRED_MAINTENANCE_SCHEMA_TOKEN, issue_gateway_poll_config, poll_issue_gateway_with_backoff,
-};
+use self::retry_policy::{issue_gateway_poll_config, poll_issue_gateway_with_backoff};
+use self::source_db_maintenance::run_source_db_maintenance_job;
 use super::ScanJobMessage;
 use super::library::analysis_jobs::AnalysisJobMessage;
 use super::library::source_folders::delete_recovery::DeleteRecoveryReport;
@@ -1206,54 +1209,7 @@ impl ControllerJobs {
         let tx = self.message_tx.clone();
         let signal = self.repaint_signal.clone();
         thread::spawn(move || {
-            // We need a way to call the normalization logic without the AppController instance
-            // since that's not thread-safe. The core logic is in analysis::audio.
-            // But we also need database access for tags.
-            let source_id = job.source.id.clone();
-            let relative_path = job.relative_path.clone();
-
-            let result = (|| {
-                let (mut samples, spec) =
-                    super::library::wav_io::read_samples_for_normalization(&job.absolute_path)?;
-                if samples.is_empty() {
-                    return Err("No audio data to normalize".to_string());
-                }
-
-                crate::analysis::audio::normalize_peak_in_place(&mut samples);
-
-                let target_spec = hound::WavSpec {
-                    channels: spec.channels.max(1),
-                    sample_rate: spec.sample_rate.max(1),
-                    bits_per_sample: 32,
-                    sample_format: hound::SampleFormat::Float,
-                };
-                super::library::wav_io::write_normalized_wav(
-                    &job.absolute_path,
-                    &samples,
-                    target_spec,
-                )?;
-
-                let (file_size, modified_ns) =
-                    super::library::wav_io::file_metadata(&job.absolute_path)?;
-
-                // For the tag, we'll need to open the DB again since we don't have AppController.
-                let db = job
-                    .source
-                    .open_db()
-                    .map_err(|err| format!("Database unavailable: {err}"))?;
-                let tag = db
-                    .tag_for_path(&job.relative_path)
-                    .map_err(|err| format!("Failed to read database: {err}"))?
-                    .ok_or_else(|| "Sample not found in database".to_string())?;
-
-                Ok((file_size, modified_ns, tag))
-            })();
-
-            let _ = tx.send(JobMessage::Normalized(NormalizationResult {
-                source_id,
-                relative_path,
-                result,
-            }));
+            let _ = tx.send(JobMessage::Normalized(run_normalization_job(job)));
             signal.request_repaint();
         });
     }
@@ -1272,137 +1228,6 @@ fn trash_move_message_is_finished(message: &trash_move::TrashMoveMessage) -> boo
 /// Return whether a file-op stream item marks terminal completion.
 fn file_op_message_is_finished(message: &FileOpMessage) -> bool {
     matches!(message, FileOpMessage::Finished(_))
-}
-
-fn run_source_db_maintenance_job(job: SourceDbMaintenanceJob) -> SourceDbMaintenanceOutcome {
-    let probe = match crate::sample_sources::SourceDatabase::open_fast(&job.source_root) {
-        Ok(db) => db,
-        Err(err) => {
-            return SourceDbMaintenanceOutcome {
-                source_id: job.source_id,
-                source_root: job.source_root,
-                skipped: false,
-                orphan_rows_removed: 0,
-                error: Some(format!("Open source DB failed: {err}")),
-            };
-        }
-    };
-    let revision = match probe.get_revision() {
-        Ok(value) => value,
-        Err(err) => {
-            return SourceDbMaintenanceOutcome {
-                source_id: job.source_id,
-                source_root: job.source_root,
-                skipped: false,
-                orphan_rows_removed: 0,
-                error: Some(format!("Read source DB revision failed: {err}")),
-            };
-        }
-    };
-    let should_skip = match deferred_maintenance_is_up_to_date(&probe, revision) {
-        Ok(value) => value,
-        Err(err) => {
-            return SourceDbMaintenanceOutcome {
-                source_id: job.source_id,
-                source_root: job.source_root,
-                skipped: false,
-                orphan_rows_removed: 0,
-                error: Some(err),
-            };
-        }
-    };
-    drop(probe);
-    if should_skip {
-        return SourceDbMaintenanceOutcome {
-            source_id: job.source_id,
-            source_root: job.source_root,
-            skipped: true,
-            orphan_rows_removed: 0,
-            error: None,
-        };
-    }
-
-    let mut last_error: Option<String> = None;
-    for attempt in 1..=DEFERRED_MAINTENANCE_MAX_ATTEMPTS {
-        match run_source_db_maintenance_once(&job, revision) {
-            Ok(orphan_rows_removed) => {
-                return SourceDbMaintenanceOutcome {
-                    source_id: job.source_id,
-                    source_root: job.source_root,
-                    skipped: false,
-                    orphan_rows_removed,
-                    error: None,
-                };
-            }
-            Err(err) => {
-                last_error = Some(err);
-                if attempt < DEFERRED_MAINTENANCE_MAX_ATTEMPTS {
-                    thread::sleep(DEFERRED_MAINTENANCE_RETRY_DELAY);
-                }
-            }
-        }
-    }
-
-    SourceDbMaintenanceOutcome {
-        source_id: job.source_id,
-        source_root: job.source_root,
-        skipped: false,
-        orphan_rows_removed: 0,
-        error: last_error,
-    }
-}
-
-fn run_source_db_maintenance_once(
-    job: &SourceDbMaintenanceJob,
-    revision: u64,
-) -> Result<usize, String> {
-    let mut conn = super::library::analysis_jobs::open_source_db(&job.source_root)?;
-    let removed = super::library::analysis_jobs::purge_orphaned_samples(&mut conn)?;
-    update_deferred_maintenance_markers(&conn, revision)?;
-    Ok(removed)
-}
-
-fn deferred_maintenance_is_up_to_date(
-    db: &crate::sample_sources::SourceDatabase,
-    revision: u64,
-) -> Result<bool, String> {
-    let revision_marker = db
-        .get_metadata(crate::sample_sources::db::META_DEFERRED_MAINTENANCE_REVISION)
-        .map_err(|err| format!("Read deferred maintenance revision failed: {err}"))?;
-    let schema_marker = db
-        .get_metadata(crate::sample_sources::db::META_DEFERRED_MAINTENANCE_SCHEMA)
-        .map_err(|err| format!("Read deferred maintenance schema marker failed: {err}"))?;
-    let revision_string = revision.to_string();
-    let schema_string = DEFERRED_MAINTENANCE_SCHEMA_TOKEN.to_string();
-    Ok(revision_marker.as_deref() == Some(revision_string.as_str())
-        && schema_marker.as_deref() == Some(schema_string.as_str()))
-}
-
-fn update_deferred_maintenance_markers(
-    conn: &rusqlite::Connection,
-    revision: u64,
-) -> Result<(), String> {
-    conn.execute(
-        "INSERT INTO metadata (key, value)
-         VALUES (?1, ?2)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        rusqlite::params![
-            crate::sample_sources::db::META_DEFERRED_MAINTENANCE_REVISION,
-            revision.to_string()
-        ],
-    )
-    .map_err(|err| format!("Update deferred maintenance revision failed: {err}"))?;
-    conn.execute(
-        "INSERT INTO metadata (key, value)
-         VALUES (?1, ?2)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        rusqlite::params![
-            crate::sample_sources::db::META_DEFERRED_MAINTENANCE_SCHEMA,
-            DEFERRED_MAINTENANCE_SCHEMA_TOKEN.to_string()
-        ],
-    )
-    .map_err(|err| format!("Update deferred maintenance schema marker failed: {err}"))?;
-    Ok(())
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-27T11:13:47Z
+Last updated (UTC): 2026-02-27T12:10:33Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -12,6 +12,7 @@ Purpose:
 ## Current lane
 
 - Runtime responsiveness/performance redesign (Xilem-inspired retained/incremental update path).
+- File-size debt burn-down for top 5 Rust hotspots (behavior-preserving splits).
 
 ## Next tasks (ordered)
 
@@ -22,3 +23,7 @@ Purpose:
    immediate-preview-on runs before revisiting immediate-apply scope.
 3. Maintain handoff hygiene on every milestone commit:
    update `AGENTS.md`, `MEMORY.md`, and this queue in the same change set.
+4. Execute next no-behavior `jobs.rs` slice:
+   extract issue gateway/token worker runners into a focused `jobs/` submodule.
+5. Execute first `browser_search_worker.rs` split slice:
+   isolate telemetry counters + cadence emission helpers into a focused submodule.

@@ -6,6 +6,8 @@ This directory keeps agent handoff planning state out of the way of other docs.
 
 - `active/runtime_performance_exec_plan.md` — main execution plan for the
   current multi-day responsiveness/performance redesign (source of truth)
+- `active/file_size_debt_top5_split_plan.md` — incremental no-behavior split
+  queue for the 5 largest Rust hotspots
 - `active/todo.md` — short ordered queue for immediate next tasks under the
   active execution plan
 - `active/plan.md` — legacy historical context retained for reference only
