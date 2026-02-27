@@ -7,6 +7,9 @@ use super::WaveformImage;
 use super::{DecodedWaveform, WaveformChannelView, WaveformColumnView, WaveformRenderer};
 use crate::selection::{SelectionRange, fade_gain_at_position};
 
+/// Maximum frames-per-column where high-zoom line rendering is preferred.
+pub(super) const LINE_RENDER_MAX_FRAMES_PER_COLUMN: f32 = 1.5;
+
 impl WaveformRenderer {
     /// Produce an empty waveform image buffer.
     pub fn empty_color_image(&self) -> WaveformImage {
@@ -199,7 +202,7 @@ impl WaveformRenderer {
         let frames_per_column = (frame_count as f32 / width as f32).max(1.0);
         // Use line-based rendering (smooth) at reasonable zoom levels
         // Balanced for performance
-        if frames_per_column <= 1.5 {
+        if frames_per_column <= LINE_RENDER_MAX_FRAMES_PER_COLUMN {
             if edit_fade.is_some() && fade_intersects_view(view_start, view_end, edit_fade) {
                 let faded = apply_fade_to_samples(
                     samples,

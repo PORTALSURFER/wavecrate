@@ -3,6 +3,7 @@
 use super::WaveformImage;
 use super::{DecodedWaveform, WaveformChannelView, WaveformRenderer};
 use crate::selection::SelectionRange;
+use crate::waveform::render::LINE_RENDER_MAX_FRAMES_PER_COLUMN;
 use crate::waveform::zoom_cache::CachedColumns;
 
 impl WaveformRenderer {
@@ -59,6 +60,10 @@ impl WaveformRenderer {
             full_width,
         );
         let frames_per_column = (frame_count as f32 / full_width as f32).max(1.0);
+        // Match the direct render path: avoid stepped-density quantization at high zoom.
+        if frames_per_column <= LINE_RENDER_MAX_FRAMES_PER_COLUMN {
+            return None;
+        }
         let smooth_radius = Self::smoothing_radius(frames_per_column, width);
         let image = match cached {
             CachedColumns::Mono(cols) => {
@@ -126,5 +131,48 @@ impl WaveformRenderer {
         let max_start = full_width.saturating_sub(width);
         let start = ((view_start * full_width as f32).floor() as usize).min(max_start);
         Some((start, start + width))
+    }
+}
+
+#[cfg(test)]
+/// Focused cache-render behavior tests.
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    /// Build a tiny decoded waveform fixture with the requested frame count.
+    fn decoded_waveform(frame_count: usize) -> DecodedWaveform {
+        let samples = vec![0.25_f32; frame_count.max(1)];
+        DecodedWaveform {
+            cache_token: 42,
+            samples: Arc::from(samples),
+            analysis_samples: Arc::from(Vec::<f32>::new()),
+            analysis_sample_rate: 0,
+            analysis_stride: 1,
+            peaks: None,
+            duration_seconds: 1.0,
+            sample_rate: 48_000,
+            channels: 1,
+        }
+    }
+
+    #[test]
+    /// High zoom should bypass cached density rendering and fall back to line mode.
+    fn render_cached_view_skips_cache_for_high_zoom_line_mode() {
+        let renderer = WaveformRenderer::new(8, 8);
+        let decoded = decoded_waveform(8);
+        let image =
+            renderer.render_cached_view(&decoded, 0.0, 1.0, WaveformChannelView::Mono, 8, 8, None);
+        assert!(image.is_none());
+    }
+
+    #[test]
+    /// Dense views should continue using cached density rendering.
+    fn render_cached_view_uses_cache_for_dense_views() {
+        let renderer = WaveformRenderer::new(8, 8);
+        let decoded = decoded_waveform(64);
+        let image =
+            renderer.render_cached_view(&decoded, 0.0, 1.0, WaveformChannelView::Mono, 8, 8, None);
+        assert!(image.is_some());
     }
 }

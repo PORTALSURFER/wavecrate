@@ -133,7 +133,7 @@ impl WaveformRenderer {
     /// A two-pixel step matches the reference implementation and smooths high-density
     /// content without hiding large waveform shape changes.
     fn horizontal_step(width: u32, frames_per_column: f32) -> usize {
-        if width < 2 || !frames_per_column.is_finite() || frames_per_column < 0.75 {
+        if width < 2 || !frames_per_column.is_finite() || frames_per_column < 2.0 {
             1
         } else {
             2
