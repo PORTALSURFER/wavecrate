@@ -13,6 +13,8 @@ mod external_drop_import;
 mod focus_random;
 mod folders_core;
 mod folders_search;
+/// Map focus/preview workflow regression tests.
+mod map_view;
 mod missing;
 mod playback_loop;
 mod rating_logic;
@@ -24,5 +26,7 @@ mod trash;
 /// Volume slider controller tests.
 mod volume;
 mod waveform;
+/// Cached waveform load behavior regression tests.
+mod waveform_cache_loading;
 mod waveform_nav_cursor;
 mod waveform_nav_render;

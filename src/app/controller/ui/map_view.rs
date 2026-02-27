@@ -40,16 +40,12 @@ impl AppController {
         self.ui.map.paint_hover_active_id = Some(sample_id);
     }
 
-    /// Focus a map sample, stage hover/selection ids, preview it, and start playback.
+    /// Focus a map sample, stage hover/selection ids, queue load preview, and start playback.
     pub fn focus_map_sample_and_preview(&mut self, sample_id: &str) {
         self.set_browser_tab(true);
         self.stage_map_sample_focus(sample_id);
         if let Err(err) = self.focus_sample_from_map(sample_id) {
             self.set_error_status(format!("Map focus failed: {err}"));
-            return;
-        }
-        if let Err(err) = self.preview_sample_by_id(sample_id) {
-            self.set_error_status(format!("Preview failed: {err}"));
             return;
         }
         if let Err(err) = self.play_audio(false, None) {

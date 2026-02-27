@@ -29,10 +29,15 @@ impl AppController {
         let duration_seconds = decoded.duration_seconds;
         let sample_rate = decoded.sample_rate;
         let cache_key = CacheKey::new(&source.id, &pending.relative_path);
+        let transients = outcome.transients;
         if !stretched {
-            self.audio
-                .cache
-                .insert(cache_key, outcome.metadata, decoded.clone(), bytes.clone());
+            self.audio.cache.insert(
+                cache_key,
+                outcome.metadata,
+                decoded.clone(),
+                bytes.clone(),
+                transients.clone(),
+            );
         }
         let preserve_selections =
             self.sample_view.wav.loaded_wav.as_deref() == Some(&pending.relative_path);
@@ -43,7 +48,7 @@ impl AppController {
             bytes,
             pending.intent,
             preserve_selections,
-            Some(outcome.transients),
+            Some(transients),
         ) {
             self.runtime.jobs.set_pending_playback(None);
             self.set_status(err, StatusTone::Error);
@@ -188,7 +193,7 @@ impl AppController {
             hit.bytes,
             intent,
             preserve_selections,
-            None,
+            Some(hit.transients),
         )?;
         let message = Self::loaded_status_text(relative_path, duration_seconds, sample_rate);
         self.set_status(message, StatusTone::Info);

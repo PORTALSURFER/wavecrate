@@ -31,6 +31,7 @@ pub(crate) struct CachedAudio {
     pub metadata: FileMetadata,
     pub decoded: Arc<DecodedWaveform>,
     pub bytes: Arc<[u8]>,
+    pub transients: Arc<[f32]>,
 }
 
 pub(crate) struct AudioCache {
@@ -68,6 +69,7 @@ impl AudioCache {
         metadata: FileMetadata,
         decoded: Arc<DecodedWaveform>,
         bytes: Arc<[u8]>,
+        transients: Arc<[f32]>,
     ) {
         self.entries.insert(
             key.clone(),
@@ -75,6 +77,7 @@ impl AudioCache {
                 metadata,
                 decoded,
                 bytes,
+                transients,
             },
         );
         self.touch_history(&key);
@@ -136,11 +139,22 @@ mod tests {
         })
     }
 
+    /// Build a stable transient marker payload for cache tests.
+    fn transients() -> Arc<[f32]> {
+        Arc::from(vec![0.25, 0.75])
+    }
+
     #[test]
     fn returns_hit_when_metadata_matches() {
         let mut cache = AudioCache::new(4, 4);
         let key = sample_key();
-        cache.insert(key.clone(), build_metadata(1), decoded(), vec![1, 2].into());
+        cache.insert(
+            key.clone(),
+            build_metadata(1),
+            decoded(),
+            vec![1, 2].into(),
+            transients(),
+        );
 
         let hit = cache.get(&key, build_metadata(1));
 
@@ -151,7 +165,13 @@ mod tests {
     fn evicts_on_metadata_mismatch() {
         let mut cache = AudioCache::new(4, 4);
         let key = sample_key();
-        cache.insert(key.clone(), build_metadata(1), decoded(), vec![1, 2].into());
+        cache.insert(
+            key.clone(),
+            build_metadata(1),
+            decoded(),
+            vec![1, 2].into(),
+            transients(),
+        );
 
         let miss = cache.get(&key, build_metadata(2));
 
@@ -171,18 +191,21 @@ mod tests {
             build_metadata(1),
             decoded(),
             Vec::new().into(),
+            transients(),
         );
         cache.insert(
             key_b.clone(),
             build_metadata(1),
             decoded(),
             Vec::new().into(),
+            transients(),
         );
         cache.insert(
             key_c.clone(),
             build_metadata(1),
             decoded(),
             Vec::new().into(),
+            transients(),
         );
 
         assert!(cache.get(&key_a, build_metadata(1)).is_none());

@@ -62,11 +62,20 @@ impl AppController {
         )?;
         let duration_seconds = decoded.duration_seconds;
         let sample_rate = decoded.sample_rate;
+        let transients: Arc<[f32]> = crate::waveform::transients::detect_transients(
+            decoded.as_ref(),
+            super::waveform_rendering::DEFAULT_TRANSIENT_SENSITIVITY,
+        )
+        .into();
         let cache_key = CacheKey::new(&source.id, relative_path);
         if !stretched {
-            self.audio
-                .cache
-                .insert(cache_key, metadata, decoded.clone(), bytes.clone());
+            self.audio.cache.insert(
+                cache_key,
+                metadata,
+                decoded.clone(),
+                bytes.clone(),
+                transients.clone(),
+            );
         }
         self.finish_waveform_load_shared(
             source,
@@ -75,7 +84,7 @@ impl AppController {
             bytes,
             AudioLoadIntent::Selection,
             is_refresh,
-            None,
+            Some(transients),
         )?;
         self.maybe_trigger_pending_playback();
         let message = Self::loaded_status_text(relative_path, duration_seconds, sample_rate);
