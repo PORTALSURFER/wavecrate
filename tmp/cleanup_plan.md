@@ -59,13 +59,14 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: browser search tests + perf guard + `bash scripts/ci_local.sh`.
   - Completed: 2026-02-27 (UTC) - `sempal` commits `ae1c39f3`, `8fcdd201`
 
-- [ ] 7) Split folder move drag-effects into planning/execution/result-apply layers
+- [x] 7) Split folder move drag-effects into planning/execution/result-apply layers
   - ROI/Effort: High / M
   - Why it matters: Drag/drop folder move logic currently mixes validation, job orchestration, filesystem operations, DB journaling, and status/reporting paths.
   - Evidence: `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs` (~1105 LOC), with mixed concerns from handler entrypoints onward.
   - Recommended change: Extract `folder_moves/{plan.rs,worker.rs,apply_result.rs,journal.rs}` with explicit data contracts between layers.
   - Risk/tradeoffs: Medium; file-operation cancellation and rollback semantics must remain exact.
   - Suggested validation: folder drag/drop tests, file-op journal tests, `bash scripts/ci_local.sh`.
+  - Completed: 2026-02-27 (UTC) - `sempal` commit `000edada`
 
 - [ ] 8) Replace `clippy::too_many_arguments` hotspots with typed parameter structs
   - ROI/Effort: High / M
@@ -133,5 +134,5 @@ Status legend: `[ ]` pending, `[x]` done
 
 ## Progress Log
 
-- Items 1-6 completed in strict ROI order and pushed.
-- Next active item: 7) split folder move drag-effects into plan/worker/apply/journal modules.
+- Items 1-7 completed in strict ROI order and pushed.
+- Next active item: 8) replace `clippy::too_many_arguments` hotspots with typed parameter structs.
