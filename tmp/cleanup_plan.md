@@ -77,13 +77,14 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `cargo clippy --all-targets`, touched unit tests, `bash scripts/ci_local.sh`.
   - Completed: 2026-02-27 (UTC) - `sempal` commit `1fef4787`
 
-- [ ] 9) Refactor native-bridge metrics counter registry into grouped structs
+- [x] 9) Refactor native-bridge metrics counter registry into grouped structs
   - ROI/Effort: Medium / M
   - Why it matters: Metrics module has very high static-counter density and repetitive logging math, increasing drift risk and edit friction.
   - Evidence: `src/app_core/native_bridge/metrics.rs` (~683 LOC), dense static counter block around lines 26-160 and long aggregation section around 201+.
   - Recommended change: Group counters into typed metric bundles and helper methods; keep feature-gated no-op fast path.
   - Risk/tradeoffs: Low-medium; refactor must preserve emitted metric names and cadence.
   - Suggested validation: native bridge metric tests + `bash scripts/run_perf_guard.sh` + full CI.
+  - Completed: 2026-02-27 (UTC) - `sempal` commit `d4762f89`
 
 - [ ] 10) Add focused unit tests for waveform transport selection/loop behavior
   - ROI/Effort: Medium / M
@@ -135,5 +136,5 @@ Status legend: `[ ]` pending, `[x]` done
 
 ## Progress Log
 
-- Items 1-8 completed in strict ROI order and pushed.
-- Next active item: 9) refactor native-bridge metrics counter registry into grouped structs.
+- Items 1-9 completed in strict ROI order and pushed.
+- Next active item: 10) add focused unit tests for waveform transport selection/loop behavior.
