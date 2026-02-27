@@ -1,5 +1,22 @@
-#![allow(clippy::result_large_err, clippy::too_many_arguments)]
+#![allow(clippy::result_large_err)]
 
+/// Worker/result forwarding helpers for progress and completion messages.
+mod progress_reporting;
+/// Bounded job-queue sender/drop policy helpers.
+mod queue_orchestration;
+/// Retry/backoff policy helpers for async gateway and maintenance jobs.
+mod retry_policy;
+
+use self::progress_reporting::{
+    JobForwarderHandles, JobForwarderSpawnConfig, ProgressForwarderConfig, spawn_progress_forwarder,
+};
+use self::queue_orchestration::new_job_message_queue;
+#[cfg(test)]
+use self::retry_policy::IssueGatewayPollConfig;
+use self::retry_policy::{
+    DEFERRED_MAINTENANCE_MAX_ATTEMPTS, DEFERRED_MAINTENANCE_RETRY_DELAY,
+    DEFERRED_MAINTENANCE_SCHEMA_TOKEN, issue_gateway_poll_config, poll_issue_gateway_with_backoff,
+};
 use super::ScanJobMessage;
 use super::library::analysis_jobs::AnalysisJobMessage;
 use super::library::source_folders::delete_recovery::DeleteRecoveryReport;
@@ -17,22 +34,22 @@ use super::state::audio::{PendingAudio, PendingPlayback, PendingRecordingWavefor
 use super::state::runtime::{UpdateCheckResult, WavLoadJob, WavLoadResult};
 use crate::gui::repaint::{RepaintSignal, SharedRepaintSignal};
 use crate::sample_sources::SourceId;
+#[cfg(test)]
+use std::time::Duration;
 use std::{
     collections::BTreeSet,
     path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc::{Receiver, SendError, Sender, SyncSender, TrySendError},
+        mpsc::{Receiver, Sender},
     },
     thread,
-    time::{Duration, Instant},
 };
 
+pub(crate) use self::queue_orchestration::JobMessageSender;
+
 type TryRecvError = std::sync::mpsc::TryRecvError;
-const DEFERRED_MAINTENANCE_SCHEMA_TOKEN: u32 = 1;
-const DEFERRED_MAINTENANCE_MAX_ATTEMPTS: usize = 3;
-const DEFERRED_MAINTENANCE_RETRY_DELAY: Duration = Duration::from_millis(250);
 
 #[derive(Debug)]
 #[cfg_attr(test, allow(dead_code))]
@@ -60,47 +77,6 @@ pub(crate) enum JobMessage {
     BrowserSearchFinished(SearchResult),
     SourceDbMaintenanceFinished(SourceDbMaintenanceResult),
     Normalized(NormalizationResult),
-}
-
-/// Bounded sender for job messages with best-effort delivery for low-priority updates.
-#[derive(Clone)]
-pub(crate) struct JobMessageSender {
-    inner: SyncSender<JobMessage>,
-}
-
-impl JobMessageSender {
-    pub(crate) fn new(inner: SyncSender<JobMessage>) -> Self {
-        Self { inner }
-    }
-
-    /// Send a job message, dropping low-priority updates if the queue is full.
-    pub(crate) fn send(&self, message: JobMessage) -> Result<(), SendError<JobMessage>> {
-        match job_message_delivery(&message) {
-            JobMessageDelivery::MustDeliver => self.inner.send(message),
-            JobMessageDelivery::DropIfFull => match self.inner.try_send(message) {
-                Ok(()) => Ok(()),
-                Err(TrySendError::Full(_)) => Ok(()),
-                Err(TrySendError::Disconnected(message)) => Err(SendError(message)),
-            },
-        }
-    }
-}
-
-enum JobMessageDelivery {
-    MustDeliver,
-    DropIfFull,
-}
-
-fn job_message_delivery(message: &JobMessage) -> JobMessageDelivery {
-    match message {
-        JobMessage::Scan(ScanJobMessage::Progress { .. }) => JobMessageDelivery::DropIfFull,
-        JobMessage::TrashMove(trash_move::TrashMoveMessage::Progress { .. }) => {
-            JobMessageDelivery::DropIfFull
-        }
-        JobMessage::FileOps(FileOpMessage::Progress { .. }) => JobMessageDelivery::DropIfFull,
-        JobMessage::Analysis(AnalysisJobMessage::Progress { .. }) => JobMessageDelivery::DropIfFull,
-        _ => JobMessageDelivery::MustDeliver,
-    }
 }
 
 #[derive(Debug)]
@@ -197,64 +173,6 @@ pub(crate) struct IssueTokenSaveResult {
 #[derive(Debug)]
 pub(crate) struct IssueTokenDeleteResult {
     pub(crate) result: Result<(), crate::issue_gateway::IssueTokenStoreError>,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct IssueGatewayPollConfig {
-    max_attempts: u32,
-    max_duration: Duration,
-    initial_delay: Duration,
-    max_delay: Duration,
-}
-
-fn issue_gateway_poll_config() -> IssueGatewayPollConfig {
-    IssueGatewayPollConfig {
-        max_attempts: 40,
-        max_duration: Duration::from_secs(120),
-        initial_delay: Duration::from_secs(1),
-        max_delay: Duration::from_secs(10),
-    }
-}
-
-fn poll_issue_gateway_with_backoff(
-    request_id: &str,
-    cancel: &AtomicBool,
-    mut poller: impl FnMut(&str) -> Result<Option<String>, crate::issue_gateway::api::IssueAuthError>,
-    config: IssueGatewayPollConfig,
-    mut sleep: impl FnMut(Duration),
-) -> Option<IssueGatewayAuthResult> {
-    let start = Instant::now();
-    let mut attempts = 0u32;
-    loop {
-        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-            return None;
-        }
-        attempts += 1;
-        match poller(request_id) {
-            Ok(Some(token)) => {
-                return Some(IssueGatewayAuthResult { result: Ok(token) });
-            }
-            Ok(None) => {}
-            Err(err) => {
-                return Some(IssueGatewayAuthResult { result: Err(err) });
-            }
-        }
-        if attempts >= config.max_attempts || start.elapsed() >= config.max_duration {
-            return Some(IssueGatewayAuthResult {
-                result: Err(crate::issue_gateway::api::IssueAuthError::TimedOut {
-                    attempts,
-                    elapsed_seconds: start.elapsed().as_secs(),
-                }),
-            });
-        }
-
-        let delay = crate::http_client::backoff_delay(
-            config.initial_delay,
-            config.max_delay,
-            attempts as usize,
-        );
-        sleep(delay);
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -686,106 +604,54 @@ pub(super) struct PendingFolderScan {
     source_id: SourceId,
 }
 
-/// Join handles for job result forwarding threads to shut them down deterministically.
-pub(crate) struct JobForwarderHandles {
-    wav: thread::JoinHandle<()>,
-    audio: thread::JoinHandle<()>,
-    recording_waveform: thread::JoinHandle<()>,
-    search: thread::JoinHandle<()>,
-}
-
-impl JobForwarderHandles {
-    fn spawn(
-        message_tx: &JobMessageSender,
-        repaint_signal: &Arc<SharedRepaintSignal>,
-        wav_job_rx: Receiver<WavLoadResult>,
-        audio_job_rx: Receiver<AudioLoadResult>,
-        recording_waveform_job_rx: Receiver<RecordingWaveformLoadResult>,
-        search_job_rx: Receiver<SearchResult>,
-    ) -> Self {
-        let wav = spawn_forwarder(
-            message_tx.clone(),
-            repaint_signal.clone(),
-            wav_job_rx,
-            JobMessage::WavLoaded,
-        );
-        let audio = spawn_forwarder(
-            message_tx.clone(),
-            repaint_signal.clone(),
-            audio_job_rx,
-            JobMessage::AudioLoaded,
-        );
-        let recording_waveform = spawn_forwarder(
-            message_tx.clone(),
-            repaint_signal.clone(),
-            recording_waveform_job_rx,
-            JobMessage::RecordingWaveformLoaded,
-        );
-        let search = spawn_forwarder(
-            message_tx.clone(),
-            repaint_signal.clone(),
-            search_job_rx,
-            JobMessage::BrowserSearchFinished,
-        );
-        Self {
-            wav,
-            audio,
-            recording_waveform,
-            search,
-        }
-    }
-
-    fn join(self) {
-        let _ = self.wav.join();
-        let _ = self.audio.join();
-        let _ = self.recording_waveform.join();
-        let _ = self.search.join();
-    }
-}
-
-fn spawn_forwarder<T: Send + 'static>(
-    message_tx: JobMessageSender,
-    repaint_signal: Arc<SharedRepaintSignal>,
-    rx: Receiver<T>,
-    wrap: fn(T) -> JobMessage,
-) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        while let Ok(message) = rx.recv() {
-            let _ = message_tx.send(wrap(message));
-            repaint_signal.request_repaint();
-        }
-    })
+/// Constructor inputs for [`ControllerJobs`].
+pub(super) struct ControllerJobsInit {
+    pub(super) wav_job_tx: Sender<WavLoadJob>,
+    pub(super) wav_job_rx: Receiver<WavLoadResult>,
+    pub(super) wav_loader: WavLoaderHandle,
+    pub(super) audio_job_tx: Sender<AudioLoadJob>,
+    pub(super) audio_job_rx: Receiver<AudioLoadResult>,
+    pub(super) audio_loader: AudioLoaderHandle,
+    pub(super) recording_waveform_job_tx: RecordingWaveformJobSender,
+    pub(super) recording_waveform_job_rx: Receiver<RecordingWaveformLoadResult>,
+    pub(super) recording_waveform_loader: RecordingWaveformWorkerHandle,
+    pub(super) search_job_tx:
+        crate::app::controller::library::wavs::browser_search_worker::SearchJobSender,
+    pub(super) search_job_rx: Receiver<SearchResult>,
+    pub(super) search_worker:
+        crate::app::controller::library::wavs::browser_search_worker::SearchWorkerHandle,
+    pub(super) job_message_queue_capacity: usize,
 }
 
 impl ControllerJobs {
-    pub(super) fn new(
-        wav_job_tx: Sender<WavLoadJob>,
-        wav_job_rx: Receiver<WavLoadResult>,
-        wav_loader: WavLoaderHandle,
-        audio_job_tx: Sender<AudioLoadJob>,
-        audio_job_rx: Receiver<AudioLoadResult>,
-        audio_loader: AudioLoaderHandle,
-        recording_waveform_job_tx: RecordingWaveformJobSender,
-        recording_waveform_job_rx: Receiver<RecordingWaveformLoadResult>,
-        recording_waveform_loader: RecordingWaveformWorkerHandle,
-        search_job_tx: crate::app::controller::library::wavs::browser_search_worker::SearchJobSender,
-        search_job_rx: Receiver<SearchResult>,
-        search_worker: crate::app::controller::library::wavs::browser_search_worker::SearchWorkerHandle,
-        job_message_queue_capacity: usize,
-    ) -> Self {
-        let capacity = job_message_queue_capacity.max(1);
-        let (message_tx, message_rx) = std::sync::mpsc::sync_channel::<JobMessage>(capacity);
-        let message_tx = JobMessageSender::new(message_tx);
+    /// Build controller job orchestration from pre-spawned worker channels/handles.
+    pub(super) fn new(init: ControllerJobsInit) -> Self {
+        let ControllerJobsInit {
+            wav_job_tx,
+            wav_job_rx,
+            wav_loader,
+            audio_job_tx,
+            audio_job_rx,
+            audio_loader,
+            recording_waveform_job_tx,
+            recording_waveform_job_rx,
+            recording_waveform_loader,
+            search_job_tx,
+            search_job_rx,
+            search_worker,
+            job_message_queue_capacity,
+        } = init;
+        let (message_tx, message_rx) = new_job_message_queue(job_message_queue_capacity);
         let source_watcher = super::source_watcher::spawn_source_watcher(message_tx.clone());
         let repaint_signal = Arc::new(SharedRepaintSignal::default());
-        let forwarders = JobForwarderHandles::spawn(
-            &message_tx,
-            &repaint_signal,
+        let forwarders = JobForwarderHandles::spawn(JobForwarderSpawnConfig {
+            message_tx: message_tx.clone(),
+            repaint_signal: repaint_signal.clone(),
             wav_job_rx,
             audio_job_rx,
             recording_waveform_job_rx,
             search_job_rx,
-        );
+        });
 
         Self {
             wav_job_tx,
@@ -1021,17 +887,12 @@ impl ControllerJobs {
         self.scan_in_progress = true;
         self.scan_cancel = Some(cancel);
         self.send_source_watch_scan_state(true);
-        let tx = self.message_tx.clone();
-        let signal = self.repaint_signal.clone();
-        thread::spawn(move || {
-            while let Ok(message) = rx.recv() {
-                let is_finished = matches!(message, ScanJobMessage::Finished(_));
-                let _ = tx.send(JobMessage::Scan(message));
-                signal.request_repaint();
-                if is_finished {
-                    break;
-                }
-            }
+        spawn_progress_forwarder(ProgressForwarderConfig {
+            message_tx: self.message_tx.clone(),
+            repaint_signal: self.repaint_signal.clone(),
+            rx,
+            wrap: JobMessage::Scan,
+            is_finished: scan_message_is_finished,
         });
     }
 
@@ -1062,17 +923,12 @@ impl ControllerJobs {
     ) {
         self.trash_move_in_progress = true;
         self.trash_move_cancel = Some(cancel);
-        let tx = self.message_tx.clone();
-        let signal = self.repaint_signal.clone();
-        thread::spawn(move || {
-            while let Ok(message) = rx.recv() {
-                let is_finished = matches!(message, trash_move::TrashMoveMessage::Finished(_));
-                let _ = tx.send(JobMessage::TrashMove(message));
-                signal.request_repaint();
-                if is_finished {
-                    break;
-                }
-            }
+        spawn_progress_forwarder(ProgressForwarderConfig {
+            message_tx: self.message_tx.clone(),
+            repaint_signal: self.repaint_signal.clone(),
+            rx,
+            wrap: JobMessage::TrashMove,
+            is_finished: trash_move_message_is_finished,
         });
     }
 
@@ -1094,17 +950,12 @@ impl ControllerJobs {
     pub(super) fn start_file_ops(&mut self, rx: Receiver<FileOpMessage>, cancel: Arc<AtomicBool>) {
         self.file_ops_in_progress = true;
         self.file_ops_cancel = Some(cancel);
-        let tx = self.message_tx.clone();
-        let signal = self.repaint_signal.clone();
-        thread::spawn(move || {
-            while let Ok(message) = rx.recv() {
-                let is_finished = matches!(message, FileOpMessage::Finished(_));
-                let _ = tx.send(JobMessage::FileOps(message));
-                signal.request_repaint();
-                if is_finished {
-                    break;
-                }
-            }
+        spawn_progress_forwarder(ProgressForwarderConfig {
+            message_tx: self.message_tx.clone(),
+            repaint_signal: self.repaint_signal.clone(),
+            rx,
+            wrap: JobMessage::FileOps,
+            is_finished: file_op_message_is_finished,
         });
     }
 
@@ -1406,6 +1257,21 @@ impl ControllerJobs {
             signal.request_repaint();
         });
     }
+}
+
+/// Return whether a scan progress stream item marks terminal completion.
+fn scan_message_is_finished(message: &ScanJobMessage) -> bool {
+    matches!(message, ScanJobMessage::Finished(_))
+}
+
+/// Return whether a trash-move progress stream item marks terminal completion.
+fn trash_move_message_is_finished(message: &trash_move::TrashMoveMessage) -> bool {
+    matches!(message, trash_move::TrashMoveMessage::Finished(_))
+}
+
+/// Return whether a file-op stream item marks terminal completion.
+fn file_op_message_is_finished(message: &FileOpMessage) -> bool {
+    matches!(message, FileOpMessage::Finished(_))
 }
 
 fn run_source_db_maintenance_job(job: SourceDbMaintenanceJob) -> SourceDbMaintenanceOutcome {

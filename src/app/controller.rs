@@ -170,7 +170,7 @@ impl AppController {
             playback::recording::waveform_loader::spawn_recording_waveform_loader();
         let (search_job_tx, search_job_rx, search_worker) =
             library::wavs::browser_search_worker::spawn_search_worker();
-        let jobs = jobs::ControllerJobs::new(
+        let jobs = jobs::ControllerJobs::new(jobs::ControllerJobsInit {
             wav_job_tx,
             wav_job_rx,
             wav_loader,
@@ -184,7 +184,7 @@ impl AppController {
             search_job_rx,
             search_worker,
             job_message_queue_capacity,
-        );
+        });
         let analysis = AnalysisWorkerPool::new();
         Self {
             ui: UiState::default(),
