@@ -68,6 +68,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
+- `tmp/cleanup_plan.md`: ROI-ranked cleanup backlog + execution checklist for the current cleanup pass
 
 ## Non-Negotiable Workflow Rules
 - Before and after edits: `bash scripts/ci_local.sh`

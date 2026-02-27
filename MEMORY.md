@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-02-27T11:13:47Z
+Last Updated: 2026-02-27T20:03:16Z
 Updated By: Codex
 
 ## Purpose
@@ -10,37 +10,26 @@ Updated By: Codex
 
 ## Current State (Present Tense)
 
-- I am maintaining handoff clarity for stateless sessions while continuing
-  runtime responsiveness/performance execution.
-- The active mission remains runtime responsiveness/performance redesign from
-  `docs/plans/active/runtime_performance_exec_plan.md`.
-- Startup-profile calibration on a compositor-backed host is complete with 5/5
-  valid runs (`target/perf/bench.startup_calibration2.startup_summary.json`),
-  and startup threshold defaults are locked in
-  `target/perf/startup_thresholds.lock.env`.
-- Immediate waveform-preview A/B with larger windows is complete (7-run median
-  comparison); results favor preview-off latencies for waveform scenarios, so
-  immediate-apply scope remains limited to overlay actions for now.
-- The latest shipped milestone is a first browser-projection optimization pass:
-  single-selection lookup fast path + row-slot string rewrite short-circuit in
-  `src/app_core/native_shell.rs` / `src/app/controller.rs` integration paths.
-- Local preflight and CI are green in this session (`bash scripts/run_agent_request.sh`
-  and `bash scripts/ci_local.sh`), with perf-guard warnings at warn-only levels.
+- I am running a deep cleanup audit pass and have generated a strict ROI-ranked
+  backlog at `tmp/cleanup_plan.md`.
+- I am in Phase 1 (planning only): no cleanup implementation has started yet.
+- I am waiting for explicit user confirmation before executing Phase 2
+  sequentially in plan order.
+- Local CI is green before planning edits (`bash scripts/ci_local.sh`).
 
 ## Immediate Next Actions
 
-1. Reduce compositor-run warning drift in browser-heavy scenarios
-   (`hover_latency`, `wheel_latency`, `browser_filter_churn_latency`) from the
-   latest 7-run perf guard evidence.
-2. Root-cause projection-stage spikes seen in waveform interaction outliers
-   under immediate-preview-on runs before revisiting immediate-apply scope.
-3. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized
-   on every milestone.
+1. Wait for explicit user confirmation to begin Phase 2 implementation.
+2. Execute `tmp/cleanup_plan.md` items strictly in order; after each item:
+   run CI, commit, push, and mark the item complete with date/hash.
+3. Keep `AGENTS.md`, `MEMORY.md`, and `tmp/cleanup_plan.md` synchronized.
 
 ## Work Notes
 
 - Detailed execution and rationale live in:
   `docs/plans/active/runtime_performance_exec_plan.md`.
+- Current cleanup execution plan lives in:
+  `tmp/cleanup_plan.md`.
 - Short ordered queue lives in:
   `docs/plans/active/todo.md`.
 - Latest calibration artifacts:
