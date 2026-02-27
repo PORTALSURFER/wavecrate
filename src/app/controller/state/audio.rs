@@ -7,6 +7,7 @@ use crate::sample_sources::SourceId;
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Instant;
 
 pub(crate) struct ControllerAudioState {
@@ -91,7 +92,7 @@ pub(crate) struct LoadedAudio {
     pub(crate) source_id: SourceId,
     pub(crate) root: PathBuf,
     pub(crate) relative_path: PathBuf,
-    pub(crate) bytes: Vec<u8>,
+    pub(crate) bytes: Arc<[u8]>,
     pub(crate) duration_seconds: f32,
     pub(crate) sample_rate: u32,
 }

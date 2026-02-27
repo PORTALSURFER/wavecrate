@@ -7,6 +7,7 @@ use crate::selection::SelectionRange;
 use crate::selection::SelectionState;
 use crate::waveform::{DecodedWaveform, WaveformRenderer};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 pub(crate) struct WavSelectionState {
     pub(crate) selected_wav: Option<PathBuf>,
@@ -113,6 +114,6 @@ impl ControllerSelectionState {
 
 pub(crate) struct WaveformState {
     pub(crate) size: [u32; 2],
-    pub(crate) decoded: Option<DecodedWaveform>,
+    pub(crate) decoded: Option<Arc<DecodedWaveform>>,
     pub(crate) render_meta: Option<wavs::WaveformRenderMeta>,
 }

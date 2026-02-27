@@ -2,9 +2,11 @@ use super::*;
 use crate::app::controller::playback::audio_cache::FileMetadata;
 use crate::app::controller::state::runtime::WaveformRefreshReason;
 use crate::app::state::WaveformView;
+use crate::gui::types::ImageRgba;
 use crate::waveform::DecodedWaveform;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 
 /// Waveform render-cache reuse and translation helpers.
 mod reuse;
@@ -12,6 +14,27 @@ mod reuse;
 const MIN_VIEW_WIDTH_BASE: f64 = 1e-9;
 const MIN_SAMPLES_PER_PIXEL: f32 = 1.0;
 pub(crate) const DEFAULT_TRANSIENT_SENSITIVITY: f32 = 0.6;
+
+/// Convert a rendered waveform image into the native immutable RGBA payload.
+pub(crate) fn waveform_image_to_native_rgba(
+    image: &crate::waveform::WaveformImage,
+) -> Option<Arc<ImageRgba>> {
+    if image.size[0] == 0 || image.size[1] == 0 {
+        return None;
+    }
+    let mut pixels = Vec::with_capacity(
+        image.size[0]
+            .saturating_mul(image.size[1])
+            .saturating_mul(4),
+    );
+    for pixel in &image.pixels {
+        pixels.push(pixel.r());
+        pixels.push(pixel.g());
+        pixels.push(pixel.b());
+        pixels.push(pixel.a());
+    }
+    ImageRgba::new(image.size[0], image.size[1], pixels).map(Arc::new)
+}
 
 /// Return the dominant waveform refresh reason when multiple requests coalesce.
 fn merge_waveform_refresh_reason(
@@ -126,10 +149,11 @@ impl AppController {
         view
     }
 
-    pub(crate) fn apply_waveform_image(
+    /// Apply waveform payloads using shared immutable buffers.
+    pub(crate) fn apply_waveform_image_shared(
         &mut self,
-        decoded: DecodedWaveform,
-        transients: Option<Vec<f32>>,
+        decoded: Arc<DecodedWaveform>,
+        transients: Option<Arc<[f32]>>,
     ) {
         if self
             .sample_view
@@ -162,6 +186,18 @@ impl AppController {
             self.refresh_waveform_transients();
         }
         self.refresh_waveform_image_with_reason(WaveformRefreshReason::Data);
+    }
+
+    /// Apply waveform payloads using owned values.
+    ///
+    /// This compatibility path adapts legacy call sites to the shared immutable
+    /// payload pipeline and should be removed once all callers are Arc-first.
+    pub(crate) fn apply_waveform_image(
+        &mut self,
+        decoded: DecodedWaveform,
+        transients: Option<Vec<f32>>,
+    ) {
+        self.apply_waveform_image_shared(Arc::new(decoded), transients.map(Arc::from));
     }
 
     /// Update the waveform render target to match the current view size.
@@ -222,6 +258,8 @@ impl AppController {
         if (decoded.samples.is_empty() && decoded.peaks.is_none()) || total_frames == 0 {
             self.ui.waveform.image = None;
             self.ui.waveform.waveform_image_signature = None;
+            self.projected_waveform_image_signature = None;
+            self.projected_waveform_image = None;
             return;
         }
         let start_frame = ((view.start * total_frames as f64).floor() as usize)
@@ -299,7 +337,7 @@ impl AppController {
 
     pub(crate) fn refresh_waveform_transients(&mut self) {
         let Some(decoded) = self.sample_view.waveform.decoded.as_ref() else {
-            self.ui.waveform.transients.clear();
+            self.ui.waveform.transients = Arc::from([]);
             self.ui.waveform.transient_cache_token = None;
             return;
         };
@@ -307,7 +345,8 @@ impl AppController {
             return;
         }
         self.ui.waveform.transients =
-            crate::waveform::transients::detect_transients(decoded, DEFAULT_TRANSIENT_SENSITIVITY);
+            crate::waveform::transients::detect_transients(decoded, DEFAULT_TRANSIENT_SENSITIVITY)
+                .into();
         self.ui.waveform.transient_cache_token = Some(decoded.cache_token);
     }
 

@@ -8,15 +8,20 @@ use std::time::Instant;
 #[derive(Clone, Debug)]
 pub struct SampleBrowserState {
     /// Absolute indices per tag for keyboard navigation and tagging.
-    pub trash: Vec<usize>,
+    pub trash: Arc<[usize]>,
     /// Absolute indices for neutral-tagged rows.
-    pub neutral: Vec<usize>,
+    pub neutral: Arc<[usize]>,
     /// Absolute indices for keep-tagged rows.
-    pub keep: Vec<usize>,
+    pub keep: Arc<[usize]>,
     /// Visible rows after applying the active filter.
     pub visible: VisibleRows,
     /// Monotonic revision bumped whenever the visible-row projection changes.
     pub visible_rows_revision: u64,
+    /// Revision for the current absolute-index lookup maps.
+    ///
+    /// This tracks which visible-row projection revision last rebuilt
+    /// `visible_row_by_absolute` and `triage_index_by_absolute`.
+    pub lookup_maps_revision: u64,
     /// Focused row used for playback/navigation (mirrors previously “selected”).
     pub selected: Option<SampleBrowserIndex>,
     /// Loaded row used for playback.
@@ -27,6 +32,10 @@ pub struct SampleBrowserState {
     pub loaded_visible: Option<usize>,
     /// Visible row anchor used for range selection (shift + click/arrow).
     pub selection_anchor_visible: Option<usize>,
+    /// Cached visible-row lookup by absolute wav-entry index.
+    pub visible_row_by_absolute: Vec<Option<usize>>,
+    /// Cached triage-column lookup by absolute wav-entry index.
+    pub triage_index_by_absolute: Vec<Option<SampleBrowserIndex>>,
     /// Paths currently included in the multi-selection set.
     pub selected_paths: Vec<PathBuf>,
     /// Monotonic revision bumped whenever `selected_paths` changes.
@@ -76,16 +85,19 @@ pub struct SampleBrowserState {
 impl Default for SampleBrowserState {
     fn default() -> Self {
         Self {
-            trash: Vec::new(),
-            neutral: Vec::new(),
-            keep: Vec::new(),
+            trash: Arc::from([]),
+            neutral: Arc::from([]),
+            keep: Arc::from([]),
             visible: VisibleRows::List(Vec::new().into()),
             visible_rows_revision: 0,
+            lookup_maps_revision: 0,
             selected: None,
             loaded: None,
             selected_visible: None,
             loaded_visible: None,
             selection_anchor_visible: None,
+            visible_row_by_absolute: Vec::new(),
+            triage_index_by_absolute: Vec::new(),
             selected_paths: Vec::new(),
             selected_paths_revision: 0,
             marker_cache: None,

@@ -6,10 +6,12 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 use tracing::warn;
 
 struct CompactSearchEntry {
@@ -100,21 +102,142 @@ type TriagePartitions = (Arc<[usize]>, Arc<[usize]>, Arc<[usize]>);
 
 #[derive(Default)]
 struct SearchJobQueueState {
-    pending: Option<SearchJob>,
+    pending: Option<QueuedSearchJob>,
     poisoned_recovered: bool,
     shutdown: bool,
+}
+
+struct QueuedSearchJob {
+    job: SearchJob,
+    generation: u64,
 }
 
 /// Latest-only queue for browser search jobs.
 struct SearchJobQueue {
     state: Mutex<SearchJobQueueState>,
+    generation: AtomicU64,
     ready: Condvar,
+}
+
+const HOTPATH_TELEMETRY_ENV: &str = "SEMPAL_HOTPATH_TELEMETRY";
+const SEARCH_QUEUE_TELEMETRY_LOG_EVERY: u64 = 2_048;
+static SEARCH_QUEUE_TELEMETRY_ENABLED: OnceLock<bool> = OnceLock::new();
+static SEARCH_QUEUE_LOCK_ACQUIRE_COUNT: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_LOCK_WAIT_NS: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_WAIT_COUNT: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_WAIT_NS: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_SEND_COUNT: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_PENDING_REPLACED_COUNT: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_TAKE_COUNT: AtomicU64 = AtomicU64::new(0);
+static SEARCH_QUEUE_CANCEL_COUNT: AtomicU64 = AtomicU64::new(0);
+static SEARCH_WORKER_SCORE_ALLOC_BYTES: AtomicU64 = AtomicU64::new(0);
+static SEARCH_WORKER_SCRATCH_ALLOC_BYTES: AtomicU64 = AtomicU64::new(0);
+static SEARCH_WORKER_SIMILAR_LOOKUP_ALLOC_BYTES: AtomicU64 = AtomicU64::new(0);
+static SEARCH_WORKER_VISIBLE_ROWS_TOTAL: AtomicU64 = AtomicU64::new(0);
+
+fn parse_hotpath_telemetry_enabled(value: &str) -> bool {
+    let normalized = value.trim();
+    normalized == "1"
+        || normalized.eq_ignore_ascii_case("true")
+        || normalized.eq_ignore_ascii_case("on")
+        || normalized.eq_ignore_ascii_case("yes")
+}
+
+fn search_queue_telemetry_enabled() -> bool {
+    *SEARCH_QUEUE_TELEMETRY_ENABLED.get_or_init(|| {
+        std::env::var(HOTPATH_TELEMETRY_ENV)
+            .ok()
+            .is_some_and(|value| parse_hotpath_telemetry_enabled(&value))
+    })
+}
+
+fn saturating_add_duration_ns(counter: &AtomicU64, duration: Duration) {
+    let dur_ns = duration.as_nanos().min(u64::MAX as u128) as u64;
+    counter.fetch_add(dur_ns, AtomicOrdering::Relaxed);
+}
+
+fn record_search_queue_lock_wait(duration: Duration) {
+    if !search_queue_telemetry_enabled() {
+        return;
+    }
+    let sample_tick = SEARCH_QUEUE_LOCK_ACQUIRE_COUNT.fetch_add(1, AtomicOrdering::Relaxed) + 1;
+    saturating_add_duration_ns(&SEARCH_QUEUE_LOCK_WAIT_NS, duration);
+    maybe_emit_search_worker_telemetry(sample_tick);
+}
+
+fn record_search_queue_wait(duration: Duration) {
+    if !search_queue_telemetry_enabled() {
+        return;
+    }
+    let sample_tick = SEARCH_QUEUE_WAIT_COUNT.fetch_add(1, AtomicOrdering::Relaxed) + 1;
+    saturating_add_duration_ns(&SEARCH_QUEUE_WAIT_NS, duration);
+    maybe_emit_search_worker_telemetry(sample_tick);
+}
+
+fn record_search_worker_allocation(counter: &AtomicU64, bytes: usize) {
+    if !search_queue_telemetry_enabled() || bytes == 0 {
+        return;
+    }
+    counter.fetch_add(bytes.min(u64::MAX as usize) as u64, AtomicOrdering::Relaxed);
+}
+
+fn maybe_emit_search_worker_telemetry(sample_tick: u64) {
+    if !search_queue_telemetry_enabled()
+        || sample_tick == 0
+        || sample_tick % SEARCH_QUEUE_TELEMETRY_LOG_EVERY != 0
+    {
+        return;
+    }
+
+    let lock_acquires = SEARCH_QUEUE_LOCK_ACQUIRE_COUNT.load(AtomicOrdering::Relaxed);
+    let lock_wait_ns = SEARCH_QUEUE_LOCK_WAIT_NS.load(AtomicOrdering::Relaxed);
+    let wait_count = SEARCH_QUEUE_WAIT_COUNT.load(AtomicOrdering::Relaxed);
+    let wait_ns = SEARCH_QUEUE_WAIT_NS.load(AtomicOrdering::Relaxed);
+    let send_count = SEARCH_QUEUE_SEND_COUNT.load(AtomicOrdering::Relaxed);
+    let replaced_count = SEARCH_QUEUE_PENDING_REPLACED_COUNT.load(AtomicOrdering::Relaxed);
+    let take_count = SEARCH_QUEUE_TAKE_COUNT.load(AtomicOrdering::Relaxed);
+    let cancel_count = SEARCH_QUEUE_CANCEL_COUNT.load(AtomicOrdering::Relaxed);
+    let score_alloc_bytes = SEARCH_WORKER_SCORE_ALLOC_BYTES.load(AtomicOrdering::Relaxed);
+    let scratch_alloc_bytes = SEARCH_WORKER_SCRATCH_ALLOC_BYTES.load(AtomicOrdering::Relaxed);
+    let similar_lookup_alloc_bytes =
+        SEARCH_WORKER_SIMILAR_LOOKUP_ALLOC_BYTES.load(AtomicOrdering::Relaxed);
+    let visible_rows_total = SEARCH_WORKER_VISIBLE_ROWS_TOTAL.load(AtomicOrdering::Relaxed);
+
+    let avg_lock_wait_us = if lock_acquires == 0 {
+        0.0
+    } else {
+        lock_wait_ns as f64 / lock_acquires as f64 / 1_000.0
+    };
+    let avg_wait_ms = if wait_count == 0 {
+        0.0
+    } else {
+        wait_ns as f64 / wait_count as f64 / 1_000_000.0
+    };
+
+    tracing::info!(
+        target: "perf::hotpath",
+        module = "browser_search_worker",
+        lock_acquires,
+        avg_lock_wait_us,
+        condvar_waits = wait_count,
+        avg_condvar_wait_ms = avg_wait_ms,
+        sends = send_count,
+        pending_replaced = replaced_count,
+        takes = take_count,
+        cancels = cancel_count,
+        score_alloc_bytes,
+        scratch_alloc_bytes,
+        similar_lookup_alloc_bytes,
+        visible_rows_total,
+        "Search worker queue telemetry snapshot"
+    );
 }
 
 impl SearchJobQueue {
     fn new() -> Self {
         Self {
             state: Mutex::new(SearchJobQueueState::default()),
+            generation: AtomicU64::new(0),
             ready: Condvar::new(),
         }
     }
@@ -124,7 +247,16 @@ impl SearchJobQueue {
         if state.shutdown {
             return;
         }
-        state.pending = Some(job);
+        if search_queue_telemetry_enabled() {
+            SEARCH_QUEUE_SEND_COUNT.fetch_add(1, AtomicOrdering::Relaxed);
+            if state.pending.is_some() {
+                SEARCH_QUEUE_PENDING_REPLACED_COUNT.fetch_add(1, AtomicOrdering::Relaxed);
+            }
+        }
+        state.pending = Some(QueuedSearchJob {
+            job,
+            generation: self.next_generation(),
+        });
         self.ready.notify_one();
     }
 
@@ -132,16 +264,22 @@ impl SearchJobQueue {
         let mut state = self.lock_state();
         state.shutdown = true;
         state.pending = None;
+        self.next_generation();
         self.ready.notify_all();
     }
 
-    fn take_blocking(&self) -> Option<SearchJob> {
+    fn take_blocking(&self) -> Option<QueuedSearchJob> {
         let mut state = self.lock_state();
         loop {
             if state.shutdown {
                 return None;
             }
             if let Some(job) = state.pending.take() {
+                if search_queue_telemetry_enabled() {
+                    let sample_tick =
+                        SEARCH_QUEUE_TAKE_COUNT.fetch_add(1, AtomicOrdering::Relaxed) + 1;
+                    maybe_emit_search_worker_telemetry(sample_tick);
+                }
                 return Some(job);
             }
             state = self.wait_ready(state);
@@ -149,25 +287,40 @@ impl SearchJobQueue {
     }
 
     #[cfg(test)]
-    fn try_take(&self) -> Option<SearchJob> {
+    fn try_take(&self) -> Option<QueuedSearchJob> {
         let mut state = self.lock_state();
         state.pending.take()
     }
 
+    fn is_generation_current(&self, generation: u64) -> bool {
+        self.generation.load(AtomicOrdering::Relaxed) == generation
+    }
+
     fn lock_state(&self) -> std::sync::MutexGuard<'_, SearchJobQueueState> {
-        match self.state.lock() {
+        let lock_start = search_queue_telemetry_enabled().then(Instant::now);
+        let guard = match self.state.lock() {
             Ok(guard) => guard,
             Err(poisoned) => self.recover_state("lock", poisoned),
+        };
+        if let Some(start) = lock_start {
+            record_search_queue_lock_wait(start.elapsed());
         }
+        guard
     }
 
     fn wait_ready<'a>(
         &self,
         guard: std::sync::MutexGuard<'a, SearchJobQueueState>,
     ) -> std::sync::MutexGuard<'a, SearchJobQueueState> {
-        self.ready
+        let wait_start = search_queue_telemetry_enabled().then(Instant::now);
+        let guard = self
+            .ready
             .wait(guard)
-            .unwrap_or_else(|poisoned| self.recover_state("condvar", poisoned))
+            .unwrap_or_else(|poisoned| self.recover_state("condvar", poisoned));
+        if let Some(start) = wait_start {
+            record_search_queue_wait(start.elapsed());
+        }
+        guard
     }
 
     fn recover_state<'a>(
@@ -182,6 +335,12 @@ impl SearchJobQueue {
             guard.poisoned_recovered = true;
         }
         guard
+    }
+
+    fn next_generation(&self) -> u64 {
+        self.generation
+            .fetch_add(1, AtomicOrdering::Relaxed)
+            .wrapping_add(1)
     }
 }
 
@@ -227,9 +386,16 @@ pub(crate) fn spawn_search_worker() -> (SearchJobSender, Receiver<SearchResult>,
     let handle = thread::spawn(move || {
         let matcher = SkimMatcherV2::default();
         let mut cache = SearchWorkerCache::default();
-        while let Some(job) = queue_worker.take_blocking() {
-            let result = process_search_job(job, &matcher, &mut cache);
-            let _ = result_tx.send(result);
+        while let Some(queued) = queue_worker.take_blocking() {
+            if let Some(result) = process_search_job(
+                queued.job,
+                &matcher,
+                &mut cache,
+                &queue_worker,
+                queued.generation,
+            ) {
+                let _ = result_tx.send(result);
+            }
         }
     });
     (
@@ -246,7 +412,12 @@ fn process_search_job(
     job: SearchJob,
     matcher: &SkimMatcherV2,
     cache: &mut SearchWorkerCache,
-) -> SearchResult {
+    queue: &SearchJobQueue,
+    generation: u64,
+) -> Option<SearchResult> {
+    if search_job_canceled(queue, generation) {
+        return None;
+    }
     let job_source_id_str = job.source_id.as_str().to_string();
     let db_path = crate::sample_sources::database_path_for(&job.source_root);
     let db_stamp = DbFileStamp::from_path(&db_path);
@@ -279,14 +450,14 @@ fn process_search_job(
                 cache.query_score_cache.clear();
                 cache.folder_accept_cache.clear();
                 cache.triage_cache = None;
-                return empty_search_result(job);
+                return Some(empty_search_result(job));
             }
         }
     }
 
     let db = match cache.db.as_ref() {
         Some(db) => db,
-        None => return empty_search_result(job),
+        None => return Some(empty_search_result(job)),
     };
 
     let revision = db.get_revision().unwrap_or(0);
@@ -321,7 +492,7 @@ fn process_search_job(
                 cache.query_score_cache.clear();
                 cache.folder_accept_cache.clear();
                 cache.triage_cache = None;
-                return empty_search_result(job);
+                return Some(empty_search_result(job));
             }
         }
     }
@@ -337,7 +508,7 @@ fn process_search_job(
 
     if has_query {
         let Some(entries) = cache.entries.as_ref() else {
-            return empty_search_result(job);
+            return Some(empty_search_result(job));
         };
         if let Some(index) = cache.query_score_cache.iter().position(|cached| {
             cached.source_id == job_source_id_str
@@ -350,8 +521,18 @@ fn process_search_job(
             cache.query_score_cache.insert(0, cached);
         } else {
             let mut computed_scores = vec![None; entries_len];
+            record_search_worker_allocation(
+                &SEARCH_WORKER_SCORE_ALLOC_BYTES,
+                entries_len.saturating_mul(std::mem::size_of::<Option<i64>>()),
+            );
             for (index, entry) in entries.iter().enumerate() {
+                if search_job_canceled_for_index(queue, generation, index) {
+                    return None;
+                }
                 computed_scores[index] = matcher.fuzzy_match(&entry.display_label, &job.query);
+            }
+            if search_job_canceled(queue, generation) {
+                return None;
             }
             let computed_scores: Arc<[Option<i64>]> = computed_scores.into();
             cache.query_score_cache.insert(
@@ -368,8 +549,14 @@ fn process_search_job(
         }
     }
 
+    if search_job_canceled(queue, generation) {
+        return None;
+    }
     let (trash, neutral, keep) =
         triage_partitions_for_revision(cache, &job_source_id_str, cache.revision);
+    if search_job_canceled(queue, generation) {
+        return None;
+    }
     if !has_query
         && !has_folder_filters
         && job.filter == TriageFlagFilter::All
@@ -377,7 +564,10 @@ fn process_search_job(
         && job.sort == SampleBrowserSort::ListOrder
         && job.rating_filter.is_empty()
     {
-        return SearchResult {
+        if search_queue_telemetry_enabled() {
+            SEARCH_WORKER_VISIBLE_ROWS_TOTAL.fetch_add(entries_len as u64, AtomicOrdering::Relaxed);
+        }
+        return Some(SearchResult {
             request_id: job.request_id,
             source_id: job.source_id,
             query: job.query,
@@ -386,7 +576,7 @@ fn process_search_job(
             neutral: Arc::clone(&neutral),
             keep: Arc::clone(&keep),
             scores: Arc::from([]),
-        };
+        });
     }
 
     let folder_accepts = folder_accepts_for_job(
@@ -396,13 +586,19 @@ fn process_search_job(
         cache.revision,
         has_folder_filters,
     );
+    if search_job_canceled(queue, generation) {
+        return None;
+    }
     let Some(entries) = cache.entries.as_ref() else {
-        return empty_search_result(job);
+        return Some(empty_search_result(job));
     };
     let mut visible = Vec::new();
 
     if let Some(similar) = &job.similar_query {
-        for index in similar.indices.iter().copied() {
+        for (offset, index) in similar.indices.iter().copied().enumerate() {
+            if search_job_canceled_for_index(queue, generation, offset) {
+                return None;
+            }
             if let Some(entry) = entries.get(index)
                 && filter_accepts_tag(job.filter, &job.rating_filter, entry.tag)
                 && folder_accepts_index(folder_accepts.as_ref(), index)
@@ -414,10 +610,27 @@ fn process_search_job(
         match job.sort {
             SampleBrowserSort::Similarity => {
                 let mut score_lookup = vec![None; entries.len()];
-                for (&index, &score) in similar.indices.iter().zip(similar.scores.iter()) {
+                record_search_worker_allocation(
+                    &SEARCH_WORKER_SIMILAR_LOOKUP_ALLOC_BYTES,
+                    entries
+                        .len()
+                        .saturating_mul(std::mem::size_of::<Option<f32>>()),
+                );
+                for (offset, (&index, &score)) in similar
+                    .indices
+                    .iter()
+                    .zip(similar.scores.iter())
+                    .enumerate()
+                {
+                    if search_job_canceled_for_index(queue, generation, offset) {
+                        return None;
+                    }
                     if index < score_lookup.len() {
                         score_lookup[index] = Some(score);
                     }
+                }
+                if search_job_canceled(queue, generation) {
+                    return None;
                 }
                 visible.sort_by(|a: &usize, b: &usize| {
                     let a_score = score_lookup
@@ -433,6 +646,9 @@ fn process_search_job(
                         .unwrap_or(Ordering::Equal)
                         .then_with(|| a.cmp(b))
                 });
+                if search_job_canceled(queue, generation) {
+                    return None;
+                }
 
                 if let Some(anchor) = similar.anchor_index
                     && let Some(entry) = entries.get(anchor)
@@ -446,18 +662,35 @@ fn process_search_job(
                 }
             }
             SampleBrowserSort::PlaybackAgeAsc => {
+                if search_job_canceled(queue, generation) {
+                    return None;
+                }
                 sort_visible_by_playback_age(entries, &mut visible, true);
             }
             SampleBrowserSort::PlaybackAgeDesc => {
+                if search_job_canceled(queue, generation) {
+                    return None;
+                }
                 sort_visible_by_playback_age(entries, &mut visible, false);
             }
             SampleBrowserSort::ListOrder => {
+                if search_job_canceled(queue, generation) {
+                    return None;
+                }
                 visible.sort_unstable();
             }
         }
     } else {
-        let mut scratch = Vec::with_capacity(entries.len().min(1024));
+        let scratch_capacity = entries.len().min(1024);
+        let mut scratch = Vec::with_capacity(scratch_capacity);
+        record_search_worker_allocation(
+            &SEARCH_WORKER_SCRATCH_ALLOC_BYTES,
+            scratch_capacity.saturating_mul(std::mem::size_of::<(usize, i64)>()),
+        );
         for (index, entry) in entries.iter().enumerate() {
+            if search_job_canceled_for_index(queue, generation, index) {
+                return None;
+            }
             if !filter_accepts_tag(job.filter, &job.rating_filter, entry.tag)
                 || !folder_accepts_index(folder_accepts.as_ref(), index)
             {
@@ -473,21 +706,36 @@ fn process_search_job(
         }
 
         if has_query {
+            if search_job_canceled(queue, generation) {
+                return None;
+            }
             scratch.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+            if search_job_canceled(queue, generation) {
+                return None;
+            }
             visible = scratch.into_iter().map(|(index, _)| index).collect();
         }
         match job.sort {
             SampleBrowserSort::PlaybackAgeAsc => {
+                if search_job_canceled(queue, generation) {
+                    return None;
+                }
                 sort_visible_by_playback_age(entries, &mut visible, true);
             }
             SampleBrowserSort::PlaybackAgeDesc => {
+                if search_job_canceled(queue, generation) {
+                    return None;
+                }
                 sort_visible_by_playback_age(entries, &mut visible, false);
             }
             _ => {}
         }
     }
 
-    SearchResult {
+    if search_queue_telemetry_enabled() {
+        SEARCH_WORKER_VISIBLE_ROWS_TOTAL.fetch_add(visible.len() as u64, AtomicOrdering::Relaxed);
+    }
+    Some(SearchResult {
         request_id: job.request_id,
         source_id: job.source_id,
         query: job.query,
@@ -496,7 +744,22 @@ fn process_search_job(
         neutral: Arc::clone(&neutral),
         keep: Arc::clone(&keep),
         scores: if has_query { scores } else { Arc::from([]) },
+    })
+}
+
+const SEARCH_CANCEL_CHECK_INTERVAL: usize = 64;
+
+fn search_job_canceled(queue: &SearchJobQueue, generation: u64) -> bool {
+    let canceled = !queue.is_generation_current(generation);
+    if canceled && search_queue_telemetry_enabled() {
+        let sample_tick = SEARCH_QUEUE_CANCEL_COUNT.fetch_add(1, AtomicOrdering::Relaxed) + 1;
+        maybe_emit_search_worker_telemetry(sample_tick);
     }
+    canceled
+}
+
+fn search_job_canceled_for_index(queue: &SearchJobQueue, generation: u64, index: usize) -> bool {
+    index % SEARCH_CANCEL_CHECK_INTERVAL == 0 && search_job_canceled(queue, generation)
 }
 
 /// Return whether a tag passes the active triage + rating filter settings.
@@ -766,8 +1029,21 @@ mod tests {
         sender.send(second);
 
         let pending = queue.try_take().expect("expected pending search job");
-        assert_eq!(pending.query, "second");
+        assert_eq!(pending.job.query, "second");
         assert!(queue.try_take().is_none());
+    }
+
+    #[test]
+    fn newest_send_invalidates_inflight_generation() {
+        let queue = Arc::new(SearchJobQueue::new());
+        queue.send(make_search_job("first", "root"));
+        let inflight = queue
+            .take_blocking()
+            .expect("expected first queued search job");
+        assert!(queue.is_generation_current(inflight.generation));
+
+        queue.send(make_search_job("second", "root"));
+        assert!(!queue.is_generation_current(inflight.generation));
     }
 
     #[test]
@@ -785,7 +1061,7 @@ mod tests {
             let job = queue_for_worker
                 .take_blocking()
                 .expect("expected job after recovery");
-            tx.send(job.query).expect("send result");
+            tx.send(job.job.query).expect("send result");
         });
 
         queue.send(make_search_job("recovered", "root"));

@@ -92,12 +92,7 @@ impl AppController {
 
     pub(crate) fn visible_row_for_path(&mut self, path: &Path) -> Option<usize> {
         let entry_index = self.wav_index_for_path(path)?;
-        match &self.ui.browser.visible {
-            crate::app::state::VisibleRows::All { .. } => Some(entry_index),
-            crate::app::state::VisibleRows::List(rows) => {
-                rows.iter().position(|idx| *idx == entry_index)
-            }
-        }
+        self.browser_visible_row_for_entry(entry_index)
     }
 
     fn set_single_browser_selection(&mut self, path: &Path) {

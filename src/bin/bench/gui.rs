@@ -2,12 +2,11 @@
 /// Interaction benchmark scenarios split from `gui.rs` to keep modules focused.
 mod attribution;
 mod interactions;
+/// Rebuild-cause probes for retained projection attribution reporting.
+mod rebuild_probe;
 /// Segment counter probes for retained projection attribution reporting.
 mod segment_probe;
-use self::attribution::{
-    GuiInteractionRebuildCauseAttribution, GuiInteractionSegmentAttribution,
-    build_rebuild_cause_summary,
-};
+use self::attribution::{GuiInteractionRebuildCauseAttribution, GuiInteractionSegmentAttribution};
 use self::interactions::{
     bench_browser_filter_churn_latency, bench_browser_focus_commit_latency,
     bench_browser_focus_preview_latency, bench_browser_query_churn_latency,
@@ -15,6 +14,7 @@ use self::interactions::{
     bench_volume_drag_latency, bench_waveform_interactions,
     bench_waveform_pan_zoom_adjacent_latency, bench_wheel_latency, execute_interaction_step,
 };
+use self::rebuild_probe::collect_interaction_rebuild_cause_attribution;
 use self::segment_probe::collect_interaction_segment_attribution;
 use super::{options::BenchOptions, stats};
 use hound::{SampleFormat, WavSpec, WavWriter};
@@ -216,41 +216,9 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         &mut workspace.controller,
         &interaction_stage_attribution,
     )?);
-    let interaction_rebuild_cause_attribution = Some(GuiInteractionRebuildCauseAttribution {
-        interactive_projection: build_rebuild_cause_summary(&interactive_projection_total, true),
-        hover_latency: build_rebuild_cause_summary(&hover_latency_total, false),
-        wheel_latency: build_rebuild_cause_summary(&wheel_latency_total, false),
-        browser_filter_churn_latency: build_rebuild_cause_summary(
-            &browser_filter_churn_latency_total,
-            false,
-        ),
-        browser_query_churn_latency: build_rebuild_cause_summary(
-            &browser_query_churn_latency_total,
-            false,
-        ),
-        browser_sort_toggle_latency: build_rebuild_cause_summary(
-            &browser_sort_toggle_latency_total,
-            false,
-        ),
-        browser_focus_preview_latency: build_rebuild_cause_summary(
-            &browser_focus_preview_latency_total,
-            false,
-        ),
-        browser_focus_commit_latency: build_rebuild_cause_summary(
-            &browser_focus_commit_latency_total,
-            false,
-        ),
-        map_pan_proxy_latency: build_rebuild_cause_summary(&map_pan_proxy_latency_total, false),
-        waveform_interaction_latency: build_rebuild_cause_summary(
-            &waveform_interaction_latency_total,
-            true,
-        ),
-        volume_drag_latency: build_rebuild_cause_summary(&volume_drag_latency_total, false),
-        waveform_pan_zoom_adjacent_latency: build_rebuild_cause_summary(
-            &waveform_pan_zoom_adjacent_latency,
-            true,
-        ),
-    });
+    let interaction_rebuild_cause_attribution = Some(
+        collect_interaction_rebuild_cause_attribution(options, &mut workspace.controller)?,
+    );
     Ok(GuiBenchResult {
         seeded_rows,
         app_model_projection,

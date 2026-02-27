@@ -8,6 +8,7 @@ mod wav_reader;
 
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Instant;
 
 use crate::waveform::{DecodedWaveform, WaveformDecodeError, WaveformRenderer};
 
@@ -17,15 +18,31 @@ impl WaveformRenderer {
     /// Decode wav bytes into samples and duration without rendering.
     pub fn decode_from_bytes(&self, bytes: &[u8]) -> Result<DecodedWaveform, WaveformDecodeError> {
         let key = cache::hash_bytes(bytes);
-        if let Ok(mut cache) = self.decode_cache.lock()
-            && let Some(cached) = cache.get(&key)
-        {
-            return Ok((*cached).clone());
+        let lock_start = Instant::now();
+        match self.decode_cache.lock() {
+            Ok(mut cache_guard) => {
+                cache::record_decode_cache_lock_wait(lock_start.elapsed());
+                if let Some(cached) = cache_guard.get(&key) {
+                    return Ok((*cached).clone());
+                }
+            }
+            Err(_) => {
+                cache::record_decode_cache_lock_wait(lock_start.elapsed());
+                cache::record_decode_cache_lock_poison();
+            }
         }
 
         let decoded = self.load_decoded(bytes)?;
-        if let Ok(mut cache) = self.decode_cache.lock() {
-            cache.insert(key, Arc::new(decoded.clone()));
+        let lock_start = Instant::now();
+        match self.decode_cache.lock() {
+            Ok(mut cache_guard) => {
+                cache::record_decode_cache_lock_wait(lock_start.elapsed());
+                cache_guard.insert(key, Arc::new(decoded.clone()));
+            }
+            Err(_) => {
+                cache::record_decode_cache_lock_wait(lock_start.elapsed());
+                cache::record_decode_cache_lock_poison();
+            }
         }
         Ok(decoded)
     }

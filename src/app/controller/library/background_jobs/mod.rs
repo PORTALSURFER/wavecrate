@@ -153,7 +153,7 @@ impl AppController {
                                             &source,
                                             &pending.relative_path,
                                             decoded,
-                                            bytes,
+                                            bytes.into(),
                                             AudioLoadIntent::Selection,
                                             false,
                                             None,
@@ -346,6 +346,30 @@ impl AppController {
                 JobMessage::IssueTokenDeleted(message) => {
                     updates::handle_issue_token_deleted(self, message);
                 }
+                JobMessage::SourceDbMaintenanceFinished(message) => {
+                    self.runtime.jobs.clear_source_db_maintenance();
+                    let mut failed = 0usize;
+                    for outcome in message.outcomes {
+                        if let Some(err) = outcome.error {
+                            failed = failed.saturating_add(1);
+                            tracing::warn!(
+                                "Deferred source DB maintenance failed for {} ({}): {}",
+                                outcome.source_id,
+                                outcome.source_root.display(),
+                                err
+                            );
+                        }
+                    }
+                    if failed > 0 {
+                        let suffix = if failed == 1 { "" } else { "s" };
+                        self.set_status(
+                            format!(
+                                "Deferred source DB maintenance failed for {failed} source{suffix}"
+                            ),
+                            StatusTone::Warning,
+                        );
+                    }
+                }
                 JobMessage::BrowserSearchFinished(message) => {
                     if Some(&message.source_id) == self.selection_state.ctx.selected_source.as_ref()
                         && message.query == self.ui.browser.search_query
@@ -354,10 +378,11 @@ impl AppController {
                         self.ui.browser.visible = message.visible;
                         self.ui.browser.visible_rows_revision =
                             self.ui.browser.visible_rows_revision.wrapping_add(1);
-                        self.ui.browser.trash = message.trash.as_ref().to_vec();
-                        self.ui.browser.neutral = message.neutral.as_ref().to_vec();
-                        self.ui.browser.keep = message.keep.as_ref().to_vec();
-                        self.ui_cache.browser.search.scores = message.scores.as_ref().to_vec();
+                        self.ui.browser.trash = message.trash;
+                        self.ui.browser.neutral = message.neutral;
+                        self.ui.browser.keep = message.keep;
+                        self.rebuild_browser_lookup_maps();
+                        self.ui_cache.browser.search.scores = message.scores;
                         self.ui.browser.latest_applied_search_request_id = message.request_id;
                         self.ui.browser.search_busy = false;
 
@@ -365,9 +390,9 @@ impl AppController {
                         let focused_index = self.selected_row_index();
                         let loaded_index = self.loaded_row_index();
                         self.ui.browser.selected_visible =
-                            focused_index.and_then(|idx| self.ui.browser.visible.position(idx));
+                            focused_index.and_then(|idx| self.browser_visible_row_for_entry(idx));
                         self.ui.browser.loaded_visible =
-                            loaded_index.and_then(|idx| self.ui.browser.visible.position(idx));
+                            loaded_index.and_then(|idx| self.browser_visible_row_for_entry(idx));
                         self.ui.browser.marker_cache = None;
                     }
                 }

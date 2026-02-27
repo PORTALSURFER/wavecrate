@@ -970,6 +970,7 @@ pub(crate) fn project_browser_rows_model_into(
     refresh_projected_selected_paths_lookup(controller);
     let (window_start, window_len) =
         browser_render_window(visible_count, selected_visible_row, anchor_visible_row);
+    preload_browser_window_bpms(controller, window_start, window_len);
     if rows.capacity() < window_len {
         rows.reserve(window_len.saturating_sub(rows.len()));
     }
@@ -1010,6 +1011,31 @@ pub(crate) fn project_browser_rows_model_into(
         );
     }
     rows.truncate(window_len);
+}
+
+/// Preload BPM metadata for the current visible browser window in one batch query.
+fn preload_browser_window_bpms(
+    controller: &mut AppController,
+    window_start: usize,
+    window_len: usize,
+) {
+    if window_len == 0 {
+        return;
+    }
+    let mut visible_paths = Vec::with_capacity(window_len);
+    for offset in 0..window_len {
+        let visible_row = window_start + offset;
+        let Some(absolute_index) = controller.ui.browser.visible.get(visible_row) else {
+            continue;
+        };
+        if let Some(relative_path) = controller
+            .wav_entry(absolute_index)
+            .map(|entry| entry.relative_path.clone())
+        {
+            visible_paths.push(relative_path);
+        }
+    }
+    controller.preload_bpm_values_for_paths(&visible_paths);
 }
 
 /// Project browser panel metadata and row window into one panel model.
@@ -1286,24 +1312,32 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
 
 /// Reuse or rebuild the projected waveform raster payload for the native model.
 fn project_waveform_image(controller: &mut AppController) -> Option<Arc<ImageRgba>> {
+    let signature = controller.ui.waveform.waveform_image_signature;
     let has_source_image = controller.ui.waveform.image.is_some();
     let has_cached_image = controller.projected_waveform_image.is_some();
-    if controller.projected_waveform_image_signature
-        == controller.ui.waveform.waveform_image_signature
+    if signature.is_some()
+        && controller.projected_waveform_image_signature == signature
         && has_source_image == has_cached_image
     {
         return controller.projected_waveform_image.clone();
     }
-    let projected_waveform_image = project_waveform_image_data(&controller.ui.waveform.image);
-    controller.projected_waveform_image_signature = controller.ui.waveform.waveform_image_signature;
+    // Producer-side waveform rendering now publishes shared immutable RGBA payloads and
+    // versioned identities. Keep a projection-side fallback for tests/manual image assignment.
+    let projected_waveform_image = controller.projected_waveform_image.clone().or_else(|| {
+        controller
+            .ui
+            .waveform
+            .image
+            .as_ref()
+            .and_then(waveform_image_to_native_rgba)
+    });
+    controller.projected_waveform_image_signature = signature;
     controller.projected_waveform_image = projected_waveform_image.clone();
     projected_waveform_image
 }
 
-fn project_waveform_image_data(
-    image: &Option<crate::waveform::WaveformImage>,
-) -> Option<Arc<ImageRgba>> {
-    let image = image.as_ref()?;
+/// Convert a rendered waveform image into the native immutable RGBA payload.
+fn waveform_image_to_native_rgba(image: &crate::waveform::WaveformImage) -> Option<Arc<ImageRgba>> {
     if image.size[0] == 0 || image.size[1] == 0 {
         return None;
     }

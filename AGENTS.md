@@ -59,12 +59,9 @@ Write for future selves: be precise, kind, and clear.
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
 
 ## Immediate Next Actions
-1. Reduce compositor-run warning drift in `hover_latency`, `wheel_latency`, and
-   `browser_filter_churn_latency` from latest 7-run perf data.
-2. Keep immediate waveform preview scope limited to overlay actions until
-   projection-stage outliers are reduced under immediate-preview-on runs.
-3. Keep handoff docs synchronized every milestone (`AGENTS.md`, `MEMORY.md`,
-   `docs/plans/active/todo.md`).
+1. Recalibrate tracked startup lock-file thresholds on a compositor-backed host (`bash scripts/calibrate_startup_thresholds.sh`).
+2. Repeat immediate waveform-preview A/B with larger run windows on compositor-backed host.
+3. Keep handoff docs synchronized every milestone (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now

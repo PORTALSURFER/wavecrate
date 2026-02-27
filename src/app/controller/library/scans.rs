@@ -99,8 +99,8 @@ impl AppController {
                 crate::sample_sources::scanner::ScanStats,
                 crate::sample_sources::scanner::ScanError,
             > {
-                let db = SourceDatabase::open(&root)?;
-                crate::sample_sources::scanner::scan_with_progress(
+                let db = SourceDatabase::open_fast(&root)?;
+                let stats = crate::sample_sources::scanner::scan_with_progress(
                     &db,
                     mode,
                     Some(cancel.as_ref()),
@@ -112,7 +112,11 @@ impl AppController {
                             });
                         }
                     },
-                )
+                )?;
+                if stats.hashes_pending > 0 {
+                    crate::sample_sources::scanner::schedule_deep_hash_scan(root.clone());
+                }
+                Ok(stats)
             })();
             let _ = tx.send(ScanJobMessage::Finished(ScanResult {
                 source_id,

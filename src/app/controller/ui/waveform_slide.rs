@@ -188,7 +188,7 @@ impl AppController {
         }
         let duration_seconds = total_frames as f32 / sample_rate.max(1) as f32;
         let cache_token = crate::waveform::next_cache_token();
-        self.sample_view.waveform.decoded = Some(DecodedWaveform {
+        self.sample_view.waveform.decoded = Some(Arc::new(DecodedWaveform {
             cache_token,
             samples: Arc::from(samples),
             analysis_samples: Arc::from(Vec::new()),
@@ -198,7 +198,7 @@ impl AppController {
             duration_seconds,
             sample_rate: sample_rate.max(1),
             channels,
-        });
+        }));
         self.sample_view.waveform.render_meta = None;
         self.ui.waveform.transient_cache_token = None;
         self.refresh_waveform_image();

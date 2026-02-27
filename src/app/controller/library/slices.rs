@@ -32,7 +32,7 @@ impl AppController {
             && self.ui.waveform.transient_snap_enabled
             && !self.ui.waveform.transients.is_empty();
         let transients = if use_transients {
-            let mut positions = self.ui.waveform.transients.clone();
+            let mut positions = self.ui.waveform.transients.to_vec();
             positions.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
             positions
         } else {
@@ -106,7 +106,7 @@ impl AppController {
                 .map(|audio| audio.duration_seconds),
             transient_markers_enabled: self.ui.waveform.transient_markers_enabled,
             transient_snap_enabled: self.ui.waveform.transient_snap_enabled,
-            transients: self.ui.waveform.transients.clone(),
+            transients: self.ui.waveform.transients.to_vec(),
         };
         ops::snap_slice_paint_position(&state, position, snap_override)
     }

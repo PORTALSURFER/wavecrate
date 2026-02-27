@@ -28,13 +28,13 @@ description: Checklist for keeping huge sample libraries responsive in Sempal.
   - `SEMPAL_PERF_GUARD_STARTUP_PROFILE=1`
   - `SEMPAL_PERF_GUARD_RUNS=7` (or higher)
   - `SEMPAL_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS=1`
-  - optional lock-file output:
+  - preferred one-shot command:
+    `bash scripts/calibrate_startup_thresholds.sh`
+  - optional explicit lock-file output override:
     `SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT=target/perf/startup_thresholds.env`
-  - then apply the printed `startup_first_paint_recommended` values as
-    `SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_MS` /
-    `SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS` and optional spread limits.
-  - if lock-file output is enabled, load the generated env file for future runs
-    instead of manually copying values.
+  - perf guard auto-loads the tracked startup lock file
+    (`scripts/perf_locks/startup_thresholds.env`) on future runs unless
+    `SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_IN` is overridden or set empty.
 - For waveform immediate-preview A/B checks, compare:
   - default behavior (immediate preview enabled),
   - `SEMPAL_NATIVE_BRIDGE_IMMEDIATE_WAVEFORM_PREVIEW=0`

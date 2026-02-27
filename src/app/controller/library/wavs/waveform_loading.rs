@@ -5,6 +5,7 @@ use crate::app::controller::playback::audio_samples::{
     decode_samples_from_bytes, wav_bytes_from_samples,
 };
 use crate::app::state::WaveformView;
+use std::sync::Arc;
 
 impl AppController {
     pub(crate) fn load_waveform_for_selection(
@@ -53,7 +54,7 @@ impl AppController {
             source,
             relative_path,
             None,
-            bytes,
+            bytes.into(),
             AudioLoadIntent::Selection,
         )?;
         let duration_seconds = decoded.duration_seconds;
@@ -64,7 +65,7 @@ impl AppController {
                 .cache
                 .insert(cache_key, metadata, decoded.clone(), bytes.clone());
         }
-        self.finish_waveform_load(
+        self.finish_waveform_load_shared(
             source,
             relative_path,
             decoded,
@@ -80,19 +81,20 @@ impl AppController {
         Ok(())
     }
 
-    pub(crate) fn finish_waveform_load(
+    /// Finish applying a loaded waveform using shared immutable payloads.
+    pub(crate) fn finish_waveform_load_shared(
         &mut self,
         source: &SampleSource,
         relative_path: &Path,
-        decoded: DecodedWaveform,
-        bytes: Vec<u8>,
+        decoded: Arc<DecodedWaveform>,
+        bytes: Arc<[u8]>,
         intent: AudioLoadIntent,
         preserve_selections: bool,
-        transients: Option<Vec<f32>>,
+        transients: Option<Arc<[f32]>>,
     ) -> Result<(), String> {
         let duration_seconds = decoded.duration_seconds;
         let sample_rate = decoded.sample_rate;
-        self.apply_waveform_image(decoded, transients);
+        self.apply_waveform_image_shared(decoded, transients);
         if !preserve_selections {
             self.ui.waveform.view = WaveformView::default();
             self.ui.waveform.cursor = Some(0.0);
@@ -112,33 +114,61 @@ impl AppController {
         Ok(())
     }
 
+    /// Finish applying a loaded waveform using owned payloads.
+    ///
+    /// This compatibility path adapts legacy call sites to the shared immutable
+    /// waveform pipeline and should be removed once all callers are Arc-first.
+    pub(crate) fn finish_waveform_load(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+        decoded: DecodedWaveform,
+        bytes: Arc<[u8]>,
+        intent: AudioLoadIntent,
+        preserve_selections: bool,
+        transients: Option<Vec<f32>>,
+    ) -> Result<(), String> {
+        self.finish_waveform_load_shared(
+            source,
+            relative_path,
+            Arc::new(decoded),
+            bytes,
+            intent,
+            preserve_selections,
+            transients.map(Arc::from),
+        )
+    }
+
     pub(crate) fn prepare_loaded_audio(
         &mut self,
         source: &SampleSource,
         relative_path: &Path,
-        decoded: Option<DecodedWaveform>,
-        bytes: Vec<u8>,
+        decoded: Option<Arc<DecodedWaveform>>,
+        bytes: Arc<[u8]>,
         intent: AudioLoadIntent,
-    ) -> Result<(DecodedWaveform, Vec<u8>, bool), String> {
+    ) -> Result<(Arc<DecodedWaveform>, Arc<[u8]>, bool), String> {
         let original_decoded = match decoded {
             Some(decoded) => decoded,
-            None => self
-                .sample_view
-                .renderer
-                .decode_from_bytes(&bytes)
-                .map_err(|err| err.to_string())?,
+            None => Arc::new(
+                self.sample_view
+                    .renderer
+                    .decode_from_bytes(&bytes)
+                    .map_err(|err| err.to_string())?,
+            ),
         };
 
         if matches!(intent, AudioLoadIntent::Selection)
             && let Some(ratio) = self.stretch_ratio_for_sample(source, relative_path)
         {
             let stretched = self.stretch_wav_bytes(&bytes, ratio)?;
+            let stretched: Arc<[u8]> = stretched.into();
             // Decode the stretched bytes to get the correct duration
-            let stretched_decoded = self
-                .sample_view
-                .renderer
-                .decode_from_bytes(&stretched)
-                .map_err(|err| err.to_string())?;
+            let stretched_decoded = Arc::new(
+                self.sample_view
+                    .renderer
+                    .decode_from_bytes(&stretched)
+                    .map_err(|err| err.to_string())?,
+            );
             return Ok((stretched_decoded, stretched, true));
         }
 
@@ -246,13 +276,13 @@ impl AppController {
         relative_path: &Path,
         duration_seconds: f32,
         sample_rate: u32,
-        bytes: Vec<u8>,
+        bytes: Arc<[u8]>,
     ) -> Result<(), String> {
         self.sample_view.wav.loaded_audio = Some(LoadedAudio {
             source_id: source.id.clone(),
             root: source.root.clone(),
             relative_path: relative_path.to_path_buf(),
-            bytes: bytes.clone(),
+            bytes: Arc::clone(&bytes),
             duration_seconds,
             sample_rate,
         });
@@ -421,6 +451,8 @@ impl AppController {
         self.sample_view.waveform.decoded = None;
         self.ui.waveform.image = None;
         self.ui.waveform.waveform_image_signature = None;
+        self.projected_waveform_image_signature = None;
+        self.projected_waveform_image = None;
         self.ui.waveform.playhead = PlayheadState::default();
         self.ui.waveform.selection = None;
         self.ui.waveform.selection_duration = None;

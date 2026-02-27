@@ -1,6 +1,6 @@
 //! Attribution payloads emitted by GUI benchmark reports.
 
-use crate::bench::stats;
+use sempal::app_core::native_bridge::ProjectionRebuildCauseCounts;
 use serde::Serialize;
 
 /// Segment-level latency/counter summary emitted in benchmark reports.
@@ -71,21 +71,14 @@ pub(in crate::bench) struct GuiInteractionRebuildCauseAttribution {
     pub(in crate::bench) waveform_pan_zoom_adjacent_latency: RebuildCauseAttributionSummary,
 }
 
-/// Build one rebuild-cause attribution summary from benchmark latency metadata.
-pub(in crate::bench) fn build_rebuild_cause_summary(
-    latency: &stats::LatencySummary,
-    includes_motion_pull: bool,
+/// Convert measured rebuild-cause probe counters to report summary shape.
+pub(in crate::bench) fn rebuild_cause_summary_from_counts(
+    counts: ProjectionRebuildCauseCounts,
 ) -> RebuildCauseAttributionSummary {
     RebuildCauseAttributionSummary {
-        // Controller-mode benchmark paths do not execute native static-scene
-        // rebuild scheduling, so keep static counters at zero.
-        explicit_static_rebuild_count: 0,
-        dirty_mask_static_rebuild_count: 0,
-        bridge_model_pull_rebuild_count: latency.measure_iters as u64,
-        bridge_motion_pull_rebuild_count: if includes_motion_pull {
-            latency.measure_iters as u64
-        } else {
-            0
-        },
+        explicit_static_rebuild_count: counts.explicit_static_rebuild_count,
+        dirty_mask_static_rebuild_count: counts.dirty_mask_static_rebuild_count,
+        bridge_model_pull_rebuild_count: counts.bridge_model_pull_rebuild_count,
+        bridge_motion_pull_rebuild_count: counts.bridge_motion_pull_rebuild_count,
     }
 }

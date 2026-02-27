@@ -21,6 +21,7 @@ Audio sample triage tool built with Rust.
 ## Build from source
 
 - Requires Rust (stable toolchain) and `cargo`.
+- Initialize submodules after clone: `git submodule update --init --recursive`.
 - From the project root: `cargo run --release`.
 - Or build once and run the binary: `cargo build --release` then `target/release/sempal`.
 - Playback uses your default audio output device.

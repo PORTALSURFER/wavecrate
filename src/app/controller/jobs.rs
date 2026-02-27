@@ -30,6 +30,9 @@ use std::{
 };
 
 type TryRecvError = std::sync::mpsc::TryRecvError;
+const DEFERRED_MAINTENANCE_SCHEMA_TOKEN: u32 = 1;
+const DEFERRED_MAINTENANCE_MAX_ATTEMPTS: usize = 3;
+const DEFERRED_MAINTENANCE_RETRY_DELAY: Duration = Duration::from_millis(250);
 
 #[derive(Debug)]
 #[cfg_attr(test, allow(dead_code))]
@@ -55,6 +58,7 @@ pub(crate) enum JobMessage {
     IssueTokenSaved(IssueTokenSaveResult),
     IssueTokenDeleted(IssueTokenDeleteResult),
     BrowserSearchFinished(SearchResult),
+    SourceDbMaintenanceFinished(SourceDbMaintenanceResult),
     Normalized(NormalizationResult),
 }
 
@@ -312,6 +316,37 @@ pub(crate) struct NormalizationResult {
     pub(crate) source_id: crate::sample_sources::SourceId,
     pub(crate) relative_path: PathBuf,
     pub(crate) result: Result<(u64, i64, crate::sample_sources::Rating), String>,
+}
+
+/// Startup-deferred source DB maintenance request.
+#[derive(Debug, Clone)]
+pub(crate) struct SourceDbMaintenanceJob {
+    /// Source id used for status/error attribution.
+    pub(crate) source_id: SourceId,
+    /// Root path of the source database.
+    pub(crate) source_root: PathBuf,
+}
+
+/// Summary for one source DB maintenance attempt.
+#[derive(Debug, Clone)]
+pub(crate) struct SourceDbMaintenanceOutcome {
+    /// Source id associated with this outcome.
+    pub(crate) source_id: SourceId,
+    /// Source root used for maintenance.
+    pub(crate) source_root: PathBuf,
+    /// Whether this source was skipped due to unchanged revision/schema token.
+    pub(crate) skipped: bool,
+    /// Number of orphaned analysis rows removed.
+    pub(crate) orphan_rows_removed: usize,
+    /// Error when maintenance failed after retry attempts.
+    pub(crate) error: Option<String>,
+}
+
+/// Batched result for deferred source DB maintenance.
+#[derive(Debug, Clone)]
+pub(crate) struct SourceDbMaintenanceResult {
+    /// Per-source maintenance outcomes.
+    pub(crate) outcomes: Vec<SourceDbMaintenanceOutcome>,
 }
 
 /// Progress updates for file operations that should not block the UI thread.
@@ -641,6 +676,7 @@ pub(crate) struct ControllerJobs {
     pub(super) issue_token_load_in_progress: bool,
     pub(super) issue_token_save_in_progress: bool,
     pub(super) issue_token_delete_in_progress: bool,
+    pub(super) source_db_maintenance_in_progress: bool,
     pub(super) repaint_signal: Arc<SharedRepaintSignal>,
 }
 
@@ -790,6 +826,7 @@ impl ControllerJobs {
             issue_token_load_in_progress: false,
             issue_token_save_in_progress: false,
             issue_token_delete_in_progress: false,
+            source_db_maintenance_in_progress: false,
             repaint_signal,
         }
     }
@@ -913,6 +950,7 @@ impl ControllerJobs {
     }
 
     pub(super) fn send_audio_job(&self, job: AudioLoadJob) -> Result<(), ()> {
+        self.audio_loader.publish_latest_request_id(job.request_id);
         self.audio_job_tx.send(job).map_err(|_| ())
     }
 
@@ -1078,6 +1116,36 @@ impl ControllerJobs {
     pub(super) fn clear_file_ops(&mut self) {
         self.file_ops_in_progress = false;
         self.file_ops_cancel = None;
+    }
+
+    /// Return whether deferred source DB maintenance is currently running.
+    pub(super) fn source_db_maintenance_in_progress(&self) -> bool {
+        self.source_db_maintenance_in_progress
+    }
+
+    /// Run startup-deferred source DB maintenance in the background.
+    pub(super) fn begin_source_db_maintenance(&mut self, jobs: Vec<SourceDbMaintenanceJob>) {
+        if self.source_db_maintenance_in_progress || jobs.is_empty() {
+            return;
+        }
+        self.source_db_maintenance_in_progress = true;
+        let tx = self.message_tx.clone();
+        let signal = self.repaint_signal.clone();
+        thread::spawn(move || {
+            let outcomes = jobs
+                .into_iter()
+                .map(run_source_db_maintenance_job)
+                .collect::<Vec<_>>();
+            let _ = tx.send(JobMessage::SourceDbMaintenanceFinished(
+                SourceDbMaintenanceResult { outcomes },
+            ));
+            signal.request_repaint();
+        });
+    }
+
+    /// Clear the in-progress state for deferred source DB maintenance.
+    pub(super) fn clear_source_db_maintenance(&mut self) {
+        self.source_db_maintenance_in_progress = false;
     }
 
     pub(super) fn update_check_in_progress(&self) -> bool {
@@ -1338,6 +1406,137 @@ impl ControllerJobs {
             signal.request_repaint();
         });
     }
+}
+
+fn run_source_db_maintenance_job(job: SourceDbMaintenanceJob) -> SourceDbMaintenanceOutcome {
+    let probe = match crate::sample_sources::SourceDatabase::open_fast(&job.source_root) {
+        Ok(db) => db,
+        Err(err) => {
+            return SourceDbMaintenanceOutcome {
+                source_id: job.source_id,
+                source_root: job.source_root,
+                skipped: false,
+                orphan_rows_removed: 0,
+                error: Some(format!("Open source DB failed: {err}")),
+            };
+        }
+    };
+    let revision = match probe.get_revision() {
+        Ok(value) => value,
+        Err(err) => {
+            return SourceDbMaintenanceOutcome {
+                source_id: job.source_id,
+                source_root: job.source_root,
+                skipped: false,
+                orphan_rows_removed: 0,
+                error: Some(format!("Read source DB revision failed: {err}")),
+            };
+        }
+    };
+    let should_skip = match deferred_maintenance_is_up_to_date(&probe, revision) {
+        Ok(value) => value,
+        Err(err) => {
+            return SourceDbMaintenanceOutcome {
+                source_id: job.source_id,
+                source_root: job.source_root,
+                skipped: false,
+                orphan_rows_removed: 0,
+                error: Some(err),
+            };
+        }
+    };
+    drop(probe);
+    if should_skip {
+        return SourceDbMaintenanceOutcome {
+            source_id: job.source_id,
+            source_root: job.source_root,
+            skipped: true,
+            orphan_rows_removed: 0,
+            error: None,
+        };
+    }
+
+    let mut last_error: Option<String> = None;
+    for attempt in 1..=DEFERRED_MAINTENANCE_MAX_ATTEMPTS {
+        match run_source_db_maintenance_once(&job, revision) {
+            Ok(orphan_rows_removed) => {
+                return SourceDbMaintenanceOutcome {
+                    source_id: job.source_id,
+                    source_root: job.source_root,
+                    skipped: false,
+                    orphan_rows_removed,
+                    error: None,
+                };
+            }
+            Err(err) => {
+                last_error = Some(err);
+                if attempt < DEFERRED_MAINTENANCE_MAX_ATTEMPTS {
+                    thread::sleep(DEFERRED_MAINTENANCE_RETRY_DELAY);
+                }
+            }
+        }
+    }
+
+    SourceDbMaintenanceOutcome {
+        source_id: job.source_id,
+        source_root: job.source_root,
+        skipped: false,
+        orphan_rows_removed: 0,
+        error: last_error,
+    }
+}
+
+fn run_source_db_maintenance_once(
+    job: &SourceDbMaintenanceJob,
+    revision: u64,
+) -> Result<usize, String> {
+    let mut conn = super::library::analysis_jobs::open_source_db(&job.source_root)?;
+    let removed = super::library::analysis_jobs::purge_orphaned_samples(&mut conn)?;
+    update_deferred_maintenance_markers(&conn, revision)?;
+    Ok(removed)
+}
+
+fn deferred_maintenance_is_up_to_date(
+    db: &crate::sample_sources::SourceDatabase,
+    revision: u64,
+) -> Result<bool, String> {
+    let revision_marker = db
+        .get_metadata(crate::sample_sources::db::META_DEFERRED_MAINTENANCE_REVISION)
+        .map_err(|err| format!("Read deferred maintenance revision failed: {err}"))?;
+    let schema_marker = db
+        .get_metadata(crate::sample_sources::db::META_DEFERRED_MAINTENANCE_SCHEMA)
+        .map_err(|err| format!("Read deferred maintenance schema marker failed: {err}"))?;
+    let revision_string = revision.to_string();
+    let schema_string = DEFERRED_MAINTENANCE_SCHEMA_TOKEN.to_string();
+    Ok(revision_marker.as_deref() == Some(revision_string.as_str())
+        && schema_marker.as_deref() == Some(schema_string.as_str()))
+}
+
+fn update_deferred_maintenance_markers(
+    conn: &rusqlite::Connection,
+    revision: u64,
+) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO metadata (key, value)
+         VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        rusqlite::params![
+            crate::sample_sources::db::META_DEFERRED_MAINTENANCE_REVISION,
+            revision.to_string()
+        ],
+    )
+    .map_err(|err| format!("Update deferred maintenance revision failed: {err}"))?;
+    conn.execute(
+        "INSERT INTO metadata (key, value)
+         VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        rusqlite::params![
+            crate::sample_sources::db::META_DEFERRED_MAINTENANCE_SCHEMA,
+            DEFERRED_MAINTENANCE_SCHEMA_TOKEN.to_string()
+        ],
+    )
+    .map_err(|err| format!("Update deferred maintenance schema marker failed: {err}"))?;
+    Ok(())
 }
 
 #[cfg(test)]

@@ -63,7 +63,7 @@ pub(crate) fn spawn_wav_loader() -> (Sender<WavLoadJob>, Receiver<WavLoadResult>
 }
 
 pub(crate) fn load_entries(job: &WavLoadJob) -> (Result<Vec<WavEntry>, LoadEntriesError>, usize) {
-    let db = match SourceDatabase::open(&job.root) {
+    let db = match SourceDatabase::open_fast(&job.root) {
         Ok(db) => db,
         Err(err) => return (Err(LoadEntriesError::Db(err)), 0),
     };

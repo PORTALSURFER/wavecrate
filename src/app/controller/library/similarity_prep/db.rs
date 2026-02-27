@@ -2,7 +2,7 @@ use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::{SampleSource, SourceDatabase, SourceId};
 
 pub(crate) fn read_source_scan_timestamp(source: &SampleSource) -> Option<i64> {
-    let db = SourceDatabase::open(&source.root).ok()?;
+    let db = SourceDatabase::open_fast(&source.root).ok()?;
     db.get_metadata(crate::sample_sources::db::META_LAST_SCAN_COMPLETED_AT)
         .ok()
         .flatten()
@@ -10,7 +10,7 @@ pub(crate) fn read_source_scan_timestamp(source: &SampleSource) -> Option<i64> {
 }
 
 pub(crate) fn read_source_prep_timestamp(source: &SampleSource) -> Option<i64> {
-    let db = SourceDatabase::open(&source.root).ok()?;
+    let db = SourceDatabase::open_fast(&source.root).ok()?;
     db.get_metadata(crate::sample_sources::db::META_LAST_SIMILARITY_PREP_SCAN_AT)
         .ok()
         .flatten()
@@ -27,7 +27,7 @@ pub(crate) fn record_similarity_prep_scan_timestamp(source: &SampleSource, scan_
 }
 
 pub(crate) fn source_has_embeddings(source: &SampleSource) -> bool {
-    let Ok(source_db) = SourceDatabase::open(&source.root) else {
+    let Ok(source_db) = SourceDatabase::open_fast(&source.root) else {
         return false;
     };
     let Ok(expected) = source_db.count_present_files() else {

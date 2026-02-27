@@ -2,6 +2,7 @@ use crate::{sample_sources::SourceId, waveform::DecodedWaveform};
 use std::{
     collections::{HashMap, VecDeque},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -28,8 +29,8 @@ impl CacheKey {
 #[derive(Clone)]
 pub(crate) struct CachedAudio {
     pub metadata: FileMetadata,
-    pub decoded: DecodedWaveform,
-    pub bytes: Vec<u8>,
+    pub decoded: Arc<DecodedWaveform>,
+    pub bytes: Arc<[u8]>,
 }
 
 pub(crate) struct AudioCache {
@@ -65,8 +66,8 @@ impl AudioCache {
         &mut self,
         key: CacheKey,
         metadata: FileMetadata,
-        decoded: DecodedWaveform,
-        bytes: Vec<u8>,
+        decoded: Arc<DecodedWaveform>,
+        bytes: Arc<[u8]>,
     ) {
         self.entries.insert(
             key.clone(),
@@ -121,8 +122,8 @@ mod tests {
         CacheKey::new(&SourceId::from_string("a"), Path::new("one.wav"))
     }
 
-    fn decoded() -> DecodedWaveform {
-        DecodedWaveform {
+    fn decoded() -> Arc<DecodedWaveform> {
+        Arc::new(DecodedWaveform {
             cache_token: 1,
             samples: std::sync::Arc::from(vec![0.1, 0.2]),
             analysis_samples: std::sync::Arc::from(Vec::new()),
@@ -132,14 +133,14 @@ mod tests {
             duration_seconds: 1.0,
             sample_rate: 44_100,
             channels: 1,
-        }
+        })
     }
 
     #[test]
     fn returns_hit_when_metadata_matches() {
         let mut cache = AudioCache::new(4, 4);
         let key = sample_key();
-        cache.insert(key.clone(), build_metadata(1), decoded(), vec![1, 2]);
+        cache.insert(key.clone(), build_metadata(1), decoded(), vec![1, 2].into());
 
         let hit = cache.get(&key, build_metadata(1));
 
@@ -150,7 +151,7 @@ mod tests {
     fn evicts_on_metadata_mismatch() {
         let mut cache = AudioCache::new(4, 4);
         let key = sample_key();
-        cache.insert(key.clone(), build_metadata(1), decoded(), vec![1, 2]);
+        cache.insert(key.clone(), build_metadata(1), decoded(), vec![1, 2].into());
 
         let miss = cache.get(&key, build_metadata(2));
 
@@ -165,9 +166,24 @@ mod tests {
         let key_b = CacheKey::new(&SourceId::from_string("a"), Path::new("b.wav"));
         let key_c = CacheKey::new(&SourceId::from_string("a"), Path::new("c.wav"));
 
-        cache.insert(key_a.clone(), build_metadata(1), decoded(), vec![]);
-        cache.insert(key_b.clone(), build_metadata(1), decoded(), vec![]);
-        cache.insert(key_c.clone(), build_metadata(1), decoded(), vec![]);
+        cache.insert(
+            key_a.clone(),
+            build_metadata(1),
+            decoded(),
+            Vec::new().into(),
+        );
+        cache.insert(
+            key_b.clone(),
+            build_metadata(1),
+            decoded(),
+            Vec::new().into(),
+        );
+        cache.insert(
+            key_c.clone(),
+            build_metadata(1),
+            decoded(),
+            Vec::new().into(),
+        );
 
         assert!(cache.get(&key_a, build_metadata(1)).is_none());
         assert!(cache.get(&key_b, build_metadata(1)).is_some());

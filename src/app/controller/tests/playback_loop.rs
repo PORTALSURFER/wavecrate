@@ -12,7 +12,7 @@ fn setup_looping_controller(selection: SelectionRange) -> Option<AppController> 
     let wav_path = dir.path().join("loop_drag_test.wav");
     let long_samples = vec![0.1_f32; 240];
     write_test_wav(&wav_path, &long_samples);
-    let bytes = std::fs::read(&wav_path).ok()?;
+    let bytes: std::sync::Arc<[u8]> = std::fs::read(&wav_path).ok()?.into();
     let duration = 30.0;
     player.set_audio(bytes.clone(), duration);
 
@@ -75,7 +75,7 @@ fn enabling_loop_while_playing_restarts_in_looped_mode() {
         source_id: source.id.clone(),
         root: source.root.clone(),
         relative_path: PathBuf::from("loop_test.wav"),
-        bytes: std::fs::read(&wav_path).unwrap(),
+        bytes: std::fs::read(&wav_path).unwrap().into(),
         duration_seconds: 30.0,
         sample_rate: 8,
     });
@@ -121,7 +121,7 @@ fn enabling_loop_while_playing_uses_full_selection() {
         source_id: source.id.clone(),
         root: source.root.clone(),
         relative_path: PathBuf::from("loop_selection_test.wav"),
-        bytes: std::fs::read(&wav_path).unwrap(),
+        bytes: std::fs::read(&wav_path).unwrap().into(),
         duration_seconds: duration,
         sample_rate: 8,
     });

@@ -1,7 +1,6 @@
 use super::*;
 use crate::app::controller::library::wav_io;
 use crate::app::controller::playback::audio_cache::CacheKey;
-use crate::app::view_model;
 use crate::waveform::DecodedWaveform;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -95,9 +94,9 @@ impl AppController {
     /// Expose wav indices for a given triage flag column (used by virtualized rendering).
     pub fn browser_indices(&self, column: TriageFlagColumn) -> &[usize] {
         match column {
-            TriageFlagColumn::Trash => &self.ui.browser.trash,
-            TriageFlagColumn::Neutral => &self.ui.browser.neutral,
-            TriageFlagColumn::Keep => &self.ui.browser.keep,
+            TriageFlagColumn::Trash => self.ui.browser.trash.as_ref(),
+            TriageFlagColumn::Neutral => self.ui.browser.neutral.as_ref(),
+            TriageFlagColumn::Keep => self.ui.browser.keep.as_ref(),
         }
     }
 
@@ -120,6 +119,62 @@ impl AppController {
             .or_default();
         cache.insert(path.to_path_buf(), bpm);
         bpm
+    }
+
+    /// Preload BPM metadata for a visible row window to avoid per-row DB lookups.
+    pub(crate) fn preload_bpm_values_for_paths(&mut self, paths: &[PathBuf]) {
+        if paths.is_empty() {
+            return;
+        }
+        let Some(source) = self.current_source() else {
+            return;
+        };
+        let source_id = source.id.clone();
+        let cache = self
+            .ui_cache
+            .browser
+            .bpm_values
+            .entry(source_id.clone())
+            .or_default();
+        let mut missing_paths = Vec::new();
+        let mut missing_sample_ids = Vec::new();
+        for path in paths {
+            if cache.contains_key(path) {
+                continue;
+            }
+            missing_paths.push(path.clone());
+            missing_sample_ids.push(analysis_jobs::build_sample_id(source_id.as_str(), path));
+        }
+        if missing_paths.is_empty() {
+            return;
+        }
+        let db = match self.database_for(&source) {
+            Ok(db) => db,
+            Err(err) => {
+                tracing::debug!("Skipping BPM preload (database unavailable): {err}");
+                return;
+            }
+        };
+        let bpm_lookup = match db.bpms_for_sample_ids(&missing_sample_ids) {
+            Ok(values) => values,
+            Err(err) => {
+                tracing::debug!("Skipping BPM preload (batch lookup failed): {err}");
+                return;
+            }
+        };
+        let cache = self
+            .ui_cache
+            .browser
+            .bpm_values
+            .entry(source_id)
+            .or_default();
+        for (path, sample_id) in missing_paths
+            .into_iter()
+            .zip(missing_sample_ids.into_iter())
+        {
+            let bpm = bpm_lookup.get(sample_id.as_str()).copied().flatten();
+            cache.insert(path, bpm);
+        }
     }
 
     /// Visible wav indices after applying the active sample browser filter.
