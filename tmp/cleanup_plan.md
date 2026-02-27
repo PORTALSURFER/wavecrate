@@ -14,13 +14,14 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml`, native shell shot tests, then `bash scripts/ci_local.sh`.
   - Completed: 2026-02-27 (UTC) - `radiant` commit `91fb246e`
 
-- [ ] 2) Decompose `vendor/radiant/src/gui_runtime/native_vello.rs` into runtime submodules
+- [x] 2) Decompose `vendor/radiant/src/gui_runtime/native_vello.rs` into runtime submodules
   - ROI/Effort: High / L
   - Why it matters: Runtime startup, event loop orchestration, invalidation routing, scene rebuild policy, profiling, text rendering, and action classification are concentrated in a single ~4k LOC file.
   - Evidence: `vendor/radiant/src/gui_runtime/native_vello.rs` (~3926 LOC); constants/env parsing at lines 49-105 and large mixed runtime logic throughout.
   - Recommended change: Extract `native_vello/{runner.rs,invalidation.rs,scene_rebuild.rs,input.rs,profiling.rs,repaint.rs}` while keeping entrypoints and behavior unchanged.
   - Risk/tradeoffs: Medium-high; this is performance-sensitive and redraw ordering is delicate.
   - Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml`, shot fixtures, `bash scripts/run_perf_guard.sh`, full `bash scripts/ci_local.sh`.
+  - Completed: 2026-02-27 (UTC) - `radiant` commit `5d82273c`
 
 - [ ] 3) Split `src/app_core/native_shell.rs` by projection domains
   - ROI/Effort: High / L
