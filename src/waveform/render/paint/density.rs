@@ -38,7 +38,12 @@ impl WaveformRenderer {
             foreground.b(),
             foreground.a().min(220),
         );
-        let outline_color = (8, 8, 8, 255);
+        let outline_color = (
+            (foreground.r() as f32 * 0.5).round() as u8,
+            (foreground.g() as f32 * 0.5).round() as u8,
+            (foreground.b() as f32 * 0.5).round() as u8,
+            foreground.a().min(220),
+        );
         let mut top_outline = Vec::with_capacity(render_width);
         let mut bottom_outline = Vec::with_capacity(render_width);
 

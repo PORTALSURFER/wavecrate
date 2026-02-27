@@ -214,7 +214,8 @@ impl WaveformRenderer {
 
     /// Blend one pixel with the requested foreground color.
     ///
-    /// No write occurs for zero coverage; otherwise alpha is applied and clamped.
+    /// No write occurs for zero coverage; otherwise source-over alpha compositing is
+    /// applied in unmultiplied RGBA space.
     fn blend_pixel(
         image: &mut WaveformImage,
         stride: usize,
@@ -223,15 +224,37 @@ impl WaveformRenderer {
         fg: (u8, u8, u8, u8),
         coverage: f32,
     ) {
+        let coverage = coverage.clamp(0.0, 1.0);
         if coverage <= 0.0 {
             return;
         }
         let idx = y * stride + x;
         if let Some(pixel) = image.pixels.get_mut(idx) {
-            let alpha = (fg.3 as f32 * coverage.clamp(0.0, 1.0)).round() as u8;
-            let existing = pixel.a();
-            let blended = existing.max(alpha);
-            *pixel = WaveformRgba::from_rgba_unmultiplied(fg.0, fg.1, fg.2, blended);
+            let src_a = (fg.3 as f32 / 255.0) * coverage;
+            let dst_a = pixel.a() as f32 / 255.0;
+            let out_a = src_a + dst_a * (1.0 - src_a);
+            if out_a <= 0.0 {
+                return;
+            }
+
+            let src_r = fg.0 as f32 / 255.0;
+            let src_g = fg.1 as f32 / 255.0;
+            let src_b = fg.2 as f32 / 255.0;
+            let dst_r = pixel.r() as f32 / 255.0;
+            let dst_g = pixel.g() as f32 / 255.0;
+            let dst_b = pixel.b() as f32 / 255.0;
+            let dst_scale = dst_a * (1.0 - src_a);
+
+            let out_r = (src_r * src_a + dst_r * dst_scale) / out_a;
+            let out_g = (src_g * src_a + dst_g * dst_scale) / out_a;
+            let out_b = (src_b * src_a + dst_b * dst_scale) / out_a;
+
+            *pixel = WaveformRgba::from_rgba_unmultiplied(
+                (out_r.clamp(0.0, 1.0) * 255.0).round() as u8,
+                (out_g.clamp(0.0, 1.0) * 255.0).round() as u8,
+                (out_b.clamp(0.0, 1.0) * 255.0).round() as u8,
+                (out_a.clamp(0.0, 1.0) * 255.0).round() as u8,
+            );
         }
     }
 
