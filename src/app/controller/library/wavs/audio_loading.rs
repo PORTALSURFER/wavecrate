@@ -154,10 +154,12 @@ impl AppController {
             self.maybe_trigger_pending_playback();
             return Ok(());
         }
-        self.runtime
-            .jobs
-            .send_audio_job(job)
-            .map_err(|()| "Failed to queue audio load".to_string())?;
+        if self.runtime.jobs.send_audio_job(job).is_err() {
+            self.runtime.jobs.set_pending_audio(None);
+            self.runtime.jobs.set_pending_playback(None);
+            self.ui.waveform.loading = None;
+            return Err("Failed to queue audio load".to_string());
+        }
         self.runtime.jobs.set_pending_audio(Some(pending));
         Ok(())
     }

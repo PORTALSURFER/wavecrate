@@ -62,6 +62,7 @@ use crate::{
         AppController, AppControllerNativeRuntimeExt, build_native_app_controller,
     },
     audio::AudioPlayer,
+    gui::repaint::RepaintSignal,
     waveform::WaveformRenderer,
 };
 use std::{
@@ -620,6 +621,11 @@ impl NativeAppBridge for SempalNativeBridge {
                 trace_action_interaction(kind, action_duration);
             }
         }
+    }
+
+    /// Install the runtime repaint signal for background job wake-ups.
+    fn install_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
+        self.controller.set_repaint_signal(signal);
     }
 
     /// Observe one frame-build result for optional profiling telemetry.

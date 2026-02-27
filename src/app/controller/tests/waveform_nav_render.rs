@@ -356,3 +356,22 @@ fn loading_flag_clears_after_audio_load() {
     assert!(controller.ui.waveform.loading.is_none());
     assert!(controller.sample_view.wav.loaded_audio.is_some());
 }
+
+#[test]
+/// Queue failures must clear loading state so browser focus does not appear stuck.
+fn queue_audio_load_failure_clears_loading_state() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    let rel = PathBuf::from("missing.wav");
+    let (audio_job_tx, audio_job_rx) = std::sync::mpsc::channel();
+    drop(audio_job_rx);
+    controller.runtime.jobs.audio_job_tx = audio_job_tx;
+
+    let result = controller.queue_audio_load_for(&source, &rel, AudioLoadIntent::Selection, None);
+
+    assert_eq!(result, Err(String::from("Failed to queue audio load")));
+    assert!(controller.ui.waveform.loading.is_none());
+    assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.runtime.jobs.pending_playback.is_none());
+}
