@@ -22,16 +22,18 @@ These are the default “don’t guess, don’t grep” entrypoints for most wor
    - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`
    - `bash scripts/run_agent_preflight.sh` (lightweight version; no full `ci_local`)
    - `bash scripts/install_agent_preflight_hooks.sh` (optional auto-hook install)
-4. Safe local run (isolated config/logs):
+4. Generate cleanup hotspot snapshot (for ROI planning):
+   - `bash scripts/audit_cleanup_hotspots.sh`
+5. Safe local run (isolated config/logs):
    - `bash scripts/run_sandbox.sh --`
    - `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --`
-5. Find and tail the newest log:
+6. Find and tail the newest log:
    - `bash scripts/latest_log.sh`
    - `powershell -ExecutionPolicy Bypass -File scripts/latest_log.ps1`
-6. Create a bug bundle (logs + config + versions):
+7. Create a bug bundle (logs + config + versions):
    - `bash scripts/bug_bundle.sh`
    - `powershell -ExecutionPolicy Bypass -File scripts/bug_bundle.ps1`
-7. Reset sandbox state (fresh start):
+8. Reset sandbox state (fresh start):
    - `bash scripts/clean_sandbox.sh`
    - `powershell -ExecutionPolicy Bypass -File scripts/clean_sandbox.ps1`
 
@@ -111,6 +113,11 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
 
 - `scripts/knowledge_lint.sh` runs `scripts/check_docs_index.sh`, `scripts/check_codeowners_coverage.sh`, and `scripts/check_markdown_links.sh`.
 - `scripts/knowledge_lint.ps1` runs the PowerShell equivalents.
+
+## Audit/report helpers
+
+- `scripts/audit_cleanup_hotspots.sh` writes a deterministic cleanup-hotspot snapshot (largest files, suppression density, likely test-gap heuristics) to `tmp/cleanup_audit_hotspots.md` by default.
+- `scripts/report_file_size_budget_allowlist.sh` prints a Markdown report for current allowlisted file-size debt.
 
 ## Allowlists (docs/*allowlist*.txt)
 
