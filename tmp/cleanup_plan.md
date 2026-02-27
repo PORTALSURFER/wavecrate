@@ -30,15 +30,16 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Move browser/map/waveform/status/update projection into `src/app_core/native_shell/` modules; keep existing public facade functions stable.
   - Risk/tradeoffs: Medium; projection key assumptions and cache coupling must remain byte-equivalent.
   - Suggested validation: `cargo test --lib app_core::native_shell`, `cargo test --lib app_core::native_bridge`, then `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit pending in this item batch
+  - Completed: 2026-02-27 (UTC) - `sempal` commit `3b85df24`
 
-- [ ] 4) Continue `jobs.rs` decomposition (issue gateway/token job runners)
+- [x] 4) Continue `jobs.rs` decomposition (issue gateway/token job runners)
   - ROI/Effort: High / M
   - Why it matters: `jobs.rs` remains large and central to async orchestration; issue-gateway/token worker code is still embedded and increases coupling.
   - Evidence: `src/app/controller/jobs.rs` (~1291 LOC), with issue-gateway/token message types and worker begin/clear methods in the same file.
   - Recommended change: Extract issue gateway/token worker runners into `src/app/controller/jobs/issue_gateway_jobs.rs` plus typed parameter structs for high-arity job builders.
   - Risk/tradeoffs: Medium; async cancellation and progress interactions can regress.
   - Suggested validation: targeted job-controller tests + `bash scripts/ci_local.sh`.
+  - Completed: 2026-02-27 (UTC) - `sempal` commit pending in this item batch
 
 - [ ] 5) Split recording waveform loader into queue, decode, and assembly modules
   - ROI/Effort: High / L
