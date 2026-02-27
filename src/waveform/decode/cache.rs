@@ -6,6 +6,7 @@ use std::sync::{
 };
 use std::time::Duration;
 
+use crate::hotpath_telemetry;
 use crate::waveform::DecodedWaveform;
 
 /// LRU cache of decoded waveform payloads used by [`WaveformRenderer`].
@@ -20,7 +21,6 @@ pub(crate) struct DecodeCache {
     resident_bytes: usize,
 }
 
-const HOTPATH_TELEMETRY_ENV: &str = "SEMPAL_HOTPATH_TELEMETRY";
 const DECODE_CACHE_TELEMETRY_LOG_EVERY: u64 = 1_024;
 static DECODE_CACHE_TELEMETRY_ENABLED: OnceLock<bool> = OnceLock::new();
 static DECODE_CACHE_LOCK_ACQUIRE_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -35,13 +35,7 @@ static DECODE_CACHE_RESIDENT_BYTES: AtomicU64 = AtomicU64::new(0);
 static DECODE_CACHE_PEAK_RESIDENT_BYTES: AtomicU64 = AtomicU64::new(0);
 
 fn decode_cache_telemetry_enabled() -> bool {
-    *DECODE_CACHE_TELEMETRY_ENABLED
-        .get_or_init(|| crate::env_flags::env_var_truthy(HOTPATH_TELEMETRY_ENV))
-}
-
-fn saturating_add_duration_ns(counter: &AtomicU64, duration: Duration) {
-    let dur_ns = duration.as_nanos().min(u64::MAX as u128) as u64;
-    counter.fetch_add(dur_ns, Ordering::Relaxed);
+    hotpath_telemetry::enabled(&DECODE_CACHE_TELEMETRY_ENABLED)
 }
 
 /// Record lock wait observed while entering the decode cache critical section.
@@ -50,7 +44,7 @@ pub(super) fn record_decode_cache_lock_wait(duration: Duration) {
         return;
     }
     let sample_tick = DECODE_CACHE_LOCK_ACQUIRE_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
-    saturating_add_duration_ns(&DECODE_CACHE_LOCK_WAIT_NS, duration);
+    hotpath_telemetry::add_duration_ns(&DECODE_CACHE_LOCK_WAIT_NS, duration);
     maybe_emit_decode_cache_telemetry(sample_tick);
 }
 
@@ -107,15 +101,16 @@ fn update_decode_cache_resident_bytes(resident_bytes: usize) {
     if !decode_cache_telemetry_enabled() {
         return;
     }
-    let resident = resident_bytes.min(u64::MAX as usize) as u64;
-    DECODE_CACHE_RESIDENT_BYTES.store(resident, Ordering::Relaxed);
-    DECODE_CACHE_PEAK_RESIDENT_BYTES.fetch_max(resident, Ordering::Relaxed);
+    hotpath_telemetry::store_resident_and_peak(
+        &DECODE_CACHE_RESIDENT_BYTES,
+        &DECODE_CACHE_PEAK_RESIDENT_BYTES,
+        resident_bytes,
+    );
 }
 
 fn maybe_emit_decode_cache_telemetry(sample_tick: u64) {
     if !decode_cache_telemetry_enabled()
-        || sample_tick == 0
-        || !sample_tick.is_multiple_of(DECODE_CACHE_TELEMETRY_LOG_EVERY)
+        || !hotpath_telemetry::should_emit(sample_tick, DECODE_CACHE_TELEMETRY_LOG_EVERY)
     {
         return;
     }

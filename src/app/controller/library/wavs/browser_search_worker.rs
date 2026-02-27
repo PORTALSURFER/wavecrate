@@ -1,5 +1,6 @@
 use crate::app::controller::jobs::{SearchJob, SearchResult};
 use crate::app::state::{SampleBrowserSort, TriageFlagFilter, VisibleRows};
+use crate::hotpath_telemetry;
 use crate::sample_sources::Rating;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -119,7 +120,6 @@ struct SearchJobQueue {
     ready: Condvar,
 }
 
-const HOTPATH_TELEMETRY_ENV: &str = "SEMPAL_HOTPATH_TELEMETRY";
 const SEARCH_QUEUE_TELEMETRY_LOG_EVERY: u64 = 2_048;
 static SEARCH_QUEUE_TELEMETRY_ENABLED: OnceLock<bool> = OnceLock::new();
 static SEARCH_QUEUE_LOCK_ACQUIRE_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -136,13 +136,7 @@ static SEARCH_WORKER_SIMILAR_LOOKUP_ALLOC_BYTES: AtomicU64 = AtomicU64::new(0);
 static SEARCH_WORKER_VISIBLE_ROWS_TOTAL: AtomicU64 = AtomicU64::new(0);
 
 fn search_queue_telemetry_enabled() -> bool {
-    *SEARCH_QUEUE_TELEMETRY_ENABLED
-        .get_or_init(|| crate::env_flags::env_var_truthy(HOTPATH_TELEMETRY_ENV))
-}
-
-fn saturating_add_duration_ns(counter: &AtomicU64, duration: Duration) {
-    let dur_ns = duration.as_nanos().min(u64::MAX as u128) as u64;
-    counter.fetch_add(dur_ns, AtomicOrdering::Relaxed);
+    hotpath_telemetry::enabled(&SEARCH_QUEUE_TELEMETRY_ENABLED)
 }
 
 fn record_search_queue_lock_wait(duration: Duration) {
@@ -150,7 +144,7 @@ fn record_search_queue_lock_wait(duration: Duration) {
         return;
     }
     let sample_tick = SEARCH_QUEUE_LOCK_ACQUIRE_COUNT.fetch_add(1, AtomicOrdering::Relaxed) + 1;
-    saturating_add_duration_ns(&SEARCH_QUEUE_LOCK_WAIT_NS, duration);
+    hotpath_telemetry::add_duration_ns(&SEARCH_QUEUE_LOCK_WAIT_NS, duration);
     maybe_emit_search_worker_telemetry(sample_tick);
 }
 
@@ -159,7 +153,7 @@ fn record_search_queue_wait(duration: Duration) {
         return;
     }
     let sample_tick = SEARCH_QUEUE_WAIT_COUNT.fetch_add(1, AtomicOrdering::Relaxed) + 1;
-    saturating_add_duration_ns(&SEARCH_QUEUE_WAIT_NS, duration);
+    hotpath_telemetry::add_duration_ns(&SEARCH_QUEUE_WAIT_NS, duration);
     maybe_emit_search_worker_telemetry(sample_tick);
 }
 
@@ -167,13 +161,12 @@ fn record_search_worker_allocation(counter: &AtomicU64, bytes: usize) {
     if !search_queue_telemetry_enabled() || bytes == 0 {
         return;
     }
-    counter.fetch_add(bytes.min(u64::MAX as usize) as u64, AtomicOrdering::Relaxed);
+    hotpath_telemetry::add_bytes(counter, bytes);
 }
 
 fn maybe_emit_search_worker_telemetry(sample_tick: u64) {
     if !search_queue_telemetry_enabled()
-        || sample_tick == 0
-        || !sample_tick.is_multiple_of(SEARCH_QUEUE_TELEMETRY_LOG_EVERY)
+        || !hotpath_telemetry::should_emit(sample_tick, SEARCH_QUEUE_TELEMETRY_LOG_EVERY)
     {
         return;
     }

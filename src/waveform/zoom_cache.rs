@@ -1,4 +1,5 @@
 use super::{WaveformChannelView, WaveformColumnView, WaveformRenderer};
+use crate::hotpath_telemetry;
 use std::{
     collections::{HashMap, VecDeque},
     hash::{Hash, Hasher},
@@ -16,7 +17,6 @@ pub(super) struct WaveformZoomCache {
     inner: Mutex<CacheInner>,
 }
 
-const HOTPATH_TELEMETRY_ENV: &str = "SEMPAL_HOTPATH_TELEMETRY";
 const ZOOM_CACHE_TELEMETRY_LOG_EVERY: u64 = 1_024;
 static ZOOM_CACHE_TELEMETRY_ENABLED: OnceLock<bool> = OnceLock::new();
 static ZOOM_CACHE_LOCK_ACQUIRE_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -31,13 +31,7 @@ static ZOOM_CACHE_RESIDENT_BYTES: AtomicU64 = AtomicU64::new(0);
 static ZOOM_CACHE_PEAK_RESIDENT_BYTES: AtomicU64 = AtomicU64::new(0);
 
 fn zoom_cache_telemetry_enabled() -> bool {
-    *ZOOM_CACHE_TELEMETRY_ENABLED
-        .get_or_init(|| crate::env_flags::env_var_truthy(HOTPATH_TELEMETRY_ENV))
-}
-
-fn saturating_add_duration_ns(counter: &AtomicU64, duration: Duration) {
-    let dur_ns = duration.as_nanos().min(u64::MAX as u128) as u64;
-    counter.fetch_add(dur_ns, Ordering::Relaxed);
+    hotpath_telemetry::enabled(&ZOOM_CACHE_TELEMETRY_ENABLED)
 }
 
 fn record_zoom_cache_lock_wait(duration: Duration) {
@@ -45,7 +39,7 @@ fn record_zoom_cache_lock_wait(duration: Duration) {
         return;
     }
     let sample_tick = ZOOM_CACHE_LOCK_ACQUIRE_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
-    saturating_add_duration_ns(&ZOOM_CACHE_LOCK_WAIT_NS, duration);
+    hotpath_telemetry::add_duration_ns(&ZOOM_CACHE_LOCK_WAIT_NS, duration);
     maybe_emit_zoom_cache_telemetry(sample_tick);
 }
 
@@ -93,15 +87,16 @@ fn update_zoom_cache_resident_bytes(resident_bytes: usize) {
     if !zoom_cache_telemetry_enabled() {
         return;
     }
-    let resident = resident_bytes.min(u64::MAX as usize) as u64;
-    ZOOM_CACHE_RESIDENT_BYTES.store(resident, Ordering::Relaxed);
-    ZOOM_CACHE_PEAK_RESIDENT_BYTES.fetch_max(resident, Ordering::Relaxed);
+    hotpath_telemetry::store_resident_and_peak(
+        &ZOOM_CACHE_RESIDENT_BYTES,
+        &ZOOM_CACHE_PEAK_RESIDENT_BYTES,
+        resident_bytes,
+    );
 }
 
 fn maybe_emit_zoom_cache_telemetry(sample_tick: u64) {
     if !zoom_cache_telemetry_enabled()
-        || sample_tick == 0
-        || !sample_tick.is_multiple_of(ZOOM_CACHE_TELEMETRY_LOG_EVERY)
+        || !hotpath_telemetry::should_emit(sample_tick, ZOOM_CACHE_TELEMETRY_LOG_EVERY)
     {
         return;
     }

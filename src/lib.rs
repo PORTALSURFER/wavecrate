@@ -31,6 +31,8 @@ pub mod gui;
 /// events; it does not define UI widgets, input handling policies, or layout
 /// logic.
 pub mod gui_runtime;
+/// Shared helpers for low-overhead hot-path telemetry instrumentation.
+mod hotpath_telemetry;
 mod http_client;
 /// GitHub issue reporting via the Sempal gateway.
 pub mod issue_gateway;

@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::controller::playback::audio_cache::FileMetadata;
+use crate::hotpath_telemetry;
 use crate::waveform::{DecodedWaveform, WaveformRenderer};
 use std::{
     fs,
@@ -15,7 +16,6 @@ use std::{
 };
 
 const AUDIO_LOADER_POLL_INTERVAL: Duration = Duration::from_millis(200);
-const HOTPATH_TELEMETRY_ENV: &str = "SEMPAL_HOTPATH_TELEMETRY";
 const AUDIO_LOADER_TELEMETRY_LOG_EVERY: u64 = 128;
 static AUDIO_LOADER_TELEMETRY_ENABLED: OnceLock<bool> = OnceLock::new();
 static AUDIO_LOADER_JOBS_RECEIVED: AtomicU64 = AtomicU64::new(0);
@@ -50,27 +50,21 @@ enum StaleDropStage {
 }
 
 fn audio_loader_telemetry_enabled() -> bool {
-    *AUDIO_LOADER_TELEMETRY_ENABLED
-        .get_or_init(|| crate::env_flags::env_var_truthy(HOTPATH_TELEMETRY_ENV))
-}
-
-fn saturating_add_duration_ns(counter: &AtomicU64, duration: Duration) {
-    let dur_ns = duration.as_nanos().min(u64::MAX as u128) as u64;
-    counter.fetch_add(dur_ns, Ordering::Relaxed);
+    hotpath_telemetry::enabled(&AUDIO_LOADER_TELEMETRY_ENABLED)
 }
 
 fn record_audio_loader_duration(counter: &AtomicU64, duration: Duration) {
     if !audio_loader_telemetry_enabled() {
         return;
     }
-    saturating_add_duration_ns(counter, duration);
+    hotpath_telemetry::add_duration_ns(counter, duration);
 }
 
 fn record_audio_loader_bytes(counter: &AtomicU64, bytes: usize) {
     if !audio_loader_telemetry_enabled() || bytes == 0 {
         return;
     }
-    counter.fetch_add(bytes.min(u64::MAX as usize) as u64, Ordering::Relaxed);
+    hotpath_telemetry::add_bytes(counter, bytes);
 }
 
 fn record_audio_loader_stale(stage: StaleDropStage) {
@@ -114,8 +108,7 @@ fn stale_and_record(request_id: u64, latest_request_id: &AtomicU64, stage: Stale
 
 fn maybe_emit_audio_loader_telemetry(sample_tick: u64) {
     if !audio_loader_telemetry_enabled()
-        || sample_tick == 0
-        || !sample_tick.is_multiple_of(AUDIO_LOADER_TELEMETRY_LOG_EVERY)
+        || !hotpath_telemetry::should_emit(sample_tick, AUDIO_LOADER_TELEMETRY_LOG_EVERY)
     {
         return;
     }
