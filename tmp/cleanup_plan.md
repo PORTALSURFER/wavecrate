@@ -104,13 +104,14 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: targeted browser/controller tests + `bash scripts/ci_local.sh`.
   - Completed: 2026-02-27 (UTC) - `sempal` commit `32c3367a`
 
-- [ ] 12) Centralize truthy env parsing inside `radiant` runtime crate
+- [x] 12) Centralize truthy env parsing inside `radiant` runtime crate
   - ROI/Effort: Medium / S
   - Why it matters: `native_vello.rs` defines a local truthy parser; consolidating avoids token drift across runtime env flags in `radiant`.
   - Evidence: `vendor/radiant/src/gui_runtime/native_vello.rs` `parse_truthy_env` around lines 98-105.
   - Recommended change: Move parser to a shared `vendor/radiant/src/env_flags.rs` helper and update runtime callers.
   - Risk/tradeoffs: Low; behavior must remain token-compatible.
   - Suggested validation: add parser unit tests in `radiant`; run `cargo test --manifest-path vendor/radiant/Cargo.toml`.
+  - Completed: 2026-02-27 (UTC) - `radiant` commit `8189ee37`; `sempal` commit `5e3bbb07`
 
 - [ ] 13) Reduce `dead_code` suppressions by deleting or test-gating unused paths
   - ROI/Effort: Medium / M
@@ -138,5 +139,5 @@ Status legend: `[ ]` pending, `[x]` done
 
 ## Progress Log
 
-- Items 1-11 completed in strict ROI order and pushed.
-- Next active item: 12) centralize truthy env parsing inside `radiant` runtime crate.
+- Items 1-12 completed in strict ROI order and pushed.
+- Next active item: 13) reduce `dead_code` suppressions by deleting or test-gating unused paths.
