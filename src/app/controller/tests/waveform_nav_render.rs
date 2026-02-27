@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 
+/// Keep test expectations aligned with waveform render supersampling.
+const TEST_WAVEFORM_RENDER_SUPERSAMPLE_X: u32 = 2;
+
 #[test]
 fn waveform_refresh_respects_view_slice_and_caps_width() {
     let (mut controller, _source) = dummy_controller();
@@ -42,9 +45,10 @@ fn waveform_refresh_respects_view_slice_and_caps_width() {
         .expect("render metadata");
     assert!((render_meta.view_start - 0.25).abs() < 1e-6);
     assert!((render_meta.view_end - 0.5).abs() < 1e-6);
-    let expected_width = (controller.sample_view.waveform.size[0] as f32)
-        .min(crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH as f32)
-        .ceil() as usize;
+    let expected_width = controller.sample_view.waveform.size[0]
+        .saturating_mul(TEST_WAVEFORM_RENDER_SUPERSAMPLE_X)
+        .min(crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH)
+        as usize;
     let samples_in_view = (0.5 - 0.25) * 1000.0;
     let upper = (samples_in_view as usize)
         .min(crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH as usize)
