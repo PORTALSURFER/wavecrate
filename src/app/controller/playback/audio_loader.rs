@@ -49,20 +49,9 @@ enum StaleDropStage {
     PreSend,
 }
 
-fn parse_hotpath_telemetry_enabled(value: &str) -> bool {
-    let normalized = value.trim();
-    normalized == "1"
-        || normalized.eq_ignore_ascii_case("true")
-        || normalized.eq_ignore_ascii_case("on")
-        || normalized.eq_ignore_ascii_case("yes")
-}
-
 fn audio_loader_telemetry_enabled() -> bool {
-    *AUDIO_LOADER_TELEMETRY_ENABLED.get_or_init(|| {
-        std::env::var(HOTPATH_TELEMETRY_ENV)
-            .ok()
-            .is_some_and(|value| parse_hotpath_telemetry_enabled(&value))
-    })
+    *AUDIO_LOADER_TELEMETRY_ENABLED
+        .get_or_init(|| crate::env_flags::env_var_truthy(HOTPATH_TELEMETRY_ENV))
 }
 
 fn saturating_add_duration_ns(counter: &AtomicU64, duration: Duration) {

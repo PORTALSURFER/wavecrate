@@ -32,10 +32,12 @@ Audio sample triage tool built with Rust.
   - Native shell text rendering can use `SEMPAL_NATIVE_FONT_PATH=/path/to/font.ttf` if automatic system font discovery fails.
 - Windows (ASIO): If you want to build with ASIO support (or your build fails looking for the ASIO SDK), download the Steinberg ASIO SDK and set `CPAL_ASIO_DIR` to the SDK path (e.g. a folder named `ASIOSDK`) before running `cargo build`/`cargo run`.
 
-CI validation (per change) is currently:
-- `cargo build --all`
-- `cargo clippy --all-targets --all-features`
-- `cargo test --all`
+Local CI parity command (canonical):
+- macOS/Linux/WSL: `bash scripts/ci_local.sh`
+- Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+
+The CI-parity scripts run formatting, linting, docs, tests, and perf guardrails
+in the same order used by repository workflows.
 
 ## Architecture
 

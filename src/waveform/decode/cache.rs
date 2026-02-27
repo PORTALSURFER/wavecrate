@@ -34,20 +34,9 @@ static DECODE_CACHE_COMPACT_COUNT: AtomicU64 = AtomicU64::new(0);
 static DECODE_CACHE_RESIDENT_BYTES: AtomicU64 = AtomicU64::new(0);
 static DECODE_CACHE_PEAK_RESIDENT_BYTES: AtomicU64 = AtomicU64::new(0);
 
-fn parse_hotpath_telemetry_enabled(value: &str) -> bool {
-    let normalized = value.trim();
-    normalized == "1"
-        || normalized.eq_ignore_ascii_case("true")
-        || normalized.eq_ignore_ascii_case("on")
-        || normalized.eq_ignore_ascii_case("yes")
-}
-
 fn decode_cache_telemetry_enabled() -> bool {
-    *DECODE_CACHE_TELEMETRY_ENABLED.get_or_init(|| {
-        std::env::var(HOTPATH_TELEMETRY_ENV)
-            .ok()
-            .is_some_and(|value| parse_hotpath_telemetry_enabled(&value))
-    })
+    *DECODE_CACHE_TELEMETRY_ENABLED
+        .get_or_init(|| crate::env_flags::env_var_truthy(HOTPATH_TELEMETRY_ENV))
 }
 
 fn saturating_add_duration_ns(counter: &AtomicU64, duration: Duration) {

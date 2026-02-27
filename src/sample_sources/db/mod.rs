@@ -313,11 +313,11 @@ fn open_source_database(
 }
 
 fn should_open_source_db_read_only() -> bool {
-    env_var_truthy(SOURCE_DB_READ_ONLY_ENV)
+    crate::env_flags::env_var_truthy(SOURCE_DB_READ_ONLY_ENV)
 }
 
 fn allow_user_library_db_write() -> bool {
-    env_var_truthy(SOURCE_DB_ALLOW_USER_LIBRARY_WRITE_ENV)
+    crate::env_flags::env_var_truthy(SOURCE_DB_ALLOW_USER_LIBRARY_WRITE_ENV)
 }
 
 fn is_user_library_root(root: &Path) -> bool {
@@ -368,13 +368,6 @@ fn user_root_dir() -> Result<PathBuf, &'static str> {
         return Ok(PathBuf::from(user_profile));
     }
     Err("Missing HOME/USERPROFILE environment variable")
-}
-
-fn env_var_truthy(key: &str) -> bool {
-    std::env::var(key).is_ok_and(|value| {
-        let value = value.trim().to_ascii_lowercase();
-        matches!(value.as_str(), "1" | "true" | "yes" | "on")
-    })
 }
 
 #[cfg(test)]

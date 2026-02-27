@@ -391,28 +391,8 @@ fn browser_async_pipeline_enabled() -> bool {
             std::env::var(SEARCH_ASYNC_PIPELINE_ENV)
                 .ok()
                 .as_deref()
-                .and_then(parse_env_bool)
+                .and_then(crate::env_flags::parse_env_bool)
                 .unwrap_or(true)
         })
-    }
-}
-
-/// Parse a permissive boolean environment variable value.
-fn parse_env_bool(value: &str) -> Option<bool> {
-    let normalized = value.trim();
-    if normalized.eq_ignore_ascii_case("1")
-        || normalized.eq_ignore_ascii_case("true")
-        || normalized.eq_ignore_ascii_case("yes")
-        || normalized.eq_ignore_ascii_case("on")
-    {
-        Some(true)
-    } else if normalized.eq_ignore_ascii_case("0")
-        || normalized.eq_ignore_ascii_case("false")
-        || normalized.eq_ignore_ascii_case("no")
-        || normalized.eq_ignore_ascii_case("off")
-    {
-        Some(false)
-    } else {
-        None
     }
 }

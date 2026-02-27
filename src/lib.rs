@@ -13,6 +13,8 @@ pub mod app_core;
 pub mod app_dirs;
 /// Audio playback utilities.
 pub mod audio;
+/// Internal helpers for parsing environment-flag booleans.
+mod env_flags;
 /// Platform helpers for copying files to the clipboard.
 pub mod external_clipboard;
 /// Platform helpers for external drag-and-drop.

@@ -135,20 +135,9 @@ static SEARCH_WORKER_SCRATCH_ALLOC_BYTES: AtomicU64 = AtomicU64::new(0);
 static SEARCH_WORKER_SIMILAR_LOOKUP_ALLOC_BYTES: AtomicU64 = AtomicU64::new(0);
 static SEARCH_WORKER_VISIBLE_ROWS_TOTAL: AtomicU64 = AtomicU64::new(0);
 
-fn parse_hotpath_telemetry_enabled(value: &str) -> bool {
-    let normalized = value.trim();
-    normalized == "1"
-        || normalized.eq_ignore_ascii_case("true")
-        || normalized.eq_ignore_ascii_case("on")
-        || normalized.eq_ignore_ascii_case("yes")
-}
-
 fn search_queue_telemetry_enabled() -> bool {
-    *SEARCH_QUEUE_TELEMETRY_ENABLED.get_or_init(|| {
-        std::env::var(HOTPATH_TELEMETRY_ENV)
-            .ok()
-            .is_some_and(|value| parse_hotpath_telemetry_enabled(&value))
-    })
+    *SEARCH_QUEUE_TELEMETRY_ENABLED
+        .get_or_init(|| crate::env_flags::env_var_truthy(HOTPATH_TELEMETRY_ENV))
 }
 
 fn saturating_add_duration_ns(counter: &AtomicU64, duration: Duration) {

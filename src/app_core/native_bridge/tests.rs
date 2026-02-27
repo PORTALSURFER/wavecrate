@@ -743,26 +743,27 @@ fn projection_status_miss_updates_selected_column_without_static_dirty() {
 
 #[cfg(feature = "native-bridge-metrics")]
 #[test]
-fn parse_bridge_profile_enabled_is_case_insensitive() {
-    assert!(super::parse_bridge_profile_enabled("TRUE"));
-    assert!(super::parse_bridge_profile_enabled("on"));
-    assert!(super::parse_bridge_profile_enabled("Yes"));
-    assert!(super::parse_bridge_profile_enabled("  true  "));
-    assert!(!super::parse_bridge_profile_enabled("0"));
-    assert!(!super::parse_bridge_profile_enabled("no"));
-    assert!(!super::parse_bridge_profile_enabled(""));
+/// Shared env truthy parsing should accept canonical bridge-profile variants.
+fn env_truthy_parser_is_case_insensitive_for_bridge_flags() {
+    assert!(crate::env_flags::is_truthy("TRUE"));
+    assert!(crate::env_flags::is_truthy("on"));
+    assert!(crate::env_flags::is_truthy("Yes"));
+    assert!(crate::env_flags::is_truthy("  true  "));
+    assert!(!crate::env_flags::is_truthy("0"));
+    assert!(!crate::env_flags::is_truthy("no"));
+    assert!(!crate::env_flags::is_truthy(""));
 }
 
 /// Immediate waveform preview parser should accept canonical truthy variants.
 #[test]
-fn parse_immediate_waveform_preview_is_case_insensitive() {
-    assert!(super::parse_immediate_waveform_preview("TRUE"));
-    assert!(super::parse_immediate_waveform_preview("on"));
-    assert!(super::parse_immediate_waveform_preview("Yes"));
-    assert!(super::parse_immediate_waveform_preview("  true  "));
-    assert!(!super::parse_immediate_waveform_preview("0"));
-    assert!(!super::parse_immediate_waveform_preview("no"));
-    assert!(!super::parse_immediate_waveform_preview(""));
+fn env_truthy_parser_is_case_insensitive_for_immediate_preview_flag() {
+    assert!(crate::env_flags::is_truthy("TRUE"));
+    assert!(crate::env_flags::is_truthy("on"));
+    assert!(crate::env_flags::is_truthy("Yes"));
+    assert!(crate::env_flags::is_truthy("  true  "));
+    assert!(!crate::env_flags::is_truthy("0"));
+    assert!(!crate::env_flags::is_truthy("no"));
+    assert!(!crate::env_flags::is_truthy(""));
 }
 
 #[cfg(feature = "native-bridge-metrics")]

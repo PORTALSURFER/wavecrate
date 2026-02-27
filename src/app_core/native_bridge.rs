@@ -275,21 +275,8 @@ static PROJECTION_KEY_ASSERT_ENABLED: OnceLock<bool> = OnceLock::new();
 static IMMEDIATE_WAVEFORM_PREVIEW_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 #[cfg(feature = "native-bridge-metrics")]
-fn parse_bridge_profile_enabled(value: &str) -> bool {
-    let normalized = value.trim();
-    normalized == "1"
-        || normalized.eq_ignore_ascii_case("true")
-        || normalized.eq_ignore_ascii_case("on")
-        || normalized.eq_ignore_ascii_case("yes")
-}
-
-#[cfg(feature = "native-bridge-metrics")]
 fn bridge_profiling_enabled() -> bool {
-    *BRIDGE_PROFILE_ENABLED.get_or_init(|| {
-        std::env::var(BRIDGE_PROFILE_ENV)
-            .ok()
-            .is_some_and(|value| parse_bridge_profile_enabled(&value))
-    })
+    *BRIDGE_PROFILE_ENABLED.get_or_init(|| crate::env_flags::env_var_truthy(BRIDGE_PROFILE_ENV))
 }
 #[cfg(not(feature = "native-bridge-metrics"))]
 #[inline]
@@ -300,11 +287,8 @@ fn bridge_profiling_enabled() -> bool {
 #[cfg(feature = "native-bridge-metrics")]
 /// Resolve whether projection-key snapshot assertions should run.
 fn projection_key_assertions_enabled() -> bool {
-    *PROJECTION_KEY_ASSERT_ENABLED.get_or_init(|| {
-        std::env::var(PROJECTION_KEY_ASSERT_ENV)
-            .ok()
-            .is_some_and(|value| parse_bridge_profile_enabled(&value))
-    })
+    *PROJECTION_KEY_ASSERT_ENABLED
+        .get_or_init(|| crate::env_flags::env_var_truthy(PROJECTION_KEY_ASSERT_ENV))
 }
 #[cfg(not(feature = "native-bridge-metrics"))]
 #[inline]
@@ -313,22 +297,13 @@ fn projection_key_assertions_enabled() -> bool {
     false
 }
 
-/// Parse immediate waveform-preview env values.
-fn parse_immediate_waveform_preview(value: &str) -> bool {
-    let normalized = value.trim();
-    normalized == "1"
-        || normalized.eq_ignore_ascii_case("true")
-        || normalized.eq_ignore_ascii_case("on")
-        || normalized.eq_ignore_ascii_case("yes")
-}
-
 /// Resolve whether waveform preview actions should apply immediately.
 fn immediate_waveform_preview_enabled() -> bool {
     *IMMEDIATE_WAVEFORM_PREVIEW_ENABLED.get_or_init(|| {
         std::env::var(IMMEDIATE_WAVEFORM_PREVIEW_ENV)
             .ok()
             .map_or(IMMEDIATE_WAVEFORM_PREVIEW_DEFAULT, |value| {
-                parse_immediate_waveform_preview(&value)
+                crate::env_flags::is_truthy(&value)
             })
     })
 }
