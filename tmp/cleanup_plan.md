@@ -95,13 +95,14 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `cargo test --lib transport`-focused filters + `bash scripts/ci_local.sh`.
   - Completed: 2026-02-27 (UTC) - `sempal` commit `c0da7163`
 
-- [ ] 11) Add focused tests for browser action commit/preview semantics
+- [x] 11) Add focused tests for browser action commit/preview semantics
   - ROI/Effort: Medium / M
   - Why it matters: Browser focus/selection/playback-trigger semantics are subtle and frequently touched; local tests are sparse at the module boundary.
   - Evidence: `src/app/controller/library/wavs/browser_actions.rs` (~588 LOC), no local test module; commit-vs-preview methods around lines 34-257.
   - Recommended change: Add table-driven tests for delta focus, commit row behavior, playback request gating, and multi-select anchor updates.
   - Risk/tradeoffs: Low; expected behavior needs explicit fixtures.
   - Suggested validation: targeted browser/controller tests + `bash scripts/ci_local.sh`.
+  - Completed: 2026-02-27 (UTC) - `sempal` commit `32c3367a`
 
 - [ ] 12) Centralize truthy env parsing inside `radiant` runtime crate
   - ROI/Effort: Medium / S
@@ -137,5 +138,5 @@ Status legend: `[ ]` pending, `[x]` done
 
 ## Progress Log
 
-- Items 1-10 completed in strict ROI order and pushed.
-- Next active item: 11) add focused tests for browser action commit/preview semantics.
+- Items 1-11 completed in strict ROI order and pushed.
+- Next active item: 12) centralize truthy env parsing inside `radiant` runtime crate.
