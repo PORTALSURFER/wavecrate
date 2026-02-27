@@ -5,10 +5,10 @@ use super::{
 use crate::app_core::actions::{
     NativeAppBridge, NativeDirtySegments, NativeSegmentRevisions, NativeUiAction,
 };
+use crate::app_core::app_api::state::SampleBrowserIndex;
 use crate::app_core::controller::AppController;
 use crate::app_core::state::{
-    SampleBrowserIndex, SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, TriageFlagFilter,
-    UpdateStatus,
+    SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, TriageFlagFilter, UpdateStatus,
 };
 use crate::waveform::WaveformRenderer;
 use std::sync::Arc;

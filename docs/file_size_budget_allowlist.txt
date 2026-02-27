@@ -30,6 +30,7 @@ src/app/controller/library/wavs/browser_search_worker.rs
 src/app/controller/library/wavs/similar/resolve.rs
 src/app/controller/library/wavs/waveform_loading.rs
 src/app/controller/playback/audio_options.rs
+src/app/controller/playback/audio_loader.rs
 src/app/controller/playback/loop_crossfade.rs
 src/app/controller/playback/mod.rs
 src/app/controller/playback/player.rs
@@ -67,6 +68,7 @@ src/wav_sanitize.rs
 src/waveform/mod.rs
 src/waveform/render.rs
 src/waveform/render/paint/lines.rs
+src/waveform/zoom_cache.rs
 vendor/radiant/src/app/mod.rs
 vendor/radiant/src/gui/native_shell/layout.rs
 vendor/radiant/src/gui/native_shell/mod.rs

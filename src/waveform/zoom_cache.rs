@@ -112,7 +112,7 @@ fn update_zoom_cache_resident_bytes(resident_bytes: usize) {
 fn maybe_emit_zoom_cache_telemetry(sample_tick: u64) {
     if !zoom_cache_telemetry_enabled()
         || sample_tick == 0
-        || sample_tick % ZOOM_CACHE_TELEMETRY_LOG_EVERY != 0
+        || !sample_tick.is_multiple_of(ZOOM_CACHE_TELEMETRY_LOG_EVERY)
     {
         return;
     }
@@ -363,13 +363,10 @@ impl CacheInner {
                 .map
                 .get(&touch.key)
                 .is_some_and(|entry| entry.stamp == touch.stamp);
-            if is_current {
-                if let Some(removed) = self.map.remove(&touch.key) {
-                    self.resident_bytes =
-                        self.resident_bytes.saturating_sub(removed.bytes_estimate);
-                    update_zoom_cache_resident_bytes(self.resident_bytes);
-                    record_zoom_cache_evict();
-                }
+            if is_current && let Some(removed) = self.map.remove(&touch.key) {
+                self.resident_bytes = self.resident_bytes.saturating_sub(removed.bytes_estimate);
+                update_zoom_cache_resident_bytes(self.resident_bytes);
+                record_zoom_cache_evict();
             }
         }
     }

@@ -487,7 +487,7 @@ mod tests {
         };
 
         assert!(matches!(
-            open_source_database(dir.path(), true, false),
+            open_source_database(dir.path(), true, false, SourceDatabaseOpenMode::Full),
             Err(SourceDbError::ReadOnlyDatabaseMissing(_))
         ));
     }
@@ -504,13 +504,14 @@ mod tests {
             panic!("create fake user library dir failed: {err}");
         }
         with_home_env_override(&user_home, || {
-            let blocked = open_source_database(&user_music, false, false);
+            let blocked =
+                open_source_database(&user_music, false, false, SourceDatabaseOpenMode::Full);
             assert!(matches!(
                 blocked,
                 Err(SourceDbError::UserLibraryWriteBlocked { .. })
             ));
 
-            let db = open_source_database(&user_music, false, true);
+            let db = open_source_database(&user_music, false, true, SourceDatabaseOpenMode::Full);
             assert!(db.is_ok());
             let opened = match db {
                 Ok(opened) => opened,

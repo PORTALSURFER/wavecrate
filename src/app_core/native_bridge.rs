@@ -1698,6 +1698,7 @@ pub fn measure_projection_rebuild_cause_counts(
     counts
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_rebuild_cause_probe_iters(
     controller: &mut AppController,
     cache: &mut NativeProjectionCache,

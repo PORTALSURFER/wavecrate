@@ -7,6 +7,9 @@ use crate::app::controller::playback::audio_samples::{
 use crate::app::state::WaveformView;
 use std::sync::Arc;
 
+/// Shared decoded payload tuple returned from audio preparation.
+type PreparedLoadedAudio = (Arc<DecodedWaveform>, Arc<[u8]>, bool);
+
 impl AppController {
     pub(crate) fn load_waveform_for_selection(
         &mut self,
@@ -146,7 +149,7 @@ impl AppController {
         decoded: Option<Arc<DecodedWaveform>>,
         bytes: Arc<[u8]>,
         intent: AudioLoadIntent,
-    ) -> Result<(Arc<DecodedWaveform>, Arc<[u8]>, bool), String> {
+    ) -> Result<PreparedLoadedAudio, String> {
         let original_decoded = match decoded {
             Some(decoded) => decoded,
             None => Arc::new(

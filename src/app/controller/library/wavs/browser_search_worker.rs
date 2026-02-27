@@ -184,7 +184,7 @@ fn record_search_worker_allocation(counter: &AtomicU64, bytes: usize) {
 fn maybe_emit_search_worker_telemetry(sample_tick: u64) {
     if !search_queue_telemetry_enabled()
         || sample_tick == 0
-        || sample_tick % SEARCH_QUEUE_TELEMETRY_LOG_EVERY != 0
+        || !sample_tick.is_multiple_of(SEARCH_QUEUE_TELEMETRY_LOG_EVERY)
     {
         return;
     }
@@ -759,7 +759,7 @@ fn search_job_canceled(queue: &SearchJobQueue, generation: u64) -> bool {
 }
 
 fn search_job_canceled_for_index(queue: &SearchJobQueue, generation: u64, index: usize) -> bool {
-    index % SEARCH_CANCEL_CHECK_INTERVAL == 0 && search_job_canceled(queue, generation)
+    index.is_multiple_of(SEARCH_CANCEL_CHECK_INTERVAL) && search_job_canceled(queue, generation)
 }
 
 /// Return whether a tag passes the active triage + rating filter settings.

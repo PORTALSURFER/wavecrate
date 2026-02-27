@@ -171,11 +171,11 @@ fn take_rename_candidate_by_hash(
     context: &mut ScanContext,
     hash: &str,
 ) -> Result<Option<WavEntry>, ScanError> {
-    if !context.rename_candidates_by_hash.contains_key(hash) {
+    if let std::collections::hash_map::Entry::Vacant(entry) =
+        context.rename_candidates_by_hash.entry(hash.to_string())
+    {
         let paths = db.list_paths_with_content_hash(hash)?;
-        context
-            .rename_candidates_by_hash
-            .insert(hash.to_string(), paths);
+        entry.insert(paths);
     }
     let path = unique_existing_path(
         context.rename_candidates_by_hash.get(hash),
@@ -191,9 +191,11 @@ fn take_rename_candidate_by_facts(
     modified_ns: i64,
 ) -> Result<Option<WavEntry>, ScanError> {
     let key = (size, modified_ns);
-    if !context.rename_candidates_by_facts.contains_key(&key) {
+    if let std::collections::hash_map::Entry::Vacant(entry) =
+        context.rename_candidates_by_facts.entry(key)
+    {
         let paths = db.list_paths_with_file_facts(size, modified_ns)?;
-        context.rename_candidates_by_facts.insert(key, paths);
+        entry.insert(paths);
     }
     let path = unique_existing_path(
         context.rename_candidates_by_facts.get(&key),

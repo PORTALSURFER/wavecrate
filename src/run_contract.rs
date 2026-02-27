@@ -260,10 +260,10 @@ fn make_run_contract_id() -> String {
 }
 
 fn resolve_git_sha() -> String {
-    if let Ok(git_sha) = std::env::var("SEMPAL_GIT_SHA") {
-        if let Some(trimmed) = trim_nonempty(&git_sha) {
-            return trimmed.to_string();
-        }
+    if let Ok(git_sha) = std::env::var("SEMPAL_GIT_SHA")
+        && let Some(trimmed) = trim_nonempty(&git_sha)
+    {
+        return trimmed.to_string();
     }
 
     if let Some(git_sha) = BUILD_GIT_SHA.and_then(trim_nonempty) {

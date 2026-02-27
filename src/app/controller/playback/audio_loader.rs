@@ -126,7 +126,7 @@ fn stale_and_record(request_id: u64, latest_request_id: &AtomicU64, stage: Stale
 fn maybe_emit_audio_loader_telemetry(sample_tick: u64) {
     if !audio_loader_telemetry_enabled()
         || sample_tick == 0
-        || sample_tick % AUDIO_LOADER_TELEMETRY_LOG_EVERY != 0
+        || !sample_tick.is_multiple_of(AUDIO_LOADER_TELEMETRY_LOG_EVERY)
     {
         return;
     }
