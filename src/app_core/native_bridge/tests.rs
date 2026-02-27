@@ -354,6 +354,23 @@ fn waveform_action_queue_selection_range_overrides_clear() {
     assert_eq!(queue.selection_range_milli, Some((120, 400)));
 }
 
+/// Clear-edit-selection requests should yield to later explicit edit range updates.
+#[test]
+fn waveform_action_queue_edit_selection_range_overrides_clear() {
+    let mut queue = PendingWaveformActions::default();
+    assert!(queue.enqueue(&NativeUiAction::ClearWaveformEditSelection));
+    assert!(queue.clear_edit_selection);
+    assert!(queue.edit_selection_range_milli.is_none());
+    assert!(
+        queue.enqueue(&NativeUiAction::SetWaveformEditSelectionRange {
+            start_milli: 140,
+            end_milli: 460,
+        })
+    );
+    assert!(!queue.clear_edit_selection);
+    assert_eq!(queue.edit_selection_range_milli, Some((140, 460)));
+}
+
 /// Pending queue dirty reasons should distinguish overlay-only from view edits.
 #[test]
 fn waveform_queue_dirty_reason_matches_enqueued_actions() {

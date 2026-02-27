@@ -39,6 +39,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
         MapTab(SampleBrowserTab),
         LoopEnabled(bool),
         PendingSeek(Option<u16>),
+        EditSelectionRange(Option<(u16, u16)>),
         UpdateStatus(UpdateStatus),
     }
 
@@ -72,6 +73,14 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                 position_milli: 333,
             },
             expected: Expected::PendingSeek(Some(333)),
+        },
+        Case {
+            label: "waveform edit group",
+            action: NativeUiAction::SetWaveformEditSelectionRange {
+                start_milli: 125,
+                end_milli: 625,
+            },
+            expected: Expected::EditSelectionRange(Some((125, 625))),
         },
         Case {
             label: "prompt/update group",
@@ -108,6 +117,15 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                     "{}",
                     case.label
                 );
+            }
+            Expected::EditSelectionRange(expected) => {
+                let actual = controller.ui.waveform.edit_selection.map(|range| {
+                    (
+                        (range.start() * 1000.0).round() as u16,
+                        (range.end() * 1000.0).round() as u16,
+                    )
+                });
+                assert_eq!(actual, expected, "{}", case.label);
             }
             Expected::UpdateStatus(expected) => {
                 assert_eq!(controller.ui.update.status, expected, "{}", case.label);

@@ -213,9 +213,30 @@ impl AppController {
         self.focus_waveform();
     }
 
+    /// Set waveform edit selection range using 0..=1000 milli positions from UI actions.
+    pub fn set_waveform_edit_selection_range_milli(&mut self, start_milli: u16, end_milli: u16) {
+        let next_range = selection_range_from_milli(start_milli, end_milli);
+        let existing_range = self
+            .selection_state
+            .edit_range
+            .range()
+            .or(self.ui.waveform.edit_selection);
+        if existing_range == Some(next_range) && waveform_focus_active(self) {
+            return;
+        }
+        self.set_edit_selection_range(next_range);
+        self.focus_waveform();
+    }
+
     /// Clear waveform selection and keep waveform focus active.
     pub fn clear_waveform_selection_with_focus(&mut self) {
         self.clear_selection();
+        self.focus_waveform();
+    }
+
+    /// Clear waveform edit selection and keep waveform focus active.
+    pub fn clear_waveform_edit_selection_with_focus(&mut self) {
+        self.clear_edit_selection();
         self.focus_waveform();
     }
 
@@ -689,6 +710,37 @@ mod tests {
 
         assert_eq!(controller.selection_state.range.range(), Some(range));
         assert_eq!(controller.ui.waveform.selection, Some(range));
+    }
+
+    /// Edit-selection updates should no-op when the range is unchanged and waveform is focused.
+    #[test]
+    fn set_waveform_edit_selection_range_milli_noops_when_unchanged_and_focused() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        controller.ui.focus.context = crate::app::state::FocusContext::Waveform;
+        let range = SelectionRange::new(0.2, 0.6);
+        controller.selection_state.edit_range.set_range(Some(range));
+        controller.ui.waveform.edit_selection = Some(range);
+
+        controller.set_waveform_edit_selection_range_milli(200, 600);
+
+        assert_eq!(controller.selection_state.edit_range.range(), Some(range));
+        assert_eq!(controller.ui.waveform.edit_selection, Some(range));
+    }
+
+    /// Clearing edit selection via native helper should clear edit state and preserve focus.
+    #[test]
+    fn clear_waveform_edit_selection_with_focus_clears_edit_selection() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        controller
+            .selection_state
+            .edit_range
+            .set_range(Some(SelectionRange::new(0.1, 0.4)));
+        controller.ui.waveform.edit_selection = Some(SelectionRange::new(0.1, 0.4));
+
+        controller.clear_waveform_edit_selection_with_focus();
+
+        assert!(controller.selection_state.edit_range.range().is_none());
+        assert!(controller.ui.waveform.edit_selection.is_none());
     }
 
     /// Deferred playback-age writes should remain queued until debounce expires.

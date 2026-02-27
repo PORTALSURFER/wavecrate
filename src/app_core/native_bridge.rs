@@ -354,7 +354,9 @@ fn classify_action_interaction(action: &NativeUiAction) -> Option<InteractionAct
         NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
+        | NativeUiAction::SetWaveformEditSelectionRange { .. }
         | NativeUiAction::ClearWaveformSelection
+        | NativeUiAction::ClearWaveformEditSelection
         | NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
         | NativeUiAction::ZoomWaveformFull => Some(InteractionActionClass::Waveform),
@@ -1753,7 +1755,9 @@ fn action_requires_projection_cache_invalidation(action: &NativeUiAction) -> boo
         NativeUiAction::SeekWaveform { .. }
             | NativeUiAction::SetWaveformCursor { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
+            | NativeUiAction::SetWaveformEditSelectionRange { .. }
             | NativeUiAction::ClearWaveformSelection
+            | NativeUiAction::ClearWaveformEditSelection
             | NativeUiAction::ZoomWaveform { .. }
             | NativeUiAction::ZoomWaveformToSelection
             | NativeUiAction::ZoomWaveformFull
@@ -1776,7 +1780,9 @@ fn classify_dirty_source(action: &NativeUiAction) -> Option<(DerivedNodeId, Dirt
         NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
-        | NativeUiAction::ClearWaveformSelection => Some((
+        | NativeUiAction::SetWaveformEditSelectionRange { .. }
+        | NativeUiAction::ClearWaveformSelection
+        | NativeUiAction::ClearWaveformEditSelection => Some((
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformOverlayAction,
         )),
@@ -1845,7 +1851,9 @@ fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> bool {
         action,
         NativeUiAction::SetWaveformCursor { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
+            | NativeUiAction::SetWaveformEditSelectionRange { .. }
             | NativeUiAction::ClearWaveformSelection
+            | NativeUiAction::ClearWaveformEditSelection
     )
 }
 
@@ -1860,6 +1868,10 @@ struct PendingWaveformActions {
     selection_range_milli: Option<(u16, u16)>,
     /// Whether selection should be cleared when no range override is queued.
     clear_selection: bool,
+    /// Latest explicit edit-selection range in normalized milli space.
+    edit_selection_range_milli: Option<(u16, u16)>,
+    /// Whether edit selection should be cleared when no range override is queued.
+    clear_edit_selection: bool,
     /// Net signed waveform zoom step delta accumulated this frame.
     zoom_steps_delta: i16,
     /// Whether `ZoomWaveformToSelection` is queued for this frame.
@@ -1875,6 +1887,8 @@ impl PendingWaveformActions {
             || self.cursor_milli.is_some()
             || self.selection_range_milli.is_some()
             || self.clear_selection
+            || self.edit_selection_range_milli.is_some()
+            || self.clear_edit_selection
             || self.zoom_steps_delta != 0
             || self.zoom_to_selection
             || self.zoom_full
@@ -1899,9 +1913,22 @@ impl PendingWaveformActions {
                 self.clear_selection = false;
                 true
             }
+            NativeUiAction::SetWaveformEditSelectionRange {
+                start_milli,
+                end_milli,
+            } => {
+                self.edit_selection_range_milli = Some((*start_milli, *end_milli));
+                self.clear_edit_selection = false;
+                true
+            }
             NativeUiAction::ClearWaveformSelection => {
                 self.selection_range_milli = None;
                 self.clear_selection = true;
+                true
+            }
+            NativeUiAction::ClearWaveformEditSelection => {
+                self.edit_selection_range_milli = None;
+                self.clear_edit_selection = true;
                 true
             }
             NativeUiAction::ZoomWaveform { zoom_in, steps } => {
@@ -2111,6 +2138,18 @@ impl SempalNativeBridge {
         } else if pending.clear_selection {
             self.controller
                 .apply_native_ui_action(NativeUiAction::ClearWaveformSelection);
+            emitted_actions = emitted_actions.saturating_add(1);
+        }
+        if let Some((start_milli, end_milli)) = pending.edit_selection_range_milli {
+            self.controller
+                .apply_native_ui_action(NativeUiAction::SetWaveformEditSelectionRange {
+                    start_milli,
+                    end_milli,
+                });
+            emitted_actions = emitted_actions.saturating_add(1);
+        } else if pending.clear_edit_selection {
+            self.controller
+                .apply_native_ui_action(NativeUiAction::ClearWaveformEditSelection);
             emitted_actions = emitted_actions.saturating_add(1);
         }
 
