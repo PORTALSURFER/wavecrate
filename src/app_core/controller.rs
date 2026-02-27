@@ -303,6 +303,10 @@ fn apply_prompt_and_update_native_ui_action(
         NativeUiAction::ConfirmPrompt => controller.confirm_active_prompt_action(),
         NativeUiAction::CancelPrompt => controller.cancel_active_prompt_action(),
         NativeUiAction::CancelProgress => controller.request_progress_cancel(),
+        NativeUiAction::OpenOptionsMenu => controller.set_status(
+            "Options menu: full native menu wiring is in progress; volume control is available in the top bar.",
+            crate::app_core::state::StatusTone::Info,
+        ),
         NativeUiAction::CheckForUpdates => controller.check_for_updates_now(),
         NativeUiAction::OpenUpdateLink => controller.open_update_link(),
         NativeUiAction::InstallUpdate => controller.install_update_and_exit(),
