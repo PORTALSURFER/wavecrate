@@ -4,7 +4,7 @@ This document is a lightweight scorecard for key domains/layers in Sempal. The
 goal is to make quality gaps explicit so agents and humans can prioritize the
 next improvements without rediscovering context.
 
-Last reviewed: 2026-02-18
+Last reviewed: 2026-02-27
 
 ## Scoring rubric (0–5)
 
@@ -23,15 +23,16 @@ Last reviewed: 2026-02-18
 | Documentation hygiene | 4 | Knowledge lint exists; still some doc drift risk outside the checked scope. |
 | Agent-facing guardrails | 4 | `scripts/check_script_guardrails.sh`, `scripts/check_rust_taste_invariants.sh`, and `scripts/check_file_size_budget.sh` are enforced and healthy. |
 | Legacy boundary enforcement | 4 | `crate::app` coupling and `app_core` boundaries are enforced diff-aware in CI. |
-| Code size discipline | 3 | File size budget enforced on changed files; allowlist is still large and needs burn-down. |
-| Testing posture | 3 | Test map exists; coverage varies; some critical flows are integration-heavy. |
+| Code size discipline | 3 | File size budget is enforced and recent hotspot splits landed, but several legacy allowlist entries still remain. |
+| Testing posture | 3 | Focused unit coverage improved in transport/browser actions, but some critical flows remain integration-heavy. |
 | Observability & diagnostics | 3 | Structured logging via `tracing` exists; log bundling helpers added; could improve targeted debug tooling. |
-| Performance guardrails | 2 | Perf QA docs exist; enforcement is mostly manual; large-file hot paths remain. |
+| Performance guardrails | 3 | `scripts/run_perf_guard.sh` is part of local CI; warning drift (for example `wheel_latency`) still needs ongoing burn-down. |
 | Security posture (local app) | 3 | Some explicit safety checks (updater path validation, SQLite extension gating); still relies on careful review. |
 
 ## Known gaps (actionable)
 
 - Reduce file size allowlist debt: prioritize splitting the top 5 largest files and deleting allowlist entries as they fall below 400 LOC.
+- Continue burning down `#[allow(dead_code)]` suppressions in controller/runtime hot paths after each refactor slice.
 - Add a scheduled doc review cadence: review this file monthly and update scores based on current reality.
 - Add one performance regression harness for a representative large dataset/view and run it in CI (even if it is a coarse threshold test).
 - The guardrail drift check now lives in `scripts/check_quality_score_drift.sh` and is wired into local CI and GitHub CI.
