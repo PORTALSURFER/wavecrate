@@ -290,6 +290,31 @@ fn apply_waveform_native_ui_action(
             controller.zoom_waveform_to_selection_with_focus()
         }
         NativeUiAction::ZoomWaveformFull => controller.zoom_waveform_full_with_focus(),
+        NativeUiAction::SetWaveformChannelView { stereo } => {
+            controller.set_waveform_channel_view(if stereo {
+                crate::waveform::WaveformChannelView::SplitStereo
+            } else {
+                crate::waveform::WaveformChannelView::Mono
+            })
+        }
+        NativeUiAction::SetNormalizedAuditionEnabled { enabled } => {
+            controller.set_normalized_audition_enabled(enabled)
+        }
+        NativeUiAction::SetBpmSnapEnabled { enabled } => controller.set_bpm_snap_enabled(enabled),
+        NativeUiAction::SetTransientSnapEnabled { enabled } => {
+            controller.set_transient_snap_enabled(enabled)
+        }
+        NativeUiAction::SetTransientMarkersEnabled { enabled } => {
+            controller.set_transient_markers_enabled(enabled)
+        }
+        NativeUiAction::SetSliceModeEnabled { enabled } => {
+            if controller.ui.waveform.slice_mode_enabled != enabled {
+                controller.ui.waveform.slice_mode_enabled = enabled;
+                if !enabled {
+                    controller.ui.waveform.selected_slices.clear();
+                }
+            }
+        }
         action => return Err(action),
     }
     Ok(())

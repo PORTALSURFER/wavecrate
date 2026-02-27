@@ -80,11 +80,23 @@ fn waveform_image_to_native_rgba(image: &crate::waveform::WaveformImage) -> Opti
 
 /// Project waveform chrome labels and action-hint copy.
 pub(crate) fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel {
+    let channel_view = match ui.waveform.channel_view {
+        crate::waveform::WaveformChannelView::Mono => radiant::app::WaveformChannelViewModel::Mono,
+        crate::waveform::WaveformChannelView::SplitStereo => {
+            radiant::app::WaveformChannelViewModel::Stereo
+        }
+    };
     WaveformChromeModel {
         transport_hint: if ui.waveform.loop_enabled {
             String::from("Loop enabled")
         } else {
             String::from("Loop disabled")
         },
+        channel_view,
+        normalized_audition_enabled: ui.waveform.normalized_audition_enabled,
+        bpm_snap_enabled: ui.waveform.bpm_snap_enabled,
+        transient_snap_enabled: ui.waveform.transient_snap_enabled,
+        transient_markers_enabled: ui.waveform.transient_markers_enabled,
+        slice_mode_enabled: ui.waveform.slice_mode_enabled,
     }
 }

@@ -181,12 +181,37 @@ fn project_app_model_matches_staged_projection_helpers() {
 fn waveform_chrome_projection_reflects_loop_hint() {
     let mut ui = UiState::default();
     ui.waveform.loop_enabled = false;
+    ui.waveform.channel_view = crate::waveform::WaveformChannelView::Mono;
     let projected = project_waveform_chrome_model(&ui);
     assert_eq!(projected.transport_hint, "Loop disabled");
+    assert_eq!(
+        projected.channel_view,
+        radiant::app::WaveformChannelViewModel::Mono
+    );
+    assert!(!projected.normalized_audition_enabled);
+    assert!(!projected.bpm_snap_enabled);
+    assert!(!projected.transient_snap_enabled);
+    assert!(projected.transient_markers_enabled);
+    assert!(!projected.slice_mode_enabled);
 
     ui.waveform.loop_enabled = true;
+    ui.waveform.channel_view = crate::waveform::WaveformChannelView::SplitStereo;
+    ui.waveform.normalized_audition_enabled = true;
+    ui.waveform.bpm_snap_enabled = true;
+    ui.waveform.transient_snap_enabled = true;
+    ui.waveform.transient_markers_enabled = false;
+    ui.waveform.slice_mode_enabled = true;
     let projected = project_waveform_chrome_model(&ui);
     assert_eq!(projected.transport_hint, "Loop enabled");
+    assert_eq!(
+        projected.channel_view,
+        radiant::app::WaveformChannelViewModel::Stereo
+    );
+    assert!(projected.normalized_audition_enabled);
+    assert!(projected.bpm_snap_enabled);
+    assert!(projected.transient_snap_enabled);
+    assert!(!projected.transient_markers_enabled);
+    assert!(projected.slice_mode_enabled);
 }
 
 #[test]

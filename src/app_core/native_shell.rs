@@ -301,6 +301,19 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         } else {
             String::from("Loop disabled")
         },
+        waveform_channel_view: match controller.ui.waveform.channel_view {
+            crate::waveform::WaveformChannelView::Mono => {
+                radiant::app::WaveformChannelViewModel::Mono
+            }
+            crate::waveform::WaveformChannelView::SplitStereo => {
+                radiant::app::WaveformChannelViewModel::Stereo
+            }
+        },
+        waveform_normalized_audition_enabled: controller.ui.waveform.normalized_audition_enabled,
+        waveform_bpm_snap_enabled: controller.ui.waveform.bpm_snap_enabled,
+        waveform_transient_snap_enabled: controller.ui.waveform.transient_snap_enabled,
+        waveform_transient_markers_enabled: controller.ui.waveform.transient_markers_enabled,
+        waveform_slice_mode_enabled: controller.ui.waveform.slice_mode_enabled,
         status_right: status.right,
     }
 }

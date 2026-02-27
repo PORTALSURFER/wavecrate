@@ -30,7 +30,13 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::ClearWaveformEditSelection
         | NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
-        | NativeUiAction::ZoomWaveformFull => Some(InteractionActionClass::Waveform),
+        | NativeUiAction::ZoomWaveformFull
+        | NativeUiAction::SetWaveformChannelView { .. }
+        | NativeUiAction::SetNormalizedAuditionEnabled { .. }
+        | NativeUiAction::SetBpmSnapEnabled { .. }
+        | NativeUiAction::SetTransientSnapEnabled { .. }
+        | NativeUiAction::SetTransientMarkersEnabled { .. }
+        | NativeUiAction::SetSliceModeEnabled { .. } => Some(InteractionActionClass::Waveform),
         NativeUiAction::SetVolume { .. } | NativeUiAction::CommitVolumeSetting => {
             Some(InteractionActionClass::Volume)
         }

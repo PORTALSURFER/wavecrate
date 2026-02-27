@@ -14,6 +14,12 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
             | NativeUiAction::ZoomWaveform { .. }
             | NativeUiAction::ZoomWaveformToSelection
             | NativeUiAction::ZoomWaveformFull
+            | NativeUiAction::SetWaveformChannelView { .. }
+            | NativeUiAction::SetNormalizedAuditionEnabled { .. }
+            | NativeUiAction::SetBpmSnapEnabled { .. }
+            | NativeUiAction::SetTransientSnapEnabled { .. }
+            | NativeUiAction::SetTransientMarkersEnabled { .. }
+            | NativeUiAction::SetSliceModeEnabled { .. }
             | NativeUiAction::SetVolume { .. }
             | NativeUiAction::CommitVolumeSetting
     )
@@ -43,7 +49,13 @@ pub(super) fn classify_dirty_source(
         )),
         NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
-        | NativeUiAction::ZoomWaveformFull => Some((
+        | NativeUiAction::ZoomWaveformFull
+        | NativeUiAction::SetWaveformChannelView { .. }
+        | NativeUiAction::SetNormalizedAuditionEnabled { .. }
+        | NativeUiAction::SetBpmSnapEnabled { .. }
+        | NativeUiAction::SetTransientSnapEnabled { .. }
+        | NativeUiAction::SetTransientMarkersEnabled { .. }
+        | NativeUiAction::SetSliceModeEnabled { .. } => Some((
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformViewAction,
         )),
