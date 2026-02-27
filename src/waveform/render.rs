@@ -447,14 +447,22 @@ mod tests {
     }
 
     #[test]
-    /// Stepped envelope output should duplicate each source value within a block.
-    fn stepped_columns_repeats_block_values() {
+    /// Stepped envelope output should preserve block extrema across the block.
+    fn stepped_columns_preserves_block_extrema() {
         let columns = vec![(-0.1, 0.1), (-0.2, 0.2), (-0.3, 0.3), (-0.4, 0.4)];
         let stepped = WaveformRenderer::stepped_columns(&columns, 2);
         assert_eq!(
             stepped,
-            vec![(-0.1, 0.1), (-0.1, 0.1), (-0.3, 0.3), (-0.3, 0.3),]
+            vec![(-0.2, 0.2), (-0.2, 0.2), (-0.4, 0.4), (-0.4, 0.4),]
         );
+    }
+
+    #[test]
+    /// Quantization should keep narrow peaks inside a horizontal step.
+    fn stepped_columns_retains_transient_peaks_within_block() {
+        let columns = vec![(-0.1, 0.1), (-0.9, 0.8), (-0.2, 0.2)];
+        let stepped = WaveformRenderer::stepped_columns(&columns, 2);
+        assert_eq!(stepped, vec![(-0.9, 0.8), (-0.9, 0.8), (-0.2, 0.2),]);
     }
 
     /// Reference implementation used to validate smoothing-kernel equivalence.

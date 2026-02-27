@@ -75,7 +75,8 @@ impl WaveformRenderer {
     ///
     /// This mirrors the WPF rendering strategy from the reference design where
     /// neighboring pixels share a min/max envelope instead of changing every
-    /// single column.
+    /// single column. Each step preserves the extrema across the block so
+    /// transients are not dropped by quantization.
     pub(super) fn stepped_columns(columns: &[(f32, f32)], step: usize) -> Vec<(f32, f32)> {
         if step <= 1 || columns.len() < 2 {
             return columns.to_vec();
@@ -83,9 +84,14 @@ impl WaveformRenderer {
         let mut stepped = Vec::with_capacity(columns.len());
         let mut idx = 0usize;
         while idx < columns.len() {
-            let value = columns[idx];
             let block_end = (idx + step).min(columns.len());
-            stepped.extend(std::iter::repeat_n(value, block_end - idx));
+            let mut block_min = 1.0_f32;
+            let mut block_max = -1.0_f32;
+            for &(min, max) in &columns[idx..block_end] {
+                block_min = block_min.min(min);
+                block_max = block_max.max(max);
+            }
+            stepped.extend(std::iter::repeat_n((block_min, block_max), block_end - idx));
             idx = block_end;
         }
         stepped
