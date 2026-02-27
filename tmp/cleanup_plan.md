@@ -23,13 +23,14 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml`, shot fixtures, `bash scripts/run_perf_guard.sh`, full `bash scripts/ci_local.sh`.
   - Completed: 2026-02-27 (UTC) - `radiant` commit `5d82273c`
 
-- [ ] 3) Split `src/app_core/native_shell.rs` by projection domains
+- [x] 3) Split `src/app_core/native_shell.rs` by projection domains
   - ROI/Effort: High / L
   - Why it matters: Core projection logic is centralized and long, which slows safe changes for browser/map/waveform/status projection independently.
   - Evidence: `src/app_core/native_shell.rs` (~1494 LOC); broad projection entrypoints start at `project_app_model` (around line 83) and continue across multiple domains.
   - Recommended change: Move browser/map/waveform/status/update projection into `src/app_core/native_shell/` modules; keep existing public facade functions stable.
   - Risk/tradeoffs: Medium; projection key assumptions and cache coupling must remain byte-equivalent.
   - Suggested validation: `cargo test --lib app_core::native_shell`, `cargo test --lib app_core::native_bridge`, then `bash scripts/ci_local.sh`.
+  - Completed: 2026-02-27 (UTC) - `sempal` commit pending in this item batch
 
 - [ ] 4) Continue `jobs.rs` decomposition (issue gateway/token job runners)
   - ROI/Effort: High / M
