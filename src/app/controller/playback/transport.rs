@@ -641,3 +641,68 @@ pub(crate) fn handle_escape(controller: &mut AppController) {
         controller.clear_folder_selection();
     }
 }
+
+#[cfg(test)]
+/// Transport-focused regression tests for selection, loop, and seek behavior.
+mod tests {
+    use super::*;
+    use crate::app::controller::test_support;
+
+    #[test]
+    /// Selection drags near zero should snap to exact start when BPM snapping is enabled.
+    fn start_selection_drag_snaps_to_zero_with_bpm_snap() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        controller.ui.waveform.bpm_snap_enabled = true;
+
+        start_selection_drag(&mut controller, 0.005);
+
+        let range = if let Some(range) = controller.selection_state.range.range() {
+            range
+        } else {
+            panic!("selection range should be initialized");
+        };
+        assert!((range.start() - 0.0).abs() <= f32::EPSILON);
+    }
+
+    #[test]
+    /// Enabling loop should clear any pending deferred loop-disable deadline.
+    fn toggle_loop_enable_clears_pending_disable_deadline() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        controller.audio.pending_loop_disable_at = Some(Instant::now() + Duration::from_secs(1));
+        controller.ui.waveform.loop_enabled = false;
+
+        toggle_loop(&mut controller);
+
+        assert!(controller.ui.waveform.loop_enabled);
+        assert!(controller.audio.pending_loop_disable_at.is_none());
+    }
+
+    #[test]
+    /// Queued waveform seek requests should clamp milli input to the normalized range.
+    fn queue_waveform_seek_milli_clamps_input() {
+        let (mut controller, _source) = test_support::dummy_controller();
+
+        queue_waveform_seek_milli(&mut controller, 1500);
+
+        assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(1000));
+        assert!(
+            controller
+                .runtime
+                .pending_waveform_seek_not_before
+                .is_some()
+        );
+    }
+
+    #[test]
+    /// Deferred waveform seek commits should wait until the debounce deadline.
+    fn flush_pending_waveform_seek_commit_waits_for_deadline() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        queue_waveform_seek_milli(&mut controller, 500);
+        controller.runtime.pending_waveform_seek_not_before =
+            Some(Instant::now() + Duration::from_millis(50));
+
+        flush_pending_waveform_seek_commit(&mut controller);
+
+        assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(500));
+    }
+}
