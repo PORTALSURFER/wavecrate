@@ -197,7 +197,7 @@ fn apply_browser_native_ui_action(
         NativeUiAction::FocusFolderSearch => controller.focus_folder_search(),
         NativeUiAction::SetFolderSearch { query } => controller.set_folder_search(query),
         NativeUiAction::SelectSourceRow { index } => controller.select_source_by_index(index),
-        NativeUiAction::FocusFolderRow { index } => controller.focus_folder_row(index),
+        NativeUiAction::FocusFolderRow { index } => controller.replace_folder_selection(index),
         NativeUiAction::MoveFolderFocus { delta } => controller.nudge_folder_focus_action(delta),
         NativeUiAction::StartNewFolder => controller.start_new_folder(),
         NativeUiAction::StartNewFolderAtRoot => controller.start_new_folder_at_root(),
