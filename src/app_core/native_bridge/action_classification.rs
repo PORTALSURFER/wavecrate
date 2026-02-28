@@ -23,6 +23,7 @@ pub(super) fn classify_action_interaction(
             Some(InteractionActionClass::MapPanProxy)
         }
         NativeUiAction::SeekWaveform { .. }
+        | NativeUiAction::ReplayFromLastStart
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
         | NativeUiAction::SetWaveformEditSelectionRange { .. }

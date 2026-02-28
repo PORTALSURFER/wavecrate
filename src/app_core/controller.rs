@@ -167,6 +167,9 @@ fn apply_transport_native_ui_action(
         NativeUiAction::SelectColumn { index } => controller.select_column_by_index(index),
         NativeUiAction::MoveColumn { delta } => controller.move_selection_column(delta as isize),
         NativeUiAction::ToggleTransport => controller.toggle_play_pause(),
+        NativeUiAction::ReplayFromLastStart => {
+            let _ = controller.replay_from_last_start();
+        }
         NativeUiAction::HandleEscape => controller.handle_escape(),
         NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
         NativeUiAction::SetVolume { value_milli } => {

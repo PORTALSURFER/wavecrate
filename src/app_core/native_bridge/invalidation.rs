@@ -20,6 +20,7 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
             | NativeUiAction::SetTransientSnapEnabled { .. }
             | NativeUiAction::SetTransientMarkersEnabled { .. }
             | NativeUiAction::SetSliceModeEnabled { .. }
+            | NativeUiAction::ReplayFromLastStart
             | NativeUiAction::SetVolume { .. }
             | NativeUiAction::CommitVolumeSetting
     )
@@ -85,6 +86,7 @@ pub(super) fn classify_dirty_source(
             Some((DerivedNodeId::MapState, DirtyReason::MapAction))
         }
         NativeUiAction::ToggleTransport
+        | NativeUiAction::ReplayFromLastStart
         | NativeUiAction::ToggleLoopPlayback
         | NativeUiAction::SetVolume { .. }
         | NativeUiAction::CommitVolumeSetting => {
