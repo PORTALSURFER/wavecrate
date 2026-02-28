@@ -23,6 +23,12 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
                 normalized_to_milli(selection.end()),
             )
         }),
+        edit_selection_milli: ui.waveform.edit_selection.map(|selection| {
+            NormalizedRangeModel::new(
+                normalized_to_milli(selection.start()),
+                normalized_to_milli(selection.end()),
+            )
+        }),
         view_start_milli: normalized64_to_milli(ui.waveform.view.start),
         view_end_milli: normalized64_to_milli(ui.waveform.view.end),
         loop_enabled: ui.waveform.loop_enabled,

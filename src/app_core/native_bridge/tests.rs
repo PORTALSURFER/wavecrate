@@ -105,6 +105,7 @@ fn projection_and_waveform_keys_share_waveform_milli_conversion() {
     controller.ui.waveform.playhead.visible = true;
     controller.ui.waveform.playhead.position = 0.4321;
     controller.ui.waveform.selection = Some(crate::selection::SelectionRange::new(0.8, 0.2));
+    controller.ui.waveform.edit_selection = Some(crate::selection::SelectionRange::new(0.7, 0.4));
     controller.ui.waveform.view.start = 0.1;
     controller.ui.waveform.view.end = 0.9;
 
@@ -122,6 +123,14 @@ fn projection_and_waveform_keys_share_waveform_milli_conversion() {
     assert_eq!(
         full.waveform_selection_end_milli,
         segment.waveform_selection_end_milli
+    );
+    assert_eq!(
+        full.waveform_edit_selection_start_milli,
+        segment.waveform_edit_selection_start_milli
+    );
+    assert_eq!(
+        full.waveform_edit_selection_end_milli,
+        segment.waveform_edit_selection_end_milli
     );
     assert_eq!(
         full.waveform_view_start_milli,

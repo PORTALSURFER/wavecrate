@@ -271,6 +271,12 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
                 normalized_to_milli(selection.end()),
             )
         }),
+        waveform_edit_selection_milli: controller.ui.waveform.edit_selection.map(|selection| {
+            crate::app_core::actions::NativeNormalizedRangeModel::new(
+                normalized_to_milli(selection.start()),
+                normalized_to_milli(selection.end()),
+            )
+        }),
         waveform_cursor_milli: controller.ui.waveform.cursor.map(normalized_to_milli),
         waveform_playhead_milli: controller.ui.waveform.playhead.visible.then_some(
             normalized_to_milli(controller.ui.waveform.playhead.position),

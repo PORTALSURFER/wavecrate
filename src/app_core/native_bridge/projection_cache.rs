@@ -92,6 +92,8 @@ pub(super) struct NativeProjectionCacheKey {
     pub(super) waveform_playhead_milli: Option<u16>,
     pub(super) waveform_selection_start_milli: Option<u16>,
     pub(super) waveform_selection_end_milli: Option<u16>,
+    pub(super) waveform_edit_selection_start_milli: Option<u16>,
+    pub(super) waveform_edit_selection_end_milli: Option<u16>,
     pub(super) waveform_view_start_milli: u16,
     pub(super) waveform_view_end_milli: u16,
     pub(super) waveform_loop_enabled: bool,
@@ -180,6 +182,8 @@ pub(super) struct WaveformProjectionCacheKey {
     pub(super) waveform_playhead_milli: Option<u16>,
     pub(super) waveform_selection_start_milli: Option<u16>,
     pub(super) waveform_selection_end_milli: Option<u16>,
+    pub(super) waveform_edit_selection_start_milli: Option<u16>,
+    pub(super) waveform_edit_selection_end_milli: Option<u16>,
     pub(super) waveform_view_start_milli: u16,
     pub(super) waveform_view_end_milli: u16,
     pub(super) waveform_loop_enabled: bool,
@@ -662,6 +666,8 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         waveform_playhead_milli: waveform_millis.playhead_milli,
         waveform_selection_start_milli: waveform_millis.selection_start_milli,
         waveform_selection_end_milli: waveform_millis.selection_end_milli,
+        waveform_edit_selection_start_milli: waveform_millis.edit_selection_start_milli,
+        waveform_edit_selection_end_milli: waveform_millis.edit_selection_end_milli,
         waveform_view_start_milli: waveform_millis.view_start_milli,
         waveform_view_end_milli: waveform_millis.view_end_milli,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
@@ -700,6 +706,10 @@ struct WaveformProjectionMillis {
     selection_start_milli: Option<u16>,
     /// Selection end in normalized milli-space.
     selection_end_milli: Option<u16>,
+    /// Edit-selection start in normalized milli-space.
+    edit_selection_start_milli: Option<u16>,
+    /// Edit-selection end in normalized milli-space.
+    edit_selection_end_milli: Option<u16>,
     /// View start in normalized milli-space.
     view_start_milli: u16,
     /// View end in normalized milli-space.
@@ -728,11 +738,23 @@ fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProj
             (Some(start.min(end)), Some(start.max(end)))
         })
         .unwrap_or((None, None));
+    let (edit_selection_start_milli, edit_selection_end_milli) = controller
+        .ui
+        .waveform
+        .edit_selection
+        .map(|selection| {
+            let start = normalized_f32_to_milli(selection.start());
+            let end = normalized_f32_to_milli(selection.end());
+            (Some(start.min(end)), Some(start.max(end)))
+        })
+        .unwrap_or((None, None));
     WaveformProjectionMillis {
         cursor_milli,
         playhead_milli,
         selection_start_milli,
         selection_end_milli,
+        edit_selection_start_milli,
+        edit_selection_end_milli,
         view_start_milli: normalized_f64_to_milli(controller.ui.waveform.view.start),
         view_end_milli: normalized_f64_to_milli(controller.ui.waveform.view.end),
     }
@@ -812,6 +834,8 @@ pub(super) fn build_waveform_projection_key(
         waveform_playhead_milli: waveform_millis.playhead_milli,
         waveform_selection_start_milli: waveform_millis.selection_start_milli,
         waveform_selection_end_milli: waveform_millis.selection_end_milli,
+        waveform_edit_selection_start_milli: waveform_millis.edit_selection_start_milli,
+        waveform_edit_selection_end_milli: waveform_millis.edit_selection_end_milli,
         waveform_view_start_milli: waveform_millis.view_start_milli,
         waveform_view_end_milli: waveform_millis.view_end_milli,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
