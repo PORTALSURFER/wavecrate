@@ -149,6 +149,26 @@ fn waveform_projection_key_changes_when_view_milli_changes() {
 }
 
 #[test]
+/// Waveform option toggles must invalidate both full and waveform segment projection keys.
+fn waveform_option_toggles_change_projection_and_waveform_keys() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let first_full = build_projection_cache_key(&controller);
+    let first_waveform = build_waveform_projection_key(&controller);
+
+    controller.ui.waveform.channel_view = crate::waveform::WaveformChannelView::SplitStereo;
+    controller.ui.waveform.normalized_audition_enabled = true;
+    controller.ui.waveform.bpm_snap_enabled = true;
+    controller.ui.waveform.transient_snap_enabled = true;
+    controller.ui.waveform.transient_markers_enabled = false;
+    controller.ui.waveform.slice_mode_enabled = true;
+
+    let second_full = build_projection_cache_key(&controller);
+    let second_waveform = build_waveform_projection_key(&controller);
+    assert_ne!(first_full, second_full);
+    assert_ne!(first_waveform, second_waveform);
+}
+
+#[test]
 /// Projection cache keys must change when selected-path revisions change.
 fn projection_cache_key_changes_when_selected_path_revision_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);

@@ -96,6 +96,12 @@ pub(super) struct NativeProjectionCacheKey {
     pub(super) waveform_view_end_milli: u16,
     pub(super) waveform_loop_enabled: bool,
     pub(super) waveform_bpm_bits: Option<u32>,
+    pub(super) waveform_channel_view: u8,
+    pub(super) waveform_normalized_audition_enabled: bool,
+    pub(super) waveform_bpm_snap_enabled: bool,
+    pub(super) waveform_transient_snap_enabled: bool,
+    pub(super) waveform_transient_markers_enabled: bool,
+    pub(super) waveform_slice_mode_enabled: bool,
     pub(super) map_open: bool,
     pub(super) map_zoom_bits: u32,
     pub(super) map_pan_x_bits: u32,
@@ -178,6 +184,12 @@ pub(super) struct WaveformProjectionCacheKey {
     pub(super) waveform_view_end_milli: u16,
     pub(super) waveform_loop_enabled: bool,
     pub(super) waveform_bpm_bits: Option<u32>,
+    pub(super) waveform_channel_view: u8,
+    pub(super) waveform_normalized_audition_enabled: bool,
+    pub(super) waveform_bpm_snap_enabled: bool,
+    pub(super) waveform_transient_snap_enabled: bool,
+    pub(super) waveform_transient_markers_enabled: bool,
+    pub(super) waveform_slice_mode_enabled: bool,
     pub(super) loaded_wav_revision: u64,
     pub(super) transport_running: bool,
 }
@@ -654,6 +666,12 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         waveform_view_end_milli: waveform_millis.view_end_milli,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_bpm_bits: controller.ui.waveform.bpm_value.map(f32::to_bits),
+        waveform_channel_view: encode_waveform_channel_view(controller),
+        waveform_normalized_audition_enabled: controller.ui.waveform.normalized_audition_enabled,
+        waveform_bpm_snap_enabled: controller.ui.waveform.bpm_snap_enabled,
+        waveform_transient_snap_enabled: controller.ui.waveform.transient_snap_enabled,
+        waveform_transient_markers_enabled: controller.ui.waveform.transient_markers_enabled,
+        waveform_slice_mode_enabled: controller.ui.waveform.slice_mode_enabled,
         map_open: controller.ui.map.open,
         map_zoom_bits: controller.ui.map.zoom.to_bits(),
         map_pan_x_bits: controller.ui.map.pan.x.to_bits(),
@@ -798,8 +816,22 @@ pub(super) fn build_waveform_projection_key(
         waveform_view_end_milli: waveform_millis.view_end_milli,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_bpm_bits: controller.ui.waveform.bpm_value.map(f32::to_bits),
+        waveform_channel_view: encode_waveform_channel_view(controller),
+        waveform_normalized_audition_enabled: controller.ui.waveform.normalized_audition_enabled,
+        waveform_bpm_snap_enabled: controller.ui.waveform.bpm_snap_enabled,
+        waveform_transient_snap_enabled: controller.ui.waveform.transient_snap_enabled,
+        waveform_transient_markers_enabled: controller.ui.waveform.transient_markers_enabled,
+        waveform_slice_mode_enabled: controller.ui.waveform.slice_mode_enabled,
         loaded_wav_revision: controller.ui.projection_revisions.loaded_wav,
         transport_running: controller.is_playing(),
+    }
+}
+
+/// Encode waveform channel-view mode for compact projection keys.
+fn encode_waveform_channel_view(controller: &AppController) -> u8 {
+    match controller.ui.waveform.channel_view {
+        crate::waveform::WaveformChannelView::Mono => 0,
+        crate::waveform::WaveformChannelView::SplitStereo => 1,
     }
 }
 
