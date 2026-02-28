@@ -160,25 +160,37 @@ impl AppController {
 
     /// Set and persist the waveform channel view mode and refresh the waveform image.
     pub fn set_waveform_channel_view(&mut self, view: crate::waveform::WaveformChannelView) {
-        if self.settings.controls.waveform_channel_view == view {
+        let settings_match = self.settings.controls.waveform_channel_view == view;
+        let ui_match =
+            self.ui.waveform.channel_view == view && self.ui.controls.waveform_channel_view == view;
+        if settings_match && ui_match {
             return;
         }
+        let waveform_view_changed = self.ui.waveform.channel_view != view;
         self.settings.controls.waveform_channel_view = view;
         self.ui.controls.waveform_channel_view = view;
         self.ui.waveform.channel_view = view;
-        self.sample_view.waveform.render_meta = None;
-        self.refresh_waveform_image();
-        self.persist_controls();
+        if waveform_view_changed {
+            self.sample_view.waveform.render_meta = None;
+            self.refresh_waveform_image();
+        }
+        if !settings_match {
+            self.persist_controls();
+        }
     }
 
     /// Enable/disable BPM snapping and persist the setting.
     pub fn set_bpm_snap_enabled(&mut self, enabled: bool) {
-        if self.settings.controls.bpm_snap_enabled == enabled {
+        let settings_match = self.settings.controls.bpm_snap_enabled == enabled;
+        let ui_match = self.ui.waveform.bpm_snap_enabled == enabled;
+        if settings_match && ui_match {
             return;
         }
         self.settings.controls.bpm_snap_enabled = enabled;
         self.ui.waveform.bpm_snap_enabled = enabled;
-        self.persist_controls();
+        if !settings_match {
+            self.persist_controls();
+        }
     }
 
     /// Enable/disable BPM auto-override lock and persist the setting.
@@ -321,27 +333,37 @@ impl AppController {
 
     /// Enable/disable transient marker rendering and persist the setting.
     pub fn set_transient_markers_enabled(&mut self, enabled: bool) {
-        if self.settings.controls.transient_markers_enabled == enabled {
-            return;
-        }
-        self.settings.controls.transient_markers_enabled = enabled;
-        self.ui.waveform.transient_markers_enabled = enabled;
-        self.ui.waveform.transient_snap_enabled = if enabled {
+        let expected_transient_snap_enabled = if enabled {
             self.settings.controls.transient_snap_enabled
         } else {
             false
         };
-        self.persist_controls();
+        let settings_match = self.settings.controls.transient_markers_enabled == enabled;
+        let ui_match = self.ui.waveform.transient_markers_enabled == enabled
+            && self.ui.waveform.transient_snap_enabled == expected_transient_snap_enabled;
+        if settings_match && ui_match {
+            return;
+        }
+        self.settings.controls.transient_markers_enabled = enabled;
+        self.ui.waveform.transient_markers_enabled = enabled;
+        self.ui.waveform.transient_snap_enabled = expected_transient_snap_enabled;
+        if !settings_match {
+            self.persist_controls();
+        }
     }
 
     /// Enable/disable normalized audition playback and persist the setting.
     pub fn set_normalized_audition_enabled(&mut self, enabled: bool) {
-        if self.settings.controls.normalized_audition_enabled == enabled {
+        let settings_match = self.settings.controls.normalized_audition_enabled == enabled;
+        let ui_match = self.ui.waveform.normalized_audition_enabled == enabled;
+        if settings_match && ui_match {
             return;
         }
         self.settings.controls.normalized_audition_enabled = enabled;
         self.ui.waveform.normalized_audition_enabled = enabled;
-        self.persist_controls();
+        if !settings_match {
+            self.persist_controls();
+        }
     }
 
     /// Set and persist the tooltip detail level.
@@ -372,29 +394,5 @@ impl AppController {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn wheel_zoom_speed_mapping_is_monotonic() {
-        let slow = wheel_zoom_speed_to_factor(0.2);
-        let medium = wheel_zoom_speed_to_factor(1.0);
-        let fast = wheel_zoom_speed_to_factor(10.0);
-
-        assert!(slow > medium, "expected slower speed to zoom less per step");
-        assert!(medium > fast, "expected higher speed to zoom more per step");
-    }
-
-    #[test]
-    fn wheel_zoom_speed_round_trips_with_factor() {
-        let speeds = [0.2, 0.5, 1.0, 2.0, 8.0, 16.0];
-        for speed in speeds {
-            let factor = wheel_zoom_speed_to_factor(speed);
-            let round_tripped = wheel_zoom_factor_to_speed(factor);
-            assert!(
-                (speed - round_tripped).abs() < 0.02,
-                "speed {speed} round-tripped to {round_tripped} via factor {factor}"
-            );
-        }
-    }
-}
+/// Unit tests for interaction-options controls and waveform option sync.
+mod tests;
