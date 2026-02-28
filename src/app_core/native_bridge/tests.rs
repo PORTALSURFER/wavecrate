@@ -105,7 +105,11 @@ fn projection_and_waveform_keys_share_waveform_milli_conversion() {
     controller.ui.waveform.playhead.visible = true;
     controller.ui.waveform.playhead.position = 0.4321;
     controller.ui.waveform.selection = Some(crate::selection::SelectionRange::new(0.8, 0.2));
-    controller.ui.waveform.edit_selection = Some(crate::selection::SelectionRange::new(0.7, 0.4));
+    controller.ui.waveform.edit_selection = Some(
+        crate::selection::SelectionRange::new(0.7, 0.4)
+            .with_fade_in(0.2, 0.5)
+            .with_fade_out(0.3, 0.5),
+    );
     controller.ui.waveform.view.start = 0.1;
     controller.ui.waveform.view.end = 0.9;
 
@@ -131,6 +135,14 @@ fn projection_and_waveform_keys_share_waveform_milli_conversion() {
     assert_eq!(
         full.waveform_edit_selection_end_milli,
         segment.waveform_edit_selection_end_milli
+    );
+    assert_eq!(
+        full.waveform_edit_fade_in_end_milli,
+        segment.waveform_edit_fade_in_end_milli
+    );
+    assert_eq!(
+        full.waveform_edit_fade_out_start_milli,
+        segment.waveform_edit_fade_out_start_milli
     );
     assert_eq!(
         full.waveform_view_start_milli,
@@ -420,6 +432,42 @@ fn waveform_action_queue_edit_selection_range_overrides_clear() {
     );
     assert!(!queue.clear_edit_selection);
     assert_eq!(queue.edit_selection_range_milli, Some((140, 460)));
+}
+
+/// Edit fade-handle requests should keep last-write-wins behavior.
+#[test]
+fn waveform_action_queue_edit_fade_handles_last_write_wins() {
+    let mut queue = PendingWaveformActions::default();
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformEditFadeInEnd {
+        position_milli: 220,
+    }));
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformEditFadeInEnd {
+        position_milli: 300,
+    }));
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformEditFadeOutStart {
+        position_milli: 760,
+    }));
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformEditFadeOutStart {
+        position_milli: 690,
+    }));
+    assert_eq!(queue.edit_fade_in_end_milli, Some(300));
+    assert_eq!(queue.edit_fade_out_start_milli, Some(690));
+}
+
+/// Clearing edit selection should drop queued edit-fade handle updates.
+#[test]
+fn waveform_action_queue_clear_edit_selection_clears_edit_fade_updates() {
+    let mut queue = PendingWaveformActions::default();
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformEditFadeInEnd {
+        position_milli: 300,
+    }));
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformEditFadeOutStart {
+        position_milli: 690,
+    }));
+    assert!(queue.enqueue(&NativeUiAction::ClearWaveformEditSelection));
+    assert!(queue.clear_edit_selection);
+    assert!(queue.edit_fade_in_end_milli.is_none());
+    assert!(queue.edit_fade_out_start_milli.is_none());
 }
 
 /// Pending queue dirty reasons should distinguish overlay-only from view edits.

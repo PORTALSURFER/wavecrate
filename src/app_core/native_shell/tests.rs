@@ -139,6 +139,25 @@ fn waveform_projection_passes_raster_image_payload() {
     );
 }
 
+#[test]
+/// Waveform projection should expose edit fade handle positions when fades are configured.
+fn waveform_projection_includes_edit_fade_handles() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.edit_selection = Some(
+        crate::selection::SelectionRange::new(0.2, 0.8)
+            .with_fade_in(0.25, 0.5)
+            .with_fade_out(0.5, 0.5),
+    );
+
+    let projected = project_waveform_model(&mut controller);
+    assert_eq!(
+        projected.edit_selection_milli,
+        Some(NormalizedRangeModel::new(200, 800))
+    );
+    assert_eq!(projected.edit_fade_in_end_milli, Some(350));
+    assert_eq!(projected.edit_fade_out_start_milli, Some(500));
+}
+
 /// Build a controller fixture with non-default fields for full app-model parity checks.
 fn app_model_projection_fixture_controller() -> AppController {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);

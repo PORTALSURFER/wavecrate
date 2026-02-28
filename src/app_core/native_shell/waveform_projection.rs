@@ -6,6 +6,11 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
     let ui = &controller.ui;
     let view_span = (ui.waveform.view.end - ui.waveform.view.start).clamp(0.000_1, 1.0) as f32;
     let zoom_percent = (100.0 / view_span).round().clamp(100.0, 9999.0);
+    let (edit_fade_in_end_milli, edit_fade_out_start_milli) = ui
+        .waveform
+        .edit_selection
+        .map(project_edit_fade_handles_milli)
+        .unwrap_or((None, None));
     WaveformPanelModel {
         loaded_label: ui
             .loaded_wav
@@ -29,6 +34,8 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
                 normalized_to_milli(selection.end()),
             )
         }),
+        edit_fade_in_end_milli,
+        edit_fade_out_start_milli,
         view_start_milli: normalized64_to_milli(ui.waveform.view.start),
         view_end_milli: normalized64_to_milli(ui.waveform.view.end),
         loop_enabled: ui.waveform.loop_enabled,
@@ -37,6 +44,27 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
         waveform_image_signature: ui.waveform.waveform_image_signature,
         waveform_image: project_waveform_image(controller),
     }
+}
+
+/// Project edit-selection fade handles into normalized milli positions for native rendering.
+fn project_edit_fade_handles_milli(
+    selection: crate::selection::SelectionRange,
+) -> (Option<u16>, Option<u16>) {
+    let start = selection.start();
+    let end = selection.end();
+    let width = selection.width();
+    if width <= 0.0 {
+        return (None, None);
+    }
+    let fade_in_end_milli = selection.fade_in().map(|fade| {
+        let fade_end = (start + (width * fade.length).max(0.0)).clamp(start, end);
+        normalized_to_milli(fade_end)
+    });
+    let fade_out_start_milli = selection.fade_out().map(|fade| {
+        let fade_start = (end - (width * fade.length).max(0.0)).clamp(start, end);
+        normalized_to_milli(fade_start)
+    });
+    (fade_in_end_milli, fade_out_start_milli)
 }
 
 /// Reuse or rebuild the projected waveform raster payload for the native model.

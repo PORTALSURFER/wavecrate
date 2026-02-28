@@ -27,6 +27,8 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
         | NativeUiAction::SetWaveformEditSelectionRange { .. }
+        | NativeUiAction::SetWaveformEditFadeInEnd { .. }
+        | NativeUiAction::SetWaveformEditFadeOutStart { .. }
         | NativeUiAction::ClearWaveformSelection
         | NativeUiAction::ClearWaveformEditSelection
         | NativeUiAction::ZoomWaveform { .. }
@@ -55,6 +57,8 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
         NativeUiAction::SetWaveformCursor { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
             | NativeUiAction::SetWaveformEditSelectionRange { .. }
+            | NativeUiAction::SetWaveformEditFadeInEnd { .. }
+            | NativeUiAction::SetWaveformEditFadeOutStart { .. }
             | NativeUiAction::ClearWaveformSelection
             | NativeUiAction::ClearWaveformEditSelection
     )

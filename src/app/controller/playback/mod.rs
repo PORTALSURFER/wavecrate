@@ -228,6 +228,44 @@ impl AppController {
         self.focus_waveform();
     }
 
+    /// Set waveform edit fade-in handle using a 0..=1000 milli position from UI actions.
+    pub fn set_waveform_edit_fade_in_end_milli(&mut self, position_milli: u16) {
+        let Some(existing_range) = self
+            .selection_state
+            .edit_range
+            .range()
+            .or(self.ui.waveform.edit_selection)
+        else {
+            return;
+        };
+        let next_range = update_edit_fade_in_end_from_milli(existing_range, position_milli);
+        if existing_range == next_range && waveform_focus_active(self) {
+            return;
+        }
+        self.selection_state.edit_range.set_range(Some(next_range));
+        self.apply_edit_selection(Some(next_range));
+        self.focus_waveform();
+    }
+
+    /// Set waveform edit fade-out handle using a 0..=1000 milli position from UI actions.
+    pub fn set_waveform_edit_fade_out_start_milli(&mut self, position_milli: u16) {
+        let Some(existing_range) = self
+            .selection_state
+            .edit_range
+            .range()
+            .or(self.ui.waveform.edit_selection)
+        else {
+            return;
+        };
+        let next_range = update_edit_fade_out_start_from_milli(existing_range, position_milli);
+        if existing_range == next_range && waveform_focus_active(self) {
+            return;
+        }
+        self.selection_state.edit_range.set_range(Some(next_range));
+        self.apply_edit_selection(Some(next_range));
+        self.focus_waveform();
+    }
+
     /// Clear waveform selection and keep waveform focus active.
     pub fn clear_waveform_selection_with_focus(&mut self) {
         self.clear_selection();
@@ -571,6 +609,40 @@ fn selection_range_from_milli(start_milli: u16, end_milli: u16) -> SelectionRang
     )
 }
 
+/// Update edit fade-in length from one absolute waveform milli handle position.
+fn update_edit_fade_in_end_from_milli(
+    range: SelectionRange,
+    position_milli: u16,
+) -> SelectionRange {
+    let width = range.width();
+    if width <= 0.0 {
+        return range;
+    }
+    let start = range.start();
+    let end = range.end();
+    let clamped_position = normalized_from_milli(position_milli).clamp(start, end);
+    let length = ((clamped_position - start) / width).clamp(0.0, 1.0);
+    let curve = range.fade_in().map(|fade| fade.curve).unwrap_or(0.5);
+    range.with_fade_in(length, curve)
+}
+
+/// Update edit fade-out length from one absolute waveform milli handle position.
+fn update_edit_fade_out_start_from_milli(
+    range: SelectionRange,
+    position_milli: u16,
+) -> SelectionRange {
+    let width = range.width();
+    if width <= 0.0 {
+        return range;
+    }
+    let start = range.start();
+    let end = range.end();
+    let clamped_position = normalized_from_milli(position_milli).clamp(start, end);
+    let length = ((end - clamped_position) / width).clamp(0.0, 1.0);
+    let curve = range.fade_out().map(|fade| fade.curve).unwrap_or(0.5);
+    range.with_fade_out(length, curve)
+}
+
 fn zoom_steps_from_ui(steps: u8) -> u32 {
     u32::from(steps.max(1))
 }
@@ -741,6 +813,42 @@ mod tests {
 
         assert!(controller.selection_state.edit_range.range().is_none());
         assert!(controller.ui.waveform.edit_selection.is_none());
+    }
+
+    /// Edit fade-in handle updates should set a proportional fade-in over the edit selection.
+    #[test]
+    fn set_waveform_edit_fade_in_end_milli_updates_edit_fade_in_length() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        let range = SelectionRange::new(0.2, 0.6);
+        controller.selection_state.edit_range.set_range(Some(range));
+        controller.ui.waveform.edit_selection = Some(range);
+
+        controller.set_waveform_edit_fade_in_end_milli(300);
+
+        let updated = controller.ui.waveform.edit_selection;
+        assert!(updated.is_some());
+        let fade_in = updated.and_then(|selection| selection.fade_in());
+        assert!(fade_in.is_some());
+        let fade_in = fade_in.unwrap_or(crate::selection::FadeParams::with_curve(0.0, 0.5));
+        assert!((fade_in.length - 0.25).abs() < 0.001);
+    }
+
+    /// Edit fade-out handle updates should set a proportional fade-out over the edit selection.
+    #[test]
+    fn set_waveform_edit_fade_out_start_milli_updates_edit_fade_out_length() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        let range = SelectionRange::new(0.2, 0.6);
+        controller.selection_state.edit_range.set_range(Some(range));
+        controller.ui.waveform.edit_selection = Some(range);
+
+        controller.set_waveform_edit_fade_out_start_milli(500);
+
+        let updated = controller.ui.waveform.edit_selection;
+        assert!(updated.is_some());
+        let fade_out = updated.and_then(|selection| selection.fade_out());
+        assert!(fade_out.is_some());
+        let fade_out = fade_out.unwrap_or(crate::selection::FadeParams::with_curve(0.0, 0.5));
+        assert!((fade_out.length - 0.25).abs() < 0.001);
     }
 
     /// Deferred playback-age writes should remain queued until debounce expires.

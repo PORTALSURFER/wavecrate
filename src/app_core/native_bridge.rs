@@ -109,6 +109,10 @@ struct PendingWaveformActions {
     clear_selection: bool,
     /// Latest explicit edit-selection range in normalized milli space.
     edit_selection_range_milli: Option<(u16, u16)>,
+    /// Latest edit fade-in end handle in normalized milli space.
+    edit_fade_in_end_milli: Option<u16>,
+    /// Latest edit fade-out start handle in normalized milli space.
+    edit_fade_out_start_milli: Option<u16>,
     /// Whether edit selection should be cleared when no range override is queued.
     clear_edit_selection: bool,
     /// Net signed waveform zoom step delta accumulated this frame.
@@ -127,6 +131,8 @@ impl PendingWaveformActions {
             || self.selection_range_milli.is_some()
             || self.clear_selection
             || self.edit_selection_range_milli.is_some()
+            || self.edit_fade_in_end_milli.is_some()
+            || self.edit_fade_out_start_milli.is_some()
             || self.clear_edit_selection
             || self.zoom_steps_delta != 0
             || self.zoom_to_selection
@@ -157,6 +163,18 @@ impl PendingWaveformActions {
                 end_milli,
             } => {
                 self.edit_selection_range_milli = Some((*start_milli, *end_milli));
+                self.edit_fade_in_end_milli = None;
+                self.edit_fade_out_start_milli = None;
+                self.clear_edit_selection = false;
+                true
+            }
+            NativeUiAction::SetWaveformEditFadeInEnd { position_milli } => {
+                self.edit_fade_in_end_milli = Some(*position_milli);
+                self.clear_edit_selection = false;
+                true
+            }
+            NativeUiAction::SetWaveformEditFadeOutStart { position_milli } => {
+                self.edit_fade_out_start_milli = Some(*position_milli);
                 self.clear_edit_selection = false;
                 true
             }
@@ -167,6 +185,8 @@ impl PendingWaveformActions {
             }
             NativeUiAction::ClearWaveformEditSelection => {
                 self.edit_selection_range_milli = None;
+                self.edit_fade_in_end_milli = None;
+                self.edit_fade_out_start_milli = None;
                 self.clear_edit_selection = true;
                 true
             }
@@ -389,6 +409,20 @@ impl SempalNativeBridge {
         } else if pending.clear_edit_selection {
             self.controller
                 .apply_native_ui_action(NativeUiAction::ClearWaveformEditSelection);
+            emitted_actions = emitted_actions.saturating_add(1);
+        }
+        if let Some(position_milli) = pending.edit_fade_in_end_milli {
+            self.controller
+                .apply_native_ui_action(NativeUiAction::SetWaveformEditFadeInEnd {
+                    position_milli,
+                });
+            emitted_actions = emitted_actions.saturating_add(1);
+        }
+        if let Some(position_milli) = pending.edit_fade_out_start_milli {
+            self.controller
+                .apply_native_ui_action(NativeUiAction::SetWaveformEditFadeOutStart {
+                    position_milli,
+                });
             emitted_actions = emitted_actions.saturating_add(1);
         }
 
