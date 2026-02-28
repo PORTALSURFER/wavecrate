@@ -285,6 +285,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         }),
         waveform_edit_fade_in_end_milli: edit_fade_in_end_milli,
         waveform_edit_fade_out_start_milli: edit_fade_out_start_milli,
+        waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_cursor_milli: controller.ui.waveform.cursor.map(normalized_to_milli),
         waveform_playhead_milli: controller.ui.waveform.playhead.visible.then_some(
             normalized_to_milli(controller.ui.waveform.playhead.position),
