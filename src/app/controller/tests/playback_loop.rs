@@ -191,6 +191,54 @@ fn finish_selection_drag_restarts_when_playhead_outside_loop() {
 }
 
 #[test]
+/// Zero-width click markers should not clamp non-loop seek playback to a tiny span.
+fn zero_width_selection_does_not_truncate_seek_playback() {
+    let Some(mut player) = crate::audio::AudioPlayer::playing_for_tests() else {
+        return;
+    };
+    let dir = tempdir().unwrap();
+    let wav_path = dir.path().join("click_seek_span.wav");
+    let long_samples = vec![0.1_f32; 240];
+    write_test_wav(&wav_path, &long_samples);
+    let bytes = std::fs::read(&wav_path).unwrap();
+    let duration = 30.0;
+    player.set_audio(bytes, duration);
+
+    let (mut controller, source) = dummy_controller();
+    controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
+        source_id: source.id.clone(),
+        root: source.root.clone(),
+        relative_path: PathBuf::from("click_seek_span.wav"),
+        bytes: std::fs::read(&wav_path).unwrap().into(),
+        duration_seconds: duration,
+        sample_rate: 8,
+    });
+    controller.audio.player = Some(std::rc::Rc::new(std::cell::RefCell::new(player)));
+
+    let click_marker = SelectionRange::new(0.5, 0.5);
+    controller
+        .selection_state
+        .range
+        .set_range(Some(click_marker));
+    controller.apply_selection(Some(click_marker));
+
+    assert!(controller.play_audio(false, Some(0.5)).is_ok());
+    let (start, end) = controller
+        .audio
+        .player
+        .as_ref()
+        .unwrap()
+        .borrow()
+        .play_span()
+        .expect("play span set");
+    assert!(
+        end - start > 1.0,
+        "unexpected tiny span: start={start} end={end}"
+    );
+    assert_eq!(controller.ui.waveform.playhead.active_span_end, Some(1.0));
+}
+
+#[test]
 fn enabling_stretch_while_playing_keeps_playing() {
     let Some(player) = crate::audio::AudioPlayer::playing_for_tests() else {
         return;

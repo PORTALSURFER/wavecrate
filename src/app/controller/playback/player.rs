@@ -1,6 +1,12 @@
 use super::*;
 use std::time::{Duration, Instant};
 
+/// Smallest normalized selection width treated as an intentional playback span.
+///
+/// Zero-width click markers are represented as selection ranges where
+/// `start == end`; those should not clamp non-loop playback to an instant blip.
+const PLAYBACK_SELECTION_MIN_WIDTH: f32 = 1.0e-6;
+
 pub(crate) fn play_audio(
     controller: &mut AppController,
     looped: bool,
@@ -64,6 +70,7 @@ pub(crate) fn play_audio(
         .range
         .range()
         .or(controller.ui.waveform.selection)
+        .filter(|range| range.width() > PLAYBACK_SELECTION_MIN_WIDTH)
         .filter(|range| super::selection_meets_bpm_min_for_playback(controller, *range));
     let span_end = selection.as_ref().map(|r| r.end()).unwrap_or(1.0);
     let (audition_start, audition_end) = if looped {
