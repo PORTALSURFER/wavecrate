@@ -129,7 +129,7 @@ Status: Phase 2 execution in progress.
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01 (`9aafa6da`)
 
-- [ ] 7. Improve idle pointer responsiveness by adding short-lived high-frequency redraw cadence after cursor movement
+- [x] 7. Improve idle pointer responsiveness by adding short-lived high-frequency redraw cadence after cursor movement
   - ROI: High
   - Effort: S
   - Expected impact: interaction feel, frame pacing
@@ -147,6 +147,7 @@ Status: Phase 2 execution in progress.
     - manual hover-cursor smoothness check while idle (no playback)
     - monitor CPU usage regression under idle window
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01 (`8beac1ed`)
 
 - [ ] 8. Cache per-layout hit-test action geometry to remove repeated vector construction on pointer events
   - ROI: Medium
