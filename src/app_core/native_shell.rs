@@ -258,7 +258,6 @@ fn assemble_project_app_model(
 
 pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionModel {
     let selected_column = selected_column_index(&controller.ui);
-    let status = project_status_model(controller, selected_column);
     let (edit_fade_in_end_milli, edit_fade_out_start_milli) = controller
         .ui
         .waveform
@@ -329,7 +328,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         waveform_transient_snap_enabled: controller.ui.waveform.transient_snap_enabled,
         waveform_transient_markers_enabled: controller.ui.waveform.transient_markers_enabled,
         waveform_slice_mode_enabled: controller.ui.waveform.slice_mode_enabled,
-        status_right: status.right,
+        status_right: status_bar_right_text(selected_column),
     }
 }
 
