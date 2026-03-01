@@ -6,6 +6,7 @@ mod updates;
 
 use super::jobs::JobMessage;
 use super::*;
+use crate::app::controller::playback::audio_loader::AudioLoadResult;
 use crate::app::controller::playback::recording::waveform_loader::RecordingWaveformUpdate;
 use crate::app::controller::state::audio::AudioLoadIntent;
 use crate::app::state::ProgressTaskKind;
@@ -87,23 +88,33 @@ impl AppController {
                         self.clear_progress();
                     }
                 }
-                JobMessage::AudioLoaded(message) => {
-                    let Some(pending) = self.runtime.jobs.pending_audio() else {
-                        continue;
-                    };
-                    if message.request_id != pending.request_id
-                        || message.source_id != pending.source_id
-                        || message.relative_path != pending.relative_path
-                    {
-                        continue;
+                JobMessage::AudioLoaded(message) => match message {
+                    AudioLoadResult::Primary {
+                        request_id,
+                        source_id,
+                        relative_path,
+                        result,
+                    } => {
+                        let Some(pending) = self.runtime.jobs.pending_audio() else {
+                            continue;
+                        };
+                        if request_id != pending.request_id
+                            || source_id != pending.source_id
+                            || relative_path != pending.relative_path
+                        {
+                            continue;
+                        }
+                        self.runtime.jobs.set_pending_audio(None);
+                        self.ui.waveform.loading = None;
+                        match result {
+                            Ok(outcome) => self.handle_audio_loaded(pending, outcome),
+                            Err(err) => self.handle_audio_load_error(pending, err),
+                        }
                     }
-                    self.runtime.jobs.set_pending_audio(None);
-                    self.ui.waveform.loading = None;
-                    match message.result {
-                        Ok(outcome) => self.handle_audio_loaded(pending, outcome),
-                        Err(err) => self.handle_audio_load_error(pending, err),
+                    AudioLoadResult::Transients(result) => {
+                        self.handle_audio_transients_loaded(result);
                     }
-                }
+                },
                 JobMessage::RecordingWaveformLoaded(message) => {
                     let Some(pending) = self.runtime.jobs.pending_recording_waveform() else {
                         continue;

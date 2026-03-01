@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::controller::playback::audio_cache::CacheKey;
+use crate::app::controller::playback::audio_loader::AudioTransientResult;
 use std::path::Path;
 
 impl AppController {
@@ -29,14 +30,13 @@ impl AppController {
         let duration_seconds = decoded.duration_seconds;
         let sample_rate = decoded.sample_rate;
         let cache_key = CacheKey::new(&source.id, &pending.relative_path);
-        let transients = outcome.transients;
         if !stretched {
             self.audio.cache.insert(
                 cache_key,
                 outcome.metadata,
                 decoded.clone(),
                 bytes.clone(),
-                transients.clone(),
+                std::sync::Arc::from([]),
             );
         }
         let preserve_selections =
@@ -48,7 +48,7 @@ impl AppController {
             bytes,
             pending.intent,
             preserve_selections,
-            Some(transients),
+            Some(std::sync::Arc::from([])),
         ) {
             self.runtime.jobs.set_pending_playback(None);
             self.set_status(err, StatusTone::Error);
@@ -61,6 +61,32 @@ impl AppController {
             self.refresh_similarity_sort_for_loaded_sample();
         }
         self.maybe_trigger_pending_playback();
+    }
+
+    /// Apply deferred transient markers if they still match the active loaded waveform.
+    pub(crate) fn handle_audio_transients_loaded(&mut self, result: AudioTransientResult) {
+        let Some(loaded_audio) = self.sample_view.wav.loaded_audio.as_ref() else {
+            return;
+        };
+        if loaded_audio.source_id != result.source_id
+            || loaded_audio.relative_path != result.relative_path
+        {
+            return;
+        }
+        let Some(decoded) = self.sample_view.waveform.decoded.as_ref() else {
+            return;
+        };
+        if decoded.cache_token != result.cache_token {
+            return;
+        }
+        self.ui.waveform.transients = result.transients.clone();
+        self.ui.waveform.transient_cache_token = Some(result.cache_token);
+        if !result.stretched {
+            let key = CacheKey::new(&result.source_id, &result.relative_path);
+            self.audio
+                .cache
+                .update_transients(&key, result.metadata, result.transients);
+        }
     }
 
     pub(crate) fn handle_audio_load_error(&mut self, pending: PendingAudio, error: AudioLoadError) {

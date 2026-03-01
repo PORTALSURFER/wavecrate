@@ -89,6 +89,25 @@ impl AudioCache {
         self.history.retain(|existing| existing != key);
     }
 
+    /// Update transient markers for an existing cache entry when metadata still matches.
+    pub(crate) fn update_transients(
+        &mut self,
+        key: &CacheKey,
+        metadata: FileMetadata,
+        transients: Arc<[f32]>,
+    ) {
+        let mut updated = false;
+        if let Some(entry) = self.entries.get_mut(key)
+            && entry.metadata == metadata
+        {
+            entry.transients = transients;
+            updated = true;
+        }
+        if updated {
+            self.touch_history(key);
+        }
+    }
+
     fn touch_history(&mut self, key: &CacheKey) {
         self.history.retain(|existing| existing != key);
         self.history.push_front(key.clone());
@@ -211,5 +230,35 @@ mod tests {
         assert!(cache.get(&key_a, build_metadata(1)).is_none());
         assert!(cache.get(&key_b, build_metadata(1)).is_some());
         assert!(cache.get(&key_c, build_metadata(1)).is_some());
+    }
+
+    #[test]
+    /// Deferred transient updates must respect metadata freshness before mutating cache entries.
+    fn updates_transients_only_when_metadata_matches() {
+        let mut cache = AudioCache::new(2, 2);
+        let key = sample_key();
+        cache.insert(
+            key.clone(),
+            build_metadata(1),
+            decoded(),
+            vec![1, 2].into(),
+            Arc::from(vec![0.1, 0.2]),
+        );
+
+        cache.update_transients(&key, build_metadata(2), Arc::from(vec![0.8, 0.9]));
+        let unchanged = cache.get(&key, build_metadata(1));
+        assert!(unchanged.is_some());
+        let Some(unchanged) = unchanged else {
+            return;
+        };
+        assert_eq!(unchanged.transients.as_ref(), &[0.1, 0.2]);
+
+        cache.update_transients(&key, build_metadata(1), Arc::from(vec![0.8, 0.9]));
+        let updated = cache.get(&key, build_metadata(1));
+        assert!(updated.is_some());
+        let Some(updated) = updated else {
+            return;
+        };
+        assert_eq!(updated.transients.as_ref(), &[0.8, 0.9]);
     }
 }

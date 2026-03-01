@@ -173,7 +173,6 @@ pub(crate) struct AudioLoadOutcome {
     pub decoded: Arc<DecodedWaveform>,
     pub bytes: Arc<[u8]>,
     pub metadata: FileMetadata,
-    pub transients: Arc<[f32]>,
     pub stretched: bool,
 }
 
@@ -184,11 +183,39 @@ pub(crate) enum AudioLoadError {
 }
 
 #[derive(Debug)]
-pub(crate) struct AudioLoadResult {
+/// Deferred transient-marker payload for an already-delivered audio load.
+pub(crate) struct AudioTransientResult {
     pub request_id: u64,
     pub source_id: SourceId,
     pub relative_path: PathBuf,
-    pub result: Result<AudioLoadOutcome, AudioLoadError>,
+    pub metadata: FileMetadata,
+    pub cache_token: u64,
+    pub transients: Arc<[f32]>,
+    pub stretched: bool,
+}
+
+#[derive(Debug)]
+/// Audio loader worker message stream: primary load completion plus deferred transients.
+pub(crate) enum AudioLoadResult {
+    Primary {
+        request_id: u64,
+        source_id: SourceId,
+        relative_path: PathBuf,
+        result: Result<AudioLoadOutcome, AudioLoadError>,
+    },
+    Transients(AudioTransientResult),
+}
+
+#[derive(Clone)]
+/// Inputs required to compute deferred transient markers after primary load delivery.
+struct PendingTransientCompute {
+    request_id: u64,
+    source_id: SourceId,
+    relative_path: PathBuf,
+    metadata: FileMetadata,
+    cache_token: u64,
+    decoded: Arc<DecodedWaveform>,
+    stretched: bool,
 }
 
 /// Join handle and shutdown signal for the audio loader thread.
@@ -257,12 +284,28 @@ pub(crate) fn spawn_audio_loader(
                         };
                         maybe_emit_audio_loader_telemetry(sample_tick);
                     }
-                    let _ = result_tx.send(AudioLoadResult {
+                    let transient_compute =
+                        result.as_ref().ok().map(|outcome| PendingTransientCompute {
+                            request_id: job.request_id,
+                            source_id: job.source_id.clone(),
+                            relative_path: job.relative_path.clone(),
+                            metadata: outcome.metadata,
+                            cache_token: outcome.decoded.cache_token,
+                            decoded: Arc::clone(&outcome.decoded),
+                            stretched: outcome.stretched,
+                        });
+                    let _ = result_tx.send(AudioLoadResult::Primary {
                         request_id: job.request_id,
                         source_id: job.source_id.clone(),
                         relative_path: job.relative_path.clone(),
                         result,
                     });
+                    if let Some(transient_compute) = transient_compute
+                        && let Some(transients_result) =
+                            build_transient_result(transient_compute, &latest_request_id_worker)
+                    {
+                        let _ = result_tx.send(AudioLoadResult::Transients(transients_result));
+                    }
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
@@ -448,29 +491,12 @@ fn load_audio_inner(
     ) {
         return Ok(None);
     }
-    let transient_start = audio_loader_telemetry_enabled().then(Instant::now);
-    let transients: Arc<[f32]> = crate::waveform::transients::detect_transients(
-        decoded.as_ref(),
-        crate::app::controller::library::wavs::waveform_rendering::DEFAULT_TRANSIENT_SENSITIVITY,
-    )
-    .into();
-    if let Some(start) = transient_start {
-        record_audio_loader_duration(&AUDIO_LOADER_TRANSIENT_NS_TOTAL, start.elapsed());
-    }
-    if stale_and_record(
-        job.request_id,
-        latest_request_id,
-        StaleDropStage::PostTransients,
-    ) {
-        return Ok(None);
-    }
     record_audio_loader_bytes(&AUDIO_LOADER_OUTPUT_BYTES_TOTAL, final_bytes.len());
     record_audio_loader_bytes(
         &AUDIO_LOADER_ALLOC_ESTIMATE_BYTES_TOTAL,
         final_bytes
             .len()
-            .saturating_add(decoded.samples.len().saturating_mul(size_of::<f32>()))
-            .saturating_add(transients.len().saturating_mul(size_of::<f32>())),
+            .saturating_add(decoded.samples.len().saturating_mul(size_of::<f32>())),
     );
 
     Ok(Some(AudioLoadOutcome {
@@ -480,9 +506,51 @@ fn load_audio_inner(
             file_size: metadata.len(),
             modified_ns,
         },
-        transients,
         stretched,
     }))
+}
+
+/// Compute transient markers for a completed load when the request is still current.
+fn build_transient_result(
+    pending: PendingTransientCompute,
+    latest_request_id: &AtomicU64,
+) -> Option<AudioTransientResult> {
+    if stale_and_record(
+        pending.request_id,
+        latest_request_id,
+        StaleDropStage::PostTransients,
+    ) {
+        return None;
+    }
+    let transient_start = audio_loader_telemetry_enabled().then(Instant::now);
+    let transients: Arc<[f32]> = crate::waveform::transients::detect_transients(
+        pending.decoded.as_ref(),
+        crate::app::controller::library::wavs::waveform_rendering::DEFAULT_TRANSIENT_SENSITIVITY,
+    )
+    .into();
+    if let Some(start) = transient_start {
+        record_audio_loader_duration(&AUDIO_LOADER_TRANSIENT_NS_TOTAL, start.elapsed());
+    }
+    if stale_and_record(
+        pending.request_id,
+        latest_request_id,
+        StaleDropStage::PostTransients,
+    ) {
+        return None;
+    }
+    record_audio_loader_bytes(
+        &AUDIO_LOADER_ALLOC_ESTIMATE_BYTES_TOTAL,
+        transients.len().saturating_mul(size_of::<f32>()),
+    );
+    Some(AudioTransientResult {
+        request_id: pending.request_id,
+        source_id: pending.source_id,
+        relative_path: pending.relative_path,
+        metadata: pending.metadata,
+        cache_token: pending.cache_token,
+        transients,
+        stretched: pending.stretched,
+    })
 }
 
 fn ensure_safe_relative_path(path: &Path) -> Result<(), AudioLoadError> {
