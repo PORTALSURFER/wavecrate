@@ -91,7 +91,7 @@ Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implem
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01 (`aa39a139`)
 
-- [ ] 5. Replace waveform pixel-span rectangle emission with texture-backed rendering
+- [x] 5. Replace waveform pixel-span rectangle emission with texture-backed rendering
   - ROI: High
   - Effort: L
   - Expected impact: frame time, CPU, memory bandwidth, interaction smoothness
@@ -108,6 +108,7 @@ Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implem
     - waveform visual regression snapshots (zoomed + dense regions)
     - perf guard + manual interaction smoothness checks
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01 (`83b02c2e`)
 
 - [ ] 6. Gate `prepare_native_frame` maintenance work behind explicit pending flags
   - ROI: High
