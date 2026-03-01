@@ -50,7 +50,7 @@ Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implem
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01 (`dc5c5fb0`)
 
-- [ ] 3. Split motion overlay into cheap cursor/playhead layer plus heavier toolbar/status layer
+- [x] 3. Split motion overlay into cheap cursor/playhead layer plus heavier toolbar/status layer
   - ROI: High
   - Effort: L
   - Expected impact: interaction latency (cursor hover/drag), frame time, CPU
@@ -68,6 +68,7 @@ Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implem
     - native shell overlay tests for hover cursor/playhead/toolbar toggles
     - manual pointer-hover smoothness check at idle and during playback
     - `bash scripts/run_perf_guard.sh` and `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01 (`4e69cc75`)
 
 - [ ] 4. Remove repeated `NativeMotionModel::from_app_model` cloning from hot paths
   - ROI: High
