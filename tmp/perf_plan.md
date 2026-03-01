@@ -30,7 +30,7 @@ Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implem
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01 (`1716e19f`)
 
-- [ ] 2. Move revision-bus updates from frame-time snapshot cloning to mutation-time dirty flags
+- [x] 2. Move revision-bus updates from frame-time snapshot cloning to mutation-time dirty flags
   - ROI: Very High
   - Effort: M
   - Expected impact: p95 interaction latency, frame time, CPU, memory churn
@@ -48,6 +48,7 @@ Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implem
     - revision-bus unit tests expanded for all revised fields
     - perf guard compare before/after controller apply/pull stages
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01 (`dc5c5fb0`)
 
 - [ ] 3. Split motion overlay into cheap cursor/playhead layer plus heavier toolbar/status layer
   - ROI: High
