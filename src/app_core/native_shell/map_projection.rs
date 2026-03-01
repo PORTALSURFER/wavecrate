@@ -49,6 +49,7 @@ pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel
                 controller.ui.map.cached_bounds_source_id = source_id_key.clone();
                 controller.ui.map.cached_bounds_umap_version = Some(umap_version.clone());
                 controller.ui.map.bounds = mapped_bounds;
+                controller.mark_map_dataset_projection_revision_dirty();
                 mapped_bounds
             }
             Err(err) => {
@@ -121,6 +122,8 @@ pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel
                 controller.ui.map.last_query = Some(query_bounds);
                 controller.ui.map.cached_points_revision =
                     controller.ui.map.cached_points_revision.saturating_add(1);
+                controller.mark_map_dataset_projection_revision_dirty();
+                controller.mark_map_query_projection_revision_dirty();
             }
             Err(err) => {
                 return MapPanelModel {

@@ -34,10 +34,11 @@ impl AppController {
         self.ui.browser.selected =
             focused_index.and_then(|index| self.browser_index_for_entry(index));
         self.ui.browser.loaded = loaded_index.and_then(|index| self.browser_index_for_entry(index));
-        self.ui.loaded_wav = loaded_index.and_then(|index| {
+        let loaded_wav = loaded_index.and_then(|index| {
             self.wav_entry(index)
                 .map(|entry| entry.relative_path.clone())
         });
+        self.set_ui_loaded_wav(loaded_wav);
         self.ui.browser.selected_visible = selected_visible
             .or_else(|| focused_index.and_then(|index| self.browser_visible_row_for_entry(index)));
         self.ui.browser.loaded_visible = loaded_visible
@@ -80,7 +81,7 @@ impl AppController {
         self.ui.browser.triage_index_by_absolute.clear();
         self.ui.browser.lookup_maps_revision = 0;
         self.ui.browser.autoscroll = autoscroll;
-        self.ui.loaded_wav = None;
+        self.set_ui_loaded_wav(None);
     }
 
     fn prune_browser_selection(&mut self) {
@@ -140,10 +141,11 @@ impl AppController {
             selected_index.and_then(|index| self.browser_visible_row_for_entry(index));
         self.ui.browser.loaded_visible =
             loaded_index.and_then(|index| self.browser_visible_row_for_entry(index));
-        self.ui.loaded_wav = loaded_index.and_then(|index| {
+        let loaded_wav = loaded_index.and_then(|index| {
             self.wav_entry(index)
                 .map(|entry| entry.relative_path.clone())
         });
+        self.set_ui_loaded_wav(loaded_wav);
         let visible_len = self.ui.browser.visible.len();
         if let Some(anchor) = self.ui.browser.selection_anchor_visible
             && anchor >= visible_len

@@ -279,6 +279,8 @@ impl AppController {
                             self.ui.map.cached_points.clear();
                             self.ui.map.cached_points_source_id = None;
                             self.ui.map.cached_points_umap_version = None;
+                            self.mark_map_dataset_projection_revision_dirty();
+                            self.mark_map_query_projection_revision_dirty();
                             self.set_status(
                                 format!("t-SNE layout {} built", message.umap_version),
                                 StatusTone::Info,
@@ -303,6 +305,8 @@ impl AppController {
                             self.ui.map.cached_cluster_centroids_key = None;
                             self.ui.map.cached_cluster_centroids = None;
                             self.ui.map.auto_cluster_build_requested_key = None;
+                            self.mark_map_dataset_projection_revision_dirty();
+                            self.mark_map_query_projection_revision_dirty();
                             let scope = message
                                 .source_id
                                 .as_ref()

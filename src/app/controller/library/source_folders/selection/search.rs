@@ -3,12 +3,12 @@ use super::super::*;
 impl AppController {
     pub(crate) fn set_folder_search(&mut self, query: String) {
         if self.selection_state.ctx.selected_source.is_none() {
-            self.ui.sources.folders.search_query = query;
+            self.set_ui_folder_search_query(query);
             return;
         }
         let snapshot = {
             let Some(model) = self.current_folder_model_mut() else {
-                self.ui.sources.folders.search_query = query;
+                self.set_ui_folder_search_query(query);
                 return;
             };
             if model.search_query == query {
@@ -17,7 +17,7 @@ impl AppController {
             model.search_query = query.clone();
             model.clone()
         };
-        self.ui.sources.folders.search_query = query;
+        self.set_ui_folder_search_query(query);
         self.build_folder_rows(&snapshot);
     }
 

@@ -117,7 +117,7 @@ impl AppController {
         self.clear_waveform_slices();
         self.runtime.jobs.set_pending_audio(None);
         self.sample_view.wav.loaded_wav = Some(relative_path.to_path_buf());
-        self.ui.loaded_wav = Some(relative_path.to_path_buf());
+        self.set_ui_loaded_wav(Some(relative_path.to_path_buf()));
         self.sync_loaded_audio(source, relative_path, duration_seconds, sample_rate, bytes)?;
         if matches!(intent, AudioLoadIntent::Selection) {
             self.apply_loaded_sample_bpm(source, relative_path);
@@ -494,7 +494,7 @@ impl AppController {
         if selected_matches || loaded_matches {
             let preserved_view = self.ui.waveform.view;
             self.sample_view.wav.loaded_wav = None;
-            self.ui.loaded_wav = None;
+            self.set_ui_loaded_wav(None);
             if let Err(err) = self.load_waveform_for_selection(source, relative_path) {
                 self.set_status(err, StatusTone::Warning);
             } else {

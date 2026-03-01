@@ -300,8 +300,12 @@ impl AppController {
 
     pub(crate) fn set_status(&mut self, text: impl Into<String>, tone: StatusTone) {
         let text = text.into();
+        let status_changed = self.ui.status.text != text || self.ui.status.status_tone != tone;
         self.ui.status.text = text.clone();
         self.ui.status.status_tone = tone;
+        if status_changed {
+            self.mark_status_projection_revision_dirty();
+        }
         let entry = format!("[{}] {}", status_prefix(tone), text);
         if self.ui.status.log.last().is_some_and(|last| last == &entry) {
             return;

@@ -8,7 +8,8 @@ use crate::app_core::actions::{
 use crate::app_core::app_api::state::SampleBrowserIndex;
 use crate::app_core::controller::AppController;
 use crate::app_core::state::{
-    SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, TriageFlagFilter, UpdateStatus,
+    SampleBrowserSort, SampleBrowserTab, StatusTone, TriageFlagColumn, TriageFlagFilter,
+    UpdateStatus,
 };
 use crate::waveform::WaveformRenderer;
 use std::path::PathBuf;
@@ -210,7 +211,7 @@ fn projection_cache_reuses_model_when_key_unchanged() {
     assert!(Arc::ptr_eq(&first.0, &second.0));
     assert_eq!(second.1, NativeDirtySegments::empty());
 
-    controller.ui.status.text = String::from("changed");
+    controller.set_status("changed", StatusTone::Info);
     let refreshed = cache.resolve_or_project(&mut controller);
     assert!(!Arc::ptr_eq(&second.0, &refreshed.0));
     assert_eq!(refreshed.0.status_text.as_str(), "changed");
@@ -253,7 +254,9 @@ fn bridge_reprojects_after_async_loaded_wav_revision_change() {
     let first = bridge.project_model();
     assert!(first.waveform.loaded_label.is_none());
 
-    bridge.controller.ui.loaded_wav = Some(PathBuf::from("fresh_take.wav"));
+    bridge
+        .controller
+        .set_ui_loaded_wav(Some(PathBuf::from("fresh_take.wav")));
     let second = bridge.project_model();
     assert_eq!(second.waveform.loaded_label.as_deref(), Some("fresh_take"));
 }

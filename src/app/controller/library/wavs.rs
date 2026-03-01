@@ -587,9 +587,9 @@ impl AppController {
             }
             if self.sample_view.wav.loaded_wav.as_deref() == Some(old_path) {
                 self.sample_view.wav.loaded_wav = Some(new_path.to_path_buf());
-                self.ui.loaded_wav = Some(new_path.to_path_buf());
+                self.set_ui_loaded_wav(Some(new_path.to_path_buf()));
             } else if self.ui.loaded_wav.as_deref() == Some(old_path) {
-                self.ui.loaded_wav = Some(new_path.to_path_buf());
+                self.set_ui_loaded_wav(Some(new_path.to_path_buf()));
             }
         }
         if let Some(audio) = self.sample_view.wav.loaded_audio.as_mut()

@@ -152,7 +152,7 @@ impl AppController {
                 self.sample_view.wav.loaded_wav = None;
             }
             if self.ui.loaded_wav.as_deref() == Some(relative_path) {
-                self.ui.loaded_wav = None;
+                self.set_ui_loaded_wav(None);
             }
         }
         if let Some(audio) = self.sample_view.wav.loaded_audio.as_ref()

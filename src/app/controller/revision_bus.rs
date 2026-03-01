@@ -1,99 +1,113 @@
 //! Controller-side projection revision bus synchronization.
 
 use super::AppController;
-use crate::app::controller::state::runtime::MapQueryBoundsRevisionKey;
+use crate::app::controller::state::runtime::ProjectionRevisionDirtyMask;
 use crate::app::state::UiProjectionRevisions;
+use std::path::PathBuf;
 
 impl AppController {
+    /// Mark one or more projection revision groups dirty for frame-time draining.
+    pub(crate) fn mark_projection_revision_dirty(&mut self, bits: u16) {
+        self.runtime.projection_revision_dirty.0 |= bits;
+    }
+
+    /// Mark status projection revisions dirty.
+    pub(crate) fn mark_status_projection_revision_dirty(&mut self) {
+        self.mark_projection_revision_dirty(ProjectionRevisionDirtyMask::STATUS);
+    }
+
+    /// Mark folder-search projection revisions dirty.
+    pub(crate) fn mark_folder_search_projection_revision_dirty(&mut self) {
+        self.mark_projection_revision_dirty(ProjectionRevisionDirtyMask::FOLDER_SEARCH);
+    }
+
+    /// Mark browser-search projection revisions dirty.
+    pub(crate) fn mark_browser_search_projection_revision_dirty(&mut self) {
+        self.mark_projection_revision_dirty(ProjectionRevisionDirtyMask::BROWSER_SEARCH);
+    }
+
+    /// Mark map-selection projection revisions dirty.
+    pub(crate) fn mark_map_selection_projection_revision_dirty(&mut self) {
+        self.mark_projection_revision_dirty(ProjectionRevisionDirtyMask::MAP_SELECTION);
+    }
+
+    /// Mark map-hover projection revisions dirty.
+    pub(crate) fn mark_map_hover_projection_revision_dirty(&mut self) {
+        self.mark_projection_revision_dirty(ProjectionRevisionDirtyMask::MAP_HOVER);
+    }
+
+    /// Mark map-dataset projection revisions dirty.
+    pub(crate) fn mark_map_dataset_projection_revision_dirty(&mut self) {
+        self.mark_projection_revision_dirty(ProjectionRevisionDirtyMask::MAP_DATASET);
+    }
+
+    /// Mark map-query projection revisions dirty.
+    pub(crate) fn mark_map_query_projection_revision_dirty(&mut self) {
+        self.mark_projection_revision_dirty(ProjectionRevisionDirtyMask::MAP_QUERY);
+    }
+
+    /// Mark update projection revisions dirty.
+    pub(crate) fn mark_update_projection_revision_dirty(&mut self) {
+        self.mark_projection_revision_dirty(ProjectionRevisionDirtyMask::UPDATE);
+    }
+
+    /// Set the UI-loaded wav path and mark revisions when it changes.
+    pub(crate) fn set_ui_loaded_wav(&mut self, loaded_wav: Option<PathBuf>) {
+        if self.ui.loaded_wav == loaded_wav {
+            return;
+        }
+        self.ui.loaded_wav = loaded_wav;
+        self.mark_projection_revision_dirty(ProjectionRevisionDirtyMask::LOADED_WAV);
+    }
+
+    /// Set the folder-search query and mark revisions when it changes.
+    pub(crate) fn set_ui_folder_search_query(&mut self, query: String) {
+        if self.ui.sources.folders.search_query == query {
+            return;
+        }
+        self.ui.sources.folders.search_query = query;
+        self.mark_folder_search_projection_revision_dirty();
+    }
+
     /// Refresh canonical projection revisions from current UI state snapshots.
     ///
     /// This centralizes revision bumps so native projection keys depend on
     /// scalar revisions instead of container hashing.
     pub(crate) fn refresh_projection_revision_bus(&mut self) -> bool {
+        let dirty = self.runtime.projection_revision_dirty.0;
+        if dirty == ProjectionRevisionDirtyMask::NONE {
+            return false;
+        }
+        self.runtime.projection_revision_dirty.0 = ProjectionRevisionDirtyMask::NONE;
         let revisions = &mut self.ui.projection_revisions;
-        let snapshot = &mut self.runtime.projection_revision_snapshot;
-        let mut changed = false;
-
-        if snapshot.status_text != self.ui.status.text
-            || snapshot.status_tone != Some(self.ui.status.status_tone)
-        {
+        if (dirty & ProjectionRevisionDirtyMask::STATUS) != 0 {
             UiProjectionRevisions::bump(&mut revisions.status);
-            changed = true;
-            snapshot.status_text = self.ui.status.text.clone();
-            snapshot.status_tone = Some(self.ui.status.status_tone);
         }
-
-        if snapshot.folder_search_query != self.ui.sources.folders.search_query {
+        if (dirty & ProjectionRevisionDirtyMask::FOLDER_SEARCH) != 0 {
             UiProjectionRevisions::bump(&mut revisions.folder_search);
-            changed = true;
-            snapshot.folder_search_query = self.ui.sources.folders.search_query.clone();
         }
-
-        if snapshot.browser_search_query != self.ui.browser.search_query {
+        if (dirty & ProjectionRevisionDirtyMask::BROWSER_SEARCH) != 0 {
             UiProjectionRevisions::bump(&mut revisions.browser_search);
-            changed = true;
-            snapshot.browser_search_query = self.ui.browser.search_query.clone();
         }
-
-        if snapshot.map_selected_sample_id != self.ui.map.selected_sample_id {
+        if (dirty & ProjectionRevisionDirtyMask::MAP_SELECTION) != 0 {
             UiProjectionRevisions::bump(&mut revisions.map_selection);
-            changed = true;
-            snapshot.map_selected_sample_id = self.ui.map.selected_sample_id.clone();
         }
-
-        if snapshot.map_hovered_sample_id != self.ui.map.hovered_sample_id {
+        if (dirty & ProjectionRevisionDirtyMask::MAP_HOVER) != 0 {
             UiProjectionRevisions::bump(&mut revisions.map_hover);
-            changed = true;
-            snapshot.map_hovered_sample_id = self.ui.map.hovered_sample_id.clone();
         }
-
-        let map_dataset_changed = snapshot.map_umap_version != self.ui.map.umap_version
-            || snapshot.map_cached_bounds_source_id != self.ui.map.cached_bounds_source_id
-            || snapshot.map_cached_bounds_umap_version != self.ui.map.cached_bounds_umap_version
-            || snapshot.map_cached_points_source_id != self.ui.map.cached_points_source_id
-            || snapshot.map_cached_points_umap_version != self.ui.map.cached_points_umap_version;
-        if map_dataset_changed {
+        if (dirty & ProjectionRevisionDirtyMask::MAP_DATASET) != 0 {
             UiProjectionRevisions::bump(&mut revisions.map_dataset);
-            changed = true;
-            snapshot.map_umap_version = self.ui.map.umap_version.clone();
-            snapshot.map_cached_bounds_source_id = self.ui.map.cached_bounds_source_id.clone();
-            snapshot.map_cached_bounds_umap_version =
-                self.ui.map.cached_bounds_umap_version.clone();
-            snapshot.map_cached_points_source_id = self.ui.map.cached_points_source_id.clone();
-            snapshot.map_cached_points_umap_version =
-                self.ui.map.cached_points_umap_version.clone();
         }
-
-        let map_last_query = self
-            .ui
-            .map
-            .last_query
-            .map(MapQueryBoundsRevisionKey::from_bounds);
-        if snapshot.map_last_query != map_last_query {
+        if (dirty & ProjectionRevisionDirtyMask::MAP_QUERY) != 0 {
             UiProjectionRevisions::bump(&mut revisions.map_query);
-            changed = true;
-            snapshot.map_last_query = map_last_query;
         }
-
-        let update_changed = snapshot.update_status != Some(self.ui.update.status.clone())
-            || snapshot.update_available_tag != self.ui.update.available_tag
-            || snapshot.update_available_url != self.ui.update.available_url
-            || snapshot.update_last_error != self.ui.update.last_error;
-        if update_changed {
+        if (dirty & ProjectionRevisionDirtyMask::UPDATE) != 0 {
             UiProjectionRevisions::bump(&mut revisions.update);
-            changed = true;
-            snapshot.update_status = Some(self.ui.update.status.clone());
-            snapshot.update_available_tag = self.ui.update.available_tag.clone();
-            snapshot.update_available_url = self.ui.update.available_url.clone();
-            snapshot.update_last_error = self.ui.update.last_error.clone();
         }
-
-        if snapshot.loaded_wav != self.ui.loaded_wav {
+        if (dirty & ProjectionRevisionDirtyMask::LOADED_WAV) != 0 {
             UiProjectionRevisions::bump(&mut revisions.loaded_wav);
-            changed = true;
-            snapshot.loaded_wav = self.ui.loaded_wav.clone();
         }
-        changed
+        true
     }
 }
 
@@ -103,25 +117,24 @@ mod tests {
     use crate::waveform::WaveformRenderer;
 
     #[test]
-    fn revision_bus_noop_sync_is_stable_after_initial_snapshot() {
+    /// Refresh should remain a no-op when no mutation marked revision bits dirty.
+    fn revision_bus_noop_sync_without_dirty_mask_is_stable() {
         let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-        let _ = controller.refresh_projection_revision_bus();
+        let changed = controller.refresh_projection_revision_bus();
         let first = controller.ui.projection_revisions;
-        let _ = controller.refresh_projection_revision_bus();
 
+        assert!(!changed);
         assert_eq!(controller.ui.projection_revisions, first);
     }
 
     #[test]
     fn revision_bus_bumps_search_revisions_when_queries_change() {
         let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-
-        let _ = controller.refresh_projection_revision_bus();
         let before = controller.ui.projection_revisions;
 
-        controller.ui.browser.search_query = String::from("kick");
-        controller.ui.sources.folders.search_query = String::from("drums");
+        controller.set_browser_search("kick");
+        controller.set_folder_search(String::from("drums"));
         let _ = controller.refresh_projection_revision_bus();
 
         assert_eq!(
@@ -132,5 +145,26 @@ mod tests {
             controller.ui.projection_revisions.folder_search,
             before.folder_search.wrapping_add(1)
         );
+    }
+
+    #[test]
+    /// Loaded-wav revision should bump once per distinct loaded path transition.
+    fn revision_bus_bumps_loaded_wav_only_when_path_changes() {
+        use std::path::PathBuf;
+
+        let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        let before = controller.ui.projection_revisions;
+
+        controller.set_ui_loaded_wav(Some(PathBuf::from("kick.wav")));
+        let changed = controller.refresh_projection_revision_bus();
+
+        assert!(changed);
+        assert_eq!(
+            controller.ui.projection_revisions.loaded_wav,
+            before.loaded_wav.wrapping_add(1)
+        );
+
+        let stable = controller.refresh_projection_revision_bus();
+        assert!(!stable);
     }
 }

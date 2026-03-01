@@ -23,7 +23,7 @@ pub(crate) fn clear_waveform_view(controller: &mut AppController) {
     controller.selection_state.edit_range.clear();
     controller.sample_view.wav.loaded_audio = None;
     controller.sample_view.wav.loaded_wav = None;
-    controller.ui.loaded_wav = None;
+    controller.set_ui_loaded_wav(None);
     controller.sample_view.waveform.render_meta = None;
     if let Some(player) = controller.audio.player.as_ref() {
         player.borrow_mut().stop();

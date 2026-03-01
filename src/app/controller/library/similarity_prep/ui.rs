@@ -31,6 +31,8 @@ impl AppController {
         self.ui.map.cached_cluster_centroids = None;
         self.ui.map.auto_cluster_build_requested_key = None;
         self.ui.map.outdated = false;
+        self.mark_map_dataset_projection_revision_dirty();
+        self.mark_map_query_projection_revision_dirty();
         self.set_status_message(StatusMessage::SimilarityReady {
             cluster_count: outcome.cluster_stats.cluster_count,
             noise_ratio: outcome.cluster_stats.noise_ratio,

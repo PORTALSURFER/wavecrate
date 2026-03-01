@@ -338,6 +338,7 @@ pub(crate) fn set_browser_search(controller: &mut AppController, query: impl Int
         return;
     }
     controller.ui.browser.search_query = query;
+    controller.mark_browser_search_projection_revision_dirty();
     controller.ui.browser.similar_query = None;
     controller.ui.browser.sort = SampleBrowserSort::ListOrder;
     controller.ui.browser.similarity_sort_follow_loaded = false;

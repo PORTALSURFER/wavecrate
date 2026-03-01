@@ -44,9 +44,17 @@ impl AppController {
     /// Stage map focus/hover ids before resolving sample focus and preview.
     pub fn stage_map_sample_focus(&mut self, sample_id: &str) {
         let sample_id = sample_id.to_string();
+        let selection_changed = self.ui.map.selected_sample_id.as_ref() != Some(&sample_id);
+        let hover_changed = self.ui.map.hovered_sample_id.as_ref() != Some(&sample_id);
         self.ui.map.selected_sample_id = Some(sample_id.clone());
         self.ui.map.hovered_sample_id = Some(sample_id.clone());
         self.ui.map.paint_hover_active_id = Some(sample_id);
+        if selection_changed {
+            self.mark_map_selection_projection_revision_dirty();
+        }
+        if hover_changed {
+            self.mark_map_hover_projection_revision_dirty();
+        }
     }
 
     /// Focus a map sample, stage hover/selection ids, queue load preview, and start playback.

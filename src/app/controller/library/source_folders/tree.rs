@@ -152,7 +152,7 @@ impl AppController {
             }
             model.clone()
         };
-        self.ui.sources.folders.search_query = snapshot.search_query.clone();
+        self.set_ui_folder_search_query(snapshot.search_query.clone());
         self.build_folder_rows(&snapshot);
     }
 
@@ -246,7 +246,7 @@ impl AppController {
     }
 
     pub(crate) fn build_folder_rows(&mut self, model: &FolderBrowserModel) {
-        self.ui.sources.folders.search_query = model.search_query.clone();
+        self.set_ui_folder_search_query(model.search_query.clone());
         let hotkey_lookup: BTreeMap<PathBuf, u8> = model
             .hotkeys
             .iter()

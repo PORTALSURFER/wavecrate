@@ -143,7 +143,7 @@ impl AppController {
         self.ui.waveform.image = None;
         self.sample_view.wav.loaded_audio = None;
         self.sample_view.wav.loaded_wav = None;
-        self.ui.loaded_wav = None;
+        self.set_ui_loaded_wav(None);
         self.stop_playback_if_active();
         self.clear_waveform_selection();
         self.set_status(

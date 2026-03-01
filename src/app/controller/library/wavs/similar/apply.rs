@@ -5,6 +5,9 @@ pub(crate) fn apply_similarity_query(controller: &mut AppController, query: Simi
     controller.ui.browser.similar_query = Some(query);
     controller.ui.browser.sort = SampleBrowserSort::Similarity;
     controller.ui.browser.similarity_sort_follow_loaded = false;
+    if !controller.ui.browser.search_query.is_empty() {
+        controller.mark_browser_search_projection_revision_dirty();
+    }
     controller.ui.browser.search_query.clear();
     controller.ui.browser.search_focus_requested = false;
     controller.rebuild_browser_lists();

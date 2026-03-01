@@ -6,7 +6,6 @@ mod derived_graph;
 use crate::app::controller::jobs;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::state::audio::PendingAgeUpdate;
-use crate::app::state::{MapQueryBounds, StatusTone, UpdateStatus};
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 pub(crate) use derived_graph::{DerivedNodeId, DerivedStateGraph, DirtyReason};
@@ -26,68 +25,31 @@ pub(crate) enum WaveformRefreshReason {
     Size,
 }
 
-/// Bitwise-stable key for map query bounds in projection revision snapshots.
+/// Bitmask of pending projection revision bumps set at mutation time.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct MapQueryBoundsRevisionKey {
-    /// Bitwise minimum x bound.
-    pub(crate) min_x_bits: u32,
-    /// Bitwise maximum x bound.
-    pub(crate) max_x_bits: u32,
-    /// Bitwise minimum y bound.
-    pub(crate) min_y_bits: u32,
-    /// Bitwise maximum y bound.
-    pub(crate) max_y_bits: u32,
-}
+pub(crate) struct ProjectionRevisionDirtyMask(pub(crate) u16);
 
-impl MapQueryBoundsRevisionKey {
-    /// Build one snapshot key from floating query bounds.
-    pub(crate) fn from_bounds(bounds: MapQueryBounds) -> Self {
-        Self {
-            min_x_bits: bounds.min_x.to_bits(),
-            max_x_bits: bounds.max_x.to_bits(),
-            min_y_bits: bounds.min_y.to_bits(),
-            max_y_bits: bounds.max_y.to_bits(),
-        }
-    }
-}
-
-/// Last observed controller fields used to bump projection revisions.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct ProjectionRevisionSnapshot {
-    /// Last observed status message text.
-    pub(crate) status_text: String,
-    /// Last observed status tone.
-    pub(crate) status_tone: Option<StatusTone>,
-    /// Last observed folder-search query.
-    pub(crate) folder_search_query: String,
-    /// Last observed browser-search query.
-    pub(crate) browser_search_query: String,
-    /// Last observed map selected sample id.
-    pub(crate) map_selected_sample_id: Option<String>,
-    /// Last observed map hovered sample id.
-    pub(crate) map_hovered_sample_id: Option<String>,
-    /// Last observed map UMAP version.
-    pub(crate) map_umap_version: String,
-    /// Last observed map cached bounds source id.
-    pub(crate) map_cached_bounds_source_id: Option<String>,
-    /// Last observed map cached bounds UMAP version.
-    pub(crate) map_cached_bounds_umap_version: Option<String>,
-    /// Last observed map cached points source id.
-    pub(crate) map_cached_points_source_id: Option<String>,
-    /// Last observed map cached points UMAP version.
-    pub(crate) map_cached_points_umap_version: Option<String>,
-    /// Last observed map query bounds key.
-    pub(crate) map_last_query: Option<MapQueryBoundsRevisionKey>,
-    /// Last observed update status.
-    pub(crate) update_status: Option<UpdateStatus>,
-    /// Last observed available update tag.
-    pub(crate) update_available_tag: Option<String>,
-    /// Last observed available update URL.
-    pub(crate) update_available_url: Option<String>,
-    /// Last observed update error string.
-    pub(crate) update_last_error: Option<String>,
-    /// Last observed loaded wav path.
-    pub(crate) loaded_wav: Option<PathBuf>,
+impl ProjectionRevisionDirtyMask {
+    /// No pending revision work.
+    pub(crate) const NONE: u16 = 0;
+    /// Status text/tone revision is dirty.
+    pub(crate) const STATUS: u16 = 1 << 0;
+    /// Folder-search query revision is dirty.
+    pub(crate) const FOLDER_SEARCH: u16 = 1 << 1;
+    /// Browser-search query revision is dirty.
+    pub(crate) const BROWSER_SEARCH: u16 = 1 << 2;
+    /// Map selection revision is dirty.
+    pub(crate) const MAP_SELECTION: u16 = 1 << 3;
+    /// Map hover revision is dirty.
+    pub(crate) const MAP_HOVER: u16 = 1 << 4;
+    /// Map dataset identity revision is dirty.
+    pub(crate) const MAP_DATASET: u16 = 1 << 5;
+    /// Map query-bounds revision is dirty.
+    pub(crate) const MAP_QUERY: u16 = 1 << 6;
+    /// Update panel revision is dirty.
+    pub(crate) const UPDATE: u16 = 1 << 7;
+    /// Loaded wav path revision is dirty.
+    pub(crate) const LOADED_WAV: u16 = 1 << 8;
 }
 
 pub(crate) struct ControllerRuntimeState {
@@ -127,8 +89,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) pending_waveform_seek_not_before: Option<Instant>,
     /// Reused map-query SQLite connections keyed by source id.
     pub(crate) map_query_connections: HashMap<SourceId, Connection>,
-    /// Last observed projection-sensitive values for revision bumping.
-    pub(crate) projection_revision_snapshot: ProjectionRevisionSnapshot,
+    /// Pending projection revision bumps recorded by mutation paths.
+    pub(crate) projection_revision_dirty: ProjectionRevisionDirtyMask,
     /// Monotonic producer-side id for newly rendered waveform image payloads.
     pub(crate) next_waveform_image_signature: u64,
     /// Tracks whether staged delete recovery has been scheduled for this session.
@@ -180,7 +142,7 @@ impl ControllerRuntimeState {
             pending_waveform_seek_milli: None,
             pending_waveform_seek_not_before: None,
             map_query_connections: HashMap::new(),
-            projection_revision_snapshot: ProjectionRevisionSnapshot::default(),
+            projection_revision_dirty: ProjectionRevisionDirtyMask::default(),
             next_waveform_image_signature: 1,
             delete_recovery_started: false,
             deferred_startup_source_db_maintenance_jobs: Vec::new(),

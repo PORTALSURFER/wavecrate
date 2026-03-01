@@ -39,10 +39,16 @@ impl AppController {
             self.ui.update.last_seen_nightly_published_at = Some(published.clone());
             self.settings.updates.last_seen_nightly_published_at = Some(published);
         }
+        let update_changed = self.ui.update.status != crate::app::state::UpdateStatus::Idle
+            || self.ui.update.available_tag.is_some()
+            || self.ui.update.available_url.is_some();
         self.ui.update.status = crate::app::state::UpdateStatus::Idle;
         self.ui.update.available_tag = None;
         self.ui.update.available_url = None;
         self.ui.update.available_published_at = None;
+        if update_changed {
+            self.mark_update_projection_revision_dirty();
+        }
         let _ = self.save_full_config();
     }
 
@@ -65,38 +71,65 @@ impl AppController {
     pub(crate) fn apply_update_check_result(&mut self, result: UpdateCheckOutcome) {
         match result {
             UpdateCheckOutcome::UpToDate => {
+                let update_changed = self.ui.update.status != crate::app::state::UpdateStatus::Idle
+                    || self.ui.update.available_tag.is_some()
+                    || self.ui.update.available_url.is_some();
                 self.ui.update.status = crate::app::state::UpdateStatus::Idle;
                 self.ui.update.available_tag = None;
                 self.ui.update.available_url = None;
                 self.ui.update.available_published_at = None;
+                if update_changed {
+                    self.mark_update_projection_revision_dirty();
+                }
             }
             UpdateCheckOutcome::UpdateAvailable {
                 tag,
                 html_url,
                 published_at,
             } => {
+                let update_changed = self.ui.update.status
+                    != crate::app::state::UpdateStatus::UpdateAvailable
+                    || self.ui.update.available_tag.as_deref() != Some(tag.as_str())
+                    || self.ui.update.available_url.as_deref() != Some(html_url.as_str());
                 self.ui.update.status = crate::app::state::UpdateStatus::UpdateAvailable;
                 self.ui.update.available_tag = Some(tag);
                 self.ui.update.available_url = Some(html_url);
                 self.ui.update.available_published_at = published_at;
+                if update_changed {
+                    self.mark_update_projection_revision_dirty();
+                }
             }
         }
     }
 
     pub(crate) fn apply_update_check_error(&mut self, err: String) {
         if err.contains("release with required assets found") {
+            let update_changed = self.ui.update.status != crate::app::state::UpdateStatus::Idle
+                || self.ui.update.last_error.is_some()
+                || self.ui.update.available_tag.is_some()
+                || self.ui.update.available_url.is_some();
             self.ui.update.status = crate::app::state::UpdateStatus::Idle;
             self.ui.update.last_error = None;
             self.ui.update.available_tag = None;
             self.ui.update.available_url = None;
             self.ui.update.available_published_at = None;
+            if update_changed {
+                self.mark_update_projection_revision_dirty();
+            }
             return;
         }
+        let update_changed = self.ui.update.status != crate::app::state::UpdateStatus::Error
+            || self.ui.update.last_error.as_deref() != Some(err.as_str())
+            || self.ui.update.available_tag.is_some()
+            || self.ui.update.available_url.is_some();
         self.ui.update.status = crate::app::state::UpdateStatus::Error;
         self.ui.update.last_error = Some(err.clone());
         self.ui.update.available_tag = None;
         self.ui.update.available_url = None;
         self.ui.update.available_published_at = None;
+        if update_changed {
+            self.mark_update_projection_revision_dirty();
+        }
         self.set_status(format!("Update check failed: {err}"), StatusTone::Warning);
     }
 
@@ -115,8 +148,13 @@ impl AppController {
             current_version,
             last_seen_nightly_published_at: self.ui.update.last_seen_nightly_published_at.clone(),
         };
+        let update_changed = self.ui.update.status != crate::app::state::UpdateStatus::Checking
+            || self.ui.update.last_error.is_some();
         self.ui.update.status = crate::app::state::UpdateStatus::Checking;
         self.ui.update.last_error = None;
+        if update_changed {
+            self.mark_update_projection_revision_dirty();
+        }
         self.runtime.jobs.begin_update_check(request);
     }
 }

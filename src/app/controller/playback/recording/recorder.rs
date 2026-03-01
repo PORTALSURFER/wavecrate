@@ -87,7 +87,7 @@ pub(crate) fn stop_recording(
         controller.invalidate_cached_audio(&source.id, &relative_path);
         controller.sample_view.wav.loaded_audio = None;
         controller.sample_view.wav.loaded_wav = None;
-        controller.ui.loaded_wav = None;
+        controller.set_ui_loaded_wav(None);
         if let Err(err) = controller.load_waveform_for_selection(&source, &relative_path) {
             controller.set_status(
                 format!("Recorded {} (load failed: {err})", relative_path.display()),

@@ -429,7 +429,7 @@ impl AppController {
 
         // Force a full reload by clearing loaded_wav (the file was modified on disk)
         self.sample_view.wav.loaded_wav = None;
-        self.ui.loaded_wav = None;
+        self.set_ui_loaded_wav(None);
 
         self.refresh_waveform_for_sample(&context.source, &context.relative_path);
 
