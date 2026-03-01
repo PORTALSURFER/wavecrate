@@ -1,7 +1,7 @@
 # Performance Cleanup Plan
 
 Generated: 2026-03-01 (UTC)
-Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implementation.
+Status: Phase 2 execution in progress.
 
 ## ROI-Ranked Backlog
 
@@ -110,7 +110,7 @@ Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implem
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01 (`83b02c2e`)
 
-- [ ] 6. Gate `prepare_native_frame` maintenance work behind explicit pending flags
+- [x] 6. Gate `prepare_native_frame` maintenance work behind explicit pending flags
   - ROI: High
   - Effort: M
   - Expected impact: frame time, CPU, startup/interactivity responsiveness
@@ -127,6 +127,7 @@ Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implem
     - controller unit tests around pending commit/flush timing
     - perf comparison for idle redraw and wheel-hover scenarios
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01 (`9aafa6da`)
 
 - [ ] 7. Improve idle pointer responsiveness by adding short-lived high-frequency redraw cadence after cursor movement
   - ROI: High
