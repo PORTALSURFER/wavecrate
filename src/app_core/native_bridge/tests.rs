@@ -99,12 +99,9 @@ fn projection_cache_key_changes_when_volume_milli_changes() {
 }
 
 #[test]
-/// Full and segment waveform keys must keep milli conversion behavior aligned.
+/// Full and segment waveform keys must keep static waveform milli conversion aligned.
 fn projection_and_waveform_keys_share_waveform_milli_conversion() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
-    controller.ui.waveform.cursor = Some(0.1234);
-    controller.ui.waveform.playhead.visible = true;
-    controller.ui.waveform.playhead.position = 0.4321;
     controller.ui.waveform.selection = Some(crate::selection::SelectionRange::new(0.8, 0.2));
     controller.ui.waveform.edit_selection = Some(
         crate::selection::SelectionRange::new(0.7, 0.4)
@@ -116,11 +113,6 @@ fn projection_and_waveform_keys_share_waveform_milli_conversion() {
 
     let full = build_projection_cache_key(&controller);
     let segment = build_waveform_projection_key(&controller);
-    assert_eq!(full.waveform_cursor_milli, segment.waveform_cursor_milli);
-    assert_eq!(
-        full.waveform_playhead_milli,
-        segment.waveform_playhead_milli
-    );
     assert_eq!(
         full.waveform_selection_start_milli,
         segment.waveform_selection_start_milli
@@ -153,6 +145,23 @@ fn projection_and_waveform_keys_share_waveform_milli_conversion() {
         full.waveform_view_end_milli,
         segment.waveform_view_end_milli
     );
+}
+
+#[test]
+/// Cursor/playhead motion should not invalidate static projection keys.
+fn projection_and_waveform_keys_ignore_cursor_and_playhead_motion() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let first_full = build_projection_cache_key(&controller);
+    let first_waveform = build_waveform_projection_key(&controller);
+
+    controller.ui.waveform.cursor = Some(0.1234);
+    controller.ui.waveform.playhead.visible = true;
+    controller.ui.waveform.playhead.position = 0.4321;
+
+    let second_full = build_projection_cache_key(&controller);
+    let second_waveform = build_waveform_projection_key(&controller);
+    assert_eq!(first_full, second_full);
+    assert_eq!(first_waveform, second_waveform);
 }
 
 #[test]
@@ -844,6 +853,20 @@ fn projection_segment_waveform_dirty_mask_and_lookup_counts() {
     assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
     assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 0, 1);
+}
+
+/// Cursor-only updates should stay on motion overlays and keep static segments cached.
+#[test]
+fn projection_segment_cursor_motion_keeps_static_segments_cached() {
+    let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
+        controller.ui.waveform.cursor = Some(0.25);
+    });
+    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
 }
 
 /// Non-segment static-key changes should only set the global static dirty bit.

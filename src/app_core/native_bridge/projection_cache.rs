@@ -88,8 +88,6 @@ pub(super) struct NativeProjectionCacheKey {
     pub(super) prompt_active: bool,
     pub(super) drag_active: bool,
     pub(super) waveform_signature: Option<u64>,
-    pub(super) waveform_cursor_milli: Option<u16>,
-    pub(super) waveform_playhead_milli: Option<u16>,
     pub(super) waveform_selection_start_milli: Option<u16>,
     pub(super) waveform_selection_end_milli: Option<u16>,
     pub(super) waveform_edit_selection_start_milli: Option<u16>,
@@ -180,8 +178,6 @@ pub(super) struct MapProjectionCacheKey {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct WaveformProjectionCacheKey {
     pub(super) waveform_signature: Option<u64>,
-    pub(super) waveform_cursor_milli: Option<u16>,
-    pub(super) waveform_playhead_milli: Option<u16>,
     pub(super) waveform_selection_start_milli: Option<u16>,
     pub(super) waveform_selection_end_milli: Option<u16>,
     pub(super) waveform_edit_selection_start_milli: Option<u16>,
@@ -486,7 +482,7 @@ impl NativeProjectionCache {
     /// Materialize waveform panel/chrome fields when the waveform segment is dirty.
     ///
     /// Example:
-    /// - View/cursor/selection/transport-dependent waveform key changes return `true`,
+    /// - View/selection/transport-dependent waveform key changes return `true`,
     ///   and the caller sets `NativeDirtySegments::WAVEFORM_OVERLAY`.
     fn materialize_waveform_segment(
         &mut self,
@@ -666,8 +662,6 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
             || controller.ui.waveform.pending_destructive.is_some(),
         drag_active: controller.ui.drag.payload.is_some(),
         waveform_signature: controller.ui.waveform.waveform_image_signature,
-        waveform_cursor_milli: waveform_millis.cursor_milli,
-        waveform_playhead_milli: waveform_millis.playhead_milli,
         waveform_selection_start_milli: waveform_millis.selection_start_milli,
         waveform_selection_end_milli: waveform_millis.selection_end_milli,
         waveform_edit_selection_start_milli: waveform_millis.edit_selection_start_milli,
@@ -704,10 +698,6 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
 /// Normalized waveform projection values converted to milli-space key fields.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct WaveformProjectionMillis {
-    /// Cursor position in normalized milli-space.
-    cursor_milli: Option<u16>,
-    /// Playhead position in normalized milli-space.
-    playhead_milli: Option<u16>,
     /// Selection start in normalized milli-space.
     selection_start_milli: Option<u16>,
     /// Selection end in normalized milli-space.
@@ -728,16 +718,6 @@ struct WaveformProjectionMillis {
 
 /// Derive normalized waveform projection key fields once for cache-key builders.
 fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProjectionMillis {
-    let cursor_milli = controller.ui.waveform.cursor.map(normalized_f32_to_milli);
-    let playhead_milli =
-        controller
-            .ui
-            .waveform
-            .playhead
-            .visible
-            .then_some(normalized_f32_to_milli(
-                controller.ui.waveform.playhead.position,
-            ));
     let (selection_start_milli, selection_end_milli) = controller
         .ui
         .waveform
@@ -779,8 +759,6 @@ fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProj
         })
         .unwrap_or((None, None));
     WaveformProjectionMillis {
-        cursor_milli,
-        playhead_milli,
         selection_start_milli,
         selection_end_milli,
         edit_selection_start_milli,
@@ -862,8 +840,6 @@ pub(super) fn build_waveform_projection_key(
     let waveform_millis = derive_waveform_projection_millis(controller);
     WaveformProjectionCacheKey {
         waveform_signature: controller.ui.waveform.waveform_image_signature,
-        waveform_cursor_milli: waveform_millis.cursor_milli,
-        waveform_playhead_milli: waveform_millis.playhead_milli,
         waveform_selection_start_milli: waveform_millis.selection_start_milli,
         waveform_selection_end_milli: waveform_millis.selection_end_milli,
         waveform_edit_selection_start_milli: waveform_millis.edit_selection_start_milli,
