@@ -1,7 +1,7 @@
 # Performance Cleanup Plan
 
 Generated: 2026-03-01 (UTC)
-Status: Phase 2 execution in progress; items 1-3 complete.
+Status: Phase 2 execution in progress; items 1-4 complete.
 
 ## ROI-Ranked Backlog
 
@@ -70,7 +70,7 @@ Status: Phase 2 execution in progress; items 1-3 complete.
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01, commit `acf3d160`
 
-- [ ] 4. Make audio file IO stale-aware during read to reduce wasted work under rapid selection churn
+- [x] 4. Make audio file IO stale-aware during read to reduce wasted work under rapid selection churn
   - ROI: High
   - Effort: M
   - Expected impact: p95 interaction latency, IO pressure, CPU
@@ -88,6 +88,7 @@ Status: Phase 2 execution in progress; items 1-3 complete.
     - Audio-loader stale-drop tests expanded for mid-read cancel
     - Manual high-frequency sample stepping test
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01, commit `d30f9678`
 
 - [ ] 5. Eliminate expensive retained-model cloning fallback on projection misses
   - ROI: High

@@ -57,10 +57,10 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: runtime responsiveness/performance redesign (Xilem-inspired scoped invalidation + cache reuse)
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
-- Current status: `tmp/perf_plan.md` Phase 2 execution is in progress; items 1-3 are complete (index-first browser focus + static-key cursor/playhead partitioning + deferred transient detection), and item 4 is next.
+- Current status: `tmp/perf_plan.md` Phase 2 execution is in progress; items 1-4 are complete (index-first browser focus + static-key cursor/playhead partitioning + deferred transients + stale-aware chunked file reads), and item 5 is next.
 
 ## Immediate Next Actions
-1. Execute item 4 from `tmp/perf_plan.md`: make audio file reads stale-aware with chunked cancellation checks.
+1. Execute item 5 from `tmp/perf_plan.md`: eliminate retained-model clone fallback on projection misses.
 2. Continue items sequentially in strict ROI order; after each item run validation, commit, push, and mark completion with date/hash.
 3. Keep handoff docs synchronized on milestone commits (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
 
