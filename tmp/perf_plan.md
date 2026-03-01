@@ -229,7 +229,7 @@ Status: Phase 2 execution in progress.
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01 (`99cd6603`)
 
-- [ ] 12. Extend perf guard with runtime-level idle cursor scenario and layer-specific rebuild counters
+- [x] 12. Extend perf guard with runtime-level idle cursor scenario and layer-specific rebuild counters
   - ROI: Medium
   - Effort: S
   - Expected impact: startup/interaction diagnostics quality, regression detection
@@ -246,3 +246,4 @@ Status: Phase 2 execution in progress.
     - `bash scripts/run_perf_guard.sh` with new scenario
     - ensure thresholds are warn-only initially until variance is characterized
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01 (`828119e5`)
