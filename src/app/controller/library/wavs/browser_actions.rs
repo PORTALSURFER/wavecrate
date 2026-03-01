@@ -207,14 +207,20 @@ impl AppController {
 
     /// Focus a browser row without mutating the multi-selection set.
     pub fn focus_browser_row_only(&mut self, visible_row: usize) {
-        let Some(path) = self.browser_path_for_visible(visible_row) else {
+        let Some(entry_index) = self.visible_browser_index(visible_row) else {
+            return;
+        };
+        let Some(path) = self
+            .wav_entry(entry_index)
+            .map(|entry| entry.relative_path.clone())
+        else {
             return;
         };
         self.focus_browser_context();
         self.ui.browser.autoscroll = true;
         self.ui.browser.selection_anchor_visible = Some(visible_row);
         self.ui.browser.last_focused_path = Some(path.to_path_buf());
-        self.focus_wav_by_path_preview_with_rebuild(&path, false);
+        self.focus_wav_by_index_preview_with_rebuild(entry_index, false);
         self.refresh_browser_selection_markers();
     }
 
@@ -511,7 +517,13 @@ impl AppController {
         action: SelectionAction,
         commit_load: bool,
     ) {
-        let Some(path) = self.browser_path_for_visible(visible_row) else {
+        let Some(entry_index) = self.visible_browser_index(visible_row) else {
+            return;
+        };
+        let Some(path) = self
+            .wav_entry(entry_index)
+            .map(|entry| entry.relative_path.clone())
+        else {
             return;
         };
         self.focus_browser_context();
@@ -548,9 +560,9 @@ impl AppController {
             }
         }
         if commit_load {
-            self.select_wav_by_path_with_rebuild(&path, false);
+            self.select_wav_by_index_with_rebuild(entry_index, false);
         } else {
-            self.focus_wav_by_path_preview_with_rebuild(&path, false);
+            self.focus_wav_by_index_preview_with_rebuild(entry_index, false);
         }
         self.refresh_browser_selection_markers();
     }

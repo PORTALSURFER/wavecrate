@@ -698,6 +698,16 @@ impl AppController {
         selection_ops::focus_wav_by_path_preview_with_rebuild(self, path, rebuild);
     }
 
+    /// Preview-focus a wav row by absolute index while skipping heavy commit side effects.
+    pub(crate) fn focus_wav_by_index_preview_with_rebuild(&mut self, index: usize, rebuild: bool) {
+        selection_ops::focus_wav_by_index_preview_with_rebuild(self, index, rebuild);
+    }
+
+    /// Select a wav row by absolute index, optionally delaying browser list rebuild.
+    pub(crate) fn select_wav_by_index_with_rebuild(&mut self, index: usize, rebuild: bool) {
+        selection_ops::select_wav_by_index_with_rebuild(self, index, rebuild);
+    }
+
     /// Map the current browser filter into a drop target tag for drag-and-drop retagging.
     pub fn triage_flag_drop_target(&self) -> TriageFlagColumn {
         selection_ops::triage_flag_drop_target(self)
