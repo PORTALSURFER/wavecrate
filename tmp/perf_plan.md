@@ -5,7 +5,7 @@ Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implem
 
 ## ROI-Ranked Backlog
 
-- [ ] 1. Collapse projection-stage cost in browser-heavy scenarios by tightening invalidation scope and projection-key churn
+- [x] 1. Collapse projection-stage cost in browser-heavy scenarios by tightening invalidation scope and projection-key churn
   - ROI: Very High
   - Effort: M
   - Expected impact: p95 interaction latency, frame time, CPU
@@ -28,6 +28,7 @@ Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implem
     - `bash scripts/run_perf_guard.sh` (focus `hover_latency`, `wheel_latency`, `browser_filter_churn_latency`)
     - targeted native-bridge cache/invalidation tests
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01 (`1716e19f`)
 
 - [ ] 2. Move revision-bus updates from frame-time snapshot cloning to mutation-time dirty flags
   - ROI: Very High
