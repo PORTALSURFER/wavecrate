@@ -84,12 +84,24 @@ pub trait AppControllerNativeRuntimeExt {
 
 impl AppControllerNativeRuntimeExt for AppController {
     fn prepare_native_frame(&mut self, animation_only: bool) {
-        self.flush_pending_volume_setting();
-        self.flush_pending_age_update_commit();
-        self.flush_pending_focused_similarity_highlight_refresh();
-        self.flush_pending_waveform_seek_commit();
-        self.flush_pending_waveform_image_refresh();
-        self.flush_deferred_startup_source_db_maintenance();
+        if self.has_pending_volume_setting_flush() {
+            self.flush_pending_volume_setting();
+        }
+        if self.has_pending_age_update_commit() {
+            self.flush_pending_age_update_commit();
+        }
+        if self.has_pending_focused_similarity_highlight_refresh() {
+            self.flush_pending_focused_similarity_highlight_refresh();
+        }
+        if self.has_pending_waveform_seek_commit() {
+            self.flush_pending_waveform_seek_commit();
+        }
+        if self.has_pending_waveform_image_refresh() {
+            self.flush_pending_waveform_image_refresh();
+        }
+        if self.has_pending_startup_source_db_maintenance() {
+            self.flush_deferred_startup_source_db_maintenance();
+        }
         if animation_only {
             self.record_frame_timing_for_fps();
             if !self.is_playing() {

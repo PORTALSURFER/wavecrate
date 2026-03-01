@@ -338,9 +338,19 @@ impl AppController {
         transport::flush_pending_volume_setting(self);
     }
 
+    /// Return true when a deferred volume-setting persistence write is queued.
+    pub(crate) fn has_pending_volume_setting_flush(&self) -> bool {
+        self.runtime.volume_persist_dirty
+    }
+
     /// Flush a pending deferred waveform seek commit if due.
     pub(crate) fn flush_pending_waveform_seek_commit(&mut self) {
         transport::flush_pending_waveform_seek_commit(self);
+    }
+
+    /// Return true when a deferred waveform-seek commit is queued.
+    pub(crate) fn has_pending_waveform_seek_commit(&self) -> bool {
+        self.runtime.pending_waveform_seek_milli.is_some()
     }
 
     #[cfg(test)]
@@ -431,6 +441,11 @@ impl AppController {
             return;
         };
         self.commit_pending_age_update_value(update);
+    }
+
+    /// Return true when deferred playback-age persistence is queued.
+    pub(crate) fn has_pending_age_update_commit(&self) -> bool {
+        self.runtime.pending_age_update_commit.is_some()
     }
 
     /// Commit any pending playback age update to the database and refresh the UI.

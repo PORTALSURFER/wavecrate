@@ -162,6 +162,11 @@ impl AppController {
         self.runtime.jobs.begin_source_db_maintenance(jobs);
     }
 
+    /// Return true when startup-deferred source-db maintenance is armed.
+    pub(crate) fn has_pending_startup_source_db_maintenance(&self) -> bool {
+        self.runtime.deferred_startup_source_db_maintenance_armed
+    }
+
     pub(super) fn persist_config(&mut self, error_prefix: &str) -> Result<(), String> {
         self.save_full_config()
             .map_err(|err| format!("{error_prefix}: {err}"))

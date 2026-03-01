@@ -91,6 +91,11 @@ impl AppController {
         self.refresh_focused_similarity_highlight(&pending.sample_id, pending.anchor_index);
     }
 
+    /// Return true when a focused-similarity refresh is queued.
+    pub(crate) fn has_pending_focused_similarity_highlight_refresh(&self) -> bool {
+        self.runtime.pending_similarity_refresh.is_some()
+    }
+
     /// Expose wav indices for a given triage flag column (used by virtualized rendering).
     pub fn browser_indices(&self, column: TriageFlagColumn) -> &[usize] {
         match column {

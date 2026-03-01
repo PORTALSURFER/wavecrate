@@ -238,6 +238,11 @@ impl AppController {
         self.refresh_waveform_image_with_reason(reason);
     }
 
+    /// Return true when a waveform-image refresh is queued.
+    pub(crate) fn has_pending_waveform_image_refresh(&self) -> bool {
+        self.runtime.waveform_refresh_pending
+    }
+
     /// Render waveform pixels for the current view immediately.
     fn refresh_waveform_image_now(&mut self) {
         let Some(decoded) = self.sample_view.waveform.decoded.as_ref() else {
