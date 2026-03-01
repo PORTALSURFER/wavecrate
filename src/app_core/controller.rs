@@ -197,6 +197,18 @@ fn apply_browser_native_ui_action(
         NativeUiAction::FocusFolderSearch => controller.focus_folder_search(),
         NativeUiAction::SetFolderSearch { query } => controller.set_folder_search(query),
         NativeUiAction::SelectSourceRow { index } => controller.select_source_by_index(index),
+        NativeUiAction::ReloadSourceRow { index } => {
+            controller.select_source_by_index(index);
+            let _ = controller.refresh_wavs();
+        }
+        NativeUiAction::HardSyncSourceRow { index } => {
+            controller.select_source_by_index(index);
+            controller.request_hard_sync();
+        }
+        NativeUiAction::OpenSourceFolderRow { index } => controller.open_source_folder(index),
+        NativeUiAction::RemoveDeadLinksForSourceRow { index } => {
+            controller.remove_dead_links_for_source(index)
+        }
         NativeUiAction::FocusFolderRow { index } => controller.replace_folder_selection(index),
         NativeUiAction::MoveFolderFocus { delta } => controller.nudge_folder_focus_action(delta),
         NativeUiAction::StartNewFolder => controller.start_new_folder(),
