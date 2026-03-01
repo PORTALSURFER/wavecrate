@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-01T22:36:16Z
+Last updated (UTC): 2026-03-01T22:46:53Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -16,11 +16,11 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Execute `tmp/perf_plan.md` item 6:
-   remove full status-bar formatting from motion-model projection hot path.
-2. Execute `tmp/perf_plan.md` item 7:
+1. Execute `tmp/perf_plan.md` item 7:
    cache/carry waveform upload blobs across draws to reduce image upload churn.
-3. Execute `tmp/perf_plan.md` item 8:
+2. Execute `tmp/perf_plan.md` item 8:
    replace segment attribution proxy wiring with direct per-segment timings.
+3. Execute `tmp/perf_plan.md` item 9:
+   reduce map projection clone churn by retaining projected identity buffers.
 4. Keep handoff docs synchronized at each milestone:
    update `AGENTS.md`, `MEMORY.md`, and `tmp/perf_plan.md` in the same cycle.

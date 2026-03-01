@@ -1,7 +1,7 @@
 # Performance Cleanup Plan
 
 Generated: 2026-03-01 (UTC)
-Status: Phase 2 execution in progress; items 1-5 complete.
+Status: Phase 2 execution in progress; items 1-6 complete.
 
 ## ROI-Ranked Backlog
 
@@ -110,7 +110,7 @@ Status: Phase 2 execution in progress; items 1-5 complete.
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01, commit `3cfa8cfe`
 
-- [ ] 6. Remove full status-bar formatting from motion model projection hot path
+- [x] 6. Remove full status-bar formatting from motion model projection hot path
   - ROI: Medium
   - Effort: S
   - Expected impact: frame time, CPU
@@ -126,6 +126,7 @@ Status: Phase 2 execution in progress; items 1-5 complete.
   - Validation plan:
     - Motion-model projection tests for status-right parity
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01, commit `7ceee172`
 
 - [ ] 7. Cache/carry waveform image upload blobs across draws to reduce per-frame image upload overhead
   - ROI: Medium
