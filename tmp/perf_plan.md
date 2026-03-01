@@ -1,7 +1,7 @@
 # Performance Cleanup Plan
 
 Generated: 2026-03-01 (UTC)
-Status: Phase 2 execution in progress; item 1 complete.
+Status: Phase 2 execution in progress; items 1-2 complete.
 
 ## ROI-Ranked Backlog
 
@@ -27,7 +27,7 @@ Status: Phase 2 execution in progress; item 1 complete.
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01, commit `765e0697`
 
-- [ ] 2. Move waveform cursor/playhead dynamics out of static projection keys so idle motion stops forcing model-pull rebuilds
+- [x] 2. Move waveform cursor/playhead dynamics out of static projection keys so idle motion stops forcing model-pull rebuilds
   - ROI: Very High
   - Effort: L
   - Expected impact: frame time, p95 interaction latency, CPU
@@ -48,6 +48,7 @@ Status: Phase 2 execution in progress; item 1 complete.
     - `bash scripts/run_perf_guard.sh` (focus `idle_cursor_motion_latency`, `waveform_interaction_latency`)
     - Manual cursor/playhead correctness checks during idle + playback
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01, commit `8b98c5e0`
 
 - [ ] 3. Defer transient detection from the critical audio-load-to-play path
   - ROI: High
