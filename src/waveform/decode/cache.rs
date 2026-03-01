@@ -14,12 +14,15 @@ use crate::waveform::DecodedWaveform;
 /// Cache keys are derived from input bytes and entries are kept in insertion/access
 /// order with bounded eviction.
 pub(crate) struct DecodeCache {
-    entries: HashMap<String, CacheEntry>,
+    entries: HashMap<DecodeCacheKey, CacheEntry>,
     order: VecDeque<TouchEntry>,
     max_entries: usize,
     next_stamp: u64,
     resident_bytes: usize,
 }
+
+/// Compact fixed-size decode cache key derived from source bytes.
+pub(super) type DecodeCacheKey = blake3::Hash;
 
 const DECODE_CACHE_TELEMETRY_LOG_EVERY: u64 = 1_024;
 static DECODE_CACHE_TELEMETRY_ENABLED: OnceLock<bool> = OnceLock::new();
@@ -187,7 +190,7 @@ impl DecodeCache {
     /// Return a cached decoded waveform for `key`, if present.
     ///
     /// When a hit occurs the entry is marked as most recently used.
-    pub(super) fn get(&mut self, key: &str) -> Option<Arc<DecodedWaveform>> {
+    pub(super) fn get(&mut self, key: &DecodeCacheKey) -> Option<Arc<DecodedWaveform>> {
         let stamp = self.next_stamp();
         let waveform = match self.entries.get_mut(key) {
             Some(entry) => {
@@ -199,21 +202,19 @@ impl DecodeCache {
                 return None;
             }
         };
-        self.order.push_back(TouchEntry {
-            key: key.to_string(),
-            stamp,
-        });
+        self.order.push_back(TouchEntry { key: *key, stamp });
         self.compact_order_if_needed();
         record_decode_cache_hit();
         Some(waveform)
     }
 
     /// Insert a decoded waveform and evict least-recently-used entries if needed.
-    pub(super) fn insert(&mut self, key: String, value: Arc<DecodedWaveform>) {
+    pub(super) fn insert(&mut self, key: DecodeCacheKey, value: Arc<DecodedWaveform>) {
         let stamp = self.next_stamp();
-        let bytes_estimate = decoded_waveform_bytes_estimate(&value).saturating_add(key.len());
+        let bytes_estimate =
+            decoded_waveform_bytes_estimate(&value).saturating_add(size_of::<DecodeCacheKey>());
         if let Some(replaced) = self.entries.insert(
-            key.clone(),
+            key,
             CacheEntry {
                 waveform: value,
                 stamp,
@@ -258,7 +259,7 @@ impl DecodeCache {
             .entries
             .iter()
             .map(|(key, entry)| TouchEntry {
-                key: key.clone(),
+                key: *key,
                 stamp: entry.stamp,
             })
             .collect();
@@ -284,18 +285,18 @@ struct CacheEntry {
 }
 
 struct TouchEntry {
-    key: String,
+    key: DecodeCacheKey,
     stamp: u64,
 }
 
 /// Compute a stable content hash for decoded bytes for cache keying.
-pub(super) fn hash_bytes(bytes: &[u8]) -> String {
-    blake3::hash(bytes).to_hex().to_string()
+pub(super) fn hash_bytes(bytes: &[u8]) -> DecodeCacheKey {
+    blake3::hash(bytes)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::DecodeCache;
+    use super::{DecodeCache, hash_bytes};
     use crate::waveform::{DecodedWaveform, next_cache_token};
     use std::sync::Arc;
 
@@ -316,24 +317,28 @@ mod tests {
     #[test]
     fn get_refreshes_recency_for_eviction() {
         let mut cache = DecodeCache::new(2);
-        cache.insert(String::from("a"), decoded(0.1));
-        cache.insert(String::from("b"), decoded(0.2));
+        let key_a = hash_bytes(b"a");
+        let key_b = hash_bytes(b"b");
+        let key_c = hash_bytes(b"c");
+        cache.insert(key_a, decoded(0.1));
+        cache.insert(key_b, decoded(0.2));
 
-        let hit = cache.get("a");
+        let hit = cache.get(&key_a);
         assert!(hit.is_some());
 
-        cache.insert(String::from("c"), decoded(0.3));
-        assert!(cache.get("a").is_some());
-        assert!(cache.get("c").is_some());
-        assert!(cache.get("b").is_none());
+        cache.insert(key_c, decoded(0.3));
+        assert!(cache.get(&key_a).is_some());
+        assert!(cache.get(&key_c).is_some());
+        assert!(cache.get(&key_b).is_none());
     }
 
     #[test]
     fn recency_queue_is_compacted_after_many_hits() {
         let mut cache = DecodeCache::new(1);
-        cache.insert(String::from("only"), decoded(0.1));
+        let key = hash_bytes(b"only");
+        cache.insert(key, decoded(0.1));
         for _ in 0..128 {
-            let _ = cache.get("only");
+            let _ = cache.get(&key);
         }
 
         assert_eq!(cache.entries.len(), 1);
