@@ -169,7 +169,7 @@ Status: Phase 2 execution in progress.
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01 (`29e4dec1`)
 
-- [ ] 9. Reduce waveform zoom-cache lock contention with sharded/concurrent cache design
+- [x] 9. Reduce waveform zoom-cache lock contention with sharded/concurrent cache design
   - ROI: Medium
   - Effort: M
   - Expected impact: p95 interaction latency, CPU
@@ -187,6 +187,7 @@ Status: Phase 2 execution in progress.
     - zoom-cache concurrency tests (parallel get/compute)
     - perf guard waveform scenarios + lock-wait telemetry diff
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01 (`08fd3552`)
 
 - [ ] 10. Shrink decode-cache key/path allocation churn (move from `String` keys to compact hash keys)
   - ROI: Medium
