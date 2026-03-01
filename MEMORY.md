@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-01T09:18:01Z
+Last Updated: 2026-03-01T21:50:02Z
 Updated By: Codex
 
 ## Purpose
@@ -10,20 +10,20 @@ Updated By: Codex
 
 ## Current State (Present Tense)
 
-- I am running a deep runtime performance audit pass and have generated a strict
-  ROI-ranked backlog at `tmp/perf_plan.md`.
-- I am in Phase 1 (planning only): no performance implementation has started
-  yet.
-- I am waiting for explicit user confirmation before executing Phase 2
-  sequentially in plan order.
+- I have completed item 1 of `tmp/perf_plan.md` and switched browser
+  focus/selection hot paths to index-first execution to avoid repeated path
+  re-resolution.
+- I am executing Phase 2 sequentially in strict ROI order, one item at a time.
+- Item 2 (projection cache key partitioning for cursor/playhead dynamics) is
+  next.
 - Preflight is green (`bash scripts/run_agent_request.sh`), and the latest perf
-  evidence is from `target/perf/bench.json`.
+  evidence is from `target/perf/bench.json` generated during this pass.
 
 ## Immediate Next Actions
 
-1. Wait for explicit user confirmation to begin Phase 2 implementation.
-2. Execute `tmp/perf_plan.md` items strictly in order; after each item:
-   run CI, commit, push, and mark the item complete with date/hash.
+1. Execute item 2 in `tmp/perf_plan.md` (static vs motion cache-key split).
+2. Continue remaining plan items in order; after each item run CI, commit, push,
+   and mark completion with date/hash.
 3. Keep `AGENTS.md`, `MEMORY.md`, and `tmp/perf_plan.md` synchronized.
 
 ## Work Notes

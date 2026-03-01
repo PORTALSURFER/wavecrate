@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-02-27T12:10:33Z
+Last updated (UTC): 2026-03-01T21:50:02Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -16,14 +16,13 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Reduce compositor-run warning drift in browser-heavy scenarios
-   (`hover_latency`, `wheel_latency`, `browser_filter_churn_latency`) using
-   the latest 7-run perf-guard evidence.
-2. Root-cause projection-stage spikes in waveform interaction outliers under
-   immediate-preview-on runs before revisiting immediate-apply scope.
-3. Maintain handoff hygiene on every milestone commit:
-   update `AGENTS.md`, `MEMORY.md`, and this queue in the same change set.
-4. Execute next no-behavior `jobs.rs` slice:
-   extract issue gateway/token worker runners into a focused `jobs/` submodule.
-5. Execute first `browser_search_worker.rs` split slice:
-   isolate telemetry counters + cadence emission helpers into a focused submodule.
+1. Execute `tmp/perf_plan.md` item 2:
+   partition projection cache keys so waveform cursor/playhead dynamics no
+   longer trigger static projection rebuilds.
+2. Execute `tmp/perf_plan.md` item 3:
+   stage transient detection after load/play result delivery so playback
+   responsiveness stays immediate under rapid focus churn.
+3. Execute `tmp/perf_plan.md` item 4:
+   make audio read path stale-aware with chunked cancellation checks.
+4. Keep handoff docs synchronized at each milestone:
+   update `AGENTS.md`, `MEMORY.md`, and `tmp/perf_plan.md` in the same cycle.

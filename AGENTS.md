@@ -57,12 +57,12 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: runtime responsiveness/performance redesign (Xilem-inspired scoped invalidation + cache reuse)
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
-- Current status: startup-threshold calibration and larger-window immediate-preview A/B are complete; focus has shifted to warning-drift reduction and waveform outlier root-cause analysis.
+- Current status: `tmp/perf_plan.md` Phase 2 execution is in progress; item 1 is complete (index-first browser focus/selection hot path), and item 2 is next.
 
 ## Immediate Next Actions
-1. Reduce compositor-run warning drift in browser-heavy scenarios (`hover_latency`, `wheel_latency`, `browser_filter_churn_latency`) using the latest 7-run perf-guard evidence.
-2. Root-cause projection-stage spikes in waveform interaction outliers under immediate-preview-on runs before revisiting immediate-apply scope.
-3. Keep handoff docs synchronized on every milestone (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
+1. Execute item 2 from `tmp/perf_plan.md`: move waveform cursor/playhead dynamics out of static projection cache keys.
+2. Continue items sequentially in strict ROI order; after each item run validation, commit, push, and mark completion with date/hash.
+3. Keep handoff docs synchronized on milestone commits (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
