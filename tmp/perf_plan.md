@@ -189,7 +189,7 @@ Status: Phase 2 execution in progress.
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01 (`08fd3552`)
 
-- [ ] 10. Shrink decode-cache key/path allocation churn (move from `String` keys to compact hash keys)
+- [x] 10. Shrink decode-cache key/path allocation churn (move from `String` keys to compact hash keys)
   - ROI: Medium
   - Effort: M
   - Expected impact: memory, CPU, startup/load responsiveness
@@ -207,6 +207,7 @@ Status: Phase 2 execution in progress.
     - decode-cache unit tests for eviction/recency/hit behavior
     - memory profiling during repeated sample loads
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01 (`13b522ab`)
 
 - [ ] 11. Reuse browser-search worker buffers across jobs (scores, similarity lookup, scratch)
   - ROI: Medium
