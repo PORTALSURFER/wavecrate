@@ -70,7 +70,7 @@ Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implem
     - `bash scripts/run_perf_guard.sh` and `bash scripts/ci_local.sh`
   - Completed: 2026-03-01 (`4e69cc75`)
 
-- [ ] 4. Remove repeated `NativeMotionModel::from_app_model` cloning from hot paths
+- [x] 4. Remove repeated `NativeMotionModel::from_app_model` cloning from hot paths
   - ROI: High
   - Effort: M
   - Expected impact: p95 interaction latency, frame time, memory churn, CPU
@@ -89,6 +89,7 @@ Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implem
     - motion-model equality/regression tests
     - profiler comparison of motion overlay build/encode time
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01 (`aa39a139`)
 
 - [ ] 5. Replace waveform pixel-span rectangle emission with texture-backed rendering
   - ROI: High
