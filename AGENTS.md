@@ -69,6 +69,7 @@ Write for future selves: be precise, kind, and clear.
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
 - `tmp/cleanup_plan.md`: ROI-ranked cleanup backlog + execution checklist for the current cleanup pass
+- `tmp/perf_plan.md`: ROI-ranked runtime performance backlog + execution checklist for the current perf pass
 
 ## Non-Negotiable Workflow Rules
 - Before and after edits: `bash scripts/ci_local.sh`

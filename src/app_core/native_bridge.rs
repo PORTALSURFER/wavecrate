@@ -34,7 +34,8 @@ use self::{
         InteractionActionClass, classify_action_interaction, is_immediate_waveform_preview_action,
     },
     invalidation::{
-        BROAD_DIRTY_SOURCES, action_requires_projection_cache_invalidation, classify_dirty_source,
+        BROAD_DIRTY_SOURCES, action_prefers_targeted_invalidation,
+        action_requires_projection_cache_invalidation, classify_dirty_source,
         waveform_render_inputs_require_refresh,
     },
     metrics::{
@@ -346,10 +347,14 @@ impl SempalNativeBridge {
 
     /// Mark derived graph sources affected by one action.
     fn mark_dirty_for_action(&mut self, action: &NativeUiAction) {
+        let mut has_targeted_source = false;
         if let Some((source, reason)) = classify_dirty_source(action) {
             self.controller.mark_derived_source_dirty(source, reason);
+            has_targeted_source = true;
         }
-        if action_requires_projection_cache_invalidation(action) {
+        if action_requires_projection_cache_invalidation(action)
+            && (!has_targeted_source || !action_prefers_targeted_invalidation(action))
+        {
             self.controller
                 .mark_derived_sources_dirty(&BROAD_DIRTY_SOURCES, DirtyReason::BroadInvalidation);
         }

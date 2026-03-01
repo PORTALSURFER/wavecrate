@@ -36,6 +36,30 @@ pub(super) const BROAD_DIRTY_SOURCES: [DerivedNodeId; 4] = [
     DerivedNodeId::StatusState,
 ];
 
+/// Return whether an action should stay on targeted dirty-source invalidation.
+///
+/// High-frequency browser navigation/search actions are intentionally excluded
+/// from broad invalidation because broad invalidation fans out to unrelated
+/// map/transport/status sources and increases projection-key churn.
+pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> bool {
+    matches!(
+        action,
+        NativeUiAction::MoveBrowserFocus { .. }
+            | NativeUiAction::FocusBrowserRow { .. }
+            | NativeUiAction::ToggleBrowserRowSelection { .. }
+            | NativeUiAction::ExtendBrowserSelectionToRow { .. }
+            | NativeUiAction::AddRangeBrowserSelection { .. }
+            | NativeUiAction::ExtendBrowserSelectionFromFocus { .. }
+            | NativeUiAction::AddRangeBrowserSelectionFromFocus { .. }
+            | NativeUiAction::ToggleFocusedBrowserRowSelection
+            | NativeUiAction::SelectAllBrowserRows
+            | NativeUiAction::SetBrowserSearch { .. }
+            | NativeUiAction::FocusBrowserPanel
+            | NativeUiAction::FocusBrowserSearch
+            | NativeUiAction::FocusLoadedSampleInBrowser
+    )
+}
+
 /// Resolve the primary dirty source node and reason for one native action.
 pub(super) fn classify_dirty_source(
     action: &NativeUiAction,

@@ -605,6 +605,85 @@ fn mark_dirty_for_waveform_action_marks_graph_nodes() {
     );
 }
 
+/// High-frequency browser focus actions should avoid broad invalidation fan-out.
+#[test]
+fn mark_dirty_for_browser_focus_action_stays_targeted() {
+    let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let mut bridge = SempalNativeBridge {
+        controller,
+        projection_cache: NativeProjectionCache::default(),
+        projection_key_snapshot: None,
+        last_dirty_segments: NativeDirtySegments::all(),
+        segment_revisions: NativeSegmentRevisions::default(),
+        pending_waveform_actions: PendingWaveformActions::default(),
+    };
+
+    bridge.mark_dirty_for_action(&NativeUiAction::MoveBrowserFocus { delta: 1 });
+
+    assert!(
+        bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::BrowserState)
+    );
+    assert!(
+        bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::NativeAppProjectionKey)
+    );
+    assert!(
+        !bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::MapState)
+    );
+    assert!(
+        !bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::TransportState)
+    );
+    assert!(
+        !bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::StatusState)
+    );
+}
+
+/// Non-targeted actions should keep broad invalidation as the conservative fallback.
+#[test]
+fn mark_dirty_for_unclassified_action_keeps_broad_invalidation() {
+    let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let mut bridge = SempalNativeBridge {
+        controller,
+        projection_cache: NativeProjectionCache::default(),
+        projection_key_snapshot: None,
+        last_dirty_segments: NativeDirtySegments::all(),
+        segment_revisions: NativeSegmentRevisions::default(),
+        pending_waveform_actions: PendingWaveformActions::default(),
+    };
+
+    bridge.mark_dirty_for_action(&NativeUiAction::OpenSourceFolderRow { index: 0 });
+
+    assert!(
+        bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::BrowserState)
+    );
+    assert!(
+        bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::MapState)
+    );
+    assert!(
+        bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::TransportState)
+    );
+    assert!(
+        bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::StatusState)
+    );
+}
+
 /// Flushing derived updates should clear graph dirties and invalidate projection cache key.
 #[test]
 fn flush_derived_updates_clears_nodes_and_invalidates_key() {

@@ -1,0 +1,237 @@
+# Performance Cleanup Plan
+
+Generated: 2026-03-01 (UTC)
+Status: Phase 1 planning complete; awaiting user confirmation for Phase 2 implementation.
+
+## ROI-Ranked Backlog
+
+- [ ] 1. Collapse projection-stage cost in browser-heavy scenarios by tightening invalidation scope and projection-key churn
+  - ROI: Very High
+  - Effort: M
+  - Expected impact: p95 interaction latency, frame time, CPU
+  - Evidence:
+    - `target/perf/bench.json:438` (`hover_latency.projection_stage.p95_us = 1104`)
+    - `target/perf/bench.json:528` (`wheel_latency.projection_stage.p95_us = 1069`)
+    - `target/perf/bench.json:618` (`browser_filter_churn_latency.projection_stage.p95_us = 1083`)
+    - `target/perf/bench.json:1385` (`browser_filter_churn_latency.bridge_model_pull_rebuild_count = 24`)
+    - `src/app_core/native_bridge.rs:352` (broad invalidation path)
+    - `src/app_core/native_bridge/invalidation.rs:5` (`action_requires_projection_cache_invalidation`)
+    - `src/app_core/native_bridge/projection_cache.rs:554` (full `app_key` hit/miss gate)
+  - Recommended change:
+    - Narrow broad invalidation for browser-centric actions to the minimum dirty sources.
+    - Split projection-key invalidation into finer browser subkeys so row-window-only changes do not force unrelated key churn.
+    - Add targeted metrics for browser key-path misses vs retained hits.
+  - Risk/tradeoffs:
+    - Medium: incorrect invalidation scoping can produce stale UI state.
+  - Visual impact: None
+  - Validation plan:
+    - `bash scripts/run_perf_guard.sh` (focus `hover_latency`, `wheel_latency`, `browser_filter_churn_latency`)
+    - targeted native-bridge cache/invalidation tests
+    - `bash scripts/ci_local.sh`
+
+- [ ] 2. Move revision-bus updates from frame-time snapshot cloning to mutation-time dirty flags
+  - ROI: Very High
+  - Effort: M
+  - Expected impact: p95 interaction latency, frame time, CPU, memory churn
+  - Evidence:
+    - `src/app/controller/revision_bus.rs:12` (`refresh_projection_revision_bus` called per frame)
+    - `src/app/controller/revision_bus.rs:22`/`:35` (string clones in sync path)
+    - `src/app_core/controller.rs:86` (`prepare_native_frame` always calls revision-bus refresh)
+  - Recommended change:
+    - Introduce revision dirty bits set by mutation call-sites (`set_browser_search`, status setters, map setters, etc.).
+    - Keep `prepare_native_frame` path as a cheap drain/apply of pre-marked revisions.
+  - Risk/tradeoffs:
+    - Medium: requires broad setter coverage; missed setter wiring can under-invalidate.
+  - Visual impact: None
+  - Validation plan:
+    - revision-bus unit tests expanded for all revised fields
+    - perf guard compare before/after controller apply/pull stages
+    - `bash scripts/ci_local.sh`
+
+- [ ] 3. Split motion overlay into cheap cursor/playhead layer plus heavier toolbar/status layer
+  - ROI: High
+  - Effort: L
+  - Expected impact: interaction latency (cursor hover/drag), frame time, CPU
+  - Evidence:
+    - `vendor/radiant/src/gui/native_shell/state.rs:3128` (`build_motion_overlay_into` builds full motion overlay)
+    - `vendor/radiant/src/gui/native_shell/state.rs:3182`/`:3187` (toolbar + header emitted in motion pass)
+    - `vendor/radiant/src/gui_runtime/native_vello.rs:2513` (motion overlay rebuild path)
+  - Recommended change:
+    - Decompose motion overlay into sublayers: `waveform_cursor_overlay`, `playhead_overlay`, `toolbar_motion_overlay`.
+    - Rebuild only the sublayer affected by pointer-hover/playhead movement.
+  - Risk/tradeoffs:
+    - Medium: layering/z-order and invalidation bookkeeping complexity increases.
+  - Visual impact: Minimal
+  - Validation plan:
+    - native shell overlay tests for hover cursor/playhead/toolbar toggles
+    - manual pointer-hover smoothness check at idle and during playback
+    - `bash scripts/run_perf_guard.sh` and `bash scripts/ci_local.sh`
+
+- [ ] 4. Remove repeated `NativeMotionModel::from_app_model` cloning from hot paths
+  - ROI: High
+  - Effort: M
+  - Expected impact: p95 interaction latency, frame time, memory churn, CPU
+  - Evidence:
+    - `vendor/radiant/src/app/mod.rs:1173` (`from_app_model` clones multiple strings)
+    - `vendor/radiant/src/gui_runtime/native_vello.rs:2333`/`:2388`/`:2486`/`:2510` (repeated construction)
+    - `vendor/radiant/src/gui/native_shell/state.rs:827`/`:915`/`:1292` (hit-test/build call-sites)
+  - Recommended change:
+    - Keep a retained motion snapshot with cheap scalar deltas.
+    - Avoid string cloning in motion model (use borrowed/atomized fields where safe).
+    - Thread cached motion model into hit-test helpers that currently reconstruct it.
+  - Risk/tradeoffs:
+    - Medium: lifetimes/ownership complexity; requires careful API boundaries.
+  - Visual impact: None
+  - Validation plan:
+    - motion-model equality/regression tests
+    - profiler comparison of motion overlay build/encode time
+    - `bash scripts/ci_local.sh`
+
+- [ ] 5. Replace waveform pixel-span rectangle emission with texture-backed rendering
+  - ROI: High
+  - Effort: L
+  - Expected impact: frame time, CPU, memory bandwidth, interaction smoothness
+  - Evidence:
+    - `vendor/radiant/src/gui/native_shell/state/waveform_segments.rs:370` (`push_waveform_image` emits rect spans per pixel runs)
+    - `src/app/controller/library/wavs/waveform_rendering.rs:20` (`WAVEFORM_RENDER_SUPERSAMPLE_X = 4` increases source resolution)
+  - Recommended change:
+    - Add an image/texture primitive in `radiant` scene representation and Vello encode path.
+    - Render waveform as one textured quad (with optional nearest/linear policy), preserving overlay annotations separately.
+  - Risk/tradeoffs:
+    - High implementation complexity in renderer bridge; GPU/format compatibility details.
+  - Visual impact: Needs review
+  - Validation plan:
+    - waveform visual regression snapshots (zoomed + dense regions)
+    - perf guard + manual interaction smoothness checks
+    - `bash scripts/ci_local.sh`
+
+- [ ] 6. Gate `prepare_native_frame` maintenance work behind explicit pending flags
+  - ROI: High
+  - Effort: M
+  - Expected impact: frame time, CPU, startup/interactivity responsiveness
+  - Evidence:
+    - `src/app_core/controller.rs:86-101` (flushers and tick path run each frame)
+    - includes `flush_pending_waveform_image_refresh` and other queue flushes even on frequent frame prep calls
+  - Recommended change:
+    - Add cheap `has_pending_*` guards and skip no-op maintenance passes.
+    - Keep animation-only path minimal when transport is idle.
+  - Risk/tradeoffs:
+    - Medium: missed flush trigger can delay state propagation.
+  - Visual impact: None
+  - Validation plan:
+    - controller unit tests around pending commit/flush timing
+    - perf comparison for idle redraw and wheel-hover scenarios
+    - `bash scripts/ci_local.sh`
+
+- [ ] 7. Improve idle pointer responsiveness by adding short-lived high-frequency redraw cadence after cursor movement
+  - ROI: High
+  - Effort: S
+  - Expected impact: interaction feel, frame pacing
+  - Evidence:
+    - `vendor/radiant/src/gui_runtime/native_vello.rs:3296` (`about_to_wait` uses idle wait-until cadence)
+    - `vendor/radiant/src/gui_runtime/native_vello.rs:3000`/`:3024` (`CursorMoved` path can queue cursor updates)
+    - `vendor/radiant/src/gui_runtime/native_vello.rs:2167` (`next_idle_status_refresh` cadence)
+  - Recommended change:
+    - Track recent pointer movement and temporarily schedule tighter `WaitUntil` intervals (for example 120 Hz for ~100 ms) when cursor is active.
+    - Fall back to existing idle cadence quickly to preserve CPU efficiency.
+  - Risk/tradeoffs:
+    - Low-Medium: careless cadence window can increase idle CPU.
+  - Visual impact: Minimal
+  - Validation plan:
+    - manual hover-cursor smoothness check while idle (no playback)
+    - monitor CPU usage regression under idle window
+    - `bash scripts/ci_local.sh`
+
+- [ ] 8. Cache per-layout hit-test action geometry to remove repeated vector construction on pointer events
+  - ROI: Medium
+  - Effort: M
+  - Expected impact: input-stage latency, CPU, allocation churn
+  - Evidence:
+    - `vendor/radiant/src/gui/native_shell/state.rs:865` (`browser_action_at_point` rebuilds action vectors)
+    - `vendor/radiant/src/gui/native_shell/state.rs:908` (`waveform_toolbar_action_at_point` rebuilds button vectors)
+    - `vendor/radiant/src/gui/native_shell/state.rs:3603` (`waveform_toolbar_buttons` allocates labels/buttons)
+  - Recommended change:
+    - Add layout/model-keyed caches for toolbar/button/chip geometry and action lookup tables.
+    - Reuse cached immutable slices during pointer move/click hit-tests.
+  - Risk/tradeoffs:
+    - Medium: cache invalidation and stale-geometry bugs if keys are incomplete.
+  - Visual impact: None
+  - Validation plan:
+    - hit-test behavior tests for toolbar/buttons/chips
+    - benchmark pointer-heavy event handling
+    - `bash scripts/ci_local.sh`
+
+- [ ] 9. Reduce waveform zoom-cache lock contention with sharded/concurrent cache design
+  - ROI: Medium
+  - Effort: M
+  - Expected impact: p95 interaction latency, CPU
+  - Evidence:
+    - `src/waveform/zoom_cache.rs:16-17` (single `Mutex<CacheInner>`)
+    - `src/waveform/zoom_cache.rs:191` (global lock acquisition)
+    - lock wait telemetry already instrumented (`record_zoom_cache_lock_wait`)
+  - Recommended change:
+    - Shard by cache token or width bucket, or adopt read-optimized concurrent map strategy.
+    - Keep compute outside locks and avoid duplicate misses under parallel requests.
+  - Risk/tradeoffs:
+    - Medium: synchronization complexity; potential duplicate compute if sharding is naïve.
+  - Visual impact: None
+  - Validation plan:
+    - zoom-cache concurrency tests (parallel get/compute)
+    - perf guard waveform scenarios + lock-wait telemetry diff
+    - `bash scripts/ci_local.sh`
+
+- [ ] 10. Shrink decode-cache key/path allocation churn (move from `String` keys to compact hash keys)
+  - ROI: Medium
+  - Effort: M
+  - Expected impact: memory, CPU, startup/load responsiveness
+  - Evidence:
+    - `src/waveform/decode/cache.rs:17` (`HashMap<String, CacheEntry>`)
+    - `src/waveform/decode/cache.rs:202-203` (`key.to_string()` on touches)
+    - `src/waveform/decode/cache.rs:292` (`hash_bytes -> String`)
+  - Recommended change:
+    - Store fixed-size hash keys (for example `blake3::Hash` or `u128`) and avoid repeated string clones in touch queues.
+    - Keep human-readable logging at boundaries only.
+  - Risk/tradeoffs:
+    - Low-Medium: migration of serialization/log expectations for keys.
+  - Visual impact: None
+  - Validation plan:
+    - decode-cache unit tests for eviction/recency/hit behavior
+    - memory profiling during repeated sample loads
+    - `bash scripts/ci_local.sh`
+
+- [ ] 11. Reuse browser-search worker buffers across jobs (scores, similarity lookup, scratch)
+  - ROI: Medium
+  - Effort: M
+  - Expected impact: CPU, memory churn, search/filter responsiveness
+  - Evidence:
+    - `src/app/controller/library/wavs/browser_search_worker/pipeline.rs:130` (`vec![None; entries_len]`)
+    - `src/app/controller/library/wavs/browser_search_worker/pipeline.rs:216` (`score_lookup` allocation)
+    - `src/app/controller/library/wavs/browser_search_worker/pipeline.rs:288` (scratch vector allocation)
+  - Recommended change:
+    - Add reusable worker-local typed buffers with `clear()/resize_with()` instead of reallocating per job.
+    - Keep cancel checks and semantics unchanged.
+  - Risk/tradeoffs:
+    - Low: straightforward optimization with bounded worker-local state.
+  - Visual impact: None
+  - Validation plan:
+    - search worker tests + large-row synthetic benchmark
+    - compare telemetry allocation counters before/after
+    - `bash scripts/ci_local.sh`
+
+- [ ] 12. Extend perf guard with runtime-level idle cursor scenario and layer-specific rebuild counters
+  - ROI: Medium
+  - Effort: S
+  - Expected impact: startup/interaction diagnostics quality, regression detection
+  - Evidence:
+    - current guard emphasizes controller-path scenarios in `src/bin/bench/gui/interactions.rs`
+    - known user-facing issue class involves idle cursor repaint behavior in runtime loop (`vendor/radiant/src/gui_runtime/native_vello.rs:3296`)
+  - Recommended change:
+    - Add one runtime-driven benchmark scenario for idle cursor movement and repaint latency.
+    - Emit separate counters for state overlay vs motion sublayer rebuild frequency.
+  - Risk/tradeoffs:
+    - Low: primarily instrumentation/reporting, but adds maintenance surface.
+  - Visual impact: None
+  - Validation plan:
+    - `bash scripts/run_perf_guard.sh` with new scenario
+    - ensure thresholds are warn-only initially until variance is characterized
+    - `bash scripts/ci_local.sh`
