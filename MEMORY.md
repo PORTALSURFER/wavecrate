@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-01T22:25:32Z
+Last Updated: 2026-03-01T22:36:16Z
 Updated By: Codex
 
 ## Purpose
@@ -10,18 +10,19 @@ Updated By: Codex
 
 ## Current State (Present Tense)
 
-- I have completed items 1-4 of `tmp/perf_plan.md`:
+- I have completed items 1-5 of `tmp/perf_plan.md`:
   index-first browser focus hot paths, static-key partitioning for
   cursor/playhead waveform motion, and deferred transient computation after
-  primary audio-load delivery plus stale-aware chunked audio file reads.
+  primary audio-load delivery plus stale-aware chunked audio file reads, and a
+  retained mutable projection model path for miss handling.
 - I am executing Phase 2 sequentially in strict ROI order, one item at a time.
-- Item 5 (retained-model clone-fallback elimination on projection misses) is next.
+- Item 6 (status projection simplification in motion-model hot path) is next.
 - Preflight is green (`bash scripts/run_agent_request.sh`), and the latest perf
   evidence is from `target/perf/bench.json` generated during this pass.
 
 ## Immediate Next Actions
 
-1. Execute item 5 in `tmp/perf_plan.md` (remove retained-model clone fallback on projection misses).
+1. Execute item 6 in `tmp/perf_plan.md` (project only status-right text on motion pulls).
 2. Continue remaining plan items in order; after each item run CI, commit, push,
    and mark completion with date/hash.
 3. Keep `AGENTS.md`, `MEMORY.md`, and `tmp/perf_plan.md` synchronized.

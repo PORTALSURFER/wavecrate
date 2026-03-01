@@ -1,7 +1,7 @@
 # Performance Cleanup Plan
 
 Generated: 2026-03-01 (UTC)
-Status: Phase 2 execution in progress; items 1-4 complete.
+Status: Phase 2 execution in progress; items 1-5 complete.
 
 ## ROI-Ranked Backlog
 
@@ -90,7 +90,7 @@ Status: Phase 2 execution in progress; items 1-4 complete.
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01, commit `d30f9678`
 
-- [ ] 5. Eliminate expensive retained-model cloning fallback on projection misses
+- [x] 5. Eliminate expensive retained-model cloning fallback on projection misses
   - ROI: High
   - Effort: L
   - Expected impact: projection-stage latency, memory churn, CPU
@@ -108,6 +108,7 @@ Status: Phase 2 execution in progress; items 1-4 complete.
     - Projection-cache correctness tests (segment dirtying + hit/miss behavior)
     - `bash scripts/run_perf_guard.sh`
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01, commit `3cfa8cfe`
 
 - [ ] 6. Remove full status-bar formatting from motion model projection hot path
   - ROI: Medium
