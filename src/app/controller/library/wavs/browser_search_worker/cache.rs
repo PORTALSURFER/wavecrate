@@ -38,6 +38,9 @@ pub(super) struct SearchWorkerCache {
     pub(super) folder_accept_cache: Vec<WorkerFolderAcceptCacheEntry>,
     pub(super) max_cached_folder_filters: usize,
     pub(super) triage_cache: Option<WorkerTriageCacheEntry>,
+    pub(super) score_scratch: Vec<Option<i64>>,
+    pub(super) similar_lookup_scratch: Vec<Option<f32>>,
+    pub(super) scored_index_scratch: Vec<(usize, i64)>,
 }
 
 impl Default for SearchWorkerCache {
@@ -55,8 +58,45 @@ impl Default for SearchWorkerCache {
             folder_accept_cache: Vec::new(),
             max_cached_folder_filters: 4,
             triage_cache: None,
+            score_scratch: Vec::new(),
+            similar_lookup_scratch: Vec::new(),
+            scored_index_scratch: Vec::new(),
         }
     }
+}
+
+impl SearchWorkerCache {
+    /// Ensure score scratch has `len` elements and return added element capacity.
+    pub(super) fn prepare_score_scratch(&mut self, len: usize) -> usize {
+        let added = reserve_growth(&mut self.score_scratch, len);
+        self.score_scratch.clear();
+        self.score_scratch.resize(len, None);
+        added
+    }
+
+    /// Ensure similarity-lookup scratch has `len` elements and return added capacity.
+    pub(super) fn prepare_similar_lookup_scratch(&mut self, len: usize) -> usize {
+        let added = reserve_growth(&mut self.similar_lookup_scratch, len);
+        self.similar_lookup_scratch.clear();
+        self.similar_lookup_scratch.resize(len, None);
+        added
+    }
+
+    /// Ensure scored-index scratch can hold `capacity` entries and return added capacity.
+    pub(super) fn prepare_scored_index_scratch(&mut self, capacity: usize) -> usize {
+        let added = reserve_growth(&mut self.scored_index_scratch, capacity);
+        self.scored_index_scratch.clear();
+        added
+    }
+}
+
+/// Reserve vector capacity up to `target_capacity` and return added element capacity.
+fn reserve_growth<T>(buffer: &mut Vec<T>, target_capacity: usize) -> usize {
+    let before = buffer.capacity();
+    if before < target_capacity {
+        buffer.reserve(target_capacity.saturating_sub(before));
+    }
+    buffer.capacity().saturating_sub(before)
 }
 
 /// Cached query score vector keyed by source revision and query text.
@@ -87,3 +127,38 @@ pub(super) struct WorkerTriageCacheEntry {
 
 /// Shared triage partitions in source-list index order.
 pub(super) type TriagePartitions = (Arc<[usize]>, Arc<[usize]>, Arc<[usize]>);
+
+#[cfg(test)]
+/// Worker-cache scratch-buffer helper tests.
+mod tests {
+    use super::*;
+
+    #[test]
+    /// Preparing score scratch should clear stale values and match requested length.
+    fn prepare_score_scratch_clears_and_resizes() {
+        let mut cache = SearchWorkerCache {
+            score_scratch: vec![Some(1), Some(2)],
+            ..SearchWorkerCache::default()
+        };
+
+        let _ = cache.prepare_score_scratch(4);
+
+        assert_eq!(cache.score_scratch.len(), 4);
+        assert!(cache.score_scratch.iter().all(Option::is_none));
+    }
+
+    #[test]
+    /// Preparing scored-index scratch should retain capacity and clear prior items.
+    fn prepare_scored_index_scratch_reuses_capacity() {
+        let mut cache = SearchWorkerCache {
+            scored_index_scratch: vec![(1, 10), (2, 20)],
+            ..SearchWorkerCache::default()
+        };
+        let initial_capacity = cache.scored_index_scratch.capacity();
+
+        let _ = cache.prepare_scored_index_scratch(1);
+
+        assert!(cache.scored_index_scratch.is_empty());
+        assert!(cache.scored_index_scratch.capacity() >= initial_capacity);
+    }
+}

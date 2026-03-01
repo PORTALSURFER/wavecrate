@@ -114,9 +114,6 @@ pub(super) fn process_search_job(
     let mut scores: Arc<[Option<i64>]> = Arc::from([]);
 
     if has_query {
-        let Some(entries) = cache.entries.as_ref() else {
-            return Some(empty_search_result(job));
-        };
         if let Some(index) = cache.query_score_cache.iter().position(|cached| {
             cached.source_id == job_source_id_str
                 && cached.revision == cache.revision
@@ -127,20 +124,23 @@ pub(super) fn process_search_job(
             scores = Arc::clone(&cached.scores);
             cache.query_score_cache.insert(0, cached);
         } else {
-            let mut computed_scores = vec![None; entries_len];
+            let added_score_capacity = cache.prepare_score_scratch(entries_len);
             record_search_worker_score_alloc(
-                entries_len.saturating_mul(std::mem::size_of::<Option<i64>>()),
+                added_score_capacity.saturating_mul(std::mem::size_of::<Option<i64>>()),
             );
+            let Some(entries) = cache.entries.as_ref() else {
+                return Some(empty_search_result(job));
+            };
             for (index, entry) in entries.iter().enumerate() {
                 if search_job_canceled_for_index(queue, generation, index) {
                     return None;
                 }
-                computed_scores[index] = matcher.fuzzy_match(&entry.display_label, &job.query);
+                cache.score_scratch[index] = matcher.fuzzy_match(&entry.display_label, &job.query);
             }
             if search_job_canceled(queue, generation) {
                 return None;
             }
-            let computed_scores: Arc<[Option<i64>]> = computed_scores.into();
+            let computed_scores: Arc<[Option<i64>]> = Arc::from(cache.score_scratch.as_slice());
             cache.query_score_cache.insert(
                 0,
                 WorkerQueryScoreCacheEntry {
@@ -193,12 +193,34 @@ pub(super) fn process_search_job(
     if search_job_canceled(queue, generation) {
         return None;
     }
-    let Some(entries) = cache.entries.as_ref() else {
-        return Some(empty_search_result(job));
-    };
     let mut visible = Vec::new();
 
     if let Some(similar) = &job.similar_query {
+        if job.sort == SampleBrowserSort::Similarity {
+            let added_lookup_capacity = cache.prepare_similar_lookup_scratch(entries_len);
+            record_search_worker_similar_lookup_alloc(
+                added_lookup_capacity.saturating_mul(std::mem::size_of::<Option<f32>>()),
+            );
+            for (offset, (&index, &score)) in similar
+                .indices
+                .iter()
+                .zip(similar.scores.iter())
+                .enumerate()
+            {
+                if search_job_canceled_for_index(queue, generation, offset) {
+                    return None;
+                }
+                if index < cache.similar_lookup_scratch.len() {
+                    cache.similar_lookup_scratch[index] = Some(score);
+                }
+            }
+            if search_job_canceled(queue, generation) {
+                return None;
+            }
+        }
+        let Some(entries) = cache.entries.as_ref() else {
+            return Some(empty_search_result(job));
+        };
         for (offset, index) in similar.indices.iter().copied().enumerate() {
             if search_job_canceled_for_index(queue, generation, offset) {
                 return None;
@@ -213,34 +235,14 @@ pub(super) fn process_search_job(
 
         match job.sort {
             SampleBrowserSort::Similarity => {
-                let mut score_lookup = vec![None; entries.len()];
-                record_search_worker_similar_lookup_alloc(
-                    entries
-                        .len()
-                        .saturating_mul(std::mem::size_of::<Option<f32>>()),
-                );
-                for (offset, (&index, &score)) in similar
-                    .indices
-                    .iter()
-                    .zip(similar.scores.iter())
-                    .enumerate()
-                {
-                    if search_job_canceled_for_index(queue, generation, offset) {
-                        return None;
-                    }
-                    if index < score_lookup.len() {
-                        score_lookup[index] = Some(score);
-                    }
-                }
-                if search_job_canceled(queue, generation) {
-                    return None;
-                }
                 visible.sort_by(|a: &usize, b: &usize| {
-                    let a_score = score_lookup
+                    let a_score = cache
+                        .similar_lookup_scratch
                         .get(*a)
                         .and_then(|s| *s)
                         .unwrap_or(f32::NEG_INFINITY);
-                    let b_score = score_lookup
+                    let b_score = cache
+                        .similar_lookup_scratch
                         .get(*b)
                         .and_then(|s| *s)
                         .unwrap_or(f32::NEG_INFINITY);
@@ -284,11 +286,14 @@ pub(super) fn process_search_job(
             }
         }
     } else {
-        let scratch_capacity = entries.len().min(1024);
-        let mut scratch = Vec::with_capacity(scratch_capacity);
+        let scratch_capacity = entries_len.min(1024);
+        let added_scratch_capacity = cache.prepare_scored_index_scratch(scratch_capacity);
         record_search_worker_scratch_alloc(
-            scratch_capacity.saturating_mul(std::mem::size_of::<(usize, i64)>()),
+            added_scratch_capacity.saturating_mul(std::mem::size_of::<(usize, i64)>()),
         );
+        let Some(entries) = cache.entries.as_ref() else {
+            return Some(empty_search_result(job));
+        };
         for (index, entry) in entries.iter().enumerate() {
             if search_job_canceled_for_index(queue, generation, index) {
                 return None;
@@ -300,7 +305,7 @@ pub(super) fn process_search_job(
             }
             if has_query {
                 if let Some(score) = scores.get(index).and_then(|score| *score) {
-                    scratch.push((index, score));
+                    cache.scored_index_scratch.push((index, score));
                 }
             } else {
                 visible.push(index);
@@ -311,11 +316,15 @@ pub(super) fn process_search_job(
             if search_job_canceled(queue, generation) {
                 return None;
             }
-            scratch.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+            cache
+                .scored_index_scratch
+                .sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
             if search_job_canceled(queue, generation) {
                 return None;
             }
-            visible = scratch.into_iter().map(|(index, _)| index).collect();
+            visible.clear();
+            visible.reserve(cache.scored_index_scratch.len());
+            visible.extend(cache.scored_index_scratch.iter().map(|(index, _)| *index));
         }
         match job.sort {
             SampleBrowserSort::PlaybackAgeAsc => {
