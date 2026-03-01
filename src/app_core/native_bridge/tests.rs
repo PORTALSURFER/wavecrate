@@ -910,6 +910,7 @@ fn projection_overlay_only_miss_skips_static_non_segment_refresh() {
     let (first_model, _) = cache.resolve_or_project(&mut controller);
     let mut retained = Arc::unwrap_or_clone(first_model);
     retained.sources_label = String::from("sentinel");
+    cache.app_model_working = Some(retained.clone());
     cache.app_model = Some(Arc::new(retained));
 
     controller.ui.progress.visible = true;

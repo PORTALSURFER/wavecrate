@@ -269,6 +269,8 @@ impl DerivedProjectionState {
 pub(super) struct NativeProjectionCache {
     pub(super) app_key: Option<NativeProjectionCacheKey>,
     pub(super) app_model: Option<Arc<NativeAppModel>>,
+    /// Mutable retained model reused on projection misses to avoid Arc clone fallback paths.
+    pub(super) app_model_working: Option<NativeAppModel>,
     pub(super) status_key: Option<StatusProjectionCacheKey>,
     pub(super) browser_frame_key: Option<BrowserFrameProjectionCacheKey>,
     pub(super) browser_rows_key: Option<BrowserRowsProjectionCacheKey>,
@@ -559,11 +561,11 @@ impl NativeProjectionCache {
             return (model, NativeDirtySegments::empty());
         }
         trace_projection_cache_lookup(false);
-        let has_retained_model = self.app_model.is_some();
+        let has_retained_model = self.app_model_working.is_some() || self.app_model.is_some();
         let mut model = self
-            .app_model
+            .app_model_working
             .take()
-            .map(Arc::unwrap_or_clone)
+            .or_else(|| self.app_model.as_ref().map(|model| model.as_ref().clone()))
             .unwrap_or_default();
 
         let mut dirty_segments = NativeDirtySegments::empty();
@@ -610,9 +612,10 @@ impl NativeProjectionCache {
         Self::refresh_non_segment_always_fields(&mut model, derived.selected_column);
         Self::refresh_non_segment_overlay_fields(&mut model, controller);
         self.app_key = Some(derived.app_key.clone());
-        let model = Arc::new(model);
-        self.app_model = Some(Arc::clone(&model));
-        (model, dirty_segments)
+        let snapshot = Arc::new(model.clone());
+        self.app_model = Some(Arc::clone(&snapshot));
+        self.app_model_working = Some(model);
+        (snapshot, dirty_segments)
     }
 
     #[cfg(test)]
@@ -620,6 +623,7 @@ impl NativeProjectionCache {
     pub(super) fn invalidate(&mut self) {
         self.app_key = None;
         self.app_model = None;
+        self.app_model_working = None;
         self.status_key = None;
         self.browser_frame_key = None;
         self.browser_rows_key = None;
