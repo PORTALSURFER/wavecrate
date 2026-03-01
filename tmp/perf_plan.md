@@ -1,7 +1,7 @@
 # Performance Cleanup Plan
 
 Generated: 2026-03-01 (UTC)
-Status: Phase 2 execution in progress; items 1-2 complete.
+Status: Phase 2 execution in progress; items 1-3 complete.
 
 ## ROI-Ranked Backlog
 
@@ -50,7 +50,7 @@ Status: Phase 2 execution in progress; items 1-2 complete.
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01, commit `8b98c5e0`
 
-- [ ] 3. Defer transient detection from the critical audio-load-to-play path
+- [x] 3. Defer transient detection from the critical audio-load-to-play path
   - ROI: High
   - Effort: M
   - Expected impact: interaction latency (load/play responsiveness), CPU
@@ -68,6 +68,7 @@ Status: Phase 2 execution in progress; items 1-2 complete.
     - Loader unit tests for staged-result ordering + stale cancellation
     - Manual quick-selection playback responsiveness check
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01, commit `acf3d160`
 
 - [ ] 4. Make audio file IO stale-aware during read to reduce wasted work under rapid selection churn
   - ROI: High

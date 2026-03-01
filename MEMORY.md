@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-01T21:59:57Z
+Last Updated: 2026-03-01T22:16:32Z
 Updated By: Codex
 
 ## Purpose
@@ -10,17 +10,18 @@ Updated By: Codex
 
 ## Current State (Present Tense)
 
-- I have completed items 1-2 of `tmp/perf_plan.md`:
-  index-first browser focus hot paths and static-key partitioning for
-  cursor/playhead waveform motion.
+- I have completed items 1-3 of `tmp/perf_plan.md`:
+  index-first browser focus hot paths, static-key partitioning for
+  cursor/playhead waveform motion, and deferred transient computation after
+  primary audio-load delivery.
 - I am executing Phase 2 sequentially in strict ROI order, one item at a time.
-- Item 3 (defer transient detection from critical load/play path) is next.
+- Item 4 (stale-aware chunked audio file reads under rapid selection churn) is next.
 - Preflight is green (`bash scripts/run_agent_request.sh`), and the latest perf
   evidence is from `target/perf/bench.json` generated during this pass.
 
 ## Immediate Next Actions
 
-1. Execute item 3 in `tmp/perf_plan.md` (stage transients after audio load/play result delivery).
+1. Execute item 4 in `tmp/perf_plan.md` (chunked stale-aware audio reads with early cancellation).
 2. Continue remaining plan items in order; after each item run CI, commit, push,
    and mark completion with date/hash.
 3. Keep `AGENTS.md`, `MEMORY.md`, and `tmp/perf_plan.md` synchronized.
