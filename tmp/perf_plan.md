@@ -149,7 +149,7 @@ Status: Phase 2 execution in progress.
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01 (`8beac1ed`)
 
-- [ ] 8. Cache per-layout hit-test action geometry to remove repeated vector construction on pointer events
+- [x] 8. Cache per-layout hit-test action geometry to remove repeated vector construction on pointer events
   - ROI: Medium
   - Effort: M
   - Expected impact: input-stage latency, CPU, allocation churn
@@ -167,6 +167,7 @@ Status: Phase 2 execution in progress.
     - hit-test behavior tests for toolbar/buttons/chips
     - benchmark pointer-heavy event handling
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01 (`29e4dec1`)
 
 - [ ] 9. Reduce waveform zoom-cache lock contention with sharded/concurrent cache design
   - ROI: Medium
