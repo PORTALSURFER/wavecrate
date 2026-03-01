@@ -209,7 +209,7 @@ Status: Phase 2 execution in progress.
     - `bash scripts/ci_local.sh`
   - Completed: 2026-03-01 (`13b522ab`)
 
-- [ ] 11. Reuse browser-search worker buffers across jobs (scores, similarity lookup, scratch)
+- [x] 11. Reuse browser-search worker buffers across jobs (scores, similarity lookup, scratch)
   - ROI: Medium
   - Effort: M
   - Expected impact: CPU, memory churn, search/filter responsiveness
@@ -227,6 +227,7 @@ Status: Phase 2 execution in progress.
     - search worker tests + large-row synthetic benchmark
     - compare telemetry allocation counters before/after
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-01 (`99cd6603`)
 
 - [ ] 12. Extend perf guard with runtime-level idle cursor scenario and layer-specific rebuild counters
   - ROI: Medium
