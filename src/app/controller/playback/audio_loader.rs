@@ -4,6 +4,7 @@ use crate::hotpath_telemetry;
 use crate::waveform::{DecodedWaveform, WaveformRenderer};
 use std::{
     fs,
+    io::Read,
     mem::size_of,
     path::{Component, Path, PathBuf},
     sync::{
@@ -16,6 +17,8 @@ use std::{
 };
 
 const AUDIO_LOADER_POLL_INTERVAL: Duration = Duration::from_millis(200);
+/// Chunk size for stale-aware incremental audio file reads.
+const AUDIO_LOADER_READ_CHUNK_BYTES: usize = 128 * 1024;
 const AUDIO_LOADER_TELEMETRY_LOG_EVERY: u64 = 128;
 static AUDIO_LOADER_TELEMETRY_ENABLED: OnceLock<bool> = OnceLock::new();
 static AUDIO_LOADER_JOBS_RECEIVED: AtomicU64 = AtomicU64::new(0);
@@ -385,7 +388,7 @@ fn load_audio_inner(
             ))
         }
     })?;
-    let bytes = fs::read(&full_path).map_err(|err| {
+    let file = fs::File::open(&full_path).map_err(|err| {
         let missing = err.kind() == std::io::ErrorKind::NotFound;
         if missing {
             AudioLoadError::Missing(format!("File missing: {} ({err})", full_path.display()))
@@ -393,10 +396,17 @@ fn load_audio_inner(
             AudioLoadError::Failed(format!("Failed to read {}: {err}", full_path.display()))
         }
     })?;
-    record_audio_loader_bytes(&AUDIO_LOADER_READ_BYTES_TOTAL, bytes.len());
-    if stale_and_record(job.request_id, latest_request_id, StaleDropStage::PostIo) {
+    let reserve_len = usize::try_from(metadata.len()).unwrap_or(0);
+    let bytes = read_bytes_chunked_with_stale_check(file, reserve_len, || {
+        stale_and_record(job.request_id, latest_request_id, StaleDropStage::PostIo)
+    })
+    .map_err(|err| {
+        AudioLoadError::Failed(format!("Failed to read {}: {err}", full_path.display()))
+    })?;
+    let Some(bytes) = bytes else {
         return Ok(None);
-    }
+    };
+    record_audio_loader_bytes(&AUDIO_LOADER_READ_BYTES_TOTAL, bytes.len());
     let bytes = crate::wav_sanitize::sanitize_wav_bytes(bytes);
     if let Some(start) = io_start {
         record_audio_loader_duration(&AUDIO_LOADER_IO_NS_TOTAL, start.elapsed());
@@ -510,6 +520,30 @@ fn load_audio_inner(
     }))
 }
 
+/// Read bytes incrementally and abort early when a stale request is detected.
+fn read_bytes_chunked_with_stale_check(
+    mut reader: impl Read,
+    reserve_len: usize,
+    mut stale_check: impl FnMut() -> bool,
+) -> std::io::Result<Option<Vec<u8>>> {
+    let mut bytes = Vec::with_capacity(reserve_len);
+    let mut chunk = [0u8; AUDIO_LOADER_READ_CHUNK_BYTES];
+    loop {
+        if stale_check() {
+            return Ok(None);
+        }
+        let read = reader.read(&mut chunk)?;
+        if read == 0 {
+            break;
+        }
+        bytes.extend_from_slice(&chunk[..read]);
+    }
+    if stale_check() {
+        return Ok(None);
+    }
+    Ok(Some(bytes))
+}
+
 /// Compute transient markers for a completed load when the request is still current.
 fn build_transient_result(
     pending: PendingTransientCompute,
@@ -580,7 +614,11 @@ fn ensure_safe_relative_path(path: &Path) -> Result<(), AudioLoadError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AudioLoadJob, drain_to_latest_job, ensure_safe_relative_path, is_stale_request};
+    use super::{
+        AudioLoadJob, drain_to_latest_job, ensure_safe_relative_path, is_stale_request,
+        read_bytes_chunked_with_stale_check,
+    };
+    use std::io::Cursor;
     use std::path::Path;
     use std::path::PathBuf;
     use std::sync::atomic::AtomicU64;
@@ -623,5 +661,33 @@ mod tests {
         latest.store(5, std::sync::atomic::Ordering::Relaxed);
         assert!(is_stale_request(4, &latest));
         assert!(!is_stale_request(5, &latest));
+    }
+
+    #[test]
+    /// Chunked reader should stop and return `None` once stale checks flip true.
+    fn chunked_read_aborts_when_stale_mid_stream() {
+        let payload = vec![1u8; super::AUDIO_LOADER_READ_CHUNK_BYTES * 2];
+        let mut stale_checks = 0u32;
+        let result = read_bytes_chunked_with_stale_check(Cursor::new(payload), 0, || {
+            stale_checks = stale_checks.saturating_add(1);
+            stale_checks >= 2
+        });
+        assert!(result.is_ok());
+        let Some(result) = result.ok() else {
+            return;
+        };
+        assert!(result.is_none());
+    }
+
+    #[test]
+    /// Chunked reader should return complete payload when stale checks stay false.
+    fn chunked_read_returns_payload_when_not_stale() {
+        let payload = vec![7u8; super::AUDIO_LOADER_READ_CHUNK_BYTES + 9];
+        let result = read_bytes_chunked_with_stale_check(Cursor::new(payload.clone()), 0, || false);
+        assert!(result.is_ok());
+        let Some(result) = result.ok() else {
+            return;
+        };
+        assert_eq!(result, Some(payload));
     }
 }
