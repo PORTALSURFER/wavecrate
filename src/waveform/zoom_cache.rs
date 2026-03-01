@@ -1,6 +1,7 @@
 use super::{WaveformChannelView, WaveformColumnView, WaveformRenderer};
 use crate::hotpath_telemetry;
 use std::{
+    collections::hash_map::DefaultHasher,
     collections::{HashMap, VecDeque},
     hash::{Hash, Hasher},
     mem::size_of,
@@ -14,9 +15,13 @@ use tracing::warn;
 
 /// Cache of precomputed waveform columns keyed by token, view, and width.
 pub(super) struct WaveformZoomCache {
-    inner: Mutex<CacheInner>,
+    shards: Vec<Mutex<CacheInner>>,
 }
 
+/// Global zoom-cache entry budget shared across all shards.
+const ZOOM_CACHE_TOTAL_MAX_ENTRIES: usize = 12;
+/// Number of independent mutex shards used to reduce lock contention.
+const ZOOM_CACHE_SHARD_COUNT: usize = 4;
 const ZOOM_CACHE_TELEMETRY_LOG_EVERY: u64 = 1_024;
 static ZOOM_CACHE_TELEMETRY_ENABLED: OnceLock<bool> = OnceLock::new();
 static ZOOM_CACHE_LOCK_ACQUIRE_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -83,15 +88,27 @@ fn record_zoom_cache_compaction() {
     maybe_emit_zoom_cache_telemetry(sample_tick);
 }
 
-fn update_zoom_cache_resident_bytes(resident_bytes: usize) {
+/// Increase aggregate resident-byte telemetry after one cache insertion/update.
+fn add_zoom_cache_resident_bytes(bytes: usize) {
     if !zoom_cache_telemetry_enabled() {
         return;
     }
-    hotpath_telemetry::store_resident_and_peak(
-        &ZOOM_CACHE_RESIDENT_BYTES,
-        &ZOOM_CACHE_PEAK_RESIDENT_BYTES,
-        resident_bytes,
-    );
+    let added = bytes.min(u64::MAX as usize) as u64;
+    let resident = ZOOM_CACHE_RESIDENT_BYTES
+        .fetch_add(added, Ordering::Relaxed)
+        .saturating_add(added);
+    ZOOM_CACHE_PEAK_RESIDENT_BYTES.fetch_max(resident, Ordering::Relaxed);
+}
+
+/// Decrease aggregate resident-byte telemetry after one cache removal/reset.
+fn subtract_zoom_cache_resident_bytes(bytes: usize) {
+    if !zoom_cache_telemetry_enabled() {
+        return;
+    }
+    let removed = bytes.min(u64::MAX as usize) as u64;
+    let _ = ZOOM_CACHE_RESIDENT_BYTES.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+        Some(value.saturating_sub(removed))
+    });
 }
 
 fn maybe_emit_zoom_cache_telemetry(sample_tick: u64) {
@@ -148,9 +165,12 @@ fn cached_columns_bytes(columns: &CachedColumns) -> usize {
 impl WaveformZoomCache {
     /// Create an empty cache with a small, bounded entry budget.
     pub(super) fn new() -> Self {
-        Self {
-            inner: Mutex::new(CacheInner::new()),
+        let per_shard_max_entries = (ZOOM_CACHE_TOTAL_MAX_ENTRIES / ZOOM_CACHE_SHARD_COUNT).max(1);
+        let mut shards = Vec::with_capacity(ZOOM_CACHE_SHARD_COUNT);
+        for _ in 0..ZOOM_CACHE_SHARD_COUNT {
+            shards.push(Mutex::new(CacheInner::new(per_shard_max_entries)));
         }
+        Self { shards }
     }
 
     /// Return cached columns for the request or compute and store them on miss.
@@ -165,8 +185,9 @@ impl WaveformZoomCache {
         width: u32,
     ) -> CachedColumns {
         let key = CacheKey::new(cache_token, samples, channels, view, width);
+        let shard_index = shard_index_for_key(key);
         {
-            let mut inner = self.lock_inner();
+            let mut inner = self.lock_shard(shard_index);
             if let Some(hit) = inner.get(key) {
                 return hit;
             }
@@ -180,7 +201,7 @@ impl WaveformZoomCache {
                     right: right.into(),
                 },
             };
-        let mut inner = self.lock_inner();
+        let mut inner = self.lock_shard(shard_index);
         if let Some(hit) = inner.get(key) {
             return hit;
         }
@@ -188,20 +209,22 @@ impl WaveformZoomCache {
         computed
     }
 
-    fn lock_inner(&self) -> std::sync::MutexGuard<'_, CacheInner> {
+    /// Lock one cache shard and recover from poison by resetting shard-local state.
+    fn lock_shard(&self, shard_index: usize) -> std::sync::MutexGuard<'_, CacheInner> {
         let lock_start = zoom_cache_telemetry_enabled().then(Instant::now);
-        let guard = match self.inner.lock() {
+        let guard = match self.shards[shard_index].lock() {
             Ok(guard) => guard,
             Err(poisoned) => {
                 warn!("Waveform zoom cache mutex poisoned; recovering with cleared cache.");
                 let mut inner = poisoned.into_inner();
+                let stale_bytes = inner.resident_bytes;
                 inner.map.clear();
                 inner.order.clear();
                 inner.next_stamp = 1;
                 inner.resident_bytes = 0;
                 if zoom_cache_telemetry_enabled() {
                     ZOOM_CACHE_LOCK_POISON_RECOVERY_COUNT.fetch_add(1, Ordering::Relaxed);
-                    update_zoom_cache_resident_bytes(0);
+                    subtract_zoom_cache_resident_bytes(stale_bytes);
                 }
                 inner
             }
@@ -211,6 +234,13 @@ impl WaveformZoomCache {
         }
         guard
     }
+}
+
+/// Resolve the deterministic mutex-shard index for one cache key.
+fn shard_index_for_key(key: CacheKey) -> usize {
+    let mut hasher = DefaultHasher::new();
+    key.hash(&mut hasher);
+    (hasher.finish() as usize) % ZOOM_CACHE_SHARD_COUNT
 }
 
 #[derive(Clone)]
@@ -279,11 +309,12 @@ struct CacheInner {
 }
 
 impl CacheInner {
-    fn new() -> Self {
+    /// Create one bounded LRU shard with `max_entries` capacity.
+    fn new(max_entries: usize) -> Self {
         Self {
             map: HashMap::new(),
             order: VecDeque::new(),
-            max_entries: 12,
+            max_entries: max_entries.max(1),
             next_stamp: 1,
             resident_bytes: 0,
         }
@@ -329,9 +360,10 @@ impl CacheInner {
             },
         ) {
             self.resident_bytes = self.resident_bytes.saturating_sub(replaced.bytes_estimate);
+            subtract_zoom_cache_resident_bytes(replaced.bytes_estimate);
         }
         self.resident_bytes = self.resident_bytes.saturating_add(bytes_estimate);
-        update_zoom_cache_resident_bytes(self.resident_bytes);
+        add_zoom_cache_resident_bytes(bytes_estimate);
         record_zoom_cache_insert();
         self.order.push_back(TouchEntry { key, stamp });
         self.compact_order_if_needed();
@@ -349,7 +381,7 @@ impl CacheInner {
                 .is_some_and(|entry| entry.stamp == touch.stamp);
             if is_current && let Some(removed) = self.map.remove(&touch.key) {
                 self.resident_bytes = self.resident_bytes.saturating_sub(removed.bytes_estimate);
-                update_zoom_cache_resident_bytes(self.resident_bytes);
+                subtract_zoom_cache_resident_bytes(removed.bytes_estimate);
                 record_zoom_cache_evict();
             }
         }
@@ -426,8 +458,16 @@ mod tests {
     }
 
     #[test]
+    /// Shard routing should remain deterministic for repeated key lookups.
+    fn shard_index_is_stable_for_identical_keys() {
+        let samples = vec![0.0_f32, 1.0, 0.0, 1.0];
+        let key = CacheKey::new(42, &samples, 1, WaveformChannelView::Mono, 64);
+        assert_eq!(shard_index_for_key(key), shard_index_for_key(key));
+    }
+
+    #[test]
     fn cache_order_stays_bounded_for_repeated_touch() {
-        let mut inner = CacheInner::new();
+        let mut inner = CacheInner::new(1);
         inner.max_entries = 1;
         let samples = vec![0.0_f32, 1.0];
         let key = CacheKey::new(1, &samples, 1, WaveformChannelView::Mono, 10);
@@ -487,7 +527,10 @@ mod tests {
         let samples = vec![0.0_f32, 1.0];
 
         let result = std::panic::catch_unwind(|| {
-            let _guard = cache.inner.lock().expect("poison cache lock");
+            let _guard = match cache.shards[0].lock() {
+                Ok(guard) => guard,
+                Err(err) => panic!("poison cache lock: {err}"),
+            };
             panic!("poison cache lock for test");
         });
         assert!(result.is_err());
