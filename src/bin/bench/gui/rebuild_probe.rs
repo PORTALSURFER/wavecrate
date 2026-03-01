@@ -42,6 +42,8 @@ pub(super) fn collect_interaction_rebuild_cause_attribution(
     let map_pan_proxy_latency = probe_map(controller, warmup_iters, measure_iters)?;
     let waveform_interaction_latency = probe_waveform(controller, warmup_iters, measure_iters);
     let volume_drag_latency = probe_volume(controller, warmup_iters, measure_iters);
+    let idle_cursor_motion_latency =
+        probe_idle_cursor_motion(controller, warmup_iters, measure_iters);
     let waveform_pan_zoom_adjacent_latency =
         probe_waveform_adjacent(controller, warmup_iters, measure_iters);
 
@@ -65,6 +67,7 @@ pub(super) fn collect_interaction_rebuild_cause_attribution(
             waveform_interaction_latency,
         ),
         volume_drag_latency: rebuild_cause_summary_from_counts(volume_drag_latency),
+        idle_cursor_motion_latency: rebuild_cause_summary_from_counts(idle_cursor_motion_latency),
         waveform_pan_zoom_adjacent_latency: rebuild_cause_summary_from_counts(
             waveform_pan_zoom_adjacent_latency,
         ),
@@ -280,6 +283,27 @@ fn probe_volume(
             controller.apply_native_ui_action(NativeUiAction::SetVolume {
                 value_milli: volume_milli_for_step(step),
             });
+        },
+    )
+}
+
+/// Probes projection rebuild causes while only moving the waveform cursor.
+fn probe_idle_cursor_motion(
+    controller: &mut AppController,
+    warmup_iters: usize,
+    measure_iters: usize,
+) -> ProjectionRebuildCauseCounts {
+    let mut step = 0usize;
+    measure_projection_rebuild_cause_counts(
+        controller,
+        warmup_iters,
+        measure_iters,
+        true,
+        |controller, _| {
+            controller.apply_native_ui_action(NativeUiAction::SetWaveformCursor {
+                position_milli: ((step.saturating_mul(37) % 1000) + 1) as u16,
+            });
+            step = step.saturating_add(1);
         },
     )
 }

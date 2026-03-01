@@ -953,6 +953,10 @@ pub struct ProjectionRebuildCauseCounts {
     pub bridge_model_pull_rebuild_count: u64,
     /// Motion-model-only pulls that changed motion state without model rebuild.
     pub bridge_motion_pull_rebuild_count: u64,
+    /// Motion pulls that changed waveform-motion overlay inputs.
+    pub waveform_motion_pull_rebuild_count: u64,
+    /// Motion pulls that changed chrome-motion overlay inputs.
+    pub chrome_motion_pull_rebuild_count: u64,
 }
 
 /// Measure rebuild-cause counters over a fixed action loop.
@@ -1020,9 +1024,13 @@ fn run_rebuild_cause_probe_iters(
         *previous_model = Some(model);
 
         let mut motion_rebuild = false;
+        let mut motion_layer_delta = (false, false);
         if include_motion_pull {
             controller.prepare_native_frame(true);
             let motion = controller.project_native_motion_model();
+            if let Some(previous) = previous_motion.as_ref() {
+                motion_layer_delta = motion_layer_delta_flags(previous, &motion);
+            }
             motion_rebuild = previous_motion
                 .as_ref()
                 .is_some_and(|previous| previous != &motion);
@@ -1042,6 +1050,48 @@ fn run_rebuild_cause_probe_iters(
         } else if include_motion_pull && motion_rebuild {
             counts.bridge_motion_pull_rebuild_count =
                 counts.bridge_motion_pull_rebuild_count.saturating_add(1);
+            if motion_layer_delta.0 {
+                counts.waveform_motion_pull_rebuild_count =
+                    counts.waveform_motion_pull_rebuild_count.saturating_add(1);
+            }
+            if motion_layer_delta.1 {
+                counts.chrome_motion_pull_rebuild_count =
+                    counts.chrome_motion_pull_rebuild_count.saturating_add(1);
+            }
         }
     }
+}
+
+/// Classify which runtime motion layers changed between two motion-model snapshots.
+fn motion_layer_delta_flags(
+    previous: &NativeMotionModel,
+    current: &NativeMotionModel,
+) -> (bool, bool) {
+    let waveform_changed = previous.waveform_selection_milli != current.waveform_selection_milli
+        || previous.waveform_edit_selection_milli != current.waveform_edit_selection_milli
+        || previous.waveform_edit_fade_in_end_milli != current.waveform_edit_fade_in_end_milli
+        || previous.waveform_edit_fade_out_start_milli
+            != current.waveform_edit_fade_out_start_milli
+        || previous.waveform_loop_enabled != current.waveform_loop_enabled
+        || previous.waveform_cursor_milli != current.waveform_cursor_milli
+        || previous.waveform_playhead_milli != current.waveform_playhead_milli
+        || previous.waveform_view_start_milli != current.waveform_view_start_milli
+        || previous.waveform_view_end_milli != current.waveform_view_end_milli
+        || previous.waveform_tempo_label != current.waveform_tempo_label
+        || previous.waveform_zoom_label != current.waveform_zoom_label
+        || previous.waveform_loaded_label != current.waveform_loaded_label
+        || previous.waveform_image_signature != current.waveform_image_signature;
+    let chrome_changed = previous.transport_running != current.transport_running
+        || previous.map_active != current.map_active
+        || previous.waveform_transport_hint != current.waveform_transport_hint
+        || previous.waveform_channel_view != current.waveform_channel_view
+        || previous.waveform_normalized_audition_enabled
+            != current.waveform_normalized_audition_enabled
+        || previous.waveform_bpm_snap_enabled != current.waveform_bpm_snap_enabled
+        || previous.waveform_transient_snap_enabled != current.waveform_transient_snap_enabled
+        || previous.waveform_transient_markers_enabled
+            != current.waveform_transient_markers_enabled
+        || previous.waveform_slice_mode_enabled != current.waveform_slice_mode_enabled
+        || previous.status_right != current.status_right;
+    (waveform_changed, chrome_changed)
 }

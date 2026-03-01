@@ -40,6 +40,10 @@ pub(in crate::bench) struct RebuildCauseAttributionSummary {
     pub(in crate::bench) bridge_model_pull_rebuild_count: u64,
     /// Motion-pull refresh rebuild count observed in this scenario.
     pub(in crate::bench) bridge_motion_pull_rebuild_count: u64,
+    /// Motion pulls that changed waveform-motion layer fields.
+    pub(in crate::bench) waveform_motion_pull_rebuild_count: u64,
+    /// Motion pulls that changed chrome-motion layer fields.
+    pub(in crate::bench) chrome_motion_pull_rebuild_count: u64,
 }
 
 /// Rebuild-cause attribution summaries keyed by GUI interaction scenario.
@@ -67,6 +71,8 @@ pub(in crate::bench) struct GuiInteractionRebuildCauseAttribution {
     pub(in crate::bench) waveform_interaction_latency: RebuildCauseAttributionSummary,
     /// Volume drag interactions.
     pub(in crate::bench) volume_drag_latency: RebuildCauseAttributionSummary,
+    /// Idle waveform-cursor motion interactions.
+    pub(in crate::bench) idle_cursor_motion_latency: RebuildCauseAttributionSummary,
     /// Adjacent waveform pan/zoom interactions.
     pub(in crate::bench) waveform_pan_zoom_adjacent_latency: RebuildCauseAttributionSummary,
 }
@@ -80,5 +86,7 @@ pub(in crate::bench) fn rebuild_cause_summary_from_counts(
         dirty_mask_static_rebuild_count: counts.dirty_mask_static_rebuild_count,
         bridge_model_pull_rebuild_count: counts.bridge_model_pull_rebuild_count,
         bridge_motion_pull_rebuild_count: counts.bridge_motion_pull_rebuild_count,
+        waveform_motion_pull_rebuild_count: counts.waveform_motion_pull_rebuild_count,
+        chrome_motion_pull_rebuild_count: counts.chrome_motion_pull_rebuild_count,
     }
 }

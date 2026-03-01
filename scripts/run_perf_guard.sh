@@ -262,6 +262,13 @@ scenarios = [
         "SEMPAL_PERF_FAIL_P95_US_VOLUME",
         None,
     ),
+    (
+        "idle_cursor_motion_latency",
+        "SEMPAL_PERF_WARN_P95_US_IDLE_CURSOR",
+        8_000,
+        "SEMPAL_PERF_FAIL_P95_US_IDLE_CURSOR",
+        None,
+    ),
 ]
 
 stage_names = (
@@ -432,6 +439,7 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
                 "waveform_interaction_latency": "waveform_overlay",
                 "waveform_pan_zoom_adjacent_latency": "waveform_overlay",
                 "volume_drag_latency": "status_bar",
+                "idle_cursor_motion_latency": "waveform_overlay",
             }
             segment_name = segment_name_by_scenario.get(key)
             if segment_name is not None:
@@ -483,10 +491,31 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
                 dirty_mask = rebuild.get("dirty_mask_static_rebuild_count")
                 model_pull = rebuild.get("bridge_model_pull_rebuild_count")
                 motion_pull = rebuild.get("bridge_motion_pull_rebuild_count")
-                if not all(isinstance(value, int) for value in (explicit, dirty_mask, model_pull, motion_pull)):
+                waveform_motion_pull = rebuild.get("waveform_motion_pull_rebuild_count", 0)
+                chrome_motion_pull = rebuild.get("chrome_motion_pull_rebuild_count", 0)
+                if not all(
+                    isinstance(value, int)
+                    for value in (
+                        explicit,
+                        dirty_mask,
+                        model_pull,
+                        motion_pull,
+                        waveform_motion_pull,
+                        chrome_motion_pull,
+                    )
+                ):
                     missing_rebuild_field = True
                     break
-                values.append((explicit, dirty_mask, model_pull, motion_pull))
+                values.append(
+                    (
+                        explicit,
+                        dirty_mask,
+                        model_pull,
+                        motion_pull,
+                        waveform_motion_pull,
+                        chrome_motion_pull,
+                    )
+                )
             if missing_rebuild_field:
                 print(
                     f"[perf_guard] WARN: {key} rebuild-cause attribution has missing counters",
@@ -497,10 +526,14 @@ for key, warn_env_name, warn_default_limit, fail_env_name, fail_default_limit in
                 dirty_mask = int(median([value[1] for value in values]))
                 model_pull = int(median([value[2] for value in values]))
                 motion_pull = int(median([value[3] for value in values]))
+                waveform_motion_pull = int(median([value[4] for value in values]))
+                chrome_motion_pull = int(median([value[5] for value in values]))
                 print(
                     f"[perf_guard]   {key} rebuild_causes: "
                     f"explicit_static={explicit} dirty_mask_static={dirty_mask} "
-                    f"model_pull={model_pull} motion_pull={motion_pull}"
+                    f"model_pull={model_pull} motion_pull={motion_pull} "
+                    f"waveform_motion_pull={waveform_motion_pull} "
+                    f"chrome_motion_pull={chrome_motion_pull}"
                 )
 
     if p95 > warn_limit:

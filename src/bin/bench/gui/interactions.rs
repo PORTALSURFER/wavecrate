@@ -283,6 +283,30 @@ pub(super) fn bench_volume_drag_latency(
     )
 }
 
+/// Measure idle cursor-motion latency using motion-only frame preparation.
+pub(super) fn bench_idle_cursor_motion_latency(
+    options: &BenchOptions,
+    controller: &mut AppController,
+) -> Result<stats::StagedLatencySummary, String> {
+    let mut step = 0usize;
+    stats::bench_staged_action_with_iters(
+        interaction_warmup(options),
+        interaction_iters(options),
+        |timer| {
+            timer.mark_input_done();
+            controller.apply_native_ui_action(NativeUiAction::SetWaveformCursor {
+                position_milli: ((step.saturating_mul(37) % 1000) + 1) as u16,
+            });
+            step = step.saturating_add(1);
+            timer.mark_apply_done();
+            controller.prepare_native_frame(true);
+            timer.mark_pull_done();
+            let _: NativeMotionModel = controller.project_native_motion_model();
+            Ok(())
+        },
+    )
+}
+
 /// Measure adjacent waveform pan/zoom interactions.
 pub(super) fn bench_waveform_pan_zoom_adjacent_latency(
     options: &BenchOptions,

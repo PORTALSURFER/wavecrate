@@ -10,8 +10,8 @@ use self::attribution::{GuiInteractionRebuildCauseAttribution, GuiInteractionSeg
 use self::interactions::{
     bench_browser_filter_churn_latency, bench_browser_focus_commit_latency,
     bench_browser_focus_preview_latency, bench_browser_query_churn_latency,
-    bench_browser_sort_toggle_latency, bench_hover_latency, bench_map_pan_proxy_latency,
-    bench_volume_drag_latency, bench_waveform_interactions,
+    bench_browser_sort_toggle_latency, bench_hover_latency, bench_idle_cursor_motion_latency,
+    bench_map_pan_proxy_latency, bench_volume_drag_latency, bench_waveform_interactions,
     bench_waveform_pan_zoom_adjacent_latency, bench_wheel_latency, execute_interaction_step,
 };
 use self::rebuild_probe::collect_interaction_rebuild_cause_attribution;
@@ -58,6 +58,8 @@ pub(super) struct GuiBenchResult {
     pub(super) waveform_interaction_latency: stats::LatencySummary,
     /// Latency of continuous top-bar volume drag updates through projection.
     pub(super) volume_drag_latency: stats::LatencySummary,
+    /// Latency of idle waveform-cursor updates through motion-only projection.
+    pub(super) idle_cursor_motion_latency: stats::LatencySummary,
     /// Latency of adjacent waveform pan/zoom interactions.
     pub(super) waveform_pan_zoom_adjacent_latency: stats::LatencySummary,
     /// Stage-attributed latency summaries for focused interaction scenarios.
@@ -95,6 +97,8 @@ pub(super) struct GuiInteractionStageAttribution {
     pub(super) waveform_interaction_latency: stats::StageLatencyBreakdown,
     /// Stage-attributed latency for volume drag interactions.
     pub(super) volume_drag_latency: stats::StageLatencyBreakdown,
+    /// Stage-attributed latency for idle waveform-cursor motion updates.
+    pub(super) idle_cursor_motion_latency: stats::StageLatencyBreakdown,
 }
 
 /// Scoped benchmark workspace that keeps seed artifacts alive for the benchmark
@@ -151,6 +155,8 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
     let waveform_interaction_latency =
         bench_waveform_interactions(options, &mut workspace.controller)?;
     let volume_drag_latency = bench_volume_drag_latency(options, &mut workspace.controller)?;
+    let idle_cursor_motion_latency =
+        bench_idle_cursor_motion_latency(options, &mut workspace.controller)?;
     let waveform_pan_zoom_adjacent_latency =
         bench_waveform_pan_zoom_adjacent_latency(options, &mut workspace.controller)?;
 
@@ -198,6 +204,10 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         total: volume_drag_latency_total,
         stages: volume_drag_latency_stages,
     } = volume_drag_latency;
+    let stats::StagedLatencySummary {
+        total: idle_cursor_motion_latency_total,
+        stages: idle_cursor_motion_latency_stages,
+    } = idle_cursor_motion_latency;
     let interaction_stage_attribution = GuiInteractionStageAttribution {
         interactive_projection: interactive_projection_stages,
         hover_latency: hover_latency_stages,
@@ -210,6 +220,7 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         map_pan_proxy_latency: map_pan_proxy_latency_stages,
         waveform_interaction_latency: waveform_interaction_latency_stages,
         volume_drag_latency: volume_drag_latency_stages,
+        idle_cursor_motion_latency: idle_cursor_motion_latency_stages,
     };
     let interaction_segment_attribution = Some(collect_interaction_segment_attribution(
         options,
@@ -234,6 +245,7 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
         map_pan_proxy_latency: map_pan_proxy_latency_total,
         waveform_interaction_latency: waveform_interaction_latency_total,
         volume_drag_latency: volume_drag_latency_total,
+        idle_cursor_motion_latency: idle_cursor_motion_latency_total,
         waveform_pan_zoom_adjacent_latency,
         interaction_stage_attribution,
         interaction_segment_attribution,
