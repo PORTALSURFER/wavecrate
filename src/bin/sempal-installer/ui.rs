@@ -344,13 +344,13 @@ impl InstallerNativeBridge {
 
 impl NativeAppBridge for InstallerNativeBridge {
     /// Project the current installer workflow state into a UI model snapshot.
-    fn project_model(&mut self) -> std::sync::Arc<AppModel> {
+    fn pull_model(&mut self) -> AppModel {
         self.poll_installer();
-        std::sync::Arc::new(self.app_model())
+        self.app_model()
     }
 
     /// Reduce one emitted UI action into installer workflow state.
-    fn reduce_action(&mut self, action: UiAction) {
+    fn on_action(&mut self, action: UiAction) {
         match action {
             UiAction::InstallUpdate => self.advance_step(),
             UiAction::OpenUpdateLink => {

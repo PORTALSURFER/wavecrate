@@ -109,8 +109,8 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
     bridge: B,
 ) -> Result<(), String> {
     info!("Launching radiant native Vello runtime (declarative host)");
-    let result = radiant::gui_runtime::run_native_vello_app_declarative(options.into(), bridge)
-        .map_err(|err| {
+    let result =
+        radiant::gui_runtime::run_native_vello_app(options.into(), bridge).map_err(|err| {
             error!(%err, "radiant native Vello runtime returned error");
             err
         });

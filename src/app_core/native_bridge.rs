@@ -63,7 +63,6 @@ use crate::{
         AppController, AppControllerNativeRuntimeExt, build_native_app_controller,
     },
     audio::AudioPlayer,
-    gui::repaint::RepaintSignal,
     waveform::WaveformRenderer,
 };
 use std::{
@@ -108,14 +107,6 @@ struct PendingWaveformActions {
     selection_range_milli: Option<(u16, u16)>,
     /// Whether selection should be cleared when no range override is queued.
     clear_selection: bool,
-    /// Latest explicit edit-selection range in normalized milli space.
-    edit_selection_range_milli: Option<(u16, u16)>,
-    /// Latest edit fade-in end handle in normalized milli space.
-    edit_fade_in_end_milli: Option<u16>,
-    /// Latest edit fade-out start handle in normalized milli space.
-    edit_fade_out_start_milli: Option<u16>,
-    /// Whether edit selection should be cleared when no range override is queued.
-    clear_edit_selection: bool,
     /// Net signed waveform zoom step delta accumulated this frame.
     zoom_steps_delta: i16,
     /// Whether `ZoomWaveformToSelection` is queued for this frame.
@@ -131,10 +122,6 @@ impl PendingWaveformActions {
             || self.cursor_milli.is_some()
             || self.selection_range_milli.is_some()
             || self.clear_selection
-            || self.edit_selection_range_milli.is_some()
-            || self.edit_fade_in_end_milli.is_some()
-            || self.edit_fade_out_start_milli.is_some()
-            || self.clear_edit_selection
             || self.zoom_steps_delta != 0
             || self.zoom_to_selection
             || self.zoom_full
@@ -159,36 +146,9 @@ impl PendingWaveformActions {
                 self.clear_selection = false;
                 true
             }
-            NativeUiAction::SetWaveformEditSelectionRange {
-                start_milli,
-                end_milli,
-            } => {
-                self.edit_selection_range_milli = Some((*start_milli, *end_milli));
-                self.edit_fade_in_end_milli = None;
-                self.edit_fade_out_start_milli = None;
-                self.clear_edit_selection = false;
-                true
-            }
-            NativeUiAction::SetWaveformEditFadeInEnd { position_milli } => {
-                self.edit_fade_in_end_milli = Some(*position_milli);
-                self.clear_edit_selection = false;
-                true
-            }
-            NativeUiAction::SetWaveformEditFadeOutStart { position_milli } => {
-                self.edit_fade_out_start_milli = Some(*position_milli);
-                self.clear_edit_selection = false;
-                true
-            }
             NativeUiAction::ClearWaveformSelection => {
                 self.selection_range_milli = None;
                 self.clear_selection = true;
-                true
-            }
-            NativeUiAction::ClearWaveformEditSelection => {
-                self.edit_selection_range_milli = None;
-                self.edit_fade_in_end_milli = None;
-                self.edit_fade_out_start_milli = None;
-                self.clear_edit_selection = true;
                 true
             }
             NativeUiAction::ZoomWaveform { zoom_in, steps } => {
@@ -404,32 +364,6 @@ impl SempalNativeBridge {
                 .apply_native_ui_action(NativeUiAction::ClearWaveformSelection);
             emitted_actions = emitted_actions.saturating_add(1);
         }
-        if let Some((start_milli, end_milli)) = pending.edit_selection_range_milli {
-            self.controller
-                .apply_native_ui_action(NativeUiAction::SetWaveformEditSelectionRange {
-                    start_milli,
-                    end_milli,
-                });
-            emitted_actions = emitted_actions.saturating_add(1);
-        } else if pending.clear_edit_selection {
-            self.controller
-                .apply_native_ui_action(NativeUiAction::ClearWaveformEditSelection);
-            emitted_actions = emitted_actions.saturating_add(1);
-        }
-        if let Some(position_milli) = pending.edit_fade_in_end_milli {
-            self.controller
-                .apply_native_ui_action(NativeUiAction::SetWaveformEditFadeInEnd {
-                    position_milli,
-                });
-            emitted_actions = emitted_actions.saturating_add(1);
-        }
-        if let Some(position_milli) = pending.edit_fade_out_start_milli {
-            self.controller
-                .apply_native_ui_action(NativeUiAction::SetWaveformEditFadeOutStart {
-                    position_milli,
-                });
-            emitted_actions = emitted_actions.saturating_add(1);
-        }
 
         if let Some(position_milli) = cursor_milli {
             self.controller
@@ -555,11 +489,16 @@ impl SempalNativeBridge {
 }
 
 impl NativeAppBridge for SempalNativeBridge {
+    /// Project the latest app model snapshot by value.
+    fn pull_model(&mut self) -> NativeAppModel {
+        self.pull_model_arc_snapshot().as_ref().clone()
+    }
+
     /// Project the latest app model snapshot as a shared immutable arc.
     ///
     /// Returning shared ownership lets retained projection caches reuse model
     /// snapshots across pulls without cloning the full `AppModel`.
-    fn project_model(&mut self) -> Arc<NativeAppModel> {
+    fn pull_model_arc(&mut self) -> Arc<NativeAppModel> {
         self.pull_model_arc_snapshot()
     }
 
@@ -574,7 +513,7 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Project motion-only fields for animation-only redraw phases.
-    fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
+    fn pull_motion_model(&mut self) -> Option<NativeMotionModel> {
         let call = trace_pull_motion_call();
         let profiling = bridge_profiling_enabled();
         let prepare_start = profiling.then(Instant::now);
@@ -608,7 +547,7 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Reduce one runtime UI action into controller state.
-    fn reduce_action(&mut self, action: NativeUiAction) {
+    fn on_action(&mut self, action: NativeUiAction) {
         if let NativeUiAction::MoveBrowserFocus { delta } = action {
             let call = trace_action_call();
             let profiling = bridge_profiling_enabled();
@@ -670,13 +609,8 @@ impl NativeAppBridge for SempalNativeBridge {
         }
     }
 
-    /// Install the runtime repaint signal for background job wake-ups.
-    fn install_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
-        self.controller.set_repaint_signal(signal);
-    }
-
     /// Observe one frame-build result for optional profiling telemetry.
-    fn observe_frame_result(&mut self, result: NativeFrameBuildResult) {
+    fn on_frame_result(&mut self, result: NativeFrameBuildResult) {
         let profiling = bridge_profiling_enabled();
         if !profiling {
             return;
@@ -688,7 +622,7 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Flush pending work and persist config during runtime shutdown.
-    fn on_runtime_exit(&mut self) {
+    fn on_exit(&mut self) {
         self.flush_pending_input_actions();
         if let Err(err) = self.controller.persist_native_exit_config() {
             error!(err = %err, "Failed to persist config on native exit");

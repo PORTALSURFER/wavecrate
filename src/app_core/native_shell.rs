@@ -258,12 +258,6 @@ fn assemble_project_app_model(
 
 pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionModel {
     let selected_column = selected_column_index(&controller.ui);
-    let (edit_fade_in_end_milli, edit_fade_out_start_milli) = controller
-        .ui
-        .waveform
-        .edit_selection
-        .map(project_motion_edit_fade_handles_milli)
-        .unwrap_or((None, None));
     MotionModel {
         transport_running: controller.is_playing(),
         map_active: matches!(
@@ -276,15 +270,6 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
                 normalized_to_milli(selection.end()),
             )
         }),
-        waveform_edit_selection_milli: controller.ui.waveform.edit_selection.map(|selection| {
-            crate::app_core::actions::NativeNormalizedRangeModel::new(
-                normalized_to_milli(selection.start()),
-                normalized_to_milli(selection.end()),
-            )
-        }),
-        waveform_edit_fade_in_end_milli: edit_fade_in_end_milli,
-        waveform_edit_fade_out_start_milli: edit_fade_out_start_milli,
-        waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_cursor_milli: controller.ui.waveform.cursor.map(normalized_to_milli),
         waveform_playhead_milli: controller.ui.waveform.playhead.visible.then_some(
             normalized_to_milli(controller.ui.waveform.playhead.position),
@@ -315,42 +300,8 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         } else {
             String::from("Loop disabled")
         },
-        waveform_channel_view: match controller.ui.waveform.channel_view {
-            crate::waveform::WaveformChannelView::Mono => {
-                radiant::app::WaveformChannelViewModel::Mono
-            }
-            crate::waveform::WaveformChannelView::SplitStereo => {
-                radiant::app::WaveformChannelViewModel::Stereo
-            }
-        },
-        waveform_normalized_audition_enabled: controller.ui.waveform.normalized_audition_enabled,
-        waveform_bpm_snap_enabled: controller.ui.waveform.bpm_snap_enabled,
-        waveform_transient_snap_enabled: controller.ui.waveform.transient_snap_enabled,
-        waveform_transient_markers_enabled: controller.ui.waveform.transient_markers_enabled,
-        waveform_slice_mode_enabled: controller.ui.waveform.slice_mode_enabled,
         status_right: status_bar_right_text(selected_column),
     }
-}
-
-/// Project edit-fade handles for motion-only waveform overlay updates.
-fn project_motion_edit_fade_handles_milli(
-    selection: crate::selection::SelectionRange,
-) -> (Option<u16>, Option<u16>) {
-    let start = selection.start();
-    let end = selection.end();
-    let width = selection.width();
-    if width <= 0.0 {
-        return (None, None);
-    }
-    let fade_in_end_milli = selection.fade_in().map(|fade| {
-        let fade_end = (start + (width * fade.length).max(0.0)).clamp(start, end);
-        normalized_to_milli(fade_end)
-    });
-    let fade_out_start_milli = selection.fade_out().map(|fade| {
-        let fade_start = (end - (width * fade.length).max(0.0)).clamp(start, end);
-        normalized_to_milli(fade_start)
-    });
-    (fade_in_end_milli, fade_out_start_milli)
 }
 
 /// Project update panel state into the native shell model.

@@ -179,9 +179,6 @@ fn apply_transport_native_ui_action(
         NativeUiAction::SelectColumn { index } => controller.select_column_by_index(index),
         NativeUiAction::MoveColumn { delta } => controller.move_selection_column(delta as isize),
         NativeUiAction::ToggleTransport => controller.toggle_play_pause(),
-        NativeUiAction::ReplayFromLastStart => {
-            let _ = controller.replay_from_last_start();
-        }
         NativeUiAction::HandleEscape => controller.handle_escape(),
         NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
         NativeUiAction::SetVolume { value_milli } => {
@@ -209,18 +206,6 @@ fn apply_browser_native_ui_action(
         NativeUiAction::FocusFolderSearch => controller.focus_folder_search(),
         NativeUiAction::SetFolderSearch { query } => controller.set_folder_search(query),
         NativeUiAction::SelectSourceRow { index } => controller.select_source_by_index(index),
-        NativeUiAction::ReloadSourceRow { index } => {
-            controller.select_source_by_index(index);
-            let _ = controller.refresh_wavs();
-        }
-        NativeUiAction::HardSyncSourceRow { index } => {
-            controller.select_source_by_index(index);
-            controller.request_hard_sync();
-        }
-        NativeUiAction::OpenSourceFolderRow { index } => controller.open_source_folder(index),
-        NativeUiAction::RemoveDeadLinksForSourceRow { index } => {
-            controller.remove_dead_links_for_source(index)
-        }
         NativeUiAction::FocusFolderRow { index } => controller.replace_folder_selection(index),
         NativeUiAction::MoveFolderFocus { delta } => controller.nudge_folder_focus_action(delta),
         NativeUiAction::StartNewFolder => controller.start_new_folder(),
@@ -302,20 +287,7 @@ fn apply_waveform_native_ui_action(
             start_milli,
             end_milli,
         } => controller.set_waveform_selection_range_milli(start_milli, end_milli),
-        NativeUiAction::SetWaveformEditSelectionRange {
-            start_milli,
-            end_milli,
-        } => controller.set_waveform_edit_selection_range_milli(start_milli, end_milli),
-        NativeUiAction::SetWaveformEditFadeInEnd { position_milli } => {
-            controller.set_waveform_edit_fade_in_end_milli(position_milli)
-        }
-        NativeUiAction::SetWaveformEditFadeOutStart { position_milli } => {
-            controller.set_waveform_edit_fade_out_start_milli(position_milli)
-        }
         NativeUiAction::ClearWaveformSelection => controller.clear_waveform_selection_with_focus(),
-        NativeUiAction::ClearWaveformEditSelection => {
-            controller.clear_waveform_edit_selection_with_focus()
-        }
         NativeUiAction::ZoomWaveform { zoom_in, steps } => {
             controller.zoom_waveform_steps_from_ui(zoom_in, steps)
         }
@@ -323,31 +295,6 @@ fn apply_waveform_native_ui_action(
             controller.zoom_waveform_to_selection_with_focus()
         }
         NativeUiAction::ZoomWaveformFull => controller.zoom_waveform_full_with_focus(),
-        NativeUiAction::SetWaveformChannelView { stereo } => {
-            controller.set_waveform_channel_view(if stereo {
-                crate::waveform::WaveformChannelView::SplitStereo
-            } else {
-                crate::waveform::WaveformChannelView::Mono
-            })
-        }
-        NativeUiAction::SetNormalizedAuditionEnabled { enabled } => {
-            controller.set_normalized_audition_enabled(enabled)
-        }
-        NativeUiAction::SetBpmSnapEnabled { enabled } => controller.set_bpm_snap_enabled(enabled),
-        NativeUiAction::SetTransientSnapEnabled { enabled } => {
-            controller.set_transient_snap_enabled(enabled)
-        }
-        NativeUiAction::SetTransientMarkersEnabled { enabled } => {
-            controller.set_transient_markers_enabled(enabled)
-        }
-        NativeUiAction::SetSliceModeEnabled { enabled } => {
-            if controller.ui.waveform.slice_mode_enabled != enabled {
-                controller.ui.waveform.slice_mode_enabled = enabled;
-                if !enabled {
-                    controller.ui.waveform.selected_slices.clear();
-                }
-            }
-        }
         action => return Err(action),
     }
     Ok(())
@@ -363,10 +310,6 @@ fn apply_prompt_and_update_native_ui_action(
         NativeUiAction::ConfirmPrompt => controller.confirm_active_prompt_action(),
         NativeUiAction::CancelPrompt => controller.cancel_active_prompt_action(),
         NativeUiAction::CancelProgress => controller.request_progress_cancel(),
-        NativeUiAction::OpenOptionsMenu => controller.set_status(
-            "Options menu: full native menu wiring is in progress; volume control is available in the top bar.",
-            crate::app_core::state::StatusTone::Info,
-        ),
         NativeUiAction::CheckForUpdates => controller.check_for_updates_now(),
         NativeUiAction::OpenUpdateLink => controller.open_update_link(),
         NativeUiAction::InstallUpdate => controller.install_update_and_exit(),

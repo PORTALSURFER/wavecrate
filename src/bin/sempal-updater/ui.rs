@@ -423,14 +423,14 @@ impl UpdateNativeBridge {
 
 impl NativeAppBridge for UpdateNativeBridge {
     /// Project updater state into the latest immutable UI model snapshot.
-    fn project_model(&mut self) -> std::sync::Arc<AppModel> {
+    fn pull_model(&mut self) -> AppModel {
         self.poll_background_updates();
         self.ensure_selected_tag();
-        std::sync::Arc::new(self.app_model())
+        self.app_model()
     }
 
     /// Reduce one runtime UI action into updater state transitions.
-    fn reduce_action(&mut self, action: UiAction) {
+    fn on_action(&mut self, action: UiAction) {
         match action {
             UiAction::CheckForUpdates => {
                 self.refresh_release_list();

@@ -8,21 +8,10 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
         NativeUiAction::SeekWaveform { .. }
             | NativeUiAction::SetWaveformCursor { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
-            | NativeUiAction::SetWaveformEditSelectionRange { .. }
-            | NativeUiAction::SetWaveformEditFadeInEnd { .. }
-            | NativeUiAction::SetWaveformEditFadeOutStart { .. }
             | NativeUiAction::ClearWaveformSelection
-            | NativeUiAction::ClearWaveformEditSelection
             | NativeUiAction::ZoomWaveform { .. }
             | NativeUiAction::ZoomWaveformToSelection
             | NativeUiAction::ZoomWaveformFull
-            | NativeUiAction::SetWaveformChannelView { .. }
-            | NativeUiAction::SetNormalizedAuditionEnabled { .. }
-            | NativeUiAction::SetBpmSnapEnabled { .. }
-            | NativeUiAction::SetTransientSnapEnabled { .. }
-            | NativeUiAction::SetTransientMarkersEnabled { .. }
-            | NativeUiAction::SetSliceModeEnabled { .. }
-            | NativeUiAction::ReplayFromLastStart
             | NativeUiAction::SetVolume { .. }
             | NativeUiAction::CommitVolumeSetting
     )
@@ -68,23 +57,13 @@ pub(super) fn classify_dirty_source(
         NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
-        | NativeUiAction::SetWaveformEditSelectionRange { .. }
-        | NativeUiAction::SetWaveformEditFadeInEnd { .. }
-        | NativeUiAction::SetWaveformEditFadeOutStart { .. }
-        | NativeUiAction::ClearWaveformSelection
-        | NativeUiAction::ClearWaveformEditSelection => Some((
+        | NativeUiAction::ClearWaveformSelection => Some((
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformOverlayAction,
         )),
         NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
-        | NativeUiAction::ZoomWaveformFull
-        | NativeUiAction::SetWaveformChannelView { .. }
-        | NativeUiAction::SetNormalizedAuditionEnabled { .. }
-        | NativeUiAction::SetBpmSnapEnabled { .. }
-        | NativeUiAction::SetTransientSnapEnabled { .. }
-        | NativeUiAction::SetTransientMarkersEnabled { .. }
-        | NativeUiAction::SetSliceModeEnabled { .. } => Some((
+        | NativeUiAction::ZoomWaveformFull => Some((
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformViewAction,
         )),
@@ -114,7 +93,6 @@ pub(super) fn classify_dirty_source(
             Some((DerivedNodeId::MapState, DirtyReason::MapAction))
         }
         NativeUiAction::ToggleTransport
-        | NativeUiAction::ReplayFromLastStart
         | NativeUiAction::ToggleLoopPlayback
         | NativeUiAction::SetVolume { .. }
         | NativeUiAction::CommitVolumeSetting => {
@@ -124,7 +102,6 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::OpenUpdateLink
         | NativeUiAction::InstallUpdate
         | NativeUiAction::DismissUpdate
-        | NativeUiAction::OpenOptionsMenu
         | NativeUiAction::ConfirmPrompt
         | NativeUiAction::CancelPrompt
         | NativeUiAction::CancelProgress

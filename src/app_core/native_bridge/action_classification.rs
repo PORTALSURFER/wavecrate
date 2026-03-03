@@ -23,23 +23,12 @@ pub(super) fn classify_action_interaction(
             Some(InteractionActionClass::MapPanProxy)
         }
         NativeUiAction::SeekWaveform { .. }
-        | NativeUiAction::ReplayFromLastStart
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
-        | NativeUiAction::SetWaveformEditSelectionRange { .. }
-        | NativeUiAction::SetWaveformEditFadeInEnd { .. }
-        | NativeUiAction::SetWaveformEditFadeOutStart { .. }
         | NativeUiAction::ClearWaveformSelection
-        | NativeUiAction::ClearWaveformEditSelection
         | NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
-        | NativeUiAction::ZoomWaveformFull
-        | NativeUiAction::SetWaveformChannelView { .. }
-        | NativeUiAction::SetNormalizedAuditionEnabled { .. }
-        | NativeUiAction::SetBpmSnapEnabled { .. }
-        | NativeUiAction::SetTransientSnapEnabled { .. }
-        | NativeUiAction::SetTransientMarkersEnabled { .. }
-        | NativeUiAction::SetSliceModeEnabled { .. } => Some(InteractionActionClass::Waveform),
+        | NativeUiAction::ZoomWaveformFull => Some(InteractionActionClass::Waveform),
         NativeUiAction::SetVolume { .. } | NativeUiAction::CommitVolumeSetting => {
             Some(InteractionActionClass::Volume)
         }
@@ -56,10 +45,6 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
         action,
         NativeUiAction::SetWaveformCursor { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
-            | NativeUiAction::SetWaveformEditSelectionRange { .. }
-            | NativeUiAction::SetWaveformEditFadeInEnd { .. }
-            | NativeUiAction::SetWaveformEditFadeOutStart { .. }
             | NativeUiAction::ClearWaveformSelection
-            | NativeUiAction::ClearWaveformEditSelection
     )
 }

@@ -1048,11 +1048,6 @@ fn motion_layer_delta_flags(
     current: &NativeMotionModel,
 ) -> (bool, bool) {
     let waveform_changed = previous.waveform_selection_milli != current.waveform_selection_milli
-        || previous.waveform_edit_selection_milli != current.waveform_edit_selection_milli
-        || previous.waveform_edit_fade_in_end_milli != current.waveform_edit_fade_in_end_milli
-        || previous.waveform_edit_fade_out_start_milli
-            != current.waveform_edit_fade_out_start_milli
-        || previous.waveform_loop_enabled != current.waveform_loop_enabled
         || previous.waveform_cursor_milli != current.waveform_cursor_milli
         || previous.waveform_playhead_milli != current.waveform_playhead_milli
         || previous.waveform_view_start_milli != current.waveform_view_start_milli
@@ -1064,14 +1059,6 @@ fn motion_layer_delta_flags(
     let chrome_changed = previous.transport_running != current.transport_running
         || previous.map_active != current.map_active
         || previous.waveform_transport_hint != current.waveform_transport_hint
-        || previous.waveform_channel_view != current.waveform_channel_view
-        || previous.waveform_normalized_audition_enabled
-            != current.waveform_normalized_audition_enabled
-        || previous.waveform_bpm_snap_enabled != current.waveform_bpm_snap_enabled
-        || previous.waveform_transient_snap_enabled != current.waveform_transient_snap_enabled
-        || previous.waveform_transient_markers_enabled
-            != current.waveform_transient_markers_enabled
-        || previous.waveform_slice_mode_enabled != current.waveform_slice_mode_enabled
         || previous.status_right != current.status_right;
     (waveform_changed, chrome_changed)
 }
