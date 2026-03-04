@@ -6,7 +6,7 @@ Status legend: `[ ]` pending, `[x]` done
 
 ## Ordered Backlog
 
-- [ ] 1) Decompose `poll_background_jobs` into focused message handlers and add dispatch tests
+- [x] 1) Decompose `poll_background_jobs` into focused message handlers and add dispatch tests
   - ROI/Effort: High / M
   - Why it matters: One function currently owns cancellation handling, queue draining, stale-request guards, progress updates, and all job result routing. This raises regression risk and makes behavioral review difficult.
   - Evidence:
@@ -16,6 +16,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Split cancellation pre-pass + per-message handlers into dedicated helper modules (for example `handlers/audio.rs`, `handlers/file_ops.rs`, `handlers/updates.rs`) and add focused tests for stale message rejection and progress-state transitions.
   - Risk/tradeoffs: Medium. Reordering message side effects can cause subtle behavior drift if invariants are not preserved.
   - Suggested validation: targeted background-job handler tests, `cargo test -p sempal background_jobs`, then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `c776f452`
 
 - [ ] 2) Split search worker pipeline (`process_search_job`) into staged functions with cancellation guards per stage
   - ROI/Effort: High / M
