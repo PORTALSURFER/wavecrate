@@ -1,0 +1,229 @@
+use super::*;
+use std::path::Path;
+
+impl AppController {
+    /// Select a wav row based on its path.
+    pub fn select_wav_by_path(&mut self, path: &Path) {
+        selection_ops::select_wav_by_path(self, path);
+    }
+
+    /// Select a wav row based on its path, optionally delaying the browser rebuild.
+    pub fn select_wav_by_path_with_rebuild(&mut self, path: &Path, rebuild: bool) {
+        selection_ops::select_wav_by_path_with_rebuild(self, path, rebuild);
+    }
+
+    /// Focus a wav row by path without queueing audio/waveform loading.
+    ///
+    /// This supports high-frequency browser focus navigation where loading is
+    /// committed separately by an explicit action.
+    pub(crate) fn focus_wav_by_path_with_rebuild(&mut self, path: &Path, rebuild: bool) {
+        selection_ops::focus_wav_by_path_with_rebuild(self, path, rebuild);
+    }
+
+    /// Preview-focus a wav row by path while skipping heavy commit side effects.
+    pub(crate) fn focus_wav_by_path_preview_with_rebuild(&mut self, path: &Path, rebuild: bool) {
+        selection_ops::focus_wav_by_path_preview_with_rebuild(self, path, rebuild);
+    }
+
+    /// Preview-focus a wav row by absolute index while skipping heavy commit side effects.
+    pub(crate) fn focus_wav_by_index_preview_with_rebuild(&mut self, index: usize, rebuild: bool) {
+        selection_ops::focus_wav_by_index_preview_with_rebuild(self, index, rebuild);
+    }
+
+    /// Select a wav row by absolute index, optionally delaying browser list rebuild.
+    pub(crate) fn select_wav_by_index_with_rebuild(&mut self, index: usize, rebuild: bool) {
+        selection_ops::select_wav_by_index_with_rebuild(self, index, rebuild);
+    }
+
+    /// Map the current browser filter into a drop target tag for drag-and-drop retagging.
+    pub fn triage_flag_drop_target(&self) -> TriageFlagColumn {
+        selection_ops::triage_flag_drop_target(self)
+    }
+
+    /// Current tag of the selected wav, if any.
+    pub fn selected_tag(&mut self) -> Option<crate::sample_sources::Rating> {
+        selection_ops::selected_tag(self)
+    }
+
+    /// Apply a new browser filter and refresh visible rows.
+    pub fn set_browser_filter(&mut self, filter: TriageFlagFilter) {
+        browser_search::set_browser_filter(self, filter);
+    }
+
+    /// Apply a rating-level filter to the browser list (-3..=3).
+    pub fn set_browser_rating_filter(&mut self, level: i8, additive: bool) {
+        browser_search::set_browser_rating_filter(self, level, additive);
+    }
+
+    /// Clear any active rating-level filters in the browser list.
+    pub fn clear_browser_rating_filter(&mut self) {
+        browser_search::clear_browser_rating_filter(self);
+    }
+
+    /// Apply a new sample browser sort mode and refresh visible rows.
+    pub fn set_browser_sort(&mut self, sort: SampleBrowserSort) {
+        browser_search::set_browser_sort(self, sort);
+    }
+
+    /// Request focus for the browser search input while keeping the browser context active.
+    pub(crate) fn focus_browser_search(&mut self) {
+        browser_search::focus_browser_search(self);
+    }
+
+    /// Apply a fuzzy search query to the browser and refresh visible rows.
+    pub fn set_browser_search(&mut self, query: impl Into<String>) {
+        browser_search::set_browser_search(self, query);
+    }
+
+    /// Filter the browser to show similar samples for the chosen visible row.
+    pub fn find_similar_for_visible_row(&mut self, row: usize) -> Result<(), String> {
+        similar::find_similar_for_visible_row(self, row)
+    }
+
+    /// Refresh similarity-sort state for the loaded sample, disabling sort on failure.
+    pub(crate) fn refresh_similarity_sort_for_loaded_sample(&mut self) {
+        if let Err(err) = similar::refresh_similarity_sort_for_loaded(self) {
+            similar::disable_similarity_sort(self);
+            self.set_status(err, StatusTone::Warning);
+        }
+    }
+
+    /// Sort the browser by similarity to the loaded sample.
+    pub fn enable_loaded_similarity_sort(&mut self) -> Result<(), String> {
+        similar::enable_loaded_similarity_sort(self)
+    }
+
+    /// Disable similarity-based sorting and restore list order.
+    pub fn disable_similarity_sort(&mut self) {
+        similar::disable_similarity_sort(self);
+    }
+
+    /// Filter the browser to show near-duplicate samples for the chosen visible row.
+    pub fn find_duplicates_for_visible_row(&mut self, row: usize) -> Result<(), String> {
+        similar::find_duplicates_for_visible_row(self, row)
+    }
+
+    /// Filter the browser to show similar samples for a specific library sample_id.
+    pub fn find_similar_for_sample_id(&mut self, sample_id: &str) -> Result<(), String> {
+        similar::find_similar_for_sample_id(self, sample_id)
+    }
+
+    /// Filter the browser to show similar samples for an external audio clip.
+    pub fn find_similar_for_audio_path(&mut self, path: &Path) -> Result<(), String> {
+        similar::find_similar_for_audio_path(self, path)
+    }
+
+    /// Clear any active similar-sounds filter.
+    pub fn clear_similar_filter(&mut self) {
+        similar::clear_similar_filter(self);
+    }
+
+    /// Build a library sample_id for the visible browser row.
+    pub fn sample_id_for_visible_row(&mut self, row: usize) -> Result<String, String> {
+        let source_id = self
+            .selection_state
+            .ctx
+            .selected_source
+            .clone()
+            .ok_or_else(|| "No active source selected".to_string())?;
+        let entry_index = self
+            .ui
+            .browser
+            .visible
+            .get(row)
+            .ok_or_else(|| "Selected row is out of range".to_string())?;
+        let entry = self
+            .wav_entry(entry_index)
+            .ok_or_else(|| "Sample entry missing".to_string())?;
+        Ok(analysis_jobs::build_sample_id(
+            source_id.as_str(),
+            &entry.relative_path,
+        ))
+    }
+
+    /// Build a library sample_id for the currently selected wav.
+    pub fn selected_sample_id(&self) -> Option<String> {
+        let source_id = self.selection_state.ctx.selected_source.as_ref()?;
+        let path = self.sample_view.wav.selected_wav.as_ref()?;
+        Some(analysis_jobs::build_sample_id(source_id.as_str(), path))
+    }
+
+    /// Focus the sample browser on a library sample_id without autoplay.
+    pub fn focus_sample_from_map(&mut self, sample_id: &str) -> Result<(), String> {
+        let (source_id, relative_path) = analysis_jobs::parse_sample_id(sample_id)?;
+        let source_id = SourceId::from_string(source_id);
+        if self.selection_state.ctx.selected_source.as_ref() != Some(&source_id) {
+            self.select_source(Some(source_id.clone()));
+        }
+        self.focus_browser_context();
+        self.ui.browser.autoscroll = true;
+        if !self.ui.browser.selected_paths.is_empty() {
+            self.ui.browser.selected_paths.clear();
+            self.mark_browser_selected_paths_changed();
+        }
+        self.ui.browser.selection_anchor_visible = None;
+        self.selection_state.suppress_autoplay_once = true;
+        self.select_wav_by_path(&relative_path);
+        if let Some(row) = self.visible_row_for_path(&relative_path) {
+            self.ui.browser.selection_anchor_visible = Some(row);
+        }
+        Ok(())
+    }
+
+    /// Load waveform/audio for a given library sample_id without requiring browser selection.
+    pub fn preview_sample_by_id(&mut self, sample_id: &str) -> Result<(), String> {
+        let (source_id, relative_path) = analysis_jobs::parse_sample_id(sample_id)?;
+        let source = self
+            .library
+            .sources
+            .iter()
+            .find(|source| source.id.as_str() == source_id)
+            .map(|source| SampleSource {
+                id: source.id.clone(),
+                root: source.root.clone(),
+            })
+            .ok_or_else(|| format!("Unknown source for sample_id: {sample_id}"))?;
+        self.load_waveform_for_selection(&source, &relative_path)
+    }
+
+    /// Select a wav by absolute index into the full wav list.
+    pub fn select_wav_by_index(&mut self, index: usize) {
+        selection_ops::select_wav_by_index(self, index);
+    }
+
+    /// Select a wav coming from the sample browser and clear collection focus.
+    pub fn select_from_browser(&mut self, path: &Path) {
+        selection_ops::select_from_browser(self, path);
+    }
+
+    /// Set triage tag for one sample path in the active source.
+    pub(crate) fn set_sample_tag(
+        &mut self,
+        path: &Path,
+        column: TriageFlagColumn,
+    ) -> Result<(), String> {
+        selection_ops::set_sample_tag(self, path, column)
+    }
+
+    /// Set explicit triage tag for one sample path in a chosen source.
+    pub(crate) fn set_sample_tag_for_source(
+        &mut self,
+        source: &SampleSource,
+        path: &Path,
+        target_tag: crate::sample_sources::Rating,
+        require_present: bool,
+    ) -> Result<(), String> {
+        selection_ops::set_sample_tag_for_source(self, source, path, target_tag, require_present)
+    }
+
+    /// Update the loop marker for a sample path within a specific source.
+    pub(crate) fn set_sample_looped_for_source(
+        &mut self,
+        source: &SampleSource,
+        path: &Path,
+        looped: bool,
+        require_present: bool,
+    ) -> Result<(), String> {
+        selection_ops::set_sample_looped_for_source(self, source, path, looped, require_present)
+    }
+}
