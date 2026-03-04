@@ -199,6 +199,14 @@ impl PendingWaveformActions {
             self.cursor_milli
         }
     }
+
+    /// Return true when queued actions mutate waveform static rendering content.
+    ///
+    /// Zoom actions change the waveform viewport and image payload, so native
+    /// runtime must pull a full projected model instead of motion-only state.
+    fn requires_full_model_pull(&self) -> bool {
+        self.zoom_steps_delta != 0 || self.zoom_to_selection || self.zoom_full
+    }
 }
 
 /// Host bridge used by the native `radiant` runtime.
@@ -524,6 +532,7 @@ impl NativeAppBridge for SempalNativeBridge {
 
     /// Project motion-only fields for animation-only redraw phases.
     fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
+        let requires_full_pull = self.pending_waveform_actions.requires_full_model_pull();
         let call = trace_pull_motion_call();
         let profiling = bridge_profiling_enabled();
         let prepare_start = profiling.then(Instant::now);
@@ -531,6 +540,15 @@ impl NativeAppBridge for SempalNativeBridge {
             info!(call, "native bridge: project_motion_model start");
         }
         self.flush_pending_input_actions();
+        if requires_full_pull {
+            if call <= 24 {
+                info!(
+                    call,
+                    "native bridge: project_motion_model escalated to full model pull"
+                );
+            }
+            return None;
+        }
         let revisions_before_prepare = self.controller.ui.projection_revisions;
         self.controller.prepare_native_frame(true);
         if revisions_before_prepare != self.controller.ui.projection_revisions {

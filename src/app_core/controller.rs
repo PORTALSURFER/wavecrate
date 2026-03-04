@@ -84,6 +84,7 @@ pub trait AppControllerNativeRuntimeExt {
 
 impl AppControllerNativeRuntimeExt for AppController {
     fn prepare_native_frame(&mut self, animation_only: bool) {
+        self.poll_background_jobs();
         if self.has_pending_volume_setting_flush() {
             self.flush_pending_volume_setting();
         }
