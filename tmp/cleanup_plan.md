@@ -77,7 +77,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: metrics feature tests (`--features native-bridge-metrics`) + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `742b0387`
 
-- [ ] 7) Split `selection.rs` into focused range/state modules and externalize tests
+- [x] 7) Split `selection.rs` into focused range/state modules and externalize tests
   - ROI/Effort: Medium / M
   - Why it matters: Selection math, fade/gain modeling, drag state transitions, and a large inline test module are co-located, reducing navigability.
   - Evidence:
@@ -86,6 +86,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Move pure range/fade math into `selection/range.rs`, drag/state machine logic into `selection/state.rs`, and tests into dedicated test modules.
   - Risk/tradeoffs: Medium-low. Public API surface in `selection` is broadly used and must remain stable.
   - Suggested validation: selection unit tests + controller waveform selection tests, then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `b5e04073`
 
 - [ ] 8) Reduce `issue_gateway/token_store.rs` production-file bloat by moving inline tests
   - ROI/Effort: Medium / S
