@@ -8,6 +8,7 @@ use super::folders::{filter_accepts_tag, folder_accepts_for_job, folder_accepts_
 use super::results::sort_visible_by_playback_age;
 use super::*;
 
+/// Ensure the worker cache targets the job source, reopening DB/caches on source or stamp changes.
 pub(super) fn ensure_search_cache_ready_for_job(
     cache: &mut SearchWorkerCache,
     job: &SearchJob,
@@ -51,6 +52,7 @@ pub(super) fn ensure_search_cache_ready_for_job(
     }
 }
 
+/// Load compact search entries when DB revision changes or cache is empty.
 pub(super) fn ensure_search_entries_loaded_for_job(
     cache: &mut SearchWorkerCache,
     _job: &SearchJob,
@@ -97,6 +99,7 @@ pub(super) fn ensure_search_entries_loaded_for_job(
     }
 }
 
+/// Resolve fuzzy query scores, reusing cached scores when query/source/revision still match.
 pub(super) fn resolve_query_scores_for_job(
     cache: &mut SearchWorkerCache,
     job: &SearchJob,
@@ -148,6 +151,7 @@ pub(super) fn resolve_query_scores_for_job(
     Some(computed_scores)
 }
 
+/// Reuse and promote a matching query-score cache entry for LRU behavior.
 pub(super) fn try_reuse_cached_query_scores(
     cache: &mut SearchWorkerCache,
     source_id: &str,
@@ -167,6 +171,7 @@ pub(super) fn try_reuse_cached_query_scores(
     Some(scores)
 }
 
+/// Return an `All` visible-rows result when no filtering/sorting/scoring work is required.
 pub(super) fn build_fast_path_result_if_applicable(
     job: &SearchJob,
     has_query: bool,
@@ -209,6 +214,7 @@ pub(super) struct BuildVisibleRowsParams<'a> {
     pub(super) has_folder_filters: bool,
 }
 
+/// Build filtered visible indices for query/folder/tag/similarity criteria.
 pub(super) fn build_visible_rows_for_job(
     cache: &mut SearchWorkerCache,
     params: BuildVisibleRowsParams<'_>,
@@ -377,6 +383,7 @@ fn build_visible_rows_for_similar(
     Some(visible)
 }
 
+/// Sort visible indices according to the active browser sort mode.
 pub(super) fn sort_visible_indices(
     entries: &[CompactSearchEntry],
     visible: &mut [usize],

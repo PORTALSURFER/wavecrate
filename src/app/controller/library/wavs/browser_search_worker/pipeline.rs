@@ -21,6 +21,7 @@ use super::queue::SearchJobQueue;
 use super::telemetry::{record_search_job_cancel, record_search_worker_visible_rows};
 use super::*;
 
+/// Run one queued search request through cache-refresh, scoring, and result shaping stages.
 pub(super) fn process_search_job(
     job: SearchJob,
     matcher: &SkimMatcherV2,
@@ -116,6 +117,7 @@ fn search_job_canceled_for_index(queue: &SearchJobQueue, generation: u64, index:
     index.is_multiple_of(SEARCH_CANCEL_CHECK_INTERVAL) && search_job_canceled(queue, generation)
 }
 
+/// Return triage partitions for the current revision, reusing cached partitions when valid.
 pub(super) fn triage_partitions_for_revision(
     cache: &mut SearchWorkerCache,
     source_id: &str,
@@ -124,6 +126,7 @@ pub(super) fn triage_partitions_for_revision(
     results::triage_partitions_for_revision(cache, source_id, revision)
 }
 
+/// Hash folder-filter inputs used to key per-query folder acceptance caches.
 pub(super) fn folder_filter_hash_for_job(job: &SearchJob) -> u64 {
     folders::folder_filter_hash_for_job(job)
 }

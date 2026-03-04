@@ -1,6 +1,7 @@
 use super::*;
 use crate::app::state::ProgressTaskKind;
 
+/// Ensure the progress panel is visible and configured for the provided task.
 pub(crate) fn ensure_progress_visible(
     controller: &mut AppController,
     task: ProgressTaskKind,
@@ -13,6 +14,7 @@ pub(crate) fn ensure_progress_visible(
     }
 }
 
+/// Update detail text for an active progress task without changing total counts.
 pub(crate) fn update_progress_detail(
     controller: &mut AppController,
     task: ProgressTaskKind,
@@ -28,6 +30,7 @@ pub(crate) fn update_progress_detail(
     }
 }
 
+/// Update totals/completed counts and optional detail text for an active progress task.
 pub(crate) fn update_progress_totals(
     controller: &mut AppController,
     task: ProgressTaskKind,

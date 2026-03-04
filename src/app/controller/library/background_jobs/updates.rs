@@ -4,6 +4,7 @@ use crate::app::controller::jobs::{
     IssueTokenSaveResult,
 };
 
+/// Clear update-check job state and apply success/error results to the UI model.
 pub(crate) fn handle_update_checked(controller: &mut AppController, message: UpdateCheckResult) {
     controller.runtime.jobs.clear_update_check();
     match message.result {
@@ -12,6 +13,7 @@ pub(crate) fn handle_update_checked(controller: &mut AppController, message: Upd
     }
 }
 
+/// Apply issue-creation job completion, including token-expiry recovery handling.
 pub(crate) fn handle_issue_gateway_created(
     controller: &mut AppController,
     message: IssueGatewayCreateResult,
@@ -61,6 +63,7 @@ pub(crate) fn handle_issue_gateway_created(
     }
 }
 
+/// Finalize gateway-auth completion and refresh issue-reporting availability.
 pub(crate) fn handle_issue_gateway_authed(
     controller: &mut AppController,
     message: IssueGatewayAuthResult,

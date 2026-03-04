@@ -72,6 +72,7 @@ pub(super) fn empty_search_result(job: SearchJob) -> SearchResult {
     empty_search_result_for(&job)
 }
 
+/// Sort visible indices by optional playback-age metadata with stable index tie-breakers.
 pub(super) fn sort_visible_by_playback_age(
     entries: &[CompactSearchEntry],
     visible: &mut [usize],

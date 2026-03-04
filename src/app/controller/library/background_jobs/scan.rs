@@ -2,6 +2,7 @@ use super::progress;
 use super::*;
 use crate::app::state::ProgressTaskKind;
 
+/// Apply incremental scan progress to the shared progress UI.
 pub(crate) fn handle_scan_progress(
     controller: &mut AppController,
     completed: usize,
@@ -16,6 +17,7 @@ pub(crate) fn handle_scan_progress(
     progress::update_progress_detail(controller, ProgressTaskKind::Scan, completed, Some(detail));
 }
 
+/// Finalize scan state, refresh caches, and queue analysis follow-up work.
 pub(crate) fn handle_scan_finished(controller: &mut AppController, result: ScanResult) {
     controller.runtime.jobs.clear_scan();
     if controller.ui.progress.task == Some(ProgressTaskKind::Scan) {

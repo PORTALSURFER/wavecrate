@@ -16,6 +16,7 @@ pub(crate) struct ApplyWavEntriesParams {
 }
 
 impl AppController {
+    /// Rebuild browser-derived caches and visible lists after wav entries mutate.
     pub(crate) fn sync_after_wav_entries_changed(&mut self) {
         self.rebuild_wav_lookup();
         self.ui_cache.browser.search.invalidate();
@@ -24,6 +25,7 @@ impl AppController {
         self.rebuild_browser_lists();
     }
 
+    /// Queue wav-list loading for the current source, preferring page-0 cache when available.
     pub(crate) fn queue_wav_load(&mut self) {
         let Some(source) = self.current_source() else {
             return;
@@ -90,6 +92,7 @@ impl AppController {
         self.ensure_wav_load_progress(&source);
     }
 
+    /// Convert wav loading failures into user-visible status or missing-source state.
     pub(crate) fn handle_wav_load_error(&mut self, source_id: &SourceId, err: LoadEntriesError) {
         match err {
             LoadEntriesError::Db(SourceDbError::InvalidRoot(_)) => {
@@ -109,6 +112,7 @@ impl AppController {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// Compatibility wrapper that forwards legacy argument lists into typed params.
     pub(crate) fn apply_wav_entries(
         &mut self,
         entries: Vec<WavEntry>,
@@ -212,6 +216,7 @@ impl AppController {
         let _ = crate::sample_sources::scanner::scan_in_background(source.root.clone());
     }
 
+    /// Queue asynchronous refresh of cached per-source analysis-failure metadata.
     pub(crate) fn queue_analysis_failures_refresh(&mut self, source: &SampleSource) {
         if self
             .ui_cache
@@ -238,6 +243,7 @@ impl AppController {
         });
     }
 
+    /// Invalidate one source's wav-entry cache and reload if that source is selected.
     pub(crate) fn invalidate_wav_entries_for_source(&mut self, source: &SampleSource) {
         self.cache.wav.entries.remove(&source.id);
         if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
@@ -251,6 +257,7 @@ impl AppController {
         self.rebuild_missing_lookup_for_source(&source.id);
     }
 
+    /// Invalidate one source's wav entries while preserving existing folder-selection state.
     pub(crate) fn invalidate_wav_entries_for_source_preserve_folders(
         &mut self,
         source: &SampleSource,

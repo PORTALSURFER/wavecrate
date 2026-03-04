@@ -64,7 +64,7 @@ fn selection_meets_bpm_min(controller: &AppController, range: SelectionRange) ->
     let epsilon = min_seconds * 1.0e-3;
     selection_seconds + epsilon >= min_seconds
 }
-
+/// Compute the BPM-snapped minimum selection length (seconds) when snap is enabled.
 pub(crate) fn bpm_min_selection_seconds(controller: &AppController) -> Option<f32> {
     if !controller.ui.waveform.bpm_snap_enabled {
         return None;
@@ -81,7 +81,7 @@ pub(crate) fn bpm_min_selection_seconds(controller: &AppController) -> Option<f3
         None
     }
 }
-
+/// Check whether a candidate selection range is long enough for BPM-snapped playback.
 pub(crate) fn selection_meets_bpm_min_for_playback(
     controller: &AppController,
     range: SelectionRange,
@@ -288,7 +288,7 @@ impl AppController {
     ) {
         player::update_playhead_from_progress(self, progress, is_looping, false);
     }
-
+    /// Hide the waveform playhead/selection overlays when playback is inactive.
     pub(crate) fn hide_waveform_playhead(&mut self) {
         player::hide_waveform_playhead(self);
     }
@@ -306,11 +306,11 @@ impl AppController {
     pub(crate) fn hide_waveform_playhead_for_tests(&mut self) {
         player::hide_waveform_playhead_for_tests(self);
     }
-
+    /// Apply a committed playback selection range and refresh dependent labels/preview state.
     pub(crate) fn apply_selection(&mut self, range: Option<SelectionRange>) {
         player::apply_selection(self, range);
     }
-
+    /// Apply the edit-selection overlay range used by waveform fade/trim editing tools.
     pub(crate) fn apply_edit_selection(&mut self, range: Option<SelectionRange>) {
         player::apply_edit_selection(self, range);
     }
@@ -324,15 +324,15 @@ impl AppController {
     pub(crate) fn selection_duration_label(&self, range: SelectionRange) -> Option<String> {
         player::selection_duration_label(self, range)
     }
-
+    /// Apply output volume to runtime audio state without persisting configuration.
     pub(crate) fn apply_volume(&mut self, volume: f32) {
         player::apply_volume(self, volume);
     }
-
+    /// Lazily create or return the shared audio player used by playback operations.
     pub(crate) fn ensure_player(&mut self) -> Result<Option<Rc<RefCell<AudioPlayer>>>, String> {
         player::ensure_player(self)
     }
-
+    /// Queue loop disable after the current cycle boundary to avoid mid-cycle discontinuities.
     pub(crate) fn defer_loop_disable_after_cycle(&mut self) -> Result<(), String> {
         player::defer_loop_disable_after_cycle(self)
     }

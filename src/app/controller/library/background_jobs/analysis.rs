@@ -4,6 +4,7 @@ use crate::app::state::ProgressTaskKind;
 use crate::app::state::RunningJobSnapshot;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Apply background analysis worker events to progress UI and follow-up queues.
 pub(crate) fn handle_analysis_message(controller: &mut AppController, message: AnalysisJobMessage) {
     match message {
         AnalysisJobMessage::Progress {
