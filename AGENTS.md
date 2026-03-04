@@ -60,15 +60,16 @@ Write for future selves: be precise, kind, and clear.
 - Current status: `tmp/perf_plan.md` Phase 2 execution is in progress; items 1-6 are complete (browser focus hot path, waveform static/motion key partitioning, deferred transients, stale-aware reads, retained-model miss-path cleanup, motion status projection trimming), and item 7 is next.
 
 ## Immediate Next Actions
-1. Execute item 7 from `tmp/perf_plan.md`: cache waveform image upload payloads across draws.
-2. Continue items sequentially in strict ROI order; after each item run validation, commit, push, and mark completion with date/hash.
-3. Keep handoff docs synchronized on milestone commits (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
+1. Await user confirmation to begin Phase 2 implementation from `tmp/cleanup_plan.md` (refreshed 2026-03-04).
+2. Execute item 7 from `tmp/perf_plan.md`: cache waveform image upload payloads across draws.
+3. Continue active plan items sequentially in strict ROI order; after each item run validation, commit, push, and mark completion with date/hash.
+4. Keep handoff docs synchronized on milestone commits (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/cleanup_plan.md`: ROI-ranked cleanup backlog + execution checklist for the current cleanup pass
+- `tmp/cleanup_plan.md`: ROI-ranked cleanup backlog + execution checklist (last refresh: 2026-03-04)
 - `tmp/perf_plan.md`: ROI-ranked runtime performance backlog + execution checklist for the current perf pass
 
 ## Non-Negotiable Workflow Rules

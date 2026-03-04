@@ -1,146 +1,132 @@
 # Cleanup Plan (ROI Ranked)
 
-Generated: 2026-02-27 (UTC)
+Generated: 2026-03-04 (UTC)
+Phase: 1 audit complete; Phase 2 pending explicit user confirmation
 Status legend: `[ ]` pending, `[x]` done
 
-## Backlog
+## Ordered Backlog
 
-- [x] 1) Split `vendor/radiant/src/gui/native_shell/state.rs` into focused modules
+- [ ] 1) Decompose `vendor/radiant` native shell state renderer into focused modules
   - ROI/Effort: High / L
-  - Why it matters: This is the largest hotspot in the repo and mixes mutable interaction state, layout-adapter wiring, text truncation caches, hit-testing, animation, and frame paint generation in one file, making changes high-risk and reviews expensive.
-  - Evidence: `vendor/radiant/src/gui/native_shell/state.rs` (~4740 LOC); mixed responsibilities visible in imports around lines 3-28 and `NativeShellState` around line 47.
-  - Recommended change: Extract a `state/` module tree (`interaction.rs`, `paint_build.rs`, `hit_test.rs`, `truncation_cache.rs`, `animation.rs`) with a thin facade preserving current API.
-  - Risk/tradeoffs: Medium; accidental behavior drift in input/paint coupling if extraction boundaries are wrong.
-  - Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml`, native shell shot tests, then `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `radiant` commit `91fb246e`
+  - Why it matters: The native shell state layer is still the largest single hotspot and mixes frame assembly, overlay construction, input/action helpers, and toolbar composition in one file, which raises regression risk and review overhead.
+  - Evidence:
+    - `vendor/radiant/src/gui/native_shell/state.rs` (4346 LOC).
+    - `build_frame_with_style_into_with_motion_sinks` at line 1264 and `build_state_overlay_into` at line 2906 are very large core paths.
+  - Recommended change: Extract `state/frame_build.rs`, `state/overlay.rs`, and `state/actions.rs` (or equivalent) with a thin facade in `state.rs`; preserve existing public entrypoints and behavior.
+  - Risk/tradeoffs: Medium-high. Splitting render/input code can introduce subtle ordering regressions if boundaries are not exact.
+  - Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml` then `bash scripts/ci_local.sh`.
 
-- [x] 2) Decompose `vendor/radiant/src/gui_runtime/native_vello.rs` into runtime submodules
-  - ROI/Effort: High / L
-  - Why it matters: Runtime startup, event loop orchestration, invalidation routing, scene rebuild policy, profiling, text rendering, and action classification are concentrated in a single ~4k LOC file.
-  - Evidence: `vendor/radiant/src/gui_runtime/native_vello.rs` (~3926 LOC); constants/env parsing at lines 49-105 and large mixed runtime logic throughout.
-  - Recommended change: Extract `native_vello/{runner.rs,invalidation.rs,scene_rebuild.rs,input.rs,profiling.rs,repaint.rs}` while keeping entrypoints and behavior unchanged.
-  - Risk/tradeoffs: Medium-high; this is performance-sensitive and redraw ordering is delicate.
-  - Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml`, shot fixtures, `bash scripts/run_perf_guard.sh`, full `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `radiant` commit `5d82273c`
-
-- [x] 3) Split `src/app_core/native_shell.rs` by projection domains
-  - ROI/Effort: High / L
-  - Why it matters: Core projection logic is centralized and long, which slows safe changes for browser/map/waveform/status projection independently.
-  - Evidence: `src/app_core/native_shell.rs` (~1494 LOC); broad projection entrypoints start at `project_app_model` (around line 83) and continue across multiple domains.
-  - Recommended change: Move browser/map/waveform/status/update projection into `src/app_core/native_shell/` modules; keep existing public facade functions stable.
-  - Risk/tradeoffs: Medium; projection key assumptions and cache coupling must remain byte-equivalent.
-  - Suggested validation: `cargo test --lib app_core::native_shell`, `cargo test --lib app_core::native_bridge`, then `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit `3b85df24`
-
-- [x] 4) Continue `jobs.rs` decomposition (issue gateway/token job runners)
+- [ ] 2) Unify duplicated staged file-move transaction logic across drag/drop workers
   - ROI/Effort: High / M
-  - Why it matters: `jobs.rs` remains large and central to async orchestration; issue-gateway/token worker code is still embedded and increases coupling.
-  - Evidence: `src/app/controller/jobs.rs` (~1291 LOC), with issue-gateway/token message types and worker begin/clear methods in the same file.
-  - Recommended change: Extract issue gateway/token worker runners into `src/app/controller/jobs/issue_gateway_jobs.rs` plus typed parameter structs for high-arity job builders.
-  - Risk/tradeoffs: Medium; async cancellation and progress interactions can regress.
-  - Suggested validation: targeted job-controller tests + `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit `b8018a3a`
+  - Why it matters: Source moves and folder sample moves duplicate long staged move/journal/rollback sequences, making bug fixes and behavioral changes expensive and inconsistent.
+  - Evidence:
+    - `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs:312` (`run_source_move_task`, 298-line span by audit script).
+    - `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/worker.rs:17` (`run_folder_sample_move_task`, 278-line span).
+    - Repeated rollback + journal cleanup branches across both functions.
+  - Recommended change: Introduce a shared staged move executor (plan/apply/rollback primitives) used by both workers, keeping job result types unchanged.
+  - Risk/tradeoffs: Medium. Shared helper mistakes could affect both move paths simultaneously.
+  - Suggested validation: drag/drop move tests, file-op journal recovery tests, `bash scripts/ci_local.sh`.
 
-- [x] 5) Split recording waveform loader into queue, decode, and assembly modules
-  - ROI/Effort: High / L
-  - Why it matters: The recording loader combines queueing/state, decoding, bucket/analysis computation, and output shaping; this hurts maintainability in a hot path.
-  - Evidence: `src/app/controller/playback/recording/waveform_loader.rs` (~1156 LOC); `RecordingWaveformState` and decode/aggregation logic start near lines 84+.
-  - Recommended change: Extract `recording/waveform_loader/{queue.rs,decode.rs,aggregation.rs,result.rs}` and keep worker API unchanged.
-  - Risk/tradeoffs: Medium; subtle waveform equivalence and incremental update behavior must not change.
-  - Suggested validation: existing recording waveform tests + regression fixtures + `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit `53cb2557`
-
-- [x] 6) Complete browser search worker split (telemetry/queue/pipeline)
+- [ ] 3) Add dedicated tests for folder move worker cancellation and rollback semantics
   - ROI/Effort: High / M
-  - Why it matters: Search worker mixes cache invalidation, queue semantics, telemetry counters, and filtering/scoring pipeline in one module.
-  - Evidence: `src/app/controller/library/wavs/browser_search_worker.rs` (~1140 LOC); queue/telemetry starts around lines 104-216.
-  - Recommended change: Extract `browser_search_worker/{queue.rs,telemetry.rs,pipeline.rs,cache.rs}` preserving `SearchWorkerHandle` API and stale-generation behavior.
-  - Risk/tradeoffs: Medium; high-frequency search latency and cancellation correctness are sensitive.
-  - Suggested validation: browser search tests + perf guard + `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commits `ae1c39f3`, `8fcdd201`
+  - Why it matters: Non-trivial file operation code currently lacks local coverage in `folder_moves`, leaving cancellation/journal-stage edge cases underprotected.
+  - Evidence:
+    - `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/worker.rs` contains core move executors at lines 17 and 295.
+    - No `mod tests`/`#[test]` matches in `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/*.rs` from audit scan.
+  - Recommended change: Add focused tests for cancel-before-start, staged rename failure rollback, DB update failure rollback, and journal cleanup on success/failure.
+  - Risk/tradeoffs: Low-medium. Test setup will require deterministic temp-dir and DB fixtures.
+  - Suggested validation: run new folder move tests directly, then `bash scripts/ci_local.sh`.
 
-- [x] 7) Split folder move drag-effects into planning/execution/result-apply layers
+- [ ] 4) Split `IssueTokenStore` into backend/key-management/storage modules
   - ROI/Effort: High / M
-  - Why it matters: Drag/drop folder move logic currently mixes validation, job orchestration, filesystem operations, DB journaling, and status/reporting paths.
-  - Evidence: `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs` (~1105 LOC), with mixed concerns from handler entrypoints onward.
-  - Recommended change: Extract `folder_moves/{plan.rs,worker.rs,apply_result.rs,journal.rs}` with explicit data contracts between layers.
-  - Risk/tradeoffs: Medium; file-operation cancellation and rollback semantics must remain exact.
-  - Suggested validation: folder drag/drop tests, file-op journal tests, `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit `000edada`
+  - Why it matters: Keyring operations, fallback key lifecycle, encrypted file IO, env parsing, and large test blocks are tightly coupled in one file, making security-sensitive changes harder to reason about.
+  - Evidence:
+    - `src/issue_gateway/token_store.rs` (1085 LOC).
+    - Global mutable fallback state at lines 20-21.
+    - Mixed fallback key lifecycle (`ensure_fallback_key` at line 206) and IO paths (`fallback_get` at 347, `fallback_set` at 392).
+    - Inline tests start at line 653.
+  - Recommended change: Extract modules for `keyring_backend`, `fallback_key`, `fallback_store`, and `crypto`; keep `IssueTokenStore` as orchestration facade.
+  - Risk/tradeoffs: Medium. Storage compatibility/migration behavior must stay byte-for-byte compatible.
+  - Suggested validation: token-store unit tests (including corruption and migration cases) and `bash scripts/ci_local.sh`.
 
-- [x] 8) Replace `clippy::too_many_arguments` hotspots with typed parameter structs
+- [ ] 5) Reduce projection cache complexity by splitting derive/materialize/probe layers
   - ROI/Effort: High / M
-  - Why it matters: Multiple core modules suppress argument-arity warnings, signaling high cognitive load and weak call-site clarity.
-  - Evidence: file-level/line-level suppressions in `src/waveform/render.rs`, `src/waveform/render/cache.rs`, `src/app/controller/ui/map_view.rs`, `src/sample_sources/db/file_ops_journal.rs`, and others from audit scan.
-  - Recommended change: Introduce cohesive input structs (`RenderParams`, `MovePlan`, `DbWriteOpts`, etc.) and migrate callsites incrementally.
-  - Risk/tradeoffs: Low-medium; broad signature churn across modules.
-  - Suggested validation: `cargo clippy --all-targets`, touched unit tests, `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit `1fef4787`
+  - Why it matters: Retained projection cache logic combines key derivation, segment materialization, dirty-segment policy, and benchmark probes in one dense module, increasing maintenance cost in a performance-critical path.
+  - Evidence:
+    - `src/app_core/native_bridge/projection_cache.rs` (1064 LOC).
+    - `resolve_or_project_with_derived` at line 547, `build_projection_cache_key` at line 641, and probe helper `run_rebuild_cause_probe_iters` at lines 985-986.
+    - `#[allow(clippy::too_many_arguments)]` on probe helper at line 985.
+  - Recommended change: Split into `projection_key.rs`, `segment_materialize.rs`, and `probe_metrics.rs`; replace high-arity probe inputs with typed context structs.
+  - Risk/tradeoffs: Medium. Any key derivation drift can impact UI invalidation correctness.
+  - Suggested validation: projection cache unit tests + perf guard checks + `bash scripts/ci_local.sh`.
 
-- [x] 9) Refactor native-bridge metrics counter registry into grouped structs
+- [ ] 6) Refactor `ControllerJobs` state and worker launch boilerplate
   - ROI/Effort: Medium / M
-  - Why it matters: Metrics module has very high static-counter density and repetitive logging math, increasing drift risk and edit friction.
-  - Evidence: `src/app_core/native_bridge/metrics.rs` (~683 LOC), dense static counter block around lines 26-160 and long aggregation section around 201+.
-  - Recommended change: Group counters into typed metric bundles and helper methods; keep feature-gated no-op fast path.
-  - Risk/tradeoffs: Low-medium; refactor must preserve emitted metric names and cadence.
-  - Suggested validation: native bridge metric tests + `bash scripts/run_perf_guard.sh` + full CI.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit `d4762f89`
+  - Why it matters: `ControllerJobs` maintains many independent in-progress/cancel fields and repeated `thread::spawn` launch patterns, which increases coupling and chance of state-flag inconsistencies.
+  - Evidence:
+    - `src/app/controller/jobs.rs` (1171 LOC), `ControllerJobs` starts at line 562.
+    - Repeated launcher blocks at lines 863, 990, 1026, 1051, 1077, and 1091.
+  - Recommended change: Introduce grouped task-state structs and a shared spawn/forward helper for one-shot background tasks; keep message protocol stable.
+  - Risk/tradeoffs: Medium. Async lifecycle regressions can occur if clear/start state transitions are altered incorrectly.
+  - Suggested validation: controller job tests + integration smoke for scan/file-op/update workflows + `bash scripts/ci_local.sh`.
 
-- [x] 10) Add focused unit tests for waveform transport selection/loop behavior
+- [ ] 7) Continue splitting `wavs.rs` façade by responsibility boundaries
   - ROI/Effort: Medium / M
-  - Why it matters: Complex transport selection/edit/loop interactions are implemented in a large file with no local test module, increasing regression risk.
-  - Evidence: `src/app/controller/playback/transport.rs` (~643 LOC), no `#[cfg(test)]`/`mod tests` markers in file scan.
-  - Recommended change: Add transport-focused tests (selection drag snapping, loop toggle side effects, seek debounce commit boundaries).
-  - Risk/tradeoffs: Low; primarily test-only additions.
-  - Suggested validation: `cargo test --lib transport`-focused filters + `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit `c0da7163`
+  - Why it matters: The file still combines metadata preloading, DB mutation helpers, cache reconciliation, selection path rewrites, and browser-facing actions, slowing safe iteration in sample-browser behavior.
+  - Evidence:
+    - `src/app/controller/library/wavs.rs` (938 LOC).
+    - Mixed concerns in `preload_bpm_values_for_paths` (130), `normalize_and_save_for_path` (252), `rewrite_db_entry_for_source` (356), `update_cached_entry` (480), and browser-facing APIs (`find_similar_for_visible_row` at 752, `preview_sample_by_id` at 846).
+  - Recommended change: Extract `wavs/entry_mutation.rs` and `wavs/metadata_cache.rs` helpers; keep selection/search APIs in current façade.
+  - Risk/tradeoffs: Medium-low. Broad call-site updates can create minor merge friction.
+  - Suggested validation: browser selection/search tests and `bash scripts/ci_local.sh`.
 
-- [x] 11) Add focused tests for browser action commit/preview semantics
-  - ROI/Effort: Medium / M
-  - Why it matters: Browser focus/selection/playback-trigger semantics are subtle and frequently touched; local tests are sparse at the module boundary.
-  - Evidence: `src/app/controller/library/wavs/browser_actions.rs` (~588 LOC), no local test module; commit-vs-preview methods around lines 34-257.
-  - Recommended change: Add table-driven tests for delta focus, commit row behavior, playback request gating, and multi-select anchor updates.
-  - Risk/tradeoffs: Low; expected behavior needs explicit fixtures.
-  - Suggested validation: targeted browser/controller tests + `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit `32c3367a`
-
-- [x] 12) Centralize truthy env parsing inside `radiant` runtime crate
+- [ ] 8) Move heavy inline test modules out of production source files
   - ROI/Effort: Medium / S
-  - Why it matters: `native_vello.rs` defines a local truthy parser; consolidating avoids token drift across runtime env flags in `radiant`.
-  - Evidence: `vendor/radiant/src/gui_runtime/native_vello.rs` `parse_truthy_env` around lines 98-105.
-  - Recommended change: Move parser to a shared `vendor/radiant/src/env_flags.rs` helper and update runtime callers.
-  - Risk/tradeoffs: Low; behavior must remain token-compatible.
-  - Suggested validation: add parser unit tests in `radiant`; run `cargo test --manifest-path vendor/radiant/Cargo.toml`.
-  - Completed: 2026-02-27 (UTC) - `radiant` commit `8189ee37`; `sempal` commit `5e3bbb07`
+  - Why it matters: Large inline test sections inflate production files and hide production-only responsibilities.
+  - Evidence:
+    - `src/audio/output.rs` production logic with inline tests at `mod tests` line 686.
+    - `src/sample_sources/db/mod.rs` production logic with inline tests at `mod tests` line 374.
+  - Recommended change: Move tests to sibling `tests.rs` (or submodule tree) and keep production modules focused.
+  - Risk/tradeoffs: Low. Mostly structural movement, minimal runtime risk.
+  - Suggested validation: targeted crate tests for moved modules and `bash scripts/ci_local.sh`.
 
-- [x] 13) Reduce `dead_code` suppressions by deleting or test-gating unused paths
-  - ROI/Effort: Medium / M
-  - Why it matters: High suppression count can hide stale code and increase maintenance burden.
-  - Evidence: broad `#[allow(dead_code)]` usage across `src/` and `vendor/radiant/src/` from audit scan (many occurrences in layout/runtime modules and controller layers).
-  - Recommended change: triage each suppression: delete dead code, gate to tests/features, or document explicit compatibility rationale.
-  - Risk/tradeoffs: Low-medium; false positives if code is reflection/FFI/platform-conditional.
-  - Suggested validation: `cargo clippy --all-targets`, platform-specific smoke checks, full CI.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit `48a0c79d`
+- [ ] 9) Remove or justify `dead_code` suppressions in source DB write API
+  - ROI/Effort: Medium / S
+  - Why it matters: Suppressed dead code in production paths can hide stale or duplicate APIs and increases maintenance burden.
+  - Evidence:
+    - `src/sample_sources/db/write.rs` has `#[allow(dead_code)]` on `upsert_file` (line 10) and `set_tag` (line 50).
+    - Batch equivalents exist in the same file (`SourceWriteBatch::upsert_file` line 150 and `SourceWriteBatch::set_tag` line 305).
+  - Recommended change: Remove unused wrapper methods if truly unused, or replace with explicit test-only gating and rationale.
+  - Risk/tradeoffs: Low. Potential call-site updates if wrappers are still needed.
+  - Suggested validation: `cargo clippy --all-targets` and `bash scripts/ci_local.sh`.
 
-- [x] 14) Refresh quality scorecard review date and reconcile with current hotspots
+- [ ] 10) Close documentation gaps for public job DTOs in controller jobs module
+  - ROI/Effort: Medium / S
+  - Why it matters: Several externally consumed job/result structs in `jobs.rs` lack doc comments, making async protocol intent and constraints harder to maintain.
+  - Evidence:
+    - Undocumented public structs include `IssueGatewayJob` (line 133), `IssueGatewayPollJob` (139), `IssueGatewayCreateResult` (144), `IssueGatewayAuthResult` (152), and `IssueTokenSaveJob` (158).
+  - Recommended change: Add concise rustdoc for purpose, ownership, and constraints for each public job/result type.
+  - Risk/tradeoffs: Low. Documentation-only change.
+  - Suggested validation: `RUSTDOCFLAGS='-D warnings' cargo doc -p sempal --no-deps` and `bash scripts/ci_local.sh`.
+
+- [ ] 11) Add a repeatable cleanup hotspot audit script for future passes
   - ROI/Effort: Low / S
-  - Why it matters: Current quality scorecard is stale and under-represents current large-file and perf-guard realities.
-  - Evidence: `docs/QUALITY_SCORE.md` last reviewed date is `2026-02-18` with open known-gap bullets.
-  - Recommended change: update review date/scores and cross-link active cleanup plan status.
-  - Risk/tradeoffs: Low; documentation-only.
-  - Suggested validation: docs lint/guardrails via `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit `59b37ac4`
+  - Why it matters: This audit currently depends on ad-hoc shell commands; a deterministic script reduces drift and speeds future cleanup planning.
+  - Evidence:
+    - Current findings were produced via manual `wc`, `rg`, and custom `awk` calls with no canonical script entrypoint in `scripts/`.
+  - Recommended change: Add `scripts/audit_cleanup_hotspots.sh` that emits file-size/function-length/suppression/test-density snapshots into `tmp/`.
+  - Risk/tradeoffs: Low. Small maintenance burden to keep thresholds and reports useful.
+  - Suggested validation: run the script locally and verify output under version control exclusions, then `bash scripts/ci_local.sh`.
 
-- [x] 15) Add an automated cleanup audit script snapshot for repeatability
+- [ ] 12) Add a cleanup architecture note linking debt items to module boundaries
   - ROI/Effort: Low / S
-  - Why it matters: This audit required ad-hoc commands; a scripted snapshot would reduce drift and speed future cleanup planning.
-  - Evidence: current audit uses manual `rg/wc/allow` scans with no canonical report script in `scripts/`.
-  - Recommended change: add `scripts/audit_cleanup_hotspots.sh` producing deterministic top-file/suppression/test-gap summary into `tmp/`.
-  - Risk/tradeoffs: Low; minor maintenance overhead for script itself.
-  - Suggested validation: script run in CI preflight or local docs runbook, then `bash scripts/ci_local.sh`.
-  - Completed: 2026-02-27 (UTC) - `sempal` commit `5a99f480`
+  - Why it matters: The cleanup queue spans controller, DB, and runtime layers; a short architecture note prevents future passes from reintroducing the same boundary violations.
+  - Evidence:
+    - Current debt spans `src/app/controller`, `src/sample_sources`, `src/app_core/native_bridge`, and `vendor/radiant` with repeated boundary-mixing patterns.
+  - Recommended change: Add a concise doc under `docs/plans/active/` describing target boundaries and ownership for the top cleanup hotspots.
+  - Risk/tradeoffs: Low. Documentation overhead only.
+  - Suggested validation: docs consistency review and `bash scripts/ci_local.sh`.
 
 ## Progress Log
 
-- Items 1-15 completed in strict ROI order and pushed.
-- Next active item: none (cleanup backlog complete).
+- 2026-03-04: Phase 1 audit complete; backlog refreshed and awaiting explicit user confirmation before Phase 2 implementation.
