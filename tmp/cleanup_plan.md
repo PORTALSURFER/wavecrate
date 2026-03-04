@@ -53,7 +53,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: controller job unit tests + integration smoke for scan/file-op/update flows, then `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `4cf0fa15`
 
-- [ ] 5) Break `playback/mod.rs` API facade into smaller responsibility files
+- [x] 5) Break `playback/mod.rs` API facade into smaller responsibility files
   - ROI/Effort: High / L
   - Why it matters: Playback API entrypoints, waveform zoom/cursor actions, deferred persistence, tagging/navigation wrappers, and internal helpers all live in one large module.
   - Evidence:
@@ -63,6 +63,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Split façade by behavior (`waveform_actions.rs`, `selection_actions.rs`, `persistence_flush.rs`, `navigation_actions.rs`) while preserving public controller methods.
   - Risk/tradeoffs: Medium-high. Public method wiring is broad and heavily used by UI/runtime paths.
   - Suggested validation: playback + waveform controller tests (including zoom anchor and deferred commit paths), then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `0844eaf2`
 
 - [ ] 6) Refactor native bridge metrics logging into snapshot + formatter layers
   - ROI/Effort: Medium / M
