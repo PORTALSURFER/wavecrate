@@ -7,7 +7,6 @@ use super::{Rating, SourceDatabase, SourceDbError, SourceWriteBatch};
 
 impl SourceDatabase {
     /// Upsert a wav file row using the path relative to the source root.
-    #[allow(dead_code)]
     pub fn upsert_file(
         &self,
         relative_path: &Path,
@@ -47,7 +46,6 @@ impl SourceDatabase {
     }
 
     /// Persist a keep/trash tag for a single wav file by relative path.
-    #[allow(dead_code)]
     pub fn set_tag(&self, relative_path: &Path, tag: Rating) -> Result<(), SourceDbError> {
         self.set_tags_batch(&[(relative_path.to_path_buf(), tag)])
     }
