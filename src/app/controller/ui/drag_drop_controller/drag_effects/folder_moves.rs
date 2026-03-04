@@ -166,18 +166,25 @@ mod tests {
         db.set_looped(Path::new("one.wav"), true).must();
         db.set_last_played_at(Path::new("one.wav"), 42).must();
 
+        let (lock_release_tx, lock_release_rx) = std::sync::mpsc::channel();
+        let (lock_done_tx, lock_done_rx) = std::sync::mpsc::channel();
+        let mut lock_release_rx = Some(lock_release_rx);
+        let mut lock_done_tx = Some(lock_done_tx);
         let source_root_for_hook = source_root.clone();
         set_before_folder_sample_batch_hook(Some(Box::new(move || {
             let (locked_tx, locked_rx) = std::sync::mpsc::channel();
             let db_file = source_root_for_hook.join(DB_FILE_NAME);
+            let lock_release_rx = lock_release_rx.take().must();
+            let lock_done_tx = lock_done_tx.take().must();
             std::thread::spawn(move || {
                 let conn = rusqlite::Connection::open(db_file).must();
                 conn.execute_batch("BEGIN IMMEDIATE").must();
                 let _ = locked_tx.send(());
-                std::thread::sleep(Duration::from_millis(7_000));
+                let _ = lock_release_rx.recv();
                 let _ = conn.execute_batch("COMMIT");
+                let _ = lock_done_tx.send(());
             });
-            locked_rx.recv_timeout(Duration::from_secs(1)).must();
+            locked_rx.recv().must();
         })));
 
         let result = run_folder_sample_move_task(
@@ -192,6 +199,8 @@ mod tests {
             None,
         );
         set_before_folder_sample_batch_hook(None);
+        let _ = lock_release_tx.send(());
+        lock_done_rx.recv_timeout(Duration::from_secs(1)).must();
 
         assert!(result.moved.is_empty());
         assert!(result.errors.iter().any(|err| {
