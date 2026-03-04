@@ -40,7 +40,6 @@ use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
 use std::{
     collections::HashSet,
     hash::{Hash, Hasher},
-    path::{Path, PathBuf},
     sync::Arc,
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -48,22 +47,35 @@ use tracing::info;
 
 /// Browser panel/frame/row projection helpers and retained browser caches.
 mod browser_projection;
+/// Confirm-prompt projection helpers and folder-name validation utilities.
+mod confirm_prompt_projection;
 /// Map panel projection helpers and retained projected map-point caches.
 mod map_projection;
+/// Source/folder sidebar projection helpers.
+mod sources_projection;
+/// Status-bar and selected-column projection helpers.
+mod status_projection;
+/// Update panel projection helpers.
+mod update_projection;
 /// Waveform panel and waveform chrome projection helpers.
 mod waveform_projection;
 
 #[cfg(test)]
 use browser_projection::{
-    browser_render_window, browser_row_identity_hash, project_cached_browser_row,
-    refresh_projected_browser_row_cache, refresh_projected_selected_paths_lookup,
-    selected_index_is_selected,
+    browser_column_index, browser_render_window, browser_row_identity_hash,
+    project_cached_browser_row, refresh_projected_browser_row_cache,
+    refresh_projected_selected_paths_lookup, selected_index_is_selected,
 };
 pub(crate) use browser_projection::{
     project_browser_chrome_model, project_browser_model, project_browser_panel_frame_model,
     project_browser_rows_model_into,
 };
+pub(crate) use confirm_prompt_projection::project_confirm_prompt_model;
 pub(crate) use map_projection::project_map_model;
+pub(crate) use sources_projection::project_sources_model;
+use status_projection::status_bar_right_text;
+pub(crate) use status_projection::{project_status_model, selected_column_index};
+pub(crate) use update_projection::project_update_model;
 pub(crate) use waveform_projection::{project_waveform_chrome_model, project_waveform_model};
 
 static PROJECT_APP_MODEL_CALLS: AtomicU64 = AtomicU64::new(0);
@@ -268,8 +280,8 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         ),
         waveform_selection_milli: controller.ui.waveform.selection.map(|selection| {
             crate::app_core::actions::NativeNormalizedRangeModel::new(
-                normalized_to_milli(selection.start()),
-                normalized_to_milli(selection.end()),
+                waveform_projection::normalized_to_milli(selection.start()),
+                waveform_projection::normalized_to_milli(selection.end()),
             )
         }),
         waveform_edit_selection_milli: waveform_projection::project_waveform_edit_selection_milli(
@@ -278,12 +290,20 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         waveform_edit_fade_in_end_milli: edit_fade_in_end_milli,
         waveform_edit_fade_out_start_milli: edit_fade_out_start_milli,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
-        waveform_cursor_milli: controller.ui.waveform.cursor.map(normalized_to_milli),
+        waveform_cursor_milli: controller
+            .ui
+            .waveform
+            .cursor
+            .map(waveform_projection::normalized_to_milli),
         waveform_playhead_milli: controller.ui.waveform.playhead.visible.then_some(
-            normalized_to_milli(controller.ui.waveform.playhead.position),
+            waveform_projection::normalized_to_milli(controller.ui.waveform.playhead.position),
         ),
-        waveform_view_start_milli: normalized64_to_milli(controller.ui.waveform.view.start),
-        waveform_view_end_milli: normalized64_to_milli(controller.ui.waveform.view.end),
+        waveform_view_start_milli: waveform_projection::normalized64_to_milli(
+            controller.ui.waveform.view.start,
+        ),
+        waveform_view_end_milli: waveform_projection::normalized64_to_milli(
+            controller.ui.waveform.view.end,
+        ),
         waveform_tempo_label: controller
             .ui
             .waveform
@@ -320,65 +340,6 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
     }
 }
 
-/// Project update panel state into the native shell model.
-pub(crate) fn project_update_model(ui: &UiState) -> UpdatePanelModel {
-    let update_status = UpdateStatus::from(ui.update.status.clone());
-    let status = match update_status {
-        UpdateStatus::Idle => UpdateStatusModel::Idle,
-        UpdateStatus::Checking => UpdateStatusModel::Checking,
-        UpdateStatus::UpdateAvailable => UpdateStatusModel::Available,
-        UpdateStatus::Error => UpdateStatusModel::Error,
-    };
-    let status_label = match update_status {
-        UpdateStatus::Idle => String::from("Updates: idle"),
-        UpdateStatus::Checking => String::from("Checking updates..."),
-        UpdateStatus::UpdateAvailable => ui
-            .update
-            .available_tag
-            .as_deref()
-            .map(|tag| format!("Update available: {tag} (manual install required)"))
-            .unwrap_or_else(|| String::from("Update available (manual install required)")),
-        UpdateStatus::Error => ui
-            .update
-            .last_error
-            .as_deref()
-            .map(|err| format!("Update check failed: {err}"))
-            .unwrap_or_else(|| String::from("Update check failed")),
-    };
-    let action_hint_label = match update_status {
-        UpdateStatus::Idle => String::from("Action: check"),
-        UpdateStatus::Checking => String::from("Action: waiting"),
-        UpdateStatus::UpdateAvailable => {
-            if ui.update.available_url.is_some() {
-                String::from("Actions: open | install(manual) | dismiss")
-            } else {
-                String::from("Action: dismiss")
-            }
-        }
-        UpdateStatus::Error => String::from("Action: retry"),
-    };
-    let release_notes_label = match update_status {
-        UpdateStatus::UpdateAvailable => {
-            let tag = ui.update.available_tag.as_deref().unwrap_or("latest");
-            if let Some(published_at) = ui.update.available_published_at.as_deref() {
-                format!("Release: {tag} ({published_at}) | Signed manual install required")
-            } else {
-                format!("Release: {tag} | Signed manual install required")
-            }
-        }
-        _ => String::new(),
-    };
-    UpdatePanelModel {
-        status,
-        status_label,
-        action_hint_label,
-        release_notes_label,
-        available_tag: ui.update.available_tag.clone(),
-        available_url: ui.update.available_url.clone(),
-        last_error: ui.update.last_error.clone(),
-    }
-}
-
 /// Project map panel state into the native shell model.
 pub(crate) fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel {
     let has_focus = ui.browser.selected_visible.is_some();
@@ -402,82 +363,6 @@ pub(crate) fn project_progress_overlay_model(ui: &UiState) -> ProgressOverlayMod
         cancelable: ui.progress.cancelable,
         cancel_requested: ui.progress.cancel_requested,
     }
-}
-
-/// Project active confirm prompt metadata for modal rendering.
-pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
-    if let Some(SampleBrowserActionPrompt::Rename { target, name }) =
-        ui.browser.pending_action.clone()
-    {
-        let input_value = Some(name);
-        return ConfirmPromptModel {
-            visible: true,
-            kind: Some(ConfirmPromptKind::BrowserRename),
-            title: String::from("Rename sample"),
-            message: String::from("Apply rename for focused sample?"),
-            confirm_label: String::from("Apply"),
-            cancel_label: String::from("Cancel"),
-            target_label: Some(target.display().to_string()),
-            input_value,
-            input_placeholder: Some(String::from("Sample name")),
-            input_error: None,
-        };
-    }
-    if let Some(FolderActionPrompt::Rename { target, name }) =
-        ui.sources.folders.pending_action.clone()
-    {
-        let input_value = Some(name);
-        let input_error = input_value
-            .as_deref()
-            .and_then(|name| folder_rename_validation_error(ui, &target, name));
-        return ConfirmPromptModel {
-            visible: true,
-            kind: Some(ConfirmPromptKind::FolderRename),
-            title: String::from("Rename folder"),
-            message: String::from("Apply folder rename?"),
-            confirm_label: String::from("Apply"),
-            cancel_label: String::from("Cancel"),
-            target_label: Some(target.display().to_string()),
-            input_value,
-            input_placeholder: Some(String::from("Folder name")),
-            input_error,
-        };
-    }
-    if let Some(new_folder) = ui.sources.folders.new_folder.as_ref() {
-        let target_label = if new_folder.parent.as_os_str().is_empty() {
-            String::from("source root")
-        } else {
-            new_folder.parent.display().to_string()
-        };
-        let input_error = folder_create_validation_error(ui, &new_folder.parent, &new_folder.name);
-        return ConfirmPromptModel {
-            visible: true,
-            kind: Some(ConfirmPromptKind::FolderCreate),
-            title: String::from("Create folder"),
-            message: String::from("Create a new folder at the selected location."),
-            confirm_label: String::from("Create"),
-            cancel_label: String::from("Cancel"),
-            target_label: Some(target_label),
-            input_value: Some(new_folder.name.clone()),
-            input_placeholder: Some(String::from("New folder name")),
-            input_error,
-        };
-    }
-    if let Some(prompt) = ui.waveform.pending_destructive.clone() {
-        return ConfirmPromptModel {
-            visible: true,
-            kind: Some(ConfirmPromptKind::DestructiveEdit),
-            title: prompt.title,
-            message: prompt.message,
-            confirm_label: String::from("Apply"),
-            cancel_label: String::from("Cancel"),
-            target_label: None,
-            input_value: None,
-            input_placeholder: None,
-            input_error: None,
-        };
-    }
-    ConfirmPromptModel::default()
 }
 
 /// Project drag-overlay feedback content for active drag sessions.
@@ -511,246 +396,6 @@ pub(crate) fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
         target_label,
         valid_target: !matches!(active_target, DragTarget::None),
     }
-}
-
-/// Project status-bar text segments for the native shell footer.
-pub(crate) fn project_status_model(
-    controller: &AppController,
-    selected_column: usize,
-) -> StatusBarModel {
-    let left = controller.ui.status.text.clone();
-    let center = format!(
-        "rows: {} | selected: {} | anchor: {} | search: {}{}",
-        controller.ui.browser.visible.len(),
-        controller.ui.browser.selected_paths.len(),
-        controller
-            .ui
-            .browser
-            .selection_anchor_visible
-            .map(|row: usize| row.to_string())
-            .unwrap_or_else(|| String::from("—")),
-        if controller.ui.browser.search_query.is_empty() {
-            "—"
-        } else {
-            controller.ui.browser.search_query.as_str()
-        },
-        if controller.ui.browser.search_busy {
-            " | filtering…"
-        } else {
-            ""
-        }
-    );
-    let right = status_bar_right_text(selected_column);
-    StatusBarModel {
-        left,
-        center,
-        right,
-    }
-}
-
-fn status_bar_right_text(selected_column: usize) -> String {
-    format!("col: {}/3", selected_column + 1)
-}
-
-pub(crate) fn selected_column_index(ui: &UiState) -> usize {
-    ui.browser
-        .selected
-        .map(|selected| match TriageFlagColumn::from(selected.column) {
-            TriageFlagColumn::Trash => 0,
-            TriageFlagColumn::Neutral => 1,
-            TriageFlagColumn::Keep => 2,
-        })
-        .unwrap_or(1)
-}
-
-/// Project source/folder panel data for the native sidebar.
-pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
-    let focused_folder = ui
-        .sources
-        .folders
-        .focused
-        .and_then(|index| ui.sources.folders.rows.get(index).cloned());
-    let can_manage_folder = focused_folder.as_ref().is_some_and(|row| !row.is_root);
-    SourcesPanelModel {
-        header: format!("Sources ({})", ui.sources.rows.len()),
-        search_query: ui.sources.folders.search_query.clone(),
-        folder_search_query: ui.sources.folders.search_query.clone(),
-        selected_row: ui.sources.selected,
-        focused_folder_row: ui.sources.folders.focused,
-        rows: ui
-            .sources
-            .rows
-            .iter()
-            .enumerate()
-            .map(|(row_index, row)| {
-                SourceRowModel::new(
-                    row.name.clone(),
-                    row.path.clone(),
-                    ui.sources
-                        .selected
-                        .is_some_and(|selected| selected == row_index),
-                    row.missing,
-                )
-            })
-            .collect(),
-        folder_rows: ui
-            .sources
-            .folders
-            .rows
-            .iter()
-            .enumerate()
-            .map(|(row_index, row)| {
-                FolderRowModel::new(
-                    row.name.clone(),
-                    row.path.display().to_string(),
-                    row.depth,
-                    row.selected,
-                    ui.sources
-                        .folders
-                        .focused
-                        .is_some_and(|focused| focused == row_index),
-                    row.is_root,
-                    row.has_children,
-                    row.expanded,
-                )
-            })
-            .collect(),
-        folder_actions: FolderActionsModel {
-            can_create_folder: ui.sources.selected.is_some(),
-            can_create_folder_at_root: ui.sources.selected.is_some(),
-            can_rename_folder: can_manage_folder,
-            can_delete_folder: can_manage_folder,
-            can_clear_recovery_log: !ui.sources.folders.delete_recovery.entries.is_empty()
-                && !ui.sources.folders.delete_recovery.in_progress,
-        },
-        folder_recovery: FolderRecoveryModel {
-            in_progress: ui.sources.folders.delete_recovery.in_progress,
-            entry_count: ui.sources.folders.delete_recovery.entries.len(),
-        },
-    }
-}
-
-fn browser_column_index(tag: crate::sample_sources::Rating) -> usize {
-    if tag.is_trash() {
-        0
-    } else if tag.is_keep() {
-        2
-    } else {
-        1
-    }
-}
-
-fn browser_bucket_label(
-    controller: &mut AppController,
-    relative_path: &Path,
-    tag: crate::sample_sources::Rating,
-) -> String {
-    if let Some(bpm) = controller.bpm_value_for_path(relative_path) {
-        return format_bpm_badge_label(bpm);
-    }
-    match browser_column_index(tag) {
-        0 => String::from("TRASH"),
-        2 => String::from("KEEP"),
-        _ => String::from("SAMPLE"),
-    }
-}
-
-fn format_bpm_badge_label(bpm: f32) -> String {
-    if !bpm.is_finite() || bpm <= 0.0 {
-        return String::from("SAMPLE");
-    }
-    let rounded = bpm.round();
-    if (bpm - rounded).abs() < 0.05 {
-        format!("{rounded:.0} BPM")
-    } else {
-        format!("{bpm:.1} BPM")
-    }
-}
-
-fn browser_sort_label(sort: SampleBrowserSort) -> &'static str {
-    match sort {
-        SampleBrowserSort::ListOrder => "List order",
-        SampleBrowserSort::Similarity => "Similarity",
-        SampleBrowserSort::PlaybackAgeAsc => "Playback age ↑",
-        SampleBrowserSort::PlaybackAgeDesc => "Playback age ↓",
-    }
-}
-
-fn browser_tab_label(tab: SampleBrowserTab) -> &'static str {
-    match tab {
-        SampleBrowserTab::List => "Samples",
-        SampleBrowserTab::Map => "Similarity map",
-    }
-}
-
-fn normalized_to_milli(value: f32) -> u16 {
-    (value.clamp(0.0, 1.0) * 1000.0).round() as u16
-}
-
-fn normalized64_to_milli(value: f64) -> u16 {
-    (value.clamp(0.0, 1.0) * 1000.0).round() as u16
-}
-
-fn normalize_folder_name_input(name: &str) -> Result<String, String> {
-    let trimmed = name.trim();
-    if trimmed.is_empty() {
-        return Err(String::from("Folder name cannot be empty"));
-    }
-    if trimmed == "." || trimmed == ".." {
-        return Err(String::from("Folder name is invalid"));
-    }
-    if trimmed.contains(['/', '\\']) {
-        return Err(String::from("Folder name cannot contain path separators"));
-    }
-    Ok(trimmed.to_string())
-}
-
-fn folder_with_name(target: &Path, name: &str) -> PathBuf {
-    target.parent().map_or_else(
-        || PathBuf::from(name),
-        |parent| {
-            if parent.as_os_str().is_empty() {
-                PathBuf::from(name)
-            } else {
-                parent.join(name)
-            }
-        },
-    )
-}
-
-fn folder_exists_in_rows(ui: &UiState, relative_path: &Path) -> bool {
-    ui.sources
-        .folders
-        .rows
-        .iter()
-        .any(|row| row.path == relative_path)
-}
-
-fn folder_create_validation_error(ui: &UiState, parent: &Path, name: &str) -> Option<String> {
-    let normalized = match normalize_folder_name_input(name) {
-        Ok(normalized) => normalized,
-        Err(err) => return Some(err),
-    };
-    let relative = if parent.as_os_str().is_empty() {
-        PathBuf::from(&normalized)
-    } else {
-        parent.join(&normalized)
-    };
-    folder_exists_in_rows(ui, &relative)
-        .then_some(format!("Folder already exists: {}", relative.display()))
-}
-
-fn folder_rename_validation_error(ui: &UiState, target: &Path, name: &str) -> Option<String> {
-    let normalized = match normalize_folder_name_input(name) {
-        Ok(normalized) => normalized,
-        Err(err) => return Some(err),
-    };
-    let renamed = folder_with_name(target, &normalized);
-    if renamed == target {
-        return None;
-    }
-    folder_exists_in_rows(ui, &renamed)
-        .then_some(format!("Folder already exists: {}", renamed.display()))
 }
 
 #[cfg(test)]

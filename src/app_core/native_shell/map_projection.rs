@@ -1,6 +1,8 @@
 //! Map-panel projection and retained map-point cache helpers.
 
+use super::waveform_projection::normalized_to_milli;
 use super::*;
+use std::path::Path;
 
 pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel {
     let active = matches!(
