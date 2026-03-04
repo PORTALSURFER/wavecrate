@@ -1,3 +1,4 @@
+use super::super::formatting::format_waveform_bpm_input;
 use super::*;
 use crate::app::state::FocusContext;
 use crate::selection::SelectionEdge;
@@ -555,15 +556,8 @@ fn apply_scaled_bpm(controller: &mut AppController, beats: f32, range: Selection
         return;
     }
     controller.set_bpm_value(bpm);
-    controller.ui.waveform.bpm_input = format_bpm_input(bpm);
-}
-
-fn format_bpm_input(value: f32) -> String {
-    let rounded = value.round();
-    if (value - rounded).abs() < 0.01 {
-        format!("{rounded:.0}")
-    } else {
-        format!("{value:.2}")
+    if let Some(input) = format_waveform_bpm_input(bpm) {
+        controller.ui.waveform.bpm_input = input;
     }
 }
 

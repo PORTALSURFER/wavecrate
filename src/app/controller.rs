@@ -2,6 +2,8 @@
 //! This module now delegates responsibilities into focused submodules to
 //! keep files small and behavior easy to reason about.
 
+/// Shared controller-level formatting helpers.
+mod formatting;
 mod library;
 mod playback;
 mod source_watcher;

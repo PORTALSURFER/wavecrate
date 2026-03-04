@@ -527,16 +527,9 @@ impl AppController {
     pub(crate) fn set_waveform_bpm_input(&mut self, bpm: Option<f32>) {
         let bpm = bpm.filter(|value| value.is_finite() && *value > 0.0);
         self.ui.waveform.bpm_value = bpm;
-        if let Some(value) = bpm {
-            let rounded = value.round();
-            if (value - rounded).abs() < 0.01 {
-                self.ui.waveform.bpm_input = format!("{rounded:.0}");
-            } else {
-                self.ui.waveform.bpm_input = format!("{value:.2}");
-            }
-        } else {
-            self.ui.waveform.bpm_input.clear();
-        }
+        self.ui.waveform.bpm_input = bpm
+            .and_then(crate::app::controller::formatting::format_waveform_bpm_input)
+            .unwrap_or_default();
     }
 
     pub(crate) fn clear_loaded_audio_and_waveform_visuals(&mut self) {
