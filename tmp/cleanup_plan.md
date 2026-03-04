@@ -6,7 +6,7 @@ Status legend: `[ ]` pending, `[x]` done
 
 ## Ordered Backlog
 
-- [ ] 1) Extract native bridge waveform action reduction/flush pipeline into staged helpers with focused tests
+- [x] 1) Extract native bridge waveform action reduction/flush pipeline into staged helpers with focused tests
   - ROI/Effort: High / M
   - Why it matters: Waveform input (seek/cursor/selection/zoom) is on a high-frequency path, but reduction, coalescing, cache invalidation, and dirty propagation are tightly coupled in one block.
   - Evidence:
@@ -16,6 +16,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Split into explicit stages (reduce, apply, invalidate, mark dirty), keep ordering semantics unchanged, and add table-driven tests for mixed queued action sets.
   - Risk/tradeoffs: Medium-high. Ordering regressions can break interaction semantics or undo performance wins.
   - Suggested validation: targeted native-bridge action-reduction tests + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `80165521`
 
 - [ ] 2) Split playback audio loader into explicit execution stages and isolated telemetry state
   - ROI/Effort: High / L
@@ -131,3 +132,4 @@ Status legend: `[ ]` pending, `[x]` done
 ## Progress Log
 
 - 2026-03-04: Phase 1 refreshed from current code state; awaiting explicit user confirmation before Phase 2 implementation.
+- 2026-03-04: Completed item 1 (native bridge waveform action reduction/flush staging + mixed queue emission tests).
