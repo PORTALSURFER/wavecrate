@@ -111,7 +111,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `cargo clippy --all-targets`, then `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `050160c0`
 
-- [ ] 10) Replace crate-wide `too_many_arguments` suppressions with typed parameter objects in top hotspots
+- [x] 10) Replace crate-wide `too_many_arguments` suppressions with typed parameter objects in top hotspots
   - ROI/Effort: Medium / M
   - Why it matters: Broad file-level suppressions hide call-site complexity and make APIs harder to evolve safely.
   - Evidence:
@@ -124,6 +124,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Start with 2-3 highest-churn call paths; introduce small config/input structs to collapse related arguments and remove local suppressions incrementally.
   - Risk/tradeoffs: Medium. Signature changes can create broad call-site churn.
   - Suggested validation: targeted unit tests for refactored call chains + `cargo clippy --all-targets` + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `7cc879ac`
 
 - [ ] 11) Close crate-visible documentation gaps in high-churn controller/runtime helpers
   - ROI/Effort: Low / M
