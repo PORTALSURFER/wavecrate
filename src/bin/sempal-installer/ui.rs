@@ -359,7 +359,7 @@ impl NativeAppBridge for InstallerNativeBridge {
     }
 
     /// Reduce one emitted UI action into installer workflow state.
-    fn on_action(&mut self, action: UiAction) {
+    fn reduce_action(&mut self, action: UiAction) {
         match action {
             UiAction::InstallUpdate => self.advance_step(),
             UiAction::OpenUpdateLink => {

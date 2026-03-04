@@ -438,7 +438,7 @@ impl NativeAppBridge for UpdateNativeBridge {
     }
 
     /// Reduce one runtime UI action into updater state transitions.
-    fn on_action(&mut self, action: UiAction) {
+    fn reduce_action(&mut self, action: UiAction) {
         match action {
             UiAction::CheckForUpdates => {
                 self.refresh_release_list();

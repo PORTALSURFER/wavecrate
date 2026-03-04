@@ -552,7 +552,7 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Reduce one runtime UI action into controller state.
-    fn on_action(&mut self, action: NativeUiAction) {
+    fn reduce_action(&mut self, action: NativeUiAction) {
         if let NativeUiAction::MoveBrowserFocus { delta } = action {
             let call = trace_action_call();
             let profiling = bridge_profiling_enabled();
@@ -602,7 +602,7 @@ impl NativeAppBridge for SempalNativeBridge {
         let interaction_class = classify_action_interaction(&action);
         let action_start = profiling.then(Instant::now);
         if call <= 64 {
-            info!(call, action = ?action, "native bridge: on_action");
+            info!(call, action = ?action, "native bridge: reduce_action");
         }
         self.apply_action_immediately(action);
         if profiling {
@@ -615,7 +615,7 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Observe one frame-build result for optional profiling telemetry.
-    fn on_frame_result(&mut self, result: NativeFrameBuildResult) {
+    fn observe_frame_result(&mut self, result: NativeFrameBuildResult) {
         let profiling = bridge_profiling_enabled();
         if !profiling {
             return;
@@ -627,7 +627,7 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Flush pending work and persist config during runtime shutdown.
-    fn on_exit(&mut self) {
+    fn on_runtime_exit(&mut self) {
         self.flush_pending_input_actions();
         if let Err(err) = self.controller.persist_native_exit_config() {
             error!(err = %err, "Failed to persist config on native exit");
