@@ -109,7 +109,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `cargo clippy --all-targets` and `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `d9fb43ca`
 
-- [ ] 10) Close documentation gaps for public job DTOs in controller jobs module
+- [x] 10) Close documentation gaps for public job DTOs in controller jobs module
   - ROI/Effort: Medium / S
   - Why it matters: Several externally consumed job/result structs in `jobs.rs` lack doc comments, making async protocol intent and constraints harder to maintain.
   - Evidence:
@@ -117,6 +117,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Add concise rustdoc for purpose, ownership, and constraints for each public job/result type.
   - Risk/tradeoffs: Low. Documentation-only change.
   - Suggested validation: `RUSTDOCFLAGS='-D warnings' cargo doc -p sempal --no-deps` and `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `0a3abf83`
 
 - [ ] 11) Add a repeatable cleanup hotspot audit script for future passes
   - ROI/Effort: Low / S
