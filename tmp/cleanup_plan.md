@@ -65,7 +65,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: projection cache unit tests + perf guard checks + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `f66c7acf`
 
-- [ ] 6) Refactor `ControllerJobs` state and worker launch boilerplate
+- [x] 6) Refactor `ControllerJobs` state and worker launch boilerplate
   - ROI/Effort: Medium / M
   - Why it matters: `ControllerJobs` maintains many independent in-progress/cancel fields and repeated `thread::spawn` launch patterns, which increases coupling and chance of state-flag inconsistencies.
   - Evidence:
@@ -74,6 +74,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Introduce grouped task-state structs and a shared spawn/forward helper for one-shot background tasks; keep message protocol stable.
   - Risk/tradeoffs: Medium. Async lifecycle regressions can occur if clear/start state transitions are altered incorrectly.
   - Suggested validation: controller job tests + integration smoke for scan/file-op/update workflows + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `71a6ae28`
 
 - [ ] 7) Continue splitting `wavs.rs` façade by responsibility boundaries
   - ROI/Effort: Medium / M
