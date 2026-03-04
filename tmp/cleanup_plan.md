@@ -130,7 +130,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `cargo test -p sempal --features native-bridge-metrics app_core::native_bridge::metrics` + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `7965d535`
 
-- [ ] 12) Consolidate duplicated BPM display formatting into one shared helper
+- [x] 12) Consolidate duplicated BPM display formatting into one shared helper
   - ROI/Effort: Low / S
   - Why it matters: Duplicate formatting rules increase drift risk and create small but recurring maintenance noise.
   - Evidence:
@@ -138,6 +138,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Introduce a single shared formatting helper and cover integer/fractional/invalid BPM cases with unit tests.
   - Risk/tradeoffs: Low. Small call-site updates only.
   - Suggested validation: targeted formatting tests + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `9f69f2b0`
 
 ## Progress Log
 
@@ -153,3 +154,4 @@ Status legend: `[ ]` pending, `[x]` done
 - 2026-03-04: Completed item 9 (typed payload conversion for move journal and move registration paths + file-level too-many-arguments suppressions removed from targeted files).
 - 2026-03-04: Completed item 10 (crate-visible native-shell projection entry points now document intent, constraints, and staged projection behavior).
 - 2026-03-04: Completed item 11 (bridge metrics tests now assert profile-message field shape and projection-cache counter increments under metrics-enabled builds).
+- 2026-03-04: Completed item 12 (shared waveform BPM input formatter extracted with unit tests; transport and waveform-loading paths now reuse one helper).

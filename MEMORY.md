@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-04T15:04:00Z
+Last Updated: 2026-03-04T16:41:21Z
 Updated By: Codex
 
 ## Purpose
@@ -10,20 +10,20 @@ Updated By: Codex
 
 ## Current State (Present Tense)
 
-- I have completed a new cleanup audit pass and rewritten `tmp/cleanup_plan.md` with a strict ROI-ranked backlog (Phase 1 complete).
-- I am waiting for explicit user confirmation before starting Phase 2 implementation from `tmp/cleanup_plan.md`.
-- I am using `docs/plans/active/cleanup_architecture_note.md` as boundary guidance for this pass.
-- Audit evidence has been refreshed in `tmp/cleanup_audit_hotspots.md`.
+- I have completed cleanup Phase 2 from `tmp/cleanup_plan.md`; items 1-12 are done and marked complete with commit hashes.
+- I have pushed all cleanup item commits to `origin/next`.
+- The runtime performance stream remains active in `tmp/perf_plan.md`; item 7 is the next queued implementation target.
+- `tmp/cleanup_plan.md` remains the source-of-truth record for this cleanup pass and completion history.
 
 ## Immediate Next Actions
 
-1. Paste the exact ordered backlog from `tmp/cleanup_plan.md` into chat and ask for explicit Phase 2 confirmation.
-2. If confirmed, execute cleanup items one-by-one in strict order with CI, plan updates, commits, and push per item.
-3. Keep `AGENTS.md`, `MEMORY.md`, and `tmp/cleanup_plan.md` synchronized after each milestone.
+1. Resume runtime/performance execution from `tmp/perf_plan.md` item 7 (waveform upload payload cache reuse across draws).
+2. Continue perf items sequentially with the same CI/commit/push discipline used in cleanup execution.
+3. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized on perf milestones.
 
 ## Work Notes
 
-- Active cleanup backlog: `tmp/cleanup_plan.md`.
+- Active cleanup backlog (completed): `tmp/cleanup_plan.md`.
 - Runtime performance backlog: `tmp/perf_plan.md`.
 - Runtime redesign source of truth: `docs/plans/active/runtime_performance_exec_plan.md`.
 - Short queue reference: `docs/plans/active/todo.md`.
