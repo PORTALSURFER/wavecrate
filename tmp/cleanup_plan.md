@@ -76,7 +76,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: controller job tests + integration smoke for scan/file-op/update workflows + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `71a6ae28`
 
-- [ ] 7) Continue splitting `wavs.rs` façade by responsibility boundaries
+- [x] 7) Continue splitting `wavs.rs` façade by responsibility boundaries
   - ROI/Effort: Medium / M
   - Why it matters: The file still combines metadata preloading, DB mutation helpers, cache reconciliation, selection path rewrites, and browser-facing actions, slowing safe iteration in sample-browser behavior.
   - Evidence:
@@ -85,6 +85,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Extract `wavs/entry_mutation.rs` and `wavs/metadata_cache.rs` helpers; keep selection/search APIs in current façade.
   - Risk/tradeoffs: Medium-low. Broad call-site updates can create minor merge friction.
   - Suggested validation: browser selection/search tests and `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `2f1f10e7`
 
 - [ ] 8) Move heavy inline test modules out of production source files
   - ROI/Effort: Medium / S
