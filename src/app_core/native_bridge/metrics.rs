@@ -182,232 +182,221 @@ fn ms_from_ns(ns: u64) -> f64 {
 }
 
 #[cfg(feature = "native-bridge-metrics")]
-pub(super) fn maybe_log_bridge_profile() {
-    let pull_model_count = BRIDGE_METRICS.pull_model_count.load(Ordering::Relaxed);
-    let pull_model_prep = BRIDGE_METRICS.pull_model_prep_ns.load(Ordering::Relaxed);
-    let pull_model_project = BRIDGE_METRICS.pull_model_project_ns.load(Ordering::Relaxed);
-    let pull_motion_count = BRIDGE_METRICS.pull_motion_count.load(Ordering::Relaxed);
-    let pull_motion_prep = BRIDGE_METRICS.pull_motion_prep_ns.load(Ordering::Relaxed);
-    let pull_motion_project = BRIDGE_METRICS
-        .pull_motion_project_ns
-        .load(Ordering::Relaxed);
-    let action_count = BRIDGE_METRICS.action_count.load(Ordering::Relaxed);
-    let action_ns = BRIDGE_METRICS.action_duration_ns.load(Ordering::Relaxed);
-    let projection_cache_hit_count = PROJECTION_CACHE_HIT_COUNT.load(Ordering::Relaxed);
-    let projection_cache_miss_count = PROJECTION_CACHE_MISS_COUNT.load(Ordering::Relaxed);
-    let status_segment_hit_count = BRIDGE_METRICS
-        .projection_status_segment_hit_count
-        .load(Ordering::Relaxed);
-    let status_segment_miss_count = BRIDGE_METRICS
-        .projection_status_segment_miss_count
-        .load(Ordering::Relaxed);
-    let browser_frame_segment_hit_count = BRIDGE_METRICS
-        .projection_browser_frame_segment_hit_count
-        .load(Ordering::Relaxed);
-    let browser_frame_segment_miss_count = BRIDGE_METRICS
-        .projection_browser_frame_segment_miss_count
-        .load(Ordering::Relaxed);
-    let browser_rows_segment_hit_count = BRIDGE_METRICS
-        .projection_browser_rows_segment_hit_count
-        .load(Ordering::Relaxed);
-    let browser_rows_segment_miss_count = BRIDGE_METRICS
-        .projection_browser_rows_segment_miss_count
-        .load(Ordering::Relaxed);
-    let map_segment_hit_count = BRIDGE_METRICS
-        .projection_map_segment_hit_count
-        .load(Ordering::Relaxed);
-    let map_segment_miss_count = BRIDGE_METRICS
-        .projection_map_segment_miss_count
-        .load(Ordering::Relaxed);
-    let waveform_segment_hit_count = BRIDGE_METRICS
-        .projection_waveform_segment_hit_count
-        .load(Ordering::Relaxed);
-    let waveform_segment_miss_count = BRIDGE_METRICS
-        .projection_waveform_segment_miss_count
-        .load(Ordering::Relaxed);
-    let wheel_count = BRIDGE_METRICS.action_wheel_count.load(Ordering::Relaxed);
-    let wheel_ns = BRIDGE_METRICS
-        .action_wheel_duration_ns
-        .load(Ordering::Relaxed);
-    let map_proxy_count = BRIDGE_METRICS
-        .action_map_proxy_count
-        .load(Ordering::Relaxed);
-    let map_proxy_ns = BRIDGE_METRICS
-        .action_map_proxy_duration_ns
-        .load(Ordering::Relaxed);
-    let waveform_count = BRIDGE_METRICS.action_waveform_count.load(Ordering::Relaxed);
-    let waveform_ns = BRIDGE_METRICS
-        .action_waveform_duration_ns
-        .load(Ordering::Relaxed);
-    let volume_count = BRIDGE_METRICS.action_volume_count.load(Ordering::Relaxed);
-    let volume_ns = BRIDGE_METRICS
-        .action_volume_duration_ns
-        .load(Ordering::Relaxed);
-    let waveform_flush_count = BRIDGE_METRICS.waveform_flush_count.load(Ordering::Relaxed);
-    let waveform_flush_ns = BRIDGE_METRICS
-        .waveform_flush_duration_ns
-        .load(Ordering::Relaxed);
-    let waveform_flush_emitted_actions = BRIDGE_METRICS
-        .waveform_flush_emitted_actions_total
-        .load(Ordering::Relaxed);
-    let waveform_image_refresh_apply_count =
-        WAVEFORM_IMAGE_REFRESH_APPLY_COUNT.load(Ordering::Relaxed);
-    let waveform_image_refresh_skip_count =
-        WAVEFORM_IMAGE_REFRESH_SKIP_COUNT.load(Ordering::Relaxed);
-    let derived_flush_count = BRIDGE_METRICS.derived_flush_count.load(Ordering::Relaxed);
-    let derived_flush_ns = BRIDGE_METRICS
-        .derived_flush_duration_ns
-        .load(Ordering::Relaxed);
-    let derived_dirty_source_total = BRIDGE_METRICS
-        .derived_dirty_source_total
-        .load(Ordering::Relaxed);
-    let derived_dirty_computed_total = BRIDGE_METRICS
-        .derived_dirty_computed_total
-        .load(Ordering::Relaxed);
-    let frame_count = BRIDGE_METRICS.frame_result_count.load(Ordering::Relaxed);
-    let frame_anim_count = BRIDGE_METRICS
-        .frame_result_animation_count
-        .load(Ordering::Relaxed);
-    let primitive_sum = BRIDGE_METRICS
-        .frame_result_primitives_total
-        .load(Ordering::Relaxed);
-    let text_run_sum = BRIDGE_METRICS
-        .frame_result_text_runs_total
-        .load(Ordering::Relaxed);
-    let presented_frame_count = BRIDGE_METRICS
-        .frame_result_presented_count
-        .load(Ordering::Relaxed);
-    let missed_present_count = BRIDGE_METRICS
-        .frame_result_missed_present_count
-        .load(Ordering::Relaxed);
-    let jank_count = BRIDGE_METRICS
-        .frame_result_jank_count
-        .load(Ordering::Relaxed);
-    let frame_total_us = BRIDGE_METRICS.frame_result_total_us.load(Ordering::Relaxed);
-    let present_total_us = BRIDGE_METRICS
-        .frame_result_present_us_total
-        .load(Ordering::Relaxed);
-    let frame_budget_us = BRIDGE_METRICS
-        .frame_result_frame_budget_us
-        .load(Ordering::Relaxed);
-    let projection_key_assert_count = BRIDGE_METRICS
-        .projection_key_assert_count
-        .load(Ordering::Relaxed);
-    let projection_key_assert_stale_count = BRIDGE_METRICS
-        .projection_key_assert_stale_count
-        .load(Ordering::Relaxed);
-    let (browser_row_cache_hit_count, browser_row_cache_miss_count) =
-        native_shell::browser_row_cache_lookup_counts();
-    let pull_model_avg_prep_ms = if pull_model_count == 0 {
+/// Captured bridge metrics counters for one profile log emission.
+struct BridgeMetricsSnapshot {
+    pull_model_count: u64,
+    pull_model_prep_ns: u64,
+    pull_model_project_ns: u64,
+    pull_motion_count: u64,
+    pull_motion_prep_ns: u64,
+    pull_motion_project_ns: u64,
+    action_count: u64,
+    action_duration_ns: u64,
+    projection_cache_hit_count: u64,
+    projection_cache_miss_count: u64,
+    status_segment_hit_count: u64,
+    status_segment_miss_count: u64,
+    browser_frame_segment_hit_count: u64,
+    browser_frame_segment_miss_count: u64,
+    browser_rows_segment_hit_count: u64,
+    browser_rows_segment_miss_count: u64,
+    map_segment_hit_count: u64,
+    map_segment_miss_count: u64,
+    waveform_segment_hit_count: u64,
+    waveform_segment_miss_count: u64,
+    wheel_count: u64,
+    wheel_duration_ns: u64,
+    map_proxy_count: u64,
+    map_proxy_duration_ns: u64,
+    waveform_count: u64,
+    waveform_duration_ns: u64,
+    volume_count: u64,
+    volume_duration_ns: u64,
+    waveform_flush_count: u64,
+    waveform_flush_duration_ns: u64,
+    waveform_flush_emitted_actions: u64,
+    waveform_image_refresh_apply_count: u64,
+    waveform_image_refresh_skip_count: u64,
+    derived_flush_count: u64,
+    derived_flush_duration_ns: u64,
+    derived_dirty_source_total: u64,
+    derived_dirty_computed_total: u64,
+    frame_count: u64,
+    frame_anim_count: u64,
+    primitive_sum: u64,
+    text_run_sum: u64,
+    presented_frame_count: u64,
+    missed_present_count: u64,
+    jank_count: u64,
+    frame_total_us: u64,
+    present_total_us: u64,
+    frame_budget_us: u64,
+    browser_row_cache_hit_count: u64,
+    browser_row_cache_miss_count: u64,
+    projection_key_assert_count: u64,
+    projection_key_assert_stale_count: u64,
+}
+
+#[cfg(feature = "native-bridge-metrics")]
+impl BridgeMetricsSnapshot {
+    /// Snapshot process-lifetime bridge counters for one profile log point.
+    fn capture() -> Self {
+        let (browser_row_cache_hit_count, browser_row_cache_miss_count) =
+            native_shell::browser_row_cache_lookup_counts();
+        Self {
+            pull_model_count: BRIDGE_METRICS.pull_model_count.load(Ordering::Relaxed),
+            pull_model_prep_ns: BRIDGE_METRICS.pull_model_prep_ns.load(Ordering::Relaxed),
+            pull_model_project_ns: BRIDGE_METRICS.pull_model_project_ns.load(Ordering::Relaxed),
+            pull_motion_count: BRIDGE_METRICS.pull_motion_count.load(Ordering::Relaxed),
+            pull_motion_prep_ns: BRIDGE_METRICS.pull_motion_prep_ns.load(Ordering::Relaxed),
+            pull_motion_project_ns: BRIDGE_METRICS
+                .pull_motion_project_ns
+                .load(Ordering::Relaxed),
+            action_count: BRIDGE_METRICS.action_count.load(Ordering::Relaxed),
+            action_duration_ns: BRIDGE_METRICS.action_duration_ns.load(Ordering::Relaxed),
+            projection_cache_hit_count: PROJECTION_CACHE_HIT_COUNT.load(Ordering::Relaxed),
+            projection_cache_miss_count: PROJECTION_CACHE_MISS_COUNT.load(Ordering::Relaxed),
+            status_segment_hit_count: BRIDGE_METRICS
+                .projection_status_segment_hit_count
+                .load(Ordering::Relaxed),
+            status_segment_miss_count: BRIDGE_METRICS
+                .projection_status_segment_miss_count
+                .load(Ordering::Relaxed),
+            browser_frame_segment_hit_count: BRIDGE_METRICS
+                .projection_browser_frame_segment_hit_count
+                .load(Ordering::Relaxed),
+            browser_frame_segment_miss_count: BRIDGE_METRICS
+                .projection_browser_frame_segment_miss_count
+                .load(Ordering::Relaxed),
+            browser_rows_segment_hit_count: BRIDGE_METRICS
+                .projection_browser_rows_segment_hit_count
+                .load(Ordering::Relaxed),
+            browser_rows_segment_miss_count: BRIDGE_METRICS
+                .projection_browser_rows_segment_miss_count
+                .load(Ordering::Relaxed),
+            map_segment_hit_count: BRIDGE_METRICS
+                .projection_map_segment_hit_count
+                .load(Ordering::Relaxed),
+            map_segment_miss_count: BRIDGE_METRICS
+                .projection_map_segment_miss_count
+                .load(Ordering::Relaxed),
+            waveform_segment_hit_count: BRIDGE_METRICS
+                .projection_waveform_segment_hit_count
+                .load(Ordering::Relaxed),
+            waveform_segment_miss_count: BRIDGE_METRICS
+                .projection_waveform_segment_miss_count
+                .load(Ordering::Relaxed),
+            wheel_count: BRIDGE_METRICS.action_wheel_count.load(Ordering::Relaxed),
+            wheel_duration_ns: BRIDGE_METRICS
+                .action_wheel_duration_ns
+                .load(Ordering::Relaxed),
+            map_proxy_count: BRIDGE_METRICS
+                .action_map_proxy_count
+                .load(Ordering::Relaxed),
+            map_proxy_duration_ns: BRIDGE_METRICS
+                .action_map_proxy_duration_ns
+                .load(Ordering::Relaxed),
+            waveform_count: BRIDGE_METRICS.action_waveform_count.load(Ordering::Relaxed),
+            waveform_duration_ns: BRIDGE_METRICS
+                .action_waveform_duration_ns
+                .load(Ordering::Relaxed),
+            volume_count: BRIDGE_METRICS.action_volume_count.load(Ordering::Relaxed),
+            volume_duration_ns: BRIDGE_METRICS
+                .action_volume_duration_ns
+                .load(Ordering::Relaxed),
+            waveform_flush_count: BRIDGE_METRICS.waveform_flush_count.load(Ordering::Relaxed),
+            waveform_flush_duration_ns: BRIDGE_METRICS
+                .waveform_flush_duration_ns
+                .load(Ordering::Relaxed),
+            waveform_flush_emitted_actions: BRIDGE_METRICS
+                .waveform_flush_emitted_actions_total
+                .load(Ordering::Relaxed),
+            waveform_image_refresh_apply_count: WAVEFORM_IMAGE_REFRESH_APPLY_COUNT
+                .load(Ordering::Relaxed),
+            waveform_image_refresh_skip_count: WAVEFORM_IMAGE_REFRESH_SKIP_COUNT
+                .load(Ordering::Relaxed),
+            derived_flush_count: BRIDGE_METRICS.derived_flush_count.load(Ordering::Relaxed),
+            derived_flush_duration_ns: BRIDGE_METRICS
+                .derived_flush_duration_ns
+                .load(Ordering::Relaxed),
+            derived_dirty_source_total: BRIDGE_METRICS
+                .derived_dirty_source_total
+                .load(Ordering::Relaxed),
+            derived_dirty_computed_total: BRIDGE_METRICS
+                .derived_dirty_computed_total
+                .load(Ordering::Relaxed),
+            frame_count: BRIDGE_METRICS.frame_result_count.load(Ordering::Relaxed),
+            frame_anim_count: BRIDGE_METRICS
+                .frame_result_animation_count
+                .load(Ordering::Relaxed),
+            primitive_sum: BRIDGE_METRICS
+                .frame_result_primitives_total
+                .load(Ordering::Relaxed),
+            text_run_sum: BRIDGE_METRICS
+                .frame_result_text_runs_total
+                .load(Ordering::Relaxed),
+            presented_frame_count: BRIDGE_METRICS
+                .frame_result_presented_count
+                .load(Ordering::Relaxed),
+            missed_present_count: BRIDGE_METRICS
+                .frame_result_missed_present_count
+                .load(Ordering::Relaxed),
+            jank_count: BRIDGE_METRICS
+                .frame_result_jank_count
+                .load(Ordering::Relaxed),
+            frame_total_us: BRIDGE_METRICS.frame_result_total_us.load(Ordering::Relaxed),
+            present_total_us: BRIDGE_METRICS
+                .frame_result_present_us_total
+                .load(Ordering::Relaxed),
+            frame_budget_us: BRIDGE_METRICS
+                .frame_result_frame_budget_us
+                .load(Ordering::Relaxed),
+            browser_row_cache_hit_count,
+            browser_row_cache_miss_count,
+            projection_key_assert_count: BRIDGE_METRICS
+                .projection_key_assert_count
+                .load(Ordering::Relaxed),
+            projection_key_assert_stale_count: BRIDGE_METRICS
+                .projection_key_assert_stale_count
+                .load(Ordering::Relaxed),
+        }
+    }
+}
+
+#[cfg(feature = "native-bridge-metrics")]
+/// Compute average duration milliseconds for a counter total/count pair.
+fn avg_ms(total_ns: u64, count: u64) -> f64 {
+    if count == 0 {
         0.0
     } else {
-        ms_from_ns(pull_model_prep) / pull_model_count as f64
-    };
-    let pull_model_avg_project_ms = if pull_model_count == 0 {
+        ms_from_ns(total_ns) / count as f64
+    }
+}
+
+#[cfg(feature = "native-bridge-metrics")]
+/// Compute average scalar value for a total/count pair.
+fn avg_value(total: u64, count: u64) -> f64 {
+    if count == 0 {
         0.0
     } else {
-        ms_from_ns(pull_model_project) / pull_model_count as f64
-    };
-    let pull_motion_avg_prep_ms = if pull_motion_count == 0 {
+        total as f64 / count as f64
+    }
+}
+
+#[cfg(feature = "native-bridge-metrics")]
+/// Compute a bounded ratio with zero-denominator fallback.
+fn ratio_value(numerator: u64, denominator: u64) -> f64 {
+    if denominator == 0 {
         0.0
     } else {
-        ms_from_ns(pull_motion_prep) / pull_motion_count as f64
-    };
-    let pull_motion_avg_project_ms = if pull_motion_count == 0 {
-        0.0
-    } else {
-        ms_from_ns(pull_motion_project) / pull_motion_count as f64
-    };
-    let action_avg_ms = if action_count == 0 {
-        0.0
-    } else {
-        ms_from_ns(action_ns) / action_count as f64
-    };
-    let wheel_avg_ms = if wheel_count == 0 {
-        0.0
-    } else {
-        ms_from_ns(wheel_ns) / wheel_count as f64
-    };
-    let map_proxy_avg_ms = if map_proxy_count == 0 {
-        0.0
-    } else {
-        ms_from_ns(map_proxy_ns) / map_proxy_count as f64
-    };
-    let waveform_avg_ms = if waveform_count == 0 {
-        0.0
-    } else {
-        ms_from_ns(waveform_ns) / waveform_count as f64
-    };
-    let volume_avg_ms = if volume_count == 0 {
-        0.0
-    } else {
-        ms_from_ns(volume_ns) / volume_count as f64
-    };
-    let waveform_flush_avg_ms = if waveform_flush_count == 0 {
-        0.0
-    } else {
-        ms_from_ns(waveform_flush_ns) / waveform_flush_count as f64
-    };
-    let waveform_flush_avg_actions = if waveform_flush_count == 0 {
-        0.0
-    } else {
-        waveform_flush_emitted_actions as f64 / waveform_flush_count as f64
-    };
-    let derived_flush_avg_ms = if derived_flush_count == 0 {
-        0.0
-    } else {
-        ms_from_ns(derived_flush_ns) / derived_flush_count as f64
-    };
-    let derived_flush_avg_dirty_sources = if derived_flush_count == 0 {
-        0.0
-    } else {
-        derived_dirty_source_total as f64 / derived_flush_count as f64
-    };
-    let derived_flush_avg_dirty_computed = if derived_flush_count == 0 {
-        0.0
-    } else {
-        derived_dirty_computed_total as f64 / derived_flush_count as f64
-    };
-    let avg_primitives_per_frame = if frame_count == 0 {
-        0.0
-    } else {
-        primitive_sum as f64 / frame_count as f64
-    };
-    let avg_text_runs_per_frame = if frame_count == 0 {
-        0.0
-    } else {
-        text_run_sum as f64 / frame_count as f64
-    };
-    let frame_total_avg_ms = if frame_count == 0 {
-        0.0
-    } else {
-        frame_total_us as f64 / frame_count as f64 / 1000.0
-    };
-    let present_avg_ms = if presented_frame_count == 0 {
-        0.0
-    } else {
-        present_total_us as f64 / presented_frame_count as f64 / 1000.0
-    };
-    let jank_ratio = if frame_count == 0 {
-        0.0
-    } else {
-        jank_count as f64 / frame_count as f64
-    };
-    let missed_present_ratio = if frame_count == 0 {
-        0.0
-    } else {
-        missed_present_count as f64 / frame_count as f64
-    };
-    info!(
-        pull_model_count,
-        pull_motion_count,
-        action_count,
-        wheel_count,
-        map_proxy_count,
-        waveform_count,
-        volume_count,
-        frame_count,
-        frame_anim_count,
+        numerator as f64 / denominator as f64
+    }
+}
+
+#[cfg(feature = "native-bridge-metrics")]
+/// Format a human-readable bridge profiling line from one metrics snapshot.
+fn format_bridge_profile_message(snapshot: &BridgeMetricsSnapshot) -> String {
+    format!(
         "native bridge profiling: pull_model prep_ms={:.3} project_ms={:.3} \
          pull_motion prep_ms={:.3} project_ms={:.3} action_ms={:.3} \
          projection_cache hits={} misses={} \
@@ -421,52 +410,106 @@ pub(super) fn maybe_log_bridge_profile() {
          browser_row_cache hits={} misses={} \
          projection_key_assert_count={} projection_key_assert_stale_count={} \
          jank_count={} jank_ratio={:.3} missed_present_count={} missed_present_ratio={:.3}",
-        pull_model_avg_prep_ms,
-        pull_model_avg_project_ms,
-        pull_motion_avg_prep_ms,
-        pull_motion_avg_project_ms,
-        action_avg_ms,
-        projection_cache_hit_count,
-        projection_cache_miss_count,
-        status_segment_hit_count,
-        status_segment_miss_count,
-        browser_frame_segment_hit_count,
-        browser_frame_segment_miss_count,
-        browser_rows_segment_hit_count,
-        browser_rows_segment_miss_count,
-        map_segment_hit_count,
-        map_segment_miss_count,
-        waveform_segment_hit_count,
-        waveform_segment_miss_count,
-        wheel_avg_ms,
-        map_proxy_avg_ms,
-        waveform_avg_ms,
-        volume_avg_ms,
-        waveform_flush_avg_ms,
-        waveform_flush_avg_actions,
-        waveform_image_refresh_apply_count,
-        waveform_image_refresh_skip_count,
-        derived_flush_avg_ms,
-        derived_flush_avg_dirty_sources,
-        derived_flush_avg_dirty_computed,
-        avg_primitives_per_frame,
-        avg_text_runs_per_frame,
-        frame_total_avg_ms,
-        present_avg_ms,
-        frame_budget_us,
-        browser_row_cache_hit_count,
-        browser_row_cache_miss_count,
-        projection_key_assert_count,
-        projection_key_assert_stale_count,
-        jank_count,
-        jank_ratio,
-        missed_present_count,
-        missed_present_ratio
+        avg_ms(snapshot.pull_model_prep_ns, snapshot.pull_model_count),
+        avg_ms(snapshot.pull_model_project_ns, snapshot.pull_model_count),
+        avg_ms(snapshot.pull_motion_prep_ns, snapshot.pull_motion_count),
+        avg_ms(snapshot.pull_motion_project_ns, snapshot.pull_motion_count),
+        avg_ms(snapshot.action_duration_ns, snapshot.action_count),
+        snapshot.projection_cache_hit_count,
+        snapshot.projection_cache_miss_count,
+        snapshot.status_segment_hit_count,
+        snapshot.status_segment_miss_count,
+        snapshot.browser_frame_segment_hit_count,
+        snapshot.browser_frame_segment_miss_count,
+        snapshot.browser_rows_segment_hit_count,
+        snapshot.browser_rows_segment_miss_count,
+        snapshot.map_segment_hit_count,
+        snapshot.map_segment_miss_count,
+        snapshot.waveform_segment_hit_count,
+        snapshot.waveform_segment_miss_count,
+        avg_ms(snapshot.wheel_duration_ns, snapshot.wheel_count),
+        avg_ms(snapshot.map_proxy_duration_ns, snapshot.map_proxy_count),
+        avg_ms(snapshot.waveform_duration_ns, snapshot.waveform_count),
+        avg_ms(snapshot.volume_duration_ns, snapshot.volume_count),
+        avg_ms(
+            snapshot.waveform_flush_duration_ns,
+            snapshot.waveform_flush_count
+        ),
+        avg_value(
+            snapshot.waveform_flush_emitted_actions,
+            snapshot.waveform_flush_count
+        ),
+        snapshot.waveform_image_refresh_apply_count,
+        snapshot.waveform_image_refresh_skip_count,
+        avg_ms(
+            snapshot.derived_flush_duration_ns,
+            snapshot.derived_flush_count
+        ),
+        avg_value(
+            snapshot.derived_dirty_source_total,
+            snapshot.derived_flush_count
+        ),
+        avg_value(
+            snapshot.derived_dirty_computed_total,
+            snapshot.derived_flush_count
+        ),
+        avg_value(snapshot.primitive_sum, snapshot.frame_count),
+        avg_value(snapshot.text_run_sum, snapshot.frame_count),
+        avg_value(snapshot.frame_total_us, snapshot.frame_count) / 1000.0,
+        avg_value(snapshot.present_total_us, snapshot.presented_frame_count) / 1000.0,
+        snapshot.frame_budget_us,
+        snapshot.browser_row_cache_hit_count,
+        snapshot.browser_row_cache_miss_count,
+        snapshot.projection_key_assert_count,
+        snapshot.projection_key_assert_stale_count,
+        snapshot.jank_count,
+        ratio_value(snapshot.jank_count, snapshot.frame_count),
+        snapshot.missed_present_count,
+        ratio_value(snapshot.missed_present_count, snapshot.frame_count)
+    )
+}
+
+#[cfg(feature = "native-bridge-metrics")]
+/// Emit one profile log line containing derived bridge metrics summaries.
+pub(super) fn maybe_log_bridge_profile() {
+    let snapshot = BridgeMetricsSnapshot::capture();
+    info!(
+        pull_model_count = snapshot.pull_model_count,
+        pull_motion_count = snapshot.pull_motion_count,
+        action_count = snapshot.action_count,
+        wheel_count = snapshot.wheel_count,
+        map_proxy_count = snapshot.map_proxy_count,
+        waveform_count = snapshot.waveform_count,
+        volume_count = snapshot.volume_count,
+        frame_count = snapshot.frame_count,
+        frame_anim_count = snapshot.frame_anim_count,
+        "{}",
+        format_bridge_profile_message(&snapshot)
     );
 }
 #[cfg(not(feature = "native-bridge-metrics"))]
 #[inline]
 pub(super) fn maybe_log_bridge_profile() {}
+
+#[cfg(all(test, feature = "native-bridge-metrics"))]
+/// Unit tests for bridge metrics profile math helpers.
+mod profile_math_tests {
+    use super::*;
+
+    #[test]
+    /// Average helpers should return zero for empty sample counts.
+    fn averages_return_zero_for_empty_counts() {
+        assert_eq!(avg_ms(10_000, 0), 0.0);
+        assert_eq!(avg_value(10, 0), 0.0);
+    }
+
+    #[test]
+    /// Ratio helper should return zero when denominator is zero.
+    fn ratio_returns_zero_for_empty_denominator() {
+        assert_eq!(ratio_value(5, 0), 0.0);
+        assert_eq!(ratio_value(5, 10), 0.5);
+    }
+}
 
 #[cfg(feature = "native-bridge-metrics")]
 pub(super) fn trace_pull_model_call() -> u64 {
