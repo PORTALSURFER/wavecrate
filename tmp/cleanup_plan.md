@@ -3,155 +3,137 @@
 Generated: 2026-03-04 (UTC)
 Phase: 1 audit complete; Phase 2 pending explicit user confirmation
 Status legend: `[ ]` pending, `[x]` done
+Canonical local CI command: `bash scripts/ci_local.sh`
 
 ## Ordered Backlog
 
-- [x] 1) Extract native bridge waveform action reduction/flush pipeline into staged helpers with focused tests
-  - ROI/Effort: High / M
-  - Why it matters: Waveform input (seek/cursor/selection/zoom) is on a high-frequency path, but reduction, coalescing, cache invalidation, and dirty propagation are tightly coupled in one block.
+- [ ] 1) Repair stale file-size allowlist entries and remove no-longer-needed exemptions
+  - ROI/Effort: High / S
+  - Why it matters: Stale allowlist rows hide real budget regressions and create maintenance noise in every file-size audit.
   - Evidence:
-    - `src/app_core/native_bridge.rs` is 695 LOC.
-    - `flush_pending_waveform_actions` at `src/app_core/native_bridge.rs:345`.
-    - `reduce_action` at `src/app_core/native_bridge.rs:595` duplicates flow around immediate/deferred action handling.
-  - Recommended change: Split into explicit stages (reduce, apply, invalidate, mark dirty), keep ordering semantics unchanged, and add table-driven tests for mixed queued action sets.
-  - Risk/tradeoffs: Medium-high. Ordering regressions can break interaction semantics or undo performance wins.
-  - Suggested validation: targeted native-bridge action-reduction tests + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `80165521`
+    - `bash scripts/report_file_size_budget_allowlist.sh` reports `missing=2` and `ok=11` entries that can be removed.
+    - Missing entries include `src/app/controller/playback/audio_loader.rs` and `src/selection.rs`.
+    - `docs/file_size_budget_allowlist.txt` still contains now-under-budget entries like `src/app/controller/library/wavs.rs` (`:26`) and stale paths like `src/selection.rs` (`:65`).
+  - Recommended change: Remove stale/missing allowlist rows, prune all now-under-budget rows, and keep only active over-budget exceptions.
+  - Risk/tradeoffs: Low. Only guardrail metadata changes.
+  - Suggested validation: `bash scripts/report_file_size_budget_allowlist.sh` should show `missing=0` and no removable rows; then run `bash scripts/ci_local.sh`.
 
-- [x] 2) Split playback audio loader into explicit execution stages and isolated telemetry state
+- [ ] 2) Make folder-move DB-failure regression test deterministic (remove timing race)
+  - ROI/Effort: High / S
+  - Why it matters: A flaky core file-op test blocks CI confidence and wastes iteration time.
+  - Evidence:
+    - `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs:153` test `folder_sample_move_db_write_failure_rolls_back_source_and_keeps_journal_for_recovery` uses timing-based lock orchestration.
+    - The test currently sleeps for 7 seconds (`:177`) and uses a 1-second receive timeout (`:180`), which is race-prone under load.
+  - Recommended change: Replace sleep-based lock timing with deterministic synchronization (explicit lock-held/latch signaling and guaranteed release scope).
+  - Risk/tradeoffs: Low-medium. Test harness changes must preserve intended DB-failure semantics.
+  - Suggested validation: run targeted test repeatedly (looped `cargo test` on this test) and then `bash scripts/ci_local.sh`.
+
+- [ ] 3) Split background-job polling into focused message-router and handler modules with behavior tests
   - ROI/Effort: High / L
-  - Why it matters: Audio load latency correctness is high-impact; one large function currently mixes IO, decode, sanitization, stretch, stale gating, and accounting.
+  - Why it matters: Job polling is a high-change integration hotspot; current monolith shape increases coupling and regression risk.
   - Evidence:
-    - `src/app/controller/playback/audio_loader.rs` is 693 LOC.
-    - `load_audio_inner` spans from `src/app/controller/playback/audio_loader.rs:368`.
-    - File-level telemetry globals/counters around `audio_loader.rs:23-164` increase coupling.
-  - Recommended change: Extract `io`, `decode`, `stretch`, and `finalize` stages plus a telemetry helper module, preserving request-id/stale-drop semantics.
-  - Risk/tradeoffs: Medium-high. Stage reorder mistakes can cause stale data application or audio behavior drift.
-  - Suggested validation: stale-stage table tests + existing audio_loader tests + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `79c5790e`
+    - `src/app/controller/library/background_jobs/polling.rs` is 676 LOC.
+    - `handle_background_job_message` has a large `JobMessage` dispatch match at `:50-107` with many variant paths.
+    - Tests only cover helper predicates/mapping (`:575+`) and not most handler side effects.
+  - Recommended change: Extract routing + per-domain handlers (`audio`, `scan`, `file_ops`, `analysis`, `updates`) and add scenario tests for stale-message drops and progress/state transitions.
+  - Risk/tradeoffs: Medium-high. Dispatch rewiring can break subtle state/progress behavior.
+  - Suggested validation: targeted controller background-job tests plus `bash scripts/ci_local.sh`.
 
-- [x] 3) Refactor source-move worker into staged operations with unified completion/failure progress handling
-  - ROI/Effort: High / M
-  - Why it matters: Move workflows are failure-prone and currently branch-heavy; repeated completion/progress code makes correctness auditing difficult.
-  - Evidence:
-    - `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs` is 607 LOC.
-    - `run_source_move_task` starts at `source_moves.rs:297` and contains repeated `completed += 1` / progress-report branches.
-  - Recommended change: Introduce focused per-stage helpers and one shared completion/failure accounting path.
-  - Risk/tradeoffs: Medium. Error-path behavior must remain exact for rollback/reporting parity.
-  - Suggested validation: failure-injection tests across target-db open/write/delete/rename paths + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `c41de8c1`
-
-- [x] 4) Split native shell projection facade into narrower projection modules with stable re-exports
+- [ ] 4) Decompose browser actions facade by responsibility and tighten focused tests
   - ROI/Effort: High / L
-  - Why it matters: `native_shell.rs` remains a large mixed-responsibility projection surface, slowing review and increasing edit collision risk.
+  - Why it matters: Browser interaction logic is central UX behavior; one broad file obscures invariants around focus/selection/commit flows.
   - Evidence:
-    - `src/app_core/native_shell.rs` is 758 LOC.
-    - Core mixed projection entry points: `project_app_model` (`:103`), `project_update_model` (`:324`), `project_confirm_prompt_model` (`:408`), `project_sources_model` (`:567`).
-  - Recommended change: Move update/prompt/sources/browser projection logic into dedicated module files under `src/app_core/native_shell/`, keeping public API unchanged.
-  - Risk/tradeoffs: Medium. Projection wiring mistakes can regress UI model parity.
-  - Suggested validation: existing native_shell parity tests + targeted projection regression tests + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `111e5330`
+    - `src/app/controller/library/wavs/browser_actions.rs` is 687 LOC.
+    - File exposes 33 public/controller-facing functions (`rg` count) spanning focus, selection ranges, rename, delete, and explorer reveal.
+    - Local tests in-file are limited to three scenarios (`:612`, `:635`, `:665`).
+  - Recommended change: Split into modules (`focus_nav`, `selection_ranges`, `row_actions`) and add focused tests for anchor/selection invariants and commit-vs-preview transitions.
+  - Risk/tradeoffs: Medium. Call-site reshaping can introduce behavior drift if invariants are not asserted.
+  - Suggested validation: browser action unit/integration tests and `bash scripts/ci_local.sh`.
 
-- [x] 5) Harden file-ops journal reconciliation by removing silent malformed-entry drops and panic-style expect paths
+- [ ] 5) Separate folder-delete recovery journal logic, recovery executor, and UI projection; expand recovery matrix tests
+  - ROI/Effort: High / L
+  - Why it matters: Crash-recovery code is safety-critical and should be easy to reason about in failure scenarios.
+  - Evidence:
+    - `src/app/controller/library/source_folders/delete_recovery.rs` is 686 LOC.
+    - It currently mixes filesystem staging, journal persistence, recovery policy, and UI/report application in one module.
+    - Only one local test exists (`:678`), despite many failure paths.
+    - Uses direct stderr output at `:308` instead of structured app logging.
+  - Recommended change: Split into `journal`, `recovery`, and `controller_apply` modules; add tests for staged-intent/db-committed/unjournaled recovery permutations.
+  - Risk/tradeoffs: Medium-high. Recovery sequencing is sensitive to ordering and rollback behavior.
+  - Suggested validation: dedicated recovery matrix tests + existing folder tests + `bash scripts/ci_local.sh`.
+
+- [ ] 6) Refactor source-move worker pipeline to isolate DB/fs stage transitions and error handling
   - ROI/Effort: High / M
-  - Why it matters: Journal reconciliation is safety-critical; silently skipping malformed rows and panic-style assumptions weaken recoverability.
+  - Why it matters: Source move operations mutate FS + DB + journal; compact stage boundaries reduce recovery bugs.
   - Evidence:
-    - `src/sample_sources/db/file_ops_journal.rs` is 615 LOC.
-    - `list_entries` at `file_ops_journal.rs:247` drops invalid paths via `Ok(None)` logic.
-    - `reconcile_entry` at `file_ops_journal.rs:343` includes `expect("checked staged path")` at `:359`.
-  - Recommended change: Return explicit malformed-entry outcomes (or quarantined errors), split reconciliation into phase helpers, remove `expect` from runtime path.
-  - Risk/tradeoffs: Medium. Stricter handling may surface pre-existing journal corruption more visibly.
-  - Suggested validation: malformed-entry + reconcile-matrix tests (staged/target/source combinations) + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `298263e3`
+    - `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs` is 701 LOC.
+    - `run_source_move_request` (`:389-482`) mixes destination resolution, metadata load, journal prep, DB updates, and finalize rename in one flow.
+    - Error reporting still prints per-error lines via `eprintln!` (`:226`).
+  - Recommended change: Introduce explicit per-stage helpers with typed stage outcomes and central error/report policy.
+  - Risk/tradeoffs: Medium. Refactoring transactional flow can change rollback behavior if stage contracts are unclear.
+  - Suggested validation: source-move success/failure/cancel tests and `bash scripts/ci_local.sh`.
 
-- [x] 6) Extract `toggle_loop` policy flow into smaller decision helpers with scenario coverage
+- [ ] 7) Standardize controller/worker error logging (`eprintln!` -> structured `tracing`)
   - ROI/Effort: Medium / M
-  - Why it matters: Loop behavior touches playback state, selection semantics, DB writes, and UI; current all-in-one flow is hard to reason about.
+  - Why it matters: Mixed stderr logging is hard to filter in production and inconsistent with tracing-based diagnostics.
   - Evidence:
-    - `src/app/controller/playback/transport.rs` is 708 LOC.
-    - `toggle_loop` spans dense branching at `transport.rs:188-303`.
-  - Recommended change: Split policy into explicit branches (enable, disable, defer-disable, restart) and isolate side effects into named helpers.
-  - Risk/tradeoffs: Medium. Sequence changes can alter audible behavior and loop state timing.
-  - Suggested validation: scenario tests for playing/not-playing and with/without selection + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `86027bd4`
+    - Controller/worker paths still use direct stderr in multiple files, e.g. `src/app/controller/ui/file_ops.rs:97`, `src/app/controller/library/trash.rs:189`, `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs:226`, `src/app/controller/library/source_folders/delete_recovery.rs:308`, and analysis workers in `src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs`.
+  - Recommended change: Replace direct stderr prints with structured `tracing::{warn,error,info}` messages that include source/job context.
+  - Risk/tradeoffs: Medium. Log volume may increase; may need level tuning to avoid noise.
+  - Suggested validation: `rg -n "eprintln!" src/app/controller` should only match intentional CLI-entry paths; run `bash scripts/ci_local.sh`.
 
-- [x] 7) Split `wavs.rs` controller facade by responsibility (cache, selection, metadata, browser actions)
-  - ROI/Effort: Medium / L
-  - Why it matters: The wavs controller facade remains very large and serves many unrelated concerns, increasing coupling and churn risk.
-  - Evidence:
-    - `src/app/controller/library/wavs.rs` is 638 LOC.
-    - File contains broad method surface (cache refresh, selection, metadata writes, browser focus/sort helpers).
-  - Recommended change: Partition by responsibility into submodules while preserving `AppController` API surface.
-  - Risk/tradeoffs: Medium. Large call-site movement can create merge friction.
-  - Suggested validation: controller wav/browser selection tests + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `e882abff`
-
-- [x] 8) Defer non-critical DB metadata writes from immediate waveform load path
+- [ ] 8) Remove `clippy::type_complexity` suppression from audio output stream construction
   - ROI/Effort: Medium / M
-  - Why it matters: The waveform load path includes synchronous metadata write/open operations that can add interaction jitter.
+  - Why it matters: Type-complex tuple returns obscure ownership/lifetime intent in audio-core code.
   - Evidence:
-    - `src/app/controller/library/wavs/waveform_loading.rs` is 506 LOC.
-    - Metadata write/update block around `waveform_loading.rs:314-390`.
-    - Additional DB open/read for BPM near `waveform_loading.rs:426-442`.
-  - Recommended change: Keep waveform render/load path focused on decode/display and queue metadata persistence asynchronously where safe.
-  - Risk/tradeoffs: Medium. Deferred writes introduce eventual consistency windows.
-  - Suggested validation: interaction latency sanity checks + metadata convergence integration tests + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `636e3953`
+    - File-level suppression at `src/audio/output.rs:1`.
+    - `build_stream_with_state` returns a large tuple at `src/audio/output.rs:632`.
+  - Recommended change: Replace tuple return with a named result struct (for stream + channels + flags) and remove suppression.
+  - Risk/tradeoffs: Medium. Stream setup changes can affect callback wiring if ownership is altered.
+  - Suggested validation: audio output unit tests (`src/tests/unit/audio_output_tests.rs`) + `cargo clippy --all-targets` + `bash scripts/ci_local.sh`.
 
-- [x] 9) Replace remaining file-level `clippy::too_many_arguments` suppressions in core hotspots with typed parameter structs
+- [ ] 9) Retire top app-level `too_many_arguments` suppressions using typed parameter objects
   - ROI/Effort: Medium / M
-  - Why it matters: File-level suppressions hide call complexity and reduce signature clarity in frequently edited modules.
+  - Why it matters: Wide signatures mask cohesion issues and make call sites brittle.
   - Evidence:
-    - `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs:1`
-    - `src/app/controller/library/wavs/waveform_loading.rs:1`
-    - `src/sample_sources/db/file_ops_journal.rs:1`
-  - Recommended change: Convert top 2-3 argument-heavy functions per file to typed input structs and narrow/retire suppressions incrementally.
-  - Risk/tradeoffs: Medium. Signature changes can cascade through call sites.
-  - Suggested validation: `cargo clippy --all-targets` + targeted domain tests + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `487e418c`
+    - File-level suppressions remain in app paths such as:
+      - `src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs:1`
+      - `src/app/controller/library/selection_export.rs:1`
+      - `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs:1`
+      - `src/app/controller/library/selection_edits/ops.rs:1`
+      - `src/app/controller/library/source_cache_invalidator.rs:1`
+  - Recommended change: Introduce typed request/context structs for highest-churn argument-heavy functions; remove suppressions incrementally.
+  - Risk/tradeoffs: Medium. Signature updates can ripple across modules.
+  - Suggested validation: targeted module tests + `cargo clippy --all-targets` + `bash scripts/ci_local.sh`.
 
-- [x] 10) Close crate-visible documentation gaps in native shell/bridge high-churn APIs
-  - ROI/Effort: Low / S
-  - Why it matters: Cross-module projection helpers are reused widely but some key crate-visible APIs still lack explicit intent/constraints docs.
+- [ ] 10) Simplify analysis job-claim worker loop pacing into explicit policy helpers
+  - ROI/Effort: Medium / M
+  - Why it matters: Repeated inline sleep/wakeup policy inside long loops is hard to tune and reason about.
   - Evidence:
-    - Undocumented crate-visible entry points in `src/app_core/native_shell.rs`, including `project_app_model` (`:103`), `project_motion_model` (`:259`), and `selected_column_index` (`:555`).
-  - Recommended change: Add concise doc comments for what/why/constraints on crate-visible projection helpers.
-  - Risk/tradeoffs: Low. Documentation-only change.
-  - Suggested validation: `RUSTDOCFLAGS='-D warnings' cargo doc -p sempal --no-deps` + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `c0fd0041`
+    - `src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs` is 440 LOC.
+    - Decoder/compute loops repeat wait/sleep branches (`Duration::from_millis(200)`, `sleep(Duration::from_millis(50))`) while mixing claim/queue/cancel behavior.
+  - Recommended change: Extract pacing/backoff decisions into small policy helpers (or one policy object) so loop intent is explicit and testable.
+  - Risk/tradeoffs: Medium. Worker responsiveness could change if pacing defaults shift.
+  - Suggested validation: existing analysis job-claim tests + targeted pacing tests + `bash scripts/ci_local.sh`.
 
-- [x] 11) Add focused tests for profile message formatting and projection-cache counters in metrics paths
+- [ ] 11) Split oversized native-bridge tests into focused test modules by concern
   - ROI/Effort: Low / M
-  - Why it matters: Bridge metrics logic is feature-gated and structurally complex; current tests emphasize helper math over output-shape regression coverage.
+  - Why it matters: Large mixed test files slow navigation and make regressions harder to triage.
   - Evidence:
-    - `src/app_core/native_bridge/metrics.rs` is 834 LOC with format/publish logic centered around `format_bridge_profile_message` near `metrics.rs:398`.
-  - Recommended change: Add tests asserting expected field presence and stable formatting for key profile message outputs under metrics-enabled builds.
-  - Risk/tradeoffs: Low-medium. Feature-gated test setup can be brittle without careful scaffolding.
-  - Suggested validation: `cargo test -p sempal --features native-bridge-metrics app_core::native_bridge::metrics` + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `7965d535`
+    - `src/app_core/native_bridge/tests.rs` is 1071 LOC with many distinct concerns (projection keys, action reduction, cache counters, dirty segments).
+  - Recommended change: Partition into submodules under `src/app_core/native_bridge/tests/` (for example `projection_keys`, `dirty_segments`, `action_reduction`, `metrics`).
+  - Risk/tradeoffs: Low-medium. Mostly file movement with import-path churn.
+  - Suggested validation: `cargo test -p sempal app_core::native_bridge` + `bash scripts/ci_local.sh`.
 
-- [x] 12) Consolidate duplicated BPM display formatting into one shared helper
+- [ ] 12) Add architecture docs for background job dispatch and file-op recovery contracts
   - ROI/Effort: Low / S
-  - Why it matters: Duplicate formatting rules increase drift risk and create small but recurring maintenance noise.
+  - Why it matters: These subsystems have non-trivial sequencing assumptions that are currently implicit in code.
   - Evidence:
-    - Formatting logic duplicates in `src/app/controller/playback/transport.rs:475-481` and `src/app/controller/library/wavs/waveform_loading.rs:449-455`.
-  - Recommended change: Introduce a single shared formatting helper and cover integer/fractional/invalid BPM cases with unit tests.
-  - Risk/tradeoffs: Low. Small call-site updates only.
-  - Suggested validation: targeted formatting tests + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `9f69f2b0`
+    - No direct docs surfaced for these internals from `rg -n "delete recovery|background job polling|file ops journal|source move" docs manual`.
+  - Recommended change: Add concise docs under `docs/plans/active/` (or architecture section) describing invariants, stage contracts, and failure handling boundaries.
+  - Risk/tradeoffs: Low. Documentation-only change.
+  - Suggested validation: docs link checks via existing CI (`bash scripts/ci_local.sh`).
 
 ## Progress Log
 
-- 2026-03-04: Phase 1 refreshed from current code state; awaiting explicit user confirmation before Phase 2 implementation.
-- 2026-03-04: Completed item 1 (native bridge waveform action reduction/flush staging + mixed queue emission tests).
-- 2026-03-04: Completed item 2 (audio loader split into staged execution + isolated telemetry modules with dedicated tests).
-- 2026-03-04: Completed item 3 (source move worker staged helpers + unified per-request progress completion path).
-- 2026-03-04: Completed item 4 (native-shell projection facade split into focused modules + browser cache submodule split to satisfy file budget guardrail).
-- 2026-03-04: Completed item 5 (file-ops journal malformed-row surfacing + staged/target reconciliation helper split + expect-path removal).
-- 2026-03-04: Completed item 6 (toggle_loop staged policy helpers + explicit loop restart policy tests).
-- 2026-03-04: Completed item 7 (wavs controller facade split into focused entry, metadata, browser, and similarity modules while preserving API surface).
-- 2026-03-04: Completed item 8 (deferred loaded-duration metadata writes + cached BPM reads to keep waveform load path focused on decode/display).
-- 2026-03-04: Completed item 9 (typed payload conversion for move journal and move registration paths + file-level too-many-arguments suppressions removed from targeted files).
-- 2026-03-04: Completed item 10 (crate-visible native-shell projection entry points now document intent, constraints, and staged projection behavior).
-- 2026-03-04: Completed item 11 (bridge metrics tests now assert profile-message field shape and projection-cache counter increments under metrics-enabled builds).
-- 2026-03-04: Completed item 12 (shared waveform BPM input formatter extracted with unit tests; transport and waveform-loading paths now reuse one helper).
+- 2026-03-04: Phase 1 refreshed from current code state; waiting for explicit user confirmation before Phase 2.
