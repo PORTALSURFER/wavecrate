@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -87,31 +85,34 @@ pub(crate) struct FileOpJournalEntry {
     pub(crate) created_at: i64,
 }
 
+/// Initialization payload for creating move journal entries without wide signatures.
+#[derive(Debug, Clone)]
+pub(crate) struct MoveJournalEntryInit {
+    pub(crate) source_root: PathBuf,
+    pub(crate) source_relative: PathBuf,
+    pub(crate) target_relative: PathBuf,
+    pub(crate) staged_relative: PathBuf,
+    pub(crate) tag: Rating,
+    pub(crate) looped: bool,
+    pub(crate) last_played_at: Option<i64>,
+}
+
 impl FileOpJournalEntry {
     /// Build a new journal entry for a move operation.
-    pub(crate) fn new_move(
-        id: String,
-        source_root: PathBuf,
-        source_relative: PathBuf,
-        target_relative: PathBuf,
-        staged_relative: PathBuf,
-        tag: Rating,
-        looped: bool,
-        last_played_at: Option<i64>,
-    ) -> Result<Self, SourceDbError> {
+    pub(crate) fn new_move(id: String, init: MoveJournalEntryInit) -> Result<Self, SourceDbError> {
         Ok(Self {
             id,
             kind: FileOpKind::Move,
             stage: FileOpStage::Intent,
-            source_root: Some(source_root),
-            source_relative: Some(source_relative),
-            target_relative,
-            staged_relative: Some(staged_relative),
+            source_root: Some(init.source_root),
+            source_relative: Some(init.source_relative),
+            target_relative: init.target_relative,
+            staged_relative: Some(init.staged_relative),
             file_size: None,
             modified_ns: None,
-            tag: Some(tag),
-            looped: Some(looped),
-            last_played_at,
+            tag: Some(init.tag),
+            looped: Some(init.looped),
+            last_played_at: init.last_played_at,
             created_at: now_epoch_seconds()?,
         })
     }
@@ -642,13 +643,15 @@ mod tests {
         let staged_relative = staged_relative_for_target(&target_relative, "test").unwrap();
         let entry = FileOpJournalEntry::new_move(
             "move-test".to_string(),
-            source_root.clone(),
-            source_relative.clone(),
-            target_relative.clone(),
-            staged_relative.clone(),
-            Rating::KEEP_1,
-            true,
-            Some(123),
+            MoveJournalEntryInit {
+                source_root: source_root.clone(),
+                source_relative: source_relative.clone(),
+                target_relative: target_relative.clone(),
+                staged_relative: staged_relative.clone(),
+                tag: Rating::KEEP_1,
+                looped: true,
+                last_played_at: Some(123),
+            },
         )
         .unwrap();
         insert_entry(&target_db, &entry).unwrap();
@@ -704,13 +707,15 @@ mod tests {
         let staged_relative = staged_relative_for_target(&target_relative, "test").unwrap();
         let entry = FileOpJournalEntry::new_move(
             "move-test".to_string(),
-            source_root.clone(),
-            source_relative.clone(),
-            target_relative.clone(),
-            staged_relative.clone(),
-            Rating::KEEP_1,
-            true,
-            Some(123),
+            MoveJournalEntryInit {
+                source_root: source_root.clone(),
+                source_relative: source_relative.clone(),
+                target_relative: target_relative.clone(),
+                staged_relative: staged_relative.clone(),
+                tag: Rating::KEEP_1,
+                looped: true,
+                last_played_at: Some(123),
+            },
         )
         .unwrap();
         insert_entry(&db, &entry).unwrap();

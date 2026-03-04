@@ -2,6 +2,7 @@
 
 use super::super::{DragDropController, file_metadata};
 use super::move_transaction::move_sample_file;
+use super::source_moves::MovedSampleRegistration;
 use crate::app::controller::StatusTone;
 use crate::app::state::DragSample;
 use crate::sample_sources::{Rating, SourceId, WavEntry};
@@ -128,11 +129,13 @@ impl DragDropController<'_> {
         if let Err(err) = self.register_moved_sample_for_source(
             &target.source,
             &destination_relative,
-            file_size,
-            modified_ns,
-            tag,
-            looped,
-            last_played_at,
+            MovedSampleRegistration {
+                file_size,
+                modified_ns,
+                tag,
+                looped,
+                last_played_at,
+            },
         ) {
             let _ = move_sample_file(&destination_absolute, &absolute);
             self.set_status(err, StatusTone::Error);
@@ -234,11 +237,13 @@ fn copy_sample_to_target(
     if let Err(err) = controller.register_moved_sample_for_source(
         target,
         &destination_relative,
-        file_size,
-        modified_ns,
-        tag,
-        looped,
-        last_played_at,
+        MovedSampleRegistration {
+            file_size,
+            modified_ns,
+            tag,
+            looped,
+            last_played_at,
+        },
     ) {
         let _ = std::fs::remove_file(&destination_absolute);
         return Err(err);

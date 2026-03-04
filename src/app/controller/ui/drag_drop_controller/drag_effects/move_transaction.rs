@@ -72,13 +72,15 @@ pub(super) fn prepare_staged_move(
         .map_err(|err| format!("Failed to build staging path: {err}"))?;
     let journal_entry = file_ops_journal::FileOpJournalEntry::new_move(
         op_id.clone(),
-        source_root.to_path_buf(),
-        source_relative.to_path_buf(),
-        target_relative.to_path_buf(),
-        staged_relative.clone(),
-        metadata.tag,
-        metadata.looped,
-        metadata.last_played_at,
+        file_ops_journal::MoveJournalEntryInit {
+            source_root: source_root.to_path_buf(),
+            source_relative: source_relative.to_path_buf(),
+            target_relative: target_relative.to_path_buf(),
+            staged_relative: staged_relative.clone(),
+            tag: metadata.tag,
+            looped: metadata.looped,
+            last_played_at: metadata.last_played_at,
+        },
     )
     .map_err(|err| format!("Failed to stage move journal: {err}"))?;
     file_ops_journal::insert_entry(journal_db, &journal_entry)

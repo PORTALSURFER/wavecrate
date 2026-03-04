@@ -33,6 +33,7 @@ mod waveform_view;
 
 pub(crate) use browser_pipeline::BrowserPipelineCache;
 pub(crate) use browser_search::BrowserSearchCache;
+pub(crate) use waveform_loading::FinishWaveformLoadShared;
 pub(crate) use waveform_rendering::WaveformRenderMeta;
 
 /// Upper bound for waveform texture width to stay within GPU limits.

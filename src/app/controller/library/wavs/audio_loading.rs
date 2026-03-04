@@ -40,15 +40,15 @@ impl AppController {
         }
         let preserve_selections =
             self.sample_view.wav.loaded_wav.as_deref() == Some(&pending.relative_path);
-        if let Err(err) = self.finish_waveform_load_shared(
-            &source,
-            &pending.relative_path,
+        if let Err(err) = self.finish_waveform_load_shared(FinishWaveformLoadShared {
+            source: &source,
+            relative_path: &pending.relative_path,
             decoded,
             bytes,
-            pending.intent,
+            intent: pending.intent,
             preserve_selections,
-            Some(std::sync::Arc::from([])),
-        ) {
+            transients: Some(std::sync::Arc::from([])),
+        }) {
             self.runtime.jobs.set_pending_playback(None);
             self.set_status(err, StatusTone::Error);
             return;
@@ -211,15 +211,15 @@ impl AppController {
         let duration_seconds = hit.decoded.duration_seconds;
         let sample_rate = hit.decoded.sample_rate;
         let preserve_selections = self.sample_view.wav.loaded_wav.as_deref() == Some(relative_path);
-        self.finish_waveform_load_shared(
+        self.finish_waveform_load_shared(FinishWaveformLoadShared {
             source,
             relative_path,
-            hit.decoded,
-            hit.bytes,
+            decoded: hit.decoded,
+            bytes: hit.bytes,
             intent,
             preserve_selections,
-            Some(hit.transients),
-        )?;
+            transients: Some(hit.transients),
+        })?;
         let message = Self::loaded_status_text(relative_path, duration_seconds, sample_rate);
         self.set_status(message, StatusTone::Info);
         if matches!(intent, AudioLoadIntent::Selection) {

@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use super::super::DragDropController;
 use super::move_transaction::{
     PreparedStagedMove, SampleMoveMetadata, load_sample_move_metadata, prepare_staged_move,
@@ -20,6 +18,15 @@ use std::sync::{
     mpsc::Sender,
 };
 use tracing::info;
+
+/// Sample metadata persisted when registering a newly moved/copied file.
+pub(super) struct MovedSampleRegistration {
+    pub(super) file_size: u64,
+    pub(super) modified_ns: i64,
+    pub(super) tag: Rating,
+    pub(super) looped: bool,
+    pub(super) last_played_at: Option<i64>,
+}
 
 impl DragDropController<'_> {
     pub(crate) fn handle_sample_drop_to_source(
@@ -229,22 +236,22 @@ impl DragDropController<'_> {
         &mut self,
         source: &crate::sample_sources::SampleSource,
         relative_path: &Path,
-        file_size: u64,
-        modified_ns: i64,
-        tag: Rating,
-        looped: bool,
-        last_played_at: Option<i64>,
+        registration: MovedSampleRegistration,
     ) -> Result<(), String> {
         let db = self
             .database_for(source)
             .map_err(|err| format!("Database unavailable: {err}"))?;
-        db.upsert_file(relative_path, file_size, modified_ns)
-            .map_err(|err| format!("Failed to register file: {err}"))?;
-        db.set_tag(relative_path, tag)
+        db.upsert_file(
+            relative_path,
+            registration.file_size,
+            registration.modified_ns,
+        )
+        .map_err(|err| format!("Failed to register file: {err}"))?;
+        db.set_tag(relative_path, registration.tag)
             .map_err(|err| format!("Failed to set tag: {err}"))?;
-        db.set_looped(relative_path, looped)
+        db.set_looped(relative_path, registration.looped)
             .map_err(|err| format!("Failed to set loop marker: {err}"))?;
-        if let Some(last_played_at) = last_played_at {
+        if let Some(last_played_at) = registration.last_played_at {
             db.set_last_played_at(relative_path, last_played_at)
                 .map_err(|err| format!("Failed to copy playback age: {err}"))?;
         }

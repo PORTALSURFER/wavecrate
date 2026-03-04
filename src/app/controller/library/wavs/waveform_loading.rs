@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use super::*;
 use crate::app::controller::playback::audio_samples::{
     decode_samples_from_bytes, wav_bytes_from_samples,
@@ -12,6 +10,28 @@ use std::time::{Duration, Instant};
 type PreparedLoadedAudio = (Arc<DecodedWaveform>, Arc<[u8]>, bool);
 /// Debounce window for deferring loaded-duration DB metadata persistence.
 const LOADED_DURATION_METADATA_DEBOUNCE: Duration = Duration::from_millis(80);
+
+/// Immutable payload and context required to finalize one shared waveform load.
+pub(crate) struct FinishWaveformLoadShared<'a> {
+    pub(crate) source: &'a SampleSource,
+    pub(crate) relative_path: &'a Path,
+    pub(crate) decoded: Arc<DecodedWaveform>,
+    pub(crate) bytes: Arc<[u8]>,
+    pub(crate) intent: AudioLoadIntent,
+    pub(crate) preserve_selections: bool,
+    pub(crate) transients: Option<Arc<[f32]>>,
+}
+
+/// Owned waveform finalize payload used by legacy/non-Arc-first callsites.
+pub(crate) struct FinishWaveformLoadOwned<'a> {
+    pub(crate) source: &'a SampleSource,
+    pub(crate) relative_path: &'a Path,
+    pub(crate) decoded: DecodedWaveform,
+    pub(crate) bytes: Arc<[u8]>,
+    pub(crate) intent: AudioLoadIntent,
+    pub(crate) preserve_selections: bool,
+    pub(crate) transients: Option<Vec<f32>>,
+}
 
 impl AppController {
     pub(crate) fn load_waveform_for_selection(
@@ -79,15 +99,15 @@ impl AppController {
                 transients.clone(),
             );
         }
-        self.finish_waveform_load_shared(
+        self.finish_waveform_load_shared(FinishWaveformLoadShared {
             source,
             relative_path,
             decoded,
             bytes,
-            AudioLoadIntent::Selection,
-            is_refresh,
-            Some(transients),
-        )?;
+            intent: AudioLoadIntent::Selection,
+            preserve_selections: is_refresh,
+            transients: Some(transients),
+        })?;
         self.maybe_trigger_pending_playback();
         let message = Self::loaded_status_text(relative_path, duration_seconds, sample_rate);
         self.set_status(message, StatusTone::Info);
@@ -98,14 +118,17 @@ impl AppController {
     /// Finish applying a loaded waveform using shared immutable payloads.
     pub(crate) fn finish_waveform_load_shared(
         &mut self,
-        source: &SampleSource,
-        relative_path: &Path,
-        decoded: Arc<DecodedWaveform>,
-        bytes: Arc<[u8]>,
-        intent: AudioLoadIntent,
-        preserve_selections: bool,
-        transients: Option<Arc<[f32]>>,
+        params: FinishWaveformLoadShared<'_>,
     ) -> Result<(), String> {
+        let FinishWaveformLoadShared {
+            source,
+            relative_path,
+            decoded,
+            bytes,
+            intent,
+            preserve_selections,
+            transients,
+        } = params;
         let duration_seconds = decoded.duration_seconds;
         let sample_rate = decoded.sample_rate;
         self.apply_waveform_image_shared(decoded, transients);
@@ -132,6 +155,32 @@ impl AppController {
     ///
     /// This compatibility path adapts legacy call sites to the shared immutable
     /// waveform pipeline and should be removed once all callers are Arc-first.
+    pub(crate) fn finish_waveform_load_owned(
+        &mut self,
+        params: FinishWaveformLoadOwned<'_>,
+    ) -> Result<(), String> {
+        let FinishWaveformLoadOwned {
+            source,
+            relative_path,
+            decoded,
+            bytes,
+            intent,
+            preserve_selections,
+            transients,
+        } = params;
+        self.finish_waveform_load_shared(FinishWaveformLoadShared {
+            source,
+            relative_path,
+            decoded: Arc::new(decoded),
+            bytes,
+            intent,
+            preserve_selections,
+            transients: transients.map(Arc::from),
+        })
+    }
+
+    /// Compatibility shim for legacy call sites that still pass owned waveform parts directly.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn finish_waveform_load(
         &mut self,
         source: &SampleSource,
@@ -142,15 +191,15 @@ impl AppController {
         preserve_selections: bool,
         transients: Option<Vec<f32>>,
     ) -> Result<(), String> {
-        self.finish_waveform_load_shared(
+        self.finish_waveform_load_owned(FinishWaveformLoadOwned {
             source,
             relative_path,
-            Arc::new(decoded),
+            decoded,
             bytes,
             intent,
             preserve_selections,
-            transients.map(Arc::from),
-        )
+            transients,
+        })
     }
 
     pub(crate) fn prepare_loaded_audio(
