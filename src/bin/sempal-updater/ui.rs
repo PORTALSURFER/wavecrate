@@ -15,7 +15,10 @@ use sempal::{
     },
 };
 use std::{
-    sync::mpsc::{self, Receiver},
+    sync::{
+        Arc,
+        mpsc::{self, Receiver},
+    },
     thread,
 };
 
@@ -422,11 +425,16 @@ impl UpdateNativeBridge {
 }
 
 impl NativeAppBridge for UpdateNativeBridge {
-    /// Project updater state into the latest immutable UI model snapshot.
-    fn pull_model(&mut self) -> AppModel {
+    /// Project updater state into the latest shared immutable UI model snapshot.
+    fn project_model(&mut self) -> Arc<AppModel> {
         self.poll_background_updates();
         self.ensure_selected_tag();
-        self.app_model()
+        Arc::new(self.app_model())
+    }
+
+    /// Project updater state into the latest immutable UI model snapshot.
+    fn pull_model(&mut self) -> AppModel {
+        Arc::unwrap_or_clone(self.project_model())
     }
 
     /// Reduce one runtime UI action into updater state transitions.

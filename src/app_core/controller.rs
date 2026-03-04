@@ -287,7 +287,20 @@ fn apply_waveform_native_ui_action(
             start_milli,
             end_milli,
         } => controller.set_waveform_selection_range_milli(start_milli, end_milli),
+        NativeUiAction::SetWaveformEditSelectionRange {
+            start_milli,
+            end_milli,
+        } => controller.set_waveform_edit_selection_range_milli(start_milli, end_milli),
+        NativeUiAction::SetWaveformEditFadeInEnd { position_milli } => {
+            controller.set_waveform_edit_fade_in_end_milli(position_milli)
+        }
+        NativeUiAction::SetWaveformEditFadeOutStart { position_milli } => {
+            controller.set_waveform_edit_fade_out_start_milli(position_milli)
+        }
         NativeUiAction::ClearWaveformSelection => controller.clear_waveform_selection_with_focus(),
+        NativeUiAction::ClearWaveformEditSelection => {
+            controller.clear_waveform_edit_selection_with_focus()
+        }
         NativeUiAction::ZoomWaveform { zoom_in, steps } => {
             controller.zoom_waveform_steps_from_ui(zoom_in, steps)
         }

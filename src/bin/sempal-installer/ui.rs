@@ -1,4 +1,8 @@
-use std::{path::PathBuf, sync::mpsc, thread};
+use std::{
+    path::PathBuf,
+    sync::{Arc, mpsc},
+    thread,
+};
 
 use sempal::{
     app_core::actions::{
@@ -343,10 +347,15 @@ impl InstallerNativeBridge {
 }
 
 impl NativeAppBridge for InstallerNativeBridge {
+    /// Project the current installer workflow state into a shared model snapshot.
+    fn project_model(&mut self) -> Arc<AppModel> {
+        self.poll_installer();
+        Arc::new(self.app_model())
+    }
+
     /// Project the current installer workflow state into a UI model snapshot.
     fn pull_model(&mut self) -> AppModel {
-        self.poll_installer();
-        self.app_model()
+        Arc::unwrap_or_clone(self.project_model())
     }
 
     /// Reduce one emitted UI action into installer workflow state.

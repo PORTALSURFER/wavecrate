@@ -489,6 +489,11 @@ impl SempalNativeBridge {
 }
 
 impl NativeAppBridge for SempalNativeBridge {
+    /// Project the latest app model snapshot as a shared immutable arc.
+    fn project_model(&mut self) -> Arc<NativeAppModel> {
+        self.pull_model_arc_snapshot()
+    }
+
     /// Project the latest app model snapshot by value.
     fn pull_model(&mut self) -> NativeAppModel {
         self.pull_model_arc_snapshot().as_ref().clone()

@@ -429,57 +429,26 @@ fn waveform_action_queue_selection_range_overrides_clear() {
     assert_eq!(queue.selection_range_milli, Some((120, 400)));
 }
 
-/// Clear-edit-selection requests should yield to later explicit edit range updates.
+/// Edit-selection actions are applied immediately and must not be coalesced.
 #[test]
-fn waveform_action_queue_edit_selection_range_overrides_clear() {
+fn waveform_action_queue_does_not_absorb_edit_selection_actions() {
     let mut queue = PendingWaveformActions::default();
-    assert!(queue.enqueue(&NativeUiAction::ClearWaveformEditSelection));
-    assert!(queue.clear_edit_selection);
-    assert!(queue.edit_selection_range_milli.is_none());
     assert!(
-        queue.enqueue(&NativeUiAction::SetWaveformEditSelectionRange {
+        !queue.enqueue(&NativeUiAction::SetWaveformEditSelectionRange {
             start_milli: 140,
             end_milli: 460,
         })
     );
-    assert!(!queue.clear_edit_selection);
-    assert_eq!(queue.edit_selection_range_milli, Some((140, 460)));
-}
-
-/// Edit fade-handle requests should keep last-write-wins behavior.
-#[test]
-fn waveform_action_queue_edit_fade_handles_last_write_wins() {
-    let mut queue = PendingWaveformActions::default();
-    assert!(queue.enqueue(&NativeUiAction::SetWaveformEditFadeInEnd {
-        position_milli: 220,
-    }));
-    assert!(queue.enqueue(&NativeUiAction::SetWaveformEditFadeInEnd {
+    assert!(!queue.enqueue(&NativeUiAction::SetWaveformEditFadeInEnd {
         position_milli: 300,
     }));
-    assert!(queue.enqueue(&NativeUiAction::SetWaveformEditFadeOutStart {
-        position_milli: 760,
-    }));
-    assert!(queue.enqueue(&NativeUiAction::SetWaveformEditFadeOutStart {
-        position_milli: 690,
-    }));
-    assert_eq!(queue.edit_fade_in_end_milli, Some(300));
-    assert_eq!(queue.edit_fade_out_start_milli, Some(690));
-}
-
-/// Clearing edit selection should drop queued edit-fade handle updates.
-#[test]
-fn waveform_action_queue_clear_edit_selection_clears_edit_fade_updates() {
-    let mut queue = PendingWaveformActions::default();
-    assert!(queue.enqueue(&NativeUiAction::SetWaveformEditFadeInEnd {
-        position_milli: 300,
-    }));
-    assert!(queue.enqueue(&NativeUiAction::SetWaveformEditFadeOutStart {
-        position_milli: 690,
-    }));
-    assert!(queue.enqueue(&NativeUiAction::ClearWaveformEditSelection));
-    assert!(queue.clear_edit_selection);
-    assert!(queue.edit_fade_in_end_milli.is_none());
-    assert!(queue.edit_fade_out_start_milli.is_none());
+    assert!(
+        !queue.enqueue(&NativeUiAction::SetWaveformEditFadeOutStart {
+            position_milli: 690,
+        })
+    );
+    assert!(!queue.enqueue(&NativeUiAction::ClearWaveformEditSelection));
+    assert!(!queue.has_pending());
 }
 
 /// Pending queue dirty reasons should distinguish overlay-only from view edits.

@@ -258,6 +258,8 @@ fn assemble_project_app_model(
 
 pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionModel {
     let selected_column = selected_column_index(&controller.ui);
+    let (edit_fade_in_end_milli, edit_fade_out_start_milli) =
+        waveform_projection::project_waveform_edit_fade_handles_milli(&controller.ui);
     MotionModel {
         transport_running: controller.is_playing(),
         map_active: matches!(
@@ -270,6 +272,12 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
                 normalized_to_milli(selection.end()),
             )
         }),
+        waveform_edit_selection_milli: waveform_projection::project_waveform_edit_selection_milli(
+            &controller.ui,
+        ),
+        waveform_edit_fade_in_end_milli: edit_fade_in_end_milli,
+        waveform_edit_fade_out_start_milli: edit_fade_out_start_milli,
+        waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_cursor_milli: controller.ui.waveform.cursor.map(normalized_to_milli),
         waveform_playhead_milli: controller.ui.waveform.playhead.visible.then_some(
             normalized_to_milli(controller.ui.waveform.playhead.position),
@@ -300,6 +308,14 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         } else {
             String::from("Loop disabled")
         },
+        waveform_channel_view: waveform_projection::project_waveform_channel_view_model(
+            controller.ui.waveform.channel_view,
+        ),
+        waveform_normalized_audition_enabled: controller.ui.waveform.normalized_audition_enabled,
+        waveform_bpm_snap_enabled: controller.ui.waveform.bpm_snap_enabled,
+        waveform_transient_snap_enabled: controller.ui.waveform.transient_snap_enabled,
+        waveform_transient_markers_enabled: controller.ui.waveform.transient_markers_enabled,
+        waveform_slice_mode_enabled: controller.ui.waveform.slice_mode_enabled,
         status_right: status_bar_right_text(selected_column),
     }
 }

@@ -6,6 +6,8 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
     let ui = &controller.ui;
     let view_span = (ui.waveform.view.end - ui.waveform.view.start).clamp(0.000_1, 1.0) as f32;
     let zoom_percent = (100.0 / view_span).round().clamp(100.0, 9999.0);
+    let (edit_fade_in_end_milli, edit_fade_out_start_milli) =
+        project_waveform_edit_fade_handles_milli(ui);
     WaveformPanelModel {
         loaded_label: ui
             .loaded_wav
@@ -23,6 +25,9 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
                 normalized_to_milli(selection.end()),
             )
         }),
+        edit_selection_milli: project_waveform_edit_selection_milli(ui),
+        edit_fade_in_end_milli,
+        edit_fade_out_start_milli,
         view_start_milli: normalized64_to_milli(ui.waveform.view.start),
         view_end_milli: normalized64_to_milli(ui.waveform.view.end),
         loop_enabled: ui.waveform.loop_enabled,
@@ -86,5 +91,55 @@ pub(crate) fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel
         } else {
             String::from("Loop disabled")
         },
+        channel_view: project_waveform_channel_view_model(ui.waveform.channel_view),
+        normalized_audition_enabled: ui.waveform.normalized_audition_enabled,
+        bpm_snap_enabled: ui.waveform.bpm_snap_enabled,
+        transient_snap_enabled: ui.waveform.transient_snap_enabled,
+        transient_markers_enabled: ui.waveform.transient_markers_enabled,
+        slice_mode_enabled: ui.waveform.slice_mode_enabled,
+    }
+}
+
+/// Project edit-selection bounds into normalized milli-space.
+pub(super) fn project_waveform_edit_selection_milli(ui: &UiState) -> Option<NormalizedRangeModel> {
+    ui.waveform.edit_selection.map(|selection| {
+        NormalizedRangeModel::new(
+            normalized_to_milli(selection.start()),
+            normalized_to_milli(selection.end()),
+        )
+    })
+}
+
+/// Project edit fade-handle positions into normalized milli-space.
+pub(super) fn project_waveform_edit_fade_handles_milli(ui: &UiState) -> (Option<u16>, Option<u16>) {
+    ui.waveform
+        .edit_selection
+        .map(|selection| {
+            let start = selection.start();
+            let end = selection.end();
+            let width = selection.width();
+            if width <= 0.0 {
+                return (None, None);
+            }
+            let fade_in_end = selection
+                .fade_in()
+                .map(|fade| normalized_to_milli((start + (width * fade.length)).clamp(start, end)));
+            let fade_out_start = selection
+                .fade_out()
+                .map(|fade| normalized_to_milli((end - (width * fade.length)).clamp(start, end)));
+            (fade_in_end, fade_out_start)
+        })
+        .unwrap_or((None, None))
+}
+
+/// Translate local waveform channel-view settings into native runtime model enums.
+pub(super) fn project_waveform_channel_view_model(
+    channel_view: crate::waveform::WaveformChannelView,
+) -> radiant::app::WaveformChannelViewModel {
+    match channel_view {
+        crate::waveform::WaveformChannelView::Mono => radiant::app::WaveformChannelViewModel::Mono,
+        crate::waveform::WaveformChannelView::SplitStereo => {
+            radiant::app::WaveformChannelViewModel::Stereo
+        }
     }
 }
