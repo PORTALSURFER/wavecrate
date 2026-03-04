@@ -110,7 +110,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `cargo clippy --all-targets` + targeted domain tests + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `487e418c`
 
-- [ ] 10) Close crate-visible documentation gaps in native shell/bridge high-churn APIs
+- [x] 10) Close crate-visible documentation gaps in native shell/bridge high-churn APIs
   - ROI/Effort: Low / S
   - Why it matters: Cross-module projection helpers are reused widely but some key crate-visible APIs still lack explicit intent/constraints docs.
   - Evidence:
@@ -118,6 +118,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Add concise doc comments for what/why/constraints on crate-visible projection helpers.
   - Risk/tradeoffs: Low. Documentation-only change.
   - Suggested validation: `RUSTDOCFLAGS='-D warnings' cargo doc -p sempal --no-deps` + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `c0fd0041`
 
 - [ ] 11) Add focused tests for profile message formatting and projection-cache counters in metrics paths
   - ROI/Effort: Low / M
@@ -149,3 +150,4 @@ Status legend: `[ ]` pending, `[x]` done
 - 2026-03-04: Completed item 7 (wavs controller facade split into focused entry, metadata, browser, and similarity modules while preserving API surface).
 - 2026-03-04: Completed item 8 (deferred loaded-duration metadata writes + cached BPM reads to keep waveform load path focused on decode/display).
 - 2026-03-04: Completed item 9 (typed payload conversion for move journal and move registration paths + file-level too-many-arguments suppressions removed from targeted files).
+- 2026-03-04: Completed item 10 (crate-visible native-shell projection entry points now document intent, constraints, and staged projection behavior).
