@@ -14,6 +14,8 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     mpsc::Sender,
 };
+#[cfg(test)]
+use std::sync::{Mutex, OnceLock};
 
 /// Folder-level move worker implementation split from the sample-move worker.
 mod folder_move_task;
@@ -25,6 +27,35 @@ pub(super) fn run_folder_move_task(
     sender: Option<&Sender<FileOpMessage>>,
 ) -> FolderMoveResult {
     folder_move_task::run_folder_move_task(request, cancel, sender)
+}
+
+#[cfg(test)]
+/// Optional one-shot hook used by tests to force deterministic timing around DB writes.
+type BeforeFolderSampleBatchHook = Box<dyn FnMut() + Send>;
+
+#[cfg(test)]
+/// Global storage for the optional pre-batch hook used by folder-sample move tests.
+static BEFORE_FOLDER_SAMPLE_BATCH_HOOK: OnceLock<Mutex<Option<BeforeFolderSampleBatchHook>>> =
+    OnceLock::new();
+
+#[cfg(test)]
+/// Invoke and clear the one-shot pre-batch hook when tests configure one.
+fn run_before_folder_sample_batch_hook() {
+    if let Some(hook_slot) = BEFORE_FOLDER_SAMPLE_BATCH_HOOK.get()
+        && let Ok(mut guard) = hook_slot.lock()
+        && let Some(mut hook) = guard.take()
+    {
+        hook();
+    }
+}
+
+/// Configure an optional test hook invoked immediately before folder-sample DB writes.
+#[cfg(test)]
+pub(super) fn set_before_folder_sample_batch_hook(hook: Option<BeforeFolderSampleBatchHook>) {
+    let hook_slot = BEFORE_FOLDER_SAMPLE_BATCH_HOOK.get_or_init(|| Mutex::new(None));
+    if let Ok(mut guard) = hook_slot.lock() {
+        *guard = hook;
+    }
 }
 
 /// Execute a background batch of sample moves inside one source folder.
@@ -117,6 +148,8 @@ pub(super) fn run_folder_sample_move_task(
                 continue;
             }
         };
+        #[cfg(test)]
+        run_before_folder_sample_batch_hook();
         let mut batch = match db.write_batch() {
             Ok(batch) => batch,
             Err(err) => {
