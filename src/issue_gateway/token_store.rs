@@ -5,10 +5,18 @@
 //! secrets in the filesystem when keyring storage is unavailable.
 
 use crate::app_dirs;
-use base64::Engine as _;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
+
+/// Randomness, cipher, and decode helpers for fallback token encryption paths.
+mod crypto;
+/// Fallback key resolution and caching across env/keyring/legacy file backends.
+mod fallback_key;
+/// Encrypted fallback token file storage lifecycle and IO hardening.
+mod fallback_store;
+/// Keyring-backed token/key read-write operations.
+mod keyring_backend;
 
 const KEYRING_SERVICE: &str = "sempal";
 const KEYRING_KEY: &str = "sempal_github_issue_token";
@@ -153,280 +161,6 @@ impl IssueTokenStore {
         let _ = self.fallback_delete();
         Ok(())
     }
-
-    fn try_keyring_get(&self) -> Result<Option<String>, IssueTokenStoreError> {
-        if keyring_disabled() {
-            return Ok(None);
-        }
-        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_KEY)
-            .map_err(|err| IssueTokenStoreError::Unavailable(err.to_string()))?;
-        match entry.get_password() {
-            Ok(token) => Ok(Some(token)),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(err) => Err(IssueTokenStoreError::Unavailable(err.to_string())),
-        }
-    }
-
-    fn try_keyring_set(&self, token: &str) -> Result<(), IssueTokenStoreError> {
-        if keyring_disabled() {
-            return Err(IssueTokenStoreError::Unavailable("keyring disabled".into()));
-        }
-        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_KEY)
-            .map_err(|err| IssueTokenStoreError::Unavailable(err.to_string()))?;
-        entry
-            .set_password(token)
-            .map_err(|err| IssueTokenStoreError::Unavailable(err.to_string()))
-    }
-
-    fn try_keyring_delete(&self) -> Result<(), IssueTokenStoreError> {
-        if keyring_disabled() {
-            return Ok(());
-        }
-        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_KEY)
-            .map_err(|err| IssueTokenStoreError::Unavailable(err.to_string()))?;
-        let _ = entry.delete_credential();
-        Ok(())
-    }
-
-    fn fallback_token_path(&self) -> PathBuf {
-        self.fallback_dir.join("github_issue_token.bin")
-    }
-
-    fn legacy_fallback_key_path(&self) -> PathBuf {
-        self.fallback_dir.join("encryption.key")
-    }
-
-    fn fallback_key_entry(&self) -> Result<keyring::Entry, IssueTokenStoreError> {
-        keyring::Entry::new(KEYRING_SERVICE, FALLBACK_KEYRING_KEY)
-            .map_err(|err| IssueTokenStoreError::Unavailable(err.to_string()))
-    }
-
-    /// Ensures the fallback encryption key exists, generating it if necessary.
-    /// Returns the 32-byte encryption key.
-    fn ensure_fallback_key(&self) -> Result<[u8; 32], IssueTokenStoreError> {
-        if let Some(key) = self.cached_fallback_key() {
-            return Ok(key);
-        }
-
-        // 1. Check environment variable
-        if let Some(key) = self.get_key_from_env()? {
-            let _ = std::fs::remove_file(self.legacy_fallback_key_path());
-            self.cache_fallback_key(key);
-            return Ok(key);
-        }
-
-        // 2. Check Keyring (if not disabled)
-        if let Some(key) = self.try_keyring_fallback_key_get()? {
-            self.cache_fallback_key(key);
-            return Ok(key);
-        }
-
-        if !keyring_disabled()
-            && let Some(key) = self.get_key_from_file()?
-        {
-            self.try_keyring_fallback_key_set(&key)?;
-            let _ = std::fs::remove_file(self.legacy_fallback_key_path());
-            self.cache_fallback_key(key);
-            return Ok(key);
-        }
-
-        // Generate new random key
-        let key_bytes = random_bytes(32)?;
-        let mut key = [0u8; 32];
-        key.copy_from_slice(&key_bytes);
-
-        if keyring_disabled() {
-            return Err(IssueTokenStoreError::Unavailable(format!(
-                "Keyring unavailable; set {FALLBACK_KEY_ENV_VAR} to enable fallback token storage."
-            )));
-        }
-
-        self.try_keyring_fallback_key_set(&key)?;
-        self.cache_fallback_key(key);
-        Ok(key)
-    }
-
-    fn cached_fallback_key(&self) -> Option<[u8; 32]> {
-        lock_fallback_key_cache().as_ref().copied()
-    }
-
-    fn cache_fallback_key(&self, key: [u8; 32]) {
-        *lock_fallback_key_cache() = Some(key);
-    }
-
-    fn get_key_from_env(&self) -> Result<Option<[u8; 32]>, IssueTokenStoreError> {
-        match std::env::var(FALLBACK_KEY_ENV_VAR) {
-            Ok(hex_key) => {
-                let bytes = decode_hex(&hex_key).map_err(|e| {
-                    IssueTokenStoreError::Decode(format!(
-                        "Invalid hex in {}: {}",
-                        FALLBACK_KEY_ENV_VAR, e
-                    ))
-                })?;
-                if bytes.len() != 32 {
-                    return Err(IssueTokenStoreError::Decode(format!(
-                        "{} must be 32 bytes (64 hex chars), got {}",
-                        FALLBACK_KEY_ENV_VAR,
-                        bytes.len()
-                    )));
-                }
-                let mut key = [0u8; 32];
-                key.copy_from_slice(&bytes);
-                Ok(Some(key))
-            }
-            Err(std::env::VarError::NotPresent) => Ok(None),
-            Err(std::env::VarError::NotUnicode(_)) => Err(IssueTokenStoreError::Decode(format!(
-                "{} is not valid unicode",
-                FALLBACK_KEY_ENV_VAR
-            ))),
-        }
-    }
-
-    fn get_key_from_file(&self) -> Result<Option<[u8; 32]>, IssueTokenStoreError> {
-        let key_path = self.legacy_fallback_key_path(); // We reuse this path for the file-based key
-        if !key_path.exists() {
-            return Ok(None);
-        }
-        let bytes = std::fs::read(&key_path)?;
-        if bytes.len() != 32 {
-            tracing::warn!(
-                "Fallback key file {} is corrupt (wrong size), ignoring.",
-                key_path.display()
-            );
-            return Ok(None);
-        }
-        let mut key = [0u8; 32];
-        key.copy_from_slice(&bytes);
-        Ok(Some(key))
-    }
-
-    fn try_keyring_fallback_key_get(&self) -> Result<Option<[u8; 32]>, IssueTokenStoreError> {
-        if keyring_disabled() {
-            return Ok(None);
-        }
-        let entry = self.fallback_key_entry()?;
-        match entry.get_password() {
-            Ok(encoded) => {
-                let decoded = base64::engine::general_purpose::STANDARD
-                    .decode(encoded)
-                    .map_err(|err| IssueTokenStoreError::Decode(err.to_string()))?;
-                if decoded.len() != 32 {
-                    return Ok(None);
-                }
-                let mut key = [0u8; 32];
-                key.copy_from_slice(&decoded);
-                Ok(Some(key))
-            }
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(err) => Err(IssueTokenStoreError::Unavailable(format!(
-                "Fallback keyring unavailable ({err})."
-            ))),
-        }
-    }
-
-    fn try_keyring_fallback_key_set(&self, key: &[u8; 32]) -> Result<(), IssueTokenStoreError> {
-        if keyring_disabled() {
-            return Err(IssueTokenStoreError::Unavailable("keyring disabled".into()));
-        }
-        let entry = self.fallback_key_entry()?;
-        let encoded = base64::engine::general_purpose::STANDARD.encode(key);
-        entry
-            .set_password(&encoded)
-            .map_err(|err| IssueTokenStoreError::Unavailable(err.to_string()))
-    }
-
-    fn try_keyring_fallback_key_delete(&self) -> Result<(), IssueTokenStoreError> {
-        if keyring_disabled() {
-            return Ok(());
-        }
-        let entry = self.fallback_key_entry()?;
-        let _ = entry.delete_credential();
-        Ok(())
-    }
-
-    fn fallback_get(&self) -> Result<Option<String>, IssueTokenStoreError> {
-        if !fallback_allowed() {
-            return Err(IssueTokenStoreError::Unavailable(format!(
-                "Fallback storage disabled; set {FALLBACK_ALLOW_ENV}=1 to allow encrypted file storage."
-            )));
-        }
-        let token_path = self.fallback_token_path();
-        if !token_path.exists() {
-            return Ok(None);
-        }
-        let metadata = std::fs::metadata(&token_path)?;
-        if metadata.len() > MAX_FALLBACK_TOKEN_BYTES {
-            return Err(IssueTokenStoreError::Decode(format!(
-                "fallback token file exceeds {MAX_FALLBACK_TOKEN_BYTES} bytes"
-            )));
-        }
-        warn_fallback_active();
-        let key = self.ensure_fallback_key()?;
-        let data = std::fs::read(token_path)?;
-        if data.len() < 12 {
-            return Err(IssueTokenStoreError::Decode("token file too short".into()));
-        }
-        let (nonce, ciphertext) = data.split_at(12);
-        // We now treat the file-based key as a first-class citizen, so we just attempt strict decryption.
-        // If the key has rotated or migrated, the standard flow is to clear and restart.
-        // Complex migration logic (reading old key file, re-encrypting) is simplified:
-        // if the current resolved key doesn't work, we assume the data is garbage/stale.
-        let plaintext = match decrypt(&key, nonce, ciphertext) {
-            Ok(plaintext) => plaintext,
-            Err(err) => {
-                // Try one last ditch attempt: checking if the 'legacy' file key works
-                // (only relevant if we are now using a DIFFERENT key, e.g. from env or keyring).
-                // However, simplifying: if we can't decrypt with the resolved key, we reset.
-                tracing::warn!(
-                    "Fallback token payload failed to decrypt; clearing fallback storage: {err}"
-                );
-                let _ = self.fallback_delete();
-                return Ok(None);
-            }
-        };
-        let token = String::from_utf8(plaintext)
-            .map_err(|err| IssueTokenStoreError::Decode(err.to_string()))?;
-        Ok(Some(token))
-    }
-
-    fn fallback_set(&self, token: &str) -> Result<(), IssueTokenStoreError> {
-        if !fallback_allowed() {
-            return Err(IssueTokenStoreError::Unavailable(format!(
-                "Fallback storage disabled; set {FALLBACK_ALLOW_ENV}=1 to allow encrypted file storage."
-            )));
-        }
-        warn_fallback_active();
-        let key = self.ensure_fallback_key()?;
-        let payload = self.encrypt_fallback_payload(&key, token.as_bytes())?;
-        write_private_file(&self.fallback_token_path(), &payload)?;
-        Ok(())
-    }
-
-    fn fallback_delete(&self) -> Result<(), IssueTokenStoreError> {
-        #[cfg(target_os = "windows")]
-        {
-            clear_windows_readonly(self.fallback_token_path().as_path());
-        }
-        let _ = std::fs::remove_file(self.fallback_token_path());
-        // This file is now used for the file-based fallback key as well
-        let _ = std::fs::remove_file(self.legacy_fallback_key_path());
-        let _ = self.try_keyring_fallback_key_delete();
-        *lock_fallback_key_cache() = None;
-        Ok(())
-    }
-
-    fn encrypt_fallback_payload(
-        &self,
-        key: &[u8; 32],
-        plaintext: &[u8],
-    ) -> Result<Vec<u8>, IssueTokenStoreError> {
-        let nonce = random_bytes(12)?;
-        let ciphertext = encrypt(key, &nonce, plaintext)?;
-        let mut payload = Vec::with_capacity(nonce.len() + ciphertext.len());
-        payload.extend_from_slice(&nonce);
-        payload.extend_from_slice(&ciphertext);
-        Ok(payload)
-    }
 }
 
 fn keyring_disabled() -> bool {
@@ -460,29 +194,18 @@ fn warn_fallback_active() {
     }
 }
 
+#[cfg(test)]
 fn fallback_key_cache() -> &'static Mutex<Option<[u8; 32]>> {
-    FALLBACK_KEY_CACHE.get_or_init(|| Mutex::new(None))
+    fallback_key::fallback_key_cache()
 }
 
+#[cfg(test)]
 fn lock_fallback_key_cache() -> std::sync::MutexGuard<'static, Option<[u8; 32]>> {
-    match fallback_key_cache().lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("Fallback key cache mutex poisoned; clearing cached key.");
-            let mut inner = poisoned.into_inner();
-            *inner = None;
-            inner
-        }
-    }
+    fallback_key::lock_fallback_key_cache()
 }
 
 fn random_bytes(len: usize) -> Result<Vec<u8>, IssueTokenStoreError> {
-    let mut out = vec![0u8; len];
-    use rand::TryRngCore;
-    rand::rngs::OsRng
-        .try_fill_bytes(&mut out)
-        .map_err(|err| IssueTokenStoreError::Unavailable(err.to_string()))?;
-    Ok(out)
+    crypto::random_bytes(len)
 }
 
 /// Write a file with restricted permissions using an atomic swap on supported platforms.
@@ -620,33 +343,15 @@ fn clear_windows_readonly(path: &Path) {
 }
 
 fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, IssueTokenStoreError> {
-    use chacha20poly1305::aead::{Aead, KeyInit};
-    let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
-        .map_err(|err| IssueTokenStoreError::Crypto(err.to_string()))?;
-    let nonce = chacha20poly1305::Nonce::from_slice(nonce);
-    cipher
-        .encrypt(nonce, plaintext)
-        .map_err(|err| IssueTokenStoreError::Crypto(err.to_string()))
+    crypto::encrypt(key, nonce, plaintext)
 }
 
 fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, IssueTokenStoreError> {
-    use chacha20poly1305::aead::{Aead, KeyInit};
-    let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
-        .map_err(|err| IssueTokenStoreError::Crypto(err.to_string()))?;
-    let nonce = chacha20poly1305::Nonce::from_slice(nonce);
-    cipher
-        .decrypt(nonce, ciphertext)
-        .map_err(|err| IssueTokenStoreError::Crypto(err.to_string()))
+    crypto::decrypt(key, nonce, ciphertext)
 }
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, String> {
-    if !s.len().is_multiple_of(2) {
-        return Err("Odd number of digits".into());
-    }
-    (0..s.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|e| e.to_string()))
-        .collect()
+    crypto::decode_hex(s)
 }
 
 #[cfg(test)]
