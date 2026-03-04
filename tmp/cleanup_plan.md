@@ -6,7 +6,7 @@ Status legend: `[ ]` pending, `[x]` done
 
 ## Ordered Backlog
 
-- [ ] 1) Decompose `vendor/radiant` native shell state renderer into focused modules
+- [x] 1) Decompose `vendor/radiant` native shell state renderer into focused modules
   - ROI/Effort: High / L
   - Why it matters: The native shell state layer is still the largest single hotspot and mixes frame assembly, overlay construction, input/action helpers, and toolbar composition in one file, which raises regression risk and review overhead.
   - Evidence:
@@ -15,6 +15,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Extract `state/frame_build.rs`, `state/overlay.rs`, and `state/actions.rs` (or equivalent) with a thin facade in `state.rs`; preserve existing public entrypoints and behavior.
   - Risk/tradeoffs: Medium-high. Splitting render/input code can introduce subtle ordering regressions if boundaries are not exact.
   - Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml` then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `radiant` commit `e2b60e0d`
 
 - [ ] 2) Unify duplicated staged file-move transaction logic across drag/drop workers
   - ROI/Effort: High / M
