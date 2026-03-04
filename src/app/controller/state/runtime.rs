@@ -83,6 +83,10 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) pending_similarity_refresh: Option<PendingFocusedSimilarityRefresh>,
     /// Earliest frame time when deferred focused-similarity refresh may run.
     pub(crate) pending_similarity_refresh_not_before: Option<Instant>,
+    /// Pending duration/long-mark metadata write moved out of waveform load hot path.
+    pub(crate) pending_loaded_duration_metadata: Option<PendingLoadedDurationMetadata>,
+    /// Earliest frame time when deferred duration metadata persistence may run.
+    pub(crate) pending_loaded_duration_metadata_not_before: Option<Instant>,
     /// Latest queued waveform seek target from high-frequency interaction updates.
     pub(crate) pending_waveform_seek_milli: Option<u16>,
     /// Earliest frame time when a deferred waveform seek commit may run.
@@ -139,6 +143,8 @@ impl ControllerRuntimeState {
             pending_age_update_commit_not_before: None,
             pending_similarity_refresh: None,
             pending_similarity_refresh_not_before: None,
+            pending_loaded_duration_metadata: None,
+            pending_loaded_duration_metadata_not_before: None,
             pending_waveform_seek_milli: None,
             pending_waveform_seek_not_before: None,
             map_query_connections: HashMap::new(),
@@ -184,6 +190,23 @@ pub(crate) struct PendingFocusedSimilarityRefresh {
     pub(crate) relative_path: PathBuf,
     /// Optional absolute entry index for the focused row.
     pub(crate) anchor_index: Option<usize>,
+}
+
+/// Deferred source-analysis metadata write queued after waveform load completes.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingLoadedDurationMetadata {
+    /// Source id used to construct a stable sample id.
+    pub(crate) source_id: SourceId,
+    /// Source root used to open the per-source analysis database.
+    pub(crate) source_root: PathBuf,
+    /// Relative sample path for the loaded waveform.
+    pub(crate) relative_path: PathBuf,
+    /// Loaded waveform duration in seconds.
+    pub(crate) duration_seconds: f32,
+    /// Loaded waveform sample rate in Hz.
+    pub(crate) sample_rate: u32,
+    /// Cached long-sample mark when this path is still selected.
+    pub(crate) long_sample_mark: Option<bool>,
 }
 
 pub(crate) struct PerformanceGovernorState {

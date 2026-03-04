@@ -94,6 +94,9 @@ impl AppControllerNativeRuntimeExt for AppController {
         if self.has_pending_focused_similarity_highlight_refresh() {
             self.flush_pending_focused_similarity_highlight_refresh();
         }
+        if self.has_pending_loaded_duration_metadata_write() {
+            self.flush_pending_loaded_duration_metadata_write();
+        }
         if self.has_pending_waveform_seek_commit() {
             self.flush_pending_waveform_seek_commit();
         }

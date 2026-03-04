@@ -13,7 +13,6 @@ impl AppController {
             (outcome.decoded, outcome.bytes, true)
         } else {
             match self.prepare_loaded_audio(
-                &source,
                 &pending.relative_path,
                 Some(outcome.decoded),
                 outcome.bytes,
@@ -142,7 +141,7 @@ impl AppController {
         pending_playback: Option<PendingPlayback>,
     ) -> Result<(), String> {
         let request_id = self.runtime.jobs.next_audio_request_id();
-        let stretch_ratio = self.stretch_ratio_for_sample(source, relative_path);
+        let stretch_ratio = self.stretch_ratio_for_sample(relative_path);
         let pending = PendingAudio {
             request_id,
             source_id: source.id.clone(),
@@ -197,9 +196,7 @@ impl AppController {
         intent: AudioLoadIntent,
     ) -> Result<bool, String> {
         if matches!(intent, AudioLoadIntent::Selection)
-            && self
-                .stretch_ratio_for_sample(source, relative_path)
-                .is_some()
+            && self.stretch_ratio_for_sample(relative_path).is_some()
         {
             return Ok(false);
         }
