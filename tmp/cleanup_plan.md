@@ -17,7 +17,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml` then `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `radiant` commit `e2b60e0d`
 
-- [ ] 2) Unify duplicated staged file-move transaction logic across drag/drop workers
+- [x] 2) Unify duplicated staged file-move transaction logic across drag/drop workers
   - ROI/Effort: High / M
   - Why it matters: Source moves and folder sample moves duplicate long staged move/journal/rollback sequences, making bug fixes and behavioral changes expensive and inconsistent.
   - Evidence:
@@ -27,6 +27,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Introduce a shared staged move executor (plan/apply/rollback primitives) used by both workers, keeping job result types unchanged.
   - Risk/tradeoffs: Medium. Shared helper mistakes could affect both move paths simultaneously.
   - Suggested validation: drag/drop move tests, file-op journal recovery tests, `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `fc9241ed`
 
 - [ ] 3) Add dedicated tests for folder move worker cancellation and rollback semantics
   - ROI/Effort: High / M
