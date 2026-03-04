@@ -30,7 +30,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: search-worker unit tests under `src/app/controller/library/wavs/browser_search_worker`, then `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `e90400b8`
 
-- [ ] 3) Remove duplicated rollback/journal error branches across source/folder move workers
+- [x] 3) Remove duplicated rollback/journal error branches across source/folder move workers
   - ROI/Effort: High / M
   - Why it matters: The staged-move workers still duplicate long rollback/journal cleanup sequences, which makes file-op fixes expensive and inconsistent.
   - Evidence:
@@ -40,6 +40,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Introduce a shared failure-handling helper that encapsulates rollback + journal cleanup + progress reporting, and reuse it in both workers.
   - Risk/tradeoffs: Medium. Shared helper bugs affect both move paths.
   - Suggested validation: drag-drop move/rollback tests (including cancellation and DB-write failures), then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `0d6b20cf`
 
 - [ ] 4) Continue splitting `ControllerJobs` into domain modules (`dto`, `state`, `lifecycle`, `dispatch`)
   - ROI/Effort: High / L
