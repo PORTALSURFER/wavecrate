@@ -395,6 +395,52 @@ fn waveform_action_queue_dedupes_cursor_when_seek_matches() {
     assert_eq!(queue.deduped_cursor_milli(), None);
 }
 
+/// Mixed waveform batches should emit deterministic action order with precedence applied.
+#[test]
+fn waveform_action_queue_emits_mixed_actions_in_order() {
+    let mut queue = PendingWaveformActions::default();
+    assert!(queue.enqueue(&NativeUiAction::ZoomWaveform {
+        zoom_in: true,
+        steps: 3,
+        anchor_ratio_micros: Some(250_000),
+    }));
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformSelectionRange {
+        start_milli: 120,
+        end_milli: 640,
+    }));
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
+        position_milli: 410,
+    }));
+    assert!(queue.enqueue(&NativeUiAction::SeekWaveform {
+        position_milli: 900,
+    }));
+
+    let mut emitted = Vec::new();
+    let count = queue.emit_actions(|action| emitted.push(action));
+
+    assert_eq!(count, 4);
+    assert_eq!(
+        emitted,
+        vec![
+            NativeUiAction::ZoomWaveform {
+                zoom_in: true,
+                steps: 3,
+                anchor_ratio_micros: Some(250_000),
+            },
+            NativeUiAction::SetWaveformSelectionRange {
+                start_milli: 120,
+                end_milli: 640,
+            },
+            NativeUiAction::SetWaveformCursor {
+                position_milli: 410,
+            },
+            NativeUiAction::SeekWaveform {
+                position_milli: 900,
+            },
+        ]
+    );
+}
+
 /// Zoom-to-selection and zoom-full should override discrete zoom deltas.
 #[test]
 fn waveform_action_queue_zoom_overrides_delta() {

@@ -213,6 +213,60 @@ impl PendingWaveformActions {
         }
     }
 
+    /// Build the highest-priority zoom action for this pending batch, if any.
+    fn zoom_action(&self) -> Option<NativeUiAction> {
+        if self.zoom_full {
+            return Some(NativeUiAction::ZoomWaveformFull);
+        }
+        if self.zoom_to_selection {
+            return Some(NativeUiAction::ZoomWaveformToSelection);
+        }
+        if self.zoom_steps_delta == 0 {
+            return None;
+        }
+        let zoom_in = self.zoom_steps_delta.is_positive();
+        let steps = self.zoom_steps_delta.unsigned_abs().min(u16::from(u8::MAX)) as u8;
+        Some(NativeUiAction::ZoomWaveform {
+            zoom_in,
+            steps,
+            anchor_ratio_micros: self.zoom_anchor_ratio_micros,
+        })
+    }
+
+    /// Build the highest-priority selection action for this pending batch, if any.
+    fn selection_action(&self) -> Option<NativeUiAction> {
+        if let Some((start_milli, end_milli)) = self.selection_range_milli {
+            return Some(NativeUiAction::SetWaveformSelectionRange {
+                start_milli,
+                end_milli,
+            });
+        }
+        self.clear_selection
+            .then_some(NativeUiAction::ClearWaveformSelection)
+    }
+
+    /// Emit queued waveform actions in deterministic application order.
+    fn emit_actions(&self, mut emit: impl FnMut(NativeUiAction)) -> u64 {
+        let mut emitted_actions = 0u64;
+        if let Some(action) = self.zoom_action() {
+            emit(action);
+            emitted_actions = emitted_actions.saturating_add(1);
+        }
+        if let Some(action) = self.selection_action() {
+            emit(action);
+            emitted_actions = emitted_actions.saturating_add(1);
+        }
+        if let Some(position_milli) = self.deduped_cursor_milli() {
+            emit(NativeUiAction::SetWaveformCursor { position_milli });
+            emitted_actions = emitted_actions.saturating_add(1);
+        }
+        if let Some(position_milli) = self.seek_milli {
+            emit(NativeUiAction::SeekWaveform { position_milli });
+            emitted_actions = emitted_actions.saturating_add(1);
+        }
+        emitted_actions
+    }
+
     /// Return true when queued actions mutate waveform static rendering content.
     ///
     /// Zoom actions change the waveform viewport and image payload, so native
@@ -347,75 +401,59 @@ impl SempalNativeBridge {
             return;
         }
         let pending = std::mem::take(&mut self.pending_waveform_actions);
-        let cursor_milli = pending.deduped_cursor_milli();
         let profiling = bridge_profiling_enabled();
         let flush_start = profiling.then(Instant::now);
         let before_key = self.projection_key_snapshot();
-        let mut emitted_actions = 0u64;
+        let emitted_actions = self.apply_pending_waveform_action_batch(&pending);
+        self.finalize_waveform_action_flush(
+            pending,
+            before_key,
+            emitted_actions,
+            flush_start,
+            profiling,
+        );
+    }
 
+    /// Apply one queued waveform batch to controller state and return emitted action count.
+    fn apply_pending_waveform_action_batch(&mut self, pending: &PendingWaveformActions) -> u64 {
         self.controller.begin_waveform_refresh_batch();
-        if pending.zoom_full {
-            self.controller
-                .apply_native_ui_action(NativeUiAction::ZoomWaveformFull);
-            emitted_actions = emitted_actions.saturating_add(1);
-        } else if pending.zoom_to_selection {
-            self.controller
-                .apply_native_ui_action(NativeUiAction::ZoomWaveformToSelection);
-            emitted_actions = emitted_actions.saturating_add(1);
-        } else if pending.zoom_steps_delta != 0 {
-            let zoom_in = pending.zoom_steps_delta.is_positive();
-            let steps = pending
-                .zoom_steps_delta
-                .unsigned_abs()
-                .min(u16::from(u8::MAX)) as u8;
-            self.controller
-                .apply_native_ui_action(NativeUiAction::ZoomWaveform {
-                    zoom_in,
-                    steps,
-                    anchor_ratio_micros: pending.zoom_anchor_ratio_micros,
-                });
-            emitted_actions = emitted_actions.saturating_add(1);
-        }
-
-        if let Some((start_milli, end_milli)) = pending.selection_range_milli {
-            self.controller
-                .apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
-                    start_milli,
-                    end_milli,
-                });
-            emitted_actions = emitted_actions.saturating_add(1);
-        } else if pending.clear_selection {
-            self.controller
-                .apply_native_ui_action(NativeUiAction::ClearWaveformSelection);
-            emitted_actions = emitted_actions.saturating_add(1);
-        }
-
-        if let Some(position_milli) = cursor_milli {
-            self.controller
-                .apply_native_ui_action(NativeUiAction::SetWaveformCursor { position_milli });
-            emitted_actions = emitted_actions.saturating_add(1);
-        }
-        if let Some(position_milli) = pending.seek_milli {
-            self.controller
-                .apply_native_ui_action(NativeUiAction::SeekWaveform { position_milli });
-            emitted_actions = emitted_actions.saturating_add(1);
-        }
+        let emitted_actions = pending.emit_actions(|action| {
+            self.controller.apply_native_ui_action(action);
+        });
         self.controller.end_waveform_refresh_batch();
-        if emitted_actions == 0 {
-            if profiling {
-                let flush_duration = flush_start.map_or(Duration::ZERO, |start| start.elapsed());
-                trace_waveform_flush(flush_duration, emitted_actions);
-            }
-            return;
-        }
-        let _ = self.controller.refresh_projection_revision_bus();
-        let after_key = build_projection_cache_key(&self.controller);
-        if before_key != after_key {
-            self.projection_key_snapshot = Some(after_key);
-            self.controller
-                .mark_derived_source_dirty(DerivedNodeId::WaveformState, pending.dirty_reason());
-        }
+        emitted_actions
+    }
 
+    /// Finish one waveform batch flush by updating projection state and tracing metrics.
+    fn finalize_waveform_action_flush(
+        &mut self,
+        pending: PendingWaveformActions,
+        before_key: NativeProjectionCacheKey,
+        emitted_actions: u64,
+        flush_start: Option<Instant>,
+        profiling: bool,
+    ) {
+        if emitted_actions != 0 {
+            let _ = self.controller.refresh_projection_revision_bus();
+            let after_key = build_projection_cache_key(&self.controller);
+            if before_key != after_key {
+                self.projection_key_snapshot = Some(after_key);
+                self.controller.mark_derived_source_dirty(
+                    DerivedNodeId::WaveformState,
+                    pending.dirty_reason(),
+                );
+            }
+        }
+        self.trace_waveform_flush_if_profiled(flush_start, profiling, emitted_actions);
+    }
+
+    /// Emit waveform-flush timing only when bridge profiling is enabled.
+    fn trace_waveform_flush_if_profiled(
+        &self,
+        flush_start: Option<Instant>,
+        profiling: bool,
+        emitted_actions: u64,
+    ) {
         if profiling {
             let flush_duration = flush_start.map_or(Duration::ZERO, |start| start.elapsed());
             trace_waveform_flush(flush_duration, emitted_actions);
@@ -511,6 +549,76 @@ impl SempalNativeBridge {
         }
         model
     }
+
+    /// Reduce immediate browser-focus actions with wheel interaction attribution.
+    fn reduce_browser_focus_action(&mut self, delta: i8) {
+        let call = trace_action_call();
+        let profiling = bridge_profiling_enabled();
+        let action_start = profiling.then(Instant::now);
+        if call <= 64 {
+            info!(call, delta, "native bridge: apply MoveBrowserFocus");
+        }
+        self.apply_browser_focus_delta_immediately(delta);
+        if profiling {
+            let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
+            trace_action_duration(action_duration);
+            trace_action_interaction(InteractionActionClass::Wheel, action_duration);
+        }
+    }
+
+    /// Reduce immediate waveform-preview actions that bypass per-frame coalescing.
+    fn reduce_immediate_waveform_preview_action(&mut self, action: NativeUiAction) {
+        let call = trace_action_call();
+        let profiling = bridge_profiling_enabled();
+        let action_start = profiling.then(Instant::now);
+        if call <= 64 {
+            info!(call, action = ?action, "native bridge: apply waveform preview action");
+        }
+        self.apply_action_immediately(action);
+        if profiling {
+            let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
+            trace_action_duration(action_duration);
+            trace_action_interaction(InteractionActionClass::Waveform, action_duration);
+        }
+    }
+
+    /// Reduce coalescable waveform actions and return whether they were queued.
+    fn reduce_queued_waveform_action(&mut self, action: &NativeUiAction) -> bool {
+        if !self.enqueue_waveform_action(action) {
+            return false;
+        }
+        let call = trace_action_call();
+        let profiling = bridge_profiling_enabled();
+        let action_start = profiling.then(Instant::now);
+        if call <= 64 {
+            info!(call, action = ?action, "native bridge: queue waveform action");
+        }
+        if profiling {
+            let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
+            trace_action_duration(action_duration);
+            trace_action_interaction(InteractionActionClass::Waveform, action_duration);
+        }
+        true
+    }
+
+    /// Reduce non-coalesced actions through immediate controller application.
+    fn reduce_default_action(&mut self, action: NativeUiAction) {
+        let call = trace_action_call();
+        let profiling = bridge_profiling_enabled();
+        let interaction_class = classify_action_interaction(&action);
+        let action_start = profiling.then(Instant::now);
+        if call <= 64 {
+            info!(call, action = ?action, "native bridge: reduce_action");
+        }
+        self.apply_action_immediately(action);
+        if profiling {
+            let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
+            trace_action_duration(action_duration);
+            if let Some(kind) = interaction_class {
+                trace_action_interaction(kind, action_duration);
+            }
+        }
+    }
 }
 
 impl NativeAppBridge for SempalNativeBridge {
@@ -594,64 +702,17 @@ impl NativeAppBridge for SempalNativeBridge {
     /// Reduce one runtime UI action into controller state.
     fn reduce_action(&mut self, action: NativeUiAction) {
         if let NativeUiAction::MoveBrowserFocus { delta } = action {
-            let call = trace_action_call();
-            let profiling = bridge_profiling_enabled();
-            let action_start = profiling.then(Instant::now);
-            if call <= 64 {
-                info!(call, delta, "native bridge: apply MoveBrowserFocus");
-            }
-            self.apply_browser_focus_delta_immediately(delta);
-            if profiling {
-                let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
-                trace_action_duration(action_duration);
-                trace_action_interaction(InteractionActionClass::Wheel, action_duration);
-            }
+            self.reduce_browser_focus_action(delta);
             return;
         }
         if is_immediate_waveform_preview_action(&action) && immediate_waveform_preview_enabled() {
-            let call = trace_action_call();
-            let profiling = bridge_profiling_enabled();
-            let action_start = profiling.then(Instant::now);
-            if call <= 64 {
-                info!(call, action = ?action, "native bridge: apply waveform preview action");
-            }
-            self.apply_action_immediately(action);
-            if profiling {
-                let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
-                trace_action_duration(action_duration);
-                trace_action_interaction(InteractionActionClass::Waveform, action_duration);
-            }
+            self.reduce_immediate_waveform_preview_action(action);
             return;
         }
-        if self.enqueue_waveform_action(&action) {
-            let call = trace_action_call();
-            let profiling = bridge_profiling_enabled();
-            let action_start = profiling.then(Instant::now);
-            if call <= 64 {
-                info!(call, action = ?action, "native bridge: queue waveform action");
-            }
-            if profiling {
-                let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
-                trace_action_duration(action_duration);
-                trace_action_interaction(InteractionActionClass::Waveform, action_duration);
-            }
+        if self.reduce_queued_waveform_action(&action) {
             return;
         }
-        let call = trace_action_call();
-        let profiling = bridge_profiling_enabled();
-        let interaction_class = classify_action_interaction(&action);
-        let action_start = profiling.then(Instant::now);
-        if call <= 64 {
-            info!(call, action = ?action, "native bridge: reduce_action");
-        }
-        self.apply_action_immediately(action);
-        if profiling {
-            let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
-            trace_action_duration(action_duration);
-            if let Some(kind) = interaction_class {
-                trace_action_interaction(kind, action_duration);
-            }
-        }
+        self.reduce_default_action(action);
     }
 
     /// Observe one frame-build result for optional profiling telemetry.
