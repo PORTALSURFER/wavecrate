@@ -4,6 +4,7 @@
 #
 # The report includes:
 # - largest Rust files (line count)
+# - largest function spans (heuristic)
 # - files still over the file-size budget limit
 # - dead-code and clippy::too_many_arguments suppression density
 # - likely test-gap hotspots (large files without local test modules)
@@ -20,10 +21,11 @@ TOP_FILES=20
 TOP_SUPPRESSIONS=20
 TEST_GAP_MIN_LINES=200
 FILE_SIZE_LIMIT=400
+TOP_FUNCTION_SPANS=20
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/audit_cleanup_hotspots.sh [--output <path>] [--top-files <n>] [--top-suppressions <n>] [--test-gap-min-lines <n>] [--file-size-limit <n>]
+Usage: scripts/audit_cleanup_hotspots.sh [--output <path>] [--top-files <n>] [--top-suppressions <n>] [--top-function-spans <n>] [--test-gap-min-lines <n>] [--file-size-limit <n>]
 
 Generate a deterministic markdown snapshot of cleanup hotspots.
 
@@ -31,6 +33,7 @@ Options:
   --output <path>            Output markdown path (default: tmp/cleanup_audit_hotspots.md)
   --top-files <n>            Number of largest files to show (default: 20)
   --top-suppressions <n>     Number of files to show for each suppression table (default: 20)
+  --top-function-spans <n>   Number of largest function spans to show (default: 20)
   --test-gap-min-lines <n>   Minimum file size for test-gap heuristic (default: 200)
   --file-size-limit <n>      File-size budget threshold in lines (default: 400)
   -h, --help                 Show help
@@ -55,6 +58,10 @@ while (( $# > 0 )); do
       TOP_SUPPRESSIONS="${2:-}"
       shift 2
       ;;
+    --top-function-spans)
+      TOP_FUNCTION_SPANS="${2:-}"
+      shift 2
+      ;;
     --test-gap-min-lines)
       TEST_GAP_MIN_LINES="${2:-}"
       shift 2
@@ -75,7 +82,7 @@ while (( $# > 0 )); do
   esac
 done
 
-for value_name in TOP_FILES TOP_SUPPRESSIONS TEST_GAP_MIN_LINES FILE_SIZE_LIMIT; do
+for value_name in TOP_FILES TOP_SUPPRESSIONS TOP_FUNCTION_SPANS TEST_GAP_MIN_LINES FILE_SIZE_LIMIT; do
   value="${!value_name}"
   if ! is_non_negative_integer "$value"; then
     echo "[cleanup_audit] $value_name must be a non-negative integer (got: $value)" >&2
@@ -97,6 +104,7 @@ tmp_tma_hits="$(mktemp)"
 tmp_dead_counts="$(mktemp)"
 tmp_tma_counts="$(mktemp)"
 tmp_test_gaps="$(mktemp)"
+tmp_function_spans="$(mktemp)"
 
 cleanup() {
   rm -f \
@@ -106,7 +114,8 @@ cleanup() {
     "$tmp_tma_hits" \
     "$tmp_dead_counts" \
     "$tmp_tma_counts" \
-    "$tmp_test_gaps"
+    "$tmp_test_gaps" \
+    "$tmp_function_spans"
 }
 trap cleanup EXIT
 
@@ -121,6 +130,37 @@ for file in "${rust_files[@]}"; do
   if (( line_count > FILE_SIZE_LIMIT )); then
     printf "%s\t%s\n" "$line_count" "$file" >>"$tmp_over_limit"
   fi
+
+  awk -v file_path="$file" '
+    function flush_span(next_line) {
+      if (!in_fn) {
+        return
+      }
+      span = next_line - fn_start
+      if (span < 1) {
+        span = 1
+      }
+      printf "%d\t%s:%d\t%s\n", span, file_path, fn_start, fn_name
+    }
+    {
+      line_no = NR
+      if ($0 ~ /^[[:space:]]*(pub(\([^)]*\))?[[:space:]]+)?(async[[:space:]]+)?fn[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/) {
+        flush_span(line_no)
+        in_fn = 1
+        fn_start = line_no
+        if (match($0, /fn[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)/, captures)) {
+          fn_name = captures[1]
+        } else {
+          fn_name = "<unknown>"
+        }
+      }
+    }
+    END {
+      if (in_fn) {
+        flush_span(NR + 1)
+      }
+    }
+  ' "$file" >>"$tmp_function_spans"
 
 done
 
@@ -157,6 +197,7 @@ over_budget_count="$(wc -l <"$tmp_over_limit" | tr -d '[:space:]')"
 dead_supp_files="$(wc -l <"$tmp_dead_counts" | tr -d '[:space:]')"
 tma_supp_files="$(wc -l <"$tmp_tma_counts" | tr -d '[:space:]')"
 test_gap_count="$(wc -l <"$tmp_test_gaps" | tr -d '[:space:]')"
+function_span_count="$(wc -l <"$tmp_function_spans" | tr -d '[:space:]')"
 
 {
   echo "# Cleanup Hotspot Audit Snapshot"
@@ -170,6 +211,7 @@ test_gap_count="$(wc -l <"$tmp_test_gaps" | tr -d '[:space:]')"
   echo "## Summary"
   echo
   echo "- Over file-size budget: $over_budget_count"
+  echo "- Function spans captured: $function_span_count"
   echo "- Files with \`dead_code\` suppressions: $dead_supp_files"
   echo "- Files with \`clippy::too_many_arguments\` suppressions: $tma_supp_files"
   echo "- Likely large-file test-gap hotspots (heuristic): $test_gap_count"
@@ -179,10 +221,21 @@ test_gap_count="$(wc -l <"$tmp_test_gaps" | tr -d '[:space:]')"
   echo
   echo "| Lines | File |"
   echo "| ---: | --- |"
-  head -n "$TOP_FILES" "$tmp_line_counts" \
-    | LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 \
+  LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 "$tmp_line_counts" \
+    | awk -F'\t' -v limit="$TOP_FILES" 'NR <= limit' \
     | while IFS=$'\t' read -r line_count file; do
         echo "| $line_count | \`$file\` |"
+      done
+  echo
+
+  echo "## Largest function spans (heuristic)"
+  echo
+  echo "| Span (lines) | Function |"
+  echo "| ---: | --- |"
+  LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 "$tmp_function_spans" \
+    | awk -F'\t' -v limit="$TOP_FUNCTION_SPANS" 'NR <= limit' \
+    | while IFS=$'\t' read -r span location fn_name; do
+        echo "| $span | \`$fn_name\` (\`$location\`) |"
       done
   echo
 
