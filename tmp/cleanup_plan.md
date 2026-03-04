@@ -119,7 +119,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `RUSTDOCFLAGS='-D warnings' cargo doc -p sempal --no-deps` and `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `0a3abf83`
 
-- [ ] 11) Add a repeatable cleanup hotspot audit script for future passes
+- [x] 11) Add a repeatable cleanup hotspot audit script for future passes
   - ROI/Effort: Low / S
   - Why it matters: This audit currently depends on ad-hoc shell commands; a deterministic script reduces drift and speeds future cleanup planning.
   - Evidence:
@@ -127,6 +127,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Add `scripts/audit_cleanup_hotspots.sh` that emits file-size/function-length/suppression/test-density snapshots into `tmp/`.
   - Risk/tradeoffs: Low. Small maintenance burden to keep thresholds and reports useful.
   - Suggested validation: run the script locally and verify output under version control exclusions, then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `1b55c8eb`
 
 - [ ] 12) Add a cleanup architecture note linking debt items to module boundaries
   - ROI/Effort: Low / S
