@@ -40,7 +40,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: run new folder move tests directly, then `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `9ce005e8`
 
-- [ ] 4) Split `IssueTokenStore` into backend/key-management/storage modules
+- [x] 4) Split `IssueTokenStore` into backend/key-management/storage modules
   - ROI/Effort: High / M
   - Why it matters: Keyring operations, fallback key lifecycle, encrypted file IO, env parsing, and large test blocks are tightly coupled in one file, making security-sensitive changes harder to reason about.
   - Evidence:
@@ -51,6 +51,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Extract modules for `keyring_backend`, `fallback_key`, `fallback_store`, and `crypto`; keep `IssueTokenStore` as orchestration facade.
   - Risk/tradeoffs: Medium. Storage compatibility/migration behavior must stay byte-for-byte compatible.
   - Suggested validation: token-store unit tests (including corruption and migration cases) and `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `67be23f2`
 
 - [ ] 5) Reduce projection cache complexity by splitting derive/materialize/probe layers
   - ROI/Effort: High / M
