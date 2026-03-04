@@ -53,7 +53,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: token-store unit tests (including corruption and migration cases) and `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `67be23f2`
 
-- [ ] 5) Reduce projection cache complexity by splitting derive/materialize/probe layers
+- [x] 5) Reduce projection cache complexity by splitting derive/materialize/probe layers
   - ROI/Effort: High / M
   - Why it matters: Retained projection cache logic combines key derivation, segment materialization, dirty-segment policy, and benchmark probes in one dense module, increasing maintenance cost in a performance-critical path.
   - Evidence:
@@ -63,6 +63,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Split into `projection_key.rs`, `segment_materialize.rs`, and `probe_metrics.rs`; replace high-arity probe inputs with typed context structs.
   - Risk/tradeoffs: Medium. Any key derivation drift can impact UI invalidation correctness.
   - Suggested validation: projection cache unit tests + perf guard checks + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `f66c7acf`
 
 - [ ] 6) Refactor `ControllerJobs` state and worker launch boilerplate
   - ROI/Effort: Medium / M
