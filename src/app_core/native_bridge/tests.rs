@@ -1023,13 +1023,13 @@ fn env_truthy_parser_is_case_insensitive_for_immediate_preview_flag() {
 /// Bridge metrics should record projection cache and waveform refresh decisions.
 fn bridge_metrics_track_projection_cache_and_waveform_refresh_paths() {
     let projection_hit_before =
-        super::PROJECTION_CACHE_HIT_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+        super::metrics::PROJECTION_CACHE_HIT_COUNT.load(std::sync::atomic::Ordering::Relaxed);
     let projection_miss_before =
-        super::PROJECTION_CACHE_MISS_COUNT.load(std::sync::atomic::Ordering::Relaxed);
-    let refresh_apply_before =
-        super::WAVEFORM_IMAGE_REFRESH_APPLY_COUNT.load(std::sync::atomic::Ordering::Relaxed);
-    let refresh_skip_before =
-        super::WAVEFORM_IMAGE_REFRESH_SKIP_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+        super::metrics::PROJECTION_CACHE_MISS_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+    let refresh_apply_before = super::metrics::WAVEFORM_IMAGE_REFRESH_APPLY_COUNT
+        .load(std::sync::atomic::Ordering::Relaxed);
+    let refresh_skip_before = super::metrics::WAVEFORM_IMAGE_REFRESH_SKIP_COUNT
+        .load(std::sync::atomic::Ordering::Relaxed);
 
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let mut cache = NativeProjectionCache::default();
@@ -1056,13 +1056,13 @@ fn bridge_metrics_track_projection_cache_and_waveform_refresh_paths() {
     bridge.flush_derived_updates_before_pull(false);
 
     let projection_hit_after =
-        super::PROJECTION_CACHE_HIT_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+        super::metrics::PROJECTION_CACHE_HIT_COUNT.load(std::sync::atomic::Ordering::Relaxed);
     let projection_miss_after =
-        super::PROJECTION_CACHE_MISS_COUNT.load(std::sync::atomic::Ordering::Relaxed);
-    let refresh_apply_after =
-        super::WAVEFORM_IMAGE_REFRESH_APPLY_COUNT.load(std::sync::atomic::Ordering::Relaxed);
-    let refresh_skip_after =
-        super::WAVEFORM_IMAGE_REFRESH_SKIP_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+        super::metrics::PROJECTION_CACHE_MISS_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+    let refresh_apply_after = super::metrics::WAVEFORM_IMAGE_REFRESH_APPLY_COUNT
+        .load(std::sync::atomic::Ordering::Relaxed);
+    let refresh_skip_after = super::metrics::WAVEFORM_IMAGE_REFRESH_SKIP_COUNT
+        .load(std::sync::atomic::Ordering::Relaxed);
 
     assert!(projection_hit_after >= projection_hit_before.saturating_add(1));
     assert!(projection_miss_after >= projection_miss_before.saturating_add(1));

@@ -509,6 +509,73 @@ mod profile_math_tests {
         assert_eq!(ratio_value(5, 0), 0.0);
         assert_eq!(ratio_value(5, 10), 0.5);
     }
+
+    #[test]
+    /// Profile message formatting should include cache/segment counters and key ratios.
+    fn profile_message_includes_projection_cache_and_segment_fields() {
+        let baseline = BridgeMetricsSnapshot::capture();
+        let snapshot = BridgeMetricsSnapshot {
+            pull_model_count: 2,
+            pull_model_prep_ns: 4_000_000,
+            pull_model_project_ns: 6_000_000,
+            pull_motion_count: 2,
+            pull_motion_prep_ns: 8_000_000,
+            pull_motion_project_ns: 10_000_000,
+            action_count: 2,
+            action_duration_ns: 12_000_000,
+            projection_cache_hit_count: 11,
+            projection_cache_miss_count: 4,
+            status_segment_hit_count: 3,
+            status_segment_miss_count: 1,
+            browser_frame_segment_hit_count: 5,
+            browser_frame_segment_miss_count: 2,
+            browser_rows_segment_hit_count: 7,
+            browser_rows_segment_miss_count: 4,
+            map_segment_hit_count: 9,
+            map_segment_miss_count: 6,
+            waveform_segment_hit_count: 11,
+            waveform_segment_miss_count: 8,
+            browser_row_cache_hit_count: 9,
+            browser_row_cache_miss_count: 2,
+            projection_key_assert_count: 12,
+            projection_key_assert_stale_count: 3,
+            frame_count: 10,
+            jank_count: 2,
+            missed_present_count: 1,
+            ..baseline
+        };
+
+        let message = format_bridge_profile_message(&snapshot);
+        assert!(message.contains("projection_cache hits=11 misses=4"));
+        assert!(message.contains(
+            "segments status(h/m)=3/1 browser_frame(h/m)=5/2 browser_rows(h/m)=7/4 map(h/m)=9/6 waveform(h/m)=11/8"
+        ));
+        assert!(message.contains("browser_row_cache hits=9 misses=2"));
+        assert!(
+            message.contains("projection_key_assert_count=12 projection_key_assert_stale_count=3")
+        );
+        assert!(message.contains(
+            "jank_count=2 jank_ratio=0.200 missed_present_count=1 missed_present_ratio=0.100"
+        ));
+    }
+
+    #[test]
+    /// Projection cache/segment trace calls should increment the captured counters.
+    fn trace_projection_cache_counters_increment_snapshot() {
+        let before = BridgeMetricsSnapshot::capture();
+        trace_projection_cache_lookup(true);
+        trace_projection_cache_lookup(false);
+        trace_projection_segment_lookup(ProjectionSegment::StatusBar, true);
+        trace_projection_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
+        let after = BridgeMetricsSnapshot::capture();
+
+        assert!(after.projection_cache_hit_count >= before.projection_cache_hit_count + 1);
+        assert!(after.projection_cache_miss_count >= before.projection_cache_miss_count + 1);
+        assert!(after.status_segment_hit_count >= before.status_segment_hit_count + 1);
+        assert!(
+            after.browser_rows_segment_miss_count >= before.browser_rows_segment_miss_count + 1
+        );
+    }
 }
 
 #[cfg(feature = "native-bridge-metrics")]

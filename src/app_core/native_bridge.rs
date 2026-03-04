@@ -22,11 +22,6 @@ mod projection_cache;
 /// Shared projection-key enum/scalar encoding helpers.
 mod projection_key_encoding;
 
-#[cfg(feature = "native-bridge-metrics")]
-use self::metrics::{
-    PROJECTION_CACHE_HIT_COUNT, PROJECTION_CACHE_MISS_COUNT, WAVEFORM_IMAGE_REFRESH_APPLY_COUNT,
-    WAVEFORM_IMAGE_REFRESH_SKIP_COUNT,
-};
 #[cfg(test)]
 use self::projection_cache::build_waveform_projection_key;
 use self::{
