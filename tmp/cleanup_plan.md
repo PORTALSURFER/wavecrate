@@ -18,7 +18,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: targeted native-bridge action-reduction tests + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `80165521`
 
-- [ ] 2) Split playback audio loader into explicit execution stages and isolated telemetry state
+- [x] 2) Split playback audio loader into explicit execution stages and isolated telemetry state
   - ROI/Effort: High / L
   - Why it matters: Audio load latency correctness is high-impact; one large function currently mixes IO, decode, sanitization, stretch, stale gating, and accounting.
   - Evidence:
@@ -28,6 +28,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Extract `io`, `decode`, `stretch`, and `finalize` stages plus a telemetry helper module, preserving request-id/stale-drop semantics.
   - Risk/tradeoffs: Medium-high. Stage reorder mistakes can cause stale data application or audio behavior drift.
   - Suggested validation: stale-stage table tests + existing audio_loader tests + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `79c5790e`
 
 - [ ] 3) Refactor source-move worker into staged operations with unified completion/failure progress handling
   - ROI/Effort: High / M
@@ -133,3 +134,4 @@ Status legend: `[ ]` pending, `[x]` done
 
 - 2026-03-04: Phase 1 refreshed from current code state; awaiting explicit user confirmation before Phase 2 implementation.
 - 2026-03-04: Completed item 1 (native bridge waveform action reduction/flush staging + mixed queue emission tests).
+- 2026-03-04: Completed item 2 (audio loader split into staged execution + isolated telemetry modules with dedicated tests).
