@@ -87,7 +87,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: browser selection/search tests and `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `2f1f10e7`
 
-- [ ] 8) Move heavy inline test modules out of production source files
+- [x] 8) Move heavy inline test modules out of production source files
   - ROI/Effort: Medium / S
   - Why it matters: Large inline test sections inflate production files and hide production-only responsibilities.
   - Evidence:
@@ -96,6 +96,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Move tests to sibling `tests.rs` (or submodule tree) and keep production modules focused.
   - Risk/tradeoffs: Low. Mostly structural movement, minimal runtime risk.
   - Suggested validation: targeted crate tests for moved modules and `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `8a314cdd`
 
 - [ ] 9) Remove or justify `dead_code` suppressions in source DB write API
   - ROI/Effort: Medium / S
