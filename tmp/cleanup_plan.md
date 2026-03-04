@@ -41,7 +41,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: failure-injection tests across target-db open/write/delete/rename paths + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `c41de8c1`
 
-- [ ] 4) Split native shell projection facade into narrower projection modules with stable re-exports
+- [x] 4) Split native shell projection facade into narrower projection modules with stable re-exports
   - ROI/Effort: High / L
   - Why it matters: `native_shell.rs` remains a large mixed-responsibility projection surface, slowing review and increasing edit collision risk.
   - Evidence:
@@ -50,6 +50,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Move update/prompt/sources/browser projection logic into dedicated module files under `src/app_core/native_shell/`, keeping public API unchanged.
   - Risk/tradeoffs: Medium. Projection wiring mistakes can regress UI model parity.
   - Suggested validation: existing native_shell parity tests + targeted projection regression tests + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `111e5330`
 
 - [ ] 5) Harden file-ops journal reconciliation by removing silent malformed-entry drops and panic-style expect paths
   - ROI/Effort: High / M
@@ -137,3 +138,4 @@ Status legend: `[ ]` pending, `[x]` done
 - 2026-03-04: Completed item 1 (native bridge waveform action reduction/flush staging + mixed queue emission tests).
 - 2026-03-04: Completed item 2 (audio loader split into staged execution + isolated telemetry modules with dedicated tests).
 - 2026-03-04: Completed item 3 (source move worker staged helpers + unified per-request progress completion path).
+- 2026-03-04: Completed item 4 (native-shell projection facade split into focused modules + browser cache submodule split to satisfy file budget guardrail).
