@@ -7,7 +7,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
 
 ## Ordered Backlog
 
-- [ ] 1) Repair stale file-size allowlist entries and remove no-longer-needed exemptions
+- [x] 1) Repair stale file-size allowlist entries and remove no-longer-needed exemptions
   - ROI/Effort: High / S
   - Why it matters: Stale allowlist rows hide real budget regressions and create maintenance noise in every file-size audit.
   - Evidence:
@@ -17,6 +17,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: Remove stale/missing allowlist rows, prune all now-under-budget rows, and keep only active over-budget exceptions.
   - Risk/tradeoffs: Low. Only guardrail metadata changes.
   - Suggested validation: `bash scripts/report_file_size_budget_allowlist.sh` should show `missing=0` and no removable rows; then run `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `8bb36ecc`
 
 - [ ] 2) Make folder-move DB-failure regression test deterministic (remove timing race)
   - ROI/Effort: High / S
@@ -137,3 +138,4 @@ Canonical local CI command: `bash scripts/ci_local.sh`
 ## Progress Log
 
 - 2026-03-04: Phase 1 refreshed from current code state; waiting for explicit user confirmation before Phase 2.
+- 2026-03-04: Completed item 1 (stale/under-budget allowlist entries removed; report now shows `missing=0`, `ok=0`).
