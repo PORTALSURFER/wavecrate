@@ -1,7 +1,5 @@
 /// UI-state/result application routines after move workers complete.
 mod apply_result;
-/// Shared journal rollback/cleanup helpers for move workers.
-mod journal;
 /// Drag/drop planning and validation entrypoints for folder and sample moves.
 mod plan;
 /// Background worker tasks that execute filesystem/database move operations.

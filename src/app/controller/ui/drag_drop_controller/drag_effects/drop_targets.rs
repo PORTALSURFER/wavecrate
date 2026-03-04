@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use super::super::{DragDropController, file_metadata};
+use super::move_transaction::move_sample_file;
 use crate::app::controller::StatusTone;
 use crate::app::state::DragSample;
 use crate::sample_sources::{Rating, SourceId, WavEntry};
@@ -112,14 +113,14 @@ impl DragDropController<'_> {
                 }
             };
         let destination_absolute = target.source.root.join(&destination_relative);
-        if let Err(err) = super::source_moves::move_sample_file(&absolute, &destination_absolute) {
+        if let Err(err) = move_sample_file(&absolute, &destination_absolute) {
             self.set_status(err, StatusTone::Error);
             return;
         }
         let (file_size, modified_ns) = match file_metadata(&destination_absolute) {
             Ok(meta) => meta,
             Err(err) => {
-                let _ = super::source_moves::move_sample_file(&destination_absolute, &absolute);
+                let _ = move_sample_file(&destination_absolute, &absolute);
                 self.set_status(err, StatusTone::Error);
                 return;
             }
@@ -133,12 +134,12 @@ impl DragDropController<'_> {
             looped,
             last_played_at,
         ) {
-            let _ = super::source_moves::move_sample_file(&destination_absolute, &absolute);
+            let _ = move_sample_file(&destination_absolute, &absolute);
             self.set_status(err, StatusTone::Error);
             return;
         }
         if let Err(err) = self.remove_source_db_entry(&source, &relative_path) {
-            let _ = super::source_moves::move_sample_file(&destination_absolute, &absolute);
+            let _ = move_sample_file(&destination_absolute, &absolute);
             self.set_status(err, StatusTone::Error);
             return;
         }
