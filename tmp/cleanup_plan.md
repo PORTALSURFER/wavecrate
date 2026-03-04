@@ -19,7 +19,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Suggested validation: `bash scripts/report_file_size_budget_allowlist.sh` should show `missing=0` and no removable rows; then run `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `8bb36ecc`
 
-- [ ] 2) Make folder-move DB-failure regression test deterministic (remove timing race)
+- [x] 2) Make folder-move DB-failure regression test deterministic (remove timing race)
   - ROI/Effort: High / S
   - Why it matters: A flaky core file-op test blocks CI confidence and wastes iteration time.
   - Evidence:
@@ -28,6 +28,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: Replace sleep-based lock timing with deterministic synchronization (explicit lock-held/latch signaling and guaranteed release scope).
   - Risk/tradeoffs: Low-medium. Test harness changes must preserve intended DB-failure semantics.
   - Suggested validation: run targeted test repeatedly (looped `cargo test` on this test) and then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `fa24a4ff`
 
 - [ ] 3) Split background-job polling into focused message-router and handler modules with behavior tests
   - ROI/Effort: High / L
@@ -139,3 +140,4 @@ Canonical local CI command: `bash scripts/ci_local.sh`
 
 - 2026-03-04: Phase 1 refreshed from current code state; waiting for explicit user confirmation before Phase 2.
 - 2026-03-04: Completed item 1 (stale/under-budget allowlist entries removed; report now shows `missing=0`, `ok=0`).
+- 2026-03-04: Completed item 2 (folder-move DB-failure test uses explicit lock acquire/release signaling instead of sleep-based timing).
