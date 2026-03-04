@@ -18,7 +18,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: targeted background-job handler tests, `cargo test -p sempal background_jobs`, then `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `c776f452`
 
-- [ ] 2) Split search worker pipeline (`process_search_job`) into staged functions with cancellation guards per stage
+- [x] 2) Split search worker pipeline (`process_search_job`) into staged functions with cancellation guards per stage
   - ROI/Effort: High / M
   - Why it matters: Search filtering/scoring is latency-sensitive, but one long function mixes DB reopen/reload, cache invalidation, scoring, similar sorting, and output shaping.
   - Evidence:
@@ -28,6 +28,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Extract stage helpers (`load_or_refresh_entries`, `compute_scores`, `build_visible_rows`, `finalize_result`) and add tests for cancellation cutoff, query-cache reuse, folder-filter hash invalidation, and sort-mode correctness.
   - Risk/tradeoffs: Medium. Search ranking/sort order can regress if stage contracts are not explicit.
   - Suggested validation: search-worker unit tests under `src/app/controller/library/wavs/browser_search_worker`, then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `e90400b8`
 
 - [ ] 3) Remove duplicated rollback/journal error branches across source/folder move workers
   - ROI/Effort: High / M
