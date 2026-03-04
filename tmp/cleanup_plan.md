@@ -88,7 +88,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: selection unit tests + controller waveform selection tests, then `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `b5e04073`
 
-- [ ] 8) Reduce `issue_gateway/token_store.rs` production-file bloat by moving inline tests
+- [x] 8) Reduce `issue_gateway/token_store.rs` production-file bloat by moving inline tests
   - ROI/Effort: Medium / S
   - Why it matters: Security-sensitive production logic still shares a large file with extensive test fixtures/cases, which slows review and increases cognitive load.
   - Evidence:
@@ -97,6 +97,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Move token-store tests into `token_store/tests/*.rs` (or sibling `tests.rs`) and keep the main module focused on runtime code.
   - Risk/tradeoffs: Low. Primarily structural movement.
   - Suggested validation: `cargo test -p sempal issue_gateway::token_store`, then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `f8335dcc`
 
 - [ ] 9) Remove or narrow non-test `dead_code` allowances in core app modules
   - ROI/Effort: Medium / S
