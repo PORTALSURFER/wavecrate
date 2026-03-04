@@ -37,7 +37,6 @@ impl SourceId {
     }
 
     /// Borrow the identifier as a string.
-    #[allow(dead_code)]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -79,20 +78,17 @@ impl SampleSource {
     }
 
     /// Location of the SQLite database for this source.
-    #[allow(dead_code)]
     pub fn db_path(&self) -> PathBuf {
         database_path_for(&self.root)
     }
 
     /// Open the SQLite database for this source, creating it if necessary.
-    #[allow(dead_code)]
     pub fn open_db(&self) -> Result<SourceDatabase, SourceDbError> {
         SourceDatabase::open(&self.root)
     }
 }
 
 /// Name the per-source database using a hidden file inside the chosen folder.
-#[allow(dead_code)]
 pub fn database_path_for(root: &Path) -> PathBuf {
     root.join(DB_FILE_NAME)
 }

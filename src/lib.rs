@@ -5,6 +5,8 @@
 extern crate alloc;
 /// Background analysis helpers.
 pub mod analysis;
+/// Keep app internals compiled for the binary/runtime while the library target
+/// intentionally reuses only a subset of that surface.
 #[allow(dead_code)]
 mod app;
 /// Backend-neutral app-core projection and action helpers used during GUI migration.
