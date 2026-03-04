@@ -19,6 +19,7 @@ pub(in crate::bench::gui) fn waveform_action_for_step(step: usize) -> NativeUiAc
         3 => NativeUiAction::ZoomWaveform {
             zoom_in: true,
             steps: 2,
+            anchor_ratio_micros: None,
         },
         4 => NativeUiAction::ZoomWaveformToSelection,
         _ => NativeUiAction::ZoomWaveformFull,
@@ -37,10 +38,12 @@ pub(in crate::bench::gui) fn adjacent_waveform_action_for_step(step: usize) -> N
         2 => NativeUiAction::ZoomWaveform {
             zoom_in: true,
             steps: 1,
+            anchor_ratio_micros: None,
         },
         _ => NativeUiAction::ZoomWaveform {
             zoom_in: false,
             steps: 1,
+            anchor_ratio_micros: None,
         },
     }
 }

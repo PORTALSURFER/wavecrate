@@ -302,8 +302,12 @@ fn apply_waveform_native_ui_action(
         NativeUiAction::ClearWaveformEditSelection => {
             controller.clear_waveform_edit_selection_with_focus()
         }
-        NativeUiAction::ZoomWaveform { zoom_in, steps } => {
-            controller.zoom_waveform_steps_from_ui(zoom_in, steps)
+        NativeUiAction::ZoomWaveform {
+            zoom_in,
+            steps,
+            anchor_ratio_micros,
+        } => {
+            controller.zoom_waveform_steps_from_ui_with_anchor(zoom_in, steps, anchor_ratio_micros)
         }
         NativeUiAction::ZoomWaveformToSelection => {
             controller.zoom_waveform_to_selection_with_focus()

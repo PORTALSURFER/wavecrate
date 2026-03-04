@@ -153,14 +153,16 @@ fn adjacent_waveform_action_sequence_covers_expected_native_actions() {
         adjacent_waveform_action_for_step(2),
         NativeUiAction::ZoomWaveform {
             zoom_in: true,
-            steps: 1
+            steps: 1,
+            ..
         }
     ));
     assert!(matches!(
         adjacent_waveform_action_for_step(3),
         NativeUiAction::ZoomWaveform {
             zoom_in: false,
-            steps: 1
+            steps: 1,
+            ..
         }
     ));
 }

@@ -109,6 +109,8 @@ struct PendingWaveformActions {
     clear_selection: bool,
     /// Net signed waveform zoom step delta accumulated this frame.
     zoom_steps_delta: i16,
+    /// Latest queued pointer-anchor ratio for waveform zoom (`0..=1_000_000`).
+    zoom_anchor_ratio_micros: Option<u32>,
     /// Whether `ZoomWaveformToSelection` is queued for this frame.
     zoom_to_selection: bool,
     /// Whether `ZoomWaveformFull` is queued for this frame.
@@ -151,7 +153,11 @@ impl PendingWaveformActions {
                 self.clear_selection = true;
                 true
             }
-            NativeUiAction::ZoomWaveform { zoom_in, steps } => {
+            NativeUiAction::ZoomWaveform {
+                zoom_in,
+                steps,
+                anchor_ratio_micros,
+            } => {
                 if self.zoom_full || self.zoom_to_selection {
                     return true;
                 }
@@ -161,16 +167,23 @@ impl PendingWaveformActions {
                     -i16::from(*steps)
                 };
                 self.zoom_steps_delta = self.zoom_steps_delta.saturating_add(signed_steps);
+                self.zoom_anchor_ratio_micros = if self.zoom_steps_delta == 0 {
+                    None
+                } else {
+                    anchor_ratio_micros.map(|micros| micros.min(1_000_000))
+                };
                 true
             }
             NativeUiAction::ZoomWaveformToSelection => {
                 self.zoom_steps_delta = 0;
+                self.zoom_anchor_ratio_micros = None;
                 self.zoom_to_selection = true;
                 self.zoom_full = false;
                 true
             }
             NativeUiAction::ZoomWaveformFull => {
                 self.zoom_steps_delta = 0;
+                self.zoom_anchor_ratio_micros = None;
                 self.zoom_to_selection = false;
                 self.zoom_full = true;
                 true
@@ -356,7 +369,11 @@ impl SempalNativeBridge {
                 .unsigned_abs()
                 .min(u16::from(u8::MAX)) as u8;
             self.controller
-                .apply_native_ui_action(NativeUiAction::ZoomWaveform { zoom_in, steps });
+                .apply_native_ui_action(NativeUiAction::ZoomWaveform {
+                    zoom_in,
+                    steps,
+                    anchor_ratio_micros: pending.zoom_anchor_ratio_micros,
+                });
             emitted_actions = emitted_actions.saturating_add(1);
         }
 

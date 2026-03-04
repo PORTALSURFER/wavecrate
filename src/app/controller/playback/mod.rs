@@ -36,6 +36,8 @@ const PLAYHEAD_COMPLETION_EPSILON: f32 = 0.001;
 const WAVEFORM_CURSOR_NOOP_EPSILON: f32 = 1.0e-6;
 /// Equality epsilon used for waveform view no-op detection.
 const WAVEFORM_VIEW_NOOP_EPSILON: f64 = 1.0e-9;
+/// Integer precision used for pointer-anchored waveform zoom ratios.
+const WAVEFORM_ANCHOR_RATIO_MICROS_SCALE: f64 = 1_000_000.0;
 /// Debounce duration for deferred playback-age database writes.
 const DEFERRED_PLAYBACK_AGE_COMMIT_DELAY: Duration = Duration::from_millis(160);
 
@@ -280,9 +282,29 @@ impl AppController {
 
     /// Zoom waveform from UI actions using clamped step counts and focus retention.
     pub fn zoom_waveform_steps_from_ui(&mut self, zoom_in: bool, steps: u8) {
+        self.zoom_waveform_steps_from_ui_with_anchor(zoom_in, steps, None);
+    }
+
+    /// Zoom waveform from UI actions using an optional pointer anchor ratio.
+    ///
+    /// `anchor_ratio_micros` uses deterministic micros (`0..=1_000_000`) where
+    /// `0` is the left edge and `1_000_000` is the right edge of the current view.
+    pub fn zoom_waveform_steps_from_ui_with_anchor(
+        &mut self,
+        zoom_in: bool,
+        steps: u8,
+        anchor_ratio_micros: Option<u32>,
+    ) {
         let before_view = self.ui.waveform.view;
         let focused_before = waveform_focus_active(self);
-        let cursor_focus = if let Some(cursor) = self.ui.waveform.cursor {
+        let cursor_focus = if let Some(anchor_ratio_micros) = anchor_ratio_micros {
+            let ratio =
+                f64::from(anchor_ratio_micros.min(1_000_000)) / WAVEFORM_ANCHOR_RATIO_MICROS_SCALE;
+            let focus =
+                (before_view.start + (before_view.end - before_view.start) * ratio).clamp(0.0, 1.0);
+            self.set_waveform_cursor_from_hover(focus as f32);
+            focus
+        } else if let Some(cursor) = self.ui.waveform.cursor {
             f64::from(cursor)
         } else {
             let center = ((before_view.start + before_view.end) * 0.5).clamp(0.0, 1.0);
@@ -796,6 +818,33 @@ mod tests {
         let after = controller.ui.waveform.view;
         let after_ratio = (cursor - after.start) / (after.end - after.start);
         assert!((before_ratio - after_ratio).abs() < 1.0e-4);
+    }
+
+    /// Pointer-anchored UI zoom should preserve the hovered ratio across zoom steps.
+    #[test]
+    fn zoom_steps_from_ui_with_anchor_ratio_preserves_pointer_position() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        seed_waveform_for_zoom(&mut controller);
+        controller.ui.waveform.view = crate::app::state::WaveformView {
+            start: 0.2,
+            end: 0.8,
+        };
+        controller.ui.waveform.cursor = Some(0.9);
+        let anchor_ratio_micros = 250_000;
+        let anchor = 0.35f64;
+
+        controller.zoom_waveform_steps_from_ui_with_anchor(true, 1, Some(anchor_ratio_micros));
+
+        let after = controller.ui.waveform.view;
+        let after_ratio = (anchor - after.start) / (after.end - after.start);
+        assert!((after_ratio - 0.25).abs() < 1.0e-6);
+        assert!(
+            controller
+                .ui
+                .waveform
+                .cursor
+                .is_some_and(|cursor| (f64::from(cursor) - anchor).abs() < 1.0e-6)
+        );
     }
 
     /// UI zoom should initialize cursor at view center when none exists.
