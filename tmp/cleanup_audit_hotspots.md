@@ -1,8 +1,8 @@
 # Cleanup Hotspot Audit Snapshot
 
-- Generated (UTC): `2026-03-04T13:05:22Z`
+- Generated (UTC): `2026-03-04T13:23:34Z`
 - Branch: `next`
-- Commit: `06233ade`
+- Commit: `2c774aa4`
 - Rust files scanned: 507
 - File-size budget limit: `400`
 

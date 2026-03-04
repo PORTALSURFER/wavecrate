@@ -57,13 +57,13 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: runtime responsiveness/performance redesign (Xilem-inspired scoped invalidation + cache reuse)
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
-- Current status: `tmp/cleanup_plan.md` Phase 2 is complete (items 1-12 done); runtime work from `tmp/perf_plan.md` is active again and item 7 is next.
+- Current status: cleanup audit has been refreshed in `tmp/cleanup_plan.md`; Phase 2 implementation is pending explicit user confirmation.
 
 ## Immediate Next Actions
-1. Execute item 7 from `tmp/perf_plan.md`: cache waveform image upload payloads across draws.
-2. Continue runtime plan items sequentially in strict ROI order; after each item run validation, commit, push, and mark completion with date/hash.
+1. Present the exact ordered ROI list from `tmp/cleanup_plan.md` to the user and request explicit Phase 2 confirmation.
+2. If confirmed, execute cleanup items sequentially in strict plan order with CI + commit/push per item.
 3. Keep handoff docs synchronized on milestone commits (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
-4. Use `docs/plans/active/cleanup_architecture_note.md` guardrails for future cleanup passes.
+4. Use `docs/plans/active/cleanup_architecture_note.md` guardrails during cleanup implementation.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
