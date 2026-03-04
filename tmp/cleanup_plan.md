@@ -86,7 +86,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: controller wav/browser selection tests + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `e882abff`
 
-- [ ] 8) Defer non-critical DB metadata writes from immediate waveform load path
+- [x] 8) Defer non-critical DB metadata writes from immediate waveform load path
   - ROI/Effort: Medium / M
   - Why it matters: The waveform load path includes synchronous metadata write/open operations that can add interaction jitter.
   - Evidence:
@@ -96,6 +96,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Keep waveform render/load path focused on decode/display and queue metadata persistence asynchronously where safe.
   - Risk/tradeoffs: Medium. Deferred writes introduce eventual consistency windows.
   - Suggested validation: interaction latency sanity checks + metadata convergence integration tests + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `636e3953`
 
 - [ ] 9) Replace remaining file-level `clippy::too_many_arguments` suppressions in core hotspots with typed parameter structs
   - ROI/Effort: Medium / M
@@ -145,3 +146,4 @@ Status legend: `[ ]` pending, `[x]` done
 - 2026-03-04: Completed item 5 (file-ops journal malformed-row surfacing + staged/target reconciliation helper split + expect-path removal).
 - 2026-03-04: Completed item 6 (toggle_loop staged policy helpers + explicit loop restart policy tests).
 - 2026-03-04: Completed item 7 (wavs controller facade split into focused entry, metadata, browser, and similarity modules while preserving API surface).
+- 2026-03-04: Completed item 8 (deferred loaded-duration metadata writes + cached BPM reads to keep waveform load path focused on decode/display).
