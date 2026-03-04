@@ -98,7 +98,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: interaction latency sanity checks + metadata convergence integration tests + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `636e3953`
 
-- [ ] 9) Replace remaining file-level `clippy::too_many_arguments` suppressions in core hotspots with typed parameter structs
+- [x] 9) Replace remaining file-level `clippy::too_many_arguments` suppressions in core hotspots with typed parameter structs
   - ROI/Effort: Medium / M
   - Why it matters: File-level suppressions hide call complexity and reduce signature clarity in frequently edited modules.
   - Evidence:
@@ -108,6 +108,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Convert top 2-3 argument-heavy functions per file to typed input structs and narrow/retire suppressions incrementally.
   - Risk/tradeoffs: Medium. Signature changes can cascade through call sites.
   - Suggested validation: `cargo clippy --all-targets` + targeted domain tests + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `487e418c`
 
 - [ ] 10) Close crate-visible documentation gaps in native shell/bridge high-churn APIs
   - ROI/Effort: Low / S
@@ -147,3 +148,4 @@ Status legend: `[ ]` pending, `[x]` done
 - 2026-03-04: Completed item 6 (toggle_loop staged policy helpers + explicit loop restart policy tests).
 - 2026-03-04: Completed item 7 (wavs controller facade split into focused entry, metadata, browser, and similarity modules while preserving API surface).
 - 2026-03-04: Completed item 8 (deferred loaded-duration metadata writes + cached BPM reads to keep waveform load path focused on decode/display).
+- 2026-03-04: Completed item 9 (typed payload conversion for move journal and move registration paths + file-level too-many-arguments suppressions removed from targeted files).
