@@ -6,152 +6,128 @@ Status legend: `[ ]` pending, `[x]` done
 
 ## Ordered Backlog
 
-- [x] 1) Decompose `poll_background_jobs` into focused message handlers and add dispatch tests
+- [ ] 1) Extract native bridge waveform action reduction/flush pipeline into staged helpers with focused tests
   - ROI/Effort: High / M
-  - Why it matters: One function currently owns cancellation handling, queue draining, stale-request guards, progress updates, and all job result routing. This raises regression risk and makes behavioral review difficult.
+  - Why it matters: Waveform input (seek/cursor/selection/zoom) is on a high-frequency path, but reduction, coalescing, cache invalidation, and dirty propagation are tightly coupled in one block.
   - Evidence:
-    - `src/app/controller/library/background_jobs/mod.rs` is 502 LOC.
-    - `poll_background_jobs` spans 485 lines at `src/app/controller/library/background_jobs/mod.rs:18`.
-    - No local tests/`#[cfg(test)]` in `src/app/controller/library/background_jobs/mod.rs`.
-  - Recommended change: Split cancellation pre-pass + per-message handlers into dedicated helper modules (for example `handlers/audio.rs`, `handlers/file_ops.rs`, `handlers/updates.rs`) and add focused tests for stale message rejection and progress-state transitions.
-  - Risk/tradeoffs: Medium. Reordering message side effects can cause subtle behavior drift if invariants are not preserved.
-  - Suggested validation: targeted background-job handler tests, `cargo test -p sempal background_jobs`, then `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `c776f452`
+    - `src/app_core/native_bridge.rs` is 695 LOC.
+    - `flush_pending_waveform_actions` at `src/app_core/native_bridge.rs:345`.
+    - `reduce_action` at `src/app_core/native_bridge.rs:595` duplicates flow around immediate/deferred action handling.
+  - Recommended change: Split into explicit stages (reduce, apply, invalidate, mark dirty), keep ordering semantics unchanged, and add table-driven tests for mixed queued action sets.
+  - Risk/tradeoffs: Medium-high. Ordering regressions can break interaction semantics or undo performance wins.
+  - Suggested validation: targeted native-bridge action-reduction tests + `bash scripts/ci_local.sh`.
 
-- [x] 2) Split search worker pipeline (`process_search_job`) into staged functions with cancellation guards per stage
-  - ROI/Effort: High / M
-  - Why it matters: Search filtering/scoring is latency-sensitive, but one long function mixes DB reopen/reload, cache invalidation, scoring, similar sorting, and output shaping.
-  - Evidence:
-    - `process_search_job` spans 343 lines at `src/app/controller/library/wavs/browser_search_worker/pipeline.rs:18`.
-    - Cancellation checks are repeated across many branches (`search_job_canceled*` calls across `pipeline.rs:25-370`).
-    - No local tests in `src/app/controller/library/wavs/browser_search_worker/pipeline.rs`.
-  - Recommended change: Extract stage helpers (`load_or_refresh_entries`, `compute_scores`, `build_visible_rows`, `finalize_result`) and add tests for cancellation cutoff, query-cache reuse, folder-filter hash invalidation, and sort-mode correctness.
-  - Risk/tradeoffs: Medium. Search ranking/sort order can regress if stage contracts are not explicit.
-  - Suggested validation: search-worker unit tests under `src/app/controller/library/wavs/browser_search_worker`, then `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `e90400b8`
-
-- [x] 3) Remove duplicated rollback/journal error branches across source/folder move workers
-  - ROI/Effort: High / M
-  - Why it matters: The staged-move workers still duplicate long rollback/journal cleanup sequences, which makes file-op fixes expensive and inconsistent.
-  - Evidence:
-    - `run_source_move_task` at `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs:297`.
-    - `run_folder_sample_move_task` at `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/worker.rs:62`.
-    - Repeated `rollback_staged_move_to_source`/`remove_move_journal_entry` blocks in both files (for example source worker `:410-480`, folder worker `:156-240`).
-  - Recommended change: Introduce a shared failure-handling helper that encapsulates rollback + journal cleanup + progress reporting, and reuse it in both workers.
-  - Risk/tradeoffs: Medium. Shared helper bugs affect both move paths.
-  - Suggested validation: drag-drop move/rollback tests (including cancellation and DB-write failures), then `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `0d6b20cf`
-
-- [x] 4) Continue splitting `ControllerJobs` into domain modules (`dto`, `state`, `lifecycle`, `dispatch`)
+- [ ] 2) Split playback audio loader into explicit execution stages and isolated telemetry state
   - ROI/Effort: High / L
-  - Why it matters: `ControllerJobs` still combines message DTO definitions, worker handles, lifecycle/shutdown behavior, queue dispatch, and request-id/state management in one file.
+  - Why it matters: Audio load latency correctness is high-impact; one large function currently mixes IO, decode, sanitization, stretch, stale gating, and accounting.
   - Evidence:
-    - `src/app/controller/jobs.rs` is 1237 LOC.
-    - `ControllerJobs` starts at `src/app/controller/jobs.rs:573` and mixes many responsibilities through the remainder of the file.
-  - Recommended change: Move DTO/result types and job-state types into focused submodules, keeping `jobs.rs` as an orchestration facade.
-  - Risk/tradeoffs: Medium. Many call-sites depend on existing imports and visibility.
-  - Suggested validation: controller job unit tests + integration smoke for scan/file-op/update flows, then `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `4cf0fa15`
+    - `src/app/controller/playback/audio_loader.rs` is 693 LOC.
+    - `load_audio_inner` spans from `src/app/controller/playback/audio_loader.rs:368`.
+    - File-level telemetry globals/counters around `audio_loader.rs:23-164` increase coupling.
+  - Recommended change: Extract `io`, `decode`, `stretch`, and `finalize` stages plus a telemetry helper module, preserving request-id/stale-drop semantics.
+  - Risk/tradeoffs: Medium-high. Stage reorder mistakes can cause stale data application or audio behavior drift.
+  - Suggested validation: stale-stage table tests + existing audio_loader tests + `bash scripts/ci_local.sh`.
 
-- [x] 5) Break `playback/mod.rs` API facade into smaller responsibility files
+- [ ] 3) Refactor source-move worker into staged operations with unified completion/failure progress handling
+  - ROI/Effort: High / M
+  - Why it matters: Move workflows are failure-prone and currently branch-heavy; repeated completion/progress code makes correctness auditing difficult.
+  - Evidence:
+    - `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs` is 607 LOC.
+    - `run_source_move_task` starts at `source_moves.rs:297` and contains repeated `completed += 1` / progress-report branches.
+  - Recommended change: Introduce focused per-stage helpers and one shared completion/failure accounting path.
+  - Risk/tradeoffs: Medium. Error-path behavior must remain exact for rollback/reporting parity.
+  - Suggested validation: failure-injection tests across target-db open/write/delete/rename paths + `bash scripts/ci_local.sh`.
+
+- [ ] 4) Split native shell projection facade into narrower projection modules with stable re-exports
   - ROI/Effort: High / L
-  - Why it matters: Playback API entrypoints, waveform zoom/cursor actions, deferred persistence, tagging/navigation wrappers, and internal helpers all live in one large module.
+  - Why it matters: `native_shell.rs` remains a large mixed-responsibility projection surface, slowing review and increasing edit collision risk.
   - Evidence:
-    - `src/app/controller/playback/mod.rs` is 1031 LOC.
-    - Dense wrapper surface across `mod.rs:98-643` and internal helper logic around `mod.rs:645-706`.
-    - Adjacent `transport` module is also large (`src/app/controller/playback/transport.rs` at 708 LOC).
-  - Recommended change: Split façade by behavior (`waveform_actions.rs`, `selection_actions.rs`, `persistence_flush.rs`, `navigation_actions.rs`) while preserving public controller methods.
-  - Risk/tradeoffs: Medium-high. Public method wiring is broad and heavily used by UI/runtime paths.
-  - Suggested validation: playback + waveform controller tests (including zoom anchor and deferred commit paths), then `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `0844eaf2`
+    - `src/app_core/native_shell.rs` is 758 LOC.
+    - Core mixed projection entry points: `project_app_model` (`:103`), `project_update_model` (`:324`), `project_confirm_prompt_model` (`:408`), `project_sources_model` (`:567`).
+  - Recommended change: Move update/prompt/sources/browser projection logic into dedicated module files under `src/app_core/native_shell/`, keeping public API unchanged.
+  - Risk/tradeoffs: Medium. Projection wiring mistakes can regress UI model parity.
+  - Suggested validation: existing native_shell parity tests + targeted projection regression tests + `bash scripts/ci_local.sh`.
 
-- [x] 6) Refactor native bridge metrics logging into snapshot + formatter layers
+- [ ] 5) Harden file-ops journal reconciliation by removing silent malformed-entry drops and panic-style expect paths
+  - ROI/Effort: High / M
+  - Why it matters: Journal reconciliation is safety-critical; silently skipping malformed rows and panic-style assumptions weaken recoverability.
+  - Evidence:
+    - `src/sample_sources/db/file_ops_journal.rs` is 615 LOC.
+    - `list_entries` at `file_ops_journal.rs:247` drops invalid paths via `Ok(None)` logic.
+    - `reconcile_entry` at `file_ops_journal.rs:343` includes `expect("checked staged path")` at `:359`.
+  - Recommended change: Return explicit malformed-entry outcomes (or quarantined errors), split reconciliation into phase helpers, remove `expect` from runtime path.
+  - Risk/tradeoffs: Medium. Stricter handling may surface pre-existing journal corruption more visibly.
+  - Suggested validation: malformed-entry + reconcile-matrix tests (staged/target/source combinations) + `bash scripts/ci_local.sh`.
+
+- [ ] 6) Extract `toggle_loop` policy flow into smaller decision helpers with scenario coverage
   - ROI/Effort: Medium / M
-  - Why it matters: Profiling counters are useful, but metrics aggregation and logging are concentrated in one very large function with no direct unit tests.
+  - Why it matters: Loop behavior touches playback state, selection semantics, DB writes, and UI; current all-in-one flow is hard to reason about.
   - Evidence:
-    - `src/app_core/native_bridge/metrics.rs` is 791 LOC.
-    - `maybe_log_bridge_profile` spans 284 lines at `src/app_core/native_bridge/metrics.rs:185`.
-    - No local tests in `src/app_core/native_bridge/metrics.rs`.
-  - Recommended change: Introduce a `BridgeMetricsSnapshot` builder and a formatter/helper module so logging output and counter math are independently testable.
-  - Risk/tradeoffs: Medium-low. Feature-gated behavior must remain no-op in non-metrics builds.
-  - Suggested validation: metrics feature tests (`--features native-bridge-metrics`) + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `742b0387`
+    - `src/app/controller/playback/transport.rs` is 708 LOC.
+    - `toggle_loop` spans dense branching at `transport.rs:188-303`.
+  - Recommended change: Split policy into explicit branches (enable, disable, defer-disable, restart) and isolate side effects into named helpers.
+  - Risk/tradeoffs: Medium. Sequence changes can alter audible behavior and loop state timing.
+  - Suggested validation: scenario tests for playing/not-playing and with/without selection + `bash scripts/ci_local.sh`.
 
-- [x] 7) Split `selection.rs` into focused range/state modules and externalize tests
+- [ ] 7) Split `wavs.rs` controller facade by responsibility (cache, selection, metadata, browser actions)
+  - ROI/Effort: Medium / L
+  - Why it matters: The wavs controller facade remains very large and serves many unrelated concerns, increasing coupling and churn risk.
+  - Evidence:
+    - `src/app/controller/library/wavs.rs` is 638 LOC.
+    - File contains broad method surface (cache refresh, selection, metadata writes, browser focus/sort helpers).
+  - Recommended change: Partition by responsibility into submodules while preserving `AppController` API surface.
+  - Risk/tradeoffs: Medium. Large call-site movement can create merge friction.
+  - Suggested validation: controller wav/browser selection tests + `bash scripts/ci_local.sh`.
+
+- [ ] 8) Defer non-critical DB metadata writes from immediate waveform load path
   - ROI/Effort: Medium / M
-  - Why it matters: Selection math, fade/gain modeling, drag state transitions, and a large inline test module are co-located, reducing navigability.
+  - Why it matters: The waveform load path includes synchronous metadata write/open operations that can add interaction jitter.
   - Evidence:
-    - `src/selection.rs` is 889 LOC.
-    - Core types are mixed in one file (`SelectionRange` near `selection.rs:49`, `SelectionState` near `selection.rs:408`, tests start at `selection.rs:600`).
-  - Recommended change: Move pure range/fade math into `selection/range.rs`, drag/state machine logic into `selection/state.rs`, and tests into dedicated test modules.
-  - Risk/tradeoffs: Medium-low. Public API surface in `selection` is broadly used and must remain stable.
-  - Suggested validation: selection unit tests + controller waveform selection tests, then `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `b5e04073`
+    - `src/app/controller/library/wavs/waveform_loading.rs` is 506 LOC.
+    - Metadata write/update block around `waveform_loading.rs:314-390`.
+    - Additional DB open/read for BPM near `waveform_loading.rs:426-442`.
+  - Recommended change: Keep waveform render/load path focused on decode/display and queue metadata persistence asynchronously where safe.
+  - Risk/tradeoffs: Medium. Deferred writes introduce eventual consistency windows.
+  - Suggested validation: interaction latency sanity checks + metadata convergence integration tests + `bash scripts/ci_local.sh`.
 
-- [x] 8) Reduce `issue_gateway/token_store.rs` production-file bloat by moving inline tests
-  - ROI/Effort: Medium / S
-  - Why it matters: Security-sensitive production logic still shares a large file with extensive test fixtures/cases, which slows review and increases cognitive load.
-  - Evidence:
-    - `src/issue_gateway/token_store.rs` is 790 LOC.
-    - Inline tests begin at `src/issue_gateway/token_store.rs:358` and run through the end of file.
-  - Recommended change: Move token-store tests into `token_store/tests/*.rs` (or sibling `tests.rs`) and keep the main module focused on runtime code.
-  - Risk/tradeoffs: Low. Primarily structural movement.
-  - Suggested validation: `cargo test -p sempal issue_gateway::token_store`, then `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `f8335dcc`
-
-- [x] 9) Remove or narrow non-test `dead_code` allowances in core app modules
-  - ROI/Effort: Medium / S
-  - Why it matters: Broad suppressions can hide stale APIs and weaken warning signal quality.
-  - Evidence:
-    - `src/lib.rs:8` has `#[allow(dead_code)] mod app;`.
-    - `src/sample_sources/mod.rs` has `#[allow(dead_code)]` on methods/functions at lines `40`, `82`, `88`, `95`.
-    - `src/app/controller/ui/hotkeys/types.rs` suppresses unused variants at lines `135-142`.
-  - Recommended change: Verify usage; remove dead code where possible, otherwise gate with narrower cfg/test-only annotations and document rationale.
-  - Risk/tradeoffs: Low-medium. Some APIs may be intentionally retained for binary/test wiring.
-  - Suggested validation: `cargo clippy --all-targets`, then `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `050160c0`
-
-- [x] 10) Replace crate-wide `too_many_arguments` suppressions with typed parameter objects in top hotspots
+- [ ] 9) Replace remaining file-level `clippy::too_many_arguments` suppressions in core hotspots with typed parameter structs
   - ROI/Effort: Medium / M
-  - Why it matters: Broad file-level suppressions hide call-site complexity and make APIs harder to evolve safely.
+  - Why it matters: File-level suppressions hide call complexity and reduce signature clarity in frequently edited modules.
   - Evidence:
-    - File-level allowances in core paths such as:
-      - `src/waveform/render.rs:1`
-      - `src/waveform/render/cache.rs:1`
-      - `src/sample_sources/db/file_ops_journal.rs:1`
-      - `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs:1`
-      - `src/app/controller/library/wavs/waveform_loading.rs:1`
-  - Recommended change: Start with 2-3 highest-churn call paths; introduce small config/input structs to collapse related arguments and remove local suppressions incrementally.
-  - Risk/tradeoffs: Medium. Signature changes can create broad call-site churn.
-  - Suggested validation: targeted unit tests for refactored call chains + `cargo clippy --all-targets` + `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `7cc879ac`
+    - `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs:1`
+    - `src/app/controller/library/wavs/waveform_loading.rs:1`
+    - `src/sample_sources/db/file_ops_journal.rs:1`
+  - Recommended change: Convert top 2-3 argument-heavy functions per file to typed input structs and narrow/retire suppressions incrementally.
+  - Risk/tradeoffs: Medium. Signature changes can cascade through call sites.
+  - Suggested validation: `cargo clippy --all-targets` + targeted domain tests + `bash scripts/ci_local.sh`.
 
-- [x] 11) Close crate-visible documentation gaps in high-churn controller/runtime helpers
-  - ROI/Effort: Low / M
-  - Why it matters: Many `pub(crate)` APIs are used across modules but lack intent/constraint docs, increasing onboarding and maintenance cost.
-  - Evidence:
-    - Missing docs on crate-visible functions in high-churn paths (examples):
-      - `src/app/controller/playback/mod.rs:65` (`bpm_min_selection_seconds`)
-      - `src/app/controller/playback/mod.rs:82` (`selection_meets_bpm_min_for_playback`)
-      - numerous crate-visible helpers reported by audit query across `src/app/controller/library/**` and `src/app/controller/playback/**`.
-  - Recommended change: Add concise docs for what/why/constraints on crate-visible functions in top hotspots first (background jobs, playback, search pipeline, selection edits).
-  - Risk/tradeoffs: Low. Documentation churn only.
-  - Suggested validation: `RUSTDOCFLAGS='-D warnings' cargo doc -p sempal --no-deps` and `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `145a740d`
-
-- [x] 12) Tighten cleanup-audit test-gap heuristic to exclude dedicated `tests.rs` files
+- [ ] 10) Close crate-visible documentation gaps in native shell/bridge high-churn APIs
   - ROI/Effort: Low / S
-  - Why it matters: Current hotspot report shows known test files as “test-gap” candidates, adding noise to planning.
+  - Why it matters: Cross-module projection helpers are reused widely but some key crate-visible APIs still lack explicit intent/constraints docs.
   - Evidence:
-    - `tmp/cleanup_audit_hotspots.md` “Likely test-gap hotspots” includes `src/app_core/native_bridge/tests.rs` and `src/app_core/native_shell/tests.rs`.
-    - Script currently filters `*/tests/*`, `tests/*`, and `*_test.rs`, but not `*/tests.rs`.
-  - Recommended change: Update `scripts/audit_cleanup_hotspots.sh` filtering to skip `tests.rs` files and document the heuristic in script usage/help text.
-  - Risk/tradeoffs: Low. Report-only behavior change.
-  - Suggested validation: rerun script and confirm test-gap list no longer includes dedicated test modules, then `bash scripts/ci_local.sh`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `f41028ad`
+    - Undocumented crate-visible entry points in `src/app_core/native_shell.rs`, including `project_app_model` (`:103`), `project_motion_model` (`:259`), and `selected_column_index` (`:555`).
+  - Recommended change: Add concise doc comments for what/why/constraints on crate-visible projection helpers.
+  - Risk/tradeoffs: Low. Documentation-only change.
+  - Suggested validation: `RUSTDOCFLAGS='-D warnings' cargo doc -p sempal --no-deps` + `bash scripts/ci_local.sh`.
+
+- [ ] 11) Add focused tests for profile message formatting and projection-cache counters in metrics paths
+  - ROI/Effort: Low / M
+  - Why it matters: Bridge metrics logic is feature-gated and structurally complex; current tests emphasize helper math over output-shape regression coverage.
+  - Evidence:
+    - `src/app_core/native_bridge/metrics.rs` is 834 LOC with format/publish logic centered around `format_bridge_profile_message` near `metrics.rs:398`.
+  - Recommended change: Add tests asserting expected field presence and stable formatting for key profile message outputs under metrics-enabled builds.
+  - Risk/tradeoffs: Low-medium. Feature-gated test setup can be brittle without careful scaffolding.
+  - Suggested validation: `cargo test -p sempal --features native-bridge-metrics app_core::native_bridge::metrics` + `bash scripts/ci_local.sh`.
+
+- [ ] 12) Consolidate duplicated BPM display formatting into one shared helper
+  - ROI/Effort: Low / S
+  - Why it matters: Duplicate formatting rules increase drift risk and create small but recurring maintenance noise.
+  - Evidence:
+    - Formatting logic duplicates in `src/app/controller/playback/transport.rs:475-481` and `src/app/controller/library/wavs/waveform_loading.rs:449-455`.
+  - Recommended change: Introduce a single shared formatting helper and cover integer/fractional/invalid BPM cases with unit tests.
+  - Risk/tradeoffs: Low. Small call-site updates only.
+  - Suggested validation: targeted formatting tests + `bash scripts/ci_local.sh`.
 
 ## Progress Log
 
 - 2026-03-04: Phase 1 refreshed from current code state; awaiting explicit user confirmation before Phase 2 implementation.
-- 2026-03-04: Completed item 11 documentation pass for high-churn crate-visible controller/runtime helpers.
-- 2026-03-04: Completed item 12 cleanup-audit heuristic update to exclude dedicated `tests.rs` modules from test-gap output.
