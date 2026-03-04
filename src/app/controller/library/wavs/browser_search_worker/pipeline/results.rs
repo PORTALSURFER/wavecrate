@@ -53,17 +53,23 @@ pub(super) fn triage_partitions_for_revision(
     (Arc::from([]), Arc::from([]), Arc::from([]))
 }
 
-pub(super) fn empty_search_result(job: SearchJob) -> SearchResult {
+/// Build an empty search result while preserving the incoming request metadata.
+pub(super) fn empty_search_result_for(job: &SearchJob) -> SearchResult {
     SearchResult {
         request_id: job.request_id,
-        source_id: job.source_id,
-        query: job.query,
+        source_id: job.source_id.clone(),
+        query: job.query.clone(),
         visible: VisibleRows::List(Vec::new().into()),
         trash: Arc::from([]),
         neutral: Arc::from([]),
         keep: Arc::from([]),
         scores: Arc::from([]),
     }
+}
+
+/// Build an empty search result from an owned job (legacy helper).
+pub(super) fn empty_search_result(job: SearchJob) -> SearchResult {
+    empty_search_result_for(&job)
 }
 
 pub(super) fn sort_visible_by_playback_age(
