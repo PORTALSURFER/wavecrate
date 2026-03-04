@@ -30,7 +30,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: stale-stage table tests + existing audio_loader tests + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `79c5790e`
 
-- [ ] 3) Refactor source-move worker into staged operations with unified completion/failure progress handling
+- [x] 3) Refactor source-move worker into staged operations with unified completion/failure progress handling
   - ROI/Effort: High / M
   - Why it matters: Move workflows are failure-prone and currently branch-heavy; repeated completion/progress code makes correctness auditing difficult.
   - Evidence:
@@ -39,6 +39,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Introduce focused per-stage helpers and one shared completion/failure accounting path.
   - Risk/tradeoffs: Medium. Error-path behavior must remain exact for rollback/reporting parity.
   - Suggested validation: failure-injection tests across target-db open/write/delete/rename paths + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `c41de8c1`
 
 - [ ] 4) Split native shell projection facade into narrower projection modules with stable re-exports
   - ROI/Effort: High / L
@@ -135,3 +136,4 @@ Status legend: `[ ]` pending, `[x]` done
 - 2026-03-04: Phase 1 refreshed from current code state; awaiting explicit user confirmation before Phase 2 implementation.
 - 2026-03-04: Completed item 1 (native bridge waveform action reduction/flush staging + mixed queue emission tests).
 - 2026-03-04: Completed item 2 (audio loader split into staged execution + isolated telemetry modules with dedicated tests).
+- 2026-03-04: Completed item 3 (source move worker staged helpers + unified per-request progress completion path).
