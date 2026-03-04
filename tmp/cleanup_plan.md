@@ -98,7 +98,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: targeted crate tests for moved modules and `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `8a314cdd`
 
-- [ ] 9) Remove or justify `dead_code` suppressions in source DB write API
+- [x] 9) Remove or justify `dead_code` suppressions in source DB write API
   - ROI/Effort: Medium / S
   - Why it matters: Suppressed dead code in production paths can hide stale or duplicate APIs and increases maintenance burden.
   - Evidence:
@@ -107,6 +107,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Remove unused wrapper methods if truly unused, or replace with explicit test-only gating and rationale.
   - Risk/tradeoffs: Low. Potential call-site updates if wrappers are still needed.
   - Suggested validation: `cargo clippy --all-targets` and `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `d9fb43ca`
 
 - [ ] 10) Close documentation gaps for public job DTOs in controller jobs module
   - ROI/Effort: Medium / S
