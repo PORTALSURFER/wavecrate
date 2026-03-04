@@ -518,12 +518,12 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Project motion-only fields for animation-only redraw phases.
-    fn pull_motion_model(&mut self) -> Option<NativeMotionModel> {
+    fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
         let call = trace_pull_motion_call();
         let profiling = bridge_profiling_enabled();
         let prepare_start = profiling.then(Instant::now);
         if call <= 24 {
-            info!(call, "native bridge: pull_motion_model start");
+            info!(call, "native bridge: project_motion_model start");
         }
         self.flush_pending_input_actions();
         let revisions_before_prepare = self.controller.ui.projection_revisions;
@@ -543,7 +543,7 @@ impl NativeAppBridge for SempalNativeBridge {
             trace_pull_motion_projection(project_duration);
         }
         if call <= 24 {
-            info!(call, "native bridge: pull_motion_model completed");
+            info!(call, "native bridge: project_motion_model completed");
         }
         if profiling && call.is_multiple_of(BRIDGE_PROFILE_INTERVAL) {
             maybe_log_bridge_profile();
