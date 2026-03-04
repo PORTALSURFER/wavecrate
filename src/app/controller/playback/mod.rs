@@ -282,18 +282,25 @@ impl AppController {
     pub fn zoom_waveform_steps_from_ui(&mut self, zoom_in: bool, steps: u8) {
         let before_view = self.ui.waveform.view;
         let focused_before = waveform_focus_active(self);
+        let cursor_focus = if let Some(cursor) = self.ui.waveform.cursor {
+            f64::from(cursor)
+        } else {
+            let center = ((before_view.start + before_view.end) * 0.5).clamp(0.0, 1.0);
+            self.set_waveform_cursor(center as f32);
+            center
+        };
         self.zoom_waveform_steps_with_factor(
             zoom_in,
             zoom_steps_from_ui(steps),
+            Some(cursor_focus),
             None,
-            None,
-            true,
-            true,
+            false,
+            false,
         );
         if focused_before && !waveform_view_changed(before_view, self.ui.waveform.view) {
             return;
         }
-        self.focus_waveform();
+        self.focus_waveform_context();
     }
 
     /// Zoom waveform to current selection while preserving waveform focus.
@@ -681,6 +688,7 @@ mod tests {
     use super::*;
     use crate::app::controller::state::audio::PendingAgeUpdate;
     use crate::app::controller::test_support;
+    use crate::waveform::DecodedWaveform;
     use std::path::Path;
     use std::path::PathBuf;
 
@@ -750,6 +758,60 @@ mod tests {
         assert_eq!(zoom_steps_from_ui(0), 1);
         assert_eq!(zoom_steps_from_ui(1), 1);
         assert_eq!(zoom_steps_from_ui(12), 12);
+    }
+
+    /// Seed minimal decoded waveform state so zoom tests can exercise view math.
+    fn seed_waveform_for_zoom(controller: &mut AppController) {
+        controller.sample_view.waveform.size = [240, 24];
+        controller.sample_view.waveform.decoded = Some(std::sync::Arc::new(DecodedWaveform {
+            cache_token: 1,
+            samples: std::sync::Arc::from(vec![0.0; 10_000]),
+            analysis_samples: std::sync::Arc::from(Vec::new()),
+            analysis_sample_rate: 0,
+            analysis_stride: 1,
+            peaks: None,
+            duration_seconds: 1.0,
+            sample_rate: 48_000,
+            channels: 1,
+        }));
+    }
+
+    /// UI zoom should preserve the cursor's relative viewport position as the zoom anchor.
+    #[test]
+    fn zoom_steps_from_ui_preserves_cursor_anchor_ratio() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        seed_waveform_for_zoom(&mut controller);
+        controller.ui.waveform.view = crate::app::state::WaveformView {
+            start: 0.2,
+            end: 0.8,
+        };
+        controller.ui.waveform.cursor = Some(0.35);
+
+        let before = controller.ui.waveform.view;
+        let cursor = f64::from(controller.ui.waveform.cursor.unwrap_or(0.0));
+        let before_ratio = (cursor - before.start) / (before.end - before.start);
+
+        controller.zoom_waveform_steps_from_ui(true, 1);
+
+        let after = controller.ui.waveform.view;
+        let after_ratio = (cursor - after.start) / (after.end - after.start);
+        assert!((before_ratio - after_ratio).abs() < 1.0e-4);
+    }
+
+    /// UI zoom should initialize cursor at view center when none exists.
+    #[test]
+    fn zoom_steps_from_ui_initializes_cursor_at_view_center() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        seed_waveform_for_zoom(&mut controller);
+        controller.ui.waveform.view = crate::app::state::WaveformView {
+            start: 0.1,
+            end: 0.9,
+        };
+        controller.ui.waveform.cursor = None;
+
+        controller.zoom_waveform_steps_from_ui(true, 1);
+
+        assert_eq!(controller.ui.waveform.cursor, Some(0.5));
     }
 
     /// Tiny floating-point drift should not be treated as a waveform view change.
