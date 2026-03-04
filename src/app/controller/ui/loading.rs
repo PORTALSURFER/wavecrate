@@ -1,10 +1,20 @@
-#![allow(clippy::too_many_arguments)]
-
 use super::*;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::library::wav_entries_loader;
 use crate::app::controller::{LoadEntriesError, WavLoadJob};
 use crate::sample_sources::WavEntry;
+
+/// Payload used when applying one page of wav entries into controller state.
+pub(crate) struct ApplyWavEntriesParams {
+    pub(crate) entries: Vec<WavEntry>,
+    pub(crate) total: usize,
+    pub(crate) page_size: usize,
+    pub(crate) page_index: usize,
+    pub(crate) from_cache: bool,
+    pub(crate) source_id: Option<SourceId>,
+    pub(crate) elapsed: Option<Duration>,
+}
+
 impl AppController {
     pub(crate) fn sync_after_wav_entries_changed(&mut self) {
         self.rebuild_wav_lookup();
@@ -26,15 +36,15 @@ impl AppController {
         if let Some(cache) = self.cache.wav.entries.get(&source.id)
             && let Some(entries) = cache.pages.get(&0).cloned()
         {
-            self.apply_wav_entries(
+            self.apply_wav_entries_with_params(ApplyWavEntriesParams {
                 entries,
-                cache.total,
-                cache.page_size,
-                0,
-                true,
-                Some(source.id.clone()),
-                None,
-            );
+                total: cache.total,
+                page_size: cache.page_size,
+                page_index: 0,
+                from_cache: true,
+                source_id: Some(source.id.clone()),
+                elapsed: None,
+            });
             return;
         }
         if self.wav_entries.source_id.as_ref() != Some(&source.id) {
@@ -61,15 +71,15 @@ impl AppController {
                         0,
                         entries.clone(),
                     );
-                    self.apply_wav_entries(
+                    self.apply_wav_entries_with_params(ApplyWavEntriesParams {
                         entries,
                         total,
-                        job.page_size,
-                        0,
-                        false,
-                        Some(source.id.clone()),
-                        None,
-                    );
+                        page_size: job.page_size,
+                        page_index: 0,
+                        from_cache: false,
+                        source_id: Some(source.id.clone()),
+                        elapsed: None,
+                    });
                 }
                 Err(err) => self.handle_wav_load_error(&source.id, err),
             }
@@ -98,6 +108,7 @@ impl AppController {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn apply_wav_entries(
         &mut self,
         entries: Vec<WavEntry>,
@@ -108,6 +119,28 @@ impl AppController {
         source_id: Option<SourceId>,
         elapsed: Option<Duration>,
     ) {
+        self.apply_wav_entries_with_params(ApplyWavEntriesParams {
+            entries,
+            total,
+            page_size,
+            page_index,
+            from_cache,
+            source_id,
+            elapsed,
+        });
+    }
+
+    /// Apply a wav-entry page update using a structured payload.
+    pub(crate) fn apply_wav_entries_with_params(&mut self, params: ApplyWavEntriesParams) {
+        let ApplyWavEntriesParams {
+            entries,
+            total,
+            page_size,
+            page_index,
+            from_cache,
+            source_id,
+            elapsed,
+        } = params;
         self.wav_entries.total = total;
         self.wav_entries.page_size = page_size.max(1);
         if let Some(id) = &source_id {

@@ -197,18 +197,32 @@ pub(super) fn build_fast_path_result_if_applicable(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Inputs required to build visible search rows for one search job.
+pub(super) struct BuildVisibleRowsParams<'a> {
+    pub(super) job: &'a SearchJob,
+    pub(super) has_query: bool,
+    pub(super) scores: &'a Arc<[Option<i64>]>,
+    pub(super) entries_len: usize,
+    pub(super) queue: &'a SearchJobQueue,
+    pub(super) generation: u64,
+    pub(super) source_id: &'a str,
+    pub(super) has_folder_filters: bool,
+}
+
 pub(super) fn build_visible_rows_for_job(
     cache: &mut SearchWorkerCache,
-    job: &SearchJob,
-    has_query: bool,
-    scores: &Arc<[Option<i64>]>,
-    entries_len: usize,
-    queue: &SearchJobQueue,
-    generation: u64,
-    source_id: &str,
-    has_folder_filters: bool,
+    params: BuildVisibleRowsParams<'_>,
 ) -> Option<Vec<usize>> {
+    let BuildVisibleRowsParams {
+        job,
+        has_query,
+        scores,
+        entries_len,
+        queue,
+        generation,
+        source_id,
+        has_folder_filters,
+    } = params;
     let folder_accepts =
         folder_accepts_for_job(cache, job, source_id, cache.revision, has_folder_filters);
     if super::search_job_canceled(queue, generation) {

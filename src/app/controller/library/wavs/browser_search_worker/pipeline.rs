@@ -12,7 +12,7 @@ mod stages_tests;
 
 use self::results::empty_search_result_for;
 use self::stages::{
-    build_fast_path_result_if_applicable, build_visible_rows_for_job,
+    BuildVisibleRowsParams, build_fast_path_result_if_applicable, build_visible_rows_for_job,
     ensure_search_cache_ready_for_job, ensure_search_entries_loaded_for_job,
     resolve_query_scores_for_job,
 };
@@ -77,14 +77,16 @@ pub(super) fn process_search_job(
 
     let visible = build_visible_rows_for_job(
         cache,
-        &job,
-        has_query,
-        &scores,
-        entries_len,
-        queue,
-        generation,
-        &source_id,
-        has_folder_filters,
+        BuildVisibleRowsParams {
+            job: &job,
+            has_query,
+            scores: &scores,
+            entries_len,
+            queue,
+            generation,
+            source_id: &source_id,
+            has_folder_filters,
+        },
     )?;
 
     record_search_worker_visible_rows(visible.len());
