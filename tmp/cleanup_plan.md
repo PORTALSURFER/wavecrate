@@ -120,7 +120,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `RUSTDOCFLAGS='-D warnings' cargo doc -p sempal --no-deps` + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `c0fd0041`
 
-- [ ] 11) Add focused tests for profile message formatting and projection-cache counters in metrics paths
+- [x] 11) Add focused tests for profile message formatting and projection-cache counters in metrics paths
   - ROI/Effort: Low / M
   - Why it matters: Bridge metrics logic is feature-gated and structurally complex; current tests emphasize helper math over output-shape regression coverage.
   - Evidence:
@@ -128,6 +128,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Add tests asserting expected field presence and stable formatting for key profile message outputs under metrics-enabled builds.
   - Risk/tradeoffs: Low-medium. Feature-gated test setup can be brittle without careful scaffolding.
   - Suggested validation: `cargo test -p sempal --features native-bridge-metrics app_core::native_bridge::metrics` + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `7965d535`
 
 - [ ] 12) Consolidate duplicated BPM display formatting into one shared helper
   - ROI/Effort: Low / S
@@ -151,3 +152,4 @@ Status legend: `[ ]` pending, `[x]` done
 - 2026-03-04: Completed item 8 (deferred loaded-duration metadata writes + cached BPM reads to keep waveform load path focused on decode/display).
 - 2026-03-04: Completed item 9 (typed payload conversion for move journal and move registration paths + file-level too-many-arguments suppressions removed from targeted files).
 - 2026-03-04: Completed item 10 (crate-visible native-shell projection entry points now document intent, constraints, and staged projection behavior).
+- 2026-03-04: Completed item 11 (bridge metrics tests now assert profile-message field shape and projection-cache counter increments under metrics-enabled builds).
