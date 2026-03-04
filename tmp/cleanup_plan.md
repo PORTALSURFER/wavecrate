@@ -52,7 +52,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: existing native_shell parity tests + targeted projection regression tests + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `111e5330`
 
-- [ ] 5) Harden file-ops journal reconciliation by removing silent malformed-entry drops and panic-style expect paths
+- [x] 5) Harden file-ops journal reconciliation by removing silent malformed-entry drops and panic-style expect paths
   - ROI/Effort: High / M
   - Why it matters: Journal reconciliation is safety-critical; silently skipping malformed rows and panic-style assumptions weaken recoverability.
   - Evidence:
@@ -62,6 +62,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Return explicit malformed-entry outcomes (or quarantined errors), split reconciliation into phase helpers, remove `expect` from runtime path.
   - Risk/tradeoffs: Medium. Stricter handling may surface pre-existing journal corruption more visibly.
   - Suggested validation: malformed-entry + reconcile-matrix tests (staged/target/source combinations) + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `298263e3`
 
 - [ ] 6) Extract `toggle_loop` policy flow into smaller decision helpers with scenario coverage
   - ROI/Effort: Medium / M
@@ -139,3 +140,4 @@ Status legend: `[ ]` pending, `[x]` done
 - 2026-03-04: Completed item 2 (audio loader split into staged execution + isolated telemetry modules with dedicated tests).
 - 2026-03-04: Completed item 3 (source move worker staged helpers + unified per-request progress completion path).
 - 2026-03-04: Completed item 4 (native-shell projection facade split into focused modules + browser cache submodule split to satisfy file budget guardrail).
+- 2026-03-04: Completed item 5 (file-ops journal malformed-row surfacing + staged/target reconciliation helper split + expect-path removal).
