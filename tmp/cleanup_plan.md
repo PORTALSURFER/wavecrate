@@ -126,7 +126,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: targeted unit tests for refactored call chains + `cargo clippy --all-targets` + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `7cc879ac`
 
-- [ ] 11) Close crate-visible documentation gaps in high-churn controller/runtime helpers
+- [x] 11) Close crate-visible documentation gaps in high-churn controller/runtime helpers
   - ROI/Effort: Low / M
   - Why it matters: Many `pub(crate)` APIs are used across modules but lack intent/constraint docs, increasing onboarding and maintenance cost.
   - Evidence:
@@ -137,6 +137,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Add concise docs for what/why/constraints on crate-visible functions in top hotspots first (background jobs, playback, search pipeline, selection edits).
   - Risk/tradeoffs: Low. Documentation churn only.
   - Suggested validation: `RUSTDOCFLAGS='-D warnings' cargo doc -p sempal --no-deps` and `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `145a740d`
 
 - [ ] 12) Tighten cleanup-audit test-gap heuristic to exclude dedicated `tests.rs` files
   - ROI/Effort: Low / S
@@ -151,3 +152,4 @@ Status legend: `[ ]` pending, `[x]` done
 ## Progress Log
 
 - 2026-03-04: Phase 1 refreshed from current code state; awaiting explicit user confirmation before Phase 2 implementation.
+- 2026-03-04: Completed item 11 documentation pass for high-churn crate-visible controller/runtime helpers.
