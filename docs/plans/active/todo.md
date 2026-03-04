@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-01T22:46:53Z
+Last updated (UTC): 2026-03-04T13:18:00Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -12,7 +12,7 @@ Purpose:
 ## Current lane
 
 - Runtime responsiveness/performance redesign (Xilem-inspired retained/incremental update path).
-- File-size debt burn-down for top 5 Rust hotspots (behavior-preserving splits).
+- Cleanup architecture guardrails documented in `docs/plans/active/cleanup_architecture_note.md`.
 
 ## Next tasks (ordered)
 

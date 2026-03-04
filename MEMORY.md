@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-04T11:43:44Z
+Last Updated: 2026-03-04T13:09:53Z
 Updated By: Codex
 
 ## Purpose
@@ -10,16 +10,16 @@ Updated By: Codex
 
 ## Current State (Present Tense)
 
-- I have completed a fresh Phase 1 cleanup audit and written a strict ROI-ranked backlog to `tmp/cleanup_plan.md`.
-- I am waiting for explicit user confirmation before starting Phase 2 sequential implementation.
-- Runtime performance work from `tmp/perf_plan.md` remains active but is paused behind this cleanup request; item 7 is still the next perf item when resumed.
-- Pre-edit CI is green (`bash scripts/ci_local.sh`).
+- I have completed cleanup execution from `tmp/cleanup_plan.md`; all 12 items are marked done with commit hashes.
+- I have added a durable cleanup boundary note at `docs/plans/active/cleanup_architecture_note.md` and linked it from `docs/plans/index.md`.
+- Runtime performance work from `tmp/perf_plan.md` is active again; item 7 is the next implementation target.
+- CI is green (`bash scripts/ci_local.sh`) on the latest cleanup milestone commits.
 
 ## Immediate Next Actions
 
-1. Present the exact ordered ROI backlog from `tmp/cleanup_plan.md` to the user and request explicit Phase 2 confirmation.
-2. If confirmed, execute backlog items in strict order: implement, validate, mark done with date/hash, commit, push.
-3. Keep `AGENTS.md`, `MEMORY.md`, and `tmp/cleanup_plan.md` synchronized after each milestone.
+1. Continue `tmp/perf_plan.md` at item 7, then proceed sequentially.
+2. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/perf_plan.md` synchronized after each milestone.
+3. Reuse `docs/plans/active/cleanup_architecture_note.md` when new cleanup slices are scheduled.
 
 ## Work Notes
 
