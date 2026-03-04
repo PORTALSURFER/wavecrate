@@ -578,28 +578,10 @@ pub(crate) struct ControllerJobs {
     pub(super) pending_audio: Option<PendingAudio>,
     pub(super) pending_playback: Option<PendingPlayback>,
     pub(super) pending_recording_waveform: Option<PendingRecordingWaveform>,
-    pub(super) next_audio_request_id: u64,
-    pub(super) next_recording_waveform_request_id: u64,
-    pub(super) next_folder_scan_request_id: u64,
-    pub(super) scan_in_progress: bool,
-    pub(super) scan_cancel: Option<Arc<std::sync::atomic::AtomicBool>>,
-    pub(super) folder_scan_cancel: Option<Arc<std::sync::atomic::AtomicBool>>,
+    pub(super) request_counters: JobRequestCounters,
+    pub(super) in_progress: JobInProgressState,
+    pub(super) cancel_handles: JobCancelHandles,
     pub(super) pending_folder_scan: Option<PendingFolderScan>,
-    pub(super) trash_move_in_progress: bool,
-    pub(super) trash_move_cancel: Option<Arc<std::sync::atomic::AtomicBool>>,
-    pub(super) file_ops_in_progress: bool,
-    pub(super) file_ops_cancel: Option<Arc<std::sync::atomic::AtomicBool>>,
-    pub(super) umap_build_in_progress: bool,
-    pub(super) umap_cluster_build_in_progress: bool,
-    pub(super) update_check_in_progress: bool,
-    pub(super) issue_gateway_in_progress: bool,
-    pub(super) issue_gateway_auth_in_progress: bool,
-    pub(super) issue_gateway_poll_in_progress: bool,
-    pub(super) issue_gateway_poll_cancel: Option<Arc<std::sync::atomic::AtomicBool>>,
-    pub(super) issue_token_load_in_progress: bool,
-    pub(super) issue_token_save_in_progress: bool,
-    pub(super) issue_token_delete_in_progress: bool,
-    pub(super) source_db_maintenance_in_progress: bool,
     pub(super) repaint_signal: Arc<SharedRepaintSignal>,
 }
 
@@ -607,6 +589,53 @@ pub(crate) struct ControllerJobs {
 pub(super) struct PendingFolderScan {
     request_id: u64,
     source_id: SourceId,
+}
+
+/// Monotonic request-id counters for async controller jobs.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct JobRequestCounters {
+    next_audio_request_id: u64,
+    next_recording_waveform_request_id: u64,
+    next_folder_scan_request_id: u64,
+}
+
+impl Default for JobRequestCounters {
+    /// Initialize request counters at `1` to avoid sentinel `0` ids.
+    fn default() -> Self {
+        Self {
+            next_audio_request_id: 1,
+            next_recording_waveform_request_id: 1,
+            next_folder_scan_request_id: 1,
+        }
+    }
+}
+
+/// In-progress flags for one-shot and stream-based background controller jobs.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct JobInProgressState {
+    scan: bool,
+    trash_move: bool,
+    file_ops: bool,
+    umap_build: bool,
+    umap_cluster_build: bool,
+    update_check: bool,
+    issue_gateway: bool,
+    issue_gateway_auth: bool,
+    issue_gateway_poll: bool,
+    issue_token_load: bool,
+    issue_token_save: bool,
+    issue_token_delete: bool,
+    source_db_maintenance: bool,
+}
+
+/// Cooperative cancellation handles for long-running controller background jobs.
+#[derive(Clone, Debug, Default)]
+pub(super) struct JobCancelHandles {
+    scan: Option<Arc<AtomicBool>>,
+    folder_scan: Option<Arc<AtomicBool>>,
+    trash_move: Option<Arc<AtomicBool>>,
+    file_ops: Option<Arc<AtomicBool>>,
+    issue_gateway_poll: Option<Arc<AtomicBool>>,
 }
 
 /// Constructor inputs for [`ControllerJobs`].
@@ -676,28 +705,10 @@ impl ControllerJobs {
             pending_audio: None,
             pending_playback: None,
             pending_recording_waveform: None,
-            next_audio_request_id: 1,
-            next_recording_waveform_request_id: 1,
-            next_folder_scan_request_id: 1,
-            scan_in_progress: false,
-            scan_cancel: None,
-            folder_scan_cancel: None,
+            request_counters: JobRequestCounters::default(),
+            in_progress: JobInProgressState::default(),
+            cancel_handles: JobCancelHandles::default(),
             pending_folder_scan: None,
-            trash_move_in_progress: false,
-            trash_move_cancel: None,
-            file_ops_in_progress: false,
-            file_ops_cancel: None,
-            umap_build_in_progress: false,
-            umap_cluster_build_in_progress: false,
-            update_check_in_progress: false,
-            issue_gateway_in_progress: false,
-            issue_gateway_auth_in_progress: false,
-            issue_gateway_poll_in_progress: false,
-            issue_gateway_poll_cancel: None,
-            issue_token_load_in_progress: false,
-            issue_token_save_in_progress: false,
-            issue_token_delete_in_progress: false,
-            source_db_maintenance_in_progress: false,
             repaint_signal,
         }
     }
@@ -716,19 +727,19 @@ impl ControllerJobs {
 
     /// Shut down background workers owned by the controller to avoid leaking threads on exit.
     pub(crate) fn shutdown(&mut self) {
-        if let Some(cancel) = self.scan_cancel.as_ref() {
+        if let Some(cancel) = self.cancel_handles.scan.as_ref() {
             cancel.store(true, Ordering::Relaxed);
         }
-        if let Some(cancel) = self.folder_scan_cancel.as_ref() {
+        if let Some(cancel) = self.cancel_handles.folder_scan.as_ref() {
             cancel.store(true, Ordering::Relaxed);
         }
-        if let Some(cancel) = self.trash_move_cancel.as_ref() {
+        if let Some(cancel) = self.cancel_handles.trash_move.as_ref() {
             cancel.store(true, Ordering::Relaxed);
         }
-        if let Some(cancel) = self.file_ops_cancel.as_ref() {
+        if let Some(cancel) = self.cancel_handles.file_ops.as_ref() {
             cancel.store(true, Ordering::Relaxed);
         }
-        if let Some(cancel) = self.issue_gateway_poll_cancel.as_ref() {
+        if let Some(cancel) = self.cancel_handles.issue_gateway_poll.as_ref() {
             cancel.store(true, Ordering::Relaxed);
         }
         self.source_watcher.shutdown();
@@ -805,15 +816,20 @@ impl ControllerJobs {
     }
 
     pub(super) fn next_audio_request_id(&mut self) -> u64 {
-        let request_id = self.next_audio_request_id;
-        self.next_audio_request_id = self.next_audio_request_id.wrapping_add(1).max(1);
+        let request_id = self.request_counters.next_audio_request_id;
+        self.request_counters.next_audio_request_id = self
+            .request_counters
+            .next_audio_request_id
+            .wrapping_add(1)
+            .max(1);
         request_id
     }
 
     /// Generate a request id for recording waveform refresh jobs.
     pub(super) fn next_recording_waveform_request_id(&mut self) -> u64 {
-        let request_id = self.next_recording_waveform_request_id;
-        self.next_recording_waveform_request_id = self
+        let request_id = self.request_counters.next_recording_waveform_request_id;
+        self.request_counters.next_recording_waveform_request_id = self
+            .request_counters
             .next_recording_waveform_request_id
             .wrapping_add(1)
             .max(1);
@@ -835,7 +851,7 @@ impl ControllerJobs {
     }
 
     pub(super) fn scan_in_progress(&self) -> bool {
-        self.scan_in_progress
+        self.in_progress.scan
     }
 
     /// Return the source id currently being scanned for folders, if any.
@@ -847,37 +863,38 @@ impl ControllerJobs {
 
     /// Start a background scan for folders under `root`, canceling any in-flight scan.
     pub(super) fn request_folder_scan(&mut self, source_id: SourceId, root: PathBuf) -> u64 {
-        if let Some(cancel) = self.folder_scan_cancel.as_ref() {
+        if let Some(cancel) = self.cancel_handles.folder_scan.as_ref() {
             cancel.store(true, Ordering::Relaxed);
         }
-        let request_id = self.next_folder_scan_request_id;
-        self.next_folder_scan_request_id = self.next_folder_scan_request_id.wrapping_add(1).max(1);
+        let request_id = self.request_counters.next_folder_scan_request_id;
+        self.request_counters.next_folder_scan_request_id = self
+            .request_counters
+            .next_folder_scan_request_id
+            .wrapping_add(1)
+            .max(1);
         let cancel = Arc::new(AtomicBool::new(false));
-        self.folder_scan_cancel = Some(cancel.clone());
+        self.cancel_handles.folder_scan = Some(cancel.clone());
         self.pending_folder_scan = Some(PendingFolderScan {
             request_id,
             source_id: source_id.clone(),
         });
-        let tx = self.message_tx.clone();
-        let signal = self.repaint_signal.clone();
-        thread::spawn(move || {
+        self.spawn_optional_one_shot_job(true, move || {
             let folders = super::library::source_folders::scan_disk_folders(&root, cancel.as_ref());
             if cancel.load(Ordering::Relaxed) {
-                return;
+                return None;
             }
-            let _ = tx.send(JobMessage::FolderScanFinished(FolderScanResult {
+            Some(JobMessage::FolderScanFinished(FolderScanResult {
                 request_id,
                 source_id,
                 folders,
-            }));
-            signal.request_repaint();
+            }))
         });
         request_id
     }
 
     /// Clear folder scan tracking state after a scan completes.
     pub(super) fn clear_folder_scan(&mut self) {
-        self.folder_scan_cancel = None;
+        self.cancel_handles.folder_scan = None;
         self.pending_folder_scan = None;
     }
 
@@ -889,25 +906,19 @@ impl ControllerJobs {
     }
 
     pub(super) fn start_scan(&mut self, rx: Receiver<ScanJobMessage>, cancel: Arc<AtomicBool>) {
-        self.scan_in_progress = true;
-        self.scan_cancel = Some(cancel);
+        self.in_progress.scan = true;
+        self.cancel_handles.scan = Some(cancel);
         self.send_source_watch_scan_state(true);
-        spawn_progress_forwarder(ProgressForwarderConfig {
-            message_tx: self.message_tx.clone(),
-            repaint_signal: self.repaint_signal.clone(),
-            rx,
-            wrap: JobMessage::Scan,
-            is_finished: scan_message_is_finished,
-        });
+        self.start_progress_stream(rx, JobMessage::Scan, scan_message_is_finished);
     }
 
     pub(super) fn scan_cancel(&self) -> Option<Arc<AtomicBool>> {
-        self.scan_cancel.clone()
+        self.cancel_handles.scan.clone()
     }
 
     pub(super) fn clear_scan(&mut self) {
-        self.scan_in_progress = false;
-        self.scan_cancel = None;
+        self.in_progress.scan = false;
+        self.cancel_handles.scan = None;
         self.send_source_watch_scan_state(false);
     }
 
@@ -916,8 +927,59 @@ impl ControllerJobs {
             .send(SourceWatchCommand::SetScanInProgress { in_progress });
     }
 
+    /// Forward one stream-based worker channel into the controller job queue.
+    fn start_progress_stream<Message: Send + 'static>(
+        &self,
+        rx: Receiver<Message>,
+        wrap: fn(Message) -> JobMessage,
+        is_finished: fn(&Message) -> bool,
+    ) {
+        spawn_progress_forwarder(ProgressForwarderConfig {
+            message_tx: self.message_tx.clone(),
+            repaint_signal: self.repaint_signal.clone(),
+            rx,
+            wrap,
+            is_finished,
+        });
+    }
+
+    /// Spawn a one-shot background task that always emits one controller job message.
+    fn spawn_one_shot_job<Output: Send + 'static>(
+        &self,
+        request_repaint: bool,
+        run: impl FnOnce() -> Output + Send + 'static,
+        wrap: impl FnOnce(Output) -> JobMessage + Send + 'static,
+    ) {
+        let tx = self.message_tx.clone();
+        let signal = self.repaint_signal.clone();
+        thread::spawn(move || {
+            let _ = tx.send(wrap(run()));
+            if request_repaint {
+                signal.request_repaint();
+            }
+        });
+    }
+
+    /// Spawn a one-shot background task that may or may not emit a controller job message.
+    fn spawn_optional_one_shot_job(
+        &self,
+        request_repaint: bool,
+        run: impl FnOnce() -> Option<JobMessage> + Send + 'static,
+    ) {
+        let tx = self.message_tx.clone();
+        let signal = self.repaint_signal.clone();
+        thread::spawn(move || {
+            if let Some(message) = run() {
+                let _ = tx.send(message);
+                if request_repaint {
+                    signal.request_repaint();
+                }
+            }
+        });
+    }
+
     pub(super) fn trash_move_in_progress(&self) -> bool {
-        self.trash_move_in_progress
+        self.in_progress.trash_move
     }
 
     #[cfg_attr(test, allow(dead_code))]
@@ -926,172 +988,165 @@ impl ControllerJobs {
         rx: Receiver<trash_move::TrashMoveMessage>,
         cancel: Arc<AtomicBool>,
     ) {
-        self.trash_move_in_progress = true;
-        self.trash_move_cancel = Some(cancel);
-        spawn_progress_forwarder(ProgressForwarderConfig {
-            message_tx: self.message_tx.clone(),
-            repaint_signal: self.repaint_signal.clone(),
-            rx,
-            wrap: JobMessage::TrashMove,
-            is_finished: trash_move_message_is_finished,
-        });
+        self.in_progress.trash_move = true;
+        self.cancel_handles.trash_move = Some(cancel);
+        self.start_progress_stream(rx, JobMessage::TrashMove, trash_move_message_is_finished);
     }
 
     pub(super) fn trash_move_cancel(&self) -> Option<Arc<AtomicBool>> {
-        self.trash_move_cancel.clone()
+        self.cancel_handles.trash_move.clone()
     }
 
     pub(super) fn clear_trash_move(&mut self) {
-        self.trash_move_in_progress = false;
-        self.trash_move_cancel = None;
+        self.in_progress.trash_move = false;
+        self.cancel_handles.trash_move = None;
     }
 
     /// Return whether a background file operation is currently running.
     pub(super) fn file_ops_in_progress(&self) -> bool {
-        self.file_ops_in_progress
+        self.in_progress.file_ops
     }
 
     /// Begin forwarding file operation progress messages from a background worker.
     pub(super) fn start_file_ops(&mut self, rx: Receiver<FileOpMessage>, cancel: Arc<AtomicBool>) {
-        self.file_ops_in_progress = true;
-        self.file_ops_cancel = Some(cancel);
-        spawn_progress_forwarder(ProgressForwarderConfig {
-            message_tx: self.message_tx.clone(),
-            repaint_signal: self.repaint_signal.clone(),
-            rx,
-            wrap: JobMessage::FileOps,
-            is_finished: file_op_message_is_finished,
-        });
+        self.in_progress.file_ops = true;
+        self.cancel_handles.file_ops = Some(cancel);
+        self.start_progress_stream(rx, JobMessage::FileOps, file_op_message_is_finished);
     }
 
     pub(super) fn file_ops_cancel(&self) -> Option<Arc<AtomicBool>> {
-        self.file_ops_cancel.clone()
+        self.cancel_handles.file_ops.clone()
     }
 
     /// Clear the in-progress state for the current file operation job.
     pub(super) fn clear_file_ops(&mut self) {
-        self.file_ops_in_progress = false;
-        self.file_ops_cancel = None;
+        self.in_progress.file_ops = false;
+        self.cancel_handles.file_ops = None;
     }
 
     /// Return whether deferred source DB maintenance is currently running.
     pub(super) fn source_db_maintenance_in_progress(&self) -> bool {
-        self.source_db_maintenance_in_progress
+        self.in_progress.source_db_maintenance
     }
 
     /// Run startup-deferred source DB maintenance in the background.
     pub(super) fn begin_source_db_maintenance(&mut self, jobs: Vec<SourceDbMaintenanceJob>) {
-        if self.source_db_maintenance_in_progress || jobs.is_empty() {
+        if self.in_progress.source_db_maintenance || jobs.is_empty() {
             return;
         }
-        self.source_db_maintenance_in_progress = true;
-        let tx = self.message_tx.clone();
-        let signal = self.repaint_signal.clone();
-        thread::spawn(move || {
-            let outcomes = jobs
-                .into_iter()
-                .map(run_source_db_maintenance_job)
-                .collect::<Vec<_>>();
-            let _ = tx.send(JobMessage::SourceDbMaintenanceFinished(
-                SourceDbMaintenanceResult { outcomes },
-            ));
-            signal.request_repaint();
-        });
+        self.in_progress.source_db_maintenance = true;
+        self.spawn_one_shot_job(
+            true,
+            move || {
+                let outcomes = jobs
+                    .into_iter()
+                    .map(run_source_db_maintenance_job)
+                    .collect::<Vec<_>>();
+                SourceDbMaintenanceResult { outcomes }
+            },
+            JobMessage::SourceDbMaintenanceFinished,
+        );
     }
 
     /// Clear the in-progress state for deferred source DB maintenance.
     pub(super) fn clear_source_db_maintenance(&mut self) {
-        self.source_db_maintenance_in_progress = false;
+        self.in_progress.source_db_maintenance = false;
     }
 
     pub(super) fn update_check_in_progress(&self) -> bool {
-        self.update_check_in_progress
+        self.in_progress.update_check
+    }
+
+    /// Return whether an issue-gateway auth polling task is currently running.
+    pub(super) fn issue_gateway_poll_in_progress(&self) -> bool {
+        self.in_progress.issue_gateway_poll
     }
 
     pub(super) fn umap_build_in_progress(&self) -> bool {
-        self.umap_build_in_progress
+        self.in_progress.umap_build
     }
 
     pub(super) fn umap_cluster_build_in_progress(&self) -> bool {
-        self.umap_cluster_build_in_progress
+        self.in_progress.umap_cluster_build
     }
 
     pub(super) fn begin_umap_build(&mut self, job: UmapBuildJob) {
-        if self.umap_build_in_progress {
+        if self.in_progress.umap_build {
             return;
         }
-        self.umap_build_in_progress = true;
-        let tx = self.message_tx.clone();
-        let signal = self.repaint_signal.clone();
-        thread::spawn(move || {
-            let result = super::ui::map_view::run_umap_build(
-                &job.model_id,
-                &job.umap_version,
-                &job.source_id,
-            );
-            let _ = tx.send(JobMessage::UmapBuilt(UmapBuildResult {
-                umap_version: job.umap_version,
-                result,
-            }));
-            signal.request_repaint();
-        });
+        self.in_progress.umap_build = true;
+        self.spawn_one_shot_job(
+            true,
+            move || {
+                let result = super::ui::map_view::run_umap_build(
+                    &job.model_id,
+                    &job.umap_version,
+                    &job.source_id,
+                );
+                UmapBuildResult {
+                    umap_version: job.umap_version,
+                    result,
+                }
+            },
+            JobMessage::UmapBuilt,
+        );
     }
 
     pub(super) fn clear_umap_build(&mut self) {
-        self.umap_build_in_progress = false;
+        self.in_progress.umap_build = false;
     }
 
     pub(super) fn begin_umap_cluster_build(&mut self, job: UmapClusterBuildJob) {
-        if self.umap_cluster_build_in_progress {
+        if self.in_progress.umap_cluster_build {
             return;
         }
-        self.umap_cluster_build_in_progress = true;
-        let tx = self.message_tx.clone();
-        let signal = self.repaint_signal.clone();
-        thread::spawn(move || {
-            let result = super::ui::map_view::run_umap_cluster_build(
-                &job.model_id,
-                &job.umap_version,
-                job.source_id.as_ref(),
-            );
-            let _ = tx.send(JobMessage::UmapClustersBuilt(UmapClusterBuildResult {
-                umap_version: job.umap_version,
-                source_id: job.source_id,
-                result,
-            }));
-            signal.request_repaint();
-        });
+        self.in_progress.umap_cluster_build = true;
+        self.spawn_one_shot_job(
+            true,
+            move || {
+                let result = super::ui::map_view::run_umap_cluster_build(
+                    &job.model_id,
+                    &job.umap_version,
+                    job.source_id.as_ref(),
+                );
+                UmapClusterBuildResult {
+                    umap_version: job.umap_version,
+                    source_id: job.source_id,
+                    result,
+                }
+            },
+            JobMessage::UmapClustersBuilt,
+        );
     }
 
     pub(super) fn clear_umap_cluster_build(&mut self) {
-        self.umap_cluster_build_in_progress = false;
+        self.in_progress.umap_cluster_build = false;
     }
 
     pub(super) fn begin_update_check(&mut self, request: crate::updater::UpdateCheckRequest) {
-        if self.update_check_in_progress {
+        if self.in_progress.update_check {
             return;
         }
-        self.update_check_in_progress = true;
-        let tx = self.message_tx.clone();
-        let signal = self.repaint_signal.clone();
-        thread::spawn(move || {
-            let result = super::updates::run_update_check(request);
-            let _ = tx.send(JobMessage::UpdateChecked(UpdateCheckResult { result }));
-            signal.request_repaint();
-        });
+        self.in_progress.update_check = true;
+        self.spawn_one_shot_job(
+            true,
+            move || UpdateCheckResult {
+                result: super::updates::run_update_check(request),
+            },
+            JobMessage::UpdateChecked,
+        );
     }
 
     pub(super) fn clear_update_check(&mut self) {
-        self.update_check_in_progress = false;
+        self.in_progress.update_check = false;
     }
 
     pub(super) fn begin_normalization(&mut self, job: NormalizationJob) {
-        let tx = self.message_tx.clone();
-        let signal = self.repaint_signal.clone();
-        thread::spawn(move || {
-            let _ = tx.send(JobMessage::Normalized(run_normalization_job(job)));
-            signal.request_repaint();
-        });
+        self.spawn_one_shot_job(
+            true,
+            move || run_normalization_job(job),
+            JobMessage::Normalized,
+        );
     }
 }
 

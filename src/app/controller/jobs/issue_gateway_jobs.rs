@@ -4,36 +4,35 @@ use super::*;
 
 impl ControllerJobs {
     pub(crate) fn begin_issue_gateway_create(&mut self, job: IssueGatewayJob) {
-        if self.issue_gateway_in_progress {
+        if self.in_progress.issue_gateway {
             return;
         }
-        self.issue_gateway_in_progress = true;
-        let tx = self.message_tx.clone();
-        thread::spawn(move || {
-            let result = crate::issue_gateway::api::create_issue(&job.token, &job.request);
-            let _ = tx.send(JobMessage::IssueGatewayCreated(IssueGatewayCreateResult {
-                result,
-            }));
-        });
+        self.in_progress.issue_gateway = true;
+        self.spawn_one_shot_job(
+            false,
+            move || IssueGatewayCreateResult {
+                result: crate::issue_gateway::api::create_issue(&job.token, &job.request),
+            },
+            JobMessage::IssueGatewayCreated,
+        );
     }
 
     pub(crate) fn clear_issue_gateway_create(&mut self) {
-        self.issue_gateway_in_progress = false;
+        self.in_progress.issue_gateway = false;
     }
 
     pub(crate) fn clear_issue_gateway_auth(&mut self) {
-        self.issue_gateway_auth_in_progress = false;
+        self.in_progress.issue_gateway_auth = false;
     }
 
     pub(crate) fn begin_issue_gateway_poll(&mut self, job: IssueGatewayPollJob) {
-        if self.issue_gateway_poll_in_progress {
+        if self.in_progress.issue_gateway_poll {
             return;
         }
-        self.issue_gateway_poll_in_progress = true;
+        self.in_progress.issue_gateway_poll = true;
         let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        self.issue_gateway_poll_cancel = Some(cancel.clone());
-        let tx = self.message_tx.clone();
-        thread::spawn(move || {
+        self.cancel_handles.issue_gateway_poll = Some(cancel.clone());
+        self.spawn_optional_one_shot_job(false, move || {
             let config = issue_gateway_poll_config();
             let result = poll_issue_gateway_with_backoff(
                 &job.request_id,
@@ -42,86 +41,78 @@ impl ControllerJobs {
                 config,
                 thread::sleep,
             );
-            if let Some(message) = result {
-                let _ = tx.send(JobMessage::IssueGatewayAuthed(message));
-            }
+            result.map(JobMessage::IssueGatewayAuthed)
         });
     }
 
     pub(crate) fn clear_issue_gateway_poll(&mut self) {
-        self.issue_gateway_poll_in_progress = false;
-        if let Some(cancel) = self.issue_gateway_poll_cancel.take() {
+        self.in_progress.issue_gateway_poll = false;
+        if let Some(cancel) = self.cancel_handles.issue_gateway_poll.take() {
             cancel.store(true, std::sync::atomic::Ordering::Relaxed);
         }
     }
 
     /// Begin loading the persisted GitHub issue token on a background thread.
     pub(crate) fn begin_issue_token_load(&mut self) {
-        if self.issue_token_load_in_progress {
+        if self.in_progress.issue_token_load {
             return;
         }
-        self.issue_token_load_in_progress = true;
-        let tx = self.message_tx.clone();
-        let signal = self.repaint_signal.clone();
-        thread::spawn(move || {
-            let result = crate::issue_gateway::IssueTokenStore::new().and_then(|store| store.get());
-            let _ = tx.send(JobMessage::IssueTokenLoaded(IssueTokenLoadResult {
-                result,
-            }));
-            signal.request_repaint();
-        });
+        self.in_progress.issue_token_load = true;
+        self.spawn_one_shot_job(
+            true,
+            move || IssueTokenLoadResult {
+                result: crate::issue_gateway::IssueTokenStore::new().and_then(|store| store.get()),
+            },
+            JobMessage::IssueTokenLoaded,
+        );
     }
 
     /// Clear the in-progress flag for issue token loads.
     pub(crate) fn clear_issue_token_load(&mut self) {
-        self.issue_token_load_in_progress = false;
+        self.in_progress.issue_token_load = false;
     }
 
     /// Begin persisting a GitHub issue token on a background thread.
     pub(crate) fn begin_issue_token_save(&mut self, job: IssueTokenSaveJob) {
-        if self.issue_token_save_in_progress {
+        if self.in_progress.issue_token_save {
             return;
         }
-        self.issue_token_save_in_progress = true;
-        let tx = self.message_tx.clone();
-        let signal = self.repaint_signal.clone();
-        thread::spawn(move || {
-            let result = crate::issue_gateway::IssueTokenStore::new()
-                .and_then(|store| store.set_and_verify(&job.token));
-            let _ = tx.send(JobMessage::IssueTokenSaved(IssueTokenSaveResult {
-                token: job.token,
+        self.in_progress.issue_token_save = true;
+        self.spawn_one_shot_job(
+            true,
+            move || IssueTokenSaveResult {
+                token: job.token.clone(),
                 reopen_modal: job.reopen_modal,
-                result,
-            }));
-            signal.request_repaint();
-        });
+                result: crate::issue_gateway::IssueTokenStore::new()
+                    .and_then(|store| store.set_and_verify(&job.token)),
+            },
+            JobMessage::IssueTokenSaved,
+        );
     }
 
     /// Clear the in-progress flag for issue token saves.
     pub(crate) fn clear_issue_token_save(&mut self) {
-        self.issue_token_save_in_progress = false;
+        self.in_progress.issue_token_save = false;
     }
 
     /// Begin deleting the persisted GitHub issue token on a background thread.
     pub(crate) fn begin_issue_token_delete(&mut self) {
-        if self.issue_token_delete_in_progress {
+        if self.in_progress.issue_token_delete {
             return;
         }
-        self.issue_token_delete_in_progress = true;
-        let tx = self.message_tx.clone();
-        let signal = self.repaint_signal.clone();
-        thread::spawn(move || {
-            let result =
-                crate::issue_gateway::IssueTokenStore::new().and_then(|store| store.delete());
-            let _ = tx.send(JobMessage::IssueTokenDeleted(IssueTokenDeleteResult {
-                result,
-            }));
-            signal.request_repaint();
-        });
+        self.in_progress.issue_token_delete = true;
+        self.spawn_one_shot_job(
+            true,
+            move || IssueTokenDeleteResult {
+                result: crate::issue_gateway::IssueTokenStore::new()
+                    .and_then(|store| store.delete()),
+            },
+            JobMessage::IssueTokenDeleted,
+        );
     }
 
     /// Clear the in-progress flag for issue token deletes.
     pub(crate) fn clear_issue_token_delete(&mut self) {
-        self.issue_token_delete_in_progress = false;
+        self.in_progress.issue_token_delete = false;
     }
 }

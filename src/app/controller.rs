@@ -481,7 +481,7 @@ impl AppController {
     }
 
     pub(crate) fn is_issue_gateway_poll_in_progress(&self) -> bool {
-        self.runtime.jobs.issue_gateway_poll_in_progress
+        self.runtime.jobs.issue_gateway_poll_in_progress()
     }
 }
 
