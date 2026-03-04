@@ -65,7 +65,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: playback + waveform controller tests (including zoom anchor and deferred commit paths), then `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `0844eaf2`
 
-- [ ] 6) Refactor native bridge metrics logging into snapshot + formatter layers
+- [x] 6) Refactor native bridge metrics logging into snapshot + formatter layers
   - ROI/Effort: Medium / M
   - Why it matters: Profiling counters are useful, but metrics aggregation and logging are concentrated in one very large function with no direct unit tests.
   - Evidence:
@@ -75,6 +75,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Introduce a `BridgeMetricsSnapshot` builder and a formatter/helper module so logging output and counter math are independently testable.
   - Risk/tradeoffs: Medium-low. Feature-gated behavior must remain no-op in non-metrics builds.
   - Suggested validation: metrics feature tests (`--features native-bridge-metrics`) + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `742b0387`
 
 - [ ] 7) Split `selection.rs` into focused range/state modules and externalize tests
   - ROI/Effort: Medium / M
