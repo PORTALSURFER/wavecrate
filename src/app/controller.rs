@@ -71,6 +71,8 @@ pub(crate) struct ProjectedBrowserRowCacheEntry {
     pub column_index: usize,
     /// Stable rendered bucket/chip label for the browser list.
     pub bucket_label: String,
+    /// Whether the backing sample file is currently marked missing.
+    pub missing: bool,
 }
 
 /// Cache key for retained map-point projection payloads.

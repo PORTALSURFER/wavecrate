@@ -97,6 +97,7 @@ pub(crate) fn project_browser_rows_model_into(
                     "SAMPLE",
                     false,
                     focused,
+                    false,
                 ),
             );
             continue;
@@ -112,6 +113,7 @@ pub(crate) fn project_browser_rows_model_into(
                 &cached_row.bucket_label,
                 selected,
                 focused,
+                cached_row.missing,
             ),
         );
     }
@@ -250,8 +252,11 @@ fn cached_browser_row_matches_entry(
     cached: &ProjectedBrowserRowCacheEntry,
     row_identity_hash: u64,
     column_index: usize,
+    missing: bool,
 ) -> bool {
-    cached.row_identity_hash == row_identity_hash && cached.column_index == column_index
+    cached.row_identity_hash == row_identity_hash
+        && cached.column_index == column_index
+        && cached.missing == missing
 }
 
 /// Resolve static browser-row projection fields from cache, inserting on cache miss.
@@ -259,18 +264,20 @@ pub(super) fn project_cached_browser_row(
     controller: &mut AppController,
     absolute_index: usize,
 ) -> Option<(&ProjectedBrowserRowCacheEntry, bool)> {
-    let (entry_tag, row_identity_hash) = controller.wav_entry(absolute_index).map(|entry| {
-        (
-            entry.tag,
-            browser_row_identity_hash(entry.relative_path.as_path()),
-        )
-    })?;
+    let (entry_tag, row_identity_hash, missing) =
+        controller.wav_entry(absolute_index).map(|entry| {
+            (
+                entry.tag,
+                browser_row_identity_hash(entry.relative_path.as_path()),
+                entry.missing,
+            )
+        })?;
     let column_index = browser_column_index(entry_tag);
     let cache_hit = controller
         .projected_browser_rows
         .get(&absolute_index)
         .is_some_and(|cached| {
-            cached_browser_row_matches_entry(cached, row_identity_hash, column_index)
+            cached_browser_row_matches_entry(cached, row_identity_hash, column_index, missing)
         });
     trace_browser_row_cache_lookup(cache_hit);
     if !cache_hit {
@@ -286,6 +293,7 @@ pub(super) fn project_cached_browser_row(
             row_label,
             column_index,
             bucket_label: browser_bucket_label(controller, relative_path.as_path(), entry_tag),
+            missing,
         };
         if controller.projected_browser_rows.len() >= MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE {
             clear_projected_browser_row_cache(controller);
@@ -305,14 +313,16 @@ pub(super) fn project_cached_browser_row(
 fn write_browser_row_into_slot(
     rows: &mut Vec<BrowserRowModel>,
     offset: usize,
-    projection: (usize, &str, usize, &str, bool, bool),
+    projection: (usize, &str, usize, &str, bool, bool, bool),
 ) {
-    let (visible_row, row_label, column_index, bucket_label, selected, focused) = projection;
+    let (visible_row, row_label, column_index, bucket_label, selected, focused, missing) =
+        projection;
     let clamped_column_index = column_index.min(2);
     if let Some(row) = rows.get_mut(offset) {
         if row.visible_row == visible_row && row.column == clamped_column_index {
             row.selected = selected;
             row.focused = focused;
+            row.missing = missing;
             if row.label == row_label && row.bucket_label.as_deref() == Some(bucket_label) {
                 return;
             }
@@ -325,6 +335,7 @@ fn write_browser_row_into_slot(
         row.column = clamped_column_index;
         row.selected = selected;
         row.focused = focused;
+        row.missing = missing;
         if let Some(existing_bucket_label) = row.bucket_label.as_mut() {
             if existing_bucket_label != bucket_label {
                 existing_bucket_label.clear();
@@ -337,7 +348,8 @@ fn write_browser_row_into_slot(
     }
     rows.push(
         BrowserRowModel::new(visible_row, row_label, column_index, selected, focused)
-            .with_bucket_label(bucket_label),
+            .with_bucket_label(bucket_label)
+            .with_missing(missing),
     );
 }
 

@@ -676,6 +676,7 @@ fn browser_row_cache_clears_when_visible_revision_changes() {
             row_label: String::from("Kick"),
             column_index: 1,
             bucket_label: String::from("SAMPLE"),
+            missing: false,
         },
     );
     controller.ui.browser.visible_rows_revision = 8;
@@ -762,6 +763,7 @@ fn cached_browser_row_rebuilds_when_stored_tag_column_is_stale() {
             row_label: String::from("Kick"),
             column_index: 1,
             bucket_label: String::from("SAMPLE"),
+            missing: false,
         },
     );
 
@@ -770,6 +772,38 @@ fn cached_browser_row_rebuilds_when_stored_tag_column_is_stale() {
     };
 
     assert_eq!(cached.0.column_index, 2);
+}
+
+#[test]
+/// Cached browser rows should rebuild when stored missing metadata is stale.
+fn cached_browser_row_rebuilds_when_stored_missing_state_is_stale() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
+    controller.set_wav_entries_for_tests(vec![crate::sample_sources::WavEntry {
+        relative_path: std::path::PathBuf::from("kick.wav"),
+        file_size: 0,
+        modified_ns: 0,
+        content_hash: Some(String::from("hash")),
+        tag: crate::sample_sources::Rating::NEUTRAL,
+        looped: false,
+        missing: true,
+        last_played_at: None,
+    }]);
+    controller.projected_browser_rows.insert(
+        0,
+        ProjectedBrowserRowCacheEntry {
+            row_identity_hash: browser_row_identity_hash(std::path::Path::new("kick.wav")),
+            row_label: String::from("Kick"),
+            column_index: 1,
+            bucket_label: String::from("SAMPLE"),
+            missing: false,
+        },
+    );
+
+    let Some(cached) = project_cached_browser_row(&mut controller, 0) else {
+        panic!("cached row should exist");
+    };
+
+    assert!(cached.0.missing);
 }
 
 #[test]
