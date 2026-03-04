@@ -75,7 +75,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: scenario tests for playing/not-playing and with/without selection + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `86027bd4`
 
-- [ ] 7) Split `wavs.rs` controller facade by responsibility (cache, selection, metadata, browser actions)
+- [x] 7) Split `wavs.rs` controller facade by responsibility (cache, selection, metadata, browser actions)
   - ROI/Effort: Medium / L
   - Why it matters: The wavs controller facade remains very large and serves many unrelated concerns, increasing coupling and churn risk.
   - Evidence:
@@ -84,6 +84,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Partition by responsibility into submodules while preserving `AppController` API surface.
   - Risk/tradeoffs: Medium. Large call-site movement can create merge friction.
   - Suggested validation: controller wav/browser selection tests + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `e882abff`
 
 - [ ] 8) Defer non-critical DB metadata writes from immediate waveform load path
   - ROI/Effort: Medium / M
@@ -143,3 +144,4 @@ Status legend: `[ ]` pending, `[x]` done
 - 2026-03-04: Completed item 4 (native-shell projection facade split into focused modules + browser cache submodule split to satisfy file budget guardrail).
 - 2026-03-04: Completed item 5 (file-ops journal malformed-row surfacing + staged/target reconciliation helper split + expect-path removal).
 - 2026-03-04: Completed item 6 (toggle_loop staged policy helpers + explicit loop restart policy tests).
+- 2026-03-04: Completed item 7 (wavs controller facade split into focused entry, metadata, browser, and similarity modules while preserving API surface).
