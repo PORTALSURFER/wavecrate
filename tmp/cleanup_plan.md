@@ -64,7 +64,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: malformed-entry + reconcile-matrix tests (staged/target/source combinations) + `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `298263e3`
 
-- [ ] 6) Extract `toggle_loop` policy flow into smaller decision helpers with scenario coverage
+- [x] 6) Extract `toggle_loop` policy flow into smaller decision helpers with scenario coverage
   - ROI/Effort: Medium / M
   - Why it matters: Loop behavior touches playback state, selection semantics, DB writes, and UI; current all-in-one flow is hard to reason about.
   - Evidence:
@@ -73,6 +73,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Split policy into explicit branches (enable, disable, defer-disable, restart) and isolate side effects into named helpers.
   - Risk/tradeoffs: Medium. Sequence changes can alter audible behavior and loop state timing.
   - Suggested validation: scenario tests for playing/not-playing and with/without selection + `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `86027bd4`
 
 - [ ] 7) Split `wavs.rs` controller facade by responsibility (cache, selection, metadata, browser actions)
   - ROI/Effort: Medium / L
@@ -141,3 +142,4 @@ Status legend: `[ ]` pending, `[x]` done
 - 2026-03-04: Completed item 3 (source move worker staged helpers + unified per-request progress completion path).
 - 2026-03-04: Completed item 4 (native-shell projection facade split into focused modules + browser cache submodule split to satisfy file budget guardrail).
 - 2026-03-04: Completed item 5 (file-ops journal malformed-row surfacing + staged/target reconciliation helper split + expect-path removal).
+- 2026-03-04: Completed item 6 (toggle_loop staged policy helpers + explicit loop restart policy tests).
