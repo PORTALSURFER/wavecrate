@@ -517,6 +517,11 @@ impl NativeAppBridge for SempalNativeBridge {
         self.segment_revisions
     }
 
+    /// Install runtime repaint signal for async job completion wakeups.
+    fn install_repaint_signal(&mut self, signal: Arc<dyn crate::gui::repaint::RepaintSignal>) {
+        self.controller.set_repaint_signal(signal);
+    }
+
     /// Project motion-only fields for animation-only redraw phases.
     fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
         let call = trace_pull_motion_call();
