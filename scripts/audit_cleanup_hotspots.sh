@@ -8,6 +8,7 @@
 # - files still over the file-size budget limit
 # - dead-code and clippy::too_many_arguments suppression density
 # - likely test-gap hotspots (large files without local test modules)
+#   excluding dedicated test paths like `tests/**`, `*_test.rs`, and `tests.rs`
 #
 # Output defaults to `tmp/cleanup_audit_hotspots.md`.
 
@@ -180,7 +181,7 @@ while IFS=$'\t' read -r line_count file; do
   if (( line_count < TEST_GAP_MIN_LINES )); then
     continue
   fi
-  if [[ "$file" == */tests/* || "$file" == tests/* || "$file" == *_test.rs ]]; then
+  if [[ "$file" == */tests/* || "$file" == tests/* || "$file" == *_test.rs || "$file" == */tests.rs || "$file" == tests.rs ]]; then
     continue
   fi
   if rg -q '^\s*#\s*\[cfg\(test\)\]|^\s*mod\s+tests\b' "$file"; then
@@ -284,6 +285,7 @@ function_span_count="$(wc -l <"$tmp_function_spans" | tr -d '[:space:]')"
   echo "## Likely test-gap hotspots (heuristic)"
   echo
   echo "Files with at least \`$TEST_GAP_MIN_LINES\` lines and no local \`#[cfg(test)]\` or \`mod tests\` marker."
+  echo "Skips dedicated test modules/paths (\`tests/**\`, \`tests.rs\`, \`*_test.rs\`)."
   echo
   if (( test_gap_count == 0 )); then
     echo "None."
