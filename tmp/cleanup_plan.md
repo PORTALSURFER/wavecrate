@@ -29,7 +29,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: drag/drop move tests, file-op journal recovery tests, `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `fc9241ed`
 
-- [ ] 3) Add dedicated tests for folder move worker cancellation and rollback semantics
+- [x] 3) Add dedicated tests for folder move worker cancellation and rollback semantics
   - ROI/Effort: High / M
   - Why it matters: Non-trivial file operation code currently lacks local coverage in `folder_moves`, leaving cancellation/journal-stage edge cases underprotected.
   - Evidence:
@@ -38,6 +38,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Add focused tests for cancel-before-start, staged rename failure rollback, DB update failure rollback, and journal cleanup on success/failure.
   - Risk/tradeoffs: Low-medium. Test setup will require deterministic temp-dir and DB fixtures.
   - Suggested validation: run new folder move tests directly, then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `9ce005e8`
 
 - [ ] 4) Split `IssueTokenStore` into backend/key-management/storage modules
   - ROI/Effort: High / M
