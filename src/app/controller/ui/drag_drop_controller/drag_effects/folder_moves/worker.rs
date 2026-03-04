@@ -1,6 +1,6 @@
 use super::super::move_transaction::{
     load_sample_move_metadata, prepare_staged_move, remove_move_journal_entry,
-    rollback_staged_move_to_source,
+    report_staged_move_failure,
 };
 use crate::app::controller::jobs::{
     FileOpMessage, FolderEntryMove, FolderMoveRequest, FolderMoveResult, FolderSampleMoveRequest,
@@ -153,26 +153,24 @@ pub(super) fn run_folder_sample_move_task(
         let mut batch = match db.write_batch() {
             Ok(batch) => batch,
             Err(err) => {
-                rollback_staged_move_to_source(
+                report_staged_move_failure(
                     &mut errors,
-                    &prepared.staged_absolute,
-                    &prepared.source_absolute,
+                    &db,
+                    &prepared,
+                    format!("Failed to start database update: {err}"),
                 );
-                remove_move_journal_entry(&mut errors, &db, &prepared.op_id);
-                errors.push(format!("Failed to start database update: {err}"));
                 completed += 1;
                 report_progress(sender, completed, detail);
                 continue;
             }
         };
         if let Err(err) = batch.remove_file(&request.relative_path) {
-            rollback_staged_move_to_source(
+            report_staged_move_failure(
                 &mut errors,
-                &prepared.staged_absolute,
-                &prepared.source_absolute,
+                &db,
+                &prepared,
+                format!("Failed to drop old entry: {err}"),
             );
-            remove_move_journal_entry(&mut errors, &db, &prepared.op_id);
-            errors.push(format!("Failed to drop old entry: {err}"));
             completed += 1;
             report_progress(sender, completed, detail);
             continue;
@@ -182,37 +180,34 @@ pub(super) fn run_folder_sample_move_task(
             prepared.file_size,
             prepared.modified_ns,
         ) {
-            rollback_staged_move_to_source(
+            report_staged_move_failure(
                 &mut errors,
-                &prepared.staged_absolute,
-                &prepared.source_absolute,
+                &db,
+                &prepared,
+                format!("Failed to register moved file: {err}"),
             );
-            remove_move_journal_entry(&mut errors, &db, &prepared.op_id);
-            errors.push(format!("Failed to register moved file: {err}"));
             completed += 1;
             report_progress(sender, completed, detail);
             continue;
         }
         if let Err(err) = batch.set_tag(&request.target_relative, metadata.tag) {
-            rollback_staged_move_to_source(
+            report_staged_move_failure(
                 &mut errors,
-                &prepared.staged_absolute,
-                &prepared.source_absolute,
+                &db,
+                &prepared,
+                format!("Failed to copy tag: {err}"),
             );
-            remove_move_journal_entry(&mut errors, &db, &prepared.op_id);
-            errors.push(format!("Failed to copy tag: {err}"));
             completed += 1;
             report_progress(sender, completed, detail);
             continue;
         }
         if let Err(err) = batch.set_looped(&request.target_relative, metadata.looped) {
-            rollback_staged_move_to_source(
+            report_staged_move_failure(
                 &mut errors,
-                &prepared.staged_absolute,
-                &prepared.source_absolute,
+                &db,
+                &prepared,
+                format!("Failed to copy loop marker: {err}"),
             );
-            remove_move_journal_entry(&mut errors, &db, &prepared.op_id);
-            errors.push(format!("Failed to copy loop marker: {err}"));
             completed += 1;
             report_progress(sender, completed, detail);
             continue;
@@ -220,25 +215,23 @@ pub(super) fn run_folder_sample_move_task(
         if let Some(last_played_at) = metadata.last_played_at
             && let Err(err) = batch.set_last_played_at(&request.target_relative, last_played_at)
         {
-            rollback_staged_move_to_source(
+            report_staged_move_failure(
                 &mut errors,
-                &prepared.staged_absolute,
-                &prepared.source_absolute,
+                &db,
+                &prepared,
+                format!("Failed to copy playback age: {err}"),
             );
-            remove_move_journal_entry(&mut errors, &db, &prepared.op_id);
-            errors.push(format!("Failed to copy playback age: {err}"));
             completed += 1;
             report_progress(sender, completed, detail);
             continue;
         }
         if let Err(err) = batch.commit() {
-            rollback_staged_move_to_source(
+            report_staged_move_failure(
                 &mut errors,
-                &prepared.staged_absolute,
-                &prepared.source_absolute,
+                &db,
+                &prepared,
+                format!("Failed to save move: {err}"),
             );
-            remove_move_journal_entry(&mut errors, &db, &prepared.op_id);
-            errors.push(format!("Failed to save move: {err}"));
             completed += 1;
             report_progress(sender, completed, detail);
             continue;

@@ -3,7 +3,7 @@
 use super::super::DragDropController;
 use super::move_transaction::{
     load_sample_move_metadata, prepare_staged_move, remove_move_journal_entry,
-    rollback_staged_move_to_source,
+    report_staged_move_failure,
 };
 use crate::app::controller::StatusTone;
 use crate::app::controller::jobs::{
@@ -407,13 +407,12 @@ fn run_source_move_task(
         let mut batch = match target_db.write_batch() {
             Ok(batch) => batch,
             Err(err) => {
-                rollback_staged_move_to_source(
+                report_staged_move_failure(
                     &mut errors,
-                    &prepared.staged_absolute,
-                    &prepared.source_absolute,
+                    &target_db,
+                    &prepared,
+                    format!("Failed to open target DB batch: {err}"),
                 );
-                remove_move_journal_entry(&mut errors, &target_db, &prepared.op_id);
-                errors.push(format!("Failed to open target DB batch: {err}"));
                 completed += 1;
                 report_progress(sender, completed, detail);
                 continue;
@@ -422,37 +421,34 @@ fn run_source_move_task(
         if let Err(err) =
             batch.upsert_file(&target_relative, prepared.file_size, prepared.modified_ns)
         {
-            rollback_staged_move_to_source(
+            report_staged_move_failure(
                 &mut errors,
-                &prepared.staged_absolute,
-                &prepared.source_absolute,
+                &target_db,
+                &prepared,
+                format!("Failed to register file: {err}"),
             );
-            remove_move_journal_entry(&mut errors, &target_db, &prepared.op_id);
-            errors.push(format!("Failed to register file: {err}"));
             completed += 1;
             report_progress(sender, completed, detail);
             continue;
         }
         if let Err(err) = batch.set_tag(&target_relative, metadata.tag) {
-            rollback_staged_move_to_source(
+            report_staged_move_failure(
                 &mut errors,
-                &prepared.staged_absolute,
-                &prepared.source_absolute,
+                &target_db,
+                &prepared,
+                format!("Failed to set tag: {err}"),
             );
-            remove_move_journal_entry(&mut errors, &target_db, &prepared.op_id);
-            errors.push(format!("Failed to set tag: {err}"));
             completed += 1;
             report_progress(sender, completed, detail);
             continue;
         }
         if let Err(err) = batch.set_looped(&target_relative, metadata.looped) {
-            rollback_staged_move_to_source(
+            report_staged_move_failure(
                 &mut errors,
-                &prepared.staged_absolute,
-                &prepared.source_absolute,
+                &target_db,
+                &prepared,
+                format!("Failed to set loop marker: {err}"),
             );
-            remove_move_journal_entry(&mut errors, &target_db, &prepared.op_id);
-            errors.push(format!("Failed to set loop marker: {err}"));
             completed += 1;
             report_progress(sender, completed, detail);
             continue;
@@ -460,25 +456,23 @@ fn run_source_move_task(
         if let Some(last_played_at) = metadata.last_played_at
             && let Err(err) = batch.set_last_played_at(&target_relative, last_played_at)
         {
-            rollback_staged_move_to_source(
+            report_staged_move_failure(
                 &mut errors,
-                &prepared.staged_absolute,
-                &prepared.source_absolute,
+                &target_db,
+                &prepared,
+                format!("Failed to copy playback age: {err}"),
             );
-            remove_move_journal_entry(&mut errors, &target_db, &prepared.op_id);
-            errors.push(format!("Failed to copy playback age: {err}"));
             completed += 1;
             report_progress(sender, completed, detail);
             continue;
         }
         if let Err(err) = batch.commit() {
-            rollback_staged_move_to_source(
+            report_staged_move_failure(
                 &mut errors,
-                &prepared.staged_absolute,
-                &prepared.source_absolute,
+                &target_db,
+                &prepared,
+                format!("Failed to commit target DB update: {err}"),
             );
-            remove_move_journal_entry(&mut errors, &target_db, &prepared.op_id);
-            errors.push(format!("Failed to commit target DB update: {err}"));
             completed += 1;
             report_progress(sender, completed, detail);
             continue;

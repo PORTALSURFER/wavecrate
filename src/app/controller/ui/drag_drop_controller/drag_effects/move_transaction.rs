@@ -144,6 +144,18 @@ pub(super) fn rollback_staged_move_to_source(
     }
 }
 
+/// Roll back one staged move, remove its journal entry, and append the primary failure message.
+pub(super) fn report_staged_move_failure(
+    errors: &mut Vec<String>,
+    db: &SourceDatabase,
+    prepared: &PreparedStagedMove,
+    message: String,
+) {
+    rollback_staged_move_to_source(errors, &prepared.staged_absolute, &prepared.source_absolute);
+    remove_move_journal_entry(errors, db, &prepared.op_id);
+    errors.push(message);
+}
+
 /// Move a file with a copy/remove fallback when `rename` crosses filesystems.
 pub(super) fn move_sample_file(source: &Path, destination: &Path) -> Result<(), String> {
     match std::fs::rename(source, destination) {
