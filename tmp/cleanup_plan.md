@@ -139,7 +139,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `RUSTDOCFLAGS='-D warnings' cargo doc -p sempal --no-deps` and `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `145a740d`
 
-- [ ] 12) Tighten cleanup-audit test-gap heuristic to exclude dedicated `tests.rs` files
+- [x] 12) Tighten cleanup-audit test-gap heuristic to exclude dedicated `tests.rs` files
   - ROI/Effort: Low / S
   - Why it matters: Current hotspot report shows known test files as “test-gap” candidates, adding noise to planning.
   - Evidence:
@@ -148,8 +148,10 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Update `scripts/audit_cleanup_hotspots.sh` filtering to skip `tests.rs` files and document the heuristic in script usage/help text.
   - Risk/tradeoffs: Low. Report-only behavior change.
   - Suggested validation: rerun script and confirm test-gap list no longer includes dedicated test modules, then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `f41028ad`
 
 ## Progress Log
 
 - 2026-03-04: Phase 1 refreshed from current code state; awaiting explicit user confirmation before Phase 2 implementation.
 - 2026-03-04: Completed item 11 documentation pass for high-churn crate-visible controller/runtime helpers.
+- 2026-03-04: Completed item 12 cleanup-audit heuristic update to exclude dedicated `tests.rs` modules from test-gap output.
