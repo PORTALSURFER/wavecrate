@@ -129,7 +129,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: run the script locally and verify output under version control exclusions, then `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `1b55c8eb`
 
-- [ ] 12) Add a cleanup architecture note linking debt items to module boundaries
+- [x] 12) Add a cleanup architecture note linking debt items to module boundaries
   - ROI/Effort: Low / S
   - Why it matters: The cleanup queue spans controller, DB, and runtime layers; a short architecture note prevents future passes from reintroducing the same boundary violations.
   - Evidence:
@@ -137,6 +137,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Add a concise doc under `docs/plans/active/` describing target boundaries and ownership for the top cleanup hotspots.
   - Risk/tradeoffs: Low. Documentation overhead only.
   - Suggested validation: docs consistency review and `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `c9b1bb8c`
 
 ## Progress Log
 
