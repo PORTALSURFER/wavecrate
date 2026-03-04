@@ -148,6 +148,38 @@ pub(crate) struct FileOpReconcileSummary {
     pub(crate) errors: Vec<String>,
 }
 
+/// Result of loading journal rows, partitioned by valid and malformed entries.
+#[derive(Debug, Default)]
+pub(crate) struct ListedJournalEntries {
+    pub(crate) entries: Vec<FileOpJournalEntry>,
+    pub(crate) malformed: Vec<MalformedJournalEntry>,
+}
+
+/// Description of one malformed journal row that cannot be reconciled safely.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MalformedJournalEntry {
+    pub(crate) id: Option<String>,
+    pub(crate) detail: String,
+}
+
+impl MalformedJournalEntry {
+    /// Build one malformed-row descriptor with optional row id context.
+    fn new(id: Option<String>, detail: impl Into<String>) -> Self {
+        Self {
+            id,
+            detail: detail.into(),
+        }
+    }
+
+    /// Render one human-readable malformed-row error message for reconcile summaries.
+    fn describe(&self) -> String {
+        match self.id.as_deref() {
+            Some(id) => format!("Malformed file-ops journal entry {id}: {}", self.detail),
+            None => format!("Malformed file-ops journal entry: {}", self.detail),
+        }
+    }
+}
+
 /// Generate a unique identifier for a pending file operation.
 pub(crate) fn new_op_id() -> String {
     Uuid::new_v4().to_string()
@@ -244,7 +276,7 @@ pub(crate) fn remove_entry(db: &SourceDatabase, id: &str) -> Result<(), SourceDb
 }
 
 /// Load all pending journal entries for reconciliation.
-pub(crate) fn list_entries(db: &SourceDatabase) -> Result<Vec<FileOpJournalEntry>, SourceDbError> {
+pub(crate) fn list_entries(db: &SourceDatabase) -> Result<ListedJournalEntries, SourceDbError> {
     let mut stmt = db
         .connection
         .prepare(
@@ -253,76 +285,176 @@ pub(crate) fn list_entries(db: &SourceDatabase) -> Result<Vec<FileOpJournalEntry
              FROM file_ops_journal",
         )
         .map_err(map_sql_error)?;
-    let rows = stmt
-        .query_map([], |row| {
-            let kind = FileOpKind::from_str(row.get::<_, String>(1)?.as_str())
-                .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
-            let stage = FileOpStage::from_str(row.get::<_, String>(2)?.as_str())
-                .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
-            let source_root: Option<String> = row.get(3)?;
-            let source_relative: Option<String> = row.get(4)?;
-            let target_relative: String = row.get(5)?;
-            let staged_relative: Option<String> = row.get(6)?;
-            let source_relative = match source_relative {
-                Some(path) => match parse_relative_path_from_db(&path) {
-                    Ok(path) => Some(path),
-                    Err(err) => {
-                        tracing::warn!("Skipping journal entry with invalid source path: {err}");
-                        return Ok(None);
-                    }
-                },
-                None => None,
-            };
-            let target_relative = match parse_relative_path_from_db(&target_relative) {
-                Ok(path) => path,
-                Err(err) => {
-                    tracing::warn!("Skipping journal entry with invalid target path: {err}");
-                    return Ok(None);
-                }
-            };
-            let staged_relative = match staged_relative {
-                Some(path) => match parse_relative_path_from_db(&path) {
-                    Ok(path) => Some(path),
-                    Err(err) => {
-                        tracing::warn!("Skipping journal entry with invalid staged path: {err}");
-                        return Ok(None);
-                    }
-                },
-                None => None,
-            };
-            let tag = row.get::<_, Option<i64>>(9)?.map(Rating::from_i64);
-            let looped = row.get::<_, Option<i64>>(10)?.map(|flag| flag != 0);
-            Ok(Some(FileOpJournalEntry {
-                id: row.get(0)?,
-                kind,
-                stage,
-                source_root: source_root.map(PathBuf::from),
-                source_relative,
-                target_relative,
-                staged_relative,
-                file_size: row.get::<_, Option<i64>>(7)?.map(|size| size as u64),
-                modified_ns: row.get(8)?,
-                tag,
-                looped,
-                last_played_at: row.get(11)?,
-                created_at: row.get(12)?,
-            }))
+    let mut rows = stmt.query([]).map_err(map_sql_error)?;
+    let mut listed = ListedJournalEntries::default();
+    while let Some(row) = rows.next().map_err(map_sql_error)? {
+        match decode_journal_row(row) {
+            Ok(entry) => listed.entries.push(entry),
+            Err(malformed) => {
+                tracing::warn!("{}", malformed.describe());
+                listed.malformed.push(malformed);
+            }
+        }
+    }
+    Ok(listed)
+}
+
+/// Decode one persisted journal row into a typed recovery entry.
+fn decode_journal_row(
+    row: &rusqlite::Row<'_>,
+) -> Result<FileOpJournalEntry, MalformedJournalEntry> {
+    let id: String = row
+        .get(0)
+        .map_err(|err| malformed_column_error(None, "id", err))?;
+    let op_type: String = row
+        .get(1)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "op_type", err))?;
+    let stage_text: String = row
+        .get(2)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "stage", err))?;
+    let kind = FileOpKind::from_str(op_type.as_str()).ok_or_else(|| {
+        MalformedJournalEntry::new(
+            Some(id.clone()),
+            format!("unknown op_type value `{op_type}`"),
+        )
+    })?;
+    let stage = FileOpStage::from_str(stage_text.as_str()).ok_or_else(|| {
+        MalformedJournalEntry::new(
+            Some(id.clone()),
+            format!("unknown stage value `{stage_text}`"),
+        )
+    })?;
+    let source_root: Option<String> = row
+        .get(3)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "source_root", err))?;
+    let source_relative_raw: Option<String> = row
+        .get(4)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "source_relative", err))?;
+    let target_relative_raw: String = row
+        .get(5)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "target_relative", err))?;
+    let staged_relative_raw: Option<String> = row
+        .get(6)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "staged_relative", err))?;
+    let file_size = row
+        .get::<_, Option<i64>>(7)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "file_size", err))?
+        .map(|size| {
+            if size < 0 {
+                Err(MalformedJournalEntry::new(
+                    Some(id.clone()),
+                    format!("file_size must be non-negative, got {size}"),
+                ))
+            } else {
+                Ok(size as u64)
+            }
         })
-        .map_err(map_sql_error)?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(map_sql_error)?;
-    Ok(rows.into_iter().flatten().collect())
+        .transpose()?;
+    let modified_ns: Option<i64> = row
+        .get(8)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "modified_ns", err))?;
+    let tag = row
+        .get::<_, Option<i64>>(9)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "tag", err))?
+        .map(Rating::from_i64);
+    let looped = row
+        .get::<_, Option<i64>>(10)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "looped", err))?
+        .map(|flag| flag != 0);
+    let last_played_at: Option<i64> = row
+        .get(11)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "last_played_at", err))?;
+    let created_at: i64 = row
+        .get(12)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "created_at", err))?;
+    let source_relative =
+        parse_optional_relative_path_column(id.as_str(), "source_relative", source_relative_raw)?;
+    let target_relative =
+        parse_required_relative_path_column(id.as_str(), "target_relative", target_relative_raw)?;
+    let staged_relative =
+        parse_optional_relative_path_column(id.as_str(), "staged_relative", staged_relative_raw)?;
+    Ok(FileOpJournalEntry {
+        id,
+        kind,
+        stage,
+        source_root: source_root.map(PathBuf::from),
+        source_relative,
+        target_relative,
+        staged_relative,
+        file_size,
+        modified_ns,
+        tag,
+        looped,
+        last_played_at,
+        created_at,
+    })
+}
+
+/// Map one sqlite column read failure to a malformed-row descriptor.
+fn malformed_column_error(
+    id: Option<&str>,
+    column: &str,
+    err: rusqlite::Error,
+) -> MalformedJournalEntry {
+    let detail = format!("invalid `{column}` column: {err}");
+    MalformedJournalEntry::new(id.map(str::to_string), detail)
+}
+
+/// Parse one optional relative-path column while preserving row-id context.
+fn parse_optional_relative_path_column(
+    id: &str,
+    column: &str,
+    value: Option<String>,
+) -> Result<Option<PathBuf>, MalformedJournalEntry> {
+    match value {
+        Some(path) => parse_relative_path_from_db(&path).map(Some).map_err(|err| {
+            MalformedJournalEntry::new(
+                Some(id.to_string()),
+                format!("invalid `{column}` path `{path}`: {err}"),
+            )
+        }),
+        None => Ok(None),
+    }
+}
+
+/// Parse one required relative-path column while preserving row-id context.
+fn parse_required_relative_path_column(
+    id: &str,
+    column: &str,
+    value: String,
+) -> Result<PathBuf, MalformedJournalEntry> {
+    parse_relative_path_from_db(&value).map_err(|err| {
+        MalformedJournalEntry::new(
+            Some(id.to_string()),
+            format!("invalid `{column}` path `{value}`: {err}"),
+        )
+    })
 }
 
 /// Reconcile all pending file ops against the filesystem and database.
 pub(crate) fn reconcile_pending_ops(db: &SourceDatabase) -> Result<FileOpReconcileSummary, String> {
-    let entries = list_entries(db).map_err(|err| err.to_string())?;
+    let listed = list_entries(db).map_err(|err| err.to_string())?;
     let mut summary = FileOpReconcileSummary {
-        total: entries.len(),
+        total: listed.entries.len() + listed.malformed.len(),
         completed: 0,
         errors: Vec::new(),
     };
-    for entry in entries {
+    for malformed in listed.malformed {
+        let message = malformed.describe();
+        if let Some(id) = malformed.id.as_deref() {
+            match remove_entry(db, id) {
+                Ok(()) => summary
+                    .errors
+                    .push(format!("{message}; dropped malformed journal row")),
+                Err(err) => summary.errors.push(format!(
+                    "{message}; failed to drop malformed row {id}: {err}"
+                )),
+            }
+        } else {
+            summary.errors.push(message);
+        }
+    }
+    for entry in listed.entries {
         match reconcile_entry(db, &entry) {
             Ok(()) => {
                 if let Err(err) = remove_entry(db, &entry.id) {
@@ -347,26 +479,47 @@ fn reconcile_entry(db: &SourceDatabase, entry: &FileOpJournalEntry) -> Result<()
         .staged_relative
         .as_ref()
         .map(|path| target_root.join(path));
-    let staged_exists = staged_absolute.as_ref().is_some_and(|path| path.is_file());
-    let target_exists = target_absolute.is_file();
-    if staged_exists {
-        if !target_exists {
-            if let Some(parent) = target_absolute.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|err| format!("Failed to create target dir: {err}"))?;
-            }
-            std::fs::rename(
-                staged_absolute.as_ref().expect("checked staged path"),
-                &target_absolute,
-            )
-            .map_err(|err| format!("Failed to finalize staged file: {err}"))?;
-        } else if let Some(staged) = staged_absolute.as_ref() {
-            std::fs::remove_file(staged)
-                .map_err(|err| format!("Failed to remove staged file: {err}"))?;
-        }
+    reconcile_staged_file(staged_absolute.as_deref(), &target_absolute)?;
+    let target_exists = reconcile_target_entry(db, entry, &target_absolute)?;
+    if entry.kind == FileOpKind::Move {
+        reconcile_source_entry(db, entry, target_exists)?;
     }
+    Ok(())
+}
+
+/// Finalize one staged file into the target path or clean the stale staged copy.
+fn reconcile_staged_file(
+    staged_absolute: Option<&Path>,
+    target_absolute: &Path,
+) -> Result<(), String> {
+    let Some(staged_absolute) = staged_absolute else {
+        return Ok(());
+    };
+    if !staged_absolute.is_file() {
+        return Ok(());
+    }
+    if !target_absolute.is_file() {
+        if let Some(parent) = target_absolute.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|err| format!("Failed to create target dir: {err}"))?;
+        }
+        std::fs::rename(staged_absolute, target_absolute)
+            .map_err(|err| format!("Failed to finalize staged file: {err}"))?;
+    } else {
+        std::fs::remove_file(staged_absolute)
+            .map_err(|err| format!("Failed to remove staged file: {err}"))?;
+    }
+    Ok(())
+}
+
+/// Reconcile one target DB row and return whether the target file exists afterwards.
+fn reconcile_target_entry(
+    db: &SourceDatabase,
+    entry: &FileOpJournalEntry,
+    target_absolute: &Path,
+) -> Result<bool, String> {
     if target_absolute.is_file() {
-        let (file_size, modified_ns) = file_metadata(&target_absolute)?;
+        let (file_size, modified_ns) = file_metadata(target_absolute)?;
         let mut batch = db.write_batch().map_err(|err| err.to_string())?;
         batch
             .upsert_file(&entry.target_relative, file_size, modified_ns)
@@ -387,14 +540,12 @@ fn reconcile_entry(db: &SourceDatabase, entry: &FileOpJournalEntry) -> Result<()
                 .map_err(|err| err.to_string())?;
         }
         batch.commit().map_err(|err| err.to_string())?;
+        Ok(true)
     } else {
         db.remove_file(&entry.target_relative)
             .map_err(|err| format!("Failed to drop target DB row: {err}"))?;
+        Ok(false)
     }
-    if entry.kind == FileOpKind::Move {
-        reconcile_source_entry(db, entry, target_absolute.is_file())?;
-    }
-    Ok(())
 }
 
 fn reconcile_source_entry(
@@ -459,6 +610,16 @@ mod tests {
         std::fs::write(path, [0u8; 16]).unwrap();
     }
 
+    /// Assert that no valid or malformed journal rows remain for the source DB.
+    fn assert_no_journal_entries(db: &SourceDatabase) {
+        let listed = match list_entries(db) {
+            Ok(listed) => listed,
+            Err(err) => panic!("failed to load journal entries: {err}"),
+        };
+        assert!(listed.entries.is_empty());
+        assert!(listed.malformed.is_empty());
+    }
+
     #[test]
     fn reconcile_move_from_staged_file() {
         let temp = tempdir().unwrap();
@@ -521,7 +682,7 @@ mod tests {
             target_db.last_played_at_for_path(&target_relative).unwrap(),
             Some(123)
         );
-        assert!(list_entries(&target_db).unwrap().is_empty());
+        assert_no_journal_entries(&target_db);
     }
 
     #[test]
@@ -573,7 +734,7 @@ mod tests {
             db.last_played_at_for_path(&target_relative).unwrap(),
             Some(123)
         );
-        assert!(list_entries(&db).unwrap().is_empty());
+        assert_no_journal_entries(&db);
     }
 
     #[test]
@@ -610,6 +771,74 @@ mod tests {
         assert_eq!(summary.completed, 1);
         assert!(target_root.join(&target_relative).exists());
         assert!(target_db.tag_for_path(&target_relative).unwrap().is_some());
-        assert!(list_entries(&target_db).unwrap().is_empty());
+        assert_no_journal_entries(&target_db);
+    }
+
+    #[test]
+    /// Malformed journal rows are reported in reconcile output and removed from the journal.
+    fn reconcile_reports_and_drops_malformed_journal_rows() {
+        let temp = match tempdir() {
+            Ok(temp) => temp,
+            Err(err) => panic!("failed to create tempdir: {err}"),
+        };
+        let target_root = temp.path().join("target");
+        if let Err(err) = std::fs::create_dir_all(&target_root) {
+            panic!("failed to create target root: {err}");
+        }
+        let target_db = match SourceDatabase::open(&target_root) {
+            Ok(db) => db,
+            Err(err) => panic!("failed to open source db: {err}"),
+        };
+        let insert_result = target_db.connection.execute(
+            "INSERT INTO file_ops_journal (
+                id, op_type, stage, source_root, source_relative, target_relative,
+                staged_relative, file_size, modified_ns, tag, looped, last_played_at, created_at
+             )
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            params![
+                "bad-row",
+                "move",
+                "intent",
+                Option::<String>::None,
+                Option::<String>::None,
+                "/absolute.wav",
+                Option::<String>::None,
+                Option::<i64>::None,
+                Option::<i64>::None,
+                Option::<i64>::None,
+                Option::<i64>::None,
+                Option::<i64>::None,
+                1i64,
+            ],
+        );
+        assert!(
+            insert_result.is_ok(),
+            "failed to seed malformed journal row: {insert_result:?}"
+        );
+
+        let summary = reconcile_pending_ops(&target_db);
+        assert!(summary.is_ok(), "reconcile_pending_ops failed: {summary:?}");
+        let summary = match summary {
+            Ok(summary) => summary,
+            Err(err) => panic!("{err}"),
+        };
+        assert_eq!(summary.total, 1);
+        assert_eq!(summary.completed, 0);
+        assert_eq!(summary.errors.len(), 1);
+        assert!(summary.errors[0].contains("bad-row"));
+        assert!(summary.errors[0].contains("dropped malformed journal row"));
+
+        let entry_count =
+            target_db
+                .connection
+                .query_row("SELECT COUNT(*) FROM file_ops_journal", [], |row| {
+                    row.get::<_, i64>(0)
+                });
+        assert!(entry_count.is_ok(), "failed to read journal row count");
+        let entry_count = match entry_count {
+            Ok(count) => count,
+            Err(err) => panic!("failed to read journal row count: {err}"),
+        };
+        assert_eq!(entry_count, 0);
     }
 }

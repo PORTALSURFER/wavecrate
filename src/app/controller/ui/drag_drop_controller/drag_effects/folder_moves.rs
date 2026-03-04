@@ -99,7 +99,9 @@ mod tests {
                 .must(),
             Some(42)
         );
-        assert!(file_ops_journal::list_entries(&db).must().is_empty());
+        let entries = file_ops_journal::list_entries(&db).must();
+        assert!(entries.entries.is_empty());
+        assert!(entries.malformed.is_empty());
     }
 
     #[test]
@@ -141,7 +143,9 @@ mod tests {
             db.tag_for_path(Path::new("one.wav")).must(),
             Some(Rating::KEEP_1)
         );
-        assert!(file_ops_journal::list_entries(&db).must().is_empty());
+        let entries = file_ops_journal::list_entries(&db).must();
+        assert!(entries.entries.is_empty());
+        assert!(entries.malformed.is_empty());
     }
 
     #[test]
@@ -207,9 +211,16 @@ mod tests {
             Some(Rating::KEEP_1)
         );
         let entries = file_ops_journal::list_entries(&db).must();
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].stage, file_ops_journal::FileOpStage::Staged);
-        assert_eq!(entries[0].target_relative, PathBuf::from("folder/one.wav"));
+        assert!(entries.malformed.is_empty());
+        assert_eq!(entries.entries.len(), 1);
+        assert_eq!(
+            entries.entries[0].stage,
+            file_ops_journal::FileOpStage::Staged
+        );
+        assert_eq!(
+            entries.entries[0].target_relative,
+            PathBuf::from("folder/one.wav")
+        );
     }
 
     #[test]
