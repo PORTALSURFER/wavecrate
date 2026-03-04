@@ -42,7 +42,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: drag-drop move/rollback tests (including cancellation and DB-write failures), then `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `0d6b20cf`
 
-- [ ] 4) Continue splitting `ControllerJobs` into domain modules (`dto`, `state`, `lifecycle`, `dispatch`)
+- [x] 4) Continue splitting `ControllerJobs` into domain modules (`dto`, `state`, `lifecycle`, `dispatch`)
   - ROI/Effort: High / L
   - Why it matters: `ControllerJobs` still combines message DTO definitions, worker handles, lifecycle/shutdown behavior, queue dispatch, and request-id/state management in one file.
   - Evidence:
@@ -51,6 +51,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Move DTO/result types and job-state types into focused submodules, keeping `jobs.rs` as an orchestration facade.
   - Risk/tradeoffs: Medium. Many call-sites depend on existing imports and visibility.
   - Suggested validation: controller job unit tests + integration smoke for scan/file-op/update flows, then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `4cf0fa15`
 
 - [ ] 5) Break `playback/mod.rs` API facade into smaller responsibility files
   - ROI/Effort: High / L
