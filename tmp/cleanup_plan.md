@@ -99,7 +99,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Suggested validation: `cargo test -p sempal issue_gateway::token_store`, then `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `f8335dcc`
 
-- [ ] 9) Remove or narrow non-test `dead_code` allowances in core app modules
+- [x] 9) Remove or narrow non-test `dead_code` allowances in core app modules
   - ROI/Effort: Medium / S
   - Why it matters: Broad suppressions can hide stale APIs and weaken warning signal quality.
   - Evidence:
@@ -109,6 +109,7 @@ Status legend: `[ ]` pending, `[x]` done
   - Recommended change: Verify usage; remove dead code where possible, otherwise gate with narrower cfg/test-only annotations and document rationale.
   - Risk/tradeoffs: Low-medium. Some APIs may be intentionally retained for binary/test wiring.
   - Suggested validation: `cargo clippy --all-targets`, then `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-04 (UTC) - `sempal` commit `050160c0`
 
 - [ ] 10) Replace crate-wide `too_many_arguments` suppressions with typed parameter objects in top hotspots
   - ROI/Effort: Medium / M
