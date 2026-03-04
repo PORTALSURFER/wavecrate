@@ -112,6 +112,11 @@ pub(crate) fn browser_row_cache_lookup_counts() -> (u64, u64) {
     )
 }
 
+/// Project the full native app model from the current controller/UI snapshot.
+///
+/// This is the top-level projection entry used by the bridge full-pull path.
+/// It stages derived scalar inputs, then materializes core panels and overlays
+/// in a deterministic order to keep cross-panel labels and counts in sync.
 pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
     let call = PROJECT_APP_MODEL_CALLS.fetch_add(1, Ordering::Relaxed) + 1;
     let derived_inputs = derive_project_app_model_inputs(controller);
@@ -268,6 +273,10 @@ fn assemble_project_app_model(
     }
 }
 
+/// Project motion-only model fields used by animation-phase redraws.
+///
+/// This path intentionally avoids rebuilding static panel payloads and should
+/// stay aligned with corresponding waveform/map/status fields in `project_app_model`.
 pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionModel {
     let selected_column = selected_column_index(&controller.ui);
     let (edit_fade_in_end_milli, edit_fade_out_start_milli) =
@@ -340,7 +349,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
     }
 }
 
-/// Project map panel state into the native shell model.
+/// Project browser action availability for toolbar command enablement.
 pub(crate) fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel {
     let has_focus = ui.browser.selected_visible.is_some();
     let has_selection = has_focus || !ui.browser.selected_paths.is_empty();

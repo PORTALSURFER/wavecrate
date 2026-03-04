@@ -2,6 +2,10 @@
 
 use super::*;
 
+/// Project waveform panel state, selection handles, and cached raster payloads.
+///
+/// This projection reads controller/UI waveform state and preserves raster reuse
+/// by honoring waveform image signatures when available.
 pub(crate) fn project_waveform_model(controller: &mut AppController) -> WaveformPanelModel {
     let ui = &controller.ui;
     let view_span = (ui.waveform.view.end - ui.waveform.view.start).clamp(0.000_1, 1.0) as f32;

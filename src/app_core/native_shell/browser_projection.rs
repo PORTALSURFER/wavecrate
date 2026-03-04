@@ -14,6 +14,10 @@ pub(super) use cache::{
     refresh_projected_selected_paths_lookup,
 };
 
+/// Project browser panel frame metadata without materializing row contents.
+///
+/// Callers can combine this with row-window projection helpers to refresh
+/// metadata and row payloads independently when only one segment is dirty.
 pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> BrowserPanelModel {
     let selected_visible_row = controller.ui.browser.selected_visible;
     let selected_path_count = controller.ui.browser.selected_paths.len();

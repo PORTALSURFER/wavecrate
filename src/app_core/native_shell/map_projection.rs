@@ -4,6 +4,10 @@ use super::waveform_projection::normalized_to_milli;
 use super::*;
 use std::path::Path;
 
+/// Project map panel state, query results, and retained point payloads.
+///
+/// The projection reuses cached bounds/points when source/version/query keys
+/// match and only falls back to DB queries when cache inputs become stale.
 pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel {
     let active = matches!(
         SampleBrowserTab::from(controller.ui.browser.active_tab),
