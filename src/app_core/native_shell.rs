@@ -307,6 +307,9 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         waveform_playhead_milli: controller.ui.waveform.playhead.visible.then_some(
             waveform_projection::normalized_to_milli(controller.ui.waveform.playhead.position),
         ),
+        waveform_playhead_micros: controller.ui.waveform.playhead.visible.then_some(
+            waveform_projection::normalized_to_micros(controller.ui.waveform.playhead.position),
+        ),
         waveform_view_start_milli: waveform_projection::normalized64_to_milli(
             controller.ui.waveform.view.start,
         ),
