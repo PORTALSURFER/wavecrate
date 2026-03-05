@@ -314,6 +314,9 @@ fn apply_waveform_native_ui_action(
         NativeUiAction::AdjustWaveformBpm { delta } => {
             adjust_waveform_bpm(controller, delta);
         }
+        NativeUiAction::SetWaveformBpmValue { value_tenths } => {
+            controller.set_bpm_value(f32::from(value_tenths) / 10.0);
+        }
         NativeUiAction::SetBpmSnapEnabled { enabled } => controller.set_bpm_snap_enabled(enabled),
         NativeUiAction::SetTransientSnapEnabled { enabled } => {
             controller.set_transient_snap_enabled(enabled)

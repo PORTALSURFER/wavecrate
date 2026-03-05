@@ -9,6 +9,7 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
             | NativeUiAction::SetWaveformCursor { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
             | NativeUiAction::ClearWaveformSelection
+            | NativeUiAction::SetWaveformBpmValue { .. }
             | NativeUiAction::AdjustWaveformBpm { .. }
             | NativeUiAction::ZoomWaveform { .. }
             | NativeUiAction::ZoomWaveformToSelection
@@ -65,6 +66,7 @@ pub(super) fn classify_dirty_source(
         NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
         | NativeUiAction::ZoomWaveformFull
+        | NativeUiAction::SetWaveformBpmValue { .. }
         | NativeUiAction::AdjustWaveformBpm { .. } => Some((
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformViewAction,

@@ -227,6 +227,8 @@ fn apply_native_waveform_option_actions_update_waveform_state() {
     controller.ui.waveform.bpm_value = Some(120.0);
     controller.apply_native_ui_action(NativeUiAction::AdjustWaveformBpm { delta: 1 });
     assert_eq!(controller.ui.waveform.bpm_value, Some(121.0));
+    controller.apply_native_ui_action(NativeUiAction::SetWaveformBpmValue { value_tenths: 1275 });
+    assert_eq!(controller.ui.waveform.bpm_value, Some(127.5));
 
     controller.apply_native_ui_action(NativeUiAction::SetBpmSnapEnabled { enabled: true });
     assert!(controller.ui.waveform.bpm_snap_enabled);
