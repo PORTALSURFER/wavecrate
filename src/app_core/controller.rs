@@ -213,12 +213,31 @@ fn apply_browser_native_ui_action(
         NativeUiAction::FocusFolderRow { index } => controller.replace_folder_selection(index),
         NativeUiAction::MoveFolderFocus { delta } => controller.nudge_folder_focus_action(delta),
         NativeUiAction::StartNewFolder => controller.start_new_folder(),
-        NativeUiAction::StartNewFolderAtRoot => controller.start_new_folder_at_root(),
+        NativeUiAction::StartNewFolderAtRoot => {
+            if controller.current_source().is_none() {
+                controller.add_source_via_dialog();
+            } else {
+                controller.start_new_folder_at_root();
+            }
+        }
         NativeUiAction::StartFolderRename => controller.start_folder_rename(),
         NativeUiAction::DeleteFocusedFolder => controller.delete_focused_folder(),
         NativeUiAction::ClearFolderDeleteRecoveryLog => {
             controller.clear_folder_delete_recovery_log()
         }
+        NativeUiAction::ReloadSourceRow { index } => {
+            controller.select_source_by_index(index);
+            controller.request_quick_sync();
+        }
+        NativeUiAction::HardSyncSourceRow { index } => {
+            controller.select_source_by_index(index);
+            controller.request_hard_sync();
+        }
+        NativeUiAction::OpenSourceFolderRow { index } => controller.open_source_folder(index),
+        NativeUiAction::RemoveDeadLinksForSourceRow { index } => {
+            controller.remove_dead_links_for_source(index)
+        }
+        NativeUiAction::OpenOptionsMenu => controller.add_source_via_dialog(),
         NativeUiAction::MoveBrowserFocus { delta } => {
             controller.focus_browser_delta_and_play_action(delta)
         }

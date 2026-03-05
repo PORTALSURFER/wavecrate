@@ -9,6 +9,8 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
         .folders
         .focused
         .and_then(|index| ui.sources.folders.rows.get(index).cloned());
+    let source_selected = ui.sources.selected.is_some();
+    let has_sources = !ui.sources.rows.is_empty();
     let can_manage_folder = focused_folder.as_ref().is_some_and(|row| !row.is_root);
     SourcesPanelModel {
         header: format!("Sources ({})", ui.sources.rows.len()),
@@ -55,8 +57,8 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
             })
             .collect(),
         folder_actions: FolderActionsModel {
-            can_create_folder: ui.sources.selected.is_some(),
-            can_create_folder_at_root: ui.sources.selected.is_some(),
+            can_create_folder: source_selected,
+            can_create_folder_at_root: source_selected || !has_sources,
             can_rename_folder: can_manage_folder,
             can_delete_folder: can_manage_folder,
             can_clear_recovery_log: !ui.sources.folders.delete_recovery.entries.is_empty()

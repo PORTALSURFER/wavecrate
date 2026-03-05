@@ -646,6 +646,14 @@ fn folder_actions_require_non_root_focus_for_destructive_actions() {
 }
 
 #[test]
+fn folder_actions_allow_root_creation_when_no_sources_exist() {
+    let ui = UiState::default();
+    let projected = project_sources_model(&ui);
+    assert!(!projected.folder_actions.can_create_folder);
+    assert!(projected.folder_actions.can_create_folder_at_root);
+}
+
+#[test]
 fn folder_actions_disable_recovery_clear_while_recovery_is_running() {
     let mut ui = UiState::default();
     ui.sources

@@ -178,3 +178,32 @@ fn focus_folder_row_action_replaces_folder_selection() {
     assert_eq!(selected, [folder_path].into_iter().collect::<BTreeSet<_>>());
     assert_eq!(controller.ui.sources.folders.focused, Some(row_index));
 }
+
+#[test]
+/// Native source-row reload action should route to the targeted source index.
+fn reload_source_row_action_selects_target_source() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let dir = match tempdir() {
+        Ok(dir) => dir,
+        Err(err) => panic!("failed to create tempdir: {err}"),
+    };
+    let source_a = dir.path().join("source-a");
+    let source_b = dir.path().join("source-b");
+    if let Err(err) = std::fs::create_dir_all(&source_a) {
+        panic!("failed to create source-a fixture: {err}");
+    }
+    if let Err(err) = std::fs::create_dir_all(&source_b) {
+        panic!("failed to create source-b fixture: {err}");
+    }
+    if let Err(err) = controller.add_source_from_path(source_a) {
+        panic!("failed to add source-a fixture: {err}");
+    }
+    if let Err(err) = controller.add_source_from_path(source_b) {
+        panic!("failed to add source-b fixture: {err}");
+    }
+
+    controller.select_source_by_index(0);
+    controller.apply_native_ui_action(NativeUiAction::ReloadSourceRow { index: 1 });
+
+    assert_eq!(controller.ui.sources.selected, Some(1));
+}
