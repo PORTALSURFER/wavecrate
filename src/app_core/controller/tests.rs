@@ -1,5 +1,6 @@
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::state::{SampleBrowserTab, UpdateStatus};
+use crate::waveform::WaveformChannelView;
 
 use super::{AppController, AppControllerNativeRuntimeExt, WaveformRenderer};
 use std::collections::BTreeSet;
@@ -206,4 +207,39 @@ fn reload_source_row_action_selects_target_source() {
     controller.apply_native_ui_action(NativeUiAction::ReloadSourceRow { index: 1 });
 
     assert_eq!(controller.ui.sources.selected, Some(1));
+}
+
+#[test]
+/// Waveform toolbar option actions should update controller waveform state.
+fn apply_native_waveform_option_actions_update_waveform_state() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+
+    controller.apply_native_ui_action(NativeUiAction::SetWaveformChannelView { stereo: true });
+    assert_eq!(
+        controller.ui.waveform.channel_view,
+        WaveformChannelView::SplitStereo
+    );
+
+    controller
+        .apply_native_ui_action(NativeUiAction::SetNormalizedAuditionEnabled { enabled: true });
+    assert!(controller.ui.waveform.normalized_audition_enabled);
+
+    controller.apply_native_ui_action(NativeUiAction::SetBpmSnapEnabled { enabled: true });
+    assert!(controller.ui.waveform.bpm_snap_enabled);
+
+    controller.apply_native_ui_action(NativeUiAction::SetTransientSnapEnabled { enabled: true });
+    assert!(controller.ui.waveform.transient_snap_enabled);
+
+    controller
+        .apply_native_ui_action(NativeUiAction::SetTransientMarkersEnabled { enabled: false });
+    assert!(!controller.ui.waveform.transient_markers_enabled);
+    assert!(!controller.ui.waveform.transient_snap_enabled);
+
+    controller.ui.waveform.selected_slices = vec![0, 1];
+    controller.apply_native_ui_action(NativeUiAction::SetSliceModeEnabled { enabled: true });
+    assert!(controller.ui.waveform.slice_mode_enabled);
+
+    controller.apply_native_ui_action(NativeUiAction::SetSliceModeEnabled { enabled: false });
+    assert!(!controller.ui.waveform.slice_mode_enabled);
+    assert!(controller.ui.waveform.selected_slices.is_empty());
 }

@@ -366,6 +366,19 @@ impl AppController {
         }
     }
 
+    /// Enable/disable waveform slice mode for pointer-based slice editing.
+    ///
+    /// Slice mode is UI-only state, so it is not persisted in the user config.
+    pub fn set_slice_mode_enabled(&mut self, enabled: bool) {
+        if self.ui.waveform.slice_mode_enabled == enabled {
+            return;
+        }
+        self.ui.waveform.slice_mode_enabled = enabled;
+        if !enabled {
+            self.ui.waveform.selected_slices.clear();
+        }
+    }
+
     /// Set and persist the tooltip detail level.
     pub fn set_tooltip_mode(&mut self, mode: crate::sample_sources::config::TooltipMode) {
         if self.settings.controls.tooltip_mode == mode {

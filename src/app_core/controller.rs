@@ -300,6 +300,27 @@ fn apply_waveform_native_ui_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
+        NativeUiAction::SetWaveformChannelView { stereo } => {
+            let view = if stereo {
+                crate::waveform::WaveformChannelView::SplitStereo
+            } else {
+                crate::waveform::WaveformChannelView::Mono
+            };
+            controller.set_waveform_channel_view(view);
+        }
+        NativeUiAction::SetNormalizedAuditionEnabled { enabled } => {
+            controller.set_normalized_audition_enabled(enabled)
+        }
+        NativeUiAction::SetBpmSnapEnabled { enabled } => controller.set_bpm_snap_enabled(enabled),
+        NativeUiAction::SetTransientSnapEnabled { enabled } => {
+            controller.set_transient_snap_enabled(enabled)
+        }
+        NativeUiAction::SetTransientMarkersEnabled { enabled } => {
+            controller.set_transient_markers_enabled(enabled)
+        }
+        NativeUiAction::SetSliceModeEnabled { enabled } => {
+            controller.set_slice_mode_enabled(enabled)
+        }
         NativeUiAction::SeekWaveform { position_milli } => {
             controller.queue_waveform_seek_milli(position_milli)
         }
