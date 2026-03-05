@@ -201,6 +201,33 @@ fn set_waveform_selection_range_milli_noops_when_unchanged_and_focused() {
     assert_eq!(controller.ui.waveform.selection, Some(range));
 }
 
+#[test]
+/// Selection-edge resize from native milli actions should BPM-snap the moving endpoint.
+fn set_waveform_selection_range_milli_snaps_resize_endpoint_when_bpm_snap_enabled() {
+    let (mut controller, source) = test_support::dummy_controller();
+    controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
+        source_id: source.id.clone(),
+        root: source.root.clone(),
+        relative_path: PathBuf::from("snap.wav"),
+        bytes: Vec::new().into(),
+        duration_seconds: 4.0,
+        sample_rate: 48_000,
+    });
+    controller.ui.waveform.bpm_snap_enabled = true;
+    controller.ui.waveform.bpm_value = Some(120.0);
+    let range = SelectionRange::new(0.2, 0.8);
+    controller.selection_state.range.set_range(Some(range));
+    controller.ui.waveform.selection = Some(range);
+
+    controller.set_waveform_selection_range_milli(800, 333);
+
+    let updated = controller.ui.waveform.selection;
+    assert!(updated.is_some());
+    let updated = updated.unwrap_or(range);
+    assert!((updated.start() - 0.375).abs() < 0.001);
+    assert!((updated.end() - 0.8).abs() < 0.001);
+}
+
 /// Edit-selection updates should no-op when the range is unchanged and waveform is focused.
 #[test]
 fn set_waveform_edit_selection_range_milli_noops_when_unchanged_and_focused() {

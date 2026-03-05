@@ -114,12 +114,14 @@ impl AppController {
 
     /// Set waveform selection range using 0..=1000 milli positions from UI actions.
     pub fn set_waveform_selection_range_milli(&mut self, start_milli: u16, end_milli: u16) {
-        let next_range = selection_range_from_milli(start_milli, end_milli);
         let existing_range = self
             .selection_state
             .range
             .range()
             .or(self.ui.waveform.selection);
+        let (start_milli, end_milli) =
+            snap_waveform_selection_resize_milli(self, start_milli, end_milli, existing_range);
+        let next_range = selection_range_from_milli(start_milli, end_milli);
         if existing_range == Some(next_range) && waveform_focus_active(self) {
             return;
         }
@@ -255,12 +257,78 @@ pub(super) fn normalized_from_milli(value: u16) -> f32 {
     (value.min(1000) as f32) / 1000.0
 }
 
+/// Convert one normalized waveform position into UI milli space (`0..=1000`).
+pub(super) fn normalized_to_milli(value: f32) -> u16 {
+    (value.clamp(0.0, 1.0) * 1000.0).round() as u16
+}
+
 /// Build a normalized selection range from two UI waveform milli values (`0..=1000`).
 pub(super) fn selection_range_from_milli(start_milli: u16, end_milli: u16) -> SelectionRange {
     SelectionRange::new(
         normalized_from_milli(start_milli),
         normalized_from_milli(end_milli),
     )
+}
+
+/// Snap waveform selection-resize milli values to BPM steps for edge-resize gestures.
+fn snap_waveform_selection_resize_milli(
+    controller: &AppController,
+    start_milli: u16,
+    end_milli: u16,
+    existing_range: Option<SelectionRange>,
+) -> (u16, u16) {
+    let mut start = start_milli.min(1000);
+    let mut end = end_milli.min(1000);
+    let Some(step) = waveform_bpm_snap_step(controller) else {
+        return (start, end);
+    };
+    let Some(existing) = existing_range else {
+        return (start, end);
+    };
+    let existing_start = normalized_to_milli(existing.start());
+    let existing_end = normalized_to_milli(existing.end());
+    if start == existing_end {
+        end = snap_milli_to_bpm_step(end, step);
+    } else if end == existing_start {
+        start = snap_milli_to_bpm_step(start, step);
+    } else if start == existing_start {
+        end = snap_milli_to_bpm_step(end, step);
+    } else if end == existing_end {
+        start = snap_milli_to_bpm_step(start, step);
+    }
+    (start, end)
+}
+
+/// Resolve the normalized BPM snap step used for waveform selection gestures.
+fn waveform_bpm_snap_step(controller: &AppController) -> Option<f32> {
+    if !controller.ui.waveform.bpm_snap_enabled {
+        return None;
+    }
+    let bpm = controller.ui.waveform.bpm_value?;
+    if !bpm.is_finite() || bpm <= 0.0 {
+        return None;
+    }
+    let duration = controller
+        .sample_view
+        .wav
+        .loaded_audio
+        .as_ref()
+        .map(|audio| audio.duration_seconds)?;
+    if !duration.is_finite() || duration <= 0.0 {
+        return None;
+    }
+    let step = 60.0 / bpm / duration;
+    (step.is_finite() && step > 0.0).then_some(step)
+}
+
+/// Snap one normalized milli position to the closest BPM step.
+fn snap_milli_to_bpm_step(value_milli: u16, step: f32) -> u16 {
+    if !step.is_finite() || step <= 0.0 {
+        return value_milli.min(1000);
+    }
+    let normalized = normalized_from_milli(value_milli);
+    let snapped = (normalized / step).round() * step;
+    normalized_to_milli(snapped)
 }
 
 /// Update edit fade-in length from one absolute waveform milli handle position.
