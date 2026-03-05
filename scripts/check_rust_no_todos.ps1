@@ -1,5 +1,3 @@
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
 
 <#
 .SYNOPSIS
@@ -17,6 +15,10 @@ param(
   [string]$Base,
   [string]$Head = "HEAD"
 )
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Push-Location $rootDir

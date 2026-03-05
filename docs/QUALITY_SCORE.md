@@ -4,7 +4,7 @@ This document is a lightweight scorecard for key domains/layers in Sempal. The
 goal is to make quality gaps explicit so agents and humans can prioritize the
 next improvements without rediscovering context.
 
-Last reviewed: 2026-02-27
+Last reviewed: 2026-03-05
 
 ## Scoring rubric (0–5)
 
@@ -21,7 +21,7 @@ Last reviewed: 2026-02-27
 | --- | ---: | --- |
 | Developer entrypoints (docs/scripts) | 4 | `docs/README.md`, `scripts/ci_local.*`, `scripts/doctor.*`, `scripts/run_sandbox.*` exist and are wired into CI/local flows. |
 | Documentation hygiene | 4 | Knowledge lint exists; still some doc drift risk outside the checked scope. |
-| Agent-facing guardrails | 4 | `scripts/check_script_guardrails.sh`, `scripts/check_rust_taste_invariants.sh`, and `scripts/check_file_size_budget.sh` are enforced and healthy. |
+| Agent-facing guardrails | 3 | Guardrails are enforced, but currently degraded because file-size budget checks fail on `src/app/controller/library/background_jobs/polling.rs` (642 LOC). |
 | Legacy boundary enforcement | 4 | `crate::app` coupling and `app_core` boundaries are enforced diff-aware in CI. |
 | Code size discipline | 3 | File size budget is enforced and recent hotspot splits landed, but several legacy allowlist entries still remain. |
 | Testing posture | 3 | Focused unit coverage improved in transport/browser actions, but some critical flows remain integration-heavy. |

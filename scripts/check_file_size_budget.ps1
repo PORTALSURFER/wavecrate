@@ -1,5 +1,3 @@
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
 
 <#
 .SYNOPSIS
@@ -21,6 +19,10 @@ param(
   [switch]$All
 )
 
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Push-Location $rootDir
 try {
@@ -39,12 +41,8 @@ try {
 
   function Test-GitCommit([string]$Ref) {
     if ([string]::IsNullOrWhiteSpace($Ref)) { return $false }
-    try {
-      git rev-parse --verify --quiet "$Ref^{commit}" | Out-Null
-      return $true
-    } catch {
-      return $false
-    }
+    git rev-parse --verify --quiet "$Ref^{commit}" | Out-Null
+    return ($LASTEXITCODE -eq 0)
   }
 
   function Add-GitFileList([string[]]$Lines) {
@@ -99,7 +97,7 @@ try {
   }
 
   if ($violations.Count -gt 0) {
-    Write-Error ("[file_budget] File size budget violations (limit: {0} lines):" -f $Limit)
+    Write-Host ("[file_budget] File size budget violations (limit: {0} lines):" -f $Limit)
     foreach ($v in ($violations | Sort-Object)) {
       Write-Host (" - {0}" -f $v)
     }

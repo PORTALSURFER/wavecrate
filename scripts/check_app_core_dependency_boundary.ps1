@@ -1,6 +1,3 @@
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-
 <#
 .SYNOPSIS
 Prevents introducing new dependencies from `src/app_core` into legacy/UI runtime layers.
@@ -20,6 +17,10 @@ param(
   [string]$Head = "HEAD"
 )
 
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Push-Location $rootDir
 try {
@@ -36,12 +37,8 @@ try {
 
   function Test-GitCommit([string]$Ref) {
     if ([string]::IsNullOrWhiteSpace($Ref)) { return $false }
-    try {
-      git rev-parse --verify --quiet "$Ref^{commit}" | Out-Null
-      return $true
-    } catch {
-      return $false
-    }
+    git rev-parse --verify --quiet "$Ref^{commit}" | Out-Null
+    return ($LASTEXITCODE -eq 0)
   }
 
   function Scan-DiffLines([string]$Label, [string[]]$Lines) {
