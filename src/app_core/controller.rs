@@ -311,6 +311,9 @@ fn apply_waveform_native_ui_action(
         NativeUiAction::SetNormalizedAuditionEnabled { enabled } => {
             controller.set_normalized_audition_enabled(enabled)
         }
+        NativeUiAction::AdjustWaveformBpm { delta } => {
+            adjust_waveform_bpm(controller, delta);
+        }
         NativeUiAction::SetBpmSnapEnabled { enabled } => controller.set_bpm_snap_enabled(enabled),
         NativeUiAction::SetTransientSnapEnabled { enabled } => {
             controller.set_transient_snap_enabled(enabled)
@@ -359,6 +362,16 @@ fn apply_waveform_native_ui_action(
         action => return Err(action),
     }
     Ok(())
+}
+
+/// Apply one signed whole-number BPM delta from native waveform toolbar controls.
+fn adjust_waveform_bpm(controller: &mut AppController, delta: i8) {
+    if delta == 0 {
+        return;
+    }
+    let current = controller.ui.waveform.bpm_value.unwrap_or(120.0);
+    let next = (current + f32::from(delta)).max(1.0);
+    controller.set_bpm_value(next);
 }
 
 /// Try to dispatch prompt/update/progress native actions.

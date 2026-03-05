@@ -224,6 +224,10 @@ fn apply_native_waveform_option_actions_update_waveform_state() {
         .apply_native_ui_action(NativeUiAction::SetNormalizedAuditionEnabled { enabled: true });
     assert!(controller.ui.waveform.normalized_audition_enabled);
 
+    controller.ui.waveform.bpm_value = Some(120.0);
+    controller.apply_native_ui_action(NativeUiAction::AdjustWaveformBpm { delta: 1 });
+    assert_eq!(controller.ui.waveform.bpm_value, Some(121.0));
+
     controller.apply_native_ui_action(NativeUiAction::SetBpmSnapEnabled { enabled: true });
     assert!(controller.ui.waveform.bpm_snap_enabled);
 
