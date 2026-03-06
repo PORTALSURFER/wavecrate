@@ -1,15 +1,15 @@
 use eframe::egui::{self, RichText, SliderClamping};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use super::super::EguiApp;
 use super::super::style;
+use super::super::EguiApp;
 use super::buttons;
 
 impl EguiApp {
     pub(crate) fn render_status_controls(&mut self, ui: &mut egui::Ui) {
         let palette = style::palette();
         let mut close_menu = false;
-        ui.menu_button("Options", |ui| {
+        let options_menu = ui.menu_button("Options", |ui| {
             let palette = style::palette();
             ui.label(RichText::new("Trash folder").color(palette.text_primary));
             let trash_label = self
@@ -71,6 +71,20 @@ impl EguiApp {
                 ui.close();
             }
         });
+        if options_menu.response.clicked() {
+            self.controller.ui.audio.panel_open = true;
+            let is_asio = self
+                .controller
+                .ui
+                .audio
+                .applied
+                .as_ref()
+                .is_some_and(|applied| applied.host_id.eq_ignore_ascii_case("asio"));
+            if !is_asio {
+                self.controller.refresh_audio_options(false);
+                self.controller.refresh_audio_input_options(false);
+            }
+        }
         ui.add_space(10.0);
         const APP_VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
         match self.controller.ui.update.status {
