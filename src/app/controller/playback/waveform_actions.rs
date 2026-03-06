@@ -163,6 +163,25 @@ impl AppController {
         self.focus_waveform();
     }
 
+    /// Set waveform edit fade-in curve using a 0..=1000 milli value from UI actions.
+    pub fn set_waveform_edit_fade_in_curve_milli(&mut self, curve_milli: u16) {
+        let Some(existing_range) = self
+            .selection_state
+            .edit_range
+            .range()
+            .or(self.ui.waveform.edit_selection)
+        else {
+            return;
+        };
+        let next_range = update_edit_fade_in_curve_from_milli(existing_range, curve_milli);
+        if existing_range == next_range && waveform_focus_active(self) {
+            return;
+        }
+        self.selection_state.edit_range.set_range(Some(next_range));
+        self.apply_edit_selection(Some(next_range));
+        self.focus_waveform();
+    }
+
     /// Set waveform edit fade-out handle using a 0..=1000 milli position from UI actions.
     pub fn set_waveform_edit_fade_out_start_milli(&mut self, position_milli: u16) {
         let Some(existing_range) = self
@@ -174,6 +193,25 @@ impl AppController {
             return;
         };
         let next_range = update_edit_fade_out_start_from_milli(existing_range, position_milli);
+        if existing_range == next_range && waveform_focus_active(self) {
+            return;
+        }
+        self.selection_state.edit_range.set_range(Some(next_range));
+        self.apply_edit_selection(Some(next_range));
+        self.focus_waveform();
+    }
+
+    /// Set waveform edit fade-out curve using a 0..=1000 milli value from UI actions.
+    pub fn set_waveform_edit_fade_out_curve_milli(&mut self, curve_milli: u16) {
+        let Some(existing_range) = self
+            .selection_state
+            .edit_range
+            .range()
+            .or(self.ui.waveform.edit_selection)
+        else {
+            return;
+        };
+        let next_range = update_edit_fade_out_curve_from_milli(existing_range, curve_milli);
         if existing_range == next_range && waveform_focus_active(self) {
             return;
         }
@@ -363,6 +401,28 @@ pub(super) fn update_edit_fade_out_start_from_milli(
     let length = ((end - clamped_position) / width).clamp(0.0, 1.0);
     let curve = range.fade_out().map(|fade| fade.curve).unwrap_or(0.5);
     range.with_fade_out(length, curve)
+}
+
+/// Update edit fade-in curve from one UI milli curve value.
+pub(super) fn update_edit_fade_in_curve_from_milli(
+    range: SelectionRange,
+    curve_milli: u16,
+) -> SelectionRange {
+    let Some(fade_in) = range.fade_in() else {
+        return range;
+    };
+    range.with_fade_in(fade_in.length, normalized_from_milli(curve_milli))
+}
+
+/// Update edit fade-out curve from one UI milli curve value.
+pub(super) fn update_edit_fade_out_curve_from_milli(
+    range: SelectionRange,
+    curve_milli: u16,
+) -> SelectionRange {
+    let Some(fade_out) = range.fade_out() else {
+        return range;
+    };
+    range.with_fade_out(fade_out.length, normalized_from_milli(curve_milli))
 }
 
 /// Clamp UI-provided waveform zoom steps to at least one step.

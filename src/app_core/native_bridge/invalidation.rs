@@ -8,7 +8,13 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
         NativeUiAction::SeekWaveform { .. }
             | NativeUiAction::SetWaveformCursor { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
+            | NativeUiAction::SetWaveformEditSelectionRange { .. }
+            | NativeUiAction::SetWaveformEditFadeInEnd { .. }
+            | NativeUiAction::SetWaveformEditFadeInCurve { .. }
+            | NativeUiAction::SetWaveformEditFadeOutStart { .. }
+            | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
             | NativeUiAction::ClearWaveformSelection
+            | NativeUiAction::ClearWaveformEditSelection
             | NativeUiAction::SetWaveformBpmValue { .. }
             | NativeUiAction::AdjustWaveformBpm { .. }
             | NativeUiAction::ZoomWaveform { .. }
@@ -59,7 +65,13 @@ pub(super) fn classify_dirty_source(
         NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
-        | NativeUiAction::ClearWaveformSelection => Some((
+        | NativeUiAction::SetWaveformEditSelectionRange { .. }
+        | NativeUiAction::SetWaveformEditFadeInEnd { .. }
+        | NativeUiAction::SetWaveformEditFadeInCurve { .. }
+        | NativeUiAction::SetWaveformEditFadeOutStart { .. }
+        | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
+        | NativeUiAction::ClearWaveformSelection
+        | NativeUiAction::ClearWaveformEditSelection => Some((
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformOverlayAction,
         )),

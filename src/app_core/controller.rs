@@ -344,8 +344,14 @@ fn apply_waveform_native_ui_action(
         NativeUiAction::SetWaveformEditFadeInEnd { position_milli } => {
             controller.set_waveform_edit_fade_in_end_milli(position_milli)
         }
+        NativeUiAction::SetWaveformEditFadeInCurve { curve_milli } => {
+            controller.set_waveform_edit_fade_in_curve_milli(curve_milli)
+        }
         NativeUiAction::SetWaveformEditFadeOutStart { position_milli } => {
             controller.set_waveform_edit_fade_out_start_milli(position_milli)
+        }
+        NativeUiAction::SetWaveformEditFadeOutCurve { curve_milli } => {
+            controller.set_waveform_edit_fade_out_curve_milli(curve_milli)
         }
         NativeUiAction::ClearWaveformSelection => controller.clear_waveform_selection_with_focus(),
         NativeUiAction::ClearWaveformEditSelection => {

@@ -7,7 +7,7 @@ pub(super) enum InteractionActionClass {
     Wheel,
     /// Map interaction actions flowing through the bridge.
     MapPanProxy,
-    /// Waveform seek/cursor/selection/zoom actions.
+    /// Waveform seek/cursor/selection/edit/fade/zoom actions.
     Waveform,
     /// Volume slider interaction actions.
     Volume,
@@ -25,6 +25,12 @@ pub(super) fn classify_action_interaction(
         NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
+        | NativeUiAction::SetWaveformEditSelectionRange { .. }
+        | NativeUiAction::SetWaveformEditFadeInEnd { .. }
+        | NativeUiAction::SetWaveformEditFadeInCurve { .. }
+        | NativeUiAction::SetWaveformEditFadeOutStart { .. }
+        | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
+        | NativeUiAction::ClearWaveformEditSelection
         | NativeUiAction::SetWaveformBpmValue { .. }
         | NativeUiAction::AdjustWaveformBpm { .. }
         | NativeUiAction::ClearWaveformSelection
@@ -47,6 +53,12 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
         action,
         NativeUiAction::SetWaveformCursor { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
+            | NativeUiAction::SetWaveformEditSelectionRange { .. }
+            | NativeUiAction::SetWaveformEditFadeInEnd { .. }
+            | NativeUiAction::SetWaveformEditFadeInCurve { .. }
+            | NativeUiAction::SetWaveformEditFadeOutStart { .. }
+            | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
             | NativeUiAction::ClearWaveformSelection
+            | NativeUiAction::ClearWaveformEditSelection
     )
 }

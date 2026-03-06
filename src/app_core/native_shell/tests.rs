@@ -145,8 +145,8 @@ fn waveform_projection_includes_edit_fade_handles() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
     controller.ui.waveform.edit_selection = Some(
         crate::selection::SelectionRange::new(0.2, 0.8)
-            .with_fade_in(0.25, 0.5)
-            .with_fade_out(0.5, 0.5),
+            .with_fade_in(0.25, 0.75)
+            .with_fade_out(0.5, 0.25),
     );
 
     let projected = project_waveform_model(&mut controller);
@@ -155,7 +155,9 @@ fn waveform_projection_includes_edit_fade_handles() {
         Some(NormalizedRangeModel::new(200, 800))
     );
     assert_eq!(projected.edit_fade_in_end_milli, Some(350));
+    assert_eq!(projected.edit_fade_in_curve_milli, Some(750));
     assert_eq!(projected.edit_fade_out_start_milli, Some(500));
+    assert_eq!(projected.edit_fade_out_curve_milli, Some(250));
 }
 
 /// Build a controller fixture with non-default fields for full app-model parity checks.

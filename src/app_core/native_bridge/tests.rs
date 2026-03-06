@@ -105,8 +105,8 @@ fn projection_and_waveform_keys_share_waveform_milli_conversion() {
     controller.ui.waveform.selection = Some(crate::selection::SelectionRange::new(0.8, 0.2));
     controller.ui.waveform.edit_selection = Some(
         crate::selection::SelectionRange::new(0.7, 0.4)
-            .with_fade_in(0.2, 0.5)
-            .with_fade_out(0.3, 0.5),
+            .with_fade_in(0.2, 0.8)
+            .with_fade_out(0.3, 0.2),
     );
     controller.ui.waveform.view.start = 0.1;
     controller.ui.waveform.view.end = 0.9;
@@ -134,8 +134,16 @@ fn projection_and_waveform_keys_share_waveform_milli_conversion() {
         segment.waveform_edit_fade_in_end_milli
     );
     assert_eq!(
+        full.waveform_edit_fade_in_curve_milli,
+        segment.waveform_edit_fade_in_curve_milli
+    );
+    assert_eq!(
         full.waveform_edit_fade_out_start_milli,
         segment.waveform_edit_fade_out_start_milli
+    );
+    assert_eq!(
+        full.waveform_edit_fade_out_curve_milli,
+        segment.waveform_edit_fade_out_curve_milli
     );
     assert_eq!(
         full.waveform_view_start_milli,
