@@ -92,14 +92,26 @@ impl EguiApp {
                 "Search samples ({})...",
                 hotkeys::format_keypress(&hotkeys::KeyPress::with_command(egui::Key::F))
             );
-            let response = ui.add(
-                egui::TextEdit::singleline(&mut query)
-                    .hint_text(search_hint)
-                    .desired_width(160.0),
-            );
+            let search_edit = egui::TextEdit::singleline(&mut query)
+                .hint_text(search_hint)
+                .desired_width(160.0);
+            let search_output = search_edit.show(ui);
+            let response = search_output.response;
+            let mut select_all = response.gained_focus();
             if self.controller.ui.browser.search_focus_requested {
-                response.request_focus();
-                self.controller.ui.browser.search_focus_requested = false;
+                if response.has_focus() {
+                    select_all = true;
+                    self.controller.ui.browser.search_focus_requested = false;
+                } else {
+                    response.request_focus();
+                }
+            }
+            if select_all {
+                let mut state = search_output.state;
+                state.cursor.set_char_range(Some(egui::text::CCursorRange::select_all(
+                    &search_output.galley,
+                )));
+                state.store(ui.ctx(), response.id);
             }
             if response.changed() {
                 self.controller.set_browser_search(query);
