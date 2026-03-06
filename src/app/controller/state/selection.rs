@@ -90,10 +90,37 @@ pub(crate) struct SelectionUndoState {
     pub(crate) before: Option<SelectionRange>,
 }
 
+/// Identifies which edit-fade handle is being dragged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum EditFadeDragKind {
+    /// Dragging the fade-in end handle.
+    InEnd,
+    /// Dragging the fade-in bottom handle.
+    InMuteStart,
+    /// Dragging the fade-in curve control.
+    InCurve,
+    /// Dragging the fade-out start handle.
+    OutStart,
+    /// Dragging the fade-out bottom handle.
+    OutMuteEnd,
+    /// Dragging the fade-out curve control.
+    OutCurve,
+}
+
+/// Retains the pre-drag edit-selection range while an edit-fade handle moves.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct EditFadeDragState {
+    /// Drag handle currently driving edit-fade updates.
+    pub(crate) kind: EditFadeDragKind,
+    /// Edit-selection state captured when the drag began.
+    pub(crate) baseline: SelectionRange,
+}
+
 pub(crate) struct ControllerSelectionState {
     pub(crate) ctx: SelectionContextState,
     pub(crate) range: SelectionState,
     pub(crate) edit_range: SelectionState,
+    pub(crate) edit_fade_drag: Option<EditFadeDragState>,
     pub(crate) pending_undo: Option<SelectionUndoState>,
     pub(crate) suppress_autoplay_once: bool,
     pub(crate) bpm_scale_beats: Option<f32>,
@@ -105,6 +132,7 @@ impl ControllerSelectionState {
             ctx: SelectionContextState::new(),
             range: SelectionState::new(),
             edit_range: SelectionState::new(),
+            edit_fade_drag: None,
             pending_undo: None,
             suppress_autoplay_once: false,
             bpm_scale_beats: None,

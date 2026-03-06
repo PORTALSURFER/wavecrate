@@ -360,6 +360,7 @@ fn apply_waveform_native_ui_action(
         NativeUiAction::SetWaveformEditFadeOutCurve { curve_milli } => {
             controller.set_waveform_edit_fade_out_curve_milli(curve_milli)
         }
+        NativeUiAction::FinishWaveformEditFadeDrag => controller.finish_waveform_edit_fade_drag(),
         NativeUiAction::ClearWaveformSelection => controller.clear_waveform_selection_with_focus(),
         NativeUiAction::ClearWaveformEditSelection => {
             controller.clear_waveform_edit_selection_with_focus()

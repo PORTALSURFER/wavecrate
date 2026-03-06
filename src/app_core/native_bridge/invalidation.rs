@@ -15,6 +15,7 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
             | NativeUiAction::SetWaveformEditFadeOutStart { .. }
             | NativeUiAction::SetWaveformEditFadeOutMuteEnd { .. }
             | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
+            | NativeUiAction::FinishWaveformEditFadeDrag
             | NativeUiAction::ClearWaveformSelection
             | NativeUiAction::ClearWaveformEditSelection
             | NativeUiAction::SetWaveformBpmValue { .. }
@@ -74,6 +75,7 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::SetWaveformEditFadeOutStart { .. }
         | NativeUiAction::SetWaveformEditFadeOutMuteEnd { .. }
         | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
+        | NativeUiAction::FinishWaveformEditFadeDrag
         | NativeUiAction::ClearWaveformSelection
         | NativeUiAction::ClearWaveformEditSelection => Some((
             DerivedNodeId::WaveformState,

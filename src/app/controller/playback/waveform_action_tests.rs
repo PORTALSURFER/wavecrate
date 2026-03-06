@@ -179,6 +179,58 @@ fn set_waveform_edit_fade_out_mute_end_milli_resizes_selection_end() {
     assert!((fade_out_start - 0.5).abs() < 0.001);
 }
 
+/// Collapsed fade-out drags should recover the original fade while the same drag stays active.
+#[test]
+fn set_waveform_edit_fade_out_mute_end_milli_recovers_after_temporary_collapse() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.2);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_fade_out_mute_end_milli(500);
+    let collapsed = controller
+        .ui
+        .waveform
+        .edit_selection
+        .expect("collapsed edit selection");
+    assert!(collapsed.fade_out().is_none());
+
+    controller.set_waveform_edit_fade_out_mute_end_milli(700);
+
+    let recovered = controller
+        .ui
+        .waveform
+        .edit_selection
+        .expect("recovered edit selection");
+    assert!((recovered.end() - 0.7).abs() < 0.001);
+    let fade_out = recovered.fade_out().expect("fade-out should recover");
+    assert!((fade_out.length - 0.4).abs() < 0.001);
+    assert!((fade_out.curve - 0.2).abs() < 0.001);
+    let fade_out_start = recovered.end() - (recovered.width() * fade_out.length);
+    assert!((fade_out_start - 0.5).abs() < 0.001);
+}
+
+/// Releasing a collapsed fade drag should keep the fade removed for the next gesture.
+#[test]
+fn finish_waveform_edit_fade_drag_commits_collapsed_fade_removal() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.2);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_fade_out_mute_end_milli(500);
+    controller.finish_waveform_edit_fade_drag();
+    controller.set_waveform_edit_fade_out_mute_end_milli(700);
+
+    let finished = controller
+        .ui
+        .waveform
+        .edit_selection
+        .expect("finished edit selection");
+    assert!(finished.fade_out().is_none());
+    assert!((finished.end() - 0.5).abs() < 0.001);
+}
+
 /// Edit fade-in curve updates should preserve length and replace only the curve.
 #[test]
 fn set_waveform_edit_fade_in_curve_milli_updates_edit_fade_in_curve() {

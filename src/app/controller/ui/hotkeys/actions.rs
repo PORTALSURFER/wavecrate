@@ -98,7 +98,7 @@ pub(crate) const HOTKEY_ACTIONS: &[HotkeyAction] = &[
         id: "search-browser",
         label: "Search samples",
         gesture: HotkeyGesture::with_command(Key::F),
-        scope: HotkeyScope::Focus(FocusContext::SampleBrowser),
+        scope: HotkeyScope::Global,
         command: HotkeyCommand::FocusBrowserSearch,
     },
     HotkeyAction {

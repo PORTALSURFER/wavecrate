@@ -98,6 +98,17 @@ impl HotkeysController<'_> {
                 self.focus_browser_list();
                 true
             }
+            HotkeyCommand::FocusBrowserSearch => {
+                if matches!(
+                    self.ui.browser.active_tab,
+                    crate::app::state::SampleBrowserTab::Map
+                ) {
+                    self.ui.map.focus_selected_requested = true;
+                } else {
+                    self.focus_browser_search();
+                }
+                true
+            }
             HotkeyCommand::FocusLoadedSample => {
                 self.focus_loaded_sample_in_browser();
                 true
@@ -227,8 +238,9 @@ mod tests {
         assert!(controller.ui.waveform.pending_destructive.is_none());
     }
 
+    /// Browser search hotkey should request search focus from any focus context.
     #[test]
-    fn browser_hotkey_respects_focus() {
+    fn browser_search_hotkey_is_global() {
         let renderer = crate::waveform::WaveformRenderer::new(4, 4);
         let mut controller = AppController::new(renderer, None);
         let action = action_for(HotkeyCommand::FocusBrowserSearch);
@@ -238,6 +250,6 @@ mod tests {
 
         controller.ui.browser.search_focus_requested = false;
         controller.handle_hotkey(action, FocusContext::Waveform);
-        assert!(!controller.ui.browser.search_focus_requested);
+        assert!(controller.ui.browser.search_focus_requested);
     }
 }

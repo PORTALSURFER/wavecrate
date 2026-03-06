@@ -1,6 +1,7 @@
 //! Waveform and selection action facade methods for [`AppController`].
 
 use super::*;
+use crate::app::controller::state::selection::{EditFadeDragKind, EditFadeDragState};
 
 /// Equality epsilon used for normalized waveform cursor no-op detection.
 const WAVEFORM_CURSOR_NOOP_EPSILON: f32 = 1.0e-6;
@@ -161,7 +162,9 @@ impl AppController {
         else {
             return;
         };
-        let next_range = update_edit_fade_in_end_from_milli(existing_range, position_milli);
+        let drag_range =
+            prepare_edit_fade_drag_range(self, EditFadeDragKind::InEnd, existing_range);
+        let next_range = update_edit_fade_in_end_from_milli(drag_range, position_milli);
         if existing_range == next_range && waveform_focus_active(self) {
             return;
         }
@@ -183,7 +186,9 @@ impl AppController {
         else {
             return;
         };
-        let next_range = update_edit_fade_in_mute_start_from_milli(existing_range, position_milli);
+        let drag_range =
+            prepare_edit_fade_drag_range(self, EditFadeDragKind::InMuteStart, existing_range);
+        let next_range = update_edit_fade_in_mute_start_from_milli(drag_range, position_milli);
         if existing_range == next_range && waveform_focus_active(self) {
             return;
         }
@@ -202,7 +207,9 @@ impl AppController {
         else {
             return;
         };
-        let next_range = update_edit_fade_in_curve_from_milli(existing_range, curve_milli);
+        let drag_range =
+            prepare_edit_fade_drag_range(self, EditFadeDragKind::InCurve, existing_range);
+        let next_range = update_edit_fade_in_curve_from_milli(drag_range, curve_milli);
         if existing_range == next_range && waveform_focus_active(self) {
             return;
         }
@@ -221,7 +228,9 @@ impl AppController {
         else {
             return;
         };
-        let next_range = update_edit_fade_out_start_from_milli(existing_range, position_milli);
+        let drag_range =
+            prepare_edit_fade_drag_range(self, EditFadeDragKind::OutStart, existing_range);
+        let next_range = update_edit_fade_out_start_from_milli(drag_range, position_milli);
         if existing_range == next_range && waveform_focus_active(self) {
             return;
         }
@@ -243,7 +252,9 @@ impl AppController {
         else {
             return;
         };
-        let next_range = update_edit_fade_out_mute_end_from_milli(existing_range, position_milli);
+        let drag_range =
+            prepare_edit_fade_drag_range(self, EditFadeDragKind::OutMuteEnd, existing_range);
+        let next_range = update_edit_fade_out_mute_end_from_milli(drag_range, position_milli);
         if existing_range == next_range && waveform_focus_active(self) {
             return;
         }
@@ -262,13 +273,20 @@ impl AppController {
         else {
             return;
         };
-        let next_range = update_edit_fade_out_curve_from_milli(existing_range, curve_milli);
+        let drag_range =
+            prepare_edit_fade_drag_range(self, EditFadeDragKind::OutCurve, existing_range);
+        let next_range = update_edit_fade_out_curve_from_milli(drag_range, curve_milli);
         if existing_range == next_range && waveform_focus_active(self) {
             return;
         }
         self.selection_state.edit_range.set_range(Some(next_range));
         self.apply_edit_selection(Some(next_range));
         self.focus_waveform();
+    }
+
+    /// Clear any temporary edit-fade drag baseline captured for a live handle drag.
+    pub fn finish_waveform_edit_fade_drag(&mut self) {
+        clear_edit_fade_drag(self);
     }
 
     /// Clear waveform selection and keep waveform focus active.
@@ -371,6 +389,29 @@ pub(super) fn update_edit_selection_range_from_milli(
         next,
         resized_edit_selection_edge(existing, start_milli, end_milli),
     )
+}
+
+/// Reuse the range captured when one edit-fade drag started until that drag ends.
+fn prepare_edit_fade_drag_range(
+    controller: &mut AppController,
+    kind: EditFadeDragKind,
+    existing_range: SelectionRange,
+) -> SelectionRange {
+    match controller.selection_state.edit_fade_drag {
+        Some(state) if state.kind == kind => state.baseline,
+        _ => {
+            controller.selection_state.edit_fade_drag = Some(EditFadeDragState {
+                kind,
+                baseline: existing_range,
+            });
+            existing_range
+        }
+    }
+}
+
+/// Drop any retained edit-fade drag snapshot when the gesture is no longer active.
+pub(super) fn clear_edit_fade_drag(controller: &mut AppController) {
+    controller.selection_state.edit_fade_drag = None;
 }
 
 /// Return which edit-selection edge a raw UI range update is dragging, if any.
