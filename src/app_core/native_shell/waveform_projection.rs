@@ -2,6 +2,22 @@
 
 use super::*;
 
+/// Projected edit-fade overlay endpoints and curve values in normalized milli-space.
+pub(super) struct WaveformEditFadeOverlayMilli {
+    /// End position of the fade-in ramp within the edit selection.
+    pub(super) fade_in_end_milli: Option<u16>,
+    /// Start position of the fade-in mute segment before the edit selection.
+    pub(super) fade_in_mute_start_milli: Option<u16>,
+    /// Fade-in curve amount mapped into milli-space.
+    pub(super) fade_in_curve_milli: Option<u16>,
+    /// Start position of the fade-out ramp within the edit selection.
+    pub(super) fade_out_start_milli: Option<u16>,
+    /// End position of the fade-out mute segment after the edit selection.
+    pub(super) fade_out_mute_end_milli: Option<u16>,
+    /// Fade-out curve amount mapped into milli-space.
+    pub(super) fade_out_curve_milli: Option<u16>,
+}
+
 /// Project waveform panel state, selection handles, and cached raster payloads.
 ///
 /// This projection reads controller/UI waveform state and preserves raster reuse
@@ -10,12 +26,7 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
     let ui = &controller.ui;
     let view_span = (ui.waveform.view.end - ui.waveform.view.start).clamp(0.000_1, 1.0) as f32;
     let zoom_percent = (100.0 / view_span).round().clamp(100.0, 9999.0);
-    let (
-        edit_fade_in_end_milli,
-        edit_fade_in_curve_milli,
-        edit_fade_out_start_milli,
-        edit_fade_out_curve_milli,
-    ) = project_waveform_edit_fade_overlay_milli(ui);
+    let fade_overlay = project_waveform_edit_fade_overlay_milli(ui);
     WaveformPanelModel {
         loaded_label: ui
             .loaded_wav
@@ -34,10 +45,12 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
             )
         }),
         edit_selection_milli: project_waveform_edit_selection_milli(ui),
-        edit_fade_in_end_milli,
-        edit_fade_in_curve_milli,
-        edit_fade_out_start_milli,
-        edit_fade_out_curve_milli,
+        edit_fade_in_end_milli: fade_overlay.fade_in_end_milli,
+        edit_fade_in_mute_start_milli: fade_overlay.fade_in_mute_start_milli,
+        edit_fade_in_curve_milli: fade_overlay.fade_in_curve_milli,
+        edit_fade_out_start_milli: fade_overlay.fade_out_start_milli,
+        edit_fade_out_mute_end_milli: fade_overlay.fade_out_mute_end_milli,
+        edit_fade_out_curve_milli: fade_overlay.fade_out_curve_milli,
         view_start_milli: normalized64_to_milli(ui.waveform.view.start),
         view_end_milli: normalized64_to_milli(ui.waveform.view.end),
         loop_enabled: ui.waveform.loop_enabled,
@@ -123,7 +136,7 @@ pub(super) fn project_waveform_edit_selection_milli(ui: &UiState) -> Option<Norm
 /// Project edit fade-handle positions into normalized milli-space.
 pub(super) fn project_waveform_edit_fade_overlay_milli(
     ui: &UiState,
-) -> (Option<u16>, Option<u16>, Option<u16>, Option<u16>) {
+) -> WaveformEditFadeOverlayMilli {
     ui.waveform
         .edit_selection
         .map(|selection| {
@@ -131,23 +144,50 @@ pub(super) fn project_waveform_edit_fade_overlay_milli(
             let end = selection.end();
             let width = selection.width();
             if width <= 0.0 {
-                return (None, None, None, None);
+                return WaveformEditFadeOverlayMilli {
+                    fade_in_end_milli: None,
+                    fade_in_mute_start_milli: None,
+                    fade_in_curve_milli: None,
+                    fade_out_start_milli: None,
+                    fade_out_mute_end_milli: None,
+                    fade_out_curve_milli: None,
+                };
             }
-            let fade_in_end = selection
+            let fade_in_end_milli = selection
                 .fade_in()
                 .map(|fade| normalized_to_milli((start + (width * fade.length)).clamp(start, end)));
-            let fade_in_curve = selection
+            let fade_in_mute_start_milli = selection
+                .fade_in()
+                .map(|fade| normalized_to_milli((start - (width * fade.mute)).clamp(0.0, start)));
+            let fade_in_curve_milli = selection
                 .fade_in()
                 .map(|fade| normalized_to_milli(fade.curve));
-            let fade_out_start = selection
+            let fade_out_start_milli = selection
                 .fade_out()
                 .map(|fade| normalized_to_milli((end - (width * fade.length)).clamp(start, end)));
-            let fade_out_curve = selection
+            let fade_out_mute_end_milli = selection
+                .fade_out()
+                .map(|fade| normalized_to_milli((end + (width * fade.mute)).clamp(end, 1.0)));
+            let fade_out_curve_milli = selection
                 .fade_out()
                 .map(|fade| normalized_to_milli(fade.curve));
-            (fade_in_end, fade_in_curve, fade_out_start, fade_out_curve)
+            WaveformEditFadeOverlayMilli {
+                fade_in_end_milli,
+                fade_in_mute_start_milli,
+                fade_in_curve_milli,
+                fade_out_start_milli,
+                fade_out_mute_end_milli,
+                fade_out_curve_milli,
+            }
         })
-        .unwrap_or((None, None, None, None))
+        .unwrap_or(WaveformEditFadeOverlayMilli {
+            fade_in_end_milli: None,
+            fade_in_mute_start_milli: None,
+            fade_in_curve_milli: None,
+            fade_out_start_milli: None,
+            fade_out_mute_end_milli: None,
+            fade_out_curve_milli: None,
+        })
 }
 
 /// Translate local waveform channel-view settings into native runtime model enums.

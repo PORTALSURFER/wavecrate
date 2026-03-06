@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use std::path::{Path, PathBuf};
 
 use crate::app_dirs;

@@ -43,7 +43,7 @@ pub(crate) enum UndoOutcome<T> {
     /// Action applied immediately with this label.
     Applied(String),
     /// Action deferred until background completion.
-    Deferred(DeferredUndo<T>),
+    Deferred(Box<DeferredUndo<T>>),
 }
 
 pub(crate) struct UndoEntry<T> {
@@ -106,11 +106,11 @@ impl<T> UndoStack<T> {
                 self.redo.push_back(entry);
                 Ok(UndoOutcome::Applied(label))
             }
-            Ok(UndoExecution::Deferred(job)) => Ok(UndoOutcome::Deferred(DeferredUndo {
+            Ok(UndoExecution::Deferred(job)) => Ok(UndoOutcome::Deferred(Box::new(DeferredUndo {
                 entry,
                 direction: UndoDirection::Undo,
                 job,
-            })),
+            }))),
             Err(err) => {
                 self.undo.push_back(entry);
                 Err(err)
@@ -128,11 +128,11 @@ impl<T> UndoStack<T> {
                 self.undo.push_back(entry);
                 Ok(UndoOutcome::Applied(label))
             }
-            Ok(UndoExecution::Deferred(job)) => Ok(UndoOutcome::Deferred(DeferredUndo {
+            Ok(UndoExecution::Deferred(job)) => Ok(UndoOutcome::Deferred(Box::new(DeferredUndo {
                 entry,
                 direction: UndoDirection::Redo,
                 job,
-            })),
+            }))),
             Err(err) => {
                 self.redo.push_back(entry);
                 Err(err)

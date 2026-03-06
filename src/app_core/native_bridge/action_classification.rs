@@ -27,8 +27,10 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::SetWaveformSelectionRange { .. }
         | NativeUiAction::SetWaveformEditSelectionRange { .. }
         | NativeUiAction::SetWaveformEditFadeInEnd { .. }
+        | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
         | NativeUiAction::SetWaveformEditFadeInCurve { .. }
         | NativeUiAction::SetWaveformEditFadeOutStart { .. }
+        | NativeUiAction::SetWaveformEditFadeOutMuteEnd { .. }
         | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
         | NativeUiAction::ClearWaveformEditSelection
         | NativeUiAction::SetWaveformBpmValue { .. }
@@ -55,8 +57,10 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
             | NativeUiAction::SetWaveformSelectionRange { .. }
             | NativeUiAction::SetWaveformEditSelectionRange { .. }
             | NativeUiAction::SetWaveformEditFadeInEnd { .. }
+            | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
             | NativeUiAction::SetWaveformEditFadeInCurve { .. }
             | NativeUiAction::SetWaveformEditFadeOutStart { .. }
+            | NativeUiAction::SetWaveformEditFadeOutMuteEnd { .. }
             | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
             | NativeUiAction::ClearWaveformSelection
             | NativeUiAction::ClearWaveformEditSelection

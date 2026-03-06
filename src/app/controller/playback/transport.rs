@@ -400,10 +400,36 @@ pub(crate) fn seek_to(controller: &mut AppController, position: f32) {
 /// Queue a waveform seek request and defer playback restart to frame prep.
 pub(crate) fn queue_waveform_seek_milli(controller: &mut AppController, position_milli: u16) {
     let clamped = position_milli.min(1000);
+    clear_selection_for_outside_waveform_seek(controller, clamped);
     controller.set_waveform_cursor_milli(clamped);
     controller.runtime.pending_waveform_seek_milli = Some(clamped);
     controller.runtime.pending_waveform_seek_not_before =
         Some(Instant::now() + WAVEFORM_SEEK_COMMIT_DEBOUNCE);
+}
+
+/// Clear the active playback selection when a waveform seek lands outside it.
+///
+/// This keeps a plain waveform click from leaving an old marked playback span
+/// active when the user is clearly asking to audition a different location.
+fn clear_selection_for_outside_waveform_seek(controller: &mut AppController, position_milli: u16) {
+    let normalized = (f32::from(position_milli.min(1000)) / 1000.0).clamp(0.0, 1.0);
+    let Some(selection) = controller
+        .selection_state
+        .range
+        .range()
+        .or(controller.ui.waveform.selection)
+    else {
+        return;
+    };
+    if waveform_selection_contains_position(selection, normalized) {
+        return;
+    }
+    clear_selection(controller);
+}
+
+/// Return whether one normalized playback position lands inside a selection.
+fn waveform_selection_contains_position(selection: SelectionRange, position: f32) -> bool {
+    position >= selection.start() && position <= selection.end()
 }
 
 /// Flush a deferred waveform seek once its debounce window has elapsed.
@@ -727,6 +753,23 @@ pub(crate) fn handle_escape(controller: &mut AppController) {
 mod tests {
     use super::*;
     use crate::app::controller::test_support;
+    use crate::waveform::DecodedWaveform;
+    use std::sync::Arc;
+
+    /// Seed minimal waveform state so seek tests exercise cursor updates on a ready waveform.
+    fn seed_waveform_ready_for_seek(controller: &mut AppController) {
+        controller.sample_view.waveform.decoded = Some(Arc::new(DecodedWaveform {
+            cache_token: 1,
+            samples: Arc::from(vec![0.0; 16]),
+            analysis_samples: Arc::from(Vec::new()),
+            analysis_sample_rate: 0,
+            analysis_stride: 1,
+            peaks: None,
+            duration_seconds: 1.0,
+            sample_rate: 48_000,
+            channels: 1,
+        }));
+    }
 
     #[test]
     /// Selection drags near zero should snap to exact start when BPM snapping is enabled.
@@ -845,5 +888,39 @@ mod tests {
         flush_pending_waveform_seek_commit(&mut controller);
 
         assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(500));
+    }
+
+    #[test]
+    /// Clicking outside the current waveform selection should clear the marked span.
+    fn queue_waveform_seek_milli_clears_selection_when_target_is_outside_span() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        seed_waveform_ready_for_seek(&mut controller);
+        let selection = SelectionRange::new(0.2, 0.4);
+        controller.selection_state.range.set_range(Some(selection));
+        controller.apply_selection(Some(selection));
+
+        queue_waveform_seek_milli(&mut controller, 750);
+
+        assert!(controller.selection_state.range.range().is_none());
+        assert!(controller.ui.waveform.selection.is_none());
+        assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(750));
+        assert_eq!(controller.ui.waveform.cursor, Some(0.75));
+    }
+
+    #[test]
+    /// Clicking inside the current waveform selection should preserve the marked span.
+    fn queue_waveform_seek_milli_preserves_selection_when_target_is_inside_span() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        seed_waveform_ready_for_seek(&mut controller);
+        let selection = SelectionRange::new(0.2, 0.4);
+        controller.selection_state.range.set_range(Some(selection));
+        controller.apply_selection(Some(selection));
+
+        queue_waveform_seek_milli(&mut controller, 300);
+
+        assert_eq!(controller.selection_state.range.range(), Some(selection));
+        assert_eq!(controller.ui.waveform.selection, Some(selection));
+        assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(300));
+        assert_eq!(controller.ui.waveform.cursor, Some(0.3));
     }
 }

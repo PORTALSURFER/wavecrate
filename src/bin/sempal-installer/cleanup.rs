@@ -6,10 +6,7 @@ use crate::{UNINSTALL_KEY, paths};
 
 #[cfg(target_os = "windows")]
 use windows::{
-    Win32::{
-        Foundation::GetLastError,
-        Storage::FileSystem::{MOVEFILE_DELAY_UNTIL_REBOOT, MoveFileExW},
-    },
+    Win32::Storage::FileSystem::{MOVEFILE_DELAY_UNTIL_REBOOT, MoveFileExW},
     core::PCWSTR,
 };
 #[cfg(target_os = "windows")]
@@ -143,19 +140,17 @@ fn schedule_delete_on_reboot(path: &Path) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     let mut wide: Vec<u16> = path.as_os_str().encode_wide().collect();
     wide.push(0);
-    let ok = unsafe {
+    unsafe {
         MoveFileExW(
             PCWSTR::from_raw(wide.as_ptr()),
             PCWSTR::null(),
             MOVEFILE_DELAY_UNTIL_REBOOT,
         )
-    };
-    if ok.as_bool() {
-        return Ok(());
     }
-    let code = unsafe { GetLastError() }.0;
-    Err(format!(
-        "Failed to schedule deletion on reboot for {} (Win32 error {code})",
-        path.display()
-    ))
+    .map_err(|err| {
+        format!(
+            "Failed to schedule deletion on reboot for {}: {err}",
+            path.display()
+        )
+    })
 }

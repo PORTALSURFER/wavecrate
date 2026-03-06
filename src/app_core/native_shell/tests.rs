@@ -1,12 +1,14 @@
 use super::*;
 use crate::app_core::app_api::state::SampleBrowserIndex;
 
+/// Selected-column projection should default to the neutral middle column when nothing is focused.
 #[test]
 fn selected_column_defaults_to_middle_column_without_selection() {
     let ui = UiState::default();
     assert_eq!(selected_column_index(&ui), 1);
 }
 
+/// Browser render windows should cap to the configured maximum when no focus hints exist.
 #[test]
 fn browser_render_window_limits_to_target_size() {
     let (start, len) = browser_render_window(500, None, None);
@@ -14,6 +16,7 @@ fn browser_render_window_limits_to_target_size() {
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
 }
 
+/// Browser render windows should center around the selected row when enough rows exist.
 #[test]
 fn browser_render_window_centers_on_selected_row() {
     let (start, len) = browser_render_window(500, Some(250), None);
@@ -21,6 +24,7 @@ fn browser_render_window_centers_on_selected_row() {
     assert_eq!(start, 122);
 }
 
+/// Browser render windows should clamp near the end instead of overrunning visible rows.
 #[test]
 fn browser_render_window_clamps_near_end_of_visible_rows() {
     let (start, len) = browser_render_window(500, Some(490), None);
@@ -28,6 +32,7 @@ fn browser_render_window_clamps_near_end_of_visible_rows() {
     assert_eq!(start, 244);
 }
 
+/// Browser render windows should still honor the hard row cap for very large datasets.
 #[test]
 fn browser_render_window_limits_large_visible_sets_to_cap() {
     let (start, len) = browser_render_window(1_200, None, None);
@@ -35,6 +40,7 @@ fn browser_render_window_limits_large_visible_sets_to_cap() {
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
 }
 
+/// Browser render windows should center normally and clamp correctly at the tail of large datasets.
 #[test]
 fn browser_render_window_centers_and_tail_clamps_for_large_visible_sets() {
     let (center_start, center_len) = browser_render_window(1_200, Some(800), None);
@@ -46,6 +52,7 @@ fn browser_render_window_centers_and_tail_clamps_for_large_visible_sets() {
     assert_eq!(tail_start, 944);
 }
 
+/// Rating buckets should map deterministically onto browser columns.
 #[test]
 fn browser_column_index_maps_rating_buckets() {
     assert_eq!(
@@ -62,6 +69,7 @@ fn browser_column_index_maps_rating_buckets() {
     );
 }
 
+/// Browser projection should surface sort/tab/search chrome without requiring visible rows.
 #[test]
 fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
@@ -82,6 +90,7 @@ fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
     assert_eq!(projected.visible_count, 42);
 }
 
+/// Browser chrome projection should expose the toolbar copy shown in the native shell.
 #[test]
 fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
     let mut ui = UiState::default();
@@ -100,6 +109,7 @@ fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
     assert_eq!(projected.item_count_label, "1437 items");
 }
 
+/// Waveform projection should derive tempo and zoom labels from UI waveform state.
 #[test]
 fn waveform_projection_exposes_tempo_and_zoom_labels() {
     let mut ui = UiState::default();
@@ -116,6 +126,7 @@ fn waveform_projection_exposes_tempo_and_zoom_labels() {
     assert!(projected.waveform_image.is_none());
 }
 
+/// Waveform projection should pass through raster payload bytes unchanged when present.
 #[test]
 fn waveform_projection_passes_raster_image_payload() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
@@ -146,7 +157,9 @@ fn waveform_projection_includes_edit_fade_handles() {
     controller.ui.waveform.edit_selection = Some(
         crate::selection::SelectionRange::new(0.2, 0.8)
             .with_fade_in(0.25, 0.75)
-            .with_fade_out(0.5, 0.25),
+            .with_fade_in_mute(0.1)
+            .with_fade_out(0.5, 0.25)
+            .with_fade_out_mute(0.2),
     );
 
     let projected = project_waveform_model(&mut controller);
@@ -155,8 +168,10 @@ fn waveform_projection_includes_edit_fade_handles() {
         Some(NormalizedRangeModel::new(200, 800))
     );
     assert_eq!(projected.edit_fade_in_end_milli, Some(350));
+    assert_eq!(projected.edit_fade_in_mute_start_milli, Some(140));
     assert_eq!(projected.edit_fade_in_curve_milli, Some(750));
     assert_eq!(projected.edit_fade_out_start_milli, Some(500));
+    assert_eq!(projected.edit_fade_out_mute_end_milli, Some(920));
     assert_eq!(projected.edit_fade_out_curve_milli, Some(250));
 }
 
@@ -198,6 +213,7 @@ fn project_app_model_matches_staged_projection_helpers() {
     assert_eq!(actual, expected);
 }
 
+/// Waveform chrome projection should mirror loop/channel/toggle state into native labels.
 #[test]
 fn waveform_chrome_projection_reflects_loop_hint() {
     let mut ui = UiState::default();
@@ -235,6 +251,7 @@ fn waveform_chrome_projection_reflects_loop_hint() {
     assert!(projected.slice_mode_enabled);
 }
 
+/// Update projection should expose the status text and action hints for each update state.
 #[test]
 fn update_projection_exposes_status_and_action_hint_labels() {
     let mut ui = UiState::default();
@@ -275,6 +292,7 @@ fn update_projection_exposes_status_and_action_hint_labels() {
     assert!(projected.release_notes_label.is_empty());
 }
 
+/// Map projection should expose legend, selection, hover, cluster, and viewport summary text.
 #[test]
 fn map_projection_exposes_legend_selection_and_viewport_labels() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
@@ -294,6 +312,7 @@ fn map_projection_exposes_legend_selection_and_viewport_labels() {
     assert_eq!(projected.viewport_label, "zoom 1.75x | pan (12, -8)");
 }
 
+/// Map projection should reuse cached points when the current query key still matches them.
 #[test]
 fn map_projection_uses_cached_points_when_query_key_matches() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
@@ -418,6 +437,7 @@ fn map_projection_rebuilds_normalized_points_after_revision_change() {
     assert_eq!(second.points[0].y_milli, 1000);
 }
 
+/// Map projection should discard cached normalized points when the UMAP version changes.
 #[test]
 fn map_projection_does_not_reuse_stale_cache_after_umap_version_change() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
@@ -452,6 +472,7 @@ fn map_projection_does_not_reuse_stale_cache_after_umap_version_change() {
     assert!(projected.points.is_empty());
 }
 
+/// Browser action availability should stay disabled until focus or selection exists.
 #[test]
 fn browser_actions_require_focus_or_selection() {
     let mut ui = UiState::default();
@@ -467,6 +488,7 @@ fn browser_actions_require_focus_or_selection() {
     assert!(projected.can_tag);
 }
 
+/// Browser rename prompts should win over destructive waveform prompts when both are present.
 #[test]
 fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
     let mut ui = UiState::default();
@@ -484,6 +506,7 @@ fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
     assert_eq!(projected.kind, Some(ConfirmPromptKind::BrowserRename));
 }
 
+/// Inline folder creation state should project into the shared confirm prompt model.
 #[test]
 fn confirm_prompt_projects_folder_create_inline_state() {
     let mut ui = UiState::default();
@@ -503,6 +526,7 @@ fn confirm_prompt_projects_folder_create_inline_state() {
     );
 }
 
+/// Folder-create projection should surface duplicate-name and separator validation errors.
 #[test]
 fn confirm_prompt_projects_folder_create_validation_errors() {
     let mut ui = UiState::default();
@@ -539,6 +563,7 @@ fn confirm_prompt_projects_folder_create_validation_errors() {
     );
 }
 
+/// Folder-rename projection should surface duplicate-name and separator validation errors.
 #[test]
 fn confirm_prompt_projects_folder_rename_validation_errors() {
     let mut ui = UiState::default();
@@ -587,6 +612,7 @@ fn confirm_prompt_projects_folder_rename_validation_errors() {
     );
 }
 
+/// Progress overlay projection should preserve modal and cancel-requested flags.
 #[test]
 fn progress_overlay_projection_preserves_cancel_state() {
     let mut ui = UiState::default();
@@ -606,6 +632,7 @@ fn progress_overlay_projection_preserves_cancel_state() {
     assert_eq!(projected.total, 9);
 }
 
+/// Destructive folder actions should require focus on a non-root folder row.
 #[test]
 fn folder_actions_require_non_root_focus_for_destructive_actions() {
     let mut ui = UiState::default();
@@ -647,6 +674,7 @@ fn folder_actions_require_non_root_focus_for_destructive_actions() {
     assert!(projected.folder_actions.can_delete_folder);
 }
 
+/// Root folder creation should remain available even when there are no source rows yet.
 #[test]
 fn folder_actions_allow_root_creation_when_no_sources_exist() {
     let ui = UiState::default();
@@ -655,6 +683,7 @@ fn folder_actions_allow_root_creation_when_no_sources_exist() {
     assert!(projected.folder_actions.can_create_folder_at_root);
 }
 
+/// Recovery log clearing should stay disabled while delete recovery work is still running.
 #[test]
 fn folder_actions_disable_recovery_clear_while_recovery_is_running() {
     let mut ui = UiState::default();
@@ -685,7 +714,8 @@ fn browser_row_cache_clears_when_visible_revision_changes() {
             row_identity_hash: browser_row_identity_hash(std::path::Path::new("kick.wav")),
             row_label: String::from("Kick"),
             column_index: 1,
-            bucket_label: String::from("SAMPLE"),
+            rating_level: 0,
+            bucket_label: String::new(),
             missing: false,
         },
     );
@@ -772,7 +802,8 @@ fn cached_browser_row_rebuilds_when_stored_tag_column_is_stale() {
             row_identity_hash: browser_row_identity_hash(std::path::Path::new("kick.wav")),
             row_label: String::from("Kick"),
             column_index: 1,
-            bucket_label: String::from("SAMPLE"),
+            rating_level: 0,
+            bucket_label: String::new(),
             missing: false,
         },
     );
@@ -782,6 +813,7 @@ fn cached_browser_row_rebuilds_when_stored_tag_column_is_stale() {
     };
 
     assert_eq!(cached.0.column_index, 2);
+    assert_eq!(cached.0.rating_level, 1);
 }
 
 #[test]
@@ -804,7 +836,8 @@ fn cached_browser_row_rebuilds_when_stored_missing_state_is_stale() {
             row_identity_hash: browser_row_identity_hash(std::path::Path::new("kick.wav")),
             row_label: String::from("Kick"),
             column_index: 1,
-            bucket_label: String::from("SAMPLE"),
+            rating_level: 0,
+            bucket_label: String::new(),
             missing: false,
         },
     );
@@ -850,6 +883,7 @@ fn status_bar_right_text_shows_column() {
     assert_eq!(status_bar_right_text(0), "col: 1/3");
 }
 
+/// Status-bar column text should remain stable for repeated equivalent inputs.
 #[test]
 fn status_bar_right_text_is_stable_across_input() {
     assert_eq!(status_bar_right_text(2), "col: 3/3");

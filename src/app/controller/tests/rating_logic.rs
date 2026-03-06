@@ -136,3 +136,54 @@ fn advance_after_rating_respects_random_navigation() {
         .expect("selection");
     assert_eq!(selected_path, &PathBuf::from("c.wav"));
 }
+
+/// Browser keep/trash actions should step across zero without returning to neutral.
+#[test]
+fn browser_target_rating_steps_without_dropping_back_to_neutral() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+
+    macro_rules! setup_file {
+        ($name:expr, $rating:expr) => {
+            let entry = sample_entry($name, $rating);
+            controller.set_wav_entries_for_tests(vec![entry]);
+            controller.rebuild_wav_lookup();
+            controller.rebuild_browser_lists();
+            controller.sample_view.wav.selected_wav = Some(PathBuf::from($name));
+        };
+    }
+
+    let find_row = |rows: &[crate::sample_sources::WavEntry], name: &str| {
+        rows.iter()
+            .find(|r| r.relative_path.to_string_lossy() == name)
+            .expect("file not found")
+            .clone()
+    };
+
+    setup_file!("keep3.wav", Rating::KEEP_3);
+    controller.tag_selected_browser_target(crate::app_core::state::BrowserTagTarget::Trash);
+    let rows = controller
+        .database_for(&source)
+        .unwrap()
+        .list_files()
+        .unwrap();
+    assert_eq!(find_row(&rows, "keep3.wav").tag, Rating::new(2));
+
+    setup_file!("keep1.wav", Rating::KEEP_1);
+    controller.tag_selected_browser_target(crate::app_core::state::BrowserTagTarget::Trash);
+    let rows = controller
+        .database_for(&source)
+        .unwrap()
+        .list_files()
+        .unwrap();
+    assert_eq!(find_row(&rows, "keep1.wav").tag, Rating::TRASH_1);
+
+    setup_file!("neutral.wav", Rating::NEUTRAL);
+    controller.tag_selected_browser_target(crate::app_core::state::BrowserTagTarget::Keep);
+    let rows = controller
+        .database_for(&source)
+        .unwrap()
+        .list_files()
+        .unwrap();
+    assert_eq!(find_row(&rows, "neutral.wav").tag, Rating::KEEP_1);
+}

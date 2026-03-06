@@ -100,7 +100,7 @@ mod platform {
         }
 
         fn matches_format(&self, fmt: &FORMATETC) -> bool {
-            (fmt.cfFormat == CF_HDROP.0 as u16
+            (fmt.cfFormat == CF_HDROP.0
                 && fmt.dwAspect == DVASPECT_CONTENT.0
                 && (fmt.tymed & TYMED_HGLOBAL.0 as u32) != 0
                 && (fmt.lindex == -1 || fmt.lindex == 0))
@@ -218,7 +218,7 @@ mod platform {
                 ));
             }
             let formats = [
-                self.format.clone(),
+                self.format,
                 build_drop_effect_format(self.preferred_drop_effect),
                 build_drop_effect_format(self.performed_drop_effect),
             ];
@@ -279,7 +279,10 @@ mod platform {
         paths: &[PathBuf],
     ) -> Result<(), String> {
         let _com = ComApartment::new()?;
-        let absolute: Vec<PathBuf> = paths.iter().map(normalize_path).collect();
+        let absolute: Vec<PathBuf> = paths
+            .iter()
+            .map(|path| normalize_path(path.as_path()))
+            .collect();
         let data_object: IDataObject = FileDropDataObject::new(absolute)?.into();
         let drop_source: IDropSource = SimpleDropSource.into();
         let mut effect = DROPEFFECT(0);
@@ -304,7 +307,7 @@ mod platform {
 
     fn build_format() -> FORMATETC {
         FORMATETC {
-            cfFormat: CF_HDROP.0 as u16,
+            cfFormat: CF_HDROP.0,
             ptd: std::ptr::null_mut(),
             dwAspect: DVASPECT_CONTENT.0,
             lindex: -1,
@@ -408,7 +411,8 @@ mod platform {
 }
 
 #[cfg(target_os = "windows")]
-fn normalize_path(path: &PathBuf) -> PathBuf {
+/// Normalize one drag path to an absolute non-verbatim Windows filesystem path.
+fn normalize_path(path: &std::path::Path) -> PathBuf {
     let absolute = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let verbatim_prefix = "\\\\?\\";
     if absolute

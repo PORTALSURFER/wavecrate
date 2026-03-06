@@ -77,6 +77,7 @@ try {
   foreach ($file in $files) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { continue }
     $content = Get-Content -LiteralPath $file -Raw
+    if ($null -eq $content) { $content = "" }
     $dir = Split-Path -Parent $file
     foreach ($m in $linkRe.Matches($content)) {
       $destRaw = $m.Groups[1].Value.Trim()

@@ -272,10 +272,10 @@ fn replace_file(temp_path: &Path, path: &Path) -> Result<(), IssueTokenStoreErro
                 || err.kind() == std::io::ErrorKind::PermissionDenied
             {
                 clear_windows_readonly(path);
-                if let Err(e) = std::fs::remove_file(path) {
-                    if e.kind() != std::io::ErrorKind::NotFound {
-                        return Err(e.into());
-                    }
+                if let Err(e) = std::fs::remove_file(path)
+                    && e.kind() != std::io::ErrorKind::NotFound
+                {
+                    return Err(e.into());
                 }
                 std::fs::rename(temp_path, path)?;
                 return Ok(());

@@ -98,6 +98,7 @@ impl AppController {
                 bytes.clone(),
                 transients.clone(),
             );
+            self.persist_waveform_cache(&source.id, relative_path, metadata, &decoded, &transients);
         }
         self.finish_waveform_load_shared(FinishWaveformLoadShared {
             source,
@@ -327,6 +328,7 @@ impl AppController {
     pub(crate) fn invalidate_cached_audio(&mut self, source_id: &SourceId, relative_path: &Path) {
         let key = CacheKey::new(source_id, relative_path);
         self.audio.cache.invalidate(&key);
+        self.invalidate_persistent_waveform_cache(source_id, relative_path);
     }
 
     fn sync_loaded_audio(

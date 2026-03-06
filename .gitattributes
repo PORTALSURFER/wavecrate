@@ -1,0 +1,2 @@
+*.sh text eol=lf
+scripts/perf_locks/*.env text eol=lf

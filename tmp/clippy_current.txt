@@ -1,0 +1,32 @@
+    Blocking waiting for file lock on build directory
+    Checking sempal v19.0.0 (C:\dev\sempal)
+src\updater\mod.rs:470:21: error[E0425]: cannot find value `ENV_VAR_LOCK` in this scope: not found in this scope
+src\app\controller\ui\os_explorer.rs:34:9: error: unneeded `return` statement
+src\app\controller\ui\os_explorer.rs:80:9: error: unneeded `return` statement
+src\app\controller\config.rs:6:45: error: the `Err`-variant returned from this function is very large
+src\app\controller\config.rs:15:10: error: the `Err`-variant returned from this function is very large
+src\app\controller\config.rs:177:10: error: the `Err`-variant returned from this function is very large
+src\app\controller\undo.rs:40:1: error: large size difference between variants: the entire enum is at least 248 bytes
+src\external_drag.rs:103:30: error: casting to the same type is unnecessary (`u16` -> `u16`): help: try: `CF_HDROP.0`
+src\external_drag.rs:221:17: error: using `clone` on type `FORMATETC` which implements the `Copy` trait: help: try removing the `clone` call: `self.format`
+src\external_drag.rs:307:23: error: casting to the same type is unnecessary (`u16` -> `u16`): help: try: `CF_HDROP.0`
+src\external_drag.rs:411:25: error: writing `&PathBuf` instead of `&Path` involves a new object where a slice will do: help: change this to: `&Path`
+src\issue_gateway\token_store.rs:275:17: error: this `if` statement can be collapsed
+src\sample_sources\config_io\legacy.rs:11:39: error: the `Err`-variant returned from this function is very large
+src\sample_sources\config_io\legacy.rs:26:6: error: the `Err`-variant returned from this function is very large
+src\sample_sources\config_io\legacy.rs:47:39: error: the `Err`-variant returned from this function is very large
+src\sample_sources\config_io\legacy.rs:63:37: error: the `Err`-variant returned from this function is very large
+src\sample_sources\config_io\load.rs:14:25: error: the `Err`-variant returned from this function is very large
+src\sample_sources\config_io\load.rs:23:29: error: the `Err`-variant returned from this function is very large
+src\sample_sources\config_io\load.rs:46:50: error: the `Err`-variant returned from this function is very large
+src\sample_sources\config_io\load.rs:83:6: error: the `Err`-variant returned from this function is very large
+src\sample_sources\config_io\save.rs:10:36: error: the `Err`-variant returned from this function is very large
+src\sample_sources\config_io\save.rs:16:57: error: the `Err`-variant returned from this function is very large
+src\sample_sources\config_io\save.rs:35:6: error: the `Err`-variant returned from this function is very large
+src\sample_sources\config_io\save.rs:43:46: error: the `Err`-variant returned from this function is very large
+src\sample_sources\config_io\save.rs:137:17: error: this `if` statement can be collapsed
+src\sample_sources\config_io\save.rs:150:35: error: the `Err`-variant returned from this function is very large
+src\sqlite_ext.rs:102:28: error: redundant pattern matching, consider using `is_ok()`: help: try: `EqualSid(user_sid, owner_sid).is_ok()`
+error: could not compile `sempal` (lib) due to 26 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `sempal` (lib test) due to 1 previous error

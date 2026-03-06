@@ -279,12 +279,8 @@ fn assemble_project_app_model(
 /// stay aligned with corresponding waveform/map/status fields in `project_app_model`.
 pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionModel {
     let selected_column = selected_column_index(&controller.ui);
-    let (
-        edit_fade_in_end_milli,
-        edit_fade_in_curve_milli,
-        edit_fade_out_start_milli,
-        edit_fade_out_curve_milli,
-    ) = waveform_projection::project_waveform_edit_fade_overlay_milli(&controller.ui);
+    let fade_overlay =
+        waveform_projection::project_waveform_edit_fade_overlay_milli(&controller.ui);
     MotionModel {
         transport_running: controller.is_playing(),
         map_active: matches!(
@@ -300,10 +296,12 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         waveform_edit_selection_milli: waveform_projection::project_waveform_edit_selection_milli(
             &controller.ui,
         ),
-        waveform_edit_fade_in_end_milli: edit_fade_in_end_milli,
-        waveform_edit_fade_in_curve_milli: edit_fade_in_curve_milli,
-        waveform_edit_fade_out_start_milli: edit_fade_out_start_milli,
-        waveform_edit_fade_out_curve_milli: edit_fade_out_curve_milli,
+        waveform_edit_fade_in_end_milli: fade_overlay.fade_in_end_milli,
+        waveform_edit_fade_in_mute_start_milli: fade_overlay.fade_in_mute_start_milli,
+        waveform_edit_fade_in_curve_milli: fade_overlay.fade_in_curve_milli,
+        waveform_edit_fade_out_start_milli: fade_overlay.fade_out_start_milli,
+        waveform_edit_fade_out_mute_end_milli: fade_overlay.fade_out_mute_end_milli,
+        waveform_edit_fade_out_curve_milli: fade_overlay.fade_out_curve_milli,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_cursor_milli: controller
             .ui

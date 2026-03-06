@@ -10,8 +10,10 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
             | NativeUiAction::SetWaveformSelectionRange { .. }
             | NativeUiAction::SetWaveformEditSelectionRange { .. }
             | NativeUiAction::SetWaveformEditFadeInEnd { .. }
+            | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
             | NativeUiAction::SetWaveformEditFadeInCurve { .. }
             | NativeUiAction::SetWaveformEditFadeOutStart { .. }
+            | NativeUiAction::SetWaveformEditFadeOutMuteEnd { .. }
             | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
             | NativeUiAction::ClearWaveformSelection
             | NativeUiAction::ClearWaveformEditSelection
@@ -67,8 +69,10 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::SetWaveformSelectionRange { .. }
         | NativeUiAction::SetWaveformEditSelectionRange { .. }
         | NativeUiAction::SetWaveformEditFadeInEnd { .. }
+        | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
         | NativeUiAction::SetWaveformEditFadeInCurve { .. }
         | NativeUiAction::SetWaveformEditFadeOutStart { .. }
+        | NativeUiAction::SetWaveformEditFadeOutMuteEnd { .. }
         | NativeUiAction::SetWaveformEditFadeOutCurve { .. }
         | NativeUiAction::ClearWaveformSelection
         | NativeUiAction::ClearWaveformEditSelection => Some((

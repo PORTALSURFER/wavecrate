@@ -98,11 +98,7 @@ mod windows_security {
             // If it returns BOOL, we check for false.
             // If it returns Result, we check for Err.
             // Here, we try a approach that works for both if we use match/if let.
-            #[allow(irrefutable_let_patterns)]
-            let is_equal = match EqualSid(user_sid, owner_sid) {
-                Ok(_) => true,
-                Err(_) => false,
-            };
+            let is_equal = EqualSid(user_sid, owner_sid).is_ok();
             if !is_equal {
                 return Err("SQLite extension must be owned by the current user".to_string());
             }

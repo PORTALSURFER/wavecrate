@@ -347,21 +347,21 @@ impl AppController {
         let _ = self.delete_active_browser_selection();
     }
 
-    /// Apply a triage tag target to current browser selection from UI actions.
+    /// Apply a triage rating target to the current browser selection from UI actions.
+    ///
+    /// Keep/trash actions adjust the signed `-3..=3` rating one step toward the
+    /// requested side so existing ratings upgrade/downgrade instead of resetting.
     pub fn tag_selected_browser_target(
         &mut self,
         target: crate::app_core::state::BrowserTagTarget,
     ) {
-        let rating = match target {
-            crate::app_core::state::BrowserTagTarget::Trash => {
-                crate::sample_sources::Rating::TRASH_3
-            }
+        match target {
+            crate::app_core::state::BrowserTagTarget::Trash => self.adjust_selected_rating(-1),
             crate::app_core::state::BrowserTagTarget::Neutral => {
-                crate::sample_sources::Rating::NEUTRAL
+                self.tag_selected(crate::sample_sources::Rating::NEUTRAL);
             }
-            crate::app_core::state::BrowserTagTarget::Keep => crate::sample_sources::Rating::KEEP_1,
-        };
-        self.tag_selected(rating);
+            crate::app_core::state::BrowserTagTarget::Keep => self.adjust_selected_rating(1),
+        }
     }
 
     /// Toggle whether a visible browser row is included in the multi-selection set.

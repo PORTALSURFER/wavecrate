@@ -2,6 +2,7 @@ use super::*;
 use crate::app::controller::playback::audio_cache::CacheKey;
 use crate::app::controller::playback::audio_loader::AudioTransientResult;
 use std::path::Path;
+use std::sync::Arc;
 
 impl AppController {
     pub(crate) fn handle_audio_loaded(&mut self, pending: PendingAudio, outcome: AudioLoadOutcome) {
@@ -84,7 +85,16 @@ impl AppController {
             let key = CacheKey::new(&result.source_id, &result.relative_path);
             self.audio
                 .cache
-                .update_transients(&key, result.metadata, result.transients);
+                .update_transients(&key, result.metadata, result.transients.clone());
+            if let Some(decoded) = self.sample_view.waveform.decoded.as_ref() {
+                self.persist_waveform_cache(
+                    &result.source_id,
+                    &result.relative_path,
+                    result.metadata,
+                    decoded,
+                    &result.transients,
+                );
+            }
         }
     }
 
@@ -206,7 +216,47 @@ impl AppController {
         };
         let key = CacheKey::new(&source.id, relative_path);
         let Some(hit) = self.audio.cache.get(&key, metadata) else {
-            return Ok(false);
+            let Some(hit) =
+                self.load_persistent_waveform_cache(&source.id, relative_path, metadata)
+            else {
+                return Ok(false);
+            };
+            let bytes: Arc<[u8]> = match self.read_waveform_bytes(source, relative_path) {
+                Ok(bytes) => Arc::from(bytes),
+                Err(err) => {
+                    tracing::warn!(
+                        "Failed to hydrate waveform cache bytes for {}: {err}",
+                        relative_path.display()
+                    );
+                    return Ok(false);
+                }
+            };
+            self.audio.cache.insert(
+                key,
+                metadata,
+                hit.decoded.clone(),
+                bytes.clone(),
+                hit.transients.clone(),
+            );
+            let duration_seconds = hit.decoded.duration_seconds;
+            let sample_rate = hit.decoded.sample_rate;
+            let preserve_selections =
+                self.sample_view.wav.loaded_wav.as_deref() == Some(relative_path);
+            self.finish_waveform_load_shared(FinishWaveformLoadShared {
+                source,
+                relative_path,
+                decoded: hit.decoded,
+                bytes,
+                intent,
+                preserve_selections,
+                transients: Some(hit.transients),
+            })?;
+            let message = Self::loaded_status_text(relative_path, duration_seconds, sample_rate);
+            self.set_status(message, StatusTone::Info);
+            if matches!(intent, AudioLoadIntent::Selection) {
+                self.refresh_similarity_sort_for_loaded_sample();
+            }
+            return Ok(true);
         };
         let duration_seconds = hit.decoded.duration_seconds;
         let sample_rate = hit.decoded.sample_rate;

@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use std::io::Write;
 use std::path::Path;
 
@@ -134,10 +136,10 @@ fn replace_file(temp_path: &Path, path: &Path) -> Result<(), std::io::Error> {
             if err.kind() == std::io::ErrorKind::AlreadyExists
                 || err.kind() == std::io::ErrorKind::PermissionDenied
             {
-                if let Err(inner) = std::fs::remove_file(path) {
-                    if inner.kind() != std::io::ErrorKind::NotFound {
-                        return Err(inner);
-                    }
+                if let Err(inner) = std::fs::remove_file(path)
+                    && inner.kind() != std::io::ErrorKind::NotFound
+                {
+                    return Err(inner);
                 }
                 std::fs::rename(temp_path, path)?;
                 return Ok(());

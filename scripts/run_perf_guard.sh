@@ -46,6 +46,7 @@ STARTUP_REQUIRE_VALID_RAW="${SEMPAL_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS:-0}"
 STARTUP_LOCK_ENV_OUT="${SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT:-}"
 STARTUP_LOCK_ENV_IN="${SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_IN:-$ROOT_DIR/scripts/perf_locks/startup_thresholds.env}"
 FRAME_QUALITY_LOCK_ENV_OUT="${SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_ENV_OUT:-}"
+CARGO_BIN="${CARGO_BIN:-cargo}"
 
 startup_profile_enabled=0
 case "${STARTUP_PROFILE_RAW,,}" in
@@ -101,7 +102,7 @@ fi
 if (( startup_profile_enabled == 1 )); then
   startup_binary="${ROOT_DIR}/target/debug/sempal"
   echo "[perf_guard] building sempal startup binary for profile capture"
-  cargo build --bin sempal >/dev/null
+  "$CARGO_BIN" build --bin sempal >/dev/null
   if [[ "$RUNS" -ge 3 ]]; then
     startup_min_valid_runs_default=3
   else
@@ -124,7 +125,7 @@ for run in $(seq 1 "$RUNS"); do
   fi
   REPORT_PATHS+=("$run_out")
   echo "[perf_guard] running sempal-bench interaction profile (run ${run}/${RUNS})"
-  cargo run --bin sempal-bench -- \
+  "$CARGO_BIN" run --bin sempal-bench -- \
     --out "$run_out" \
     --no-analysis \
     --no-similarity \

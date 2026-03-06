@@ -36,7 +36,7 @@ pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             message: String::from("Apply folder rename?"),
             confirm_label: String::from("Apply"),
             cancel_label: String::from("Cancel"),
-            target_label: Some(target.display().to_string()),
+            target_label: Some(display_relative_folder_path(&target)),
             input_value,
             input_placeholder: Some(String::from("Folder name")),
             input_error,
@@ -46,7 +46,7 @@ pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
         let target_label = if new_folder.parent.as_os_str().is_empty() {
             String::from("source root")
         } else {
-            new_folder.parent.display().to_string()
+            display_relative_folder_path(&new_folder.parent)
         };
         let input_error = folder_create_validation_error(ui, &new_folder.parent, &new_folder.name);
         return ConfirmPromptModel {
@@ -77,6 +77,11 @@ pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
         };
     }
     ConfirmPromptModel::default()
+}
+
+/// Format one relative folder path for UI text using stable forward slashes on every platform.
+fn display_relative_folder_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 /// Normalize one folder-name input string and enforce naming constraints.
@@ -128,8 +133,10 @@ fn folder_create_validation_error(ui: &UiState, parent: &Path, name: &str) -> Op
     } else {
         parent.join(&normalized)
     };
-    folder_exists_in_rows(ui, &relative)
-        .then_some(format!("Folder already exists: {}", relative.display()))
+    folder_exists_in_rows(ui, &relative).then_some(format!(
+        "Folder already exists: {}",
+        display_relative_folder_path(&relative)
+    ))
 }
 
 /// Validate folder-rename input against naming and duplicate-path constraints.
@@ -142,6 +149,8 @@ fn folder_rename_validation_error(ui: &UiState, target: &Path, name: &str) -> Op
     if renamed == target {
         return None;
     }
-    folder_exists_in_rows(ui, &renamed)
-        .then_some(format!("Folder already exists: {}", renamed.display()))
+    folder_exists_in_rows(ui, &renamed).then_some(format!(
+        "Folder already exists: {}",
+        display_relative_folder_path(&renamed)
+    ))
 }

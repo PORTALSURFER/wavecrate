@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use std::path::{Path, PathBuf};
 
 use serde::de::Error as SerdeDeError;

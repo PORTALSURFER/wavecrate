@@ -43,8 +43,10 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         waveform_edit_selection_start_milli: waveform_millis.edit_selection_start_milli,
         waveform_edit_selection_end_milli: waveform_millis.edit_selection_end_milli,
         waveform_edit_fade_in_end_milli: waveform_millis.edit_fade_in_end_milli,
+        waveform_edit_fade_in_mute_start_milli: waveform_millis.edit_fade_in_mute_start_milli,
         waveform_edit_fade_in_curve_milli: waveform_millis.edit_fade_in_curve_milli,
         waveform_edit_fade_out_start_milli: waveform_millis.edit_fade_out_start_milli,
+        waveform_edit_fade_out_mute_end_milli: waveform_millis.edit_fade_out_mute_end_milli,
         waveform_edit_fade_out_curve_milli: waveform_millis.edit_fade_out_curve_milli,
         waveform_view_start_milli: waveform_millis.view_start_milli,
         waveform_view_end_milli: waveform_millis.view_end_milli,
@@ -150,8 +152,10 @@ pub(super) fn build_waveform_projection_key(
         waveform_edit_selection_start_milli: waveform_millis.edit_selection_start_milli,
         waveform_edit_selection_end_milli: waveform_millis.edit_selection_end_milli,
         waveform_edit_fade_in_end_milli: waveform_millis.edit_fade_in_end_milli,
+        waveform_edit_fade_in_mute_start_milli: waveform_millis.edit_fade_in_mute_start_milli,
         waveform_edit_fade_in_curve_milli: waveform_millis.edit_fade_in_curve_milli,
         waveform_edit_fade_out_start_milli: waveform_millis.edit_fade_out_start_milli,
+        waveform_edit_fade_out_mute_end_milli: waveform_millis.edit_fade_out_mute_end_milli,
         waveform_edit_fade_out_curve_milli: waveform_millis.edit_fade_out_curve_milli,
         waveform_view_start_milli: waveform_millis.view_start_milli,
         waveform_view_end_milli: waveform_millis.view_end_milli,
@@ -196,8 +200,10 @@ struct WaveformProjectionMillis {
     edit_selection_start_milli: Option<u16>,
     edit_selection_end_milli: Option<u16>,
     edit_fade_in_end_milli: Option<u16>,
+    edit_fade_in_mute_start_milli: Option<u16>,
     edit_fade_in_curve_milli: Option<u16>,
     edit_fade_out_start_milli: Option<u16>,
+    edit_fade_out_mute_end_milli: Option<u16>,
     edit_fade_out_curve_milli: Option<u16>,
     view_start_milli: u16,
     view_end_milli: u16,
@@ -239,7 +245,12 @@ fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProj
             (fade_in, fade_out)
         })
         .unwrap_or((None, None));
-    let (edit_fade_in_end_milli, edit_fade_out_start_milli) = controller
+    let (
+        edit_fade_in_end_milli,
+        edit_fade_in_mute_start_milli,
+        edit_fade_out_start_milli,
+        edit_fade_out_mute_end_milli,
+    ) = controller
         .ui
         .waveform
         .edit_selection
@@ -248,25 +259,38 @@ fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProj
             let end = selection.end();
             let width = selection.width();
             if width <= 0.0 {
-                return (None, None);
+                return (None, None, None, None);
             }
             let fade_in_end = selection.fade_in().map(|fade| {
                 normalized_f32_to_milli((start + (width * fade.length)).clamp(start, end))
             });
+            let fade_in_mute_start = selection.fade_in().map(|fade| {
+                normalized_f32_to_milli((start - (width * fade.mute)).clamp(0.0, start))
+            });
             let fade_out_start = selection.fade_out().map(|fade| {
                 normalized_f32_to_milli((end - (width * fade.length)).clamp(start, end))
             });
-            (fade_in_end, fade_out_start)
+            let fade_out_mute_end = selection
+                .fade_out()
+                .map(|fade| normalized_f32_to_milli((end + (width * fade.mute)).clamp(end, 1.0)));
+            (
+                fade_in_end,
+                fade_in_mute_start,
+                fade_out_start,
+                fade_out_mute_end,
+            )
         })
-        .unwrap_or((None, None));
+        .unwrap_or((None, None, None, None));
     WaveformProjectionMillis {
         selection_start_milli,
         selection_end_milli,
         edit_selection_start_milli,
         edit_selection_end_milli,
         edit_fade_in_end_milli,
+        edit_fade_in_mute_start_milli,
         edit_fade_in_curve_milli,
         edit_fade_out_start_milli,
+        edit_fade_out_mute_end_milli,
         edit_fade_out_curve_milli,
         view_start_milli: normalized_f64_to_milli(controller.ui.waveform.view.start),
         view_end_milli: normalized_f64_to_milli(controller.ui.waveform.view.end),

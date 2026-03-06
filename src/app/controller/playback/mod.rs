@@ -11,6 +11,8 @@ pub(crate) mod audio_loader;
 pub(crate) mod audio_options;
 pub(crate) mod audio_samples;
 pub(crate) mod loop_crossfade;
+/// Disk-backed waveform cache persistence used to reuse decoded waveforms across app restarts.
+pub(crate) mod persistent_waveform_cache;
 pub(crate) mod recording;
 
 mod browser_nav;

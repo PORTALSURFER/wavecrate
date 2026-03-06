@@ -467,8 +467,6 @@ mod tests {
         }
 
         #[cfg(windows)]
-        let _lock = ENV_VAR_LOCK.lock().expect("env var lock");
-        #[cfg(windows)]
         let _guard = EnvVarGuard::set("SEMPAL_UPDATER_ALLOW_SYMLINK_ERRORS", "0");
         let _guard = SymlinkMetadataHookGuard::new(Some(fail_metadata));
         let dir = tempdir().unwrap();

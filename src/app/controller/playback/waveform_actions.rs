@@ -163,6 +163,25 @@ impl AppController {
         self.focus_waveform();
     }
 
+    /// Set waveform edit fade-in mute-start using a 0..=1000 milli position from UI actions.
+    pub fn set_waveform_edit_fade_in_mute_start_milli(&mut self, position_milli: u16) {
+        let Some(existing_range) = self
+            .selection_state
+            .edit_range
+            .range()
+            .or(self.ui.waveform.edit_selection)
+        else {
+            return;
+        };
+        let next_range = update_edit_fade_in_mute_start_from_milli(existing_range, position_milli);
+        if existing_range == next_range && waveform_focus_active(self) {
+            return;
+        }
+        self.selection_state.edit_range.set_range(Some(next_range));
+        self.apply_edit_selection(Some(next_range));
+        self.focus_waveform();
+    }
+
     /// Set waveform edit fade-in curve using a 0..=1000 milli value from UI actions.
     pub fn set_waveform_edit_fade_in_curve_milli(&mut self, curve_milli: u16) {
         let Some(existing_range) = self
@@ -193,6 +212,25 @@ impl AppController {
             return;
         };
         let next_range = update_edit_fade_out_start_from_milli(existing_range, position_milli);
+        if existing_range == next_range && waveform_focus_active(self) {
+            return;
+        }
+        self.selection_state.edit_range.set_range(Some(next_range));
+        self.apply_edit_selection(Some(next_range));
+        self.focus_waveform();
+    }
+
+    /// Set waveform edit fade-out mute-end using a 0..=1000 milli position from UI actions.
+    pub fn set_waveform_edit_fade_out_mute_end_milli(&mut self, position_milli: u16) {
+        let Some(existing_range) = self
+            .selection_state
+            .edit_range
+            .range()
+            .or(self.ui.waveform.edit_selection)
+        else {
+            return;
+        };
+        let next_range = update_edit_fade_out_mute_end_from_milli(existing_range, position_milli);
         if existing_range == next_range && waveform_focus_active(self) {
             return;
         }
@@ -386,6 +424,26 @@ pub(super) fn update_edit_fade_in_end_from_milli(
     range.with_fade_in(length, curve)
 }
 
+/// Update edit fade-in mute-start from one absolute waveform milli handle position.
+pub(super) fn update_edit_fade_in_mute_start_from_milli(
+    range: SelectionRange,
+    position_milli: u16,
+) -> SelectionRange {
+    let Some(fade_in) = range.fade_in() else {
+        return range;
+    };
+    let width = range.width();
+    if width <= f32::EPSILON {
+        return range;
+    }
+    let start = range.start();
+    let clamped_position = normalized_from_milli(position_milli).min(start);
+    let mute = ((start - clamped_position) / width).max(0.0);
+    range
+        .with_fade_in(fade_in.length, fade_in.curve)
+        .with_fade_in_mute(mute)
+}
+
 /// Update edit fade-out length from one absolute waveform milli handle position.
 pub(super) fn update_edit_fade_out_start_from_milli(
     range: SelectionRange,
@@ -401,6 +459,26 @@ pub(super) fn update_edit_fade_out_start_from_milli(
     let length = ((end - clamped_position) / width).clamp(0.0, 1.0);
     let curve = range.fade_out().map(|fade| fade.curve).unwrap_or(0.5);
     range.with_fade_out(length, curve)
+}
+
+/// Update edit fade-out mute-end from one absolute waveform milli handle position.
+pub(super) fn update_edit_fade_out_mute_end_from_milli(
+    range: SelectionRange,
+    position_milli: u16,
+) -> SelectionRange {
+    let Some(fade_out) = range.fade_out() else {
+        return range;
+    };
+    let width = range.width();
+    if width <= f32::EPSILON {
+        return range;
+    }
+    let end = range.end();
+    let clamped_position = normalized_from_milli(position_milli).max(end);
+    let mute = ((clamped_position - end) / width).max(0.0);
+    range
+        .with_fade_out(fade_out.length, fade_out.curve)
+        .with_fade_out_mute(mute)
 }
 
 /// Update edit fade-in curve from one UI milli curve value.

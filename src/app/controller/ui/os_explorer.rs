@@ -29,12 +29,13 @@ pub(crate) fn reveal_in_file_explorer(path: &Path) -> Result<(), String> {
             .status()
             .map_err(|err| format!("Failed to launch explorer: {err}"))?;
         if status.success() {
-            return Ok(());
+            Ok(())
+        } else {
+            Err(format!(
+                "Explorer exited unsuccessfully for {}",
+                path.display()
+            ))
         }
-        return Err(format!(
-            "Explorer exited unsuccessfully for {}",
-            path.display()
-        ));
     }
     #[cfg(target_os = "macos")]
     {
@@ -44,12 +45,13 @@ pub(crate) fn reveal_in_file_explorer(path: &Path) -> Result<(), String> {
             .status()
             .map_err(|err| format!("Failed to launch Finder: {err}"))?;
         if status.success() {
-            return Ok(());
+            Ok(())
+        } else {
+            Err(format!(
+                "Finder exited unsuccessfully for {}",
+                path.display()
+            ))
         }
-        return Err(format!(
-            "Finder exited unsuccessfully for {}",
-            path.display()
-        ));
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
@@ -75,12 +77,13 @@ pub(crate) fn open_folder_in_file_explorer(path: &Path) -> Result<(), String> {
             .status()
             .map_err(|err| format!("Failed to launch explorer: {err}"))?;
         if status.success() {
-            return Ok(());
+            Ok(())
+        } else {
+            Err(format!(
+                "Explorer exited unsuccessfully for {}",
+                path.display()
+            ))
         }
-        return Err(format!(
-            "Explorer exited unsuccessfully for {}",
-            path.display()
-        ));
     }
     #[cfg(target_os = "macos")]
     {
@@ -89,12 +92,13 @@ pub(crate) fn open_folder_in_file_explorer(path: &Path) -> Result<(), String> {
             .status()
             .map_err(|err| format!("Failed to launch Finder: {err}"))?;
         if status.success() {
-            return Ok(());
+            Ok(())
+        } else {
+            Err(format!(
+                "Finder exited unsuccessfully for {}",
+                path.display()
+            ))
         }
-        return Err(format!(
-            "Finder exited unsuccessfully for {}",
-            path.display()
-        ));
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {

@@ -3,12 +3,14 @@ use super::*;
 
 impl AppController {
     /// Load persisted configuration and populate initial UI state.
+    #[allow(clippy::result_large_err)]
     pub fn load_configuration(&mut self) -> Result<(), crate::sample_sources::config::ConfigError> {
         let cfg = crate::sample_sources::config::load_or_default()?;
         self.apply_configuration(cfg)
     }
 
     /// Apply a preloaded configuration snapshot to the controller state.
+    #[allow(clippy::result_large_err)]
     pub fn apply_configuration(
         &mut self,
         cfg: crate::sample_sources::config::AppConfig,
@@ -172,6 +174,7 @@ impl AppController {
             .map_err(|err| format!("{error_prefix}: {err}"))
     }
 
+    #[allow(clippy::result_large_err)]
     pub(crate) fn save_full_config(
         &self,
     ) -> Result<(), crate::sample_sources::config::ConfigError> {

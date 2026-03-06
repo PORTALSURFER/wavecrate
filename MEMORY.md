@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-04T16:52:41Z
+Last Updated: 2026-03-05T19:05:00Z
 Updated By: Codex
 
 ## Purpose
@@ -10,20 +10,21 @@ Updated By: Codex
 
 ## Current State (Present Tense)
 
-- I have completed a new cleanup Phase 1 audit and rewritten `tmp/cleanup_plan.md` as a fresh ROI-ranked backlog.
-- `tmp/cleanup_plan.md` currently has 12 pending cleanup items (`[ ]`) in strict ROI order.
-- Cleanup Phase 2 has not started; I am waiting for explicit user confirmation before implementation.
-- Runtime/performance work remains tracked in `tmp/perf_plan.md`, but cleanup execution is currently the active front-door request.
-- The latest baseline `bash scripts/ci_local.sh` run is green (with a perf warning for `wheel_latency` only).
+- I have added a persistent waveform decode cache under the app root so decoded waveform payloads and transient markers can be reused across app restarts.
+- The controller now falls back from the in-memory audio cache to the persistent waveform cache before decoding a waveform again.
+- I refreshed waveform cache invalidation so edited/reloaded samples clear both in-memory and persistent entries.
+- Focused cache-path checks are limited by unrelated existing compile failures in `src/updater/mod.rs` and `src/bin/sempal-installer/cleanup.rs`.
+- `tmp/cleanup_plan.md` remains the pending cleanup backlog; cleanup Phase 2 is still waiting for explicit user confirmation.
 
 ## Immediate Next Actions
 
-1. Present the exact ordered ROI backlog from `tmp/cleanup_plan.md` to the user.
-2. If explicitly confirmed, execute cleanup items sequentially with CI + commit/push per item.
-3. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized at milestones.
+1. Resolve the unrelated compile blockers if a green full CI run is required before commit/push.
+2. Re-run full local CI after those unrelated blockers are fixed.
+3. Return to the pending cleanup confirmation flow after the waveform caching request is complete.
 
 ## Work Notes
 
+- Waveform caching work touches controller playback/cache loading paths and `src/app/controller/playback/persistent_waveform_cache.rs`.
 - Active cleanup backlog (pending): `tmp/cleanup_plan.md`.
 - Runtime performance backlog: `tmp/perf_plan.md`.
 - Runtime redesign source of truth: `docs/plans/active/runtime_performance_exec_plan.md`.

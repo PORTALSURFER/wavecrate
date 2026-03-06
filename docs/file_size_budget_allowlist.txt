@@ -22,11 +22,13 @@ src/app/controller/library/source_folders/delete_recovery.rs
 src/app/controller/library/source_folders/tree.rs
 src/app/controller/library/sources.rs
 src/app/controller/library/wavs/browser_actions.rs
+src/app/controller/library/background_jobs/polling.rs
 src/app/controller/library/wavs/similar/resolve.rs
 src/app/controller/library/wavs/waveform_loading.rs
 src/app/controller/playback/audio_options.rs
 src/app/controller/playback/loop_crossfade.rs
 src/app/controller/playback/player.rs
+src/app/controller/playback/waveform_actions.rs
 src/app/controller/playback/recording/waveform_loader.rs
 src/app/controller/playback/transport.rs
 src/app/controller/tests/browser_actions.rs

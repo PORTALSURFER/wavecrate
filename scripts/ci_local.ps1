@@ -26,10 +26,24 @@ if ($Help) {
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
+function Invoke-NativeStep {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Label,
+    [Parameter(Mandatory = $true)]
+    [scriptblock]$Command
+  )
+
+  & $Command
+  if ($LASTEXITCODE -ne 0) {
+    throw "[ci_local] Step failed ($Label) with exit code $LASTEXITCODE."
+  }
+}
+
 Push-Location $rootDir
 try {
   Write-Host "[ci_local] cargo fmt --all -- --check"
-  cargo fmt --all -- --check
+  Invoke-NativeStep -Label "cargo fmt --all -- --check" -Command { cargo fmt --all -- --check }
 
   if (-not $SkipAgentPreflight) {
     Write-Host "[ci_local] scripts/run_agent_ci_checks.ps1"
@@ -37,13 +51,13 @@ try {
   }
 
   Write-Host "[ci_local] cargo clippy --all-targets"
-  cargo clippy --all-targets
+  Invoke-NativeStep -Label "cargo clippy --all-targets" -Command { cargo clippy --all-targets }
 
   Write-Host "[ci_local] cargo doc -p sempal --no-deps (RUSTDOCFLAGS=-D warnings)"
   $prevRustdocFlags = $env:RUSTDOCFLAGS
   try {
     $env:RUSTDOCFLAGS = "-D warnings"
-    cargo doc -p sempal --no-deps
+    Invoke-NativeStep -Label "cargo doc -p sempal --no-deps" -Command { cargo doc -p sempal --no-deps }
   } finally {
     if ($null -eq $prevRustdocFlags) {
       Remove-Item Env:RUSTDOCFLAGS -ErrorAction SilentlyContinue
@@ -53,7 +67,7 @@ try {
   }
 
   Write-Host "[ci_local] cargo test --all-targets"
-  cargo test --all-targets
+  Invoke-NativeStep -Label "cargo test --all-targets" -Command { cargo test --all-targets }
 
   Write-Host "[ci_local] scripts/run_perf_guard.ps1"
   & (Join-Path $rootDir "scripts/run_perf_guard.ps1")
