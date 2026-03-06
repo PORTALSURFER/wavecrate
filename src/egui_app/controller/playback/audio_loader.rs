@@ -6,7 +6,7 @@ use std::{
     path::{Component, Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc::{Receiver, Sender},
+        mpsc::{Receiver, Sender, TryRecvError},
         Arc,
     },
     thread,
@@ -65,7 +65,11 @@ impl AudioLoaderHandle {
 /// Spawn the audio loader worker and return its job channel plus shutdown handle.
 pub(crate) fn spawn_audio_loader(
     renderer: WaveformRenderer,
-) -> (Sender<AudioLoadJob>, Receiver<AudioLoadResult>, AudioLoaderHandle) {
+) -> (
+    Sender<AudioLoadJob>,
+    Receiver<AudioLoadResult>,
+    AudioLoaderHandle,
+) {
     let (tx, rx) = std::sync::mpsc::channel::<AudioLoadJob>();
     let (result_tx, result_rx) = std::sync::mpsc::channel::<AudioLoadResult>();
     let shutdown = Arc::new(AtomicBool::new(false));
@@ -74,6 +78,7 @@ pub(crate) fn spawn_audio_loader(
         while !shutdown_worker.load(Ordering::Relaxed) {
             match rx.recv_timeout(AUDIO_LOADER_POLL_INTERVAL) {
                 Ok(job) => {
+                    let job = coalesce_latest_job(job, &rx);
                     let outcome = load_audio(&renderer, &job);
                     let _ = result_tx.send(AudioLoadResult {
                         request_id: job.request_id,
@@ -95,6 +100,17 @@ pub(crate) fn spawn_audio_loader(
             join_handle: Some(handle),
         },
     )
+}
+
+fn coalesce_latest_job(mut job: AudioLoadJob, rx: &Receiver<AudioLoadJob>) -> AudioLoadJob {
+    loop {
+        match rx.try_recv() {
+            Ok(next) => {
+                job = next;
+            }
+            Err(TryRecvError::Empty | TryRecvError::Disconnected) => return job,
+        }
+    }
 }
 
 fn load_audio(
@@ -212,7 +228,8 @@ fn ensure_safe_relative_path(path: &Path) -> Result<(), AudioLoadError> {
 
 #[cfg(test)]
 mod tests {
-    use super::ensure_safe_relative_path;
+    use super::{coalesce_latest_job, ensure_safe_relative_path, AudioLoadJob};
+    use crate::source::SourceId;
     use std::path::Path;
 
     #[test]
@@ -224,5 +241,28 @@ mod tests {
     #[test]
     fn ensure_safe_relative_path_accepts_normal_relative_paths() {
         ensure_safe_relative_path(Path::new("folder/./file.wav")).unwrap();
+    }
+
+    fn job(id: u64, relative_path: &str) -> AudioLoadJob {
+        AudioLoadJob {
+            request_id: id,
+            source_id: SourceId::from_string("source"),
+            root: Path::new("/tmp").to_path_buf(),
+            relative_path: Path::new(relative_path).to_path_buf(),
+            stretch_ratio: None,
+        }
+    }
+
+    #[test]
+    fn coalesce_latest_job_keeps_most_recent_request() {
+        let (tx, rx) = std::sync::mpsc::channel::<AudioLoadJob>();
+        let first = job(1, "first.wav");
+        tx.send(job(2, "second.wav")).unwrap();
+        tx.send(job(3, "third.wav")).unwrap();
+
+        let coalesced = coalesce_latest_job(first, &rx);
+
+        assert_eq!(coalesced.request_id, 3);
+        assert_eq!(coalesced.relative_path, Path::new("third.wav"));
     }
 }
