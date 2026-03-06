@@ -379,7 +379,7 @@ pub fn inner_border() -> Stroke {
 
 /// Background used when hovering list rows.
 pub fn row_hover_fill() -> Color32 {
-    with_alpha(palette().accent_ice, 66)
+    with_alpha(palette().accent_ice, 96)
 }
 
 /// Background used for the primary selected list row (last selected).
