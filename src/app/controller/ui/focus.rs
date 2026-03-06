@@ -5,6 +5,7 @@ use crate::app::state::FocusContext;
 impl AppController {
     /// Mark the sample browser as the active focus surface.
     pub(crate) fn focus_browser_context(&mut self) {
+        self.blur_browser_search();
         self.set_focus_context(FocusContext::SampleBrowser);
     }
 
@@ -145,6 +146,9 @@ impl AppController {
         let previous = self.ui.focus.context;
         if previous == context {
             return;
+        }
+        if !matches!(context, FocusContext::SampleBrowser) {
+            self.blur_browser_search();
         }
         if matches!(previous, FocusContext::Waveform) && !matches!(context, FocusContext::Waveform)
         {

@@ -344,7 +344,7 @@ pub(crate) fn project_browser_chrome_model(
 /// Resolve search placeholder text, including a focused caret hint when active.
 fn browser_search_placeholder(search_focused: bool) -> String {
     if search_focused {
-        String::from("Search samples (Ctrl+F) ▌")
+        String::from("▌")
     } else {
         String::from("Search samples (Ctrl+F)")
     }

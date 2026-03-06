@@ -70,6 +70,11 @@ impl AppController {
         browser_search::focus_browser_search(self);
     }
 
+    /// Clear browser-search focus while preserving the current query text.
+    pub(crate) fn blur_browser_search(&mut self) {
+        browser_search::blur_browser_search(self);
+    }
+
     /// Apply a fuzzy search query to the browser and refresh visible rows.
     pub fn set_browser_search(&mut self, query: impl Into<String>) {
         browser_search::set_browser_search(self, query);

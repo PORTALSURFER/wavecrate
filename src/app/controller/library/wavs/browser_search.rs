@@ -328,8 +328,21 @@ pub(crate) fn set_browser_sort(controller: &mut AppController, sort: SampleBrows
 }
 
 pub(crate) fn focus_browser_search(controller: &mut AppController) {
-    controller.ui.browser.search_focus_requested = true;
     controller.focus_browser_context();
+    if controller.ui.browser.search_focus_requested {
+        return;
+    }
+    controller.ui.browser.search_focus_requested = true;
+    controller.mark_browser_search_projection_revision_dirty();
+}
+
+/// Clear browser-search focus while leaving the current query text intact.
+pub(crate) fn blur_browser_search(controller: &mut AppController) {
+    if !controller.ui.browser.search_focus_requested {
+        return;
+    }
+    controller.ui.browser.search_focus_requested = false;
+    controller.mark_browser_search_projection_revision_dirty();
 }
 
 pub(crate) fn set_browser_search(controller: &mut AppController, query: impl Into<String>) {

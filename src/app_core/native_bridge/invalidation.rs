@@ -56,6 +56,7 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
             | NativeUiAction::SetBrowserSearch { .. }
             | NativeUiAction::FocusBrowserPanel
             | NativeUiAction::FocusBrowserSearch
+            | NativeUiAction::BlurBrowserSearch
             | NativeUiAction::FocusLoadedSampleInBrowser
     )
 }
@@ -102,6 +103,7 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::SetBrowserSearch { .. }
         | NativeUiAction::FocusBrowserPanel
         | NativeUiAction::FocusBrowserSearch
+        | NativeUiAction::BlurBrowserSearch
         | NativeUiAction::FocusLoadedSampleInBrowser
         | NativeUiAction::StartBrowserRename
         | NativeUiAction::ConfirmBrowserRename

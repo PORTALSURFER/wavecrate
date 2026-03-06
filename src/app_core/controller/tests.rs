@@ -40,6 +40,7 @@ fn apply_native_seek_queues_deferred_seek_commit() {
 fn apply_native_ui_action_routes_grouped_dispatch_cases() {
     enum Expected {
         BrowserSearch(&'static str),
+        BrowserSearchFocused(bool),
         MapTab(SampleBrowserTab),
         LoopEnabled(bool),
         PendingSeek(Option<u16>),
@@ -60,6 +61,11 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                 query: String::from("kicks"),
             },
             expected: Expected::BrowserSearch("kicks"),
+        },
+        Case {
+            label: "browser blur group",
+            action: NativeUiAction::BlurBrowserSearch,
+            expected: Expected::BrowserSearchFocused(false),
         },
         Case {
             label: "map group",
@@ -95,11 +101,19 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
 
     for case in cases {
         let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        controller.ui.browser.search_focus_requested = true;
         controller.apply_native_ui_action(case.action);
         match case.expected {
             Expected::BrowserSearch(expected) => {
                 assert_eq!(
                     controller.ui.browser.search_query, expected,
+                    "{}",
+                    case.label
+                );
+            }
+            Expected::BrowserSearchFocused(expected) => {
+                assert_eq!(
+                    controller.ui.browser.search_focus_requested, expected,
                     "{}",
                     case.label
                 );

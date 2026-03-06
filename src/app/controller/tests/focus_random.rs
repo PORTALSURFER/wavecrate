@@ -35,6 +35,19 @@ fn hotkey_search_browser_requests_focus() {
 }
 
 #[test]
+/// Returning focus to the browser list should drop the dedicated search-field focus state.
+fn focusing_browser_list_clears_search_focus_request() {
+    let (mut controller, source) = dummy_controller();
+    prepare_browser_sample(&mut controller, &source, "find.wav");
+    controller.focus_browser_search();
+
+    controller.focus_browser_list();
+
+    assert!(!controller.ui.browser.search_focus_requested);
+    assert_eq!(controller.ui.focus.context, FocusContext::SampleBrowser);
+}
+
+#[test]
 fn find_similar_hotkey_is_registered() {
     let action = hotkeys::iter_actions()
         .find(|a| a.id == "find-similar")

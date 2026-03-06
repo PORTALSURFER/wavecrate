@@ -96,10 +96,7 @@ fn browser_projection_marks_search_placeholder_when_focused() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
     controller.ui.browser.search_focus_requested = true;
     let projected = project_browser_model(&mut controller);
-    assert_eq!(
-        projected.search_placeholder.as_deref(),
-        Some("Search samples (Ctrl+F) ▌")
-    );
+    assert_eq!(projected.search_placeholder.as_deref(), Some("▌"));
 }
 
 /// Browser chrome projection should expose the toolbar copy shown in the native shell.
@@ -128,7 +125,7 @@ fn browser_chrome_projection_marks_search_focus_copy() {
     ui.browser.search_focus_requested = true;
     let projected = project_browser_chrome_model(&ui, 7);
     assert_eq!(projected.search_prefix_label, "Search • focused");
-    assert_eq!(projected.search_placeholder, "Search samples (Ctrl+F) ▌");
+    assert_eq!(projected.search_placeholder, "▌");
 }
 
 /// Waveform projection should derive tempo and zoom labels from UI waveform state.
