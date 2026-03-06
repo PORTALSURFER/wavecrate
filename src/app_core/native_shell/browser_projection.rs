@@ -89,6 +89,7 @@ pub(crate) fn project_browser_rows_model_into(
     }
     refresh_projected_browser_row_cache(controller);
     refresh_projected_selected_paths_lookup(controller);
+    controller.prepare_feature_cache_for_browser();
     let (window_start, window_len) =
         browser_render_window(visible_count, selected_visible_row, anchor_visible_row);
     preload_browser_window_bpms(controller, window_start, window_len);
@@ -110,7 +111,8 @@ pub(crate) fn project_browser_rows_model_into(
                     visible_row,
                     &format!("row {}", visible_row + 1),
                     1,
-                    "SAMPLE",
+                    0,
+                    "",
                     false,
                     focused,
                     false,
@@ -126,6 +128,7 @@ pub(crate) fn project_browser_rows_model_into(
                 visible_row,
                 &cached_row.row_label,
                 cached_row.column_index,
+                cached_row.rating_level,
                 &cached_row.bucket_label,
                 selected,
                 focused,
@@ -184,26 +187,37 @@ pub(super) fn browser_column_index(tag: crate::sample_sources::Rating) -> usize 
     }
 }
 
-/// Resolve one short browser bucket label, preferring projected BPM metadata.
+/// Resolve one inline browser metadata label for the sample lane.
+///
+/// Rating text is intentionally omitted because the row already renders keep/trash
+/// state via the right-edge indicator rectangles.
 fn browser_bucket_label(
     controller: &mut AppController,
+    absolute_index: usize,
     relative_path: &Path,
-    tag: crate::sample_sources::Rating,
+    looped: bool,
 ) -> String {
+    let mut tags = Vec::new();
     if let Some(bpm) = controller.bpm_value_for_path(relative_path) {
-        return format_bpm_badge_label(bpm);
+        tags.push(format_bpm_badge_label(bpm));
     }
-    match browser_column_index(tag) {
-        0 => String::from("TRASH"),
-        2 => String::from("KEEP"),
-        _ => String::from("SAMPLE"),
+    if looped {
+        tags.push(String::from("LOOP"));
     }
+    if controller
+        .cached_feature_status_for_entry(absolute_index)
+        .and_then(|status| status.long_sample_mark)
+        == Some(true)
+    {
+        tags.push(String::from("LONG"));
+    }
+    tags.join(" · ")
 }
 
-/// Format a BPM label for browser rows with integer rounding on near-integer values.
+/// Format one BPM metadata label for inline browser-row display.
 fn format_bpm_badge_label(bpm: f32) -> String {
     if !bpm.is_finite() || bpm <= 0.0 {
-        return String::from("SAMPLE");
+        return String::new();
     }
     let rounded = bpm.round();
     if (bpm - rounded).abs() < 0.05 {
@@ -240,17 +254,27 @@ fn clear_projected_browser_row_cache(controller: &mut AppController) {
 fn write_browser_row_into_slot(
     rows: &mut Vec<BrowserRowModel>,
     offset: usize,
-    projection: (usize, &str, usize, &str, bool, bool, bool),
+    projection: (usize, &str, usize, i8, &str, bool, bool, bool),
 ) {
-    let (visible_row, row_label, column_index, bucket_label, selected, focused, missing) =
-        projection;
+    let (
+        visible_row,
+        row_label,
+        column_index,
+        rating_level,
+        bucket_label,
+        selected,
+        focused,
+        missing,
+    ) = projection;
+    let bucket_label = (!bucket_label.is_empty()).then_some(bucket_label);
     let clamped_column_index = column_index.min(2);
     if let Some(row) = rows.get_mut(offset) {
         if row.visible_row == visible_row && row.column == clamped_column_index {
             row.selected = selected;
             row.focused = focused;
             row.missing = missing;
-            if row.label == row_label && row.bucket_label.as_deref() == Some(bucket_label) {
+            row.rating_level = rating_level.clamp(-3, 3);
+            if row.label == row_label && row.bucket_label.as_deref() == bucket_label {
                 return;
             }
         }
@@ -260,24 +284,31 @@ fn write_browser_row_into_slot(
             row.label.push_str(row_label);
         }
         row.column = clamped_column_index;
+        row.rating_level = rating_level.clamp(-3, 3);
         row.selected = selected;
         row.focused = focused;
         row.missing = missing;
-        if let Some(existing_bucket_label) = row.bucket_label.as_mut() {
-            if existing_bucket_label != bucket_label {
-                existing_bucket_label.clear();
-                existing_bucket_label.push_str(bucket_label);
+        if let Some(bucket_label) = bucket_label {
+            if let Some(existing_bucket_label) = row.bucket_label.as_mut() {
+                if existing_bucket_label != bucket_label {
+                    existing_bucket_label.clear();
+                    existing_bucket_label.push_str(bucket_label);
+                }
+            } else {
+                row.bucket_label = Some(bucket_label.to_owned());
             }
         } else {
-            row.bucket_label = Some(bucket_label.to_owned());
+            row.bucket_label = None;
         }
         return;
     }
-    rows.push(
-        BrowserRowModel::new(visible_row, row_label, column_index, selected, focused)
-            .with_bucket_label(bucket_label)
-            .with_missing(missing),
-    );
+    let mut row = BrowserRowModel::new(visible_row, row_label, column_index, selected, focused)
+        .with_rating_level(rating_level)
+        .with_missing(missing);
+    if let Some(bucket_label) = bucket_label {
+        row = row.with_bucket_label(bucket_label);
+    }
+    rows.push(row);
 }
 
 /// Project browser toolbar/tab/footer labels.

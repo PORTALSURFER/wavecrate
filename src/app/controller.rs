@@ -71,7 +71,9 @@ pub(crate) struct ProjectedBrowserRowCacheEntry {
     pub row_label: String,
     /// Triage column index (`0..=2`) for this row.
     pub column_index: usize,
-    /// Stable rendered bucket/chip label for the browser list.
+    /// Signed keep/trash rating level for this row (`-3..=3`).
+    pub rating_level: i8,
+    /// Stable rendered inline metadata label for the browser list row.
     pub bucket_label: String,
     /// Whether the backing sample file is currently marked missing.
     pub missing: bool,
@@ -368,7 +370,7 @@ impl AppController {
             }
             Ok(undo::UndoOutcome::Empty) => self.set_status("Nothing to undo", StatusTone::Info),
             Ok(undo::UndoOutcome::Deferred(pending)) => {
-                self.begin_deferred_undo_job(pending);
+                self.begin_deferred_undo_job(*pending);
             }
             Err(err) => self.set_status(format!("Undo failed: {err}"), StatusTone::Error),
         }
@@ -395,7 +397,7 @@ impl AppController {
             }
             Ok(undo::UndoOutcome::Empty) => self.set_status("Nothing to redo", StatusTone::Info),
             Ok(undo::UndoOutcome::Deferred(pending)) => {
-                self.begin_deferred_undo_job(pending);
+                self.begin_deferred_undo_job(*pending);
             }
             Err(err) => self.set_status(format!("Redo failed: {err}"), StatusTone::Error),
         }

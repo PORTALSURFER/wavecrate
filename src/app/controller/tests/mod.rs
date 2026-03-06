@@ -3,6 +3,8 @@
 mod audio_action_playback;
 mod browser_actions;
 mod browser_core;
+/// Browser-row inline metadata regression tests.
+mod browser_inline_tags;
 mod browser_selection;
 mod common;
 mod drag_drop_drop_targets;

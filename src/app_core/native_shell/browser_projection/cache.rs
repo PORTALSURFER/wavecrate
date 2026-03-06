@@ -98,10 +98,14 @@ fn cached_browser_row_matches_entry(
     cached: &ProjectedBrowserRowCacheEntry,
     row_identity_hash: u64,
     column_index: usize,
+    rating_level: i8,
+    bucket_label: &str,
     missing: bool,
 ) -> bool {
     cached.row_identity_hash == row_identity_hash
         && cached.column_index == column_index
+        && cached.rating_level == rating_level
+        && cached.bucket_label == bucket_label
         && cached.missing == missing
 }
 
@@ -110,26 +114,35 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
     controller: &mut AppController,
     absolute_index: usize,
 ) -> Option<(&ProjectedBrowserRowCacheEntry, bool)> {
-    let (entry_tag, row_identity_hash, missing) =
+    let (entry_tag, row_identity_hash, missing, looped, relative_path) =
         controller.wav_entry(absolute_index).map(|entry| {
             (
                 entry.tag,
                 browser_row_identity_hash(entry.relative_path.as_path()),
                 entry.missing,
+                entry.looped,
+                entry.relative_path.clone(),
             )
         })?;
     let column_index = super::browser_column_index(entry_tag);
+    let rating_level = entry_tag.val();
+    let bucket_label =
+        super::browser_bucket_label(controller, absolute_index, relative_path.as_path(), looped);
     let cache_hit = controller
         .projected_browser_rows
         .get(&absolute_index)
         .is_some_and(|cached| {
-            cached_browser_row_matches_entry(cached, row_identity_hash, column_index, missing)
+            cached_browser_row_matches_entry(
+                cached,
+                row_identity_hash,
+                column_index,
+                rating_level,
+                &bucket_label,
+                missing,
+            )
         });
     trace_browser_row_cache_lookup(cache_hit);
     if !cache_hit {
-        let relative_path = controller
-            .wav_entry(absolute_index)
-            .map(|entry| entry.relative_path.clone())?;
         let row_label = controller
             .label_for_ref(absolute_index)
             .map(str::to_string)
@@ -138,11 +151,8 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
             row_identity_hash,
             row_label,
             column_index,
-            bucket_label: super::browser_bucket_label(
-                controller,
-                relative_path.as_path(),
-                entry_tag,
-            ),
+            rating_level,
+            bucket_label,
             missing,
         };
         if controller.projected_browser_rows.len() >= MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE {
