@@ -236,14 +236,9 @@ impl AppController {
             .filter(|s| !s.is_empty())
             .unwrap_or("selection");
         let stem = Self::strip_selection_suffix(stem);
-        let mut counter = 1;
+        let mut counter = 1u32;
         loop {
-            let suffix = if counter == 1 {
-                "sel".to_string()
-            } else {
-                format!("sel_{counter}")
-            };
-            let candidate = parent.join(format!("{stem}_{suffix}.wav"));
+            let candidate = parent.join(format!("{stem}_selection_{counter:03}.wav"));
             let absolute = root.join(&candidate);
             if !absolute.exists() {
                 return candidate;
@@ -253,10 +248,14 @@ impl AppController {
     }
 
     fn strip_selection_suffix(stem: &str) -> &str {
-        if let Some((prefix, suffix)) = stem.rsplit_once("_sel_")
+        if let Some(prefix) = Self::strip_indexed_selection_suffix(stem, "_selection_") {
+            return prefix;
+        }
+        if let Some(prefix) = Self::strip_indexed_selection_suffix(stem, "_sel_") {
+            return prefix;
+        }
+        if let Some(prefix) = stem.strip_suffix("_selection")
             && !prefix.is_empty()
-            && !suffix.is_empty()
-            && suffix.chars().all(|c| c.is_ascii_digit())
         {
             return prefix;
         }
@@ -266,6 +265,15 @@ impl AppController {
             return prefix;
         }
         stem
+    }
+
+    /// Strip one numbered selection suffix when the stem already ends with it.
+    fn strip_indexed_selection_suffix<'a>(stem: &'a str, marker: &str) -> Option<&'a str> {
+        let (prefix, suffix) = stem.rsplit_once(marker)?;
+        if prefix.is_empty() || suffix.is_empty() || !suffix.chars().all(|c| c.is_ascii_digit()) {
+            return None;
+        }
+        Some(prefix)
     }
 
     /// Register a newly exported clip in the browser and source database.

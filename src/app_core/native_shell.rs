@@ -24,6 +24,7 @@ use crate::app_core::actions::{
     NativeWaveformChromeModel as WaveformChromeModel,
     NativeWaveformPanelModel as WaveformPanelModel,
 };
+use crate::app_core::app_api::state::DragPayload;
 #[cfg(test)]
 use crate::app_core::state::{
     DestructiveEditPrompt, DestructiveSelectionEdit, FolderDeleteRecoveryAction,
@@ -390,6 +391,7 @@ pub(crate) fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
     let active_target = DragTarget::from(ui.drag.active_target.clone());
     let target_label = match &active_target {
         DragTarget::None => String::from("No target"),
+        DragTarget::BrowserList => String::from("Sample list"),
         DragTarget::BrowserTriage(column) => match TriageFlagColumn::from(*column) {
             TriageFlagColumn::Trash => String::from("Trash column"),
             TriageFlagColumn::Neutral => String::from("Neutral column"),
@@ -406,11 +408,23 @@ pub(crate) fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
         DragTarget::DropTargetsPanel => String::from("Drop targets"),
         DragTarget::External => String::from("External target"),
     };
+    let valid_target = match (ui.drag.payload.as_ref(), &active_target) {
+        (
+            Some(
+                DragPayload::Sample { .. }
+                | DragPayload::Samples { .. }
+                | DragPayload::Folder { .. }
+                | DragPayload::DropTargetReorder { .. },
+            ),
+            DragTarget::BrowserList,
+        ) => false,
+        _ => !matches!(active_target, DragTarget::None),
+    };
     DragOverlayModel {
         active,
         label: ui.drag.label.clone(),
         target_label,
-        valid_target: !matches!(active_target, DragTarget::None),
+        valid_target,
     }
 }
 

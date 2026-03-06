@@ -77,6 +77,8 @@ pub enum DragSource {
 pub enum DragTarget {
     /// No active target.
     None,
+    /// Sample browser list target.
+    BrowserList,
     /// Browser triage column target.
     BrowserTriage(TriageFlagColumn),
     /// Sources row target.
@@ -105,6 +107,7 @@ impl DragTarget {
             DragTarget::FolderPanel { .. } => 2,
             DragTarget::DropTarget { .. } => 2,
             DragTarget::DropTargetsPanel => 2,
+            DragTarget::BrowserList => 2,
             DragTarget::BrowserTriage(_) => 2,
             DragTarget::None => 0,
         }

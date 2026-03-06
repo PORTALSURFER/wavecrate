@@ -5,29 +5,41 @@ use crate::sample_sources::{Rating, SourceId};
 use crate::selection::SelectionRange;
 use std::path::{Path, PathBuf};
 
+/// Browser/folder destination details resolved for one selection drop.
+pub(crate) struct SelectionDropDestination {
+    /// Whether the sample browser list itself is the active drop target.
+    pub browser_list_target: bool,
+    /// Optional triage bucket target when dropping into triage columns.
+    pub triage_target: Option<TriageFlagColumn>,
+    /// Optional folder target when dropping into the source tree.
+    pub folder_target: Option<PathBuf>,
+}
+
 impl DragDropController<'_> {
     pub(crate) fn handle_selection_drop(
         &mut self,
         source_id: SourceId,
         relative_path: PathBuf,
         bounds: SelectionRange,
-        triage_target: Option<TriageFlagColumn>,
-        folder_target: Option<PathBuf>,
+        destination: SelectionDropDestination,
         keep_source_focused: bool,
     ) {
-        if triage_target.is_none() && folder_target.is_none() {
+        if !destination.browser_list_target
+            && destination.triage_target.is_none()
+            && destination.folder_target.is_none()
+        {
             self.set_status(
                 "Drag the selection onto Samples or a folder to save it",
                 StatusTone::Warning,
             );
             return;
         }
-        let target_tag = triage_target.map(|column| match column {
+        let target_tag = destination.triage_target.map(|column| match column {
             TriageFlagColumn::Trash => Rating::TRASH_1,
             TriageFlagColumn::Neutral => Rating::NEUTRAL,
             TriageFlagColumn::Keep => Rating::KEEP_1,
         });
-        if let Some(folder) = folder_target.as_deref()
+        if let Some(folder) = destination.folder_target.as_deref()
             && !folder.as_os_str().is_empty()
         {
             self.handle_selection_drop_to_folder(
@@ -39,15 +51,13 @@ impl DragDropController<'_> {
             );
             return;
         }
-        if triage_target.is_some() {
-            self.handle_selection_drop_to_browser(
-                &source_id,
-                &relative_path,
-                bounds,
-                target_tag,
-                keep_source_focused,
-            );
-        }
+        self.handle_selection_drop_to_browser(
+            &source_id,
+            &relative_path,
+            bounds,
+            target_tag,
+            keep_source_focused,
+        );
     }
 
     fn handle_selection_drop_to_folder(

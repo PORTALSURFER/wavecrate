@@ -2,6 +2,7 @@ use super::super::test_support::{sample_entry, write_test_wav};
 use super::super::*;
 use crate::app::state::TriageFlagColumn;
 use crate::app::state::{DragPayload, DragSource, DragTarget};
+use crate::selection::SelectionRange;
 use std::path::PathBuf;
 use tempfile::tempdir;
 
@@ -63,4 +64,39 @@ fn waveform_sample_drop_reports_missing_source_file() {
     controller.finish_active_drag();
 
     assert!(controller.ui.status.text.contains("Source file missing"));
+}
+
+#[test]
+/// Dropping a waveform selection onto the browser list should export a new clip.
+fn waveform_selection_drop_to_browser_list_exports_selection_clip() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).unwrap();
+    let renderer = WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+
+    write_test_wav(&root.join("loop.wav"), &[0.1, 0.2, 0.3, 0.4]);
+    controller
+        .load_waveform_for_selection(&source, std::path::Path::new("loop.wav"))
+        .unwrap();
+
+    controller.ui.drag.payload = Some(DragPayload::Selection {
+        source_id: source.id.clone(),
+        relative_path: PathBuf::from("loop.wav"),
+        bounds: SelectionRange::new(0.25, 0.75),
+        keep_source_focused: true,
+    });
+    controller.ui.drag.origin_source = Some(DragSource::Waveform);
+    controller
+        .ui
+        .drag
+        .set_target(DragSource::Browser, DragTarget::BrowserList);
+    controller.finish_active_drag();
+
+    assert!(root.join("loop_selection_001.wav").is_file());
+    assert!(controller.ui.status.text.contains("Saved clip"));
 }

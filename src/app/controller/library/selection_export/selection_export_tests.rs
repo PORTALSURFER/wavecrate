@@ -49,13 +49,28 @@ fn export_selection_clip_to_root_can_flatten_name_hint() {
 fn next_selection_path_in_dir_strips_existing_suffix() {
     let temp = tempdir().unwrap();
     let root = temp.path();
-    std::fs::write(root.join("clip_sel.wav"), b"").unwrap();
+    std::fs::write(root.join("clip_selection_001.wav"), b"").unwrap();
+
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let controller = AppController::new(renderer, None);
+    let candidate =
+        controller.next_selection_path_in_dir(root, Path::new("clip_selection_001.wav"));
+
+    assert_eq!(candidate, PathBuf::from("clip_selection_002.wav"));
+}
+
+#[test]
+/// Legacy `_sel` stems should still fold into the new `_selection_###` sequence.
+fn next_selection_path_in_dir_strips_legacy_selection_suffix() {
+    let temp = tempdir().unwrap();
+    let root = temp.path();
+    std::fs::write(root.join("clip_selection_001.wav"), b"").unwrap();
 
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
     let controller = AppController::new(renderer, None);
     let candidate = controller.next_selection_path_in_dir(root, Path::new("clip_sel.wav"));
 
-    assert_eq!(candidate, PathBuf::from("clip_sel_2.wav"));
+    assert_eq!(candidate, PathBuf::from("clip_selection_002.wav"));
 }
 
 #[test]

@@ -7,3 +7,5 @@ mod sample_drop;
 mod selection_drop;
 mod source_moves;
 mod waveform_drop;
+
+pub(crate) use selection_drop::SelectionDropDestination;

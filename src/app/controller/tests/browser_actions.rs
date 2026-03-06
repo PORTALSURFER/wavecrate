@@ -451,7 +451,7 @@ fn exporting_selection_updates_entries_and_db() {
         .unwrap();
 
     assert_eq!(entry.tag, crate::sample_sources::Rating::KEEP_1);
-    assert_eq!(entry.relative_path, PathBuf::from("orig_sel.wav"));
+    assert_eq!(entry.relative_path, PathBuf::from("orig_selection_001.wav"));
     assert_eq!(controller.wav_entries_len(), 1);
     assert_eq!(controller.ui.browser.visible.len(), 1);
     let exported_path = root.join(&entry.relative_path);

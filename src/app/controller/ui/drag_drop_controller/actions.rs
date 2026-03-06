@@ -1,3 +1,4 @@
+use super::drag_effects::SelectionDropDestination;
 use super::*;
 use crate::app::state::UiPoint;
 use crate::app::state::{DragSample, DragSource};
@@ -187,6 +188,7 @@ impl DragDropActions for DragDropController<'_> {
             DragTarget::SourcesRow(id) => Some(id.clone()),
             _ => None,
         };
+        let browser_list_target = matches!(active_target, DragTarget::BrowserList);
         let (triage_target, folder_target, over_folder_panel) = match &active_target {
             DragTarget::BrowserTriage(column) => (Some(*column), None, false),
             DragTarget::FolderPanel { folder } => {
@@ -303,15 +305,18 @@ impl DragDropActions for DragDropController<'_> {
                     );
                     return;
                 }
-                if triage_target.is_none() && folder_target.is_none() {
+                if !browser_list_target && triage_target.is_none() && folder_target.is_none() {
                     return;
                 }
                 self.handle_selection_drop(
                     source_id,
                     relative_path,
                     bounds,
-                    triage_target,
-                    folder_target,
+                    SelectionDropDestination {
+                        browser_list_target,
+                        triage_target,
+                        folder_target,
+                    },
                     keep_source_focused,
                 );
             }
