@@ -1,17 +1,50 @@
 #![allow(clippy::too_many_arguments)]
 
+/// Helper routines shared by the selection-export workflow.
+mod helpers;
+
+use self::helpers::{crop_selection_samples, fast_content_hash};
 use super::selection_edits::apply_short_edge_fades_to_clip;
 use super::*;
 use crate::sample_sources::Rating;
 use std::fs;
 use std::time::{Duration, SystemTime};
 
-use crate::app::controller::playback::audio_samples::{
-    crop_samples, decode_samples_from_bytes, write_wav,
-};
+use crate::app::controller::playback::audio_samples::write_wav;
 use rusqlite::params;
 
 impl AppController {
+    /// Save the current waveform selection or accepted slices into the browser.
+    ///
+    /// This shares the same export path used by waveform drag-drop so keyboard and
+    /// pointer workflows produce identical files and status updates.
+    pub(crate) fn save_waveform_selection_or_slices_to_browser(
+        &mut self,
+        keep_source_focused: bool,
+    ) -> Result<(), String> {
+        match self.commit_edit_selection_fades() {
+            Ok(true) => return Ok(()),
+            Ok(false) => {}
+            Err(err) => return Err(err),
+        }
+        if !self.ui.waveform.slices.is_empty() {
+            let count = self.accept_waveform_slices()?;
+            self.set_status(format!("Saved {count} slices"), StatusTone::Info);
+            return Ok(());
+        }
+        self.save_waveform_selection_to_browser(keep_source_focused)
+    }
+
+    /// Save the current waveform selection or slices and surface any failure via status UI.
+    pub(crate) fn save_waveform_selection_or_slices_to_browser_action(
+        &mut self,
+        keep_source_focused: bool,
+    ) {
+        if let Err(err) = self.save_waveform_selection_or_slices_to_browser(keep_source_focused) {
+            self.set_error_status(err);
+        }
+    }
+
     pub(crate) fn export_selection_clip(
         &mut self,
         source_id: &SourceId,
@@ -246,36 +279,6 @@ impl AppController {
             counter += 1;
         }
     }
-
-    fn strip_selection_suffix(stem: &str) -> &str {
-        if let Some(prefix) = Self::strip_indexed_selection_suffix(stem, "_selection_") {
-            return prefix;
-        }
-        if let Some(prefix) = Self::strip_indexed_selection_suffix(stem, "_sel_") {
-            return prefix;
-        }
-        if let Some(prefix) = stem.strip_suffix("_selection")
-            && !prefix.is_empty()
-        {
-            return prefix;
-        }
-        if let Some(prefix) = stem.strip_suffix("_sel")
-            && !prefix.is_empty()
-        {
-            return prefix;
-        }
-        stem
-    }
-
-    /// Strip one numbered selection suffix when the stem already ends with it.
-    fn strip_indexed_selection_suffix<'a>(stem: &'a str, marker: &str) -> Option<&'a str> {
-        let (prefix, suffix) = stem.rsplit_once(marker)?;
-        if prefix.is_empty() || suffix.is_empty() || !suffix.chars().all(|c| c.is_ascii_digit()) {
-            return None;
-        }
-        Some(prefix)
-    }
-
     /// Register a newly exported clip in the browser and source database.
     /// When `looped` is true, the entry is flagged as a loop and any provided BPM is persisted.
     pub(crate) fn record_selection_entry(
@@ -379,25 +382,6 @@ impl AppController {
         .map_err(|err| format!("Failed to store clip BPM: {err}"))?;
         Ok(())
     }
-}
-
-fn crop_selection_samples(
-    audio: &LoadedAudio,
-    bounds: SelectionRange,
-) -> Result<(Vec<f32>, hound::WavSpec), String> {
-    let decoded = decode_samples_from_bytes(&audio.bytes)?;
-    let cropped = crop_samples(&decoded.samples, decoded.channels, bounds)?;
-    let spec = hound::WavSpec {
-        channels: decoded.channels.max(1),
-        sample_rate: decoded.sample_rate.max(1),
-        bits_per_sample: 32,
-        sample_format: hound::SampleFormat::Float,
-    };
-    Ok((cropped, spec))
-}
-
-fn fast_content_hash(file_size: u64, modified_ns: i64) -> String {
-    format!("fast-{}-{}", file_size, modified_ns)
 }
 
 #[cfg(test)]

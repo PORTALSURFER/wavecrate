@@ -31,24 +31,7 @@ pub(crate) fn handle_waveform_command(
             true
         }
         HotkeyCommand::SaveSelectionToBrowser => {
-            match controller.commit_edit_selection_fades() {
-                Ok(true) => return true,
-                Ok(false) => {}
-                Err(err) => {
-                    controller.set_status(err, StatusTone::Error);
-                    return true;
-                }
-            }
-            if !controller.ui.waveform.slices.is_empty() {
-                match controller.accept_waveform_slices() {
-                    Ok(count) => {
-                        controller.set_status(format!("Saved {count} slices"), StatusTone::Info);
-                    }
-                    Err(err) => controller.set_status(err, StatusTone::Error),
-                }
-            } else if let Err(err) = controller.save_waveform_selection_to_browser(true) {
-                controller.set_status(err, StatusTone::Error);
-            }
+            controller.save_waveform_selection_or_slices_to_browser_action(true);
             true
         }
         HotkeyCommand::TrimSelection => {

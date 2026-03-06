@@ -103,6 +103,9 @@ pub(super) fn apply_waveform_native_ui_action(
             alt_down,
         ),
         NativeUiAction::FinishWaveformSelectionDrag => controller.finish_active_drag(),
+        NativeUiAction::SaveWaveformSelectionToBrowser => {
+            controller.save_waveform_selection_or_slices_to_browser_action(true)
+        }
         NativeUiAction::ClearWaveformSelection => controller.clear_waveform_selection_with_focus(),
         NativeUiAction::ClearWaveformEditSelection => {
             controller.clear_waveform_edit_selection_with_focus()
