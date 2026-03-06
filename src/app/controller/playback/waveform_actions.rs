@@ -163,7 +163,10 @@ impl AppController {
         self.focus_waveform();
     }
 
-    /// Set waveform edit fade-in mute-start using a 0..=1000 milli position from UI actions.
+    /// Set the waveform edit fade-in bottom handle using a 0..=1000 milli position.
+    ///
+    /// The UI action name still refers to the legacy mute-start handle, but the bottom
+    /// handle now resizes the edit-selection start while keeping the fade-in end fixed.
     pub fn set_waveform_edit_fade_in_mute_start_milli(&mut self, position_milli: u16) {
         let Some(existing_range) = self
             .selection_state
@@ -220,7 +223,10 @@ impl AppController {
         self.focus_waveform();
     }
 
-    /// Set waveform edit fade-out mute-end using a 0..=1000 milli position from UI actions.
+    /// Set the waveform edit fade-out bottom handle using a 0..=1000 milli position.
+    ///
+    /// The UI action name still refers to the legacy mute-end handle, but the bottom
+    /// handle now resizes the edit-selection end while keeping the fade-out start fixed.
     pub fn set_waveform_edit_fade_out_mute_end_milli(&mut self, position_milli: u16) {
         let Some(existing_range) = self
             .selection_state
@@ -424,7 +430,31 @@ pub(super) fn update_edit_fade_in_end_from_milli(
     range.with_fade_in(length, curve)
 }
 
-/// Update edit fade-in mute-start from one absolute waveform milli handle position.
+/// Rebuild an edit range while preserving gain and any surviving fade parameters.
+fn rebuild_edit_range(
+    range: SelectionRange,
+    start: f32,
+    end: f32,
+    fade_in: Option<crate::selection::FadeParams>,
+    fade_out: Option<crate::selection::FadeParams>,
+) -> SelectionRange {
+    let mut next = SelectionRange::new(start, end).with_gain(range.gain());
+    if let Some(fade) = fade_in {
+        next = next.with_fade_in(fade.length, fade.curve);
+        if fade.mute > 0.0 {
+            next = next.with_fade_in_mute(fade.mute);
+        }
+    }
+    if let Some(fade) = fade_out {
+        next = next.with_fade_out(fade.length, fade.curve);
+        if fade.mute > 0.0 {
+            next = next.with_fade_out_mute(fade.mute);
+        }
+    }
+    next
+}
+
+/// Update the edit-selection start from the fade-in bottom handle position.
 pub(super) fn update_edit_fade_in_mute_start_from_milli(
     range: SelectionRange,
     position_milli: u16,
@@ -436,12 +466,22 @@ pub(super) fn update_edit_fade_in_mute_start_from_milli(
     if width <= f32::EPSILON {
         return range;
     }
-    let start = range.start();
-    let clamped_position = normalized_from_milli(position_milli).min(start);
-    let mute = ((start - clamped_position) / width).max(0.0);
-    range
-        .with_fade_in(fade_in.length, fade_in.curve)
-        .with_fade_in_mute(mute)
+    let fade_in_end = range.start() + (width * fade_in.length);
+    let new_start = normalized_from_milli(position_milli).clamp(0.0, fade_in_end);
+    let new_width = (range.end() - new_start).max(0.0);
+    let new_length = if new_width <= f32::EPSILON {
+        0.0
+    } else {
+        ((fade_in_end - new_start) / new_width).clamp(0.0, 1.0)
+    };
+    let next_fade_in = crate::selection::FadeParams::with_curve(new_length, fade_in.curve);
+    rebuild_edit_range(
+        range,
+        new_start,
+        range.end(),
+        Some(next_fade_in),
+        range.fade_out(),
+    )
 }
 
 /// Update edit fade-out length from one absolute waveform milli handle position.
@@ -461,7 +501,7 @@ pub(super) fn update_edit_fade_out_start_from_milli(
     range.with_fade_out(length, curve)
 }
 
-/// Update edit fade-out mute-end from one absolute waveform milli handle position.
+/// Update the edit-selection end from the fade-out bottom handle position.
 pub(super) fn update_edit_fade_out_mute_end_from_milli(
     range: SelectionRange,
     position_milli: u16,
@@ -473,12 +513,22 @@ pub(super) fn update_edit_fade_out_mute_end_from_milli(
     if width <= f32::EPSILON {
         return range;
     }
-    let end = range.end();
-    let clamped_position = normalized_from_milli(position_milli).max(end);
-    let mute = ((clamped_position - end) / width).max(0.0);
-    range
-        .with_fade_out(fade_out.length, fade_out.curve)
-        .with_fade_out_mute(mute)
+    let fade_out_start = range.end() - (width * fade_out.length);
+    let new_end = normalized_from_milli(position_milli).clamp(fade_out_start, 1.0);
+    let new_width = (new_end - range.start()).max(0.0);
+    let new_length = if new_width <= f32::EPSILON {
+        0.0
+    } else {
+        ((new_end - fade_out_start) / new_width).clamp(0.0, 1.0)
+    };
+    let next_fade_out = crate::selection::FadeParams::with_curve(new_length, fade_out.curve);
+    rebuild_edit_range(
+        range,
+        range.start(),
+        new_end,
+        range.fade_in(),
+        Some(next_fade_out),
+    )
 }
 
 /// Update edit fade-in curve from one UI milli curve value.
