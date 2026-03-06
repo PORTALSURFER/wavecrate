@@ -121,7 +121,7 @@ impl AppController {
             .range()
             .or(self.ui.waveform.selection);
         let (start_milli, end_milli) =
-            snap_waveform_selection_resize_milli(self, start_milli, end_milli, existing_range);
+            snap_waveform_selection_range_milli(self, start_milli, end_milli, existing_range);
         let next_range = selection_range_from_milli(start_milli, end_milli);
         if existing_range == Some(next_range) && waveform_focus_active(self) {
             return;
@@ -140,6 +140,8 @@ impl AppController {
             .edit_range
             .range()
             .or(self.ui.waveform.edit_selection);
+        let (start_milli, end_milli) =
+            snap_waveform_selection_range_milli(self, start_milli, end_milli, existing_range);
         let next_range = existing_range
             .map(|existing| {
                 update_edit_selection_range_from_milli(existing, start_milli, end_milli)
@@ -504,8 +506,8 @@ fn clamped_preserved_edit_fade_lengths(
     }
 }
 
-/// Snap waveform selection-resize milli values to BPM steps for edge-resize gestures.
-fn snap_waveform_selection_resize_milli(
+/// Snap waveform selection milli values to BPM steps for translated or resized ranges.
+fn snap_waveform_selection_range_milli(
     controller: &AppController,
     start_milli: u16,
     end_milli: u16,
@@ -521,6 +523,12 @@ fn snap_waveform_selection_resize_milli(
     };
     let existing_start = normalized_to_milli(existing.start());
     let existing_end = normalized_to_milli(existing.end());
+    if translated_waveform_selection_range(start, end, existing_start, existing_end) {
+        let width = existing_end.saturating_sub(existing_start);
+        let snapped_start = snap_milli_to_bpm_step(start, step).min(1000u16.saturating_sub(width));
+        let snapped_end = snapped_start.saturating_add(width).min(1000);
+        return (snapped_start, snapped_end);
+    }
     if start == existing_end {
         end = snap_milli_to_bpm_step(end, step);
     } else if end == existing_start {
@@ -531,6 +539,21 @@ fn snap_waveform_selection_resize_milli(
         start = snap_milli_to_bpm_step(start, step);
     }
     (start, end)
+}
+
+/// Return whether the proposed range is a pure translation of the existing range.
+fn translated_waveform_selection_range(
+    start_milli: u16,
+    end_milli: u16,
+    existing_start_milli: u16,
+    existing_end_milli: u16,
+) -> bool {
+    let width = end_milli.abs_diff(start_milli);
+    let existing_width = existing_end_milli.abs_diff(existing_start_milli);
+    width == existing_width
+        && start_milli != existing_start_milli
+        && end_milli != existing_end_milli
+        && start_milli != end_milli
 }
 
 /// Resolve the normalized BPM snap step used for waveform selection gestures.

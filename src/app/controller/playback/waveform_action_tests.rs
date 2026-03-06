@@ -1,5 +1,6 @@
 use super::*;
-use crate::app::controller::test_support;
+use crate::app::controller::{LoadedAudio, test_support};
+use std::path::PathBuf;
 
 /// Edit-selection updates should no-op when the range is unchanged and waveform is focused.
 #[test]
@@ -91,6 +92,38 @@ fn set_waveform_edit_selection_range_milli_shrinks_moved_side_fade_first() {
     assert!((updated.width() * fade_out.length - 0.15).abs() < 0.001);
     assert!((fade_in.curve - 0.2).abs() < 0.001);
     assert!((fade_out.curve - 0.7).abs() < 0.001);
+}
+
+/// Edit-selection translations should snap the moved range to BPM steps.
+#[test]
+fn set_waveform_edit_selection_range_milli_snaps_translated_range_when_bpm_snap_enabled() {
+    let (mut controller, source) = test_support::dummy_controller();
+    controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
+        source_id: source.id.clone(),
+        root: source.root.clone(),
+        relative_path: PathBuf::from("snap.wav"),
+        bytes: Vec::new().into(),
+        duration_seconds: 4.0,
+        sample_rate: 48_000,
+    });
+    controller.ui.waveform.bpm_snap_enabled = true;
+    controller.ui.waveform.bpm_value = Some(120.0);
+    let range = SelectionRange::new(0.2, 0.4).with_fade_in(0.25, 0.2);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_selection_range_milli(260, 460);
+
+    let updated = controller
+        .ui
+        .waveform
+        .edit_selection
+        .expect("translated edit selection");
+    assert!((updated.start() - 0.25).abs() < 0.001);
+    assert!((updated.end() - 0.45).abs() < 0.001);
+    let fade_in = updated.fade_in().expect("fade-in should be preserved");
+    assert!((fade_in.length - 0.25).abs() < 0.001);
+    assert!((fade_in.curve - 0.2).abs() < 0.001);
 }
 
 /// Edit fade-in handle updates should set a proportional fade-in over the edit selection.
