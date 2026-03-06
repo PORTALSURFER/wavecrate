@@ -210,6 +210,78 @@ fn reload_source_row_action_selects_target_source() {
 }
 
 #[test]
+/// Native source-row remove action should delete the targeted source.
+fn remove_source_row_action_removes_target_source() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let dir = match tempdir() {
+        Ok(dir) => dir,
+        Err(err) => panic!("failed to create tempdir: {err}"),
+    };
+    let source_a = dir.path().join("source-a");
+    let source_b = dir.path().join("source-b");
+    if let Err(err) = std::fs::create_dir_all(&source_a) {
+        panic!("failed to create source-a fixture: {err}");
+    }
+    if let Err(err) = std::fs::create_dir_all(&source_b) {
+        panic!("failed to create source-b fixture: {err}");
+    }
+    if let Err(err) = controller.add_source_from_path(source_a.clone()) {
+        panic!("failed to add source-a fixture: {err}");
+    }
+    if let Err(err) = controller.add_source_from_path(source_b.clone()) {
+        panic!("failed to add source-b fixture: {err}");
+    }
+
+    controller.apply_native_ui_action(NativeUiAction::RemoveSourceRow { index: 0 });
+
+    assert_eq!(controller.ui.sources.rows.len(), 1);
+    assert_eq!(
+        controller.ui.sources.rows[0].path,
+        source_b.to_string_lossy()
+    );
+}
+
+#[test]
+/// Loading configuration should prune transient benchmark-only sources.
+fn apply_configuration_prunes_transient_benchmark_sources() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let retained_root = match tempdir() {
+        Ok(dir) => {
+            let root = dir.path().join("user-source");
+            if let Err(err) = std::fs::create_dir_all(&root) {
+                panic!("failed to create retained fixture: {err}");
+            }
+            std::mem::forget(dir);
+            root
+        }
+        Err(err) => panic!("failed to create retained tempdir: {err}"),
+    };
+    let transient_root = std::env::temp_dir()
+        .join("sempal-test-gui-source")
+        .join("gui-source");
+    if let Err(err) = std::fs::create_dir_all(&transient_root) {
+        panic!("failed to create transient fixture: {err}");
+    }
+    let cfg = crate::sample_sources::config::AppConfig {
+        sources: vec![
+            crate::sample_sources::SampleSource::new(transient_root),
+            crate::sample_sources::SampleSource::new(retained_root.clone()),
+        ],
+        ..crate::sample_sources::config::AppConfig::default()
+    };
+
+    if let Err(err) = controller.apply_configuration(cfg) {
+        panic!("failed to apply configuration: {err}");
+    }
+
+    assert_eq!(controller.ui.sources.rows.len(), 1);
+    assert_eq!(
+        controller.ui.sources.rows[0].path,
+        retained_root.to_string_lossy()
+    );
+}
+
+#[test]
 /// Waveform toolbar option actions should update controller waveform state.
 fn apply_native_waveform_option_actions_update_waveform_state() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);

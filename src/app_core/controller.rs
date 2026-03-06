@@ -234,6 +234,7 @@ fn apply_browser_native_ui_action(
             controller.request_hard_sync();
         }
         NativeUiAction::OpenSourceFolderRow { index } => controller.open_source_folder(index),
+        NativeUiAction::RemoveSourceRow { index } => controller.remove_source(index),
         NativeUiAction::RemoveDeadLinksForSourceRow { index } => {
             controller.remove_dead_links_for_source(index)
         }

@@ -303,9 +303,19 @@ fn observed_visible_rows(controller: &mut AppController) -> usize {
 }
 
 fn build_controller_with_db_rows(options: &BenchOptions) -> Result<BenchWorkspace, String> {
-    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
     let temp_root =
         tempfile::tempdir().map_err(|err| format!("Create temp source dir failed: {err}"))?;
+    #[cfg(not(test))]
+    {
+        let bench_app_root = temp_root.path().join(".sempal-bench");
+        sempal::app_dirs::set_app_root_override(bench_app_root.clone()).map_err(|err| {
+            format!(
+                "Configure isolated benchmark app root {} failed: {err}",
+                bench_app_root.display()
+            )
+        })?;
+    }
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
     let source_root = temp_root.path().join("gui-source");
     fs::create_dir_all(&source_root)
         .map_err(|err| format!("Create source dir {} failed: {err}", source_root.display()))?;

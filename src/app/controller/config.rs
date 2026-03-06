@@ -15,6 +15,8 @@ impl AppController {
         &mut self,
         cfg: crate::sample_sources::config::AppConfig,
     ) -> Result<(), crate::sample_sources::config::ConfigError> {
+        let (sources, removed_transient_benchmark_sources) =
+            prune_transient_benchmark_sources(cfg.sources.clone());
         self.settings.feature_flags = cfg.core.feature_flags;
         self.settings.analysis = cfg.core.analysis;
         self.settings.analysis.max_analysis_duration_seconds =
@@ -90,7 +92,7 @@ impl AppController {
         self.ui.trash_folder = cfg.core.trash_folder.clone();
         self.ui.update.last_seen_nightly_published_at =
             cfg.core.updates.last_seen_nightly_published_at.clone();
-        self.library.sources = cfg.sources.clone();
+        self.library.sources = sources;
         self.rebuild_missing_sources();
         if !self.library.missing.sources.is_empty() {
             let count = self.library.missing.sources.len();
@@ -121,6 +123,21 @@ impl AppController {
         self.runtime
             .analysis
             .start(self.runtime.jobs.message_sender());
+        if removed_transient_benchmark_sources > 0
+            && let Err(err) = self.save_full_config()
+        {
+            let suffix = if removed_transient_benchmark_sources == 1 {
+                ""
+            } else {
+                "s"
+            };
+            self.set_status(
+                format!(
+                    "Removed {removed_transient_benchmark_sources} transient benchmark source{suffix}, but failed to persist cleanup: {err}"
+                ),
+                StatusTone::Warning,
+            );
+        }
         Ok(())
     }
 
@@ -235,4 +252,30 @@ fn normalize_bpm_value(value: f32) -> Option<f32> {
     } else {
         None
     }
+}
+
+/// Remove transient benchmark sources that were incorrectly persisted into user config.
+fn prune_transient_benchmark_sources(
+    sources: Vec<crate::sample_sources::SampleSource>,
+) -> (Vec<crate::sample_sources::SampleSource>, usize) {
+    let mut retained = Vec::with_capacity(sources.len());
+    let mut removed = 0usize;
+    for source in sources {
+        if is_transient_benchmark_source(&source) {
+            removed = removed.saturating_add(1);
+        } else {
+            retained.push(source);
+        }
+    }
+    (retained, removed)
+}
+
+/// Identify benchmark-generated GUI sources that should never survive into normal app state.
+fn is_transient_benchmark_source(source: &crate::sample_sources::SampleSource) -> bool {
+    source.root.starts_with(std::env::temp_dir())
+        && source
+            .root
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case("gui-source"))
 }
