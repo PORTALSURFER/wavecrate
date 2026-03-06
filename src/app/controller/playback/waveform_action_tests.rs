@@ -1,0 +1,216 @@
+use super::*;
+use crate::app::controller::test_support;
+
+/// Edit-selection updates should no-op when the range is unchanged and waveform is focused.
+#[test]
+fn set_waveform_edit_selection_range_milli_noops_when_unchanged_and_focused() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    controller.ui.focus.context = crate::app::state::FocusContext::Waveform;
+    let range = SelectionRange::new(0.2, 0.6);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_selection_range_milli(200, 600);
+
+    assert_eq!(controller.selection_state.edit_range.range(), Some(range));
+    assert_eq!(controller.ui.waveform.edit_selection, Some(range));
+}
+
+/// Edit-selection start-edge resize should keep the fade-in attached to the moved edge.
+#[test]
+fn set_waveform_edit_selection_range_milli_preserves_fade_in_on_start_resize() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_selection_range_milli(600, 100);
+
+    let updated = controller.ui.waveform.edit_selection;
+    assert!(updated.is_some());
+    let updated = updated.unwrap_or(range);
+    assert!((updated.start() - 0.1).abs() < 0.001);
+    assert!((updated.end() - 0.6).abs() < 0.001);
+    let fade_in = updated.fade_in();
+    assert!(fade_in.is_some());
+    let fade_in = fade_in.unwrap_or(crate::selection::FadeParams::with_curve(0.0, 0.5));
+    assert!((fade_in.length - 0.2).abs() < 0.001);
+    assert!((fade_in.curve - 0.2).abs() < 0.001);
+    let fade_in_abs = updated.width() * fade_in.length;
+    assert!((fade_in_abs - 0.1).abs() < 0.001);
+}
+
+/// Edit-selection end-edge resize should keep the fade-out attached to the moved edge.
+#[test]
+fn set_waveform_edit_selection_range_milli_preserves_fade_out_on_end_resize() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.2);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_selection_range_milli(200, 700);
+
+    let updated = controller.ui.waveform.edit_selection;
+    assert!(updated.is_some());
+    let updated = updated.unwrap_or(range);
+    assert!((updated.start() - 0.2).abs() < 0.001);
+    assert!((updated.end() - 0.7).abs() < 0.001);
+    let fade_out = updated.fade_out();
+    assert!(fade_out.is_some());
+    let fade_out = fade_out.unwrap_or(crate::selection::FadeParams::with_curve(0.0, 0.5));
+    assert!((fade_out.length - 0.2).abs() < 0.001);
+    assert!((fade_out.curve - 0.2).abs() < 0.001);
+    let fade_out_abs = updated.width() * fade_out.length;
+    assert!((fade_out_abs - 0.1).abs() < 0.001);
+}
+
+/// Start-edge resize should shrink only the moved-side fade when the new span is too small.
+#[test]
+fn set_waveform_edit_selection_range_milli_shrinks_moved_side_fade_first() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.8)
+        .with_fade_in(0.25, 0.2)
+        .with_fade_out(0.25, 0.7);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_selection_range_milli(800, 600);
+
+    let updated = controller.ui.waveform.edit_selection;
+    assert!(updated.is_some());
+    let updated = updated.unwrap_or(range);
+    assert!((updated.start() - 0.6).abs() < 0.001);
+    assert!((updated.end() - 0.8).abs() < 0.001);
+    let fade_in = updated.fade_in();
+    let fade_out = updated.fade_out();
+    assert!(fade_in.is_some());
+    assert!(fade_out.is_some());
+    let fade_in = fade_in.unwrap_or(crate::selection::FadeParams::with_curve(0.0, 0.5));
+    let fade_out = fade_out.unwrap_or(crate::selection::FadeParams::with_curve(0.0, 0.5));
+    assert!((updated.width() * fade_in.length - 0.05).abs() < 0.001);
+    assert!((updated.width() * fade_out.length - 0.15).abs() < 0.001);
+    assert!((fade_in.curve - 0.2).abs() < 0.001);
+    assert!((fade_out.curve - 0.7).abs() < 0.001);
+}
+
+/// Edit fade-in handle updates should set a proportional fade-in over the edit selection.
+#[test]
+fn set_waveform_edit_fade_in_end_milli_updates_edit_fade_in_length() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.6);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_fade_in_end_milli(300);
+
+    let updated = controller.ui.waveform.edit_selection;
+    assert!(updated.is_some());
+    let fade_in = updated.and_then(|selection| selection.fade_in());
+    assert!(fade_in.is_some());
+    let fade_in = fade_in.unwrap_or(crate::selection::FadeParams::with_curve(0.0, 0.5));
+    assert!((fade_in.length - 0.25).abs() < 0.001);
+}
+
+/// Edit fade-out handle updates should set a proportional fade-out over the edit selection.
+#[test]
+fn set_waveform_edit_fade_out_start_milli_updates_edit_fade_out_length() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.6);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_fade_out_start_milli(500);
+
+    let updated = controller.ui.waveform.edit_selection;
+    assert!(updated.is_some());
+    let fade_out = updated.and_then(|selection| selection.fade_out());
+    assert!(fade_out.is_some());
+    let fade_out = fade_out.unwrap_or(crate::selection::FadeParams::with_curve(0.0, 0.5));
+    assert!((fade_out.length - 0.25).abs() < 0.001);
+}
+
+/// Edit fade-in bottom-handle updates should resize the selection and keep fade end fixed.
+#[test]
+fn set_waveform_edit_fade_in_mute_start_milli_resizes_selection_start() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_fade_in_mute_start_milli(100);
+
+    let updated = controller.ui.waveform.edit_selection;
+    assert!(updated.is_some());
+    let updated = updated.unwrap_or(range);
+    assert!((updated.start() - 0.1).abs() < 0.001);
+    assert!((updated.end() - 0.6).abs() < 0.001);
+    let fade_in = updated.fade_in();
+    assert!(fade_in.is_some());
+    let fade_in = fade_in.unwrap_or(crate::selection::FadeParams::with_curve(0.0, 0.5));
+    assert!((fade_in.length - 0.4).abs() < 0.001);
+    assert!((fade_in.curve - 0.2).abs() < 0.001);
+    assert!(fade_in.mute.abs() < 0.001);
+    let fade_in_end = updated.start() + (updated.width() * fade_in.length);
+    assert!((fade_in_end - 0.3).abs() < 0.001);
+}
+
+/// Edit fade-out bottom-handle updates should resize the selection and keep fade start fixed.
+#[test]
+fn set_waveform_edit_fade_out_mute_end_milli_resizes_selection_end() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.2);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_fade_out_mute_end_milli(700);
+
+    let updated = controller.ui.waveform.edit_selection;
+    assert!(updated.is_some());
+    let updated = updated.unwrap_or(range);
+    assert!((updated.start() - 0.2).abs() < 0.001);
+    assert!((updated.end() - 0.7).abs() < 0.001);
+    let fade_out = updated.fade_out();
+    assert!(fade_out.is_some());
+    let fade_out = fade_out.unwrap_or(crate::selection::FadeParams::with_curve(0.0, 0.5));
+    assert!((fade_out.length - 0.4).abs() < 0.001);
+    assert!((fade_out.curve - 0.2).abs() < 0.001);
+    assert!(fade_out.mute.abs() < 0.001);
+    let fade_out_start = updated.end() - (updated.width() * fade_out.length);
+    assert!((fade_out_start - 0.5).abs() < 0.001);
+}
+
+/// Edit fade-in curve updates should preserve length and replace only the curve.
+#[test]
+fn set_waveform_edit_fade_in_curve_milli_updates_edit_fade_in_curve() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_fade_in_curve_milli(850);
+
+    let updated = controller.ui.waveform.edit_selection;
+    let fade_in = updated.and_then(|selection| selection.fade_in());
+    assert!(fade_in.is_some());
+    let fade_in = fade_in.unwrap_or(crate::selection::FadeParams::with_curve(0.0, 0.5));
+    assert!((fade_in.length - 0.25).abs() < 0.001);
+    assert!((fade_in.curve - 0.85).abs() < 0.001);
+}
+
+/// Edit fade-out curve updates should preserve length and replace only the curve.
+#[test]
+fn set_waveform_edit_fade_out_curve_milli_updates_edit_fade_out_curve() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.2);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_fade_out_curve_milli(150);
+
+    let updated = controller.ui.waveform.edit_selection;
+    let fade_out = updated.and_then(|selection| selection.fade_out());
+    assert!(fade_out.is_some());
+    let fade_out = fade_out.unwrap_or(crate::selection::FadeParams::with_curve(0.0, 0.5));
+    assert!((fade_out.length - 0.25).abs() < 0.001);
+    assert!((fade_out.curve - 0.15).abs() < 0.001);
+}

@@ -30,6 +30,9 @@ mod audio_options_tests;
 #[cfg(test)]
 /// Playback facade behavior tests.
 mod tests;
+#[cfg(test)]
+/// Waveform action behavior tests.
+mod waveform_action_tests;
 
 use formatting::{format_selection_duration, format_timestamp_hms_ms};
 use tracing::warn;
