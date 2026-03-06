@@ -57,13 +57,13 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: runtime responsiveness/performance redesign (Xilem-inspired scoped invalidation + cache reuse)
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
-- Current status: cleanup Phase 1 is refreshed in `tmp/cleanup_plan.md` (2026-03-04 UTC) with a new ROI-ranked pending backlog; waiting for explicit user confirmation before Phase 2.
+- Current status: cleanup Phase 2 is active; ROI item 3 in `tmp/cleanup_plan.md` was completed on 2026-03-06 UTC in commit `4a4c1098`, and item 4 is the next ordered cleanup candidate.
 
 ## Immediate Next Actions
-1. Present the exact ordered ROI list from `tmp/cleanup_plan.md` to the user and request explicit Phase 2 confirmation.
-2. If confirmed, execute cleanup items sequentially in strict plan order with CI + commit/push per item.
-3. Keep handoff docs synchronized on milestone commits (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
-4. Use `docs/plans/active/cleanup_architecture_note.md` guardrails during cleanup implementation.
+1. Continue `tmp/cleanup_plan.md` item 4 (`src/app/controller/library/wavs/browser_actions.rs`) if the cleanup lane stays active.
+2. Keep handoff docs synchronized on milestone commits (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
+3. Use `docs/plans/active/cleanup_architecture_note.md` guardrails during cleanup implementation.
+4. Resume `tmp/perf_plan.md` only after the active cleanup request is complete or redirected.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now

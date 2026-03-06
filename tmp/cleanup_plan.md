@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-04 (UTC)
-Phase: 1 audit complete; Phase 2 pending explicit user confirmation
+Phase: 2 active
 Status legend: `[ ]` pending, `[x]` done
 Canonical local CI command: `bash scripts/ci_local.sh`
 
@@ -30,7 +30,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Suggested validation: run targeted test repeatedly (looped `cargo test` on this test) and then `bash scripts/ci_local.sh`.
   - Completed: 2026-03-04 (UTC) - `sempal` commit `fa24a4ff`
 
-- [ ] 3) Split background-job polling into focused message-router and handler modules with behavior tests
+- [x] 3) Split background-job polling into focused message-router and handler modules with behavior tests
   - ROI/Effort: High / L
   - Why it matters: Job polling is a high-change integration hotspot; current monolith shape increases coupling and regression risk.
   - Evidence:
@@ -40,6 +40,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: Extract routing + per-domain handlers (`audio`, `scan`, `file_ops`, `analysis`, `updates`) and add scenario tests for stale-message drops and progress/state transitions.
   - Risk/tradeoffs: Medium-high. Dispatch rewiring can break subtle state/progress behavior.
   - Suggested validation: targeted controller background-job tests plus `bash scripts/ci_local.sh`.
+  - Completed: 2026-03-06 (UTC) - `sempal` commit `4a4c1098`
 
 - [ ] 4) Decompose browser actions facade by responsibility and tighten focused tests
   - ROI/Effort: High / L
@@ -141,3 +142,4 @@ Canonical local CI command: `bash scripts/ci_local.sh`
 - 2026-03-04: Phase 1 refreshed from current code state; waiting for explicit user confirmation before Phase 2.
 - 2026-03-04: Completed item 1 (stale/under-budget allowlist entries removed; report now shows `missing=0`, `ok=0`).
 - 2026-03-04: Completed item 2 (folder-move DB-failure test uses explicit lock acquire/release signaling instead of sleep-based timing).
+- 2026-03-06: Completed item 3 (background-job polling split into focused modules; added stale-message and progress/state behavior tests; `scripts/ci_local.ps1` green).
