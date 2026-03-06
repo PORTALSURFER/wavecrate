@@ -8,17 +8,29 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
     let mut view_mode = app.controller.ui.waveform.channel_view;
     let icon_off = palette.text_muted.linear_multiply(0.4);
     let tooltip_mode = app.controller.ui.controls.tooltip_mode;
+    let icon_color = |active: bool, hovered: bool| {
+        if active || hovered {
+            palette.accent_mint
+        } else {
+            icon_off
+        }
+    };
 
     ui.horizontal(|ui| {
         // --- Group 1: View & Basic Audio ---
-        ui.group(|ui| {
+        ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
-            
+
             // Channel View Toggle (Mono / Split)
             let channel_view_size = egui::vec2(28.0, 24.0);
             let (view_rect, view_response) = ui.allocate_exact_size(channel_view_size, egui::Sense::click());
             let center = view_rect.center();
-            
+            let view_color = if view_response.hovered() {
+                palette.accent_mint
+            } else {
+                icon_off
+            };
+
             match view_mode {
                 crate::waveform::WaveformChannelView::Mono => {
                     let mut points = vec![];
@@ -29,11 +41,11 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                     }
                     ui.painter().add(egui::Shape::line(
                         points,
-                        egui::Stroke::new(1.2, palette.accent_mint),
+                        egui::Stroke::new(1.2, view_color),
                     ));
                 }
                 crate::waveform::WaveformChannelView::SplitStereo => {
-                    for (offset_y, color) in [(-4.0, palette.accent_mint), (4.0, palette.accent_mint)] {
+                    for (offset_y, color) in [(-4.0, view_color), (4.0, view_color)] {
                         let mut points = vec![];
                         for i in 0..=6 {
                             let x = center.x - 7.0 + (i as f32 * 2.3);
@@ -47,10 +59,6 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                     }
                 }
             }
-            if view_response.hovered() {
-                ui.painter().rect_filled(view_rect, 2.0, style::row_hover_fill());
-            }
-
             let view_tip = helpers::tooltip(
                 view_response,
                 "Channel View",
@@ -68,7 +76,7 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
             let audition_enabled = app.controller.ui.waveform.normalized_audition_enabled;
             let audition_size = egui::vec2(28.0, 24.0);
             let (audition_rect, audition_response) = ui.allocate_exact_size(audition_size, egui::Sense::click());
-            let audition_color = if audition_enabled { palette.accent_mint } else { icon_off };
+            let audition_color = icon_color(audition_enabled, audition_response.hovered());
             let center = audition_rect.center();
             let mut wave_points = vec![];
             for i in 0..=4 {
@@ -86,10 +94,6 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                 audition_color, egui::Stroke::NONE
             ));
 
-            if audition_response.hovered() {
-                ui.painter().rect_filled(audition_rect, 2.0, style::row_hover_fill());
-            }
-
             if audition_response.clicked() {
                 app.controller.set_normalized_audition_enabled(!audition_enabled);
             }
@@ -104,13 +108,13 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
         ui.add_space(4.0);
 
         // --- Group 2: Snapping & Markers ---
-        ui.group(|ui| {
+        ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
-            
+
             // BPM Snap Icon
             let mut bpm_snap = app.controller.ui.waveform.bpm_snap_enabled;
             let (bpm_snap_rect, bpm_snap_response) = ui.allocate_exact_size(egui::vec2(28.0, 24.0), egui::Sense::click());
-            let bpm_snap_color = if bpm_snap { palette.accent_mint } else { icon_off };
+            let bpm_snap_color = icon_color(bpm_snap, bpm_snap_response.hovered());
             let center = bpm_snap_rect.center();
             // Magnet body (U shape)
             ui.painter().add(egui::Shape::line(
@@ -122,9 +126,6 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                 for dy in [-5.5, -2.5] {
                     ui.painter().circle_filled(center + egui::vec2(dx, dy), 0.8, bpm_snap_color.linear_multiply(0.8));
                 }
-            }
-            if bpm_snap_response.hovered() {
-                ui.painter().rect_filled(bpm_snap_rect, 2.0, style::row_hover_fill());
             }
             if bpm_snap_response.clicked() {
                 bpm_snap = !bpm_snap;
@@ -141,8 +142,11 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
             let mut transient_snap = app.controller.ui.waveform.transient_snap_enabled;
             let markers_enabled = app.controller.ui.waveform.transient_markers_enabled;
             let (x_snap_rect, x_snap_response) = ui.allocate_exact_size(egui::vec2(28.0, 24.0), if markers_enabled { egui::Sense::click() } else { egui::Sense::hover() });
-            let x_snap_color = if !markers_enabled { icon_off.linear_multiply(0.3) }
-                              else if transient_snap { palette.accent_mint } else { icon_off };
+            let x_snap_color = if !markers_enabled {
+                icon_off.linear_multiply(0.3)
+            } else {
+                icon_color(transient_snap, x_snap_response.hovered())
+            };
             let center = x_snap_rect.center();
             // Magnet body (U shape)
             ui.painter().add(egui::Shape::line(
@@ -151,10 +155,6 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
             ));
             // Marker element (vertical line)
             ui.painter().line_segment([center + egui::vec2(0.0, -7.0), center + egui::vec2(0.0, -2.0)], egui::Stroke::new(1.2, x_snap_color));
-            if x_snap_response.hovered() {
-                ui.painter().rect_filled(x_snap_rect, 2.0, style::row_hover_fill());
-            }
-            
             if markers_enabled && x_snap_response.clicked() {
                 transient_snap = !transient_snap;
                 app.controller.set_transient_snap_enabled(transient_snap);
@@ -171,16 +171,13 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
             // Show Transients Icon
             let mut show_transients = app.controller.ui.waveform.transient_markers_enabled;
             let (transient_rect, transient_response) = ui.allocate_exact_size(egui::vec2(28.0, 24.0), egui::Sense::click());
-            let trans_color = if show_transients { palette.accent_mint } else { icon_off };
+            let trans_color = icon_color(show_transients, transient_response.hovered());
             let center = transient_rect.center();
             ui.painter().add(egui::Shape::line(vec![center + egui::vec2(0.0, -7.0), center + egui::vec2(0.0, 7.0)], egui::Stroke::new(1.0, trans_color)));
             ui.painter().add(egui::Shape::convex_polygon(
                 vec![center + egui::vec2(0.0, -8.0), center + egui::vec2(-2.5, -5.5), center + egui::vec2(2.5, -5.5)],
                 trans_color, egui::Stroke::NONE
             ));
-            if transient_response.hovered() {
-                ui.painter().rect_filled(transient_rect, 2.0, style::row_hover_fill());
-            }
             if transient_response.clicked() {
                 show_transients = !show_transients;
                 app.controller.set_transient_markers_enabled(show_transients);
@@ -195,7 +192,7 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
             // Slice Mode Icon
             let slice_mode_enabled = app.controller.ui.waveform.slice_mode_enabled;
             let (slice_rect, slice_response) = ui.allocate_exact_size(egui::vec2(28.0, 24.0), egui::Sense::click());
-            let slice_color = if slice_mode_enabled { palette.accent_mint } else { icon_off };
+            let slice_color = icon_color(slice_mode_enabled, slice_response.hovered());
             let center = slice_rect.center();
             ui.painter().add(egui::Shape::convex_polygon(
                 vec![center + egui::vec2(-1.5, 1.5), center + egui::vec2(3.5, -3.5), center + egui::vec2(5.5, -1.5), center + egui::vec2(0.5, 3.5)],
@@ -205,9 +202,6 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                 vec![center + egui::vec2(-1.5, 1.5), center + egui::vec2(-5.0, 5.0), center + egui::vec2(-3.5, 6.5), center + egui::vec2(0.5, 3.5)],
                 slice_color.linear_multiply(0.5), egui::Stroke::NONE
             ));
-            if slice_response.hovered() {
-                ui.painter().rect_filled(slice_rect, 2.0, style::row_hover_fill());
-            }
             if slice_response.clicked() {
                 app.controller.ui.waveform.slice_mode_enabled = !slice_mode_enabled;
             }
@@ -222,9 +216,9 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
         ui.add_space(4.0);
 
         // --- Group 3: BPM Management ---
-        ui.group(|ui| {
+        ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
-            
+
             // BPM Input Widget
             let (bpm_edit_response, adjust) = crate::egui_app::ui::chrome::fields::NumericInput::new(
                 &mut app.controller.ui.waveform.bpm_input,
@@ -248,16 +242,13 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
             // Toggles
             let mut bpm_lock = app.controller.ui.waveform.bpm_lock_enabled;
             let (lock_rect, lock_response) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::click());
-            let lock_color = if bpm_lock { palette.accent_mint } else { icon_off };
+            let lock_color = icon_color(bpm_lock, lock_response.hovered());
             let center = lock_rect.center();
             ui.painter().rect_filled(egui::Rect::from_center_size(center + egui::vec2(0.0, 1.5), egui::vec2(9.0, 7.0)), 1.0, lock_color);
             ui.painter().add(egui::Shape::line(
                 vec![center + egui::vec2(-2.5, -1.5), center + egui::vec2(-2.5, -4.5), center + egui::vec2(0.0, -6.5), center + egui::vec2(2.5, -4.5), center + egui::vec2(2.5, -1.5)],
                 egui::Stroke::new(1.3, lock_color)
             ));
-            if lock_response.hovered() {
-                ui.painter().rect_filled(lock_rect, 2.0, style::row_hover_fill());
-            }
             if lock_response.clicked() {
                 bpm_lock = !bpm_lock;
                 app.controller.set_bpm_lock_enabled(bpm_lock);
@@ -271,7 +262,7 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
 
             let mut bpm_stretch = app.controller.ui.waveform.bpm_stretch_enabled;
             let (stretch_rect, stretch_response) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::click());
-            let stretch_color = if bpm_stretch { palette.accent_mint } else { icon_off };
+            let stretch_color = icon_color(bpm_stretch, stretch_response.hovered());
             let center = stretch_rect.center();
             ui.painter().line_segment([center - egui::vec2(6.0, 0.0), center + egui::vec2(6.0, 0.0)], egui::Stroke::new(1.3, stretch_color));
             ui.painter().add(egui::Shape::convex_polygon(
@@ -282,9 +273,6 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                 vec![center + egui::vec2(6.0, 0.0), center + egui::vec2(3.0, 2.5), center + egui::vec2(3.0, -2.5)],
                 stretch_color, egui::Stroke::NONE
             ));
-            if stretch_response.hovered() {
-                ui.painter().rect_filled(stretch_rect, 2.0, style::row_hover_fill());
-            }
             if stretch_response.clicked() {
                 bpm_stretch = !bpm_stretch;
                 app.controller.set_bpm_stretch_enabled(bpm_stretch);
@@ -295,7 +283,7 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                 "Enable time-stretching to match the audio to the current BPM. Adjusting BPM will change playback speed without affecting pitch.",
                 tooltip_mode,
             );
-            
+
             app.controller.ui.hotkeys.suppress_for_bpm_input = bpm_edit_response.has_focus();
             if bpm_edit_response.lost_focus() || bpm_edit_response.changed() {
                 if let Some(value) = helpers::parse_bpm_input(&app.controller.ui.waveform.bpm_input) {
@@ -309,7 +297,7 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
 
         // --- Group 4: Transport (Right Aligned) ---
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.group(|ui| {
+            ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 let is_recording = app.controller.is_recording();
                 let has_source = app.controller.current_source().is_some();
@@ -317,16 +305,20 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
 
                 // Play
                 let (play_rect, play_response) = ui.allocate_exact_size(egui::vec2(32.0, 24.0), if !is_recording { egui::Sense::click() } else { egui::Sense::hover() });
-                let play_color = if is_recording { ui.visuals().widgets.noninteractive.fg_stroke.color.linear_multiply(0.3) }
-                                else if is_playing { palette.accent_copper } else { icon_off };
+                let play_color = if is_recording {
+                    ui.visuals().widgets.noninteractive.fg_stroke.color.linear_multiply(0.3)
+                } else if is_playing {
+                    palette.accent_copper
+                } else if play_response.hovered() {
+                    palette.accent_mint
+                } else {
+                    icon_off
+                };
                 let center = play_rect.center();
                 ui.painter().add(egui::Shape::convex_polygon(
                     vec![center + egui::vec2(5.0, 0.0), center + egui::vec2(-4.0, 6.0), center + egui::vec2(-4.0, -6.0)],
                     play_color, egui::Stroke::NONE
                 ));
-                if play_response.hovered() {
-                    ui.painter().rect_filled(play_rect.shrink(2.0), 2.0, style::row_hover_fill());
-                }
                 if play_response.clicked() {
                     let _ = app.controller.play_audio(app.controller.ui.waveform.loop_enabled, None);
                 }
@@ -339,11 +331,12 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
 
                 // Stop
                 let (stop_rect, stop_response) = ui.allocate_exact_size(egui::vec2(32.0, 24.0), if is_playing { egui::Sense::click() } else { egui::Sense::hover() });
-                let stop_color = if is_playing { style::destructive_text() } else { ui.visuals().widgets.noninteractive.fg_stroke.color.linear_multiply(0.3) };
+                let stop_color = if is_playing || stop_response.hovered() {
+                    style::destructive_text()
+                } else {
+                    ui.visuals().widgets.noninteractive.fg_stroke.color.linear_multiply(0.3)
+                };
                 ui.painter().rect_filled(egui::Rect::from_center_size(stop_rect.center(), egui::vec2(10.0, 10.0)), 1.0, stop_color);
-                if stop_response.hovered() {
-                    ui.painter().rect_filled(stop_rect.shrink(2.0), 2.0, style::row_hover_fill());
-                }
                 if stop_response.clicked() {
                     app.controller.stop_playback_if_active();
                 }
@@ -362,6 +355,7 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                     (true, true) => style::destructive_text(),
                     (true, false) => style::warning_soft_text(),
                     (false, true) => palette.accent_mint,
+                    (false, false) if loop_response.hovered() => palette.accent_mint,
                     (false, false) => icon_off,
                 };
                 let center = loop_rect.center();
@@ -378,9 +372,6 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                     vec![*tip, *tip + egui::vec2((angle + 0.5).cos() * 3.5, (angle + 0.5).sin() * 3.5), *tip + egui::vec2((angle - 0.5).cos() * 3.5, (angle - 0.5).sin() * 3.5)],
                     loop_color, egui::Stroke::NONE
                 ));
-                if loop_response.hovered() {
-                    ui.painter().rect_filled(loop_rect.shrink(2.0), 2.0, style::row_hover_fill());
-                }
                 if loop_response.clicked() {
                     let modifiers = ui.input(|i| i.modifiers);
                     if modifiers.shift {
@@ -399,11 +390,14 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
 
                 // Record
                 let (record_rect, record_response) = ui.allocate_exact_size(egui::vec2(32.0, 24.0), if is_recording || has_source { egui::Sense::click() } else { egui::Sense::hover() });
-                let record_color = if is_recording { style::destructive_text() } else if has_source { icon_off } else { ui.visuals().widgets.noninteractive.fg_stroke.color.linear_multiply(0.3) };
+                let record_color = if is_recording || record_response.hovered() {
+                    style::destructive_text()
+                } else if has_source {
+                    icon_off
+                } else {
+                    ui.visuals().widgets.noninteractive.fg_stroke.color.linear_multiply(0.3)
+                };
                 ui.painter().circle_filled(record_rect.center(), 6.0, record_color);
-                if record_response.hovered() {
-                    ui.painter().rect_filled(record_rect.shrink(2.0), 2.0, style::row_hover_fill());
-                }
                 if record_response.clicked() {
                     let _ = if is_recording { app.controller.stop_recording_and_load() } else { app.controller.start_recording() };
                 }
@@ -417,16 +411,17 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                 // Monitor
                 let mut monitor = app.controller.ui.controls.input_monitoring_enabled;
                 let (mon_rect, mon_response) = ui.allocate_exact_size(egui::vec2(32.0, 24.0), egui::Sense::click());
-                let mon_color = if monitor { style::destructive_text() } else { icon_off };
+                let mon_color = if monitor || mon_response.hovered() {
+                    style::destructive_text()
+                } else {
+                    icon_off
+                };
                 let center = mon_rect.center();
                 ui.painter().rect_filled(egui::Rect::from_min_max(center + egui::vec2(-6.0, -3.0), center + egui::vec2(-2.0, 3.0)), 0.5, mon_color);
                 ui.painter().add(egui::Shape::convex_polygon(
                     vec![center + egui::vec2(-2.0, -3.0), center + egui::vec2(3.0, -7.0), center + egui::vec2(3.0, 7.0), center + egui::vec2(-2.0, 3.0)],
                     mon_color, egui::Stroke::NONE
                 ));
-                if mon_response.hovered() {
-                    ui.painter().rect_filled(mon_rect.shrink(2.0), 2.0, style::row_hover_fill());
-                }
                 if mon_response.clicked() {
                     monitor = !monitor;
                     app.controller.set_input_monitoring_enabled(monitor);
@@ -445,13 +440,19 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
     if app.controller.ui.waveform.slice_mode_enabled {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
-            ui.group(|ui| {
+            ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 8.0;
                 let has_audio = app.controller.ui.loaded_wav.is_some();
-                
+
                 // Detect Slices
                 let (det_rect, det_response) = ui.allocate_exact_size(egui::vec2(28.0, 24.0), egui::Sense::click());
-                let det_color = if has_audio { icon_off } else { icon_off.linear_multiply(0.3) };
+                let det_color = if !has_audio {
+                    icon_off.linear_multiply(0.3)
+                } else if det_response.hovered() {
+                    palette.accent_mint
+                } else {
+                    icon_off
+                };
                 let center = det_rect.center();
                 let mut wave = vec![];
                 for i in 0..=3 {
@@ -459,9 +460,6 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                 }
                 ui.painter().add(egui::Shape::line(wave, egui::Stroke::new(1.2, det_color)));
                 ui.painter().circle_filled(center + egui::vec2(3.0, -5.0), 1.0, palette.accent_mint);
-                if det_response.hovered() {
-                    ui.painter().rect_filled(det_rect, 2.0, style::row_hover_fill());
-                }
                 if has_audio && det_response.clicked() {
                     let _ = app.controller.detect_waveform_slices_from_silence();
                 }
@@ -476,12 +474,19 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                 if !app.controller.ui.waveform.slices.is_empty() {
                     let (clr_rect, clr_response) = ui.allocate_exact_size(egui::vec2(28.0, 24.0), egui::Sense::click());
                     let center = clr_rect.center();
-                    ui.painter().rect_filled(egui::Rect::from_center_size(center, egui::vec2(10.0, 10.0)), 1.0, icon_off.linear_multiply(0.3));
-                    ui.painter().add(egui::Shape::line(vec![center-egui::vec2(3.0,3.0), center+egui::vec2(3.0,3.0)], egui::Stroke::new(1.2, style::destructive_text())));
-                    ui.painter().add(egui::Shape::line(vec![center+egui::vec2(3.0,-3.0), center-egui::vec2(3.0,3.0)], egui::Stroke::new(1.2, style::destructive_text())));
-                    if clr_response.hovered() {
-                        ui.painter().rect_filled(clr_rect, 2.0, style::row_hover_fill());
-                    }
+                    let clear_color = if clr_response.hovered() {
+                        style::destructive_text()
+                    } else {
+                        icon_off
+                    };
+                    ui.painter().add(egui::Shape::line(
+                        vec![center - egui::vec2(3.0, 3.0), center + egui::vec2(3.0, 3.0)],
+                        egui::Stroke::new(1.2, clear_color),
+                    ));
+                    ui.painter().add(egui::Shape::line(
+                        vec![center + egui::vec2(3.0, -3.0), center - egui::vec2(3.0, 3.0)],
+                        egui::Stroke::new(1.2, clear_color),
+                    ));
                     if clr_response.clicked() { app.controller.clear_waveform_slices(); }
                     helpers::tooltip(
                         clr_response,
@@ -489,7 +494,7 @@ pub(super) fn render_waveform_controls(app: &mut EguiApp, ui: &mut Ui, palette: 
                         "Delete all currently defined slices. This action is destructive but affects only the in-memory analysis.",
                         tooltip_mode,
                     );
-                    
+
                     ui.add_space(4.0);
                     ui.label(RichText::new(format!("Slices: {}", app.controller.ui.waveform.slices.len())).size(11.0).color(icon_off));
                 }
