@@ -13,7 +13,8 @@ use crate::app_core::actions::{
     NativeBrowserChromeModel as BrowserChromeModel, NativeBrowserPanelModel as BrowserPanelModel,
     NativeBrowserRowModel as BrowserRowModel, NativeColumnModel as ColumnModel,
     NativeConfirmPromptKind as ConfirmPromptKind, NativeConfirmPromptModel as ConfirmPromptModel,
-    NativeDragOverlayModel as DragOverlayModel, NativeFolderActionsModel as FolderActionsModel,
+    NativeDragOverlayModel as DragOverlayModel, NativeFocusContextModel as FocusContextModel,
+    NativeFolderActionsModel as FolderActionsModel,
     NativeFolderRecoveryModel as FolderRecoveryModel, NativeFolderRowModel as FolderRowModel,
     NativeMapPanelModel as MapPanelModel, NativeMapPointModel as MapPointModel,
     NativeMapRenderModeModel as MapRenderModeModel, NativeMotionModel as MotionModel,
@@ -25,6 +26,7 @@ use crate::app_core::actions::{
     NativeWaveformPanelModel as WaveformPanelModel,
 };
 use crate::app_core::app_api::state::DragPayload;
+use crate::app_core::app_api::state::FocusContext;
 #[cfg(test)]
 use crate::app_core::state::{
     DestructiveEditPrompt, DestructiveSelectionEdit, FolderDeleteRecoveryAction,
@@ -161,6 +163,8 @@ struct ProjectAppModelDerivedInputs {
     column_counts: [usize; 3],
     /// Master output volume clamped into the normalized `0.0..=1.0` range.
     clamped_volume: f32,
+    /// Current logical focus context projected into native input routing.
+    focus_context: FocusContextModel,
 }
 
 /// Core panel models that may require mutable controller access during projection.
@@ -207,6 +211,7 @@ fn derive_project_app_model_inputs(controller: &AppController) -> ProjectAppMode
             controller.ui.browser.keep.len(),
         ],
         clamped_volume: controller.ui.volume.clamp(0.0, 1.0),
+        focus_context: project_focus_context_model(controller.ui.focus.context),
     }
 }
 
@@ -271,6 +276,18 @@ fn assemble_project_app_model(
         waveform: core_models.waveform,
         waveform_chrome: overlay_and_chrome_models.waveform_chrome,
         update: overlay_and_chrome_models.update,
+        focus_context: derived_inputs.focus_context,
+    }
+}
+
+/// Project app focus context into the native runtime focus model.
+pub(crate) fn project_focus_context_model(focus: FocusContext) -> FocusContextModel {
+    match focus {
+        FocusContext::None => FocusContextModel::None,
+        FocusContext::Waveform => FocusContextModel::Waveform,
+        FocusContext::SampleBrowser => FocusContextModel::SampleBrowser,
+        FocusContext::SourceFolders => FocusContextModel::SourceFolders,
+        FocusContext::SourcesList => FocusContextModel::SourcesList,
     }
 }
 

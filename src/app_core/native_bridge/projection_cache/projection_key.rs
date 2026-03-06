@@ -1,6 +1,6 @@
 use super::super::projection_key_encoding::{
-    encode_browser_filter, encode_browser_sort, encode_browser_tab, encode_update_status,
-    normalized_f32_to_milli, normalized_f64_to_milli,
+    encode_browser_filter, encode_browser_sort, encode_browser_tab, encode_focus_context,
+    encode_update_status, normalized_f32_to_milli, normalized_f64_to_milli,
 };
 use super::{
     BrowserFrameProjectionCacheKey, BrowserRowsProjectionCacheKey, MapProjectionCacheKey,
@@ -72,6 +72,7 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         loaded_wav_revision: controller.ui.projection_revisions.loaded_wav,
         volume_milli: normalized_f32_to_milli(controller.ui.volume),
         transport_running: controller.is_playing(),
+        focus_context: encode_focus_context(controller.ui.focus.context),
     }
 }
 
@@ -186,6 +187,7 @@ pub(super) fn build_non_segment_static_projection_key(
         update_revision: controller.ui.projection_revisions.update,
         volume_milli: normalized_f32_to_milli(controller.ui.volume),
         transport_running: controller.is_playing(),
+        focus_context: encode_focus_context(controller.ui.focus.context),
         trash_count: controller.ui.browser.trash.len(),
         neutral_count: controller.ui.browser.neutral.len(),
         keep_count: controller.ui.browser.keep.len(),

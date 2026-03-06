@@ -24,6 +24,9 @@ pub type NativeUiAction = radiant::app::UiAction;
 /// Native runtime projected app model.
 pub type NativeAppModel = radiant::app::AppModel;
 
+/// Native runtime focus-context model used for contextual input routing.
+pub type NativeFocusContextModel = radiant::app::FocusContextModel;
+
 /// Native runtime frame build result payload.
 pub type NativeFrameBuildResult = radiant::app::FrameBuildResult;
 

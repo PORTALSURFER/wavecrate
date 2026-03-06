@@ -118,6 +118,7 @@ fn refresh_non_segment_static_fields(model: &mut NativeAppModel, controller: &mu
     model.volume = controller.ui.volume.clamp(0.0, 1.0);
     model.sources = native_shell::project_sources_model(&controller.ui);
     model.sources_label = format!("Sources ({})", model.sources.rows.len());
+    model.focus_context = native_shell::project_focus_context_model(controller.ui.focus.context);
     model.columns = [
         crate::app_core::actions::NativeColumnModel::new(
             "Trash",

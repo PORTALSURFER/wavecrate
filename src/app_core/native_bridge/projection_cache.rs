@@ -126,6 +126,7 @@ pub(super) struct NativeProjectionCacheKey {
     pub(super) loaded_wav_revision: u64,
     pub(super) volume_milli: u16,
     pub(super) transport_running: bool,
+    pub(super) focus_context: u8,
 }
 
 /// Status-bar projection key scoped to status and footer-affecting state.
@@ -222,6 +223,7 @@ pub(super) struct NonSegmentStaticProjectionCacheKey {
     update_revision: u64,
     volume_milli: u16,
     transport_running: bool,
+    focus_context: u8,
     trash_count: usize,
     neutral_count: usize,
     keep_count: usize,

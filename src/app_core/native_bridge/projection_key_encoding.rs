@@ -3,6 +3,7 @@
 //! This module centralizes stable enum-to-byte encodings and normalized scalar
 //! conversion so all projection keys use the same representation.
 
+use crate::app_core::app_api::state::FocusContext;
 use crate::app_core::state::{SampleBrowserSort, SampleBrowserTab, TriageFlagFilter, UpdateStatus};
 
 /// Encode browser triage filter state into a stable byte for key comparisons.
@@ -40,6 +41,17 @@ pub(super) const fn encode_update_status(status: &UpdateStatus) -> u8 {
         UpdateStatus::Checking => 1,
         UpdateStatus::UpdateAvailable => 2,
         UpdateStatus::Error => 3,
+    }
+}
+
+/// Encode focus context into a stable byte for key comparisons.
+pub(super) const fn encode_focus_context(context: FocusContext) -> u8 {
+    match context {
+        FocusContext::None => 0,
+        FocusContext::Waveform => 1,
+        FocusContext::SampleBrowser => 2,
+        FocusContext::SourceFolders => 3,
+        FocusContext::SourcesList => 4,
     }
 }
 
