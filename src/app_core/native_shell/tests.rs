@@ -90,6 +90,18 @@ fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
     assert_eq!(projected.visible_count, 42);
 }
 
+/// Browser projection should expose focused search placeholder copy when focus is requested.
+#[test]
+fn browser_projection_marks_search_placeholder_when_focused() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.browser.search_focus_requested = true;
+    let projected = project_browser_model(&mut controller);
+    assert_eq!(
+        projected.search_placeholder.as_deref(),
+        Some("Search samples (Ctrl+F) ▌")
+    );
+}
+
 /// Browser chrome projection should expose the toolbar copy shown in the native shell.
 #[test]
 fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
@@ -107,6 +119,16 @@ fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
     assert_eq!(projected.sort_order_label, "Similarity");
     assert_eq!(projected.similarity_toggle_label, "follow loaded");
     assert_eq!(projected.item_count_label, "1437 items");
+}
+
+/// Browser chrome should include focused search copy and caret hint when search is focused.
+#[test]
+fn browser_chrome_projection_marks_search_focus_copy() {
+    let mut ui = UiState::default();
+    ui.browser.search_focus_requested = true;
+    let projected = project_browser_chrome_model(&ui, 7);
+    assert_eq!(projected.search_prefix_label, "Search • focused");
+    assert_eq!(projected.search_placeholder, "Search samples (Ctrl+F) ▌");
 }
 
 /// Waveform projection should derive tempo and zoom labels from UI waveform state.

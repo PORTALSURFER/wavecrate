@@ -22,7 +22,9 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
     let selected_visible_row = controller.ui.browser.selected_visible;
     let selected_path_count = controller.ui.browser.selected_paths.len();
     let search_query = controller.ui.browser.search_query.clone();
-    let search_placeholder = Some(String::from("Search samples (Ctrl+F)"));
+    let search_placeholder = Some(browser_search_placeholder(
+        controller.ui.browser.search_focus_requested,
+    ));
     let busy = controller.ui.browser.search_busy;
     let sort_label =
         Some(browser_sort_label(SampleBrowserSort::from(controller.ui.browser.sort)).to_owned());
@@ -316,11 +318,16 @@ pub(crate) fn project_browser_chrome_model(
     ui: &UiState,
     visible_count: usize,
 ) -> BrowserChromeModel {
+    let search_focused = ui.browser.search_focus_requested;
     BrowserChromeModel {
         samples_tab_label: String::from("Samples"),
         map_tab_label: String::from("Similarity map"),
-        search_prefix_label: String::from("Search"),
-        search_placeholder: String::from("Search samples (Ctrl+F)"),
+        search_prefix_label: if search_focused {
+            String::from("Search • focused")
+        } else {
+            String::from("Search")
+        },
+        search_placeholder: browser_search_placeholder(search_focused),
         activity_ready_label: String::from("Ready"),
         activity_busy_label: String::from("Filtering"),
         sort_prefix_label: String::from("Sort"),
@@ -331,6 +338,15 @@ pub(crate) fn project_browser_chrome_model(
             String::from("manual anchor")
         },
         item_count_label: format!("{visible_count} items"),
+    }
+}
+
+/// Resolve search placeholder text, including a focused caret hint when active.
+fn browser_search_placeholder(search_focused: bool) -> String {
+    if search_focused {
+        String::from("Search samples (Ctrl+F) ▌")
+    } else {
+        String::from("Search samples (Ctrl+F)")
     }
 }
 
