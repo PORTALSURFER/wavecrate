@@ -211,6 +211,8 @@ mod tests {
                 || err.contains("Failed to copy loop marker")
                 || err.contains("Failed to copy playback age")
                 || err.contains("Failed to save move")
+                || err.contains("Failed to update move journal")
+                || err.contains("Failed to finalize move")
         }));
         assert!(source_root.join("one.wav").is_file());
         assert!(!source_root.join("folder/one.wav").exists());
