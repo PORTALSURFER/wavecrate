@@ -69,13 +69,13 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - Native-shell row-window regression tests
     - `bash scripts/run_perf_guard.sh`
     - `bash scripts/ci_local.sh`
-  - Completed: 2026-03-07
+  - Completed: 2026-03-07, commit `67c6bf4c`
   - Validation status:
     - `cargo test --manifest-path C:\dev\sempal\Cargo.toml app_core::native_bridge::tests::projection_segment_ -- --nocapture`
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
-- [ ] 3. Replace path-based browser selection/focus with absolute-index identities
+- [x] 3. Replace path-based browser selection/focus with absolute-index identities
   - ROI: Very High
   - Effort: L
   - Expected impact: p95 interaction latency, memory churn, CPU
@@ -96,6 +96,14 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - Drag/drop and waveform-to-browser interaction tests
     - `bash scripts/run_perf_guard.sh` focusing on hover/wheel/focus preview
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-07, commit `3357e0db`
+  - Validation status:
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml browser_selection -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml browser_actions -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml selected_path_lookup_refreshes_for_same_len_path_changes -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml projection_cache_key_changes_when_selected_path_revision_changes -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
 - [ ] 4. Make browser lookup-map rebuilds incremental or lazy instead of eager O(N) resets
   - ROI: High

@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-06T14:51:46Z
+Last updated (UTC): 2026-03-07T22:05:00Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -12,16 +12,16 @@ Purpose:
 ## Current lane
 
 - Runtime responsiveness/performance redesign (Xilem-inspired retained/incremental update path).
-- Cleanup architecture guardrails documented in `docs/plans/active/cleanup_architecture_note.md`.
-- Cleanup Phase 2 item 3 completed on 2026-03-06 UTC in commit `4a4c1098`.
+- Perf Phase 2 items 1-3 in `tmp/perf_plan.md` are complete.
+- The active ordered backlog lives in `tmp/perf_plan.md`.
 
 ## Next tasks (ordered)
 
-1. Execute `tmp/cleanup_plan.md` item 4:
-   decompose `src/app/controller/library/wavs/browser_actions.rs` by responsibility and expand focused browser-behavior tests.
-2. Execute `tmp/cleanup_plan.md` item 5:
-   split folder-delete recovery into journal/recovery/controller-apply modules and add recovery-matrix coverage.
-3. Execute `tmp/cleanup_plan.md` item 6:
-   isolate source-move DB/fs stage transitions and centralize error/report policy.
-4. Keep handoff docs synchronized at each cleanup milestone:
-   update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` in the same cycle.
+1. Execute `tmp/perf_plan.md` item 4:
+   make browser lookup-map rebuilds incremental or lazy instead of eager O(N) resets.
+2. Execute `tmp/perf_plan.md` item 5:
+   reduce whole-dataset search work and stale-query CPU burn.
+3. Execute `tmp/perf_plan.md` item 6:
+   retain browser row metadata by absolute index and diff visible-window preloads.
+4. Keep handoff docs synchronized at each perf milestone:
+   update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/perf_plan.md` in the same cycle.
