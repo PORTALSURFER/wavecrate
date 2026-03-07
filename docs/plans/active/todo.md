@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-07T22:05:00Z
+Last updated (UTC): 2026-03-07T22:24:00Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -12,16 +12,16 @@ Purpose:
 ## Current lane
 
 - Runtime responsiveness/performance redesign (Xilem-inspired retained/incremental update path).
-- Perf Phase 2 items 1-3 in `tmp/perf_plan.md` are complete.
+- Perf Phase 2 items 1-4 in `tmp/perf_plan.md` are complete.
 - The active ordered backlog lives in `tmp/perf_plan.md`.
 
 ## Next tasks (ordered)
 
-1. Execute `tmp/perf_plan.md` item 4:
-   make browser lookup-map rebuilds incremental or lazy instead of eager O(N) resets.
-2. Execute `tmp/perf_plan.md` item 5:
+1. Execute `tmp/perf_plan.md` item 5:
    reduce whole-dataset search work and stale-query CPU burn.
-3. Execute `tmp/perf_plan.md` item 6:
+2. Execute `tmp/perf_plan.md` item 6:
    retain browser row metadata by absolute index and diff visible-window preloads.
+3. Execute `tmp/perf_plan.md` item 7:
+   rework retained waveform image upload caching to avoid clone-before-lookup churn.
 4. Keep handoff docs synchronized at each perf milestone:
    update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/perf_plan.md` in the same cycle.

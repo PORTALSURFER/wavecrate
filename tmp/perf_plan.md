@@ -105,7 +105,7 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
-- [ ] 4. Make browser lookup-map rebuilds incremental or lazy instead of eager O(N) resets
+- [x] 4. Make browser lookup-map rebuilds incremental or lazy instead of eager O(N) resets
   - ROI: High
   - Effort: M
   - Expected impact: filter/search apply latency, CPU, memory churn
@@ -125,6 +125,13 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - Browser lookup-map and async result-apply tests
     - `bash scripts/run_perf_guard.sh` focusing on filter/sort/list rebuild scenarios
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-07, commit `458f2f50`
+  - Validation status:
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib browser_visible_lookup_rebuilds_lazily_and_keeps_triage_stale -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib browser_triage_lookup_rebuilds_lazily_and_keeps_visible_stale -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib matching_browser_search_message_refreshes_visible_rows_and_clears_busy_state -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
 - [ ] 5. Reduce whole-dataset search work and stale-query CPU burn
   - ROI: High
