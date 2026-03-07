@@ -37,7 +37,7 @@ pub(super) fn process_search_job(
     if !ensure_search_cache_ready_for_job(cache, &job, &source_id) {
         return Some(empty_search_result_for(&job));
     }
-    if !ensure_search_entries_loaded_for_job(cache, &job) {
+    if !ensure_search_entries_loaded_for_job(cache, &job, queue, generation) {
         return Some(empty_search_result_for(&job));
     }
 
@@ -61,7 +61,8 @@ pub(super) fn process_search_job(
     if search_job_canceled(queue, generation) {
         return None;
     }
-    let partitions = triage_partitions_for_revision(cache, &source_id, cache.revision);
+    let partitions =
+        triage_partitions_for_revision(cache, &source_id, cache.revision, queue, generation)?;
     if search_job_canceled(queue, generation) {
         return None;
     }
@@ -103,7 +104,7 @@ pub(super) fn process_search_job(
     })
 }
 
-const SEARCH_CANCEL_CHECK_INTERVAL: usize = 64;
+const SEARCH_CANCEL_CHECK_INTERVAL: usize = 16;
 
 fn search_job_canceled(queue: &SearchJobQueue, generation: u64) -> bool {
     let canceled = !queue.is_generation_current(generation);
@@ -122,8 +123,10 @@ pub(super) fn triage_partitions_for_revision(
     cache: &mut SearchWorkerCache,
     source_id: &str,
     revision: u64,
-) -> TriagePartitions {
-    results::triage_partitions_for_revision(cache, source_id, revision)
+    queue: &SearchJobQueue,
+    generation: u64,
+) -> Option<TriagePartitions> {
+    results::triage_partitions_for_revision(cache, source_id, revision, queue, generation)
 }
 
 /// Hash folder-filter inputs used to key per-query folder acceptance caches.

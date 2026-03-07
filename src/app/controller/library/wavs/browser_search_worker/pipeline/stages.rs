@@ -56,6 +56,8 @@ pub(super) fn ensure_search_cache_ready_for_job(
 pub(super) fn ensure_search_entries_loaded_for_job(
     cache: &mut SearchWorkerCache,
     _job: &SearchJob,
+    queue: &SearchJobQueue,
+    generation: u64,
 ) -> bool {
     let Some(db) = cache.db.as_ref() else {
         return false;
@@ -68,20 +70,24 @@ pub(super) fn ensure_search_entries_loaded_for_job(
 
     match db.list_files() {
         Ok(loaded_entries) => {
-            let compact_entries: Vec<CompactSearchEntry> = loaded_entries
-                .into_iter()
-                .map(|entry| {
-                    let relative_path = entry.relative_path.to_string_lossy().to_string();
-                    let display_label =
-                        crate::app::view_model::sample_display_label(&entry.relative_path);
-                    CompactSearchEntry {
-                        display_label: display_label.into_boxed_str(),
-                        relative_path: relative_path.into_boxed_str(),
-                        tag: entry.tag,
-                        last_played_at: entry.last_played_at,
-                    }
-                })
-                .collect();
+            let mut compact_entries = Vec::with_capacity(loaded_entries.len());
+            for (index, entry) in loaded_entries.into_iter().enumerate() {
+                if super::search_job_canceled_for_index(queue, generation, index) {
+                    return false;
+                }
+                let relative_path = entry.relative_path.to_string_lossy().to_string();
+                let display_label =
+                    crate::app::view_model::sample_display_label(&entry.relative_path);
+                compact_entries.push(CompactSearchEntry {
+                    display_label: display_label.into_boxed_str(),
+                    relative_path: relative_path.into_boxed_str(),
+                    tag: entry.tag,
+                    last_played_at: entry.last_played_at,
+                });
+            }
+            if super::search_job_canceled(queue, generation) {
+                return false;
+            }
             cache.entries = Some(compact_entries);
             cache.revision = revision;
             cache.query_score_cache.clear();
@@ -118,6 +124,8 @@ pub(super) fn resolve_query_scores_for_job(
     {
         return Some(scores);
     }
+    let prefix_cache =
+        reusable_prefix_query_scores(cache, source_id, cache.revision, &job.query, entries_len);
 
     let added_score_capacity = cache.prepare_score_scratch(entries_len);
     record_search_worker_score_alloc(
@@ -127,11 +135,30 @@ pub(super) fn resolve_query_scores_for_job(
         return Some(Arc::from([]));
     };
 
-    for (index, entry) in entries.iter().enumerate() {
-        if super::search_job_canceled_for_index(queue, generation, index) {
-            return None;
+    let mut matched_indices = Vec::new();
+    if let Some(prefix_cache) = prefix_cache {
+        for (offset, &index) in prefix_cache.matched_indices.iter().enumerate() {
+            if super::search_job_canceled_for_index(queue, generation, offset) {
+                return None;
+            }
+            let Some(entry) = entries.get(index) else {
+                continue;
+            };
+            cache.score_scratch[index] = matcher.fuzzy_match(&entry.display_label, &job.query);
+            if cache.score_scratch[index].is_some() {
+                matched_indices.push(index);
+            }
         }
-        cache.score_scratch[index] = matcher.fuzzy_match(&entry.display_label, &job.query);
+    } else {
+        for (index, entry) in entries.iter().enumerate() {
+            if super::search_job_canceled_for_index(queue, generation, index) {
+                return None;
+            }
+            cache.score_scratch[index] = matcher.fuzzy_match(&entry.display_label, &job.query);
+            if cache.score_scratch[index].is_some() {
+                matched_indices.push(index);
+            }
+        }
     }
     if super::search_job_canceled(queue, generation) {
         return None;
@@ -145,6 +172,7 @@ pub(super) fn resolve_query_scores_for_job(
             revision: cache.revision,
             query: job.query.clone(),
             scores: Arc::clone(&computed_scores),
+            matched_indices: matched_indices.into(),
         },
     );
     cache.query_score_cache.truncate(cache.max_cached_queries);
@@ -169,6 +197,29 @@ pub(super) fn try_reuse_cached_query_scores(
     let scores = Arc::clone(&cached.scores);
     cache.query_score_cache.insert(0, cached);
     Some(scores)
+}
+
+/// Return the longest reusable prefix-query score cache entry.
+pub(super) fn reusable_prefix_query_scores(
+    cache: &SearchWorkerCache,
+    source_id: &str,
+    revision: u64,
+    query: &str,
+    entries_len: usize,
+) -> Option<WorkerQueryScoreCacheEntry> {
+    cache
+        .query_score_cache
+        .iter()
+        .filter(|cached| {
+            cached.source_id == source_id
+                && cached.revision == revision
+                && cached.scores.len() == entries_len
+                && !cached.query.is_empty()
+                && query.starts_with(&cached.query)
+                && query.len() > cached.query.len()
+        })
+        .max_by_key(|cached| cached.query.len())
+        .cloned()
 }
 
 /// Return an `All` visible-rows result when no filtering/sorting/scoring work is required.
@@ -229,8 +280,15 @@ pub(super) fn build_visible_rows_for_job(
         source_id,
         has_folder_filters,
     } = params;
-    let folder_accepts =
-        folder_accepts_for_job(cache, job, source_id, cache.revision, has_folder_filters);
+    let folder_accepts = folder_accepts_for_job(
+        cache,
+        job,
+        source_id,
+        cache.revision,
+        has_folder_filters,
+        queue,
+        generation,
+    )?;
     if super::search_job_canceled(queue, generation) {
         return None;
     }
@@ -247,11 +305,16 @@ pub(super) fn build_visible_rows_for_job(
         );
     }
 
-    let scratch_capacity = entries_len.min(1024);
-    let added_scratch_capacity = cache.prepare_scored_index_scratch(scratch_capacity);
-    record_search_worker_scratch_alloc(
-        added_scratch_capacity.saturating_mul(std::mem::size_of::<(usize, i64)>()),
-    );
+    let query_needs_score_sort = has_query && job.sort != SampleBrowserSort::ListOrder;
+    if query_needs_score_sort {
+        let scratch_capacity = entries_len.min(1024);
+        let added_scratch_capacity = cache.prepare_scored_index_scratch(scratch_capacity);
+        record_search_worker_scratch_alloc(
+            added_scratch_capacity.saturating_mul(std::mem::size_of::<(usize, i64)>()),
+        );
+    } else {
+        cache.scored_index_scratch.clear();
+    }
     let entries = cache.entries.as_ref()?;
 
     let mut visible = Vec::new();
@@ -267,14 +330,18 @@ pub(super) fn build_visible_rows_for_job(
 
         if has_query {
             if let Some(score) = scores.get(index).and_then(|score| *score) {
-                cache.scored_index_scratch.push((index, score));
+                if query_needs_score_sort {
+                    cache.scored_index_scratch.push((index, score));
+                } else {
+                    visible.push(index);
+                }
             }
         } else {
             visible.push(index);
         }
     }
 
-    if has_query {
+    if query_needs_score_sort {
         if super::search_job_canceled(queue, generation) {
             return None;
         }
@@ -289,9 +356,11 @@ pub(super) fn build_visible_rows_for_job(
         visible.extend(cache.scored_index_scratch.iter().map(|(index, _)| *index));
     }
 
-    sort_visible_indices(entries, &mut visible, job.sort);
-    if super::search_job_canceled(queue, generation) {
-        return None;
+    if job.sort != SampleBrowserSort::ListOrder {
+        sort_visible_indices(entries, &mut visible, job.sort);
+        if super::search_job_canceled(queue, generation) {
+            return None;
+        }
     }
     Some(visible)
 }

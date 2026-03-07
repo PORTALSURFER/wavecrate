@@ -32,9 +32,11 @@ pub(super) fn folder_accepts_for_job(
     source_id: &str,
     revision: u64,
     has_folder_filters: bool,
-) -> Option<Arc<[bool]>> {
+    queue: &SearchJobQueue,
+    generation: u64,
+) -> Option<Option<Arc<[bool]>>> {
     if !has_folder_filters {
-        return None;
+        return Some(None);
     }
     let entries_len = cache.entries.as_ref().map(Vec::len).unwrap_or(0);
     let folder_filter_hash = folder_filter_hash_for_job(job);
@@ -46,17 +48,18 @@ pub(super) fn folder_accepts_for_job(
     }) {
         let cached = cache.folder_accept_cache.remove(index);
         cache.folder_accept_cache.insert(0, cached);
-        return cache
-            .folder_accept_cache
-            .first()
-            .map(|cached| Arc::clone(&cached.accepts));
+        return Some(
+            cache
+                .folder_accept_cache
+                .first()
+                .map(|cached| Arc::clone(&cached.accepts)),
+        );
     }
 
-    let accepts = cache
-        .entries
-        .as_ref()
-        .map(|entries| build_folder_accepts(entries, job))
-        .unwrap_or_default();
+    let accepts = match cache.entries.as_ref() {
+        Some(entries) => build_folder_accepts(entries, job, queue, generation)?,
+        None => Vec::new(),
+    };
     cache.folder_accept_cache.insert(
         0,
         WorkerFolderAcceptCacheEntry {
@@ -69,16 +72,26 @@ pub(super) fn folder_accepts_for_job(
     cache
         .folder_accept_cache
         .truncate(cache.max_cached_folder_filters);
-    cache
-        .folder_accept_cache
-        .first()
-        .map(|cached| Arc::clone(&cached.accepts))
+    Some(
+        cache
+            .folder_accept_cache
+            .first()
+            .map(|cached| Arc::clone(&cached.accepts)),
+    )
 }
 
 /// Build folder-filter acceptance values for all entries in source order.
-fn build_folder_accepts(entries: &[CompactSearchEntry], job: &SearchJob) -> Vec<bool> {
+fn build_folder_accepts(
+    entries: &[CompactSearchEntry],
+    job: &SearchJob,
+    queue: &SearchJobQueue,
+    generation: u64,
+) -> Option<Vec<bool>> {
     let mut accepts = vec![false; entries.len()];
     for (index, entry) in entries.iter().enumerate() {
+        if super::search_job_canceled_for_index(queue, generation, index) {
+            return None;
+        }
         let path = Path::new(entry.relative_path.as_ref());
         accepts[index] = crate::app::controller::library::source_folders::folder_filter_accepts(
             path,
@@ -87,7 +100,7 @@ fn build_folder_accepts(entries: &[CompactSearchEntry], job: &SearchJob) -> Vec<
             job.root_mode,
         );
     }
-    accepts
+    Some(accepts)
 }
 
 /// Hash a folder-filter payload into a stable worker cache key.
@@ -112,4 +125,64 @@ fn hash_value<T: Hash + ?Sized>(value: &T) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     value.hash(&mut hasher);
     hasher.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sample_sources::SourceId;
+    use std::collections::BTreeSet;
+    use std::path::PathBuf;
+
+    #[test]
+    fn folder_accepts_build_stops_when_generation_turns_stale() {
+        let mut cache = SearchWorkerCache {
+            entries: Some(
+                (0..(super::super::SEARCH_CANCEL_CHECK_INTERVAL + 1))
+                    .map(|index| CompactSearchEntry {
+                        display_label: format!("item-{index}").into_boxed_str(),
+                        relative_path: format!("group/item-{index}.wav").into_boxed_str(),
+                        tag: Rating::NEUTRAL,
+                        last_played_at: None,
+                    })
+                    .collect(),
+            ),
+            ..SearchWorkerCache::default()
+        };
+        let queue = SearchJobQueue::new();
+        queue.send(make_search_job("first"));
+        let stale = queue
+            .take_blocking()
+            .expect("expected queued search job generation");
+        queue.send(make_search_job("second"));
+
+        let accepts = folder_accepts_for_job(
+            &mut cache,
+            &make_search_job("active"),
+            "source-a",
+            1,
+            true,
+            &queue,
+            stale.generation,
+        );
+
+        assert!(accepts.is_none());
+        assert!(cache.folder_accept_cache.is_empty());
+    }
+
+    fn make_search_job(query: &str) -> SearchJob {
+        SearchJob {
+            request_id: 1,
+            source_id: SourceId::new(),
+            source_root: PathBuf::from("root"),
+            query: query.to_string(),
+            filter: TriageFlagFilter::All,
+            rating_filter: BTreeSet::new(),
+            sort: SampleBrowserSort::ListOrder,
+            similar_query: None,
+            folder_selection: Some(BTreeSet::from([PathBuf::from("group")])),
+            folder_negated: None,
+            root_mode: crate::app::state::RootFolderFilterMode::AllDescendants,
+        }
+    }
 }

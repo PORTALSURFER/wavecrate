@@ -168,8 +168,16 @@ mod tests {
             ]),
             ..SearchWorkerCache::default()
         };
-        let first = triage_partitions_for_revision(&mut cache, "source", 7);
-        let second = triage_partitions_for_revision(&mut cache, "source", 7);
+        let queue = SearchJobQueue::new();
+        queue.send(make_search_job("query", "root"));
+        let generation = queue
+            .take_blocking()
+            .expect("expected queued search job generation")
+            .generation;
+        let first = triage_partitions_for_revision(&mut cache, "source", 7, &queue, generation)
+            .expect("expected triage partitions");
+        let second = triage_partitions_for_revision(&mut cache, "source", 7, &queue, generation)
+            .expect("expected triage partitions");
 
         assert_eq!(first.0.as_ref(), &[0]);
         assert_eq!(first.1.as_ref(), &[1]);

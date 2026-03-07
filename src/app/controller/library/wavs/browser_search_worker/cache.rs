@@ -100,11 +100,13 @@ fn reserve_growth<T>(buffer: &mut Vec<T>, target_capacity: usize) -> usize {
 }
 
 /// Cached query score vector keyed by source revision and query text.
+#[derive(Clone)]
 pub(super) struct WorkerQueryScoreCacheEntry {
     pub(super) source_id: String,
     pub(super) revision: u64,
     pub(super) query: String,
     pub(super) scores: Arc<[Option<i64>]>,
+    pub(super) matched_indices: Arc<[usize]>,
 }
 
 /// Cached folder-filter acceptance vector for one source revision + folder filter shape.
