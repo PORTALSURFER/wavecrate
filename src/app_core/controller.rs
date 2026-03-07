@@ -285,6 +285,10 @@ fn apply_browser_native_ui_action(
         NativeUiAction::ToggleFocusedBrowserRowSelection => controller.toggle_focused_selection(),
         NativeUiAction::SelectAllBrowserRows => controller.select_all_browser_rows(),
         NativeUiAction::SetBrowserSearch { query } => controller.set_browser_search(query),
+        NativeUiAction::ToggleBrowserRatingFilter { level } => {
+            controller.focus_browser_list();
+            controller.set_browser_rating_filter(level, true);
+        }
         NativeUiAction::StartBrowserRename => controller.start_browser_rename(),
         NativeUiAction::ConfirmBrowserRename => controller.apply_pending_browser_rename(),
         NativeUiAction::CancelBrowserRename => controller.cancel_browser_rename(),

@@ -22,6 +22,7 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
     let selected_visible_row = controller.ui.browser.selected_visible;
     let selected_path_count = controller.ui.browser.selected_paths.len();
     let search_query = controller.ui.browser.search_query.clone();
+    let active_rating_filters = browser_rating_filter_flags(&controller.ui.browser.rating_filter);
     let search_placeholder = Some(browser_search_placeholder(
         controller.ui.browser.search_focus_requested,
     ));
@@ -41,6 +42,7 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         selected_visible_row,
         selected_path_count,
         search_query,
+        active_rating_filters,
         search_placeholder,
         busy,
         sort_label,
@@ -49,6 +51,15 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         anchor_visible_row,
         rows: Vec::new(),
     }
+}
+
+/// Project active browser rating-filter levels into a fixed `-3..=3` chip-state array.
+fn browser_rating_filter_flags(rating_filter: &std::collections::BTreeSet<i8>) -> [bool; 7] {
+    let mut flags = [false; 7];
+    for (index, level) in (-3..=3).enumerate() {
+        flags[index] = rating_filter.contains(&level);
+    }
+    flags
 }
 
 /// Project browser row content for the current visible window.

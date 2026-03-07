@@ -41,6 +41,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
     enum Expected {
         BrowserSearch(&'static str),
         BrowserSearchFocused(bool),
+        BrowserRatingFilter(Vec<i8>),
         MapTab(SampleBrowserTab),
         LoopEnabled(bool),
         OptionsPanelOpen(bool),
@@ -68,6 +69,11 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
             label: "browser blur group",
             action: NativeUiAction::BlurBrowserSearch,
             expected: Expected::BrowserSearchFocused(false),
+        },
+        Case {
+            label: "browser rating filter group",
+            action: NativeUiAction::ToggleBrowserRatingFilter { level: 3 },
+            expected: Expected::BrowserRatingFilter(vec![3]),
         },
         Case {
             label: "map group",
@@ -126,6 +132,20 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
             Expected::BrowserSearchFocused(expected) => {
                 assert_eq!(
                     controller.ui.browser.search_focus_requested, expected,
+                    "{}",
+                    case.label
+                );
+            }
+            Expected::BrowserRatingFilter(expected) => {
+                assert_eq!(
+                    controller
+                        .ui
+                        .browser
+                        .rating_filter
+                        .iter()
+                        .copied()
+                        .collect::<Vec<_>>(),
+                    expected,
                     "{}",
                     case.label
                 );

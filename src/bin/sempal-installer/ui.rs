@@ -321,6 +321,7 @@ impl InstallerNativeBridge {
             },
             selected_path_count: 0,
             search_query: step_label(self.step).to_string(),
+            active_rating_filters: [false; 7],
             search_placeholder: Some(String::from("Use top action buttons")),
             busy: matches!(self.step, InstallStep::Installing),
             sort_label: Some(String::from("installer")),

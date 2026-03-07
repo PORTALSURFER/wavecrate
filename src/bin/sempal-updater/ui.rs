@@ -385,6 +385,7 @@ impl UpdateNativeBridge {
             } else {
                 String::from("release list")
             },
+            active_rating_filters: [false; 7],
             search_placeholder: Some(String::from("Arrows + enter to select release")),
             busy: matches!(self.release_state, ReleaseState::Loading)
                 || matches!(self.status, UiStatus::Updating),
