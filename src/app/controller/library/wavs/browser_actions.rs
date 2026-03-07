@@ -7,9 +7,57 @@ use std::path::Path;
 impl AppController {
     /// Bump selected-path revision and invalidate marker cache after selection-path edits.
     pub(crate) fn mark_browser_selected_paths_changed(&mut self) {
+        self.sync_browser_selected_indices_from_paths();
         self.ui.browser.selected_paths_revision =
             self.ui.browser.selected_paths_revision.wrapping_add(1);
         self.ui.browser.marker_cache = None;
+    }
+
+    /// Rebuild selected absolute indices from the current compatibility path list.
+    pub(crate) fn sync_browser_selected_indices_from_paths(&mut self) {
+        let selected_paths = self.ui.browser.selected_paths.clone();
+        let mut selected_indices = Vec::with_capacity(selected_paths.len());
+        for path in &selected_paths {
+            let Some(entry_index) = self.wav_index_for_path(path) else {
+                continue;
+            };
+            if !selected_indices.contains(&entry_index) {
+                selected_indices.push(entry_index);
+            }
+        }
+        self.ui.browser.selected_indices = selected_indices;
+    }
+
+    /// Rebuild selected relative paths from the current primary absolute-index list.
+    pub(crate) fn sync_browser_selected_paths_from_indices(&mut self) {
+        let selected_indices = self.ui.browser.selected_indices.clone();
+        let mut selected_paths = Vec::with_capacity(selected_indices.len());
+        for entry_index in selected_indices {
+            let Some(path) = self
+                .wav_entry(entry_index)
+                .map(|entry| entry.relative_path.clone())
+            else {
+                continue;
+            };
+            if !selected_paths.iter().any(|candidate| candidate == &path) {
+                selected_paths.push(path);
+            }
+        }
+        self.ui.browser.selected_paths = selected_paths;
+    }
+
+    /// Replace browser multi-selection with an ordered set of absolute entry indices.
+    pub(crate) fn set_browser_selected_indices(&mut self, indices: Vec<usize>) {
+        self.ui.browser.selected_indices = indices;
+        self.sync_browser_selected_paths_from_indices();
+        self.ui.browser.selected_paths_revision =
+            self.ui.browser.selected_paths_revision.wrapping_add(1);
+        self.ui.browser.marker_cache = None;
+    }
+
+    /// Clear browser multi-selection while keeping focused-row state intact.
+    pub(crate) fn clear_browser_selected_indices(&mut self) {
+        self.set_browser_selected_indices(Vec::new());
     }
 
     /// Move browser column selection to the requested triage-column index.
@@ -114,35 +162,24 @@ impl AppController {
         self.browser_visible_row_for_entry(entry_index)
     }
 
-    fn set_single_browser_selection(&mut self, path: &Path) {
-        if self.ui.browser.selected_paths.len() == 1
-            && self
-                .ui
-                .browser
-                .selected_paths
-                .first()
-                .is_some_and(|selected| selected == path)
-        {
+    fn set_single_browser_selection(&mut self, entry_index: usize) {
+        if self.ui.browser.selected_indices.as_slice() == [entry_index] {
             return;
         }
-        self.ui.browser.selected_paths.clear();
-        self.ui.browser.selected_paths.push(path.to_path_buf());
-        self.mark_browser_selected_paths_changed();
+        self.set_browser_selected_indices(vec![entry_index]);
     }
 
-    fn toggle_browser_selection(&mut self, path: &Path) {
-        if let Some(pos) = self
-            .ui
-            .browser
-            .selected_paths
+    fn toggle_browser_selection(&mut self, entry_index: usize) {
+        let mut next_indices = self.ui.browser.selected_indices.clone();
+        if let Some(pos) = next_indices
             .iter()
-            .position(|p| p == path)
+            .position(|selected| *selected == entry_index)
         {
-            self.ui.browser.selected_paths.remove(pos);
+            next_indices.remove(pos);
         } else {
-            self.ui.browser.selected_paths.push(path.to_path_buf());
+            next_indices.push(entry_index);
         }
-        self.mark_browser_selected_paths_changed();
+        self.set_browser_selected_indices(next_indices);
     }
 
     fn extend_browser_selection_to(&mut self, target_visible: usize, additive: bool) {
@@ -160,23 +197,23 @@ impl AppController {
             .min(max_row);
         let start = anchor.min(target_visible);
         let end = anchor.max(target_visible);
-        let mut selection_changed = false;
+        let mut next_indices = if additive {
+            self.ui.browser.selected_indices.clone()
+        } else {
+            Vec::new()
+        };
         if !additive {
-            if !self.ui.browser.selected_paths.is_empty() {
-                selection_changed = true;
-            }
-            self.ui.browser.selected_paths.clear();
+            next_indices.clear();
         }
         for row in start..=end {
-            if let Some(path) = self.browser_path_for_visible(row)
-                && !self.ui.browser.selected_paths.iter().any(|p| p == &path)
+            if let Some(entry_index) = self.visible_browser_index(row)
+                && !next_indices.contains(&entry_index)
             {
-                self.ui.browser.selected_paths.push(path);
-                selection_changed = true;
+                next_indices.push(entry_index);
             }
         }
-        if selection_changed {
-            self.mark_browser_selected_paths_changed();
+        if next_indices != self.ui.browser.selected_indices {
+            self.set_browser_selected_indices(next_indices);
         }
         self.ui.browser.selection_anchor_visible = Some(anchor);
     }
@@ -219,7 +256,8 @@ impl AppController {
         self.focus_browser_context();
         self.ui.browser.autoscroll = true;
         self.ui.browser.selection_anchor_visible = Some(visible_row);
-        self.ui.browser.last_focused_path = Some(path.to_path_buf());
+        self.ui.browser.last_focused_index = Some(entry_index);
+        self.ui.browser.last_focused_path = Some(path);
         self.focus_wav_by_index_preview_with_rebuild(entry_index, false);
         self.refresh_browser_selection_markers();
     }
@@ -229,12 +267,24 @@ impl AppController {
     /// Returns `true` when a focused row was committed, or `false` when no row
     /// is focused in the current browser projection.
     pub fn commit_focused_browser_row(&mut self) -> bool {
-        let Some(path) = self.focused_browser_path() else {
+        let Some(entry_index) = self
+            .ui
+            .browser
+            .selected_visible
+            .and_then(|visible_row| self.visible_browser_index(visible_row))
+            .or(self.ui.browser.last_focused_index)
+        else {
+            return false;
+        };
+        let Some(path) = self
+            .wav_entry(entry_index)
+            .map(|entry| entry.relative_path.clone())
+        else {
             return false;
         };
         self.focus_browser_context();
         self.ui.browser.autoscroll = true;
-        if let Some(row) = self.visible_row_for_path(&path) {
+        if let Some(row) = self.browser_visible_row_for_entry(entry_index) {
             self.ui.browser.selection_anchor_visible = Some(row);
         }
         self.select_wav_by_path_with_rebuild(&path, false);
@@ -321,10 +371,10 @@ impl AppController {
         let mut rows: Vec<usize> = self
             .ui
             .browser
-            .selected_paths
+            .selected_indices
             .clone()
             .iter()
-            .filter_map(|path| self.visible_row_for_path(path))
+            .filter_map(|entry_index| self.browser_visible_row_for_entry(*entry_index))
             .collect();
         if let Some(row) = self.focused_browser_row() {
             if rows.is_empty() {
@@ -389,7 +439,18 @@ impl AppController {
 
     /// Toggle the focused sample's inclusion in the browser multi-selection set.
     pub fn toggle_focused_selection(&mut self) {
-        let Some(path) = self.sample_view.wav.selected_wav.clone() else {
+        let selected_wav = self.sample_view.wav.selected_wav.clone();
+        let Some(entry_index) = self
+            .ui
+            .browser
+            .selected_visible
+            .and_then(|row| self.visible_browser_index(row))
+            .or_else(|| {
+                selected_wav
+                    .as_deref()
+                    .and_then(|path| self.wav_index_for_path(path))
+            })
+        else {
             return;
         };
         if let Some(row) = self.ui.browser.selected_visible
@@ -397,17 +458,17 @@ impl AppController {
         {
             self.ui.browser.selection_anchor_visible = Some(row);
         }
-        self.toggle_browser_selection(&path);
+        self.toggle_browser_selection(entry_index);
         self.rebuild_browser_lists();
     }
 
     /// Clear the multi-selection set.
     pub fn clear_browser_selection(&mut self) {
-        if self.ui.browser.selected_paths.is_empty() {
+        if self.ui.browser.selected_indices.is_empty() && self.ui.browser.selected_paths.is_empty()
+        {
             return;
         }
-        self.ui.browser.selected_paths.clear();
-        self.mark_browser_selected_paths_changed();
+        self.clear_browser_selected_indices();
         self.ui.browser.selection_anchor_visible = None;
         self.rebuild_browser_lists();
     }
@@ -419,37 +480,27 @@ impl AppController {
         }
         self.focus_browser_context();
         self.ui.browser.autoscroll = false;
-        let previous_paths = self.ui.browser.selected_paths.clone();
-        self.ui.browser.selected_paths.clear();
-        self.ui
-            .browser
-            .selected_paths
-            .reserve(self.ui.browser.visible.len());
+        let previous_indices = self.ui.browser.selected_indices.clone();
+        let mut next_indices = Vec::with_capacity(self.ui.browser.visible.len());
         let visible = self.ui.browser.visible.clone();
         match visible {
             crate::app::state::VisibleRows::All { total } => {
                 for index in 0..total {
-                    let path = self
-                        .wav_entry(index)
-                        .map(|entry| entry.relative_path.clone());
-                    if let Some(path) = path {
-                        self.ui.browser.selected_paths.push(path);
+                    if self.wav_entry(index).is_some() {
+                        next_indices.push(index);
                     }
                 }
             }
             crate::app::state::VisibleRows::List(rows) => {
                 for index in rows.iter().copied() {
-                    let path = self
-                        .wav_entry(index)
-                        .map(|entry| entry.relative_path.clone());
-                    if let Some(path) = path {
-                        self.ui.browser.selected_paths.push(path);
+                    if self.wav_entry(index).is_some() {
+                        next_indices.push(index);
                     }
                 }
             }
         }
-        if self.ui.browser.selected_paths != previous_paths {
-            self.mark_browser_selected_paths_changed();
+        if next_indices != previous_indices {
+            self.set_browser_selected_indices(next_indices);
         }
         let anchor = self
             .ui
@@ -491,6 +542,7 @@ impl AppController {
         if self.ui.browser.selected.is_none()
             && self.ui.browser.selected_visible.is_none()
             && self.ui.browser.selection_anchor_visible.is_none()
+            && self.ui.browser.selected_indices.is_empty()
             && self.ui.browser.selected_paths.is_empty()
         {
             return;
@@ -499,10 +551,10 @@ impl AppController {
         self.ui.browser.selected = None;
         self.ui.browser.selected_visible = None;
         self.ui.browser.selection_anchor_visible = None;
-        let had_selected_paths = !self.ui.browser.selected_paths.is_empty();
-        self.ui.browser.selected_paths.clear();
-        if had_selected_paths {
-            self.mark_browser_selected_paths_changed();
+        if !self.ui.browser.selected_indices.is_empty()
+            || !self.ui.browser.selected_paths.is_empty()
+        {
+            self.clear_browser_selected_indices();
         }
         self.rebuild_browser_lists();
     }
@@ -520,18 +572,12 @@ impl AppController {
         let Some(entry_index) = self.visible_browser_index(visible_row) else {
             return;
         };
-        let Some(path) = self
-            .wav_entry(entry_index)
-            .map(|entry| entry.relative_path.clone())
-        else {
-            return;
-        };
         self.focus_browser_context();
         self.ui.browser.autoscroll = true;
         match action {
             SelectionAction::Replace => {
                 self.ui.browser.selection_anchor_visible = Some(visible_row);
-                self.set_single_browser_selection(&path);
+                self.set_single_browser_selection(entry_index);
             }
             SelectionAction::Toggle => {
                 let anchor = self
@@ -541,19 +587,15 @@ impl AppController {
                     .or(self.ui.browser.selected_visible)
                     .unwrap_or(visible_row);
                 self.ui.browser.selection_anchor_visible = Some(anchor);
-                if self.ui.browser.selected_paths.is_empty()
+                if self.ui.browser.selected_indices.is_empty()
                     && anchor != visible_row
-                    && let Some(anchor_path) = self.browser_path_for_visible(anchor)
-                    && !self
-                        .ui
-                        .browser
-                        .selected_paths
-                        .iter()
-                        .any(|p| p == &anchor_path)
+                    && let Some(anchor_index) = self.visible_browser_index(anchor)
+                    && !self.ui.browser.selected_indices.contains(&anchor_index)
                 {
-                    self.ui.browser.selected_paths.push(anchor_path);
+                    self.ui.browser.selected_indices.push(anchor_index);
+                    self.sync_browser_selected_paths_from_indices();
                 }
-                self.toggle_browser_selection(&path);
+                self.toggle_browser_selection(entry_index);
             }
             SelectionAction::Extend { additive } => {
                 self.extend_browser_selection_to(visible_row, additive);
@@ -569,10 +611,10 @@ impl AppController {
 
     /// Return the set of action rows for a primary row (multi-select aware).
     pub fn action_rows_from_primary(&mut self, primary_visible_row: usize) -> Vec<usize> {
-        let selected_paths = self.ui.browser.selected_paths.clone();
-        let mut rows: Vec<usize> = selected_paths
+        let selected_indices = self.ui.browser.selected_indices.clone();
+        let mut rows: Vec<usize> = selected_indices
             .iter()
-            .filter_map(|path| self.visible_row_for_path(path))
+            .filter_map(|entry_index| self.browser_visible_row_for_entry(*entry_index))
             .collect();
         if !rows.contains(&primary_visible_row) {
             rows.push(primary_visible_row);

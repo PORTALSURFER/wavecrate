@@ -279,8 +279,7 @@ fn action_rows_include_selection_and_primary() {
         sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
         sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
     ]);
-    controller.ui.browser.selected_paths =
-        vec![PathBuf::from("one.wav"), PathBuf::from("three.wav")];
+    controller.set_browser_selected_indices(vec![0, 2]);
 
     let rows = controller.action_rows_from_primary(1);
 

@@ -41,12 +41,16 @@ pub struct SampleBrowserState {
     pub visible_row_by_absolute: Vec<Option<usize>>,
     /// Cached triage-column lookup by absolute wav-entry index.
     pub triage_index_by_absolute: Vec<Option<SampleBrowserIndex>>,
+    /// Absolute indices currently included in the multi-selection set.
+    pub selected_indices: Vec<usize>,
     /// Paths currently included in the multi-selection set.
     pub selected_paths: Vec<PathBuf>,
     /// Monotonic revision bumped whenever `selected_paths` changes.
     pub selected_paths_revision: u64,
     /// Last marker-input snapshot used to short-circuit redundant marker recomputes.
     pub marker_cache: Option<BrowserMarkerCacheState>,
+    /// Last focused browser item to restore focus after context changes.
+    pub last_focused_index: Option<usize>,
     /// Last focused browser item to restore focus after context changes.
     pub last_focused_path: Option<PathBuf>,
     /// Whether autoscroll is enabled for selection changes.
@@ -104,9 +108,11 @@ impl Default for SampleBrowserState {
             render_window_start: 0,
             visible_row_by_absolute: Vec::new(),
             triage_index_by_absolute: Vec::new(),
+            selected_indices: Vec::new(),
             selected_paths: Vec::new(),
             selected_paths_revision: 0,
             marker_cache: None,
+            last_focused_index: None,
             last_focused_path: None,
             autoscroll: false,
             filter: TriageFlagFilter::All,
@@ -139,8 +145,8 @@ pub struct BrowserMarkerCacheState {
     pub selected_path_hash: Option<u64>,
     /// Stable hash of the loaded wav path when present.
     pub loaded_path_hash: Option<u64>,
-    /// Stable hash of the multi-selection set.
-    pub selected_paths_hash: u64,
+    /// Stable hash of the multi-selection set by absolute entry index.
+    pub selected_indices_hash: u64,
     /// Current range-selection anchor in visible-row coordinates.
     pub selection_anchor_visible: Option<usize>,
 }
@@ -156,7 +162,7 @@ impl BrowserMarkerCacheState {
             visible_rows_revision: browser.visible_rows_revision,
             selected_path_hash: selected_path.map(hash_path),
             loaded_path_hash: loaded_path.map(hash_path),
-            selected_paths_hash: hash_paths(&browser.selected_paths),
+            selected_indices_hash: hash_indices(&browser.selected_indices),
             selection_anchor_visible: browser.selection_anchor_visible,
         }
     }
@@ -169,10 +175,10 @@ fn hash_path(path: &std::path::Path) -> u64 {
     hasher.finish()
 }
 
-/// Hash a multi-selection path list while preserving insertion order.
-fn hash_paths(paths: &[PathBuf]) -> u64 {
+/// Hash a multi-selection index list while preserving insertion order.
+fn hash_indices(indices: &[usize]) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    paths.hash(&mut hasher);
+    indices.hash(&mut hasher);
     hasher.finish()
 }
 

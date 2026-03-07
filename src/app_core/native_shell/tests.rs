@@ -797,11 +797,7 @@ fn selected_path_lookup_refreshes_for_same_len_path_changes() {
         },
     ]);
     controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("first.wav")];
-    controller.ui.browser.selected_paths_revision = controller
-        .ui
-        .browser
-        .selected_paths_revision
-        .wrapping_add(1);
+    controller.mark_browser_selected_paths_changed();
     refresh_projected_selected_paths_lookup(&mut controller);
     assert!(matches!(
         controller.projected_selected_paths_lookup,
@@ -811,11 +807,7 @@ fn selected_path_lookup_refreshes_for_same_len_path_changes() {
     assert!(!selected_index_is_selected(&controller, 1));
 
     controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("second.wav")];
-    controller.ui.browser.selected_paths_revision = controller
-        .ui
-        .browser
-        .selected_paths_revision
-        .wrapping_add(1);
+    controller.mark_browser_selected_paths_changed();
     refresh_projected_selected_paths_lookup(&mut controller);
     assert!(matches!(
         controller.projected_selected_paths_lookup,

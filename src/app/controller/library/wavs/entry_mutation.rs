@@ -203,9 +203,12 @@ pub(super) fn update_cached_entry(
                 .wav_entries
                 .insert_lookup(new_entry.relative_path.clone(), index);
             updated = true;
-        }
-        if controller.ui.browser.last_focused_path.as_deref() == Some(old_path) {
-            controller.ui.browser.last_focused_path = Some(new_entry.relative_path.clone());
+            if controller.ui.browser.last_focused_index == Some(index)
+                || controller.ui.browser.last_focused_path.as_deref() == Some(old_path)
+            {
+                controller.ui.browser.last_focused_index = Some(index);
+                controller.ui.browser.last_focused_path = Some(new_entry.relative_path.clone());
+            }
         }
     }
     if let Some(cache) = controller.cache.wav.entries.get_mut(&source.id)
@@ -250,7 +253,38 @@ pub(super) fn update_selection_paths(
     new_path: &Path,
 ) {
     if controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
-        if !controller.ui.browser.selected_paths.is_empty() {
+        if !controller.ui.browser.selected_indices.is_empty() {
+            let selected_indices = controller.ui.browser.selected_indices.clone();
+            let mut updated_paths = Vec::with_capacity(selected_indices.len());
+            for entry_index in selected_indices {
+                let Some(path) = controller
+                    .wav_entry(entry_index)
+                    .map(|entry| entry.relative_path.clone())
+                else {
+                    continue;
+                };
+                let mapped_path = if path == old_path {
+                    new_path.to_path_buf()
+                } else {
+                    path
+                };
+                if !updated_paths
+                    .iter()
+                    .any(|candidate| candidate == &mapped_path)
+                {
+                    updated_paths.push(mapped_path);
+                }
+            }
+            if updated_paths != controller.ui.browser.selected_paths {
+                controller.ui.browser.selected_paths = updated_paths;
+                controller.ui.browser.selected_paths_revision = controller
+                    .ui
+                    .browser
+                    .selected_paths_revision
+                    .wrapping_add(1);
+                controller.ui.browser.marker_cache = None;
+            }
+        } else if !controller.ui.browser.selected_paths.is_empty() {
             let mut updated = Vec::with_capacity(controller.ui.browser.selected_paths.len());
             let mut replaced = false;
             for path in controller.ui.browser.selected_paths.iter() {

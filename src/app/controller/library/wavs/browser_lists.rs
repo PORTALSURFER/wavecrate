@@ -91,17 +91,40 @@ impl AppController {
 
     fn prune_browser_selection(&mut self) {
         let previous_paths = self.ui.browser.selected_paths.clone();
-        let selected_paths = self.ui.browser.selected_paths.clone();
-        let mut kept = Vec::new();
-        for path in selected_paths.iter() {
-            if self.wav_index_for_path(path).is_some() {
-                kept.push(path.clone());
-            }
+        let previous_indices = self.ui.browser.selected_indices.clone();
+        self.sync_browser_selected_indices_from_paths();
+        self.sync_browser_selected_paths_from_indices();
+        if self.ui.browser.selected_indices != previous_indices
+            || self.ui.browser.selected_paths != previous_paths
+        {
+            self.ui.browser.selected_paths_revision =
+                self.ui.browser.selected_paths_revision.wrapping_add(1);
+            self.ui.browser.marker_cache = None;
         }
-        self.ui.browser.selected_paths = kept;
-        if self.ui.browser.selected_paths != previous_paths {
-            self.mark_browser_selected_paths_changed();
+
+        let previous_last_focused_index = self.ui.browser.last_focused_index;
+        let previous_last_focused_path = self.ui.browser.last_focused_path.clone();
+        let last_focused_path = self.ui.browser.last_focused_path.clone();
+        let remapped_last_focused_index = last_focused_path
+            .as_deref()
+            .and_then(|path| self.wav_index_for_path(path))
+            .or_else(|| {
+                self.ui
+                    .browser
+                    .last_focused_index
+                    .filter(|entry_index| self.wav_entry(*entry_index).is_some())
+            });
+        self.ui.browser.last_focused_index = remapped_last_focused_index;
+        self.ui.browser.last_focused_path = remapped_last_focused_index.and_then(|entry_index| {
+            self.wav_entry(entry_index)
+                .map(|entry| entry.relative_path.clone())
+        });
+        if self.ui.browser.last_focused_index != previous_last_focused_index
+            || self.ui.browser.last_focused_path != previous_last_focused_path
+        {
+            self.ui.browser.marker_cache = None;
         }
+
         let selected_wav = self.sample_view.wav.selected_wav.clone();
         if let Some(path) = selected_wav
             && self.wav_index_for_path(&path).is_none()

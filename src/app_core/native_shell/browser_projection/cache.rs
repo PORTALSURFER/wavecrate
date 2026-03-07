@@ -28,7 +28,7 @@ pub(in crate::app_core::native_shell) fn refresh_projected_selected_paths_lookup
     controller: &mut AppController,
 ) {
     let selection_revision = controller.ui.browser.selected_paths_revision;
-    if controller.ui.browser.selected_paths.is_empty() {
+    if controller.ui.browser.selected_indices.is_empty() {
         if controller.projected_selected_paths_lookup.is_some()
             || controller.projected_selected_paths_revision != Some(selection_revision)
         {
@@ -41,22 +41,18 @@ pub(in crate::app_core::native_shell) fn refresh_projected_selected_paths_lookup
     {
         return;
     }
-    let lookup = if controller.ui.browser.selected_paths.len() == 1 {
+    let lookup = if controller.ui.browser.selected_indices.len() == 1 {
         controller
             .ui
             .browser
-            .selected_paths
+            .selected_indices
             .first()
-            .cloned()
-            .and_then(|path| controller.wav_index_for_path(path.as_path()))
+            .copied()
             .map(ProjectedSelectedPathsLookup::Single)
     } else {
         let mut selected_index_lookup = vec![false; controller.wav_entries_len()];
-        for selected_path_idx in 0..controller.ui.browser.selected_paths.len() {
-            let selected_path = controller.ui.browser.selected_paths[selected_path_idx].clone();
-            if let Some(absolute_index) = controller.wav_index_for_path(selected_path.as_path())
-                && let Some(selected) = selected_index_lookup.get_mut(absolute_index)
-            {
+        for &absolute_index in &controller.ui.browser.selected_indices {
+            if let Some(selected) = selected_index_lookup.get_mut(absolute_index) {
                 *selected = true;
             }
         }

@@ -22,20 +22,25 @@ impl AppController {
             .browser
             .selected_visible
             .filter(|row| *row < visible_len);
+        let last_focused_index = self.ui.browser.last_focused_index;
         let last_focused_path = self.ui.browser.last_focused_path.clone();
-        let selected_paths = self.ui.browser.selected_paths.clone();
+        let selected_indices = self.ui.browser.selected_indices.clone();
         let selected_wav = self.sample_view.wav.selected_wav.clone();
         let target_row = anchor
             .or(selected)
+            .or_else(|| {
+                last_focused_index
+                    .and_then(|entry_index| self.browser_visible_row_for_entry(entry_index))
+            })
             .or_else(|| {
                 last_focused_path
                     .as_ref()
                     .and_then(|path| self.visible_row_for_path(path))
             })
             .or_else(|| {
-                selected_paths
+                selected_indices
                     .iter()
-                    .find_map(|path| self.visible_row_for_path(path))
+                    .find_map(|entry_index| self.browser_visible_row_for_entry(*entry_index))
             })
             .or_else(|| {
                 selected_wav
