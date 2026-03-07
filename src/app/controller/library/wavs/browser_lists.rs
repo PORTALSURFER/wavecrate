@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::state::{BrowserMarkerCacheState, FocusContext};
+use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
 
 impl AppController {
     pub(crate) fn rebuild_browser_lists(&mut self) {
@@ -45,6 +46,10 @@ impl AppController {
             .or_else(|| loaded_index.and_then(|index| self.browser_visible_row_for_entry(index)));
         self.ui.browser.marker_cache = None;
         let visible_len = self.ui.browser.visible.len();
+        let max_window_start =
+            visible_len.saturating_sub(visible_len.min(MAX_RENDERED_BROWSER_ROWS));
+        self.ui.browser.render_window_start =
+            self.ui.browser.render_window_start.min(max_window_start);
         if let Some(anchor) = self.ui.browser.selection_anchor_visible
             && anchor >= visible_len
         {

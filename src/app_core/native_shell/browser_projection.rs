@@ -92,8 +92,13 @@ pub(crate) fn project_browser_rows_model_into(
     refresh_projected_browser_row_cache(controller);
     refresh_projected_selected_paths_lookup(controller);
     controller.prepare_feature_cache_for_browser();
-    let (window_start, window_len) =
-        browser_render_window(visible_count, selected_visible_row, anchor_visible_row);
+    let (window_start, window_len) = browser_render_window(
+        visible_count,
+        selected_visible_row,
+        anchor_visible_row,
+        controller.ui.browser.render_window_start,
+    );
+    controller.ui.browser.render_window_start = window_start;
     preload_browser_window_bpms(controller, window_start, window_len);
     if rows.capacity() < window_len {
         rows.reserve(window_len.saturating_sub(rows.len()));
@@ -350,10 +355,14 @@ fn browser_search_placeholder(search_focused: bool) -> String {
     }
 }
 
+/// Number of rows kept as a guard band before browser focus nudges the visible window.
+const BROWSER_RENDER_EDGE_MARGIN_ROWS: usize = 4;
+
 pub(super) fn browser_render_window(
     visible_count: usize,
     selected_visible_row: Option<usize>,
     anchor_visible_row: Option<usize>,
+    current_window_start: usize,
 ) -> (usize, usize) {
     if visible_count == 0 {
         return (0, 0);
@@ -366,8 +375,19 @@ pub(super) fn browser_render_window(
         .or(anchor_visible_row)
         .unwrap_or(0)
         .min(visible_count - 1);
-    let half_window = window_len / 2;
     let max_start = visible_count - window_len;
-    let window_start = pivot.saturating_sub(half_window).min(max_start);
+    let edge_margin = BROWSER_RENDER_EDGE_MARGIN_ROWS.min(window_len.saturating_sub(1) / 2);
+    let mut window_start = current_window_start.min(max_start);
+    let window_end = window_start + window_len;
+    let top_guard = window_start + edge_margin;
+    let bottom_guard = window_end.saturating_sub(edge_margin);
+    if pivot < top_guard {
+        window_start = pivot.saturating_sub(edge_margin);
+    } else if pivot >= bottom_guard {
+        window_start = pivot
+            .saturating_add(edge_margin + 1)
+            .saturating_sub(window_len);
+    }
+    window_start = window_start.min(max_start);
     (window_start, window_len)
 }

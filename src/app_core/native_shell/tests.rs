@@ -11,45 +11,69 @@ fn selected_column_defaults_to_middle_column_without_selection() {
 /// Browser render windows should cap to the configured maximum when no focus hints exist.
 #[test]
 fn browser_render_window_limits_to_target_size() {
-    let (start, len) = browser_render_window(500, None, None);
+    let (start, len) = browser_render_window(500, None, None, 0);
     assert_eq!(start, 0);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
 }
 
-/// Browser render windows should center around the selected row when enough rows exist.
+/// Browser render windows should keep the current window stable for interior focus changes.
 #[test]
-fn browser_render_window_centers_on_selected_row() {
-    let (start, len) = browser_render_window(500, Some(250), None);
+fn browser_render_window_keeps_existing_window_for_interior_focus_changes() {
+    let (start, len) = browser_render_window(500, Some(250), None, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
-    assert_eq!(start, 122);
+    assert_eq!(start, 200);
+}
+
+/// Browser render windows should nudge downward when focus enters the bottom guard band.
+#[test]
+fn browser_render_window_scrolls_when_focus_reaches_bottom_guard_band() {
+    let (start, len) = browser_render_window(500, Some(452), None, 200);
+    assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
+    assert_eq!(start, 201);
+}
+
+/// Browser render windows should nudge upward when focus enters the top guard band.
+#[test]
+fn browser_render_window_scrolls_when_focus_reaches_top_guard_band() {
+    let (start, len) = browser_render_window(500, Some(203), None, 200);
+    assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
+    assert_eq!(start, 199);
 }
 
 /// Browser render windows should clamp near the end instead of overrunning visible rows.
 #[test]
 fn browser_render_window_clamps_near_end_of_visible_rows() {
-    let (start, len) = browser_render_window(500, Some(490), None);
+    let (start, len) = browser_render_window(500, Some(490), None, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
-    assert_eq!(start, 244);
+    assert_eq!(start, 239);
 }
 
 /// Browser render windows should still honor the hard row cap for very large datasets.
 #[test]
 fn browser_render_window_limits_large_visible_sets_to_cap() {
-    let (start, len) = browser_render_window(1_200, None, None);
+    let (start, len) = browser_render_window(1_200, None, None, 0);
     assert_eq!(start, 0);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
 }
 
-/// Browser render windows should center normally and clamp correctly at the tail of large datasets.
+/// Browser render windows should keep interior selections stable and still clamp correctly at the tail.
 #[test]
-fn browser_render_window_centers_and_tail_clamps_for_large_visible_sets() {
-    let (center_start, center_len) = browser_render_window(1_200, Some(800), None);
+fn browser_render_window_keeps_stable_window_and_tail_clamps_for_large_visible_sets() {
+    let (center_start, center_len) = browser_render_window(1_200, Some(800), None, 700);
     assert_eq!(center_len, MAX_RENDERED_BROWSER_ROWS);
-    assert_eq!(center_start, 672);
+    assert_eq!(center_start, 700);
 
-    let (tail_start, tail_len) = browser_render_window(1_200, Some(1_190), None);
+    let (tail_start, tail_len) = browser_render_window(1_200, Some(1_190), None, 700);
     assert_eq!(tail_len, MAX_RENDERED_BROWSER_ROWS);
-    assert_eq!(tail_start, 944);
+    assert_eq!(tail_start, 939);
+}
+
+/// Browser render windows should still clamp at the hard tail when the focus reaches the last row.
+#[test]
+fn browser_render_window_clamps_at_tail_for_last_visible_row() {
+    let (start, len) = browser_render_window(1_200, Some(1_199), None, 700);
+    assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
+    assert_eq!(start, 944);
 }
 
 /// Rating buckets should map deterministically onto browser columns.

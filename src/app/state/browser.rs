@@ -32,6 +32,11 @@ pub struct SampleBrowserState {
     pub loaded_visible: Option<usize>,
     /// Visible row anchor used for range selection (shift + click/arrow).
     pub selection_anchor_visible: Option<usize>,
+    /// First visible-row index currently projected into the native browser window.
+    ///
+    /// Native-shell row virtualization uses this to keep the current list window
+    /// stable and only scroll when focus approaches the top or bottom edge.
+    pub render_window_start: usize,
     /// Cached visible-row lookup by absolute wav-entry index.
     pub visible_row_by_absolute: Vec<Option<usize>>,
     /// Cached triage-column lookup by absolute wav-entry index.
@@ -96,6 +101,7 @@ impl Default for SampleBrowserState {
             selected_visible: None,
             loaded_visible: None,
             selection_anchor_visible: None,
+            render_window_start: 0,
             visible_row_by_absolute: Vec::new(),
             triage_index_by_absolute: Vec::new(),
             selected_paths: Vec::new(),
