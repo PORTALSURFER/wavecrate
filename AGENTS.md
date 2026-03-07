@@ -57,10 +57,10 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: runtime responsiveness/performance redesign (Xilem-inspired scoped invalidation + cache reuse)
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
-- Current status: performance Phase 2 is active; `tmp/perf_plan.md` items 1-5 are complete, and item 6 is the next ordered implementation target.
+- Current status: performance Phase 2 is active; `tmp/perf_plan.md` items 1-6 are complete, and item 7 is the next ordered implementation target.
 
 ## Immediate Next Actions
-1. Execute `tmp/perf_plan.md` item 6 next and continue strictly in order.
+1. Execute `tmp/perf_plan.md` item 7 next and continue strictly in order.
 2. Keep handoff docs synchronized on milestone commits (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
 3. Use `docs/plans/active/runtime_performance_exec_plan.md` plus `tmp/perf_plan.md` as the active perf lane.
 

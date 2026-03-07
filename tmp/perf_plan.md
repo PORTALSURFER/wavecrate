@@ -167,7 +167,7 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
-- [ ] 6. Retain browser row metadata by absolute index and diff visible-window preloads
+- [x] 6. Retain browser row metadata by absolute index and diff visible-window preloads
   - ROI: High
   - Effort: M
   - Expected impact: wheel/hover latency, memory churn, CPU
@@ -187,6 +187,16 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - Browser projection cache tests
     - `bash scripts/run_perf_guard.sh` focusing on `hover_latency`, `wheel_latency`
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-07, commit `307b72b9`
+  - Validation status:
+    - `cargo fmt --all`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib browser_row_cache_persists_when_visible_revision_changes -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib browser_row_cache_clears_when_selected_source_changes -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib browser_bpm_preload_ranges_only_include_window_delta -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib cached_browser_row_rebuilds_when_stored_tag_column_is_stale -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib browser_rows_projection_reuses_provided_buffer_capacity -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
 - [ ] 7. Rework retained waveform image upload caching to avoid clone-before-lookup churn
   - ROI: High
