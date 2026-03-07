@@ -347,13 +347,17 @@ impl SempalNativeBridge {
 
     /// Apply browser-focus movement immediately so wheel/arrow nudges are visible
     /// in the same frame instead of waiting for a pending-input flush boundary.
+    ///
+    /// Browser focus movement intentionally stays preview-only here so held
+    /// navigation can move through large lists without queueing waveform/audio
+    /// load work for every intermediate row.
     fn apply_browser_focus_delta_immediately(&mut self, delta: i8) {
         if delta == 0 {
             return;
         }
         let action = NativeUiAction::MoveBrowserFocus { delta };
         let before_key = self.projection_key_snapshot();
-        self.controller.focus_browser_delta_and_play_action(delta);
+        self.controller.focus_browser_delta_action(delta);
         self.invalidate_projection_key_snapshot();
         let after_key = self.projection_key_snapshot();
         if before_key != after_key {
