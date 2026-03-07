@@ -57,13 +57,12 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: runtime responsiveness/performance redesign (Xilem-inspired scoped invalidation + cache reuse)
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
-- Current status: cleanup Phase 2 is active; ROI item 3 in `tmp/cleanup_plan.md` was completed on 2026-03-06 UTC in commit `4a4c1098`, and item 4 is the next ordered cleanup candidate.
+- Current status: performance audit Phase 1 is active; the ROI-ranked execution backlog lives in `tmp/perf_plan.md` and is awaiting explicit Phase 2 approval.
 
 ## Immediate Next Actions
-1. Continue `tmp/cleanup_plan.md` item 4 (`src/app/controller/library/wavs/browser_actions.rs`) if the cleanup lane stays active.
+1. If approved, execute `tmp/perf_plan.md` strictly in order starting at item 1.
 2. Keep handoff docs synchronized on milestone commits (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
-3. Use `docs/plans/active/cleanup_architecture_note.md` guardrails during cleanup implementation.
-4. Resume `tmp/perf_plan.md` only after the active cleanup request is complete or redirected.
+3. Use `docs/plans/active/runtime_performance_exec_plan.md` plus `tmp/perf_plan.md` as the active perf lane.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
@@ -71,7 +70,7 @@ Write for future selves: be precise, kind, and clear.
 - `docs/plans/index.md`: active/completed plan map
 - `tmp/cleanup_plan.md`: ROI-ranked cleanup backlog + execution checklist (last refresh: 2026-03-04, 12 pending items)
 - `docs/plans/active/cleanup_architecture_note.md`: cleanup boundary/ownership guidance
-- `tmp/perf_plan.md`: ROI-ranked runtime performance backlog + execution checklist for the current perf pass
+- `tmp/perf_plan.md`: current ROI-ranked runtime performance audit backlog and execution order
 
 ## Non-Negotiable Workflow Rules
 - During the tight edit loop: `bash scripts/devcheck.sh`

@@ -1,201 +1,252 @@
-# Performance Cleanup Plan
+# Runtime Performance Audit Backlog
 
-Generated: 2026-03-01 (UTC)
-Status: Phase 2 execution in progress; items 1-6 complete.
+Generated: 2026-03-07 (UTC)
+Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequential implementation.
+
+## Validation Baseline
+
+- `target/perf/bench.json`
+  - `gui.interactive_projection.p95_us = 7530`
+  - `gui.interaction_stage_attribution.interactive_projection.pull_stage.p95_us = 5676`
+  - `gui.hover_latency.p95_us = 2393`
+  - `gui.wheel_latency.p95_us = 2508`
+  - `gui.interaction_segment_attribution.browser_rows_window.p95_us = 2045`
+  - `gui.browser_query_churn_latency.p95_us = 49`
+  - `gui.browser_focus_preview_latency.p95_us = 150`
+  - `gui.browser_focus_commit_latency.p95_us = 38`
+- Canonical commands
+  - tight loop: `bash scripts/devcheck.sh`
+  - quick validation: `bash scripts/ci_quick.sh`
+  - full parity/perf guard: `bash scripts/ci_local.sh`, `bash scripts/run_perf_guard.sh`
 
 ## ROI-Ranked Backlog
 
-- [x] 1. Make browser focus navigation index-first to remove path normalization and lookup churn on hover/wheel
+- [ ] 1. Add a bridge pull fast path for UI-local interactions
   - ROI: Very High
   - Effort: M
   - Expected impact: p95 interaction latency, frame time, CPU
   - Evidence:
-    - `target/perf/bench.json:111` (`hover_latency.p95_us = 3086`)
-    - `target/perf/bench.json:133` (`wheel_latency.p95_us = 2094`)
-    - `src/app/controller/library/wavs/browser_actions.rs:209` (`focus_browser_row_only` clones path + preview selection pipeline)
-    - `src/app/controller/library/wavs/selection_ops.rs:66` (`select_wav_path_with_options` re-resolves index from path)
-    - `src/app/controller/library/wavs.rs:239` (`wav_index_for_path` normalizes path strings with `to_string_lossy().replace`)
+    - `target/perf/bench.json` shows `interactive_projection.p95_us = 7530`, with `pull_stage.p95_us = 5676`
+    - `src/app_core/native_bridge.rs:505` `pull_model_arc_snapshot`
+    - `src/app_core/native_bridge.rs:514` `prepare_native_frame(false)`
+    - `src/app_core/native_bridge.rs:518` `flush_derived_updates_before_pull(false)`
+    - `src/app_core/native_bridge/projection_cache.rs:264` `DerivedProjectionState::from_controller_with_app_key`
   - Recommended change:
-    - Pass absolute entry index through focus/preview/commit paths and avoid repeated `PathBuf` cloning + path-hash lookup in high-frequency navigation.
-    - Keep path materialization at boundaries that actually require filesystem/DB keys.
+    - Add a true local-only pull path for actions that only mutate native/runtime-local state.
+    - Skip controller prep and derived flush when no app/model-backed sources changed.
+    - Preserve the current full pull path for actions that can affect data-backed projection state.
   - Risk/tradeoffs:
-    - Medium: selection/focus behavior is coupled across browser, playback queueing, and marker refresh logic.
+    - Medium: incorrect classification could leave app-backed visuals stale.
   - Visual impact: None
   - Validation plan:
-    - Targeted browser focus/selection tests (`browser_actions`, `browser_selection`)
-    - `bash scripts/run_perf_guard.sh` (focus `hover_latency`, `wheel_latency`)
+    - Native bridge projection-cache tests for local-only vs full-pull action classes
+    - `bash scripts/run_perf_guard.sh` focusing on `interactive_projection`, `hover_latency`, `wheel_latency`
     - `bash scripts/ci_local.sh`
-  - Completed: 2026-03-01, commit `765e0697`
 
-- [x] 2. Move waveform cursor/playhead dynamics out of static projection keys so idle motion stops forcing model-pull rebuilds
+- [ ] 2. Narrow browser projection keys and stop chrome-only changes from rebuilding the row window
   - ROI: Very High
-  - Effort: L
-  - Expected impact: frame time, p95 interaction latency, CPU
-  - Evidence:
-    - `target/perf/bench.json:1567` (`idle_cursor_motion_latency` shows `dirty_mask_static_rebuild_count = 24`, `bridge_model_pull_rebuild_count = 24`)
-    - `src/app_core/native_bridge/projection_cache.rs:183` (`WaveformProjectionCacheKey` includes `waveform_cursor_milli`)
-    - `src/app_core/native_bridge/projection_cache.rs:184` (`WaveformProjectionCacheKey` includes `waveform_playhead_milli`)
-    - `src/app_core/native_bridge/projection_cache.rs:669` (`build_projection_cache_key` includes cursor)
-    - `src/app_core/native_bridge/projection_cache.rs:670` (`build_projection_cache_key` includes playhead)
-  - Recommended change:
-    - Keep cursor/playhead/view-edge dynamics in motion-model-only keys and remove them from static waveform segment/app cache keys.
-    - Drive redraw through overlay-motion invalidation only when static waveform image/chrome are unchanged.
-  - Risk/tradeoffs:
-    - Medium-High: incorrect partitioning can produce stale static overlays or desynced cursor/playhead visuals.
-  - Visual impact: Minimal
-  - Validation plan:
-    - Native bridge projection-key and dirty-segment tests
-    - `bash scripts/run_perf_guard.sh` (focus `idle_cursor_motion_latency`, `waveform_interaction_latency`)
-    - Manual cursor/playhead correctness checks during idle + playback
-    - `bash scripts/ci_local.sh`
-  - Completed: 2026-03-01, commit `8b98c5e0`
-
-- [x] 3. Defer transient detection from the critical audio-load-to-play path
-  - ROI: High
   - Effort: M
-  - Expected impact: interaction latency (load/play responsiveness), CPU
+  - Expected impact: p95 interaction latency, frame time, CPU
   - Evidence:
-    - `src/app/controller/playback/audio_loader.rs:451` (`detect_transients` runs before result delivery)
-    - `src/app/controller/playback/audio_loader.rs:476` (result emitted only after transient computation)
-    - User-facing responsiveness priority conflicts with blocking transient extraction in the same worker step.
+    - `target/perf/bench.json` shows `browser_rows_window.p95_us = 2045`
+    - `src/app_core/native_bridge/projection_cache/segment_materialize.rs:213` rebuilds rows when `browser_frame_changed || browser_rows_changed`
+    - `src/app_core/native_bridge/projection_cache/projection_key.rs:91-111` frame key includes search revision, busy state, sort, tab, and loaded wav revision
+    - `src/app_core/native_bridge/projection_cache/projection_key.rs:114-126` row-window key is still coupled to broad browser state
   - Recommended change:
-    - Send decoded audio outcome immediately for playback/waveform image; compute transients asynchronously and apply later if sample request id still matches.
-    - Keep transient UI features functional with staged availability.
+    - Decouple browser header/chrome materialization from browser row-window materialization.
+    - Make row projection depend only on visible-row content, window position, and row-level selection/focus markers.
+    - Avoid rebuilding row vectors when only search field text, busy state, sort label, or other chrome changes.
   - Risk/tradeoffs:
-    - Medium: transient markers may appear slightly after audio starts; requires stale-result gating.
-  - Visual impact: Minimal
-  - Validation plan:
-    - Loader unit tests for staged-result ordering + stale cancellation
-    - Manual quick-selection playback responsiveness check
-    - `bash scripts/ci_local.sh`
-  - Completed: 2026-03-01, commit `acf3d160`
-
-- [x] 4. Make audio file IO stale-aware during read to reduce wasted work under rapid selection churn
-  - ROI: High
-  - Effort: M
-  - Expected impact: p95 interaction latency, IO pressure, CPU
-  - Evidence:
-    - `src/app/controller/playback/audio_loader.rs:345` (`fs::read` loads entire file at once)
-    - `src/app/controller/playback/audio_loader.rs:354` (stale check occurs only after full read)
-    - Rapid focus/arrow-key navigation creates stale load supersession scenarios.
-  - Recommended change:
-    - Replace monolithic `fs::read` with chunked read path that checks staleness periodically and aborts early.
-    - Preserve sanitization/metadata error semantics.
-  - Risk/tradeoffs:
-    - Medium: more complex IO path and error handling; must preserve path safety guarantees.
+    - Medium: stale marker or header state if key partitioning is wrong.
   - Visual impact: None
   - Validation plan:
-    - Audio-loader stale-drop tests expanded for mid-read cancel
-    - Manual high-frequency sample stepping test
-    - `bash scripts/ci_local.sh`
-  - Completed: 2026-03-01, commit `d30f9678`
-
-- [x] 5. Eliminate expensive retained-model cloning fallback on projection misses
-  - ROI: High
-  - Effort: L
-  - Expected impact: projection-stage latency, memory churn, CPU
-  - Evidence:
-    - `src/app_core/native_bridge/projection_cache.rs:567`-`571` (`Arc::unwrap_or_clone` on miss path can deep-clone full model when shared)
-    - `target/perf/bench.json:533` (`hover_latency.projection_stage.p95_us = 2713`)
-    - `target/perf/bench.json:623` (`wheel_latency.projection_stage.p95_us = 1911`)
-  - Recommended change:
-    - Keep a mutable retained-model working buffer separate from shared snapshot arcs to avoid deep clone fallback on miss.
-    - Publish immutable `Arc` snapshot only at commit points.
-  - Risk/tradeoffs:
-    - Medium-High: ownership model changes across projection cache and runtime pull interfaces.
-  - Visual impact: None
-  - Validation plan:
-    - Projection-cache correctness tests (segment dirtying + hit/miss behavior)
+    - Projection dirty-segment tests for browser frame vs row-window independence
+    - Native-shell row-window regression tests
     - `bash scripts/run_perf_guard.sh`
     - `bash scripts/ci_local.sh`
-  - Completed: 2026-03-01, commit `3cfa8cfe`
 
-- [x] 6. Remove full status-bar formatting from motion model projection hot path
-  - ROI: Medium
-  - Effort: S
-  - Expected impact: frame time, CPU
+- [ ] 3. Replace path-based browser selection/focus with absolute-index identities
+  - ROI: Very High
+  - Effort: L
+  - Expected impact: p95 interaction latency, memory churn, CPU
   - Evidence:
-    - `src/app_core/native_shell.rs:261` (`project_motion_model` calls `project_status_model`)
-    - `src/app_core/native_shell.rs:332` (motion model only consumes `status.right`)
-    - `src/app_core/native_shell.rs:555`-`577` (`project_status_model` builds multi-field formatted strings)
+    - `src/app/controller/library/wavs/browser_actions.rs:117-179` clones/scans `selected_paths` in `set_single_browser_selection`, `toggle_browser_selection`, and `extend_browser_selection_to`
+    - `src/app/controller/library/wavs/browser_actions.rs:231-327` repeatedly converts between visible rows and paths in commit/action flows
+    - `src/app/state/browser.rs:44` stores `selected_paths` and `last_focused_path`
+    - `src/app_core/native_shell/browser_projection/cache.rs:27-58` rebuilds selected-index lookup from `Vec<PathBuf>`
   - Recommended change:
-    - Provide lightweight `status_right_text` helper and remove full status projection from motion path.
+    - Make absolute entry index the primary focus/selection identity in the browser state.
+    - Keep ordered multi-selection as indices or a dense/sparse bitset.
+    - Materialize paths only at I/O boundaries that truly need filesystem keys.
   - Risk/tradeoffs:
-    - Low: behavior-preserving extraction with straightforward test coverage.
+    - High: selection, preview, drag/drop, export, and playback flows all touch this state.
   - Visual impact: None
   - Validation plan:
-    - Motion-model projection tests for status-right parity
+    - Browser selection/focus/commit unit tests
+    - Drag/drop and waveform-to-browser interaction tests
+    - `bash scripts/run_perf_guard.sh` focusing on hover/wheel/focus preview
     - `bash scripts/ci_local.sh`
-  - Completed: 2026-03-01, commit `7ceee172`
 
-- [ ] 7. Cache/carry waveform image upload blobs across draws to reduce per-frame image upload overhead
-  - ROI: Medium
+- [ ] 4. Make browser lookup-map rebuilds incremental or lazy instead of eager O(N) resets
+  - ROI: High
+  - Effort: M
+  - Expected impact: filter/search apply latency, CPU, memory churn
+  - Evidence:
+    - `src/app/controller/library/wavs/browser_lists.rs:74-90` resets browser UI and clears lookup structures eagerly
+    - `src/app/controller/library/wavs/browser_lists.rs:92-104` clones selection vectors in `prune_browser_selection`
+    - `src/app/controller/library/wavs/browser_lists.rs:179-233` clears/resizes `visible_row_by_absolute` and `triage_index_by_absolute` to `wav_entries_len()`
+    - `src/app/controller/library/background_jobs/polling/library_handlers.rs:113` always calls `rebuild_browser_lookup_maps()` on accepted async results
+  - Recommended change:
+    - Move reverse lookup maintenance to incremental result application or a generation-stamped sparse structure.
+    - Rebuild only when a consumer needs the map and only for affected regions.
+    - Compact selection state in place instead of cloning whole vectors during every rebuild.
+  - Risk/tradeoffs:
+    - Medium: lookup correctness affects focus markers, selection anchors, and loaded-row state.
+  - Visual impact: None
+  - Validation plan:
+    - Browser lookup-map and async result-apply tests
+    - `bash scripts/run_perf_guard.sh` focusing on filter/sort/list rebuild scenarios
+    - `bash scripts/ci_local.sh`
+
+- [ ] 5. Reduce whole-dataset search work and stale-query CPU burn
+  - ROI: High
+  - Effort: L
+  - Expected impact: startup-adjacent search responsiveness, CPU, memory churn
+  - Evidence:
+    - `src/app/controller/library/wavs/browser_search.rs:86-181` `ensure_search_scores` fills labels for all entries and allocates `Vec<Option<i64>>` across the entire source
+    - `src/app/controller/library/wavs/browser_search.rs:186-214` `label_for_ref` populates per-source label caches that can be forced eagerly
+    - `src/app/controller/library/wavs/browser_search_worker/pipeline.rs:90-106` cancellation only checks every `64` rows
+    - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs:102` worker stages still scan all cached entries for current queries
+    - `target/perf/bench.json` shows dispatch-only query churn is already cheap (`49us`), so remaining risk is worker-side waste and large-library CPU churn
+  - Recommended change:
+    - Store display labels once with entry/cache state as shared strings.
+    - Reuse previous-query candidate sets or score only filtered candidates instead of rescoring the full source.
+    - Make active worker cancellation more aggressive or time-budgeted so stale jobs abort earlier.
+  - Risk/tradeoffs:
+    - Medium: search result ordering and fuzzy-match parity must stay stable.
+  - Visual impact: None
+  - Validation plan:
+    - Search scoring/cancellation tests
+    - Add targeted end-to-end async query-to-applied-result benchmark coverage
+    - `bash scripts/run_perf_guard.sh`
+    - `bash scripts/ci_local.sh`
+
+- [ ] 6. Retain browser row metadata by absolute index and diff visible-window preloads
+  - ROI: High
+  - Effort: M
+  - Expected impact: wheel/hover latency, memory churn, CPU
+  - Evidence:
+    - `src/app_core/native_shell/browser_projection.rs:103-113` refreshes row caches, selected lookups, and feature cache prep on row-window projection
+    - `src/app_core/native_shell/browser_projection.rs:161-183` builds a `Vec<PathBuf>` just to preload BPMs for the visible window
+    - `src/app_core/native_shell/browser_projection/cache.rs:105-163` clones `relative_path` and rebuilds bucket labels/row labels on cache misses
+    - `src/app_core/native_shell/browser_projection.rs:212` rebuilds row badge text with allocation-heavy composition
+  - Recommended change:
+    - Retain immutable per-entry row metadata keyed by absolute index.
+    - Patch only visible row numbers plus selection/focus flags when the window moves.
+    - Diff BPM/feature preloads by window delta rather than rebuilding the whole visible-path list.
+  - Risk/tradeoffs:
+    - Medium: cache invalidation must track rating/tag/metadata changes precisely.
+  - Visual impact: None
+  - Validation plan:
+    - Browser projection cache tests
+    - `bash scripts/run_perf_guard.sh` focusing on `hover_latency`, `wheel_latency`
+    - `bash scripts/ci_local.sh`
+
+- [ ] 7. Rework retained waveform image upload caching to avoid clone-before-lookup churn
+  - ROI: High
   - Effort: M
   - Expected impact: frame pacing, CPU, memory churn
   - Evidence:
-    - `vendor/radiant/src/gui_runtime/native_vello.rs:1976` (`ImageData` + `Blob::new` recreated during draw)
-    - `vendor/radiant/src/gui_runtime/native_vello.rs:1977` (new blob wrapper from pixel arc each encode pass)
+    - `vendor/radiant/src/gui_runtime/native_vello.rs:1301` keeps `image_upload_blob_cache`
+    - `vendor/radiant/src/gui_runtime/native_vello.rs:1996-2014` hard-clears the cache when it reaches `IMAGE_UPLOAD_BLOB_CACHE_LIMIT`
+    - `vendor/radiant/src/gui_runtime/native_vello.rs:2047-2066` clones image pixels before lookup/encode and rebuilds `ImageData`
   - Recommended change:
-    - Cache image upload payload by `waveform_image_signature` and only rebuild blob/image metadata when signature or dimensions change.
+    - Key the cache from stable retained image identity before pixel cloning.
+    - Feed borrowed/shared pixel handles into the cache path.
+    - Replace clear-all eviction with bounded LRU or epoch eviction.
   - Risk/tradeoffs:
-    - Medium: GPU/image lifetime handling must remain correct across swapchain/device resets.
+    - Medium: GPU/upload lifetime bugs could cause stale or invalid images if ownership is wrong.
   - Visual impact: None
   - Validation plan:
-    - Runtime draw-path tests for image update invalidation
-    - Manual waveform repaint sanity checks
+    - Native runtime image upload cache tests
+    - Manual waveform redraw correctness checks across image changes and device resets
     - `bash scripts/run_perf_guard.sh`
     - `bash scripts/ci_local.sh`
 
-- [ ] 8. Replace segment-attribution p95 proxy wiring with true per-segment measured timings
+- [ ] 8. Make full-scene startup reveal the normal path and keep the placeholder path as fallback only
   - ROI: Medium
   - Effort: M
-  - Expected impact: regression detection quality, perf tuning velocity
+  - Expected impact: startup latency, perceived responsiveness, frame pacing
   - Evidence:
-    - `src/bin/bench/gui/segment_probe.rs:92`-`124` (segment summaries currently reuse unrelated scenario stage p95 values)
-    - `target/perf/bench.json:1462`-`1466` (`browser_rows_window.hit_count = 24` with `p95_us = 1911`, indicating proxy mismatch/confusion)
+    - `vendor/radiant/src/gui_runtime/native_vello.rs:1376-1386` startup state tracks deferred reveal and placeholder timing
+    - `vendor/radiant/src/gui_runtime/native_vello.rs:1715-1812` still has placeholder-first startup scene logic
+    - `vendor/radiant/src/gui_runtime/native_vello.rs:2419-2450` reveals after deferred completion with a `300ms` stall fallback
   - Recommended change:
-    - Measure and emit per-segment timing directly in probe loops instead of borrowing stage p95 from other scenarios.
-    - Keep hit/miss counters and timing generated from the same action stream.
+    - Build the first real scene before reveal whenever the surface/renderer are ready.
+    - Keep the placeholder path only for failure or timeout fallback.
+    - Preserve the current hidden-window startup contract.
   - Risk/tradeoffs:
-    - Low-Medium: benchmark schema and perf-guard parser updates required.
-  - Visual impact: None
+    - Medium: startup edge cases around device/surface readiness must still avoid blank windows or hangs.
+  - Visual impact: Minimal
   - Validation plan:
-    - GUI bench JSON schema/tests
-    - `bash scripts/run_perf_guard.sh`
+    - Native runtime startup tests
+    - Manual cold-start checks on Windows
     - `bash scripts/ci_local.sh`
 
-- [ ] 9. Reduce map projection clone churn by retaining projected point identity and metadata slices
+- [ ] 9. Retain map point identity buffers and apply selected/focused state as overlays
   - ROI: Medium
   - Effort: M
   - Expected impact: map interaction latency, CPU, memory churn
   - Evidence:
-    - `src/app_core/native_shell/map_projection.rs:253` (cluster `HashSet` rebuild on projection refresh)
-    - `src/app_core/native_shell/map_projection.rs:262` and `:280` (sample-id cloning during projected/cache and final model assembly)
+    - `src/app_core/native_shell/map_projection.rs:117-125` clones sample IDs into `cached_points`
+    - `src/app_core/native_shell/map_projection.rs:253-274` clones IDs again into projected cache entries
+    - `src/app_core/native_shell/map_projection.rs:278-295` clones IDs a third time into `MapPointModel`
+    - `src/app_core/native_shell/map_projection.rs:201` rebuilds summary strings from freshly rebuilt point vectors
   - Recommended change:
-    - Retain projected point identity buffers and derive selected/focused flags without cloning point IDs on each refresh.
-    - Keep cluster count as retained metadata updated only when points revision changes.
+    - Keep one retained immutable point payload keyed by dataset/query revision.
+    - Apply selected/focused state via overlay flags or side tables instead of rebuilding owned point models.
+    - Retain cluster counts and other derived metadata with the same revision.
   - Risk/tradeoffs:
-    - Medium: must preserve selection/focus correctness across source/query revisions.
+    - Medium: selection/hover correctness must remain exact across query/source changes.
   - Visual impact: None
   - Validation plan:
     - Map projection tests for selection/focus parity
-    - `bash scripts/run_perf_guard.sh` (focus `map_pan_proxy_latency`)
+    - `bash scripts/run_perf_guard.sh` focusing on `map_pan_proxy_latency`
     - `bash scripts/ci_local.sh`
 
-- [ ] 10. Continue decomposition of runtime mega-modules with hot-path ownership boundaries
+- [ ] 10. Replace proxy segment p95 attribution with true per-segment measured timings
   - ROI: Medium
-  - Effort: L
-  - Expected impact: long-term performance velocity, review risk reduction
+  - Effort: M
+  - Expected impact: perf regression detection quality, tuning velocity
   - Evidence:
-    - `vendor/radiant/src/gui/native_shell/state.rs` (~4277 LOC)
-    - `vendor/radiant/src/gui_runtime/native_vello.rs` (~3580 LOC)
-    - `src/app_core/native_bridge/projection_cache.rs` (~1097 LOC)
+    - `src/bin/bench/gui/segment_probe.rs:93-123` wires segment summaries to unrelated scenario-stage `p95_us` values
+    - `src/bin/bench/gui/segment_probe.rs:129-134` `segment_summary` only receives hit/miss counts plus borrowed p95
+    - `src/bin/bench/gui/attribution.rs:8-14` serializes that proxy as if it were measured segment timing
   - Recommended change:
-    - Split into focused modules around: pointer/input processing, scene diffing/encoding, projection keys/materialization, and perf instrumentation.
-    - Introduce narrow data carriers for hot-path state to reduce incidental coupling.
+    - Measure per-segment timing directly in the segment probe loops.
+    - Emit hit/miss counters and timings from the same action stream.
+    - Update the perf-guard/parser expectations accordingly.
   - Risk/tradeoffs:
-    - Medium: broad refactor churn; requires disciplined no-behavior slicing.
+    - Low: benchmark schema changes will require test/guard updates.
   - Visual impact: None
   - Validation plan:
-    - Slice-by-slice CI and perf guard after each module extraction
+    - GUI bench JSON schema tests
+    - `bash scripts/run_perf_guard.sh`
     - `bash scripts/ci_local.sh`
+
+- [ ] 11. Borrow `ShellLayout` through hot native input handlers instead of cloning it repeatedly
+  - ROI: Low
+  - Effort: S
+  - Expected impact: interaction CPU, memory churn
+  - Evidence:
+    - `vendor/radiant/src/gui_runtime/native_vello.rs:1807`, `2104`, `2714`, `3441`, `3460`, `3877`, `4080`, `4250` clone `self.shell_layout`
+    - `vendor/radiant/src/gui/native_shell/layout.rs` defines a non-trivial `ShellLayout` structure
+  - Recommended change:
+    - Borrow `&ShellLayout` across hit-test/input handlers or cache smaller immutable hit-test slices.
+  - Risk/tradeoffs:
+    - Low: mostly ownership cleanup, but touching hot input code still needs care.
+  - Visual impact: None
+  - Validation plan:
+    - Native input/runtime tests
+    - `bash scripts/ci_quick.sh`
+
