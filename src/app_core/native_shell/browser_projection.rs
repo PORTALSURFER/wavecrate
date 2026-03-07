@@ -14,12 +14,34 @@ pub(super) use cache::{
     refresh_projected_selected_paths_lookup,
 };
 
+/// Scalar inputs needed to project the retained browser row window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct BrowserRowsProjectionInputs {
+    /// Number of visible rows in the current browser list projection.
+    pub visible_count: usize,
+    /// Focused visible-row index, when any.
+    pub selected_visible_row: Option<usize>,
+    /// Visible-row anchor used by range selection, when any.
+    pub anchor_visible_row: Option<usize>,
+}
+
+/// Capture the current row-window projection inputs without rebuilding browser chrome.
+pub(crate) fn project_browser_rows_projection_inputs(
+    controller: &AppController,
+) -> BrowserRowsProjectionInputs {
+    BrowserRowsProjectionInputs {
+        visible_count: controller.ui.browser.visible.len(),
+        selected_visible_row: controller.ui.browser.selected_visible,
+        anchor_visible_row: controller.ui.browser.selection_anchor_visible,
+    }
+}
+
 /// Project browser panel frame metadata without materializing row contents.
 ///
 /// Callers can combine this with row-window projection helpers to refresh
 /// metadata and row payloads independently when only one segment is dirty.
 pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> BrowserPanelModel {
-    let selected_visible_row = controller.ui.browser.selected_visible;
+    let row_inputs = project_browser_rows_projection_inputs(controller);
     let selected_path_count = controller.ui.browser.selected_paths.len();
     let search_query = controller.ui.browser.search_query.clone();
     let active_rating_filters = browser_rating_filter_flags(&controller.ui.browser.rating_filter);
@@ -35,11 +57,9 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         .loaded_wav
         .as_deref()
         .map(view_model::sample_display_label);
-    let anchor_visible_row = controller.ui.browser.selection_anchor_visible;
-    let visible_count = controller.ui.browser.visible.len();
     BrowserPanelModel {
-        visible_count,
-        selected_visible_row,
+        visible_count: row_inputs.visible_count,
+        selected_visible_row: row_inputs.selected_visible_row,
         selected_path_count,
         search_query,
         active_rating_filters,
@@ -48,7 +68,7 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         sort_label,
         active_tab_label,
         focused_sample_label,
-        anchor_visible_row,
+        anchor_visible_row: row_inputs.anchor_visible_row,
         rows: Vec::new(),
     }
 }

@@ -58,14 +58,8 @@ pub(super) fn resolve_or_project_with_derived(
         dirty_segments.insert(NativeDirtySegments::BROWSER_FRAME);
     }
 
-    if materialize_browser_rows_segment(
-        cache,
-        &mut model,
-        controller,
-        derived,
-        has_retained_model,
-        browser_frame_changed,
-    ) {
+    if materialize_browser_rows_segment(cache, &mut model, controller, derived, has_retained_model)
+    {
         dirty_segments.insert(NativeDirtySegments::BROWSER_ROWS_WINDOW);
     }
 
@@ -196,28 +190,28 @@ fn materialize_browser_frame_segment(
     changed
 }
 
-/// Materialize browser visible-row window when either row or frame state is dirty.
+/// Materialize browser visible-row window when row-window inputs changed.
 fn materialize_browser_rows_segment(
     cache: &mut NativeProjectionCache,
     model: &mut NativeAppModel,
     controller: &mut AppController,
     derived: &DerivedProjectionState,
     has_retained_model: bool,
-    browser_frame_changed: bool,
 ) -> bool {
     let browser_rows_changed = segment_key_changed(
         has_retained_model,
         &cache.browser_rows_key,
         &derived.browser_rows_key,
     );
-    if browser_frame_changed || browser_rows_changed {
+    if browser_rows_changed {
         cache.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
+        let row_inputs = native_shell::project_browser_rows_projection_inputs(controller);
         let mut rows = std::mem::take(&mut model.browser.rows);
         native_shell::project_browser_rows_model_into(
             controller,
-            model.browser.visible_count,
-            model.browser.selected_visible_row,
-            model.browser.anchor_visible_row,
+            row_inputs.visible_count,
+            row_inputs.selected_visible_row,
+            row_inputs.anchor_visible_row,
             &mut rows,
         );
         model.browser.rows = rows;

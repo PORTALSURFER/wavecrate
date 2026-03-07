@@ -74,7 +74,7 @@ use browser_projection::{
 };
 pub(crate) use browser_projection::{
     project_browser_chrome_model, project_browser_model, project_browser_panel_frame_model,
-    project_browser_rows_model_into,
+    project_browser_rows_model_into, project_browser_rows_projection_inputs,
 };
 pub(crate) use confirm_prompt_projection::project_confirm_prompt_model;
 pub(crate) use map_projection::project_map_model;

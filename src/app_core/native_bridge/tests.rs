@@ -925,7 +925,7 @@ fn projection_segment_status_dirty_mask_and_lookup_counts() {
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
 }
 
-/// Browser-frame changes should also force browser-rows rematerialization.
+/// Browser-frame changes should stay isolated from browser-row window materialization.
 #[test]
 fn projection_segment_browser_frame_dirty_mask_and_lookup_counts() {
     let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
@@ -933,13 +933,11 @@ fn projection_segment_browser_frame_dirty_mask_and_lookup_counts() {
     });
     assert_eq!(
         dirty_segments,
-        NativeDirtySegments::from_bits(
-            NativeDirtySegments::BROWSER_FRAME | NativeDirtySegments::BROWSER_ROWS_WINDOW
-        )
+        NativeDirtySegments::from_bits(NativeDirtySegments::BROWSER_FRAME)
     );
     assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
     assert_segment_lookup_counts(lookup_counts.browser_frame, 0, 1);
-    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
     assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
 }
