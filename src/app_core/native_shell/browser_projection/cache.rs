@@ -82,10 +82,11 @@ pub(in crate::app_core::native_shell) fn selected_index_is_selected(
 pub(in crate::app_core::native_shell) fn refresh_projected_browser_row_cache(
     controller: &mut AppController,
 ) {
-    if controller.projected_browser_rows_revision == controller.ui.browser.visible_rows_revision {
+    let source_id = controller.selected_source_id();
+    if controller.projected_browser_rows_source_id == source_id {
         return;
     }
-    controller.projected_browser_rows_revision = controller.ui.browser.visible_rows_revision;
+    controller.projected_browser_rows_source_id = source_id;
     super::clear_projected_browser_row_cache(controller);
 }
 
@@ -95,14 +96,18 @@ fn cached_browser_row_matches_entry(
     row_identity_hash: u64,
     column_index: usize,
     rating_level: i8,
-    bucket_label: &str,
     missing: bool,
+    looped: bool,
+    bpm_value_bits: Option<u32>,
+    long_sample_mark: bool,
 ) -> bool {
     cached.row_identity_hash == row_identity_hash
         && cached.column_index == column_index
         && cached.rating_level == rating_level
-        && cached.bucket_label == bucket_label
         && cached.missing == missing
+        && cached.looped == looped
+        && cached.bpm_value_bits == bpm_value_bits
+        && cached.long_sample_mark == long_sample_mark
 }
 
 /// Resolve static browser-row projection fields from cache, inserting on cache miss.
@@ -110,20 +115,34 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
     controller: &mut AppController,
     absolute_index: usize,
 ) -> Option<(&ProjectedBrowserRowCacheEntry, bool)> {
-    let (entry_tag, row_identity_hash, missing, looped, relative_path) =
+    let (entry_tag, row_identity_hash, missing, looped) =
         controller.wav_entry(absolute_index).map(|entry| {
             (
                 entry.tag,
                 browser_row_identity_hash(entry.relative_path.as_path()),
                 entry.missing,
                 entry.looped,
-                entry.relative_path.clone(),
             )
         })?;
     let column_index = super::browser_column_index(entry_tag);
     let rating_level = entry_tag.val();
-    let bucket_label =
-        super::browser_bucket_label(controller, absolute_index, relative_path.as_path(), looped);
+    let long_sample_mark = controller
+        .cached_feature_status_for_entry(absolute_index)
+        .and_then(|status| status.long_sample_mark)
+        == Some(true);
+    let cached_path = controller
+        .projected_browser_rows
+        .get(&absolute_index)
+        .filter(|cached| cached.row_identity_hash == row_identity_hash)
+        .map(|cached| cached.relative_path.clone());
+    let relative_path = match cached_path {
+        Some(path) => path,
+        None => controller
+            .wav_entry(absolute_index)
+            .map(|entry| entry.relative_path.clone())?,
+    };
+    let bpm_value = controller.bpm_value_for_path(relative_path.as_path());
+    let bpm_value_bits = bpm_value.map(f32::to_bits);
     let cache_hit = controller
         .projected_browser_rows
         .get(&absolute_index)
@@ -133,23 +152,30 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
                 row_identity_hash,
                 column_index,
                 rating_level,
-                &bucket_label,
                 missing,
+                looped,
+                bpm_value_bits,
+                long_sample_mark,
             )
         });
     trace_browser_row_cache_lookup(cache_hit);
     if !cache_hit {
+        let bucket_label = super::browser_bucket_label(bpm_value, looped, long_sample_mark);
         let row_label = controller
             .label_for_ref(absolute_index)
             .map(str::to_string)
             .unwrap_or_else(|| view_model::sample_display_label(relative_path.as_path()));
         let cached = ProjectedBrowserRowCacheEntry {
             row_identity_hash,
+            relative_path,
             row_label,
             column_index,
             rating_level,
             bucket_label,
             missing,
+            looped,
+            bpm_value_bits,
+            long_sample_mark,
         };
         if controller.projected_browser_rows.len() >= MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE {
             super::clear_projected_browser_row_cache(controller);

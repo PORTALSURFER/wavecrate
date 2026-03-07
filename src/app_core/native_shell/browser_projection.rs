@@ -1,8 +1,6 @@
 //! Browser panel projection, row-window virtualization, and retained row-cache helpers.
 
 use super::*;
-use std::path::Path;
-
 /// Retained selection/row cache helpers for browser projection.
 mod cache;
 use cache::clear_projected_selected_paths_lookup;
@@ -183,10 +181,113 @@ fn preload_browser_window_bpms(
     window_start: usize,
     window_len: usize,
 ) {
-    if window_len == 0 {
+    let source_id = controller.selected_source_id();
+    let visible_rows_revision = controller.ui.browser.visible_rows_revision;
+    if window_len == 0 || source_id.is_none() {
+        controller.projected_browser_preload_window = Some(ProjectedBrowserPreloadWindow {
+            source_id,
+            visible_rows_revision,
+            window_start,
+            window_len,
+        });
         return;
     }
-    let mut visible_paths = Vec::with_capacity(window_len);
+    let preload_ranges = browser_bpm_preload_ranges(
+        controller.projected_browser_preload_window.as_ref(),
+        source_id.as_ref(),
+        visible_rows_revision,
+        window_start,
+        window_len,
+    );
+    let preload_capacity = preload_ranges.iter().map(|(_, len)| *len).sum();
+    let mut visible_paths = Vec::with_capacity(preload_capacity);
+    for (range_start, range_len) in preload_ranges {
+        append_browser_window_preload_paths(controller, range_start, range_len, &mut visible_paths);
+    }
+    controller.preload_bpm_values_for_paths(&visible_paths);
+    controller.projected_browser_preload_window = Some(ProjectedBrowserPreloadWindow {
+        source_id,
+        visible_rows_revision,
+        window_start,
+        window_len,
+    });
+}
+
+/// Return the visible-row ranges that newly entered the browser window.
+#[cfg(test)]
+pub(super) fn browser_bpm_preload_ranges(
+    previous: Option<&ProjectedBrowserPreloadWindow>,
+    source_id: Option<&crate::sample_sources::SourceId>,
+    visible_rows_revision: u64,
+    window_start: usize,
+    window_len: usize,
+) -> Vec<(usize, usize)> {
+    browser_bpm_preload_ranges_impl(
+        previous,
+        source_id,
+        visible_rows_revision,
+        window_start,
+        window_len,
+    )
+}
+
+#[cfg(not(test))]
+fn browser_bpm_preload_ranges(
+    previous: Option<&ProjectedBrowserPreloadWindow>,
+    source_id: Option<&crate::sample_sources::SourceId>,
+    visible_rows_revision: u64,
+    window_start: usize,
+    window_len: usize,
+) -> Vec<(usize, usize)> {
+    browser_bpm_preload_ranges_impl(
+        previous,
+        source_id,
+        visible_rows_revision,
+        window_start,
+        window_len,
+    )
+}
+
+fn browser_bpm_preload_ranges_impl(
+    previous: Option<&ProjectedBrowserPreloadWindow>,
+    source_id: Option<&crate::sample_sources::SourceId>,
+    visible_rows_revision: u64,
+    window_start: usize,
+    window_len: usize,
+) -> Vec<(usize, usize)> {
+    if window_len == 0 {
+        return Vec::new();
+    }
+    let Some(previous) = previous else {
+        return vec![(window_start, window_len)];
+    };
+    if previous.source_id.as_ref() != source_id
+        || previous.visible_rows_revision != visible_rows_revision
+    {
+        return vec![(window_start, window_len)];
+    }
+    let window_end = window_start.saturating_add(window_len);
+    let previous_end = previous.window_start.saturating_add(previous.window_len);
+    if window_end <= previous.window_start || previous_end <= window_start {
+        return vec![(window_start, window_len)];
+    }
+    let mut ranges = Vec::with_capacity(2);
+    if window_start < previous.window_start {
+        ranges.push((window_start, previous.window_start - window_start));
+    }
+    if previous_end < window_end {
+        ranges.push((previous_end, window_end - previous_end));
+    }
+    ranges
+}
+
+/// Append relative paths for one visible browser window range into the preload buffer.
+fn append_browser_window_preload_paths(
+    controller: &mut AppController,
+    window_start: usize,
+    window_len: usize,
+    visible_paths: &mut Vec<std::path::PathBuf>,
+) {
     for offset in 0..window_len {
         let visible_row = window_start + offset;
         let Some(absolute_index) = controller.ui.browser.visible.get(visible_row) else {
@@ -199,7 +300,6 @@ fn preload_browser_window_bpms(
             visible_paths.push(relative_path);
         }
     }
-    controller.preload_bpm_values_for_paths(&visible_paths);
 }
 
 /// Project browser panel metadata and row window into one panel model.
@@ -229,24 +329,15 @@ pub(super) fn browser_column_index(tag: crate::sample_sources::Rating) -> usize 
 ///
 /// Rating text is intentionally omitted because the row already renders keep/trash
 /// state via the right-edge indicator rectangles.
-fn browser_bucket_label(
-    controller: &mut AppController,
-    absolute_index: usize,
-    relative_path: &Path,
-    looped: bool,
-) -> String {
+fn browser_bucket_label(bpm_value: Option<f32>, looped: bool, long_sample_mark: bool) -> String {
     let mut tags = Vec::new();
-    if let Some(bpm) = controller.bpm_value_for_path(relative_path) {
+    if let Some(bpm) = bpm_value {
         tags.push(format_bpm_badge_label(bpm));
     }
     if looped {
         tags.push(String::from("LOOP"));
     }
-    if controller
-        .cached_feature_status_for_entry(absolute_index)
-        .and_then(|status| status.long_sample_mark)
-        == Some(true)
-    {
+    if long_sample_mark {
         tags.push(String::from("LONG"));
     }
     tags.join(" · ")
@@ -286,6 +377,7 @@ fn browser_tab_label(tab: SampleBrowserTab) -> &'static str {
 /// Clear retained browser-row projection fields.
 fn clear_projected_browser_row_cache(controller: &mut AppController) {
     controller.projected_browser_rows.clear();
+    controller.projected_browser_preload_window = None;
 }
 
 /// Write one browser row into `rows[offset]`, reusing existing `String` buffers.

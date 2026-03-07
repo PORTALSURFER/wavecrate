@@ -747,26 +747,58 @@ fn folder_actions_disable_recovery_clear_while_recovery_is_running() {
 }
 
 #[test]
-/// Retained browser row cache should clear when visible-row revisions roll over.
-fn browser_row_cache_clears_when_visible_revision_changes() {
+/// Retained browser row cache should survive visible-row revision changes for the same source.
+fn browser_row_cache_persists_when_visible_revision_changes() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
-    controller.projected_browser_rows_revision = 7;
+    let source_id = crate::sample_sources::SourceId::new();
+    controller.select_browser_source_for_tests(source_id.clone());
+    controller.projected_browser_rows_source_id = Some(source_id);
     controller.projected_browser_rows.insert(
         0,
         ProjectedBrowserRowCacheEntry {
             row_identity_hash: browser_row_identity_hash(std::path::Path::new("kick.wav")),
+            relative_path: std::path::PathBuf::from("kick.wav"),
             row_label: String::from("Kick"),
             column_index: 1,
             rating_level: 0,
             bucket_label: String::new(),
             missing: false,
+            looped: false,
+            bpm_value_bits: None,
+            long_sample_mark: false,
         },
     );
     controller.ui.browser.visible_rows_revision = 8;
 
     refresh_projected_browser_row_cache(&mut controller);
 
-    assert_eq!(controller.projected_browser_rows_revision, 8);
+    assert!(controller.projected_browser_rows.contains_key(&0));
+}
+
+#[test]
+/// Retained browser row cache should clear when the selected source changes.
+fn browser_row_cache_clears_when_selected_source_changes() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
+    controller.projected_browser_rows_source_id = Some(crate::sample_sources::SourceId::new());
+    controller.select_browser_source_for_tests(crate::sample_sources::SourceId::new());
+    controller.projected_browser_rows.insert(
+        0,
+        ProjectedBrowserRowCacheEntry {
+            row_identity_hash: browser_row_identity_hash(std::path::Path::new("kick.wav")),
+            relative_path: std::path::PathBuf::from("kick.wav"),
+            row_label: String::from("Kick"),
+            column_index: 1,
+            rating_level: 0,
+            bucket_label: String::new(),
+            missing: false,
+            looped: false,
+            bpm_value_bits: None,
+            long_sample_mark: false,
+        },
+    );
+
+    refresh_projected_browser_row_cache(&mut controller);
+
     assert!(controller.projected_browser_rows.is_empty());
 }
 
@@ -835,11 +867,15 @@ fn cached_browser_row_rebuilds_when_stored_tag_column_is_stale() {
         0,
         ProjectedBrowserRowCacheEntry {
             row_identity_hash: browser_row_identity_hash(std::path::Path::new("kick.wav")),
+            relative_path: std::path::PathBuf::from("kick.wav"),
             row_label: String::from("Kick"),
             column_index: 1,
             rating_level: 0,
             bucket_label: String::new(),
             missing: false,
+            looped: false,
+            bpm_value_bits: None,
+            long_sample_mark: false,
         },
     );
 
@@ -869,11 +905,15 @@ fn cached_browser_row_rebuilds_when_stored_missing_state_is_stale() {
         0,
         ProjectedBrowserRowCacheEntry {
             row_identity_hash: browser_row_identity_hash(std::path::Path::new("kick.wav")),
+            relative_path: std::path::PathBuf::from("kick.wav"),
             row_label: String::from("Kick"),
             column_index: 1,
             rating_level: 0,
             bucket_label: String::new(),
             missing: false,
+            looped: false,
+            bpm_value_bits: None,
+            long_sample_mark: false,
         },
     );
 
@@ -911,6 +951,22 @@ fn browser_rows_projection_reuses_provided_buffer_capacity() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows.capacity(), first_capacity);
     assert_eq!(rows.as_ptr(), first_ptr);
+}
+
+#[test]
+/// BPM preload ranges should only include rows newly entering an unchanged browser window.
+fn browser_bpm_preload_ranges_only_include_window_delta() {
+    let source_id = crate::sample_sources::SourceId::new();
+    let previous = ProjectedBrowserPreloadWindow {
+        source_id: Some(source_id.clone()),
+        visible_rows_revision: 11,
+        window_start: 10,
+        window_len: 5,
+    };
+
+    let ranges = browser_bpm_preload_ranges(Some(&previous), Some(&source_id), 11, 12, 5);
+
+    assert_eq!(ranges, vec![(15, 2)]);
 }
 
 #[test]

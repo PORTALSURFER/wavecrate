@@ -67,6 +67,8 @@ pub(crate) const STATUS_LOG_LIMIT: usize = 200;
 pub(crate) struct ProjectedBrowserRowCacheEntry {
     /// Stable row-identity hash derived from the live entry relative path.
     pub row_identity_hash: u64,
+    /// Relative sample path used for metadata preloads and label fallback.
+    pub relative_path: PathBuf,
     /// Stable rendered row label for the browser list.
     pub row_label: String,
     /// Triage column index (`0..=2`) for this row.
@@ -77,6 +79,25 @@ pub(crate) struct ProjectedBrowserRowCacheEntry {
     pub bucket_label: String,
     /// Whether the backing sample file is currently marked missing.
     pub missing: bool,
+    /// Whether the backing sample is marked looped.
+    pub looped: bool,
+    /// Cached BPM bits used to detect metadata changes without rebuilding label text.
+    pub bpm_value_bits: Option<u32>,
+    /// Whether the backing sample currently carries the long-sample marker.
+    pub long_sample_mark: bool,
+}
+
+/// Visible browser window metadata retained for incremental BPM preloads.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ProjectedBrowserPreloadWindow {
+    /// Selected source associated with the last preload window.
+    pub source_id: Option<SourceId>,
+    /// Visible-row revision associated with the last preload window.
+    pub visible_rows_revision: u64,
+    /// First visible row index covered by the last preload window.
+    pub window_start: usize,
+    /// Number of rows covered by the last preload window.
+    pub window_len: usize,
 }
 
 /// Cache key for retained map-point projection payloads.
@@ -133,10 +154,12 @@ pub struct AppController {
     pub(crate) projected_waveform_image_signature: Option<u64>,
     /// Cached native projection payload for the currently rendered waveform image.
     pub(crate) projected_waveform_image: Option<Arc<crate::gui::types::ImageRgba>>,
-    /// Visible-row revision for the retained browser row projection cache.
-    pub(crate) projected_browser_rows_revision: u64,
+    /// Selected source associated with the retained browser row projection cache.
+    pub(crate) projected_browser_rows_source_id: Option<SourceId>,
     /// Static browser-row projection fields keyed by absolute entry index.
     pub(crate) projected_browser_rows: HashMap<usize, ProjectedBrowserRowCacheEntry>,
+    /// Last visible browser window used to diff BPM preload requests.
+    pub(crate) projected_browser_preload_window: Option<ProjectedBrowserPreloadWindow>,
     /// Selected-path revision for the retained browser selected-path lookup cache.
     pub(crate) projected_selected_paths_revision: Option<u64>,
     /// Selected absolute-index lookup reused across native browser projections.
@@ -202,8 +225,9 @@ impl AppController {
             ui_cache: ControllerUiCacheState::new(),
             projected_waveform_image_signature: None,
             projected_waveform_image: None,
-            projected_browser_rows_revision: 0,
+            projected_browser_rows_source_id: None,
             projected_browser_rows: HashMap::new(),
+            projected_browser_preload_window: None,
             projected_selected_paths_revision: None,
             projected_selected_paths_lookup: None,
             projected_map_points_key: None,

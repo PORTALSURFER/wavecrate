@@ -5,8 +5,9 @@
 //! back into controller-domain selection math.
 
 use super::controller::{
-    AppController, ProjectedBrowserRowCacheEntry, ProjectedMapPointCacheEntry,
-    ProjectedMapPointsCacheKey, ProjectedSelectedPathsLookup, UmapPointQuery,
+    AppController, ProjectedBrowserPreloadWindow, ProjectedBrowserRowCacheEntry,
+    ProjectedMapPointCacheEntry, ProjectedMapPointsCacheKey, ProjectedSelectedPathsLookup,
+    UmapPointQuery,
 };
 use crate::app_core::actions::{
     NativeAppModel as AppModel, NativeBrowserActionsModel as BrowserActionsModel,
@@ -68,8 +69,8 @@ mod waveform_projection;
 
 #[cfg(test)]
 use browser_projection::{
-    browser_column_index, browser_render_window, browser_row_identity_hash,
-    project_cached_browser_row, refresh_projected_browser_row_cache,
+    browser_bpm_preload_ranges, browser_column_index, browser_render_window,
+    browser_row_identity_hash, project_cached_browser_row, refresh_projected_browser_row_cache,
     refresh_projected_selected_paths_lookup, selected_index_is_selected,
 };
 pub(crate) use browser_projection::{
@@ -92,7 +93,7 @@ static BROWSER_ROW_CACHE_HIT_COUNT: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
 /// Number of browser-row cache lookups that rebuilt retained row projection data.
 static BROWSER_ROW_CACHE_MISS_COUNT: AtomicU64 = AtomicU64::new(0);
-/// Cap retained browser-row projection cache growth per visible-row revision.
+/// Cap retained browser-row projection cache growth per selected source.
 const MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE: usize = MAX_RENDERED_BROWSER_ROWS * 8;
 
 /// Record one browser-row cache hit/miss lookup decision.

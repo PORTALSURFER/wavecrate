@@ -198,6 +198,17 @@ impl AppController {
             .cloned()
     }
 
+    /// Return the selected source id even when source metadata is not fully hydrated.
+    pub(crate) fn selected_source_id(&self) -> Option<SourceId> {
+        self.selection_state.ctx.selected_source.clone()
+    }
+
+    /// Select a source id directly in tests without requiring full source hydration.
+    #[cfg(test)]
+    pub(crate) fn select_browser_source_for_tests(&mut self, source_id: SourceId) {
+        self.selection_state.ctx.selected_source = Some(source_id);
+    }
+
     pub(crate) fn rebuild_missing_sources(&mut self) {
         self.library.missing.sources.clear();
         for source in &self.library.sources {
