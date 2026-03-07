@@ -276,6 +276,8 @@ fn bridge_reprojects_after_async_loaded_wav_revision_change() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
 
     let first = bridge.project_model();
@@ -299,6 +301,8 @@ fn pull_model_bumps_segment_revisions_on_first_projection() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
 
     let _ = bridge.pull_model();
@@ -330,9 +334,62 @@ fn apply_browser_focus_delta_immediate_noop_keeps_projection_cache_key() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
     bridge.apply_browser_focus_delta_immediately(1);
     assert_eq!(bridge.projection_cache.app_key, Some(key));
+}
+
+/// Local-only focus actions should avoid dirtying derived state and arm the
+/// one-shot local pull fast path.
+#[test]
+fn local_focus_actions_arm_local_model_pull_fast_path() {
+    let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let mut bridge = SempalNativeBridge {
+        controller,
+        projection_cache: NativeProjectionCache::default(),
+        projection_key_snapshot: None,
+        last_dirty_segments: NativeDirtySegments::all(),
+        segment_revisions: NativeSegmentRevisions::default(),
+        pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
+    };
+
+    bridge.on_action(NativeUiAction::FocusBrowserSearch);
+
+    assert_eq!(
+        bridge.pending_model_pull_preparation,
+        super::PendingModelPullPreparation::LocalOnly
+    );
+    assert!(!bridge.controller.has_dirty_derived_nodes());
+}
+
+/// Browser search mutations still require the full pull-preparation path.
+#[test]
+fn search_query_actions_stay_on_full_model_pull_preparation() {
+    let controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let mut bridge = SempalNativeBridge {
+        controller,
+        projection_cache: NativeProjectionCache::default(),
+        projection_key_snapshot: None,
+        last_dirty_segments: NativeDirtySegments::all(),
+        segment_revisions: NativeSegmentRevisions::default(),
+        pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
+    };
+
+    bridge.on_action(NativeUiAction::SetBrowserSearch {
+        query: String::from("kick"),
+    });
+
+    assert_eq!(
+        bridge.pending_model_pull_preparation,
+        super::PendingModelPullPreparation::Full
+    );
+    assert!(bridge.controller.has_dirty_derived_nodes());
 }
 
 /// Waveform preview-class actions should bypass queueing for immediate feedback.
@@ -346,6 +403,8 @@ fn on_action_applies_waveform_preview_actions_immediately() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
 
     bridge.on_action(NativeUiAction::SetWaveformCursor {
@@ -371,6 +430,8 @@ fn on_action_keeps_seek_actions_queued() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
 
     bridge.on_action(NativeUiAction::SeekWaveform {
@@ -594,6 +655,8 @@ fn flush_pending_waveform_actions_clears_queue_and_marks_waveform_dirty() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
 
     assert!(
@@ -622,6 +685,8 @@ fn flush_pending_waveform_actions_noop_skips_dirty_marking() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
 
     assert!(
@@ -665,6 +730,8 @@ fn mark_dirty_for_waveform_action_marks_graph_nodes() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
 
     bridge.mark_dirty_for_action(&NativeUiAction::SeekWaveform {
@@ -694,6 +761,8 @@ fn mark_dirty_for_browser_focus_action_stays_targeted() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
 
     bridge.mark_dirty_for_action(&NativeUiAction::MoveBrowserFocus { delta: 1 });
@@ -736,6 +805,8 @@ fn mark_dirty_for_unclassified_action_keeps_broad_invalidation() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
 
     bridge.mark_dirty_for_action(&NativeUiAction::OpenSourceFolderRow { index: 0 });
@@ -777,6 +848,8 @@ fn flush_derived_updates_clears_nodes_and_invalidates_key() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
     let _ = bridge.projection_key_snapshot();
     assert!(bridge.projection_key_snapshot.is_some());
@@ -801,6 +874,8 @@ fn pull_model_snapshot_noop_pull_reuses_cached_projection() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
 
     let first_model = bridge.pull_model_arc_snapshot();
@@ -1062,6 +1137,8 @@ fn bridge_metrics_track_projection_cache_and_waveform_refresh_paths() {
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
+        pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
+        consecutive_local_model_pulls: 0,
     };
     bridge.controller.mark_derived_source_dirty(
         DerivedNodeId::WaveformState,

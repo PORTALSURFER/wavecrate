@@ -74,3 +74,25 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
             | NativeUiAction::ClearWaveformEditSelection
     )
 }
+
+/// Return whether an action only mutates native-visible UI state and can use a
+/// one-shot local model-pull fast path.
+///
+/// These actions already update controller UI state directly and do not rely on
+/// derived recomputation, background maintenance, or transport ticking to make
+/// the next projected frame correct.
+pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
+    matches!(
+        action,
+        NativeUiAction::MoveBrowserFocus { .. }
+            | NativeUiAction::FocusBrowserPanel
+            | NativeUiAction::FocusSourcesPanel
+            | NativeUiAction::FocusWaveformPanel
+            | NativeUiAction::FocusBrowserSearch
+            | NativeUiAction::BlurBrowserSearch
+            | NativeUiAction::FocusFolderSearch
+            | NativeUiAction::OpenOptionsMenu
+            | NativeUiAction::CloseOptionsPanel
+            | NativeUiAction::SetPromptInput { .. }
+    )
+}

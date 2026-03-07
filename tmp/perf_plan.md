@@ -21,7 +21,7 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
 
 ## ROI-Ranked Backlog
 
-- [ ] 1. Add a bridge pull fast path for UI-local interactions
+- [x] 1. Add a bridge pull fast path for UI-local interactions
   - ROI: Very High
   - Effort: M
   - Expected impact: p95 interaction latency, frame time, CPU
@@ -42,6 +42,11 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - Native bridge projection-cache tests for local-only vs full-pull action classes
     - `bash scripts/run_perf_guard.sh` focusing on `interactive_projection`, `hover_latency`, `wheel_latency`
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-07
+  - Validation status:
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml app_core::native_bridge::tests -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 - [ ] 2. Narrow browser projection keys and stop chrome-only changes from rebuilding the row window
   - ROI: Very High
@@ -249,4 +254,3 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
   - Validation plan:
     - Native input/runtime tests
     - `bash scripts/ci_quick.sh`
-

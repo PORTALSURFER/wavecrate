@@ -27,6 +27,7 @@ use self::projection_cache::build_waveform_projection_key;
 use self::{
     action_classification::{
         InteractionActionClass, classify_action_interaction, is_immediate_waveform_preview_action,
+        uses_local_model_pull_fast_path,
     },
     invalidation::{
         BROAD_DIRTY_SOURCES, action_prefers_targeted_invalidation,
@@ -79,6 +80,8 @@ const IMMEDIATE_WAVEFORM_PREVIEW_ENV: &str = "SEMPAL_NATIVE_BRIDGE_IMMEDIATE_WAV
 const IMMEDIATE_WAVEFORM_PREVIEW_DEFAULT: bool = true;
 /// Cached immediate-waveform-preview mode resolved from environment.
 static IMMEDIATE_WAVEFORM_PREVIEW_ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+/// Maximum consecutive local-only model pulls before forcing one full prep pass.
+const LOCAL_MODEL_PULL_FAST_PATH_BURST_LIMIT: u8 = 8;
 
 /// Resolve whether waveform preview actions should apply immediately.
 fn immediate_waveform_preview_enabled() -> bool {
@@ -89,6 +92,16 @@ fn immediate_waveform_preview_enabled() -> bool {
                 crate::env_flags::is_truthy(&value)
             })
     })
+}
+
+/// One-shot preparation mode for the next app-model pull.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum PendingModelPullPreparation {
+    /// Run the normal full pull-preparation path.
+    #[default]
+    Full,
+    /// Skip full controller prep once and project directly from current UI state.
+    LocalOnly,
 }
 
 /// Queue of high-frequency waveform actions that can be coalesced per pull frame.
@@ -283,6 +296,10 @@ pub struct SempalNativeBridge {
     segment_revisions: NativeSegmentRevisions,
     /// Coalesced pending waveform actions from high-frequency drag/wheel input.
     pending_waveform_actions: PendingWaveformActions,
+    /// Preparation mode requested for the next app-model pull.
+    pending_model_pull_preparation: PendingModelPullPreparation,
+    /// Number of consecutive local-only app-model pulls since the last full prep.
+    consecutive_local_model_pulls: u8,
 }
 
 impl SempalNativeBridge {
@@ -304,12 +321,41 @@ impl SempalNativeBridge {
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
+            pending_model_pull_preparation: PendingModelPullPreparation::Full,
+            consecutive_local_model_pulls: 0,
         })
     }
 
     /// Mark the cached projection key snapshot stale after controller mutation.
     fn invalidate_projection_key_snapshot(&mut self) {
         self.projection_key_snapshot = None;
+    }
+
+    /// Force the next app-model pull to use the full preparation path.
+    fn schedule_full_model_pull_preparation(&mut self) {
+        self.pending_model_pull_preparation = PendingModelPullPreparation::Full;
+    }
+
+    /// Allow the next app-model pull to skip full preparation once.
+    fn schedule_local_model_pull_fast_path(&mut self) {
+        self.pending_model_pull_preparation = PendingModelPullPreparation::LocalOnly;
+    }
+
+    /// Return whether the next app-model pull may skip full preparation.
+    fn consume_local_model_pull_fast_path(&mut self) -> bool {
+        let use_fast_path = self.pending_model_pull_preparation
+            == PendingModelPullPreparation::LocalOnly
+            && !self.controller.is_playing()
+            && !self.controller.has_dirty_derived_nodes()
+            && self.consecutive_local_model_pulls < LOCAL_MODEL_PULL_FAST_PATH_BURST_LIMIT;
+        self.pending_model_pull_preparation = PendingModelPullPreparation::Full;
+        if use_fast_path {
+            self.consecutive_local_model_pulls =
+                self.consecutive_local_model_pulls.saturating_add(1);
+        } else {
+            self.consecutive_local_model_pulls = 0;
+        }
+        use_fast_path
     }
 
     /// Return a cached projection key snapshot, recomputing only when stale.
@@ -355,14 +401,13 @@ impl SempalNativeBridge {
         if delta == 0 {
             return;
         }
-        let action = NativeUiAction::MoveBrowserFocus { delta };
         let before_key = self.projection_key_snapshot();
         self.controller.focus_browser_delta_action(delta);
         self.invalidate_projection_key_snapshot();
         let after_key = self.projection_key_snapshot();
         if before_key != after_key {
-            self.mark_dirty_for_action(&action);
             self.projection_cache.invalidate_key_only();
+            self.schedule_local_model_pull_fast_path();
         }
     }
 
@@ -373,10 +418,23 @@ impl SempalNativeBridge {
 
     /// Apply one action immediately using the standard dirty + queue-flush flow.
     fn apply_action_immediately(&mut self, action: NativeUiAction) {
-        self.mark_dirty_for_action(&action);
+        let use_local_pull_fast_path = uses_local_model_pull_fast_path(&action);
+        let before_key = use_local_pull_fast_path.then(|| self.projection_key_snapshot());
+        if !use_local_pull_fast_path {
+            self.mark_dirty_for_action(&action);
+        }
         self.flush_pending_input_actions();
         self.controller.apply_native_ui_action(action);
         self.invalidate_projection_key_snapshot();
+        if !use_local_pull_fast_path {
+            self.schedule_full_model_pull_preparation();
+            return;
+        }
+        let after_key = self.projection_key_snapshot();
+        if before_key != Some(after_key) {
+            self.projection_cache.invalidate_key_only();
+            self.schedule_local_model_pull_fast_path();
+        }
     }
 
     /// Mark derived graph sources affected by one action.
@@ -399,6 +457,7 @@ impl SempalNativeBridge {
         if !self.pending_waveform_actions.has_pending() {
             return;
         }
+        self.schedule_full_model_pull_preparation();
         let pending = std::mem::take(&mut self.pending_waveform_actions);
         let profiling = bridge_profiling_enabled();
         let flush_start = profiling.then(Instant::now);
@@ -506,16 +565,27 @@ impl SempalNativeBridge {
         let call = trace_pull_model_call();
         let profiling = bridge_profiling_enabled();
         let prepare_start = profiling.then(Instant::now);
+        let mut use_local_pull_fast_path = false;
         if call <= 24 {
-            info!(call, "native bridge: pull_model start");
+            info!(
+                call,
+                local_only = use_local_pull_fast_path,
+                "native bridge: pull_model start"
+            );
         }
         self.flush_pending_input_actions();
-        let revisions_before_prepare = self.controller.ui.projection_revisions;
-        self.controller.prepare_native_frame(false);
-        if revisions_before_prepare != self.controller.ui.projection_revisions {
-            self.invalidate_projection_key_snapshot();
+        use_local_pull_fast_path = self.consume_local_model_pull_fast_path();
+        if call <= 24 && use_local_pull_fast_path {
+            info!(call, "native bridge: pull_model using local-only fast path");
         }
-        self.flush_derived_updates_before_pull(false);
+        if !use_local_pull_fast_path {
+            let revisions_before_prepare = self.controller.ui.projection_revisions;
+            self.controller.prepare_native_frame(false);
+            if revisions_before_prepare != self.controller.ui.projection_revisions {
+                self.invalidate_projection_key_snapshot();
+            }
+            self.flush_derived_updates_before_pull(false);
+        }
         let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
         if profiling {
             trace_pull_model_preparation(prepare_duration);
@@ -573,6 +643,7 @@ impl SempalNativeBridge {
         if call <= 64 {
             info!(call, action = ?action, "native bridge: apply waveform preview action");
         }
+        self.schedule_full_model_pull_preparation();
         self.apply_action_immediately(action);
         if profiling {
             let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -586,6 +657,7 @@ impl SempalNativeBridge {
         if !self.enqueue_waveform_action(action) {
             return false;
         }
+        self.schedule_full_model_pull_preparation();
         let call = trace_action_call();
         let profiling = bridge_profiling_enabled();
         let action_start = profiling.then(Instant::now);
