@@ -17,11 +17,10 @@ pub struct SampleBrowserState {
     pub visible: VisibleRows,
     /// Monotonic revision bumped whenever the visible-row projection changes.
     pub visible_rows_revision: u64,
-    /// Revision for the current absolute-index lookup maps.
-    ///
-    /// This tracks which visible-row projection revision last rebuilt
-    /// `visible_row_by_absolute` and `triage_index_by_absolute`.
-    pub lookup_maps_revision: u64,
+    /// Revision for the current visible-row reverse lookup map.
+    pub visible_row_lookup_revision: u64,
+    /// Revision for the current triage-column reverse lookup map.
+    pub triage_index_lookup_revision: u64,
     /// Focused row used for playback/navigation (mirrors previously “selected”).
     pub selected: Option<SampleBrowserIndex>,
     /// Loaded row used for playback.
@@ -39,8 +38,12 @@ pub struct SampleBrowserState {
     pub render_window_start: usize,
     /// Cached visible-row lookup by absolute wav-entry index.
     pub visible_row_by_absolute: Vec<Option<usize>>,
+    /// Visible-row lookup generation per absolute wav-entry index.
+    pub visible_row_by_absolute_generation: Vec<u64>,
     /// Cached triage-column lookup by absolute wav-entry index.
     pub triage_index_by_absolute: Vec<Option<SampleBrowserIndex>>,
+    /// Triage-column lookup generation per absolute wav-entry index.
+    pub triage_index_by_absolute_generation: Vec<u64>,
     /// Absolute indices currently included in the multi-selection set.
     pub selected_indices: Vec<usize>,
     /// Paths currently included in the multi-selection set.
@@ -99,7 +102,8 @@ impl Default for SampleBrowserState {
             keep: Arc::from([]),
             visible: VisibleRows::List(Vec::new().into()),
             visible_rows_revision: 0,
-            lookup_maps_revision: 0,
+            visible_row_lookup_revision: 0,
+            triage_index_lookup_revision: 0,
             selected: None,
             loaded: None,
             selected_visible: None,
@@ -107,7 +111,9 @@ impl Default for SampleBrowserState {
             selection_anchor_visible: None,
             render_window_start: 0,
             visible_row_by_absolute: Vec::new(),
+            visible_row_by_absolute_generation: Vec::new(),
             triage_index_by_absolute: Vec::new(),
+            triage_index_by_absolute_generation: Vec::new(),
             selected_indices: Vec::new(),
             selected_paths: Vec::new(),
             selected_paths_revision: 0,

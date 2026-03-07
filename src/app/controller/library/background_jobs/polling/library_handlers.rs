@@ -121,7 +121,7 @@ impl AppController {
             self.ui.browser.trash = message.trash;
             self.ui.browser.neutral = message.neutral;
             self.ui.browser.keep = message.keep;
-            self.rebuild_browser_lookup_maps();
+            self.invalidate_browser_lookup_maps();
             self.ui_cache.browser.search.scores = message.scores;
             self.ui.browser.latest_applied_search_request_id = message.request_id;
             self.ui.browser.search_busy = false;
