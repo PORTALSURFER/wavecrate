@@ -5,7 +5,7 @@
 # - Installs the pinned Rust toolchain from rust-toolchain.toml
 # - Ensures rustfmt/clippy/cargo-nextest are available
 # - Checks git-lfs and python3
-# - Prints next-step commands
+# - Prints next-step commands for smoke, quick, and full validation tiers
 
 set -euo pipefail
 
@@ -202,7 +202,8 @@ fi
 echo
 echo "[bootstrap] Next steps:"
 echo "  - Environment sanity:   bash scripts/doctor.sh"
-echo "  - Fast dev checks:      bash scripts/ci_quick.sh"
+echo "  - Smoke devcheck:       bash scripts/devcheck.sh"
+echo "  - Fast test checks:     bash scripts/ci_quick.sh"
 echo "  - CI parity checks:     bash scripts/ci_local.sh"
 echo "  - Safe local run:       bash scripts/run_sandbox.sh --"
 

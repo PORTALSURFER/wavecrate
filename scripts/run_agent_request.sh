@@ -16,11 +16,13 @@ cd "$ROOT_DIR"
 usage() {
   cat <<'USAGE'
 Usage: scripts/run_agent_request.sh [--skip-ci] [--full-ci] [--updater <name>] [--memory-max-age-hours <hours>]
+Usage: scripts/run_agent_request.sh [--skip-ci] [--quick-ci] [--full-ci] [--updater <name>] [--memory-max-age-hours <hours>]
 
 Run the mandatory agent preflight and optional local development checks.
 
 Options:
-  --skip-ci                 Skip both ./scripts/ci_quick.sh and ./scripts/ci_local.sh.
+  --skip-ci                 Skip ./scripts/devcheck.sh, ./scripts/ci_quick.sh, and ./scripts/ci_local.sh.
+  --quick-ci                Run fast filtered tests via ./scripts/ci_quick.sh.
   --full-ci                 Run full ./scripts/ci_local.sh --skip-agent-preflight.
   --updater <name>          Name to write into MEMORY.md (default: Codex).
   --memory-max-age-hours N  Freshness threshold for MEMORY.md in hours (default: 1).
@@ -29,6 +31,7 @@ USAGE
 }
 
 SKIP_CI=0
+QUICK_CI=0
 FULL_CI=0
 UPDATER="Codex"
 MEMORY_MAX_AGE_HOURS=1
@@ -37,6 +40,10 @@ while (( $# > 0 )); do
   case "$1" in
     --skip-ci)
       SKIP_CI=1
+      shift
+      ;;
+    --quick-ci)
+      QUICK_CI=1
       shift
       ;;
     --full-ci)
@@ -78,6 +85,12 @@ while (( $# > 0 )); do
   esac
 done
 
+if (( QUICK_CI == 1 && FULL_CI == 1 )); then
+  echo "[agent_request] --quick-ci and --full-ci are mutually exclusive." >&2
+  usage >&2
+  exit 2
+fi
+
 ./scripts/run_agent_preflight.sh \
   --refresh-memory \
   --updater "$UPDATER" \
@@ -86,7 +99,9 @@ done
 if (( SKIP_CI == 0 )); then
   if (( FULL_CI == 1 )); then
     ./scripts/ci_local.sh --skip-agent-preflight
-  else
+  elif (( QUICK_CI == 1 )); then
     ./scripts/ci_quick.sh
+  else
+    ./scripts/devcheck.sh
   fi
 fi

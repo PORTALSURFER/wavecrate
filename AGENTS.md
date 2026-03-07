@@ -74,14 +74,16 @@ Write for future selves: be precise, kind, and clear.
 - `tmp/perf_plan.md`: ROI-ranked runtime performance backlog + execution checklist for the current perf pass
 
 ## Non-Negotiable Workflow Rules
-- Before and after edits: `bash scripts/ci_quick.sh`
-- If quick CI fails: fix and rerun until green
+- During the tight edit loop: `bash scripts/devcheck.sh`
+- Before commit/push and after non-trivial edits: `bash scripts/ci_quick.sh`
+- If devcheck or quick CI fails: fix and rerun until green
 - After code changes: commit and push
 - Do not push unless `scripts/ci_quick.sh` is green
 - Run `bash scripts/ci_local.sh` before pushing broader validation/tooling/perf/dependency changes or when you need full CI parity
 
 ## Golden Commands
 - Bootstrap: `bash scripts/bootstrap.sh`
+- Smoke devcheck: `bash scripts/devcheck.sh`
 - Fast dev checks: `bash scripts/ci_quick.sh`
 - CI parity: `bash scripts/ci_local.sh`
 - Safe run: `bash scripts/run_sandbox.sh --`

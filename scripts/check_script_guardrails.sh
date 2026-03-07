@@ -447,6 +447,14 @@ run_expect_exit_code \
   scripts/run_agent_preflight.sh
 
 run_expect_exit_code \
+  "bash -n scripts/devcheck.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/devcheck.sh
+
+run_expect_exit_code \
   "bash -n scripts/ci_quick.sh" \
   0 \
   "$ROOT_DIR" \
@@ -475,6 +483,13 @@ run_expect_exit_code \
   0 \
   "$ROOT_DIR" \
   scripts/run_agent_request.sh \
+  --help
+
+run_expect_exit_code \
+  "devcheck --help" \
+  0 \
+  "$ROOT_DIR" \
+  scripts/devcheck.sh \
   --help
 
 run_expect_exit_code \

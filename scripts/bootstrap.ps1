@@ -9,7 +9,7 @@ Bootstrap a known-good local dev environment (humans + agents).
 - Installs the pinned Rust toolchain from rust-toolchain.toml
 - Ensures rustfmt/clippy/cargo-nextest are available
 - Checks git-lfs and Python
-- Prints next-step commands
+- Prints next-step commands for smoke, quick, and full validation tiers
 #>
 
 $verifyOnly = $false
@@ -210,7 +210,8 @@ try {
   Write-Host ""
   Write-Host "[bootstrap] Next steps:"
   Write-Host "  - Environment sanity:   powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1"
-  Write-Host "  - Fast dev checks:      powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1"
+  Write-Host "  - Smoke devcheck:       powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1"
+  Write-Host "  - Fast test checks:     powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1"
   Write-Host "  - CI parity checks:     powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1"
   Write-Host "  - Safe local run:       powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --"
 

@@ -6,12 +6,20 @@ This file inventories the test suites currently exercised in the repository and 
 
 Use these for normal iteration:
 
+- Fastest smoke/compile gate:
+  - `bash scripts/devcheck.sh`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Fast local development checks:
   - `bash scripts/ci_quick.sh`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Full CI parity checks:
   - `bash scripts/ci_local.sh`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+
+Recommended cadence:
+- Use `devcheck` during the tight edit loop.
+- Use `ci_quick` before commit or after a non-trivial change.
+- Use `ci_local` for tooling changes, dependency work, perf-sensitive work, or when you need CI parity.
 
 ## 1) Root crate unit + integration tests (`sempal`)
 
@@ -20,6 +28,8 @@ Location: `src/` modules with `#[cfg(test)]` blocks and `tests/` integration fil
 - Run all project tests:
   - `cargo nextest run --all-targets --no-fail-fast`
   - `cargo test --doc`
+- Run the filtered quick app-development subset:
+  - `cargo nextest run --profile quick --lib --tests`
 - Run only integration tests:
   - `cargo nextest run --test controller_browser_integration`
   - `cargo nextest run --test take_duration_test`

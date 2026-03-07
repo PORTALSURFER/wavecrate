@@ -30,6 +30,9 @@ Use these scripts as the default entrypoints for local work (humans and agents).
 - Bootstrap tooling + pinned toolchain:
   - macOS/Linux/WSL: `bash scripts/bootstrap.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1`
+- Fastest smoke/compile checks:
+  - macOS/Linux/WSL: `bash scripts/devcheck.sh`
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Fast development checks:
   - macOS/Linux/WSL: `bash scripts/ci_quick.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
@@ -38,8 +41,8 @@ Use these scripts as the default entrypoints for local work (humans and agents).
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 - Agent request preflight:
   - `bash scripts/run_agent_request.sh` (or `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`)  
-    refreshes `MEMORY.md`, runs mandatory checks, then fast local development checks by default.
-  - Pass `--full-ci` when you want the slower CI-parity gate from the same entrypoint.
+    refreshes `MEMORY.md`, runs mandatory checks, then the smoke `devcheck` by default.
+  - Pass `--quick-ci` for the filtered fast test loop or `--full-ci` for the slower CI-parity gate.
 - Lightweight per-request preflight: `bash scripts/run_agent_preflight.sh`
 - Automatic pull/checkout enforcement:
   `bash scripts/install_agent_preflight_hooks.sh` is installed by

@@ -2,9 +2,10 @@
 
 # Fast local development checks.
 #
-# This script keeps the everyday edit/test loop lean by running the normal
-# unit, integration, and binary tests through cargo-nextest while skipping the
-# slower CI-parity steps. Use scripts/ci_local.sh for the full gate.
+# This script keeps the everyday edit/test loop lean by running the filtered
+# nextest quick profile over library and integration tests while skipping
+# support-tool binaries and the slower CI-parity steps. Use scripts/ci_local.sh
+# for the full gate.
 
 set -euo pipefail
 
@@ -16,7 +17,7 @@ usage() {
 Usage: scripts/ci_quick.sh
 
 Run the fast local development test loop.
-
+For the compile-only smoke gate, use `scripts/devcheck.sh`.
 For full CI parity, use `scripts/ci_local.sh`.
 USAGE
 }
@@ -35,7 +36,7 @@ while (( $# > 0 )); do
   esac
 done
 
-echo "[ci_quick] cargo nextest run --lib --bins --tests --no-fail-fast"
-cargo nextest run --lib --bins --tests --no-fail-fast
+echo "[ci_quick] cargo nextest run --profile quick --lib --tests"
+cargo nextest run --profile quick --lib --tests
 
 echo "[ci_quick] OK"

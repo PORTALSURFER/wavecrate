@@ -110,6 +110,7 @@ try {
     (Join-Path $scriptsDir "run_agent_request.ps1"),
     (Join-Path $scriptsDir "run_agent_ci_checks.ps1"),
     (Join-Path $scriptsDir "run_agent_preflight.ps1"),
+    (Join-Path $scriptsDir "devcheck.ps1"),
     (Join-Path $scriptsDir "ci_quick.ps1"),
     (Join-Path $scriptsDir "ci_local.ps1"),
     (Join-Path $scriptsDir "refresh_memory_md.ps1")
@@ -120,6 +121,7 @@ try {
 
   Invoke-ExpectExitCode -Label "run_agent_request --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "run_agent_request.ps1") -Arguments @("-Help")
   Invoke-ExpectExitCode -Label "run_agent_preflight --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "run_agent_preflight.ps1") -Arguments @("-Help")
+  Invoke-ExpectExitCode -Label "devcheck --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "devcheck.ps1") -Arguments @("-Help")
   Invoke-ExpectExitCode -Label "ci_quick --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "ci_quick.ps1") -Arguments @("-Help")
 
   $fixtureDir = New-TempDir

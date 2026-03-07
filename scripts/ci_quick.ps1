@@ -3,10 +3,10 @@
 Runs a fast local development test pass.
 
 .DESCRIPTION
-Executes the everyday validation loop for normal development by running the
-project's standard unit, integration, and binary tests through cargo-nextest.
-This intentionally skips clippy, rustdoc, benches, perf guards, and other
-slower CI-parity checks reserved for `scripts/ci_local.ps1`.
+Executes the everyday fast test loop for normal development by running the
+quick nextest profile over library and integration tests. This intentionally
+skips support-tool binaries, slower recovery tests, clippy, rustdoc, benches,
+perf guards, and other CI-parity checks reserved for `scripts/ci_local.ps1`.
 #>
 
 param(
@@ -19,6 +19,7 @@ $ErrorActionPreference = "Stop"
 if ($Help) {
   Write-Host "Usage: scripts/ci_quick.ps1"
   Write-Host "Run the fast local development test loop."
+  Write-Host "For the compile-only smoke gate, use `scripts/devcheck.ps1`."
   Write-Host "For full CI parity, use `scripts/ci_local.ps1`."
   exit 0
 }
@@ -41,9 +42,9 @@ function Invoke-NativeStep {
 
 Push-Location $rootDir
 try {
-  Write-Host "[ci_quick] cargo nextest run --lib --bins --tests --no-fail-fast"
-  Invoke-NativeStep -Label "cargo nextest run --lib --bins --tests --no-fail-fast" -Command {
-    cargo nextest run --lib --bins --tests --no-fail-fast
+  Write-Host "[ci_quick] cargo nextest run --profile quick --lib --tests"
+  Invoke-NativeStep -Label "cargo nextest run --profile quick --lib --tests" -Command {
+    cargo nextest run --profile quick --lib --tests
   }
 
   Write-Host "[ci_quick] OK"
