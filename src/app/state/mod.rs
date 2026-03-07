@@ -12,6 +12,7 @@ mod geometry;
 mod hotkeys;
 mod loop_crossfade;
 mod map;
+mod options_panel;
 mod progress;
 /// Canonical projection invalidation revision counters.
 mod revisions;
@@ -30,6 +31,7 @@ pub use geometry::*;
 pub use hotkeys::*;
 pub use loop_crossfade::*;
 pub use map::*;
+pub use options_panel::*;
 pub use progress::*;
 pub use revisions::*;
 pub use sources::*;
@@ -66,6 +68,8 @@ pub struct UiState {
     pub map: MapUiState,
     /// Interaction and navigation tuning options.
     pub controls: InteractionOptionsState,
+    /// Native-shell options panel state.
+    pub options_panel: OptionsPanelState,
     /// Pending loop crossfade prompt state.
     pub loop_crossfade_prompt: Option<LoopCrossfadePrompt>,
     /// Master output volume (0.0-1.0).
@@ -95,6 +99,7 @@ impl Default for UiState {
             audio: AudioOptionsState::default(),
             map: MapUiState::default(),
             controls: InteractionOptionsState::default(),
+            options_panel: OptionsPanelState::default(),
             loop_crossfade_prompt: None,
             volume: 1.0,
             update: UpdateUiState::default(),

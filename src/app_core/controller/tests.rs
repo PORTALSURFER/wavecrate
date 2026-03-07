@@ -43,6 +43,8 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
         BrowserSearchFocused(bool),
         MapTab(SampleBrowserTab),
         LoopEnabled(bool),
+        OptionsPanelOpen(bool),
+        InputMonitoring(bool),
         PendingSeek(Option<u16>),
         EditSelectionRange(Option<(u16, u16)>),
         UpdateStatus(UpdateStatus),
@@ -76,6 +78,16 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
             label: "transport group",
             action: NativeUiAction::ToggleLoopPlayback,
             expected: Expected::LoopEnabled(true),
+        },
+        Case {
+            label: "options panel group",
+            action: NativeUiAction::OpenOptionsMenu,
+            expected: Expected::OptionsPanelOpen(true),
+        },
+        Case {
+            label: "options toggle group",
+            action: NativeUiAction::SetInputMonitoringEnabled { enabled: false },
+            expected: Expected::InputMonitoring(false),
         },
         Case {
             label: "waveform group",
@@ -124,6 +136,16 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
             Expected::LoopEnabled(expected) => {
                 assert_eq!(
                     controller.ui.waveform.loop_enabled, expected,
+                    "{}",
+                    case.label
+                );
+            }
+            Expected::OptionsPanelOpen(expected) => {
+                assert_eq!(controller.ui.options_panel.open, expected, "{}", case.label);
+            }
+            Expected::InputMonitoring(expected) => {
+                assert_eq!(
+                    controller.ui.controls.input_monitoring_enabled, expected,
                     "{}",
                     case.label
                 );
@@ -334,4 +356,26 @@ fn apply_native_waveform_option_actions_update_waveform_state() {
     controller.apply_native_ui_action(NativeUiAction::SetSliceModeEnabled { enabled: false });
     assert!(!controller.ui.waveform.slice_mode_enabled);
     assert!(controller.ui.waveform.selected_slices.is_empty());
+}
+
+#[test]
+/// Native options panel actions should update UI settings state.
+fn apply_native_options_panel_actions_update_ui_state() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+
+    controller.apply_native_ui_action(NativeUiAction::OpenOptionsMenu);
+    assert!(controller.ui.options_panel.open);
+
+    controller
+        .apply_native_ui_action(NativeUiAction::SetAdvanceAfterRatingEnabled { enabled: false });
+    assert!(!controller.ui.controls.advance_after_rating);
+
+    controller.apply_native_ui_action(NativeUiAction::SetDestructiveYoloMode { enabled: true });
+    assert!(controller.ui.controls.destructive_yolo_mode);
+
+    controller.apply_native_ui_action(NativeUiAction::SetInvertWaveformScroll { enabled: false });
+    assert!(!controller.ui.controls.invert_waveform_scroll);
+
+    controller.apply_native_ui_action(NativeUiAction::CloseOptionsPanel);
+    assert!(!controller.ui.options_panel.open);
 }

@@ -19,6 +19,7 @@ use crate::app_core::actions::{
     NativeMapPanelModel as MapPanelModel, NativeMapPointModel as MapPointModel,
     NativeMapRenderModeModel as MapRenderModeModel, NativeMotionModel as MotionModel,
     NativeNormalizedRangeModel as NormalizedRangeModel,
+    NativeOptionsPanelModel as OptionsPanelModel,
     NativeProgressOverlayModel as ProgressOverlayModel, NativeSourceRowModel as SourceRowModel,
     NativeSourcesPanelModel as SourcesPanelModel, NativeStatusBarModel as StatusBarModel,
     NativeUpdatePanelModel as UpdatePanelModel, NativeUpdateStatusModel as UpdateStatusModel,
@@ -54,6 +55,8 @@ mod browser_projection;
 mod confirm_prompt_projection;
 /// Map panel projection helpers and retained projected map-point caches.
 mod map_projection;
+/// Options-panel projection helpers.
+mod options_panel_projection;
 /// Source/folder sidebar projection helpers.
 mod sources_projection;
 /// Status-bar and selected-column projection helpers.
@@ -75,6 +78,7 @@ pub(crate) use browser_projection::{
 };
 pub(crate) use confirm_prompt_projection::project_confirm_prompt_model;
 pub(crate) use map_projection::project_map_model;
+pub(crate) use options_panel_projection::project_options_panel_model;
 pub(crate) use sources_projection::project_sources_model;
 use status_projection::status_bar_right_text;
 pub(crate) use status_projection::{project_status_model, selected_column_index};
@@ -187,6 +191,8 @@ struct ProjectAppModelCoreModels {
 struct ProjectAppModelOverlayAndChromeModels {
     /// Update surface model.
     update: UpdatePanelModel,
+    /// Options-panel overlay model.
+    options_panel: OptionsPanelModel,
     /// Progress overlay model.
     progress_overlay: ProgressOverlayModel,
     /// Confirm prompt overlay model.
@@ -237,6 +243,7 @@ fn materialize_project_app_model_overlay_and_chrome(
 ) -> ProjectAppModelOverlayAndChromeModels {
     ProjectAppModelOverlayAndChromeModels {
         update: project_update_model(ui),
+        options_panel: project_options_panel_model(ui),
         progress_overlay: project_progress_overlay_model(ui),
         confirm_prompt: project_confirm_prompt_model(ui),
         drag_overlay: project_drag_overlay_model(ui),
@@ -258,6 +265,7 @@ fn assemble_project_app_model(
         status_text: derived_inputs.status_text,
         status: core_models.status,
         browser_actions: core_models.browser_actions,
+        options_panel: overlay_and_chrome_models.options_panel,
         progress_overlay: overlay_and_chrome_models.progress_overlay,
         confirm_prompt: overlay_and_chrome_models.confirm_prompt,
         drag_overlay: overlay_and_chrome_models.drag_overlay,

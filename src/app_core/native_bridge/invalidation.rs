@@ -126,6 +126,12 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::OpenUpdateLink
         | NativeUiAction::InstallUpdate
         | NativeUiAction::DismissUpdate
+        | NativeUiAction::OpenOptionsMenu
+        | NativeUiAction::CloseOptionsPanel
+        | NativeUiAction::SetInputMonitoringEnabled { .. }
+        | NativeUiAction::SetAdvanceAfterRatingEnabled { .. }
+        | NativeUiAction::SetDestructiveYoloMode { .. }
+        | NativeUiAction::SetInvertWaveformScroll { .. }
         | NativeUiAction::ConfirmPrompt
         | NativeUiAction::CancelPrompt
         | NativeUiAction::CancelProgress

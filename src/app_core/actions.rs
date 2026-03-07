@@ -69,6 +69,9 @@ pub type NativeMapPointModel = radiant::app::MapPointModel;
 /// Native runtime map render mode model.
 pub type NativeMapRenderModeModel = radiant::app::MapRenderModeModel;
 
+/// Native runtime options panel model.
+pub type NativeOptionsPanelModel = radiant::app::OptionsPanelModel;
+
 /// Native runtime normalized range model.
 pub type NativeNormalizedRangeModel = radiant::app::NormalizedRangeModel;
 

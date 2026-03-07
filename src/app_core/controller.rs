@@ -243,7 +243,21 @@ fn apply_browser_native_ui_action(
         NativeUiAction::RemoveDeadLinksForSourceRow { index } => {
             controller.remove_dead_links_for_source(index)
         }
-        NativeUiAction::OpenOptionsMenu => controller.add_source_via_dialog(),
+        NativeUiAction::OpenAddSourceDialog => controller.add_source_via_dialog(),
+        NativeUiAction::OpenOptionsMenu => controller.open_options_panel(),
+        NativeUiAction::CloseOptionsPanel => controller.close_options_panel(),
+        NativeUiAction::SetInputMonitoringEnabled { enabled } => {
+            controller.set_input_monitoring_enabled(enabled)
+        }
+        NativeUiAction::SetAdvanceAfterRatingEnabled { enabled } => {
+            controller.set_advance_after_rating(enabled)
+        }
+        NativeUiAction::SetDestructiveYoloMode { enabled } => {
+            controller.set_destructive_yolo_mode(enabled)
+        }
+        NativeUiAction::SetInvertWaveformScroll { enabled } => {
+            controller.set_invert_waveform_scroll(enabled)
+        }
         NativeUiAction::MoveBrowserFocus { delta } => {
             controller.focus_browser_delta_and_play_action(delta)
         }
