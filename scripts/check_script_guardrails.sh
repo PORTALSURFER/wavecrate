@@ -447,6 +447,14 @@ run_expect_exit_code \
   scripts/run_agent_preflight.sh
 
 run_expect_exit_code \
+  "bash -n scripts/ci_quick.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/ci_quick.sh
+
+run_expect_exit_code \
   "bash -n scripts/install_agent_preflight_hooks.sh" \
   0 \
   "$ROOT_DIR" \
@@ -467,6 +475,13 @@ run_expect_exit_code \
   0 \
   "$ROOT_DIR" \
   scripts/run_agent_request.sh \
+  --help
+
+run_expect_exit_code \
+  "ci_quick --help" \
+  0 \
+  "$ROOT_DIR" \
+  scripts/ci_quick.sh \
   --help
 
 run_expect_exit_code \

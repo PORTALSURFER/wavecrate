@@ -16,7 +16,8 @@
 
 ## Validation
 
-- Local checks: `bash scripts/ci_local.sh` / `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+- Fast local checks: `bash scripts/ci_quick.sh` / `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Full CI parity (when relevant): `bash scripts/ci_local.sh` / `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 - Tests added/updated:
 - Manual QA notes:
   - Prefer running the app via `scripts/run_sandbox.sh` / `scripts/run_sandbox.ps1` so tests and manual QA do not touch real user data.

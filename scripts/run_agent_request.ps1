@@ -11,6 +11,7 @@ param(
   [string]$Updater = "Codex",
   [int]$MemoryMaxAgeHours = 1,
   [switch]$SkipCi,
+  [switch]$FullCi,
   [switch]$Help
 )
 
@@ -19,10 +20,12 @@ $ErrorActionPreference = "Stop"
 
 
 if ($Help) {
-  Write-Host "Usage: run_agent_request.ps1 [-Updater Codex] [-MemoryMaxAgeHours 1] [-SkipCi]"
+  Write-Host "Usage: run_agent_request.ps1 [-Updater Codex] [-MemoryMaxAgeHours 1] [-SkipCi] [-FullCi]"
   Write-Host ""
-  Write-Host "Run the mandatory agent preflight and optional full local CI gate."
-  Write-Host "If -SkipCi is set, skip `./scripts/ci_local.ps1 -SkipAgentPreflight`."
+  Write-Host "Run the mandatory agent preflight and optional local development checks."
+  Write-Host "Default CI path: `./scripts/ci_quick.ps1`."
+  Write-Host "If -FullCi is set, run `./scripts/ci_local.ps1 -SkipAgentPreflight` instead."
+  Write-Host "If -SkipCi is set, skip both local CI paths."
   exit 0
 }
 
@@ -37,7 +40,11 @@ Write-Host "[agent_request] updater=$Updater memory_max_age_hours=$MemoryMaxAgeH
 & (Join-Path $rootDir "scripts/run_agent_preflight.ps1") -RefreshMemory -Updater "$Updater" -MemoryMaxAgeHours "$MemoryMaxAgeHours"
 
 if (-not $SkipCi) {
-  & (Join-Path $rootDir "scripts/ci_local.ps1") -SkipAgentPreflight
+  if ($FullCi) {
+    & (Join-Path $rootDir "scripts/ci_local.ps1") -SkipAgentPreflight
+  } else {
+    & (Join-Path $rootDir "scripts/ci_quick.ps1")
+  }
 }
 
 Write-Host "[agent_request] OK"

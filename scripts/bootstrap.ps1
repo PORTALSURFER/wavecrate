@@ -7,7 +7,7 @@ Bootstrap a known-good local dev environment (humans + agents).
 
 .DESCRIPTION
 - Installs the pinned Rust toolchain from rust-toolchain.toml
-- Ensures rustfmt/clippy are available
+- Ensures rustfmt/clippy/cargo-nextest are available
 - Checks git-lfs and Python
 - Prints next-step commands
 #>
@@ -20,7 +20,7 @@ if ($args -contains "--verify-only") {
 if ($args -contains "-h" -or $args -contains "--help") {
   Write-Host "Usage: scripts/bootstrap.ps1 [--verify-only]"
   Write-Host ""
-  Write-Host "Default: installs/ensures a known-good local environment (pinned toolchain + rustfmt/clippy)."
+  Write-Host "Default: installs/ensures a known-good local environment (pinned toolchain + rustfmt/clippy/cargo-nextest)."
   Write-Host "--verify-only: performs checks only (no installs); exits non-zero if missing."
   exit 0
 }
@@ -210,6 +210,7 @@ try {
   Write-Host ""
   Write-Host "[bootstrap] Next steps:"
   Write-Host "  - Environment sanity:   powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1"
+  Write-Host "  - Fast dev checks:      powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1"
   Write-Host "  - CI parity checks:     powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1"
   Write-Host "  - Safe local run:       powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --"
 

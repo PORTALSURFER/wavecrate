@@ -3,7 +3,7 @@
 # Bootstrap a known-good local dev environment (humans + agents).
 #
 # - Installs the pinned Rust toolchain from rust-toolchain.toml
-# - Ensures rustfmt/clippy are available
+# - Ensures rustfmt/clippy/cargo-nextest are available
 # - Checks git-lfs and python3
 # - Prints next-step commands
 
@@ -21,6 +21,7 @@ Usage: scripts/bootstrap.sh [--verify-only]
 Default: installs/ensures a known-good local environment:
 - pinned Rust toolchain from rust-toolchain.toml
 - rustfmt + clippy components
+- cargo-nextest
 - checks git-lfs, python3, and rg
 
   --verify-only:
@@ -201,6 +202,7 @@ fi
 echo
 echo "[bootstrap] Next steps:"
 echo "  - Environment sanity:   bash scripts/doctor.sh"
+echo "  - Fast dev checks:      bash scripts/ci_quick.sh"
 echo "  - CI parity checks:     bash scripts/ci_local.sh"
 echo "  - Safe local run:       bash scripts/run_sandbox.sh --"
 

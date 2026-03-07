@@ -2,6 +2,17 @@
 
 This file inventories the test suites currently exercised in the repository and the preferred commands to run them.
 
+## Fast Development Loop
+
+Use these for normal iteration:
+
+- Fast local development checks:
+  - `bash scripts/ci_quick.sh`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Full CI parity checks:
+  - `bash scripts/ci_local.sh`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+
 ## 1) Root crate unit + integration tests (`sempal`)
 
 Location: `src/` modules with `#[cfg(test)]` blocks and `tests/` integration files.
