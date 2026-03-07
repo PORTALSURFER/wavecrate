@@ -187,6 +187,26 @@ try {
     }
   }
 
+  $hasNextest = $false
+  try {
+    cargo nextest --version | Out-Null
+    $hasNextest = $true
+  } catch {
+    $hasNextest = $false
+  }
+
+  if ($hasNextest) {
+    Write-Host "[bootstrap] cargo-nextest: installed"
+  } else {
+    Write-Host "[bootstrap] cargo-nextest: missing"
+    if ($verifyOnly) {
+      $failures++
+    } else {
+      Write-Host "[bootstrap] cargo install cargo-nextest --locked"
+      cargo install cargo-nextest --locked
+    }
+  }
+
   Write-Host ""
   Write-Host "[bootstrap] Next steps:"
   Write-Host "  - Environment sanity:   powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1"

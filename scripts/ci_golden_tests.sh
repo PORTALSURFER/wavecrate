@@ -15,5 +15,5 @@ if [ -f assets/ml/panns_cnn14_16k/golden_embedding.json ]; then
   export SEMPAL_PANNS_EMBED_GOLDEN_PATH="assets/ml/panns_cnn14_16k/golden_embedding.json"
 fi
 
-cargo test golden_log_mel_matches_python
-cargo test golden_embedding_matches_python
+cargo nextest run golden_log_mel_matches_python
+cargo nextest run golden_embedding_matches_python

@@ -7,13 +7,14 @@ This file inventories the test suites currently exercised in the repository and 
 Location: `src/` modules with `#[cfg(test)]` blocks and `tests/` integration files.
 
 - Run all project tests:
-  - `cargo test --all-targets`
+  - `cargo nextest run --all-targets --no-fail-fast`
+  - `cargo test --doc`
 - Run only integration tests:
-  - `cargo test --test controller_browser_integration`
-  - `cargo test --test take_duration_test`
-  - `cargo test --test repro_duration`
+  - `cargo nextest run --test controller_browser_integration`
+  - `cargo nextest run --test take_duration_test`
+  - `cargo nextest run --test repro_duration`
 - Focus a specific integration harness:
-  - `cargo test --test controller_browser_integration click_clears_selection_and_focuses_row`
+  - `cargo nextest run --test controller_browser_integration click_clears_selection_and_focuses_row`
 
 ## 2) Golden/pandas-style regression checks (`scripts/`)
 
@@ -24,21 +25,21 @@ Location: golden reference scripts that validate ANN/PANN numerical outputs and 
   - `python3 tools/generate_panns_golden_mel.py --out assets/ml/panns_cnn14_16k/golden_mel.json` (if available)
   - `python3 tools/generate_panns_golden_embedding.py --out assets/ml/panns_cnn14_16k/golden_embedding.json` (if available)
 - Run golden regression tests:
-  - `cargo test golden_log_mel_matches_python`
-  - `cargo test golden_embedding_matches_python`
+  - `cargo nextest run golden_log_mel_matches_python`
+  - `cargo nextest run golden_embedding_matches_python`
 
 ## 3) Vendor native UI crate visual/behavior regression (`vendor/radiant`)
 
 Location: `vendor/radiant/src/gui/native_shell` unit tests and `vendor/radiant/tests/shots` fixtures.
 
 - Run unit tests for native-shell logic:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml`
+  - `cargo nextest run --manifest-path vendor/radiant/Cargo.toml`
 - Run snapshot compare suites:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml startup_shot_matches_fixture`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_dense_shot_matches_fixture`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml waveform_selection_shot_matches_fixture`
+  - `cargo nextest run --manifest-path vendor/radiant/Cargo.toml startup_shot_matches_fixture`
+  - `cargo nextest run --manifest-path vendor/radiant/Cargo.toml browser_dense_shot_matches_fixture`
+  - `cargo nextest run --manifest-path vendor/radiant/Cargo.toml waveform_selection_shot_matches_fixture`
 - Regenerate fixture baselines (on intentional UI/layout changes):
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml native_shell::shots::update_shot_fixtures -- --ignored`
+  - `cargo nextest run --manifest-path vendor/radiant/Cargo.toml native_shell::shots::update_shot_fixtures --run-ignored only`
 
 ## 4) Benchmarks
 
@@ -62,4 +63,4 @@ Location: `[[bench]]` targets in `Cargo.toml`.
 
 See `.github/workflows/ci.yml` for branch-wide runs:
 - Runs on `main` and `next`.
-- Executes `cargo fmt --all -- --check`, `cargo clippy --all-targets`, and `cargo test --all-targets`.
+- Executes `cargo fmt --all -- --check`, `cargo clippy --all-targets`, `cargo nextest run --all-targets --no-fail-fast`, and `cargo test --doc`.

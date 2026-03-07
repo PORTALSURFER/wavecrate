@@ -66,8 +66,13 @@ try {
     }
   }
 
-  Write-Host "[ci_local] cargo test --all-targets"
-  Invoke-NativeStep -Label "cargo test --all-targets" -Command { cargo test --all-targets }
+  Write-Host "[ci_local] cargo nextest run --all-targets --no-fail-fast"
+  Invoke-NativeStep -Label "cargo nextest run --all-targets --no-fail-fast" -Command {
+    cargo nextest run --all-targets --no-fail-fast
+  }
+
+  Write-Host "[ci_local] cargo test --doc"
+  Invoke-NativeStep -Label "cargo test --doc" -Command { cargo test --doc }
 
   Write-Host "[ci_local] scripts/run_perf_guard.ps1"
   & (Join-Path $rootDir "scripts/run_perf_guard.ps1")

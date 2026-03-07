@@ -186,6 +186,18 @@ else
   fi
 fi
 
+if cargo nextest --version >/dev/null 2>&1; then
+  echo "[bootstrap] cargo-nextest: installed"
+else
+  echo "[bootstrap] cargo-nextest: missing" >&2
+  if (( VERIFY_ONLY == 1 )); then
+    failures=$((failures + 1))
+  else
+    echo "[bootstrap] cargo install cargo-nextest --locked"
+    cargo install cargo-nextest --locked
+  fi
+fi
+
 echo
 echo "[bootstrap] Next steps:"
 echo "  - Environment sanity:   bash scripts/doctor.sh"
