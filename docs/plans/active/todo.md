@@ -12,16 +12,16 @@ Purpose:
 ## Current lane
 
 - Runtime responsiveness/performance redesign (Xilem-inspired retained/incremental update path).
-- Perf Phase 2 items 1-4 in `tmp/perf_plan.md` are complete.
+- Perf Phase 2 items 1-5 in `tmp/perf_plan.md` are complete.
 - The active ordered backlog lives in `tmp/perf_plan.md`.
 
 ## Next tasks (ordered)
 
-1. Execute `tmp/perf_plan.md` item 5:
-   reduce whole-dataset search work and stale-query CPU burn.
-2. Execute `tmp/perf_plan.md` item 6:
+1. Execute `tmp/perf_plan.md` item 6:
    retain browser row metadata by absolute index and diff visible-window preloads.
-3. Execute `tmp/perf_plan.md` item 7:
+2. Execute `tmp/perf_plan.md` item 7:
    rework retained waveform image upload caching to avoid clone-before-lookup churn.
+3. Execute `tmp/perf_plan.md` item 8:
+   make full-scene startup reveal the normal path and keep the placeholder path as fallback only.
 4. Keep handoff docs synchronized at each perf milestone:
    update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/perf_plan.md` in the same cycle.

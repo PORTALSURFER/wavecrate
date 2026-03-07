@@ -133,7 +133,7 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
-- [ ] 5. Reduce whole-dataset search work and stale-query CPU burn
+- [x] 5. Reduce whole-dataset search work and stale-query CPU burn
   - ROI: High
   - Effort: L
   - Expected impact: startup-adjacent search responsiveness, CPU, memory churn
@@ -155,6 +155,17 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - Add targeted end-to-end async query-to-applied-result benchmark coverage
     - `bash scripts/run_perf_guard.sh`
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-07, commit `71b0f475`
+  - Validation status:
+    - `cargo fmt --all`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib reusable_prefix_query_score_cache_entry_prefers_longest_match -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib prefix_query_score_cache_prefers_longest_matching_prefix -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib search_job_canceled_for_index_checks_every_interval -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib list_order_query_keeps_source_order_without_score_sort_scratch -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib folder_accepts_build_stops_when_generation_turns_stale -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml --lib triage_partition_rebuild_stops_when_generation_turns_stale -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
 - [ ] 6. Retain browser row metadata by absolute index and diff visible-window preloads
   - ROI: High
