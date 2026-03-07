@@ -198,7 +198,7 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
-- [ ] 7. Rework retained waveform image upload caching to avoid clone-before-lookup churn
+- [x] 7. Rework retained waveform image upload caching to avoid clone-before-lookup churn
   - ROI: High
   - Effort: M
   - Expected impact: frame pacing, CPU, memory churn
@@ -218,6 +218,14 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - Manual waveform redraw correctness checks across image changes and device resets
     - `bash scripts/run_perf_guard.sh`
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-08, commit `2effcded`
+  - Validation status:
+    - `cargo fmt --manifest-path C:\dev\sempal\vendor\radiant\Cargo.toml --all`
+    - `cargo test --manifest-path C:\dev\sempal\vendor\radiant\Cargo.toml gui_runtime::native_vello::tests::cached_image_upload_blob_reuses_existing_entry_without_growing_cache -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\vendor\radiant\Cargo.toml gui_runtime::native_vello::tests::cached_image_upload_blob_evicts_oldest_entry_instead_of_clearing_all -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\vendor\radiant\Cargo.toml gui_runtime::native_vello -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
 - [ ] 8. Make full-scene startup reveal the normal path and keep the placeholder path as fallback only
   - ROI: Medium
