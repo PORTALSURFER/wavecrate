@@ -227,7 +227,7 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
-- [ ] 8. Make full-scene startup reveal the normal path and keep the placeholder path as fallback only
+- [x] 8. Make full-scene startup reveal the normal path and keep the placeholder path as fallback only
   - ROI: Medium
   - Effort: M
   - Expected impact: startup latency, perceived responsiveness, frame pacing
@@ -246,6 +246,13 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - Native runtime startup tests
     - Manual cold-start checks on Windows
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-08, commit `ede14f16`
+  - Validation status:
+    - `cargo fmt --manifest-path C:\dev\sempal\vendor\radiant\Cargo.toml --all`
+    - `cargo test --manifest-path C:\dev\sempal\vendor\radiant\Cargo.toml gui_runtime::native_vello::tests::startup_ -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\vendor\radiant\Cargo.toml gui_runtime::native_vello -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
 - [ ] 9. Retain map point identity buffers and apply selected/focused state as overlays
   - ROI: Medium
