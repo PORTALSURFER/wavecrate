@@ -119,18 +119,8 @@ pub(crate) struct ProjectedMapPointsCacheKey {
     pub query_max_y_bits: u32,
 }
 
-/// Retained normalized map-point projection fields.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ProjectedMapPointCacheEntry {
-    /// Stable sample id used to build the final map model.
-    pub sample_id: String,
-    /// X position normalized to milli-units (`0..=1000`).
-    pub x_milli: u16,
-    /// Y position normalized to milli-units (`0..=1000`).
-    pub y_milli: u16,
-    /// Optional cluster id for cluster summaries/coloring.
-    pub cluster_id: Option<i32>,
-}
+/// Retained immutable map-point payload reused across native map projections.
+pub(crate) type ProjectedMapPointCacheEntry = radiant::app::MapPointModel;
 
 /// Retained selected-row lookup representation for browser projections.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -167,7 +157,7 @@ pub struct AppController {
     /// Retained key for normalized map-point projection payloads.
     pub(crate) projected_map_points_key: Option<ProjectedMapPointsCacheKey>,
     /// Retained map points normalized into render-ready milli-units.
-    pub(crate) projected_map_points: Vec<ProjectedMapPointCacheEntry>,
+    pub(crate) projected_map_points: Arc<[ProjectedMapPointCacheEntry]>,
     /// Retained unique cluster count aligned with `projected_map_points`.
     pub(crate) projected_map_cluster_count: usize,
     wav_entries: WavEntriesState,
@@ -231,7 +221,7 @@ impl AppController {
             projected_selected_paths_revision: None,
             projected_selected_paths_lookup: None,
             projected_map_points_key: None,
-            projected_map_points: Vec::new(),
+            projected_map_points: Arc::default(),
             projected_map_cluster_count: 0,
             wav_entries: WavEntriesState::new(0, 1024),
             selection_state: ControllerSelectionState::new(),

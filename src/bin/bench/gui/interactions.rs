@@ -368,13 +368,13 @@ pub(super) fn prime_map_cache_for_benchmark(controller: &mut AppController) -> R
     controller.ui.map.cached_points_umap_version = Some(umap_version);
     controller.ui.map.cached_points = vec![
         MapPoint {
-            sample_id: String::from("sample-000000"),
+            sample_id: std::sync::Arc::<str>::from("sample-000000"),
             x: -0.4,
             y: 0.6,
             cluster_id: Some(1),
         },
         MapPoint {
-            sample_id: String::from("sample-000001"),
+            sample_id: std::sync::Arc::<str>::from("sample-000001"),
             x: 0.5,
             y: -0.35,
             cluster_id: Some(2),

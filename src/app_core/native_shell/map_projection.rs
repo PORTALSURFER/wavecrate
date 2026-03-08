@@ -2,7 +2,7 @@
 
 use super::waveform_projection::normalized_to_milli;
 use super::*;
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 /// Project map panel state, query results, and retained point payloads.
 ///
@@ -32,7 +32,9 @@ pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel
             viewport_label: String::from("zoom 1.00x | pan (0, 0)"),
             error: None,
             render_mode,
-            points: Vec::new(),
+            selected_sample_id: None,
+            focused_sample_id: None,
+            points: Arc::default(),
         };
     }
 
@@ -72,7 +74,9 @@ pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel
                     ),
                     error: Some(err),
                     render_mode,
-                    points: Vec::new(),
+                    selected_sample_id: None,
+                    focused_sample_id: None,
+                    points: Arc::default(),
                 };
             }
         }
@@ -91,7 +95,9 @@ pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel
             ),
             error: None,
             render_mode,
-            points: Vec::new(),
+            selected_sample_id: None,
+            focused_sample_id: None,
+            points: Arc::default(),
         };
     };
     let query_bounds = MapQueryBounds {
@@ -117,7 +123,7 @@ pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel
                 controller.ui.map.cached_points = points
                     .iter()
                     .map(|point| MapPoint {
-                        sample_id: point.sample_id.clone(),
+                        sample_id: Arc::<str>::from(point.sample_id.as_str()),
                         x: point.x,
                         y: point.y,
                         cluster_id: point.cluster_id,
@@ -145,7 +151,9 @@ pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel
                     ),
                     error: Some(err),
                     render_mode,
-                    points: Vec::new(),
+                    selected_sample_id: None,
+                    focused_sample_id: None,
+                    points: Arc::default(),
                 };
             }
         }
@@ -161,11 +169,7 @@ pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel
     );
     refresh_projected_map_points_cache(controller, projection_key, bounds);
     let cluster_count = controller.projected_map_cluster_count;
-    let points = project_map_points_model(
-        controller.projected_map_points.as_slice(),
-        selected_sample_id.as_deref(),
-        focused_sample_id.as_deref(),
-    );
+    let points = Arc::clone(&controller.projected_map_points);
     let selection_label = controller
         .ui
         .map
@@ -209,6 +213,8 @@ pub(crate) fn project_map_model(controller: &mut AppController) -> MapPanelModel
         viewport_label,
         error: None,
         render_mode,
+        selected_sample_id,
+        focused_sample_id,
         points,
     }
 }
@@ -253,7 +259,7 @@ fn refresh_projected_map_points_cache(
 fn build_projected_map_points_cache(
     bounds: MapBounds,
     points: &[MapPoint],
-) -> (Vec<ProjectedMapPointCacheEntry>, usize) {
+) -> (Arc<[ProjectedMapPointCacheEntry]>, usize) {
     let denom_x = (bounds.max_x - bounds.min_x).max(1e-6);
     let denom_y = (bounds.max_y - bounds.min_y).max(1e-6);
     let mut cluster_ids = HashSet::new();
@@ -265,33 +271,13 @@ fn build_projected_map_points_cache(
         let x = ((point.x - bounds.min_x) / denom_x).clamp(0.0, 1.0);
         let y = ((point.y - bounds.min_y) / denom_y).clamp(0.0, 1.0);
         projected_points.push(ProjectedMapPointCacheEntry {
-            sample_id: point.sample_id.clone(),
+            sample_id: Arc::clone(&point.sample_id),
             x_milli: normalized_to_milli(x),
             y_milli: normalized_to_milli(y),
             cluster_id: point.cluster_id,
         });
     }
-    (projected_points, cluster_ids.len())
-}
-
-/// Project final map points by applying dynamic selected/focused state flags.
-fn project_map_points_model(
-    projected_points: &[ProjectedMapPointCacheEntry],
-    selected_sample_id: Option<&str>,
-    focused_sample_id: Option<&str>,
-) -> Vec<MapPointModel> {
-    let mut points = Vec::with_capacity(projected_points.len());
-    for point in projected_points {
-        points.push(MapPointModel {
-            sample_id: point.sample_id.clone(),
-            x_milli: point.x_milli,
-            y_milli: point.y_milli,
-            cluster_id: point.cluster_id,
-            selected: selected_sample_id.is_some_and(|selected| selected == point.sample_id),
-            focused: focused_sample_id.is_some_and(|focused| focused == point.sample_id),
-        });
-    }
-    points
+    (Arc::from(projected_points), cluster_ids.len())
 }
 
 fn short_sample_label(sample_id: &str) -> String {

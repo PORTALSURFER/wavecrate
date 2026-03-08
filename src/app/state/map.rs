@@ -149,7 +149,7 @@ pub struct MapQueryBounds {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MapPoint {
     /// Sample id for this point.
-    pub sample_id: String,
+    pub sample_id: Arc<str>,
     /// X coordinate in layout space.
     pub x: f32,
     /// Y coordinate in layout space.

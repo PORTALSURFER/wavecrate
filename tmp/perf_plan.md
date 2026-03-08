@@ -254,7 +254,7 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
-- [ ] 9. Retain map point identity buffers and apply selected/focused state as overlays
+- [x] 9. Retain map point identity buffers and apply selected/focused state as overlays
   - ROI: Medium
   - Effort: M
   - Expected impact: map interaction latency, CPU, memory churn
@@ -274,6 +274,15 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - Map projection tests for selection/focus parity
     - `bash scripts/run_perf_guard.sh` focusing on `map_pan_proxy_latency`
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-08, commit `263e4fcb`
+  - Validation status:
+    - `cargo fmt --all`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml app_core::native_shell::tests::map_projection_ -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml projection_segment_map_selection_dirty_reuses_retained_point_arc -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\vendor\radiant\Cargo.toml gui::native_shell -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\vendor\radiant\Cargo.toml gui_runtime::native_vello -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
 - [ ] 10. Replace proxy segment p95 attribution with true per-segment measured timings
   - ROI: Medium
