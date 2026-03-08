@@ -310,7 +310,7 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
-- [ ] 11. Borrow `ShellLayout` through hot native input handlers instead of cloning it repeatedly
+- [x] 11. Borrow `ShellLayout` through hot native input handlers instead of cloning it repeatedly
   - ROI: Low
   - Effort: S
   - Expected impact: interaction CPU, memory churn
@@ -325,3 +325,7 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
   - Validation plan:
     - Native input/runtime tests
     - `bash scripts/ci_quick.sh`
+  - Completed: 2026-03-08, commit `fd542453`
+  - Validation status:
+    - `cargo test --manifest-path C:\dev\sempal\vendor\radiant\Cargo.toml gui_runtime::native_vello -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`

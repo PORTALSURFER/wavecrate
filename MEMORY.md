@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-08T03:55:00Z
+Last Updated: 2026-03-08T04:35:00Z
 Updated By: Codex
 
 ## Purpose
@@ -10,19 +10,19 @@ Updated By: Codex
 
 ## Current State (Present Tense)
 
-- I am executing Phase 2 of the runtime performance plan in `tmp/perf_plan.md`.
-- Perf items 1-10 are complete, including measured segment-probe timing attribution in commit `f239b03b`.
-- The next ordered implementation target is `tmp/perf_plan.md` item 11: borrow `ShellLayout` through hot native input handlers instead of cloning it repeatedly.
+- I have completed the Phase 2 runtime performance execution backlog in `tmp/perf_plan.md`.
+- Perf items 1-11 are complete, including hot native input layout borrowing in vendor commit `fd542453` and root perf attribution work in commit `f239b03b`.
+- The active source of truth for any follow-up perf work remains `docs/plans/active/runtime_performance_exec_plan.md`.
 
 ## Immediate Next Actions
 
-1. Implement `tmp/perf_plan.md` item 11 next and continue strictly in order.
-2. Keep `AGENTS.md`, `MEMORY.md`, and `tmp/perf_plan.md` aligned on every perf milestone commit.
-3. Use `scripts/ci_quick.*` during the tight loop and `scripts/ci_local.*` plus `scripts/run_perf_guard.sh` for broader perf validation.
+1. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` aligned on future perf follow-up commits.
+2. Use `scripts/ci_quick.*` during the tight loop and `scripts/ci_local.*` plus `scripts/run_perf_guard.sh` for broader perf validation.
+3. Treat `tmp/perf_plan.md` as the completed execution record unless a new perf backlog is opened.
 
 ## Work Notes
 
 - Active runtime performance backlog: `tmp/perf_plan.md`.
 - Runtime redesign source of truth: `docs/plans/active/runtime_performance_exec_plan.md`.
-- Bench evidence is still anchored in `target/perf/bench.json`, with remaining ROI now concentrated in the final hot native input/layout ownership cleanup item.
+- Bench evidence is still anchored in `target/perf/bench.json`, and the completed execution backlog is recorded in `tmp/perf_plan.md`.
 - Short queue reference: `docs/plans/active/todo.md`.
