@@ -90,9 +90,8 @@ pub(in crate::app_core::native_shell) fn refresh_projected_browser_row_cache(
     super::clear_projected_browser_row_cache(controller);
 }
 
-/// Return true when one cached browser-row projection still matches the entry snapshot.
-fn cached_browser_row_matches_entry(
-    cached: &ProjectedBrowserRowCacheEntry,
+/// Stable snapshot of one row's derived cache fields.
+struct BrowserRowCacheFingerprint {
     row_identity_hash: u64,
     column_index: usize,
     rating_level: i8,
@@ -100,14 +99,20 @@ fn cached_browser_row_matches_entry(
     looped: bool,
     bpm_value_bits: Option<u32>,
     long_sample_mark: bool,
+}
+
+/// Return true when one cached browser-row projection still matches the entry snapshot.
+fn cached_browser_row_matches_entry(
+    cached: &ProjectedBrowserRowCacheEntry,
+    fingerprint: &BrowserRowCacheFingerprint,
 ) -> bool {
-    cached.row_identity_hash == row_identity_hash
-        && cached.column_index == column_index
-        && cached.rating_level == rating_level
-        && cached.missing == missing
-        && cached.looped == looped
-        && cached.bpm_value_bits == bpm_value_bits
-        && cached.long_sample_mark == long_sample_mark
+    cached.row_identity_hash == fingerprint.row_identity_hash
+        && cached.column_index == fingerprint.column_index
+        && cached.rating_level == fingerprint.rating_level
+        && cached.missing == fingerprint.missing
+        && cached.looped == fingerprint.looped
+        && cached.bpm_value_bits == fingerprint.bpm_value_bits
+        && cached.long_sample_mark == fingerprint.long_sample_mark
 }
 
 /// Resolve static browser-row projection fields from cache, inserting on cache miss.
@@ -143,21 +148,19 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
     };
     let bpm_value = controller.bpm_value_for_path(relative_path.as_path());
     let bpm_value_bits = bpm_value.map(f32::to_bits);
+    let fingerprint = BrowserRowCacheFingerprint {
+        row_identity_hash,
+        column_index,
+        rating_level,
+        missing,
+        looped,
+        bpm_value_bits,
+        long_sample_mark,
+    };
     let cache_hit = controller
         .projected_browser_rows
         .get(&absolute_index)
-        .is_some_and(|cached| {
-            cached_browser_row_matches_entry(
-                cached,
-                row_identity_hash,
-                column_index,
-                rating_level,
-                missing,
-                looped,
-                bpm_value_bits,
-                long_sample_mark,
-            )
-        });
+        .is_some_and(|cached| cached_browser_row_matches_entry(cached, &fingerprint));
     trace_browser_row_cache_lookup(cache_hit);
     if !cache_hit {
         let bucket_label = super::browser_bucket_label(bpm_value, looped, long_sample_mark);

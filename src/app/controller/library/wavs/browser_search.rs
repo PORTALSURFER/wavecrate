@@ -154,7 +154,7 @@ impl AppController {
                     }
                 }
             } else {
-                for index in 0..entries_len {
+                for (index, score_slot) in new_scores.iter_mut().enumerate().take(entries_len) {
                     let Some(label) = self.label_for_ref(index) else {
                         continue;
                     };
@@ -162,7 +162,7 @@ impl AppController {
                         continue;
                     }
                     if let Some(score) = matcher.fuzzy_match(label, query) {
-                        new_scores[index] = Some(score);
+                        *score_slot = Some(score);
                         matched_indices.push(index);
                     }
                 }

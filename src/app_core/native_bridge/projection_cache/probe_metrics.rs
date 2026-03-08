@@ -231,23 +231,6 @@ fn run_rebuild_cause_probe_iters(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::percentile_95_us;
-
-    #[test]
-    fn percentile_95_us_uses_upper_tail_sample() {
-        let mut samples = [3_u64, 9, 5, 7, 11, 13, 1, 15, 17, 19];
-        assert_eq!(percentile_95_us(&mut samples), 19);
-    }
-
-    #[test]
-    fn percentile_95_us_returns_zero_for_empty_input() {
-        let mut samples = [];
-        assert_eq!(percentile_95_us(&mut samples), 0);
-    }
-}
-
 /// Classify which runtime motion layers changed between two motion-model snapshots.
 fn motion_layer_delta_flags(
     previous: &NativeMotionModel,
@@ -267,4 +250,24 @@ fn motion_layer_delta_flags(
         || previous.waveform_transport_hint != current.waveform_transport_hint
         || previous.status_right != current.status_right;
     (waveform_changed, chrome_changed)
+}
+
+#[cfg(test)]
+/// Probe-metric helpers for percentile sampling behavior.
+mod tests {
+    use super::percentile_95_us;
+
+    #[test]
+    /// Percentile selection should choose the highest sample in this small tail-heavy set.
+    fn percentile_95_us_uses_upper_tail_sample() {
+        let mut samples = [3_u64, 9, 5, 7, 11, 13, 1, 15, 17, 19];
+        assert_eq!(percentile_95_us(&mut samples), 19);
+    }
+
+    #[test]
+    /// Empty percentile inputs should resolve to zero without panicking.
+    fn percentile_95_us_returns_zero_for_empty_input() {
+        let mut samples = [];
+        assert_eq!(percentile_95_us(&mut samples), 0);
+    }
 }

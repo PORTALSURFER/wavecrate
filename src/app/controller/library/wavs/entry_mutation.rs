@@ -193,22 +193,21 @@ pub(super) fn update_cached_entry(
         );
     }
     let mut updated = false;
-    if controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
-        if let Some(index) = controller.wav_entries.lookup.get(old_path).copied()
-            && let Some(slot) = controller.wav_entries.entry_mut(index)
+    if controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id)
+        && let Some(index) = controller.wav_entries.lookup.get(old_path).copied()
+        && let Some(slot) = controller.wav_entries.entry_mut(index)
+    {
+        *slot = new_entry.clone();
+        controller.wav_entries.lookup.remove(old_path);
+        controller
+            .wav_entries
+            .insert_lookup(new_entry.relative_path.clone(), index);
+        updated = true;
+        if controller.ui.browser.last_focused_index == Some(index)
+            || controller.ui.browser.last_focused_path.as_deref() == Some(old_path)
         {
-            *slot = new_entry.clone();
-            controller.wav_entries.lookup.remove(old_path);
-            controller
-                .wav_entries
-                .insert_lookup(new_entry.relative_path.clone(), index);
-            updated = true;
-            if controller.ui.browser.last_focused_index == Some(index)
-                || controller.ui.browser.last_focused_path.as_deref() == Some(old_path)
-            {
-                controller.ui.browser.last_focused_index = Some(index);
-                controller.ui.browser.last_focused_path = Some(new_entry.relative_path.clone());
-            }
+            controller.ui.browser.last_focused_index = Some(index);
+            controller.ui.browser.last_focused_path = Some(new_entry.relative_path.clone());
         }
     }
     if let Some(cache) = controller.cache.wav.entries.get_mut(&source.id)

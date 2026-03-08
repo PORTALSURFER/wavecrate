@@ -24,6 +24,7 @@ src/app/controller/library/sources.rs
 src/app/controller/library/wavs/browser_actions.rs
 src/app/controller/library/background_jobs/polling.rs
 src/app/controller/library/wavs/similar/resolve.rs
+src/app/controller/library/wavs/browser_search.rs
 src/app/controller/library/wavs/waveform_loading.rs
 src/app/controller/playback/audio_options.rs
 src/app/controller/playback/loop_crossfade.rs
