@@ -125,6 +125,8 @@ pub(crate) enum HotkeyCommand {
     FocusLoadedSample,
     FocusFolderTree,
     FocusSourcesList,
+    PlayFromStart,
+    PlayFromCurrentPlayhead,
     PlayRandomSample,
     PlayPreviousRandomSample,
     ToggleRandomNavigationMode,

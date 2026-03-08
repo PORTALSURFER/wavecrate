@@ -56,6 +56,7 @@ fn key_label(key: KeyCode) -> &'static str {
         KeyCode::W => "W",
         KeyCode::L => "L",
         KeyCode::P => "P",
+        KeyCode::Space => "Space",
         KeyCode::F => "F",
         KeyCode::F1 => "F1",
         KeyCode::OpenBracket => "[",

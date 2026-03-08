@@ -606,6 +606,22 @@ pub(crate) fn replay_from_last_start(controller: &mut AppController) -> bool {
     false
 }
 
+pub(crate) fn play_from_start(controller: &mut AppController) -> bool {
+    if !waveform_playback_target_exists(controller) {
+        return false;
+    }
+    seek_to(controller, 0.0);
+    true
+}
+
+pub(crate) fn play_from_current_playhead(controller: &mut AppController) -> bool {
+    let Some(position) = current_playhead_position(controller) else {
+        return false;
+    };
+    seek_to(controller, position);
+    true
+}
+
 pub(crate) fn play_from_cursor(controller: &mut AppController) -> bool {
     if !controller.waveform_ready() {
         return false;
@@ -623,6 +639,26 @@ pub(crate) fn play_from_cursor(controller: &mut AppController) -> bool {
         return true;
     }
     replay_from_last_start(controller)
+}
+
+fn waveform_playback_target_exists(controller: &AppController) -> bool {
+    controller.sample_view.wav.selected_wav.is_some()
+        || controller.sample_view.wav.loaded_audio.is_some()
+}
+
+fn current_playhead_position(controller: &AppController) -> Option<f32> {
+    if !waveform_playback_target_exists(controller) {
+        return None;
+    }
+    controller
+        .ui
+        .waveform
+        .playhead
+        .visible
+        .then_some(controller.ui.waveform.playhead.position)
+        .or(controller.ui.waveform.cursor)
+        .or(controller.ui.waveform.last_start_marker)
+        .or(Some(0.0))
 }
 
 pub(crate) fn record_play_start(controller: &mut AppController, position: f32) {

@@ -121,6 +121,14 @@ impl HotkeysController<'_> {
                 self.focus_sources_list();
                 true
             }
+            HotkeyCommand::PlayFromStart => {
+                self.play_from_start();
+                true
+            }
+            HotkeyCommand::PlayFromCurrentPlayhead => {
+                self.play_from_current_playhead();
+                true
+            }
             HotkeyCommand::PlayRandomSample => {
                 self.play_random_visible_sample();
                 true
@@ -251,5 +259,35 @@ mod tests {
         controller.ui.browser.search_focus_requested = false;
         controller.handle_hotkey(action, FocusContext::Waveform);
         assert!(controller.ui.browser.search_focus_requested);
+    }
+
+    #[test]
+    fn play_hotkeys_route_start_and_playhead_positions() {
+        let (mut controller, source) =
+            prepare_with_source_and_wav_entries(vec![sample_entry("one.wav", Rating::NEUTRAL)]);
+        load_waveform_selection(
+            &mut controller,
+            &source,
+            "one.wav",
+            &[0.1, -0.2, 0.3, -0.4],
+            SelectionRange::new(0.0, 0.5),
+        );
+        controller.ui.waveform.playhead.visible = true;
+        controller.ui.waveform.playhead.position = 0.37;
+        controller.ui.waveform.cursor = Some(0.22);
+
+        controller.handle_hotkey(
+            action_for(HotkeyCommand::PlayFromStart),
+            FocusContext::SampleBrowser,
+        );
+        assert_eq!(controller.ui.waveform.last_start_marker, Some(0.0));
+        assert_eq!(controller.ui.waveform.cursor, Some(0.0));
+
+        controller.handle_hotkey(
+            action_for(HotkeyCommand::PlayFromCurrentPlayhead),
+            FocusContext::SampleBrowser,
+        );
+        assert_eq!(controller.ui.waveform.last_start_marker, Some(0.37));
+        assert_eq!(controller.ui.waveform.cursor, Some(0.37));
     }
 }

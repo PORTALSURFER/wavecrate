@@ -178,6 +178,29 @@ fn replay_from_last_start_requeues_pending_playback() {
 }
 
 #[test]
+fn play_from_start_always_requeues_zero_position() {
+    let (mut controller, source) = dummy_controller();
+    prepare_browser_sample(&mut controller, &source, "start.wav");
+    controller.select_wav_by_path(Path::new("start.wav"));
+    controller.record_play_start(0.42);
+    controller.ui.waveform.cursor = Some(0.25);
+    controller.ui.waveform.playhead.visible = true;
+    controller.ui.waveform.playhead.position = 0.6;
+
+    let handled = controller.play_from_start();
+
+    assert!(handled);
+    let pending = controller
+        .runtime
+        .jobs
+        .pending_playback
+        .as_ref()
+        .expect("pending playback request");
+    assert_eq!(pending.start_override, Some(0.0));
+    assert_eq!(controller.ui.waveform.last_start_marker, Some(0.0));
+}
+
+#[test]
 fn replay_from_last_start_falls_back_to_cursor() {
     let (mut controller, source) = dummy_controller();
     prepare_browser_sample(&mut controller, &source, "marker.wav");
@@ -230,6 +253,29 @@ fn play_from_cursor_prefers_cursor_position() {
         .expect("pending playback request");
     assert_eq!(pending.start_override, Some(0.33));
     assert_eq!(controller.ui.waveform.last_start_marker, Some(0.33));
+}
+
+#[test]
+fn play_from_current_playhead_prefers_visible_playhead_position() {
+    let (mut controller, source) = dummy_controller();
+    prepare_browser_sample(&mut controller, &source, "playhead.wav");
+    controller.select_wav_by_path(Path::new("playhead.wav"));
+    controller.ui.waveform.playhead.visible = true;
+    controller.ui.waveform.playhead.position = 0.58;
+    controller.ui.waveform.cursor = Some(0.33);
+    controller.ui.waveform.last_start_marker = Some(0.1);
+
+    let handled = controller.play_from_current_playhead();
+
+    assert!(handled);
+    let pending = controller
+        .runtime
+        .jobs
+        .pending_playback
+        .as_ref()
+        .expect("pending playback request");
+    assert_eq!(pending.start_override, Some(0.58));
+    assert_eq!(controller.ui.waveform.last_start_marker, Some(0.58));
 }
 
 #[test]

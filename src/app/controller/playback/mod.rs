@@ -95,6 +95,16 @@ pub(crate) fn selection_meets_bpm_min_for_playback(
 }
 
 impl AppController {
+    /// Start playback from the beginning of the selected sample.
+    pub fn play_from_start(&mut self) -> bool {
+        transport::play_from_start(self)
+    }
+
+    /// Start playback from the current playhead/cursor position.
+    pub fn play_from_current_playhead(&mut self) -> bool {
+        transport::play_from_current_playhead(self)
+    }
+
     /// Restart playback from the last recorded start position.
     pub fn replay_from_last_start(&mut self) -> bool {
         transport::replay_from_last_start(self)

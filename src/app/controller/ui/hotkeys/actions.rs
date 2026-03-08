@@ -243,6 +243,20 @@ pub(crate) const HOTKEY_ACTIONS: &[HotkeyAction] = &[
         command: HotkeyCommand::FocusSourcesList,
     },
     HotkeyAction {
+        id: "play-from-start",
+        label: "Play from start",
+        gesture: HotkeyGesture::new(Key::Space),
+        scope: HotkeyScope::Global,
+        command: HotkeyCommand::PlayFromStart,
+    },
+    HotkeyAction {
+        id: "play-from-current-playhead",
+        label: "Play from current playhead",
+        gesture: HotkeyGesture::with_command(Key::Space),
+        scope: HotkeyScope::Global,
+        command: HotkeyCommand::PlayFromCurrentPlayhead,
+    },
+    HotkeyAction {
         id: "play-random-sample",
         label: "Play random sample",
         gesture: HotkeyGesture {

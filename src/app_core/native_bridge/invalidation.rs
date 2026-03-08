@@ -118,7 +118,9 @@ pub(super) fn classify_dirty_source(
         NativeUiAction::SetBrowserTab { map: true } | NativeUiAction::FocusMapSample { .. } => {
             Some((DerivedNodeId::MapState, DirtyReason::MapAction))
         }
-        NativeUiAction::ToggleTransport
+        NativeUiAction::PlayFromStart
+        | NativeUiAction::PlayFromCurrentPlayhead
+        | NativeUiAction::ToggleTransport
         | NativeUiAction::ToggleLoopPlayback
         | NativeUiAction::SetVolume { .. }
         | NativeUiAction::CommitVolumeSetting => {

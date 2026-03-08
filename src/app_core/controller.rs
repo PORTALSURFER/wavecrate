@@ -189,6 +189,12 @@ fn apply_transport_native_ui_action(
     match action {
         NativeUiAction::SelectColumn { index } => controller.select_column_by_index(index),
         NativeUiAction::MoveColumn { delta } => controller.move_selection_column(delta as isize),
+        NativeUiAction::PlayFromStart => {
+            controller.play_from_start();
+        }
+        NativeUiAction::PlayFromCurrentPlayhead => {
+            controller.play_from_current_playhead();
+        }
         NativeUiAction::ToggleTransport => controller.toggle_play_pause(),
         NativeUiAction::HandleEscape => controller.handle_escape(),
         NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
