@@ -1,7 +1,10 @@
-use super::{NativeProjectionCache, ProjectionSegmentLookupCounts};
+use super::{
+    NativeProjectionCache, ProjectionSegmentLookupCounts, ProjectionSegmentProbeMeasurement,
+};
 use crate::app_core::actions::{NativeAppModel, NativeMotionModel};
 use crate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
 use std::sync::Arc;
+use std::time::Instant;
 
 /// Rebuild-cause counters observed while probing retained projection updates.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -43,6 +46,60 @@ pub(super) fn measure_projection_segment_lookup_counts(
         let _ = cache.resolve_or_project(controller);
     }
     cache.take_segment_lookup_counts()
+}
+
+/// Measure retained projection lookup counters together with measured
+/// projection-stage p95 latency over a fixed action loop.
+pub(super) fn measure_projection_segment_probe(
+    controller: &mut AppController,
+    warmup_iters: usize,
+    measure_iters: usize,
+    mut apply_step: impl FnMut(&mut AppController, usize),
+) -> ProjectionSegmentProbeMeasurement {
+    let mut cache = NativeProjectionCache::default();
+    for step in 0..warmup_iters.max(1) {
+        apply_step(controller, step);
+        controller.prepare_native_frame(false);
+        let _ = cache.resolve_or_project(controller);
+    }
+    let _ = cache.take_segment_lookup_counts();
+    let mut projection_stage_samples_us = Vec::with_capacity(measure_iters.max(1));
+    for step in 0..measure_iters.max(1) {
+        apply_step(controller, step);
+        controller.prepare_native_frame(false);
+        let started = Instant::now();
+        let _ = cache.resolve_or_project(controller);
+        projection_stage_samples_us.push(duration_to_micros_ceil(started.elapsed()));
+    }
+    ProjectionSegmentProbeMeasurement {
+        lookup_counts: cache.take_segment_lookup_counts(),
+        projection_p95_us: percentile_95_us(&mut projection_stage_samples_us),
+    }
+}
+
+/// Convert a duration to microseconds, rounding up so very small non-zero work
+/// still appears in the reported percentile.
+fn duration_to_micros_ceil(duration: std::time::Duration) -> u64 {
+    let nanos = duration.as_nanos();
+    if nanos == 0 {
+        return 0;
+    }
+    let micros = nanos.div_ceil(1_000);
+    micros.min(u128::from(u64::MAX)) as u64
+}
+
+/// Return the p95 sample from the provided microsecond measurements.
+fn percentile_95_us(samples_us: &mut [u64]) -> u64 {
+    if samples_us.is_empty() {
+        return 0;
+    }
+    samples_us.sort_unstable();
+    let p95_index = samples_us
+        .len()
+        .saturating_mul(95)
+        .div_ceil(100)
+        .saturating_sub(1);
+    samples_us[p95_index]
 }
 
 /// Measure rebuild-cause counters over a fixed action loop.
@@ -171,6 +228,23 @@ fn run_rebuild_cause_probe_iters(
                     .saturating_add(1);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::percentile_95_us;
+
+    #[test]
+    fn percentile_95_us_uses_upper_tail_sample() {
+        let mut samples = [3_u64, 9, 5, 7, 11, 13, 1, 15, 17, 19];
+        assert_eq!(percentile_95_us(&mut samples), 19);
+    }
+
+    #[test]
+    fn percentile_95_us_returns_zero_for_empty_input() {
+        let mut samples = [];
+        assert_eq!(percentile_95_us(&mut samples), 0);
     }
 }
 

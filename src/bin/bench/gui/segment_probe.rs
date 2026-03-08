@@ -2,18 +2,19 @@
 
 use super::attribution::{GuiInteractionSegmentAttribution, SegmentAttributionSummary};
 use super::interactions::{execute_interaction_step, prime_map_cache_for_benchmark};
-use super::{BenchOptions, GuiInteractionStageAttribution, wait_for_rows};
+use super::{BenchOptions, wait_for_rows};
 use sempal::app_core::actions::NativeUiAction;
 use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
 use sempal::app_core::native_bridge::{
-    ProjectionSegmentLookupCount, measure_projection_segment_lookup_counts,
+    ProjectionSegmentLookupCount, ProjectionSegmentProbeMeasurement,
+    measure_projection_segment_probe,
 };
 
-/// Collect retained-projection segment hit/miss counters from focused action probes.
+/// Collect retained-projection segment hit/miss counters and measured probe
+/// timings from focused action probes.
 pub(super) fn collect_interaction_segment_attribution(
     options: &BenchOptions,
     controller: &mut AppController,
-    stage_attribution: &GuiInteractionStageAttribution,
 ) -> Result<GuiInteractionSegmentAttribution, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
     wait_for_rows(controller, interaction_rows)?;
@@ -21,7 +22,7 @@ pub(super) fn collect_interaction_segment_attribution(
     let measure_iters = options.gui_interaction_iters.max(1);
 
     let mut interactive_step = 0usize;
-    let status_probe = measure_projection_segment_lookup_counts(
+    let status_probe = measure_projection_segment_probe(
         controller,
         warmup_iters,
         measure_iters,
@@ -32,7 +33,7 @@ pub(super) fn collect_interaction_segment_attribution(
     );
 
     let mut frame_step = 0usize;
-    let browser_frame_probe = measure_projection_segment_lookup_counts(
+    let browser_frame_probe = measure_projection_segment_probe(
         controller,
         warmup_iters,
         measure_iters,
@@ -43,7 +44,7 @@ pub(super) fn collect_interaction_segment_attribution(
     );
 
     let mut rows_step = 0usize;
-    let browser_rows_probe = measure_projection_segment_lookup_counts(
+    let browser_rows_probe = measure_projection_segment_probe(
         controller,
         warmup_iters,
         measure_iters,
@@ -61,7 +62,7 @@ pub(super) fn collect_interaction_segment_attribution(
 
     prime_map_cache_for_benchmark(controller)?;
     let mut map_step = 0usize;
-    let map_probe = measure_projection_segment_lookup_counts(
+    let map_probe = measure_projection_segment_probe(
         controller,
         warmup_iters,
         measure_iters,
@@ -77,7 +78,7 @@ pub(super) fn collect_interaction_segment_attribution(
     );
 
     let mut waveform_step = 0usize;
-    let waveform_probe = measure_projection_segment_lookup_counts(
+    let waveform_probe = measure_projection_segment_probe(
         controller,
         warmup_iters,
         measure_iters,
@@ -90,46 +91,31 @@ pub(super) fn collect_interaction_segment_attribution(
     );
 
     Ok(GuiInteractionSegmentAttribution {
-        status_bar: segment_summary(
-            status_probe.status_bar,
-            stage_attribution
-                .interactive_projection
-                .projection_stage
-                .p95_us,
-        ),
+        status_bar: segment_summary(&status_probe, status_probe.lookup_counts.status_bar),
         browser_frame: segment_summary(
-            browser_frame_probe.browser_frame,
-            stage_attribution
-                .browser_focus_preview_latency
-                .projection_stage
-                .p95_us,
+            &browser_frame_probe,
+            browser_frame_probe.lookup_counts.browser_frame,
         ),
         browser_rows_window: segment_summary(
-            browser_rows_probe.browser_rows_window,
-            stage_attribution.wheel_latency.projection_stage.p95_us,
+            &browser_rows_probe,
+            browser_rows_probe.lookup_counts.browser_rows_window,
         ),
-        map_panel: segment_summary(
-            map_probe.map_panel,
-            stage_attribution
-                .map_pan_proxy_latency
-                .projection_stage
-                .p95_us,
-        ),
+        map_panel: segment_summary(&map_probe, map_probe.lookup_counts.map_panel),
         waveform_overlay: segment_summary(
-            waveform_probe.waveform_overlay,
-            stage_attribution
-                .waveform_interaction_latency
-                .projection_stage
-                .p95_us,
+            &waveform_probe,
+            waveform_probe.lookup_counts.waveform_overlay,
         ),
     })
 }
 
-/// Convert one segment probe count to benchmark serialization summary shape.
-fn segment_summary(count: ProjectionSegmentLookupCount, p95_us: u64) -> SegmentAttributionSummary {
+/// Convert one probe measurement into the benchmark report summary shape.
+fn segment_summary(
+    probe: &ProjectionSegmentProbeMeasurement,
+    count: ProjectionSegmentLookupCount,
+) -> SegmentAttributionSummary {
     SegmentAttributionSummary {
         hit_count: count.hit_count,
         miss_count: count.miss_count,
-        p95_us,
+        p95_us: probe.projection_p95_us,
     }
 }

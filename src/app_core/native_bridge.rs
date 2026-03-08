@@ -71,7 +71,8 @@ use tracing::{error, info};
 
 pub use self::projection_cache::{
     ProjectionRebuildCauseCounts, ProjectionSegmentLookupCount, ProjectionSegmentLookupCounts,
-    measure_projection_rebuild_cause_counts, measure_projection_segment_lookup_counts,
+    ProjectionSegmentProbeMeasurement, measure_projection_rebuild_cause_counts,
+    measure_projection_segment_lookup_counts, measure_projection_segment_probe,
 };
 
 /// Toggle immediate application of waveform overlay preview actions.

@@ -68,6 +68,19 @@ impl ProjectionSegmentLookupCounts {
         }
     }
 }
+
+/// Measured output from one fixed retained-projection probe loop.
+///
+/// The lookup counters reflect the segment reuse decisions observed during the
+/// measured iterations only. `projection_p95_us` captures the measured
+/// projection-stage latency of those same iterations, excluding warmup passes.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProjectionSegmentProbeMeasurement {
+    /// Aggregated hit/miss counters observed during measured iterations.
+    pub lookup_counts: ProjectionSegmentLookupCounts,
+    /// Measured retained-projection p95 latency in microseconds.
+    pub projection_p95_us: u64,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct NativeProjectionCacheKey {
     pub(super) status_revision: u64,
@@ -369,6 +382,27 @@ pub fn measure_projection_segment_lookup_counts(
     mut apply_step: impl FnMut(&mut AppController, usize),
 ) -> ProjectionSegmentLookupCounts {
     probe_metrics::measure_projection_segment_lookup_counts(
+        controller,
+        warmup_iters,
+        measure_iters,
+        &mut apply_step,
+    )
+}
+
+/// Measure one retained-projection probe loop and return lookup counters plus
+/// measured projection-stage latency.
+///
+/// The callback mutates controller state once per iteration. After each action
+/// mutation, this helper runs native frame preparation and measures only the
+/// retained projection step. Warmup iterations are excluded from returned
+/// counters and from the reported `projection_p95_us`.
+pub fn measure_projection_segment_probe(
+    controller: &mut AppController,
+    warmup_iters: usize,
+    measure_iters: usize,
+    mut apply_step: impl FnMut(&mut AppController, usize),
+) -> ProjectionSegmentProbeMeasurement {
+    probe_metrics::measure_projection_segment_probe(
         controller,
         warmup_iters,
         measure_iters,

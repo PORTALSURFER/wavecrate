@@ -72,6 +72,7 @@ fn run_gui_benchmark_uses_one_row_when_gui_rows_is_zero() {
         .as_ref()
         .expect("segment attribution");
     assert!(segments.browser_rows_window.hit_count + segments.browser_rows_window.miss_count > 0);
+    assert!(segments.browser_rows_window.p95_us > 0);
 }
 
 /// Ensure interaction-step sequencing rotates search/filter/sort settings.

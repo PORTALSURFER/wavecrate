@@ -10,7 +10,7 @@ pub(in crate::bench) struct SegmentAttributionSummary {
     pub(in crate::bench) hit_count: u64,
     /// Segment-level cache miss count when available.
     pub(in crate::bench) miss_count: u64,
-    /// Segment-level p95 latency proxy in microseconds.
+    /// Measured segment-probe p95 latency in microseconds.
     pub(in crate::bench) p95_us: u64,
 }
 

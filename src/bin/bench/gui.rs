@@ -225,7 +225,6 @@ pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
     let interaction_segment_attribution = Some(collect_interaction_segment_attribution(
         options,
         &mut workspace.controller,
-        &interaction_stage_attribution,
     )?);
     let interaction_rebuild_cause_attribution = Some(
         collect_interaction_rebuild_cause_attribution(options, &mut workspace.controller)?,
