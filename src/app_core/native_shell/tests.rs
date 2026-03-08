@@ -27,7 +27,7 @@ fn browser_render_window_keeps_existing_window_for_interior_focus_changes() {
 /// Browser render windows should nudge downward when focus enters the bottom guard band.
 #[test]
 fn browser_render_window_scrolls_when_focus_reaches_bottom_guard_band() {
-    let (start, len) = browser_render_window(500, Some(453), None, 200);
+    let (start, len) = browser_render_window(500, Some(454), None, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 201);
 }
@@ -35,23 +35,23 @@ fn browser_render_window_scrolls_when_focus_reaches_bottom_guard_band() {
 /// Browser render windows should nudge upward when focus enters the top guard band.
 #[test]
 fn browser_render_window_scrolls_when_focus_reaches_top_guard_band() {
-    let (start, len) = browser_render_window(500, Some(202), None, 200);
+    let (start, len) = browser_render_window(500, Some(201), None, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 199);
 }
 
-/// Browser render windows should keep the fourth row from the top stable.
+/// Browser render windows should keep the third row from the top stable.
 #[test]
-fn browser_render_window_keeps_fourth_row_from_top_stable() {
-    let (start, len) = browser_render_window(500, Some(203), None, 200);
+fn browser_render_window_keeps_third_row_from_top_stable() {
+    let (start, len) = browser_render_window(500, Some(202), None, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 200);
 }
 
-/// Browser render windows should keep the fourth row from the bottom stable.
+/// Browser render windows should keep the third row from the bottom stable.
 #[test]
-fn browser_render_window_keeps_fourth_row_from_bottom_stable() {
-    let (start, len) = browser_render_window(500, Some(452), None, 200);
+fn browser_render_window_keeps_third_row_from_bottom_stable() {
+    let (start, len) = browser_render_window(500, Some(453), None, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 200);
 }
