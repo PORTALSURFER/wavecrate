@@ -88,6 +88,17 @@ fn projection_cache_key_changes_when_browser_tab_encoding_changes() {
 }
 
 #[test]
+fn projection_cache_key_changes_when_browser_view_window_changes() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let first = build_projection_cache_key(&controller);
+    controller.ui.browser.autoscroll = false;
+    controller.ui.browser.view_window_start = 7;
+    controller.ui.browser.render_window_start = 7;
+    let second = build_projection_cache_key(&controller);
+    assert_ne!(first, second);
+}
+
+#[test]
 /// Projection cache key should change when normalized volume rounds to a new milli bucket.
 fn projection_cache_key_changes_when_volume_milli_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
