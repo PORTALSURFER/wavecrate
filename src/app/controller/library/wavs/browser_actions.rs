@@ -114,6 +114,22 @@ impl AppController {
         }
     }
 
+    /// Scroll the browser viewport without changing the current selection.
+    pub fn set_browser_view_start_action(&mut self, visible_row: usize) {
+        let visible_count = self.ui.browser.visible.len();
+        if visible_count == 0 {
+            self.ui.browser.view_window_start = 0;
+            self.ui.browser.render_window_start = 0;
+            self.ui.browser.autoscroll = false;
+            return;
+        }
+        let clamped = visible_row.min(visible_count.saturating_sub(1));
+        self.ui.browser.autoscroll = false;
+        self.ui.browser.view_window_start = clamped;
+        self.ui.browser.render_window_start = clamped;
+        self.refresh_browser_selection_markers();
+    }
+
     /// Focus browser row by UI delta and immediately request playback.
     ///
     /// Used by native keyboard/browser focus actions where focus should commit

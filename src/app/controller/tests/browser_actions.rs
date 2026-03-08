@@ -198,6 +198,34 @@ fn native_move_browser_focus_queues_async_preview_playback() {
     );
 }
 
+#[test]
+fn native_set_browser_view_start_scrolls_without_changing_selection() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+
+    controller.focus_browser_row_only(1);
+    controller.runtime.jobs.pending_audio = None;
+    controller.runtime.jobs.pending_playback = None;
+
+    controller.apply_native_ui_action(NativeUiAction::SetBrowserViewStart { visible_row: 2 });
+
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.view_window_start, 2);
+    assert!(!controller.ui.browser.autoscroll);
+    assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.runtime.jobs.pending_playback.is_none());
+}
+
 /// Preview focus should defer pending playback-age writes until commit.
 #[test]
 fn preview_focus_defers_pending_age_update_until_commit() {

@@ -21,6 +21,10 @@ pub(crate) struct BrowserRowsProjectionInputs {
     pub selected_visible_row: Option<usize>,
     /// Visible-row anchor used by range selection, when any.
     pub anchor_visible_row: Option<usize>,
+    /// Whether selection changes should auto-scroll the browser viewport.
+    pub autoscroll: bool,
+    /// Requested top visible-row index for manual browser viewport scrolling.
+    pub view_start_row: usize,
 }
 
 /// Capture the current row-window projection inputs without rebuilding browser chrome.
@@ -31,6 +35,8 @@ pub(crate) fn project_browser_rows_projection_inputs(
         visible_count: controller.ui.browser.visible.len(),
         selected_visible_row: controller.ui.browser.selected_visible,
         anchor_visible_row: controller.ui.browser.selection_anchor_visible,
+        autoscroll: controller.ui.browser.autoscroll,
+        view_start_row: controller.ui.browser.view_window_start,
     }
 }
 
@@ -58,6 +64,8 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
     BrowserPanelModel {
         visible_count: row_inputs.visible_count,
         selected_visible_row: row_inputs.selected_visible_row,
+        autoscroll: row_inputs.autoscroll,
+        view_start_row: row_inputs.view_start_row,
         selected_path_count,
         search_query,
         active_rating_filters,
@@ -125,6 +133,7 @@ pub(crate) fn project_browser_rows_model_into(
         visible_count,
         selected_visible_row,
         anchor_visible_row,
+        controller.ui.browser.autoscroll,
         controller.ui.browser.render_window_start,
     );
     controller.ui.browser.render_window_start = window_start;
@@ -489,6 +498,7 @@ pub(super) fn browser_render_window(
     visible_count: usize,
     selected_visible_row: Option<usize>,
     anchor_visible_row: Option<usize>,
+    autoscroll: bool,
     current_window_start: usize,
 ) -> (usize, usize) {
     if visible_count == 0 {
@@ -496,7 +506,14 @@ pub(super) fn browser_render_window(
     }
     let window_len = visible_count.min(MAX_RENDERED_BROWSER_ROWS);
     if window_len == visible_count {
-        return (0, window_len);
+        return if autoscroll {
+            (0, window_len)
+        } else {
+            (current_window_start.min(visible_count - 1), window_len)
+        };
+    }
+    if !autoscroll {
+        return (current_window_start.min(visible_count - window_len), window_len);
     }
     let pivot = selected_visible_row
         .or(anchor_visible_row)

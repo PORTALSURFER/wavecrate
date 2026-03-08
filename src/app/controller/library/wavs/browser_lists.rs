@@ -50,6 +50,11 @@ impl AppController {
             visible_len.saturating_sub(visible_len.min(MAX_RENDERED_BROWSER_ROWS));
         self.ui.browser.render_window_start =
             self.ui.browser.render_window_start.min(max_window_start);
+        self.ui.browser.view_window_start = self
+            .ui
+            .browser
+            .view_window_start
+            .min(visible_len.saturating_sub(1));
         if let Some(anchor) = self.ui.browser.selection_anchor_visible
             && anchor >= visible_len
         {

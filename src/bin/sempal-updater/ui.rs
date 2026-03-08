@@ -379,6 +379,8 @@ impl UpdateNativeBridge {
                 };
                 options.iter().position(|option| option.tag == *selected)
             }),
+            autoscroll: true,
+            view_start_row: 0,
             selected_path_count: usize::from(self.selected_tag.is_some()),
             search_query: if self.show_log_view {
                 String::from("log view")

@@ -45,6 +45,7 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
     matches!(
         action,
         NativeUiAction::MoveBrowserFocus { .. }
+            | NativeUiAction::SetBrowserViewStart { .. }
             | NativeUiAction::FocusBrowserRow { .. }
             | NativeUiAction::ToggleBrowserRowSelection { .. }
             | NativeUiAction::ExtendBrowserSelectionToRow { .. }
@@ -92,6 +93,7 @@ pub(super) fn classify_dirty_source(
             DirtyReason::WaveformViewAction,
         )),
         NativeUiAction::MoveBrowserFocus { .. }
+        | NativeUiAction::SetBrowserViewStart { .. }
         | NativeUiAction::FocusBrowserRow { .. }
         | NativeUiAction::CommitFocusedBrowserRow
         | NativeUiAction::ToggleBrowserRowSelection { .. }

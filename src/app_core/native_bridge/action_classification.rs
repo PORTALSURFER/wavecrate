@@ -18,7 +18,9 @@ pub(super) fn classify_action_interaction(
     action: &NativeUiAction,
 ) -> Option<InteractionActionClass> {
     match action {
-        NativeUiAction::MoveBrowserFocus { .. } => Some(InteractionActionClass::Wheel),
+        NativeUiAction::MoveBrowserFocus { .. } | NativeUiAction::SetBrowserViewStart { .. } => {
+            Some(InteractionActionClass::Wheel)
+        }
         NativeUiAction::SetBrowserTab { map: true } | NativeUiAction::FocusMapSample { .. } => {
             Some(InteractionActionClass::MapPanProxy)
         }
@@ -85,6 +87,7 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
     matches!(
         action,
         NativeUiAction::MoveBrowserFocus { .. }
+            | NativeUiAction::SetBrowserViewStart { .. }
             | NativeUiAction::FocusBrowserPanel
             | NativeUiAction::FocusSourcesPanel
             | NativeUiAction::FocusWaveformPanel

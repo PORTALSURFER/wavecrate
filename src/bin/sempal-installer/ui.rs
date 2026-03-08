@@ -319,6 +319,8 @@ impl InstallerNativeBridge {
             } else {
                 None
             },
+            autoscroll: true,
+            view_start_row: 0,
             selected_path_count: 0,
             search_query: step_label(self.step).to_string(),
             active_rating_filters: [false; 7],

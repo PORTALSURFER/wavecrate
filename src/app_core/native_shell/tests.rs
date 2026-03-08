@@ -11,7 +11,7 @@ fn selected_column_defaults_to_middle_column_without_selection() {
 /// Browser render windows should cap to the configured maximum when no focus hints exist.
 #[test]
 fn browser_render_window_limits_to_target_size() {
-    let (start, len) = browser_render_window(500, None, None, 0);
+    let (start, len) = browser_render_window(500, None, None, true, 0);
     assert_eq!(start, 0);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
 }
@@ -19,7 +19,7 @@ fn browser_render_window_limits_to_target_size() {
 /// Browser render windows should keep the current window stable for interior focus changes.
 #[test]
 fn browser_render_window_keeps_existing_window_for_interior_focus_changes() {
-    let (start, len) = browser_render_window(500, Some(250), None, 200);
+    let (start, len) = browser_render_window(500, Some(250), None, true, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 200);
 }
@@ -27,7 +27,7 @@ fn browser_render_window_keeps_existing_window_for_interior_focus_changes() {
 /// Browser render windows should nudge downward when focus enters the third row from the bottom.
 #[test]
 fn browser_render_window_scrolls_when_focus_reaches_third_row_from_bottom() {
-    let (start, len) = browser_render_window(500, Some(453), None, 200);
+    let (start, len) = browser_render_window(500, Some(453), None, true, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 201);
 }
@@ -35,7 +35,7 @@ fn browser_render_window_scrolls_when_focus_reaches_third_row_from_bottom() {
 /// Browser render windows should nudge upward when focus enters the third row from the top.
 #[test]
 fn browser_render_window_scrolls_when_focus_reaches_third_row_from_top() {
-    let (start, len) = browser_render_window(500, Some(202), None, 200);
+    let (start, len) = browser_render_window(500, Some(202), None, true, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 199);
 }
@@ -43,7 +43,7 @@ fn browser_render_window_scrolls_when_focus_reaches_third_row_from_top() {
 /// Browser render windows should keep the fourth row from the top stable.
 #[test]
 fn browser_render_window_keeps_fourth_row_from_top_stable() {
-    let (start, len) = browser_render_window(500, Some(203), None, 200);
+    let (start, len) = browser_render_window(500, Some(203), None, true, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 200);
 }
@@ -51,7 +51,7 @@ fn browser_render_window_keeps_fourth_row_from_top_stable() {
 /// Browser render windows should keep the fourth row from the bottom stable.
 #[test]
 fn browser_render_window_keeps_fourth_row_from_bottom_stable() {
-    let (start, len) = browser_render_window(500, Some(452), None, 200);
+    let (start, len) = browser_render_window(500, Some(452), None, true, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 200);
 }
@@ -59,7 +59,7 @@ fn browser_render_window_keeps_fourth_row_from_bottom_stable() {
 /// Browser render windows should clamp near the end instead of overrunning visible rows.
 #[test]
 fn browser_render_window_clamps_near_end_of_visible_rows() {
-    let (start, len) = browser_render_window(500, Some(490), None, 200);
+    let (start, len) = browser_render_window(500, Some(490), None, true, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 238);
 }
@@ -67,7 +67,7 @@ fn browser_render_window_clamps_near_end_of_visible_rows() {
 /// Browser render windows should still honor the hard row cap for very large datasets.
 #[test]
 fn browser_render_window_limits_large_visible_sets_to_cap() {
-    let (start, len) = browser_render_window(1_200, None, None, 0);
+    let (start, len) = browser_render_window(1_200, None, None, true, 0);
     assert_eq!(start, 0);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
 }
@@ -75,11 +75,11 @@ fn browser_render_window_limits_large_visible_sets_to_cap() {
 /// Browser render windows should keep interior selections stable and still clamp correctly at the tail.
 #[test]
 fn browser_render_window_keeps_stable_window_and_tail_clamps_for_large_visible_sets() {
-    let (center_start, center_len) = browser_render_window(1_200, Some(800), None, 700);
+    let (center_start, center_len) = browser_render_window(1_200, Some(800), None, true, 700);
     assert_eq!(center_len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(center_start, 700);
 
-    let (tail_start, tail_len) = browser_render_window(1_200, Some(1_190), None, 700);
+    let (tail_start, tail_len) = browser_render_window(1_200, Some(1_190), None, true, 700);
     assert_eq!(tail_len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(tail_start, 938);
 }
@@ -87,9 +87,17 @@ fn browser_render_window_keeps_stable_window_and_tail_clamps_for_large_visible_s
 /// Browser render windows should still clamp at the hard tail when the focus reaches the last row.
 #[test]
 fn browser_render_window_clamps_at_tail_for_last_visible_row() {
-    let (start, len) = browser_render_window(1_200, Some(1_199), None, 700);
+    let (start, len) = browser_render_window(1_200, Some(1_199), None, true, 700);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 944);
+}
+
+/// Manual browser viewport scrolling should preserve the requested top row.
+#[test]
+fn browser_render_window_keeps_manual_view_start_without_autoscroll() {
+    let (start, len) = browser_render_window(500, Some(250), None, false, 212);
+    assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
+    assert_eq!(start, 212);
 }
 
 /// Rating buckets should map deterministically onto browser columns.
