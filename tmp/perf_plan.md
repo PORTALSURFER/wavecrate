@@ -284,7 +284,7 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
-- [ ] 10. Replace proxy segment p95 attribution with true per-segment measured timings
+- [x] 10. Replace proxy segment p95 attribution with true per-segment measured timings
   - ROI: Medium
   - Effort: M
   - Expected impact: perf regression detection quality, tuning velocity
@@ -303,6 +303,12 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
     - GUI bench JSON schema tests
     - `bash scripts/run_perf_guard.sh`
     - `bash scripts/ci_local.sh`
+  - Completed: 2026-03-08, commit `f239b03b`
+  - Validation status:
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml percentile_95_us_ -- --nocapture`
+    - `cargo test --manifest-path C:\dev\sempal\Cargo.toml run_gui_benchmark_uses_one_row_when_gui_rows_is_zero -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
 - [ ] 11. Borrow `ShellLayout` through hot native input handlers instead of cloning it repeatedly
   - ROI: Low
