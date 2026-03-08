@@ -313,6 +313,13 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
             SampleBrowserTab::from(controller.ui.browser.active_tab),
             SampleBrowserTab::Map
         ),
+        active_rating_filters: {
+            let mut flags = [false; 7];
+            for (index, level) in (-3..=3).enumerate() {
+                flags[index] = controller.ui.browser.rating_filter.contains(&level);
+            }
+            flags
+        },
         waveform_selection_milli: controller.ui.waveform.selection.map(|selection| {
             crate::app_core::actions::NativeNormalizedRangeModel::new(
                 waveform_projection::normalized_to_milli(selection.start()),
