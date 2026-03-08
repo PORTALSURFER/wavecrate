@@ -479,7 +479,7 @@ fn browser_search_placeholder(search_focused: bool) -> String {
 }
 
 /// Number of rows kept as a guard band before browser focus nudges the visible window.
-const BROWSER_RENDER_EDGE_MARGIN_ROWS: usize = 4;
+const BROWSER_RENDER_EDGE_MARGIN_ROWS: usize = 3;
 
 pub(super) fn browser_render_window(
     visible_count: usize,

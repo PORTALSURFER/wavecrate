@@ -27,7 +27,7 @@ fn browser_render_window_keeps_existing_window_for_interior_focus_changes() {
 /// Browser render windows should nudge downward when focus enters the bottom guard band.
 #[test]
 fn browser_render_window_scrolls_when_focus_reaches_bottom_guard_band() {
-    let (start, len) = browser_render_window(500, Some(452), None, 200);
+    let (start, len) = browser_render_window(500, Some(453), None, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 201);
 }
@@ -35,9 +35,25 @@ fn browser_render_window_scrolls_when_focus_reaches_bottom_guard_band() {
 /// Browser render windows should nudge upward when focus enters the top guard band.
 #[test]
 fn browser_render_window_scrolls_when_focus_reaches_top_guard_band() {
-    let (start, len) = browser_render_window(500, Some(203), None, 200);
+    let (start, len) = browser_render_window(500, Some(202), None, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
     assert_eq!(start, 199);
+}
+
+/// Browser render windows should keep the fourth row from the top stable.
+#[test]
+fn browser_render_window_keeps_fourth_row_from_top_stable() {
+    let (start, len) = browser_render_window(500, Some(203), None, 200);
+    assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
+    assert_eq!(start, 200);
+}
+
+/// Browser render windows should keep the fourth row from the bottom stable.
+#[test]
+fn browser_render_window_keeps_fourth_row_from_bottom_stable() {
+    let (start, len) = browser_render_window(500, Some(452), None, 200);
+    assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
+    assert_eq!(start, 200);
 }
 
 /// Browser render windows should clamp near the end instead of overrunning visible rows.
@@ -45,7 +61,7 @@ fn browser_render_window_scrolls_when_focus_reaches_top_guard_band() {
 fn browser_render_window_clamps_near_end_of_visible_rows() {
     let (start, len) = browser_render_window(500, Some(490), None, 200);
     assert_eq!(len, MAX_RENDERED_BROWSER_ROWS);
-    assert_eq!(start, 239);
+    assert_eq!(start, 238);
 }
 
 /// Browser render windows should still honor the hard row cap for very large datasets.
@@ -65,7 +81,7 @@ fn browser_render_window_keeps_stable_window_and_tail_clamps_for_large_visible_s
 
     let (tail_start, tail_len) = browser_render_window(1_200, Some(1_190), None, 700);
     assert_eq!(tail_len, MAX_RENDERED_BROWSER_ROWS);
-    assert_eq!(tail_start, 939);
+    assert_eq!(tail_start, 938);
 }
 
 /// Browser render windows should still clamp at the hard tail when the focus reaches the last row.
