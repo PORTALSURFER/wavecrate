@@ -395,9 +395,9 @@ impl SempalNativeBridge {
     /// Apply browser-focus movement immediately so wheel/arrow nudges are visible
     /// in the same frame instead of waiting for a pending-input flush boundary.
     ///
-    /// Browser focus movement intentionally stays preview-only here so held
-    /// navigation can move through large lists without queueing waveform/audio
-    /// load work for every intermediate row.
+    /// Browser focus movement stays synchronous only for focus/selection state.
+    /// Any preview audition is queued onto the background audio loader so held
+    /// navigation can keep moving through large lists without blocking on load.
     fn apply_browser_focus_delta_immediately(&mut self, delta: i8) {
         if delta == 0 {
             return;

@@ -7,7 +7,7 @@ pub(crate) fn nudge_selection(controller: &mut AppController, offset: isize) {
     };
     let next_row = visible_row_after_offset(controller, offset, list_len);
     controller.focus_browser_row_only(next_row);
-    let _ = controller.play_audio(controller.ui.waveform.loop_enabled, None);
+    controller.request_async_preview_playback_for_focused_selection();
 }
 
 pub(crate) fn grow_selection(controller: &mut AppController, offset: isize) {
@@ -17,7 +17,7 @@ pub(crate) fn grow_selection(controller: &mut AppController, offset: isize) {
     };
     let next_row = visible_row_after_offset(controller, offset, list_len);
     controller.extend_browser_selection_to_row(next_row);
-    let _ = controller.play_audio(controller.ui.waveform.loop_enabled, None);
+    controller.request_async_preview_playback_for_focused_selection();
 }
 
 fn visible_row_after_offset(

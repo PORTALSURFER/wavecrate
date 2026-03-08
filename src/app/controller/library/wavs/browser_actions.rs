@@ -107,9 +107,11 @@ impl AppController {
         true
     }
 
-    /// Focus browser row using UI delta input, ignoring no-op outcomes.
+    /// Focus browser row using UI delta input and queue non-blocking preview playback.
     pub fn focus_browser_delta_action(&mut self, delta: i8) {
-        let _ = self.focus_browser_delta(delta);
+        if self.focus_browser_delta(delta) {
+            self.request_async_preview_playback_for_focused_selection();
+        }
     }
 
     /// Focus browser row by UI delta and immediately request playback.
@@ -311,6 +313,40 @@ impl AppController {
     /// where playback may be unavailable (for example in headless tests).
     fn request_playback_for_focused_selection(&mut self) {
         let _ = self.play_audio(false, None);
+    }
+
+    /// Queue background playback for the focused browser sample without blocking navigation.
+    ///
+    /// When the sample is already loaded, playback starts immediately. Otherwise
+    /// this queues a latest-only worker load so held Up/Down navigation remains
+    /// responsive while still auditioning the newest focused row as soon as
+    /// audio is ready.
+    pub(crate) fn request_async_preview_playback_for_focused_selection(&mut self) {
+        let Some(relative_path) = self.sample_view.wav.selected_wav.clone() else {
+            return;
+        };
+        let Some(source) = self.current_source() else {
+            return;
+        };
+        let looped = self.ui.waveform.loop_enabled;
+        let is_loaded = self
+            .sample_view
+            .wav
+            .loaded_audio
+            .as_ref()
+            .is_some_and(|audio| {
+                audio.source_id == source.id && audio.relative_path == relative_path
+            });
+        if is_loaded {
+            self.runtime.jobs.set_pending_audio(None);
+            self.runtime.jobs.set_pending_playback(None);
+            self.stop_playback_if_active();
+            let _ = self.play_audio(looped, None);
+            return;
+        }
+        if let Err(err) = self.queue_browser_preview_audio_load(&source, &relative_path, looped) {
+            self.set_status(err, StatusTone::Error);
+        }
     }
 
     pub(crate) fn start_browser_rename(&mut self) {

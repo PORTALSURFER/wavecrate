@@ -5,6 +5,65 @@ use std::path::Path;
 use std::sync::Arc;
 
 impl AppController {
+    /// Queue background audio loading for browser-preview playback without clearing waveform UI.
+    ///
+    /// This path keeps Up/Down browser navigation responsive by avoiding the
+    /// heavier selection-load path on the input hot loop. The newest preview
+    /// request wins because stale worker completions are dropped by request id.
+    pub(crate) fn queue_browser_preview_audio_load(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+        looped: bool,
+    ) -> Result<(), String> {
+        let pending_playback = PendingPlayback {
+            source_id: source.id.clone(),
+            relative_path: relative_path.to_path_buf(),
+            looped,
+            start_override: None,
+        };
+        if self
+            .runtime
+            .jobs
+            .pending_audio()
+            .as_ref()
+            .is_some_and(|pending| {
+                pending.source_id == source.id && pending.relative_path == relative_path
+            })
+        {
+            self.runtime
+                .jobs
+                .set_pending_playback(Some(pending_playback));
+            return Ok(());
+        }
+        let request_id = self.runtime.jobs.next_audio_request_id();
+        let pending = PendingAudio {
+            request_id,
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: relative_path.to_path_buf(),
+            intent: AudioLoadIntent::Selection,
+        };
+        let job = AudioLoadJob {
+            request_id,
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: relative_path.to_path_buf(),
+            stretch_ratio: self.stretch_ratio_for_sample(relative_path),
+        };
+        self.stop_playback_if_active();
+        self.runtime.jobs.set_pending_audio(Some(pending));
+        self.runtime
+            .jobs
+            .set_pending_playback(Some(pending_playback));
+        if self.runtime.jobs.send_audio_job(job).is_err() {
+            self.runtime.jobs.set_pending_audio(None);
+            self.runtime.jobs.set_pending_playback(None);
+            return Err("Failed to queue browser preview audio load".to_string());
+        }
+        Ok(())
+    }
+
     pub(crate) fn handle_audio_loaded(&mut self, pending: PendingAudio, outcome: AudioLoadOutcome) {
         let source = SampleSource {
             id: pending.source_id.clone(),
