@@ -480,10 +480,10 @@ fn browser_search_placeholder(search_focused: bool) -> String {
 
 /// Number of rows kept between the focused row and the window edge before scrolling.
 ///
-/// A margin of `2` means the browser starts scrolling once focus reaches the
-/// second visible row from the top or bottom, matching edge-navigation
-/// expectations for rapid keyboard movement.
-const BROWSER_RENDER_EDGE_MARGIN_ROWS: usize = 2;
+/// A margin of `3` means the browser starts scrolling once focus reaches the
+/// third visible row from the top or bottom, so edge-near selection keeps more
+/// look-ahead room during keyboard or pointer navigation.
+const BROWSER_RENDER_EDGE_MARGIN_ROWS: usize = 3;
 
 pub(super) fn browser_render_window(
     visible_count: usize,
