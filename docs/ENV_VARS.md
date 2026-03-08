@@ -25,6 +25,12 @@ CI secret used by `.github/workflows/release-build.yml` to sign release checksum
 files. This is expected to be an Ed25519 private key in PEM form that OpenSSL
 can use for `pkeyutl -sign`.
 
+- `SEMPAL_DISABLE_SCCACHE`
+When set to `1`, repo Cargo helper scripts skip auto-configuring `sccache`
+even when it is installed. This is useful when comparing uncached timings or
+debugging wrapper-related issues. Default: unset (`sccache` is auto-used when
+available and `RUSTC_WRAPPER` is not already set).
+
 - `SEMPAL_WINDOWS_SIGN_PFX_BASE64`
 CI secret used by `.github/workflows/release-build.yml` to Authenticode-sign
 Windows executables. This value is expected to be a base64-encoded `.pfx`

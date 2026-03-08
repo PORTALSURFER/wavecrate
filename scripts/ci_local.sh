@@ -13,6 +13,9 @@ cd "$ROOT_DIR"
 # shellcheck source=scripts/setup_headless_audio.sh
 source "$ROOT_DIR/scripts/setup_headless_audio.sh"
 sempal_setup_headless_audio "ci_local"
+# shellcheck source=scripts/use_cargo_cache.sh
+source "$ROOT_DIR/scripts/use_cargo_cache.sh"
+sempal_enable_cargo_cache
 
 SKIP_AGENT_PREFLIGHT=0
 MEMORY_MAX_AGE_HOURS="${AGENT_CI_MEMORY_MAX_AGE_HOURS:-24}"

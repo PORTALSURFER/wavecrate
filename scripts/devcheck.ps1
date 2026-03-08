@@ -16,6 +16,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "use_cargo_cache.ps1")
+
 if ($Help) {
   Write-Host "Usage: scripts/devcheck.ps1"
   Write-Host "Run the fastest local compile/smoke gate."
@@ -41,6 +43,7 @@ function Invoke-NativeStep {
 
 Push-Location $rootDir
 try {
+  Enable-SempalCargoCache
   Write-Host "[devcheck] cargo check --tests --bins"
   Invoke-NativeStep -Label "cargo check --tests --bins" -Command {
     cargo check --tests --bins

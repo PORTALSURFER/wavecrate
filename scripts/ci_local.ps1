@@ -16,6 +16,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "use_cargo_cache.ps1")
 
 if ($Help) {
   Write-Host "Usage: scripts/ci_local.ps1 [-SkipAgentPreflight]"
@@ -42,6 +43,7 @@ function Invoke-NativeStep {
 
 Push-Location $rootDir
 try {
+  Enable-SempalCargoCache
   Write-Host "[ci_local] cargo fmt --all -- --check"
   Invoke-NativeStep -Label "cargo fmt --all -- --check" -Command { cargo fmt --all -- --check }
 

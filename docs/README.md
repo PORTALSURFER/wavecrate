@@ -13,6 +13,7 @@ Start here:
 - `docs/FEATURE_CHECKLIST.md` — safe path for implementing changes
 - `docs/ARCHITECTURE.md` — module ownership map
 - `docs/ENV_VARS.md` — environment variable reference
+- `docs/build_speed.md` — local compile-speed workflow and crate-split sketch
 - `docs/TEST.md` — test suite map and commands
 - `docs/design_principles.md` — architectural goals and constraints
 - `docs/radiant_slot_layout_spec.md` — strict hierarchical slot-based layout contract for `vendor/radiant`
@@ -31,6 +32,10 @@ Use these scripts as the default entrypoints for local work (humans and agents).
   - macOS/Linux/WSL: `bash scripts/bootstrap.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1`
 - Fastest smoke/compile checks:
+  - Optional lighter app-only loop:
+    - macOS/Linux/WSL: `bash scripts/devcheck_app.sh`
+    - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck_app.ps1`
+  - This intentionally skips support-tool bins and tests; still run `devcheck` before commit.
   - macOS/Linux/WSL: `bash scripts/devcheck.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Fast development checks:

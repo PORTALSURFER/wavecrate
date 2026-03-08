@@ -16,6 +16,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "use_cargo_cache.ps1")
+
 if ($Help) {
   Write-Host "Usage: scripts/ci_quick.ps1"
   Write-Host "Run the fast local development test loop."
@@ -42,6 +44,7 @@ function Invoke-NativeStep {
 
 Push-Location $rootDir
 try {
+  Enable-SempalCargoCache
   Write-Host "[ci_quick] cargo nextest run --profile quick --lib --tests"
   Invoke-NativeStep -Label "cargo nextest run --profile quick --lib --tests" -Command {
     cargo nextest run --profile quick --lib --tests

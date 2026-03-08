@@ -10,6 +10,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+# shellcheck source=scripts/use_cargo_cache.sh
+source "$ROOT_DIR/scripts/use_cargo_cache.sh"
+sempal_enable_cargo_cache
 
 usage() {
   cat <<'EOF'

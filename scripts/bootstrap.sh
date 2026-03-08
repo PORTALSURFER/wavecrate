@@ -4,6 +4,7 @@
 #
 # - Installs the pinned Rust toolchain from rust-toolchain.toml
 # - Ensures rustfmt/clippy/cargo-nextest are available
+# - Detects optional local `sccache` support used by repo Cargo scripts
 # - Checks git-lfs and python3
 # - Prints next-step commands for smoke, quick, and full validation tiers
 
@@ -22,6 +23,7 @@ Default: installs/ensures a known-good local environment:
 - pinned Rust toolchain from rust-toolchain.toml
 - rustfmt + clippy components
 - cargo-nextest
+- optional sccache detection for faster repeated Cargo runs
 - checks git-lfs, python3, and rg
 
   --verify-only:
@@ -199,9 +201,19 @@ else
   fi
 fi
 
+if command -v sccache >/dev/null 2>&1; then
+  echo "[bootstrap] sccache: installed (repo Cargo scripts will use it automatically)"
+else
+  echo "[bootstrap] sccache: optional but missing"
+  echo "[bootstrap]   Install for faster repeated builds. Examples:" >&2
+  echo "[bootstrap]     cargo install sccache --locked" >&2
+  echo "[bootstrap]     Windows: winget install Mozilla.sccache" >&2
+fi
+
 echo
 echo "[bootstrap] Next steps:"
 echo "  - Environment sanity:   bash scripts/doctor.sh"
+echo "  - App-only check:       bash scripts/devcheck_app.sh"
 echo "  - Smoke devcheck:       bash scripts/devcheck.sh"
 echo "  - Fast test checks:     bash scripts/ci_quick.sh"
 echo "  - CI parity checks:     bash scripts/ci_local.sh"

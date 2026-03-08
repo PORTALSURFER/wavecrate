@@ -6,6 +6,9 @@ This file inventories the test suites currently exercised in the repository and 
 
 Use these for normal iteration:
 
+- Lightest app-only compile gate:
+  - `bash scripts/devcheck_app.sh`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck_app.ps1`
 - Fastest smoke/compile gate:
   - `bash scripts/devcheck.sh`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
@@ -17,6 +20,8 @@ Use these for normal iteration:
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
 Recommended cadence:
+- Use `devcheck_app` when you are only changing the main app/runtime path and
+  want the shortest compile loop.
 - Use `devcheck` during the tight edit loop.
 - Use `ci_quick` before commit or after a non-trivial change.
 - Use `ci_local` for tooling changes, dependency work, perf-sensitive work, or when you need CI parity.
