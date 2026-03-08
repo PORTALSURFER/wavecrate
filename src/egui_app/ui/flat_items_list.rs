@@ -1,5 +1,5 @@
 use super::helpers::{
-    RowMetrics, list_row_height, number_column_width, scroll_offset_to_reveal_row,
+    list_row_height, number_column_width, scroll_offset_to_reveal_row, RowMetrics,
 };
 use super::style;
 use eframe::egui::{self, Ui};
@@ -77,9 +77,11 @@ pub(super) fn render_flat_items_list(
         desired_offset = scroll_offset_to_reveal_row(
             desired_offset,
             row,
+            config.total_rows,
             row_metrics,
             viewport_height,
             config.autoscroll_padding_rows,
+            max_offset,
         );
     }
     let mut state = scroll_response.inner.state;

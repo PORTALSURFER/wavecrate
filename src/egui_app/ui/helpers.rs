@@ -1,8 +1,8 @@
 use super::style;
-use crate::sample_sources::is_supported_audio;
-use eframe::egui::{self, Align2, Color32, PopupAnchor, TextStyle, Tooltip, Ui};
-use crate::sample_sources::Rating;
 use crate::sample_sources::config::TooltipMode;
+use crate::sample_sources::is_supported_audio;
+use crate::sample_sources::Rating;
+use eframe::egui::{self, Align2, Color32, PopupAnchor, TextStyle, Tooltip, Ui};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -135,7 +135,9 @@ pub(super) fn flash_alpha(
     let progress = (elapsed.as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0);
     let remaining = 1.0 - progress;
     let eased = remaining * remaining;
-    let alpha = (max_alpha as f32 * eased).round().clamp(0.0, max_alpha as f32) as u8;
+    let alpha = (max_alpha as f32 * eased)
+        .round()
+        .clamp(0.0, max_alpha as f32) as u8;
     Some(alpha)
 }
 
@@ -541,9 +543,11 @@ pub(super) fn render_inline_text_edit(
     }
     if select_all {
         let mut state = edit_output.state;
-        state.cursor.set_char_range(Some(egui::text::CCursorRange::select_all(
-            &edit_output.galley,
-        )));
+        state
+            .cursor
+            .set_char_range(Some(egui::text::CCursorRange::select_all(
+                &edit_output.galley,
+            )));
         state.store(ui.ctx(), response.id);
     }
     let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -561,15 +565,24 @@ pub(super) fn render_inline_text_edit(
     }
 }
 
+/// Return the scroll offset needed to keep a row visible, snapping at list edges.
 pub(super) fn scroll_offset_to_reveal_row(
     current_offset: f32,
     row: usize,
+    total_rows: usize,
     metrics: RowMetrics,
     viewport_height: f32,
     padding_rows: f32,
+    max_offset: f32,
 ) -> f32 {
     if viewport_height <= 0.0 {
         return current_offset;
+    }
+    if row < EDGE_AUTOSCROLL_TRIGGER_ROWS {
+        return 0.0;
+    }
+    if row >= total_rows.saturating_sub(EDGE_AUTOSCROLL_TRIGGER_ROWS) {
+        return max_offset.max(0.0);
     }
     let padding = (metrics.pitch() * padding_rows).max(0.0);
     let row_top = row as f32 * metrics.pitch();
@@ -588,4 +601,37 @@ pub(super) fn scroll_offset_to_reveal_row(
     }
     // Already inside the valid band; keep offset stable to avoid drift.
     current_offset
+}
+
+/// Snap to the list edge once selection reaches the first or last two rows.
+const EDGE_AUTOSCROLL_TRIGGER_ROWS: usize = 2;
+
+#[cfg(test)]
+mod tests {
+    use super::{scroll_offset_to_reveal_row, RowMetrics};
+
+    fn metrics() -> RowMetrics {
+        RowMetrics {
+            height: 10.0,
+            spacing: 0.0,
+        }
+    }
+
+    #[test]
+    fn autoscroll_snaps_to_top_for_first_two_rows() {
+        let offset = scroll_offset_to_reveal_row(35.0, 1, 20, metrics(), 50.0, 1.0, 150.0);
+        assert_eq!(offset, 0.0);
+    }
+
+    #[test]
+    fn autoscroll_snaps_to_bottom_for_last_two_rows() {
+        let offset = scroll_offset_to_reveal_row(35.0, 18, 20, metrics(), 50.0, 1.0, 150.0);
+        assert_eq!(offset, 150.0);
+    }
+
+    #[test]
+    fn autoscroll_keeps_middle_rows_on_padded_band() {
+        let offset = scroll_offset_to_reveal_row(30.0, 8, 20, metrics(), 50.0, 1.0, 150.0);
+        assert_eq!(offset, 50.0);
+    }
 }
