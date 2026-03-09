@@ -1,5 +1,9 @@
 use super::*;
+use rusqlite::params;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
+
+use crate::sample_sources::{Rating, SourceDatabase};
 
 struct MoveRecoveryFixture {
     _temp: TempDir,
@@ -370,9 +374,11 @@ fn reconcile_reports_and_drops_malformed_journal_rows() {
     assert!(summary.errors[0].contains("dropped malformed journal row"));
     let entry_count = target_db
         .connection
-        .query_row("SELECT COUNT(*) FROM file_ops_journal", [], |row| {
-            row.get::<_, i64>(0)
-        })
+        .query_row(
+            "SELECT COUNT(*) FROM file_ops_journal",
+            [],
+            |row: &rusqlite::Row<'_>| row.get::<_, i64>(0),
+        )
         .unwrap();
     assert_eq!(entry_count, 0);
 }
