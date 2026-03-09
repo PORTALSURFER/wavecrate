@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-09 (UTC)
-Phase: 2 active
+Phase: 2 complete
 Status legend: `[ ]` pending, `[x]` done
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -153,7 +153,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: targeted module tests, `cargo clippy --workspace --all-targets`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
   - Completed: 2026-03-09 (UTC) - `sempal` commit `f3fa9b8b`
 
-- [ ] 12) Refresh stale architecture/tooling docs after the workspace split
+- [x] 12) Refresh stale architecture/tooling docs after the workspace split
   - ROI/Effort: Medium / S
   - Why it matters: The docs are now partially inconsistent with the actual package layout, which makes onboarding and future cleanup decisions harder.
   - Evidence:
@@ -163,6 +163,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: Refresh the architecture/build docs to reflect the workspace members and local fast-run lane, and clean stale tool paths from supporting docs/allowlists.
   - Risk/tradeoffs: Low. Documentation/tooling metadata only.
   - Suggested validation: docs/link checks plus `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
+  - Completed: 2026-03-09 (UTC) - `sempal` commit `73d5f860`
 
 ## Progress Log
 
@@ -179,3 +180,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-09: Completed item 9 (documented retained projection segments, invalidation boundaries, and native-bridge profiling/assertion contracts in a dedicated developer note).
 - 2026-03-09: Completed item 10 (replaced non-entrypoint controller/native-bridge stderr logging with structured tracing while preserving opt-in analysis job telemetry gates).
 - 2026-03-09: Completed item 11 (replaced the remaining wide-signature suppression sites with typed worker/export/render request contexts, split selection-export recording into focused modules, and cleared `scripts/ci_local.ps1`).
+- 2026-03-09: Completed item 12 (updated architecture/build docs and file-size allowlist paths to match the workspace package split and local `cargo run-fast` loop).
