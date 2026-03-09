@@ -149,7 +149,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Suggested validation: audio output tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
   - Completion: 2026-03-09 (`bb7216dd`)
 
-- [ ] 12) Further split app-core browser projection into row-window, panel, chrome, and preload helpers
+- [x] 12) Further split app-core browser projection into row-window, panel, chrome, and preload helpers
   - ROI/Effort: Medium / M
   - Why it matters: browser projection is one of the last concentrated app-core/native-shell coupling points, and it still mixes retained-row projection with preload policy and chrome assembly.
   - Evidence:
@@ -160,6 +160,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: split rows/panel/chrome/preload into focused helpers and keep tests close to preload-window and row-projection behavior.
   - Risk/tradeoffs: Medium. Browser row ordering, selected-row behavior, and BPM preload ranges must remain stable.
   - Suggested validation: `app_core::native_shell` tests, browser integration tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
+  - Completion: 2026-03-09 (`bceaaeeb`)
 
 - [ ] 13) Fix handoff/doc-gardening drift and correct CI contract documentation
   - ROI/Effort: High / S
