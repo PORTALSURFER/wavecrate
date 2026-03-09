@@ -513,7 +513,10 @@ pub(super) fn browser_render_window(
         };
     }
     if !autoscroll {
-        return (current_window_start.min(visible_count - window_len), window_len);
+        return (
+            current_window_start.min(visible_count - window_len),
+            window_len,
+        );
     }
     let pivot = selected_visible_row
         .or(anchor_visible_row)
