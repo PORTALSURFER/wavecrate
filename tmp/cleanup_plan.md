@@ -110,7 +110,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Suggested validation: `cargo clippy --workspace --all-targets`, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
   - Completion: 2026-03-09 (`b5702240`)
 
-- [ ] 9) Decompose destructive selection-edit workflows into focused write services and thin controller orchestration
+- [x] 9) Decompose destructive selection-edit workflows into focused write services and thin controller orchestration
   - ROI/Effort: High / M
   - Why it matters: destructive edits still combine sample-buffer transforms, file writes, DB updates, undo capture, cache refreshes, and playback follow-up in one module.
   - Evidence:
@@ -121,6 +121,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: extract edit-application services and keep controller methods as orchestration shells over those services.
   - Risk/tradeoffs: Medium. These flows touch both files and persisted state, so regression risk is real without focused tests.
   - Suggested validation: waveform-edit controller tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
+  - Completion: 2026-03-09 (`07afb548`)
 
 - [ ] 10) Split `src/app/controller/playback/transport.rs` by interaction domain
   - ROI/Effort: Medium-High / M
