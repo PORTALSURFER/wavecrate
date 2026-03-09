@@ -136,7 +136,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Suggested validation: transport-focused tests, waveform navigation/loop tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
   - Completion: 2026-03-09 (`1a0a20eb`)
 
-- [ ] 11) Split `src/audio/output.rs` into discovery, stream setup, and callback runtime modules
+- [x] 11) Split `src/audio/output.rs` into discovery, stream setup, and callback runtime modules
   - ROI/Effort: Medium / M
   - Why it matters: device discovery, stream negotiation, callback mixing, and monitor helpers are still coupled in one platform-sensitive file.
   - Evidence:
@@ -147,6 +147,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: separate host/device discovery, stream/config resolution, and callback-runtime state into smaller modules.
   - Risk/tradeoffs: Medium. Audio code is platform-sensitive and callback behavior must stay simple and non-blocking.
   - Suggested validation: audio output tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
+  - Completion: 2026-03-09 (`bb7216dd`)
 
 - [ ] 12) Further split app-core browser projection into row-window, panel, chrome, and preload helpers
   - ROI/Effort: Medium / M
