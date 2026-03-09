@@ -4,7 +4,7 @@ If you're an agent or a new contributor: start in `docs/README.md`, then come ba
 
 ## Where checks run
 
-- Local CI parity: `scripts/ci_local.{sh,ps1}`
+- Full local validation gate (broader than GitHub CI because it also runs perf guard): `scripts/ci_local.{sh,ps1}`
 - CI: `.github/workflows/ci.yml`
 
 ## Tooling and scripts (recommended workflow chain)
@@ -78,8 +78,8 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
 | `scripts/check_file_size_budget.ps1` | PowerShell equivalent of the file-size budget check. | Same remediation as the bash version. |
 | `scripts/check_script_guardrails.sh` | Key shell scripts must stay syntax valid and pass fixture checks for matching logic. | Keep script syntax and fixture assertions green; ensure regex matching and argument parsing are fixture-covered. |
 | `scripts/check_script_guardrails.ps1` | PowerShell wrapper around the script guardrails check. | Same remediation as the bash version. |
-| `scripts/run_agent_request.sh` | Refreshes `MEMORY.md`, runs mandatory guardrails, and executes full local CI. | Run at session start; do not continue if this check fails. |
-| `scripts/run_agent_request.ps1` | PowerShell equivalent of the agent preflight + local CI entrypoint. | Same remediation as the bash version. |
+| `scripts/run_agent_request.sh` | Refreshes `MEMORY.md`, runs mandatory guardrails, then runs `devcheck` by default (`--quick-ci` and `--full-ci` opt into broader gates). | Run at session start; do not continue if this check fails. |
+| `scripts/run_agent_request.ps1` | PowerShell equivalent of the agent preflight + configurable local-check entrypoint. | Same remediation as the bash version. |
 | `scripts/run_perf_guard.sh` | Runs deterministic runtime interaction benchmarks and evaluates warn/fail thresholds (including stage attribution where available). | Use for local perf regression checks and CI parity before push. |
 | `scripts/run_perf_guard.ps1` | PowerShell wrapper for `scripts/run_perf_guard.sh`. | Same remediation as the bash version. |
 | `scripts/calibrate_startup_thresholds.sh` | Runs compositor-backed startup calibration and refreshes the tracked startup threshold lock file. | Run this on compositor-backed hosts when startup-first-paint budgets drift or after major startup-path changes. |

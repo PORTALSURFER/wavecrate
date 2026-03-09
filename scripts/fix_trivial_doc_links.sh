@@ -46,9 +46,9 @@ declare -a REWRITES=(
   "manual/styleguide.md" "docs/styleguide.md"
   "manual/icon_assets.md" "docs/icon_assets.md"
   "manual/hints.md" "docs/hints.md"
-  "manual/plan.md" "docs/plans/plan.md"
-  "manual/todo.md" "docs/plans/todo.md"
-  "manual/transient_plan.md" "docs/plans/transient_plan.md"
+  "manual/plan.md" "docs/plans/active/plan.md"
+  "manual/todo.md" "docs/plans/active/todo.md"
+  "manual/transient_plan.md" "docs/plans/active/transient_plan.md"
   "manual/transient_audit.md" "docs/audits/transient_audit.md"
   "manual/drag_audit.md" "docs/audits/drag_audit.md"
 )

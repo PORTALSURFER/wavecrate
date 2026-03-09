@@ -44,13 +44,14 @@ Use these scripts as the default entrypoints for local work (humans and agents).
 - Fast development checks:
   - macOS/Linux/WSL: `bash scripts/ci_quick.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Full CI parity checks:
+- Full local validation gate:
   - macOS/Linux/WSL: `bash scripts/ci_local.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+  - This is broader than GitHub CI because it also runs `scripts/run_perf_guard.sh`.
 - Agent request preflight:
   - `bash scripts/run_agent_request.sh` (or `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`)  
     refreshes `MEMORY.md`, runs mandatory checks, then the smoke `devcheck` by default.
-  - Pass `--quick-ci` for the filtered fast test loop or `--full-ci` for the slower CI-parity gate.
+  - Pass `--quick-ci` for the filtered fast test loop or `--full-ci` for the broader local validation gate.
 - Lightweight per-request preflight: `bash scripts/run_agent_preflight.sh`
 - Automatic pull/checkout enforcement:
   `bash scripts/install_agent_preflight_hooks.sh` is installed by
