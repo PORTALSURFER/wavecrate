@@ -78,6 +78,12 @@ fn matching_browser_search_message_refreshes_visible_rows_and_clears_busy_state(
     assert_eq!(controller.ui.browser.latest_applied_search_request_id, 9);
     assert!(!controller.ui.browser.search_busy);
     assert!(controller.ui.browser.marker_cache.is_none());
+    let browser_search_revision = controller.ui.projection_revisions.browser_search;
+    assert!(controller.refresh_projection_revision_bus());
+    assert_ne!(
+        controller.ui.projection_revisions.browser_search,
+        browser_search_revision
+    );
 }
 
 #[test]

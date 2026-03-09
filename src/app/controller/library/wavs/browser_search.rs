@@ -197,6 +197,7 @@ impl AppController {
 
     pub(crate) fn dispatch_search_job(&mut self) {
         let Some(source) = self.current_source() else {
+            self.mark_browser_search_projection_revision_dirty();
             self.ui.browser.search_busy = false;
             return;
         };
@@ -214,6 +215,7 @@ impl AppController {
             .root_folder_filter_mode_for_filter()
             .unwrap_or_default();
 
+        self.mark_browser_search_projection_revision_dirty();
         self.ui.browser.search_busy = true;
         self.runtime
             .jobs
@@ -236,6 +238,7 @@ impl AppController {
 pub(crate) fn set_browser_filter(controller: &mut AppController, filter: TriageFlagFilter) {
     if controller.ui.browser.filter != filter {
         controller.ui.browser.filter = filter;
+        controller.mark_browser_search_projection_revision_dirty();
         if controller.should_dispatch_browser_search_async() {
             controller.dispatch_search_job();
         } else {
@@ -265,6 +268,7 @@ pub(crate) fn set_browser_rating_filter(controller: &mut AppController, level: i
         changed = true;
     }
     if changed {
+        controller.mark_browser_search_projection_revision_dirty();
         if controller.should_dispatch_browser_search_async() {
             controller.dispatch_search_job();
         } else {
@@ -279,6 +283,7 @@ pub(crate) fn clear_browser_rating_filter(controller: &mut AppController) {
         return;
     }
     controller.ui.browser.rating_filter.clear();
+    controller.mark_browser_search_projection_revision_dirty();
     if controller.should_dispatch_browser_search_async() {
         controller.dispatch_search_job();
     } else {
@@ -292,6 +297,7 @@ pub(crate) fn set_browser_sort(controller: &mut AppController, sort: SampleBrows
         if sort != SampleBrowserSort::Similarity {
             controller.ui.browser.similarity_sort_follow_loaded = false;
         }
+        controller.mark_browser_search_projection_revision_dirty();
         if controller.should_dispatch_browser_search_async() {
             controller.dispatch_search_job();
         } else {

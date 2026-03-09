@@ -115,6 +115,7 @@ impl AppController {
             && message.query == self.ui.browser.search_query
             && message.request_id == self.ui.browser.latest_search_request_id
         {
+            self.mark_browser_search_projection_revision_dirty();
             self.ui.browser.visible = message.visible;
             self.ui.browser.visible_rows_revision =
                 self.ui.browser.visible_rows_revision.wrapping_add(1);

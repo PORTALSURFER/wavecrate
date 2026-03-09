@@ -135,6 +135,12 @@ fn browser_rating_filter_limits_visible_rows() {
 
     controller.set_browser_rating_filter(-2, false);
     assert_eq!(visible_indices(&controller), vec![1]);
+    let rating_filter_revision = controller.ui.projection_revisions.browser_search;
+    assert!(controller.refresh_projection_revision_bus());
+    assert_ne!(
+        controller.ui.projection_revisions.browser_search,
+        rating_filter_revision
+    );
 
     controller.set_browser_rating_filter(2, true);
     assert_eq!(visible_indices(&controller), vec![1, 5]);
