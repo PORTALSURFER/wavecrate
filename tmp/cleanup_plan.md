@@ -36,7 +36,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: introduce shared wav-row decode helpers and a small set of explicit upsert builders/helpers instead of open-coded SQL variants.
   - Risk/tradeoffs: Low-medium. Shared helpers must not blur the intentional differences between hash/tag/missing variants.
   - Suggested validation: source DB unit tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
-  - Completion: 2026-03-09 (commit hash recorded in the next synchronized plan update after commit creation)
+  - Completion: 2026-03-09 (`1fe099ae`)
 
 - [ ] 3) Deduplicate fuzzy-search scoring and cache reuse across synchronous and worker browser search paths
   - ROI/Effort: High / M
@@ -213,4 +213,4 @@ Canonical local CI command: `bash scripts/ci_local.sh`
 - 2026-03-09: Phase 1 cleanup audit refreshed from the current `next` workspace state.
 - 2026-03-09: Read repository guidance first (`AGENTS.md`, `README.md`, `docs/README.md`, active plans, and `MEMORY.md`) before the audit.
 - 2026-03-09: Confirmed the canonical local CI parity command for this environment is `bash scripts/ci_local.sh`.
-- 2026-03-09: Completed item 1 in commit `16932de4` and item 2 is now implemented, validated, and awaiting commit-hash backfill in the next synchronized plan update.
+- 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.

@@ -57,7 +57,7 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: runtime responsiveness/performance redesign (Xilem-inspired scoped invalidation + cache reuse)
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
-- Current status: the `tmp/perf_plan.md` runtime performance execution backlog is complete through item 11, and cleanup Phase 2 is now in progress from `tmp/cleanup_plan.md`; items 1 and 2 are complete, with item 1 recorded in commit `16932de4`.
+- Current status: the `tmp/perf_plan.md` runtime performance execution backlog is complete through item 11, and cleanup Phase 2 is now in progress from `tmp/cleanup_plan.md`; items 1 and 2 are complete, recorded in commits `16932de4` and `1fe099ae`.
 
 ## Immediate Next Actions
 1. Use `docs/plans/active/runtime_performance_exec_plan.md` for any follow-up perf work beyond the completed `tmp/perf_plan.md` backlog.
