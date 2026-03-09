@@ -123,7 +123,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Suggested validation: waveform-edit controller tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
   - Completion: 2026-03-09 (`07afb548`)
 
-- [ ] 10) Split `src/app/controller/playback/transport.rs` by interaction domain
+- [x] 10) Split `src/app/controller/playback/transport.rs` by interaction domain
   - ROI/Effort: Medium-High / M
   - Why it matters: selection dragging, loop toggle policy, seeking, BPM snapping, and playback follow-up still live in one dense controller file.
   - Evidence:
@@ -134,6 +134,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: extract `selection_drag`, `looping`, `seek`, `bpm_snap`, and playback helpers into focused modules with tests aligned to those seams.
   - Risk/tradeoffs: Medium. Playback and selection edge cases are user-visible and need stable coverage during the split.
   - Suggested validation: transport-focused tests, waveform navigation/loop tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
+  - Completion: 2026-03-09 (`1a0a20eb`)
 
 - [ ] 11) Split `src/audio/output.rs` into discovery, stream setup, and callback runtime modules
   - ROI/Effort: Medium / M
