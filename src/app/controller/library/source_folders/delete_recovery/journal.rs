@@ -255,7 +255,7 @@ fn mark_staging_root_hidden(staging_root: &Path) {
         if staging_root
             .file_name()
             .and_then(|value| value.to_str())
-            .is_some_and(|value| value == DELETE_STAGING_DIR)
+            .is_some_and(|value| value == super::DELETE_STAGING_DIR)
         {
             let mut wide: Vec<u16> = staging_root.as_os_str().encode_wide().collect();
             wide.push(0);
