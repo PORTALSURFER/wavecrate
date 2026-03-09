@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-09 (UTC)
-Phase: 1 complete, awaiting explicit Phase 2 confirmation
+Phase: 2 in progress
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `bash scripts/ci_local.sh`
@@ -25,9 +25,9 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: decide the true public contract for duplicate ANN IDs and ANN backfill-on-read, then align docs/tests with that contract; clarify the current `umap` naming vs t-SNE-backed implementation; and add direct tests for duplicate-ID behavior, backfill-on-read, and the remaining analysis helpers with validation/sanitization logic.
   - Risk/tradeoffs: Medium. This work may reveal that some callers depend on the current undocumented behavior, so the safest fix may be docs-plus-tests rather than behavior changes in every case.
   - Suggested validation: targeted analysis unit tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
-  - Completion: 2026-03-09 (commit hash recorded in the next synchronized plan update after commit creation)
+  - Completion: 2026-03-09 (`16932de4`)
 
-- [ ] 2) Remove duplicated `wav_files` row decoding and upsert SQL in the source DB layer
+- [x] 2) Remove duplicated `wav_files` row decoding and upsert SQL in the source DB layer
   - ROI/Effort: High / S
   - Why it matters: persistence fixes currently require synchronized edits across repeated row-decoding and near-identical `INSERT ... ON CONFLICT` blocks.
   - Evidence:
@@ -36,6 +36,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: introduce shared wav-row decode helpers and a small set of explicit upsert builders/helpers instead of open-coded SQL variants.
   - Risk/tradeoffs: Low-medium. Shared helpers must not blur the intentional differences between hash/tag/missing variants.
   - Suggested validation: source DB unit tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
+  - Completion: 2026-03-09 (commit hash recorded in the next synchronized plan update after commit creation)
 
 - [ ] 3) Deduplicate fuzzy-search scoring and cache reuse across synchronous and worker browser search paths
   - ROI/Effort: High / M
@@ -209,6 +210,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
 
 ## Progress Log
 
-- 2026-03-09: Phase 1 cleanup audit refreshed from the current `next` workspace state; no Phase 2 implementation has started.
+- 2026-03-09: Phase 1 cleanup audit refreshed from the current `next` workspace state.
 - 2026-03-09: Read repository guidance first (`AGENTS.md`, `README.md`, `docs/README.md`, active plans, and `MEMORY.md`) before the audit.
 - 2026-03-09: Confirmed the canonical local CI parity command for this environment is `bash scripts/ci_local.sh`.
+- 2026-03-09: Completed item 1 in commit `16932de4` and item 2 is now implemented, validated, and awaiting commit-hash backfill in the next synchronized plan update.

@@ -1,9 +1,97 @@
 use std::path::{Path, PathBuf};
 
-use rusqlite::params;
+use rusqlite::{CachedStatement, Connection, Transaction, params};
 
 use super::util::{map_sql_error, normalize_relative_path};
 use super::{Rating, SourceDatabase, SourceDbError, SourceWriteBatch};
+
+const UPSERT_WAV_FILE_SQL: &str =
+    "INSERT INTO wav_files (path, file_size, modified_ns, tag, looped, missing, extension)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+     ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
+                                    modified_ns = excluded.modified_ns,
+                                    missing = excluded.missing,
+                                    extension = excluded.extension";
+const UPSERT_WAV_FILE_WITHOUT_HASH_SQL: &str =
+    "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, missing, extension)
+     VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7)
+     ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
+                                    modified_ns = excluded.modified_ns,
+                                    content_hash = NULL,
+                                    missing = excluded.missing,
+                                    extension = excluded.extension";
+const UPSERT_WAV_FILE_WITH_HASH_SQL: &str =
+    "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, missing, extension)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+     ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
+                                    modified_ns = excluded.modified_ns,
+                                    content_hash = excluded.content_hash,
+                                    missing = excluded.missing,
+                                    extension = excluded.extension";
+const UPSERT_WAV_FILE_WITH_HASH_AND_TAG_SQL: &str =
+    "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, missing, extension)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+     ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
+                                    modified_ns = excluded.modified_ns,
+                                    content_hash = excluded.content_hash,
+                                    tag = excluded.tag,
+                                    missing = excluded.missing,
+                                    extension = excluded.extension";
+
+struct WavFileUpsertInput {
+    path: String,
+    file_size: i64,
+    modified_ns: i64,
+    extension: String,
+}
+
+fn wav_file_upsert_input(
+    relative_path: &Path,
+    file_size: u64,
+    modified_ns: i64,
+) -> Result<WavFileUpsertInput, SourceDbError> {
+    Ok(WavFileUpsertInput {
+        path: normalize_relative_path(relative_path)?,
+        file_size: file_size as i64,
+        modified_ns,
+        extension: relative_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase(),
+    })
+}
+
+fn execute_cached_statement(
+    mut statement: CachedStatement<'_>,
+    params: impl rusqlite::Params,
+) -> Result<(), SourceDbError> {
+    statement.execute(params).map_err(map_sql_error)?;
+    Ok(())
+}
+
+fn execute_connection_cached(
+    connection: &Connection,
+    sql: &str,
+    params: impl rusqlite::Params,
+) -> Result<(), SourceDbError> {
+    execute_cached_statement(
+        connection.prepare_cached(sql).map_err(map_sql_error)?,
+        params,
+    )
+}
+
+fn execute_transaction_cached(
+    tx: &Transaction<'_>,
+    sql: &str,
+    params: impl rusqlite::Params,
+) -> Result<(), SourceDbError> {
+    execute_cached_statement(tx.prepare_cached(sql).map_err(map_sql_error)?, params)
+}
+
+fn missing_flag(missing: bool) -> i64 {
+    if missing { 1i64 } else { 0i64 }
+}
 
 impl SourceDatabase {
     /// Upsert a wav file row using the path relative to the source root.
@@ -13,33 +101,20 @@ impl SourceDatabase {
         file_size: u64,
         modified_ns: i64,
     ) -> Result<(), SourceDbError> {
-        let path = normalize_relative_path(relative_path)?;
-        let extension = relative_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-        let mut stmt = self
-            .connection
-            .prepare_cached(
-                "INSERT INTO wav_files (path, file_size, modified_ns, tag, looped, missing, extension)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-                 ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
-                                                modified_ns = excluded.modified_ns,
-                                                missing = excluded.missing,
-                                                extension = excluded.extension",
-            )
-            .map_err(map_sql_error)?;
-        stmt.execute(params![
-            path,
-            file_size as i64,
-            modified_ns,
-            Rating::NEUTRAL.as_i64(),
-            0i64,
-            0i64,
-            extension
-        ])
-        .map_err(map_sql_error)?;
+        let input = wav_file_upsert_input(relative_path, file_size, modified_ns)?;
+        execute_connection_cached(
+            &self.connection,
+            UPSERT_WAV_FILE_SQL,
+            params![
+                input.path,
+                input.file_size,
+                input.modified_ns,
+                Rating::NEUTRAL.as_i64(),
+                0i64,
+                0i64,
+                input.extension
+            ],
+        )?;
 
         Self::bump_revision(&self.connection)?;
         Ok(())
@@ -151,33 +226,20 @@ impl<'conn> SourceWriteBatch<'conn> {
         file_size: u64,
         modified_ns: i64,
     ) -> Result<(), SourceDbError> {
-        let path = normalize_relative_path(relative_path)?;
-        let extension = relative_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-        self.tx
-            .prepare_cached(
-                "INSERT INTO wav_files (path, file_size, modified_ns, tag, looped, missing, extension)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-                 ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
-                                                modified_ns = excluded.modified_ns,
-                                                missing = excluded.missing,
-                                                extension = excluded.extension",
-            )
-            .map_err(map_sql_error)?
-            .execute(params![
-                path,
-                file_size as i64,
-                modified_ns,
+        let input = wav_file_upsert_input(relative_path, file_size, modified_ns)?;
+        execute_transaction_cached(
+            &self.tx,
+            UPSERT_WAV_FILE_SQL,
+            params![
+                input.path,
+                input.file_size,
+                input.modified_ns,
                 Rating::NEUTRAL.as_i64(),
                 0i64,
                 0i64,
-                extension
-            ])
-            .map_err(map_sql_error)?;
-        Ok(())
+                input.extension
+            ],
+        )
     }
 
     /// Insert or update a wav file row while clearing any stored content hash.
@@ -187,34 +249,20 @@ impl<'conn> SourceWriteBatch<'conn> {
         file_size: u64,
         modified_ns: i64,
     ) -> Result<(), SourceDbError> {
-        let path = normalize_relative_path(relative_path)?;
-        let extension = relative_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-        self.tx
-            .prepare_cached(
-                "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, missing, extension)
-                 VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7)
-                 ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
-                                                modified_ns = excluded.modified_ns,
-                                                content_hash = NULL,
-                                                missing = excluded.missing,
-                                                extension = excluded.extension",
-            )
-            .map_err(map_sql_error)?
-            .execute(params![
-                path,
-                file_size as i64,
-                modified_ns,
+        let input = wav_file_upsert_input(relative_path, file_size, modified_ns)?;
+        execute_transaction_cached(
+            &self.tx,
+            UPSERT_WAV_FILE_WITHOUT_HASH_SQL,
+            params![
+                input.path,
+                input.file_size,
+                input.modified_ns,
                 Rating::NEUTRAL.as_i64(),
                 0i64,
                 0i64,
-                extension
-            ])
-            .map_err(map_sql_error)?;
-        Ok(())
+                input.extension
+            ],
+        )
     }
 
     /// Insert or update a wav file row, including the content hash.
@@ -225,35 +273,21 @@ impl<'conn> SourceWriteBatch<'conn> {
         modified_ns: i64,
         content_hash: &str,
     ) -> Result<(), SourceDbError> {
-        let path = normalize_relative_path(relative_path)?;
-        let extension = relative_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-        self.tx
-            .prepare_cached(
-                "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, missing, extension)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-                 ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
-                                                modified_ns = excluded.modified_ns,
-                                                content_hash = excluded.content_hash,
-                                                missing = excluded.missing,
-                                                extension = excluded.extension",
-            )
-            .map_err(map_sql_error)?
-            .execute(params![
-                path,
-                file_size as i64,
-                modified_ns,
+        let input = wav_file_upsert_input(relative_path, file_size, modified_ns)?;
+        execute_transaction_cached(
+            &self.tx,
+            UPSERT_WAV_FILE_WITH_HASH_SQL,
+            params![
+                input.path,
+                input.file_size,
+                input.modified_ns,
                 content_hash,
                 Rating::NEUTRAL.as_i64(),
                 0i64,
                 0i64,
-                extension
-            ])
-            .map_err(map_sql_error)?;
-        Ok(())
+                input.extension
+            ],
+        )
     }
 
     /// Insert or update a wav file row with a specific tag and missing flag.
@@ -266,37 +300,21 @@ impl<'conn> SourceWriteBatch<'conn> {
         tag: Rating,
         missing: bool,
     ) -> Result<(), SourceDbError> {
-        let path = normalize_relative_path(relative_path)?;
-        let extension = relative_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-        let flag = if missing { 1i64 } else { 0i64 };
-        self.tx
-            .prepare_cached(
-                "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, missing, extension)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-                 ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
-                                                modified_ns = excluded.modified_ns,
-                                                content_hash = excluded.content_hash,
-                                                tag = excluded.tag,
-                                                missing = excluded.missing,
-                                                extension = excluded.extension",
-            )
-            .map_err(map_sql_error)?
-            .execute(params![
-                path,
-                file_size as i64,
-                modified_ns,
+        let input = wav_file_upsert_input(relative_path, file_size, modified_ns)?;
+        execute_transaction_cached(
+            &self.tx,
+            UPSERT_WAV_FILE_WITH_HASH_AND_TAG_SQL,
+            params![
+                input.path,
+                input.file_size,
+                input.modified_ns,
                 content_hash,
                 tag.as_i64(),
                 0i64,
-                flag,
-                extension
-            ])
-            .map_err(map_sql_error)?;
-        Ok(())
+                missing_flag(missing),
+                input.extension
+            ],
+        )
     }
 
     /// Update the tag for a wav row within the batch.
