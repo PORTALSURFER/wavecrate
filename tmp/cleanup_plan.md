@@ -75,7 +75,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Suggested validation: waveform-loading tests, cache-loading controller tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
   - Completion: 2026-03-09 (`8d2c30e8`)
 
-- [ ] 6) Isolate clipboard paste/import into an explicit staged workflow and add real failure-path coverage
+- [x] 6) Isolate clipboard paste/import into an explicit staged workflow and add real failure-path coverage
   - ROI/Effort: High / M
   - Why it matters: clipboard import performs filesystem mutation plus journal-backed bookkeeping, but most of the workflow still sits in one large background job body.
   - Evidence:
@@ -85,6 +85,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: model the paste job as explicit stages/results, then add tests for rollback and partial-failure paths without requiring full controller orchestration.
   - Risk/tradeoffs: Medium. Journal/finalize behavior must remain exact or imports could leave stale staged files behind.
   - Suggested validation: clipboard/external-drop tests, staged failure-path tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
+  - Completion: 2026-03-09 (`30d25841`)
 
 - [ ] 7) Split `src/sample_sources/db/file_ops_journal.rs` into entry, store, and reconciliation modules
   - ROI/Effort: High / M
@@ -220,3 +221,4 @@ Canonical local CI command: `bash scripts/ci_local.sh`
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
 - 2026-03-09: Completed item 5 in commit `8d2c30e8`.
+- 2026-03-09: Completed item 6 in commit `30d25841`.
