@@ -222,6 +222,36 @@ impl AppController {
         selection_ops::set_sample_tag_for_source(self, source, path, target_tag, require_present)
     }
 
+    /// Set explicit triage tag plus keep-lock state for one sample path in a chosen source.
+    pub(crate) fn set_sample_tag_and_locked_for_source(
+        &mut self,
+        source: &SampleSource,
+        path: &Path,
+        target_tag: crate::sample_sources::Rating,
+        locked: bool,
+        require_present: bool,
+    ) -> Result<(), String> {
+        selection_ops::set_sample_tag_and_locked_for_source(
+            self,
+            source,
+            path,
+            target_tag,
+            locked,
+            require_present,
+        )
+    }
+
+    /// Update the keep-lock marker for a sample path within a specific source.
+    pub(crate) fn set_sample_locked_for_source(
+        &mut self,
+        source: &SampleSource,
+        path: &Path,
+        locked: bool,
+        require_present: bool,
+    ) -> Result<(), String> {
+        selection_ops::set_sample_locked_for_source(self, source, path, locked, require_present)
+    }
+
     /// Update the loop marker for a sample path within a specific source.
     pub(crate) fn set_sample_looped_for_source(
         &mut self,

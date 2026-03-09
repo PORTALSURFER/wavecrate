@@ -127,6 +127,9 @@ fn apply_deep_rename(
     if missing_entry.looped {
         batch.set_looped(&present_entry.relative_path, missing_entry.looped)?;
     }
+    if missing_entry.locked {
+        batch.set_locked(&present_entry.relative_path, missing_entry.locked)?;
+    }
     if let Some(last_played_at) = missing_entry.last_played_at {
         batch.set_last_played_at(&present_entry.relative_path, last_played_at)?;
     }

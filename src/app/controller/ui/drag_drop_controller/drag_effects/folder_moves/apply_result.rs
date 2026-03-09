@@ -26,6 +26,7 @@ impl DragDropController<'_> {
                 content_hash: None,
                 tag: entry.tag,
                 looped: entry.looped,
+                locked: false,
                 missing: false,
                 last_played_at: entry.last_played_at,
             };
@@ -36,6 +37,7 @@ impl DragDropController<'_> {
                 content_hash: None,
                 tag: entry.tag,
                 looped: entry.looped,
+                locked: false,
                 missing: false,
                 last_played_at: entry.last_played_at,
             };
@@ -119,6 +121,7 @@ impl DragDropController<'_> {
                 content_hash: None,
                 tag: entry.tag,
                 looped: entry.looped,
+                locked: false,
                 missing: false,
                 last_played_at: entry.last_played_at,
             };
@@ -129,6 +132,7 @@ impl DragDropController<'_> {
                 content_hash: None,
                 tag: entry.tag,
                 looped: entry.looped,
+                locked: false,
                 missing: false,
                 last_played_at: entry.last_played_at,
             };

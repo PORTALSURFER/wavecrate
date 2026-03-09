@@ -11,6 +11,7 @@ use tracing::{info, warn};
 struct DroppedSampleMetadata {
     tag: Rating,
     looped: bool,
+    locked: bool,
     last_played_at: Option<i64>,
 }
 
@@ -97,12 +98,18 @@ impl DragDropController<'_> {
                 return;
             }
         };
+        let locked = self
+            .wav_index_for_path(&relative_path)
+            .and_then(|idx| self.wav_entries.entry(idx))
+            .map(|entry| entry.locked)
+            .unwrap_or(false);
         let last_played_at = self
             .sample_last_played_for(&source, &relative_path)
             .unwrap_or(None);
         let metadata = DroppedSampleMetadata {
             tag,
             looped,
+            locked,
             last_played_at,
         };
         if copy_requested {
@@ -150,6 +157,7 @@ impl DragDropController<'_> {
                 modified_ns,
                 tag,
                 looped,
+                locked,
                 last_played_at,
             },
         ) {
@@ -170,6 +178,7 @@ impl DragDropController<'_> {
             content_hash: None,
             tag: metadata.tag,
             looped: metadata.looped,
+            locked: metadata.locked,
             missing: false,
             last_played_at: metadata.last_played_at,
         };
@@ -239,6 +248,7 @@ impl DragDropController<'_> {
                 modified_ns,
                 tag: metadata.tag,
                 looped: metadata.looped,
+                locked: metadata.locked,
                 last_played_at: metadata.last_played_at,
             },
         ) {
@@ -252,6 +262,7 @@ impl DragDropController<'_> {
             content_hash: None,
             tag: metadata.tag,
             looped: metadata.looped,
+            locked: metadata.locked,
             missing: false,
             last_played_at: metadata.last_played_at,
         };

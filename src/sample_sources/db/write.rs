@@ -6,31 +6,31 @@ use super::util::{map_sql_error, normalize_relative_path};
 use super::{Rating, SourceDatabase, SourceDbError, SourceWriteBatch};
 
 const UPSERT_WAV_FILE_SQL: &str =
-    "INSERT INTO wav_files (path, file_size, modified_ns, tag, looped, missing, extension)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+    "INSERT INTO wav_files (path, file_size, modified_ns, tag, looped, locked, missing, extension)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
      ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
                                     modified_ns = excluded.modified_ns,
                                     missing = excluded.missing,
                                     extension = excluded.extension";
 const UPSERT_WAV_FILE_WITHOUT_HASH_SQL: &str =
-    "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, missing, extension)
-     VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7)
+    "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, locked, missing, extension)
+     VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7, ?8)
      ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
                                     modified_ns = excluded.modified_ns,
                                     content_hash = NULL,
                                     missing = excluded.missing,
                                     extension = excluded.extension";
 const UPSERT_WAV_FILE_WITH_HASH_SQL: &str =
-    "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, missing, extension)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+    "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, locked, missing, extension)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
      ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
                                     modified_ns = excluded.modified_ns,
                                     content_hash = excluded.content_hash,
                                     missing = excluded.missing,
                                     extension = excluded.extension";
 const UPSERT_WAV_FILE_WITH_HASH_AND_TAG_SQL: &str =
-    "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, missing, extension)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+    "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, locked, missing, extension)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
      ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
                                     modified_ns = excluded.modified_ns,
                                     content_hash = excluded.content_hash,
@@ -112,6 +112,7 @@ impl SourceDatabase {
                 Rating::NEUTRAL.as_i64(),
                 0i64,
                 0i64,
+                0i64,
                 input.extension
             ],
         )?;
@@ -132,6 +133,20 @@ impl SourceDatabase {
         self.connection
             .execute(
                 "UPDATE wav_files SET looped = ?1 WHERE path = ?2",
+                params![flag, path],
+            )
+            .map_err(map_sql_error)?;
+        Self::bump_revision(&self.connection)?;
+        Ok(())
+    }
+
+    /// Persist a keep-lock marker for a single wav file by relative path.
+    pub fn set_locked(&self, relative_path: &Path, locked: bool) -> Result<(), SourceDbError> {
+        let path = normalize_relative_path(relative_path)?;
+        let flag = if locked { 1i64 } else { 0i64 };
+        self.connection
+            .execute(
+                "UPDATE wav_files SET locked = ?1 WHERE path = ?2",
                 params![flag, path],
             )
             .map_err(map_sql_error)?;
@@ -237,6 +252,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                 Rating::NEUTRAL.as_i64(),
                 0i64,
                 0i64,
+                0i64,
                 input.extension
             ],
         )
@@ -258,6 +274,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                 input.file_size,
                 input.modified_ns,
                 Rating::NEUTRAL.as_i64(),
+                0i64,
                 0i64,
                 0i64,
                 input.extension
@@ -283,6 +300,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                 input.modified_ns,
                 content_hash,
                 Rating::NEUTRAL.as_i64(),
+                0i64,
                 0i64,
                 0i64,
                 input.extension
@@ -311,6 +329,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                 content_hash,
                 tag.as_i64(),
                 0i64,
+                0i64,
                 missing_flag(missing),
                 input.extension
             ],
@@ -334,6 +353,18 @@ impl<'conn> SourceWriteBatch<'conn> {
         let flag = if looped { 1i64 } else { 0i64 };
         self.tx
             .prepare_cached("UPDATE wav_files SET looped = ?1 WHERE path = ?2")
+            .map_err(map_sql_error)?
+            .execute(params![flag, path])
+            .map_err(map_sql_error)?;
+        Ok(())
+    }
+
+    /// Update the keep-lock marker for a wav row within the batch.
+    pub fn set_locked(&mut self, relative_path: &Path, locked: bool) -> Result<(), SourceDbError> {
+        let path = normalize_relative_path(relative_path)?;
+        let flag = if locked { 1i64 } else { 0i64 };
+        self.tx
+            .prepare_cached("UPDATE wav_files SET locked = ?1 WHERE path = ?2")
             .map_err(map_sql_error)?
             .execute(params![flag, path])
             .map_err(map_sql_error)?;

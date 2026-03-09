@@ -97,6 +97,7 @@ struct BrowserRowCacheFingerprint {
     rating_level: i8,
     missing: bool,
     looped: bool,
+    locked: bool,
     bpm_value_bits: Option<u32>,
     long_sample_mark: bool,
 }
@@ -111,6 +112,7 @@ fn cached_browser_row_matches_entry(
         && cached.rating_level == fingerprint.rating_level
         && cached.missing == fingerprint.missing
         && cached.looped == fingerprint.looped
+        && cached.locked == fingerprint.locked
         && cached.bpm_value_bits == fingerprint.bpm_value_bits
         && cached.long_sample_mark == fingerprint.long_sample_mark
 }
@@ -120,13 +122,14 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
     controller: &mut AppController,
     absolute_index: usize,
 ) -> Option<(&ProjectedBrowserRowCacheEntry, bool)> {
-    let (entry_tag, row_identity_hash, missing, looped) =
+    let (entry_tag, row_identity_hash, missing, looped, locked) =
         controller.wav_entry(absolute_index).map(|entry| {
             (
                 entry.tag,
                 browser_row_identity_hash(entry.relative_path.as_path()),
                 entry.missing,
                 entry.looped,
+                entry.locked,
             )
         })?;
     let column_index = super::browser_column_index(entry_tag);
@@ -154,6 +157,7 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
         rating_level,
         missing,
         looped,
+        locked,
         bpm_value_bits,
         long_sample_mark,
     };
@@ -177,6 +181,7 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
             bucket_label,
             missing,
             looped,
+            locked,
             bpm_value_bits,
             long_sample_mark,
         };

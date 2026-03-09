@@ -9,6 +9,7 @@ pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) struct Mo
     pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) modified_ns: i64,
     pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) tag: Rating,
     pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) looped: bool,
+    pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) locked: bool,
     pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) last_played_at:
         Option<i64>,
 }
@@ -34,6 +35,8 @@ impl AppController {
             .map_err(|err| format!("Failed to set tag: {err}"))?;
         db.set_looped(relative_path, registration.looped)
             .map_err(|err| format!("Failed to set loop marker: {err}"))?;
+        db.set_locked(relative_path, registration.locked)
+            .map_err(|err| format!("Failed to set keep lock: {err}"))?;
         if let Some(last_played_at) = registration.last_played_at {
             db.set_last_played_at(relative_path, last_played_at)
                 .map_err(|err| format!("Failed to copy playback age: {err}"))?;
@@ -69,6 +72,7 @@ impl AppController {
                 content_hash: None,
                 tag: entry.tag,
                 looped: entry.looped,
+                locked: false,
                 missing: false,
                 last_played_at: entry.last_played_at,
             },

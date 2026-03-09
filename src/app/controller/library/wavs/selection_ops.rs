@@ -7,7 +7,10 @@ mod side_effects;
 /// Database-backed tag/loop mutation helpers for wav entries.
 mod tags;
 use side_effects::SelectionSideEffects;
-pub(crate) use tags::{set_sample_looped_for_source, set_sample_tag, set_sample_tag_for_source};
+pub(crate) use tags::{
+    set_sample_locked_for_source, set_sample_looped_for_source, set_sample_tag,
+    set_sample_tag_and_locked_for_source, set_sample_tag_for_source,
+};
 
 pub(crate) fn select_wav_by_path(controller: &mut AppController, path: &Path) {
     select_wav_by_path_with_rebuild(controller, path, true);

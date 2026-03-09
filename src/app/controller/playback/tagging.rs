@@ -1,5 +1,13 @@
 use super::*;
 
+#[derive(Clone)]
+struct RatingUndoState {
+    source_id: SourceId,
+    path: PathBuf,
+    tag: crate::sample_sources::Rating,
+    locked: bool,
+}
+
 fn should_advance_after_rating(
     controller: &mut AppController,
     primary_row: usize,
@@ -55,7 +63,8 @@ pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample
     controller.focus_browser_context();
     controller.ui.browser.autoscroll = true;
     let mut last_error = None;
-    let mut applied: Vec<(SourceId, PathBuf, crate::sample_sources::Rating)> = Vec::new();
+    let mut previous_values: Vec<RatingUndoState> = Vec::new();
+    let mut applied_updates: Vec<RatingUndoState> = Vec::new();
     let mut contexts = Vec::with_capacity(rows.len());
     let mut seen = std::collections::HashSet::new();
     for row in rows {
@@ -69,22 +78,32 @@ pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample
         }
     }
     for ctx in contexts {
-        let before = (
-            ctx.source.id.clone(),
-            ctx.entry.relative_path.clone(),
-            ctx.entry.tag,
-        );
-        match controller.set_sample_tag_for_source(
+        let target_locked = ctx.entry.locked && target == crate::sample_sources::Rating::KEEP_3;
+        match controller.set_sample_tag_and_locked_for_source(
             &ctx.source,
             &ctx.entry.relative_path,
             target,
+            target_locked,
             true,
         ) {
-            Ok(()) => applied.push(before),
+            Ok(()) => {
+                previous_values.push(RatingUndoState {
+                    source_id: ctx.source.id.clone(),
+                    path: ctx.entry.relative_path.clone(),
+                    tag: ctx.entry.tag,
+                    locked: ctx.entry.locked,
+                });
+                applied_updates.push(RatingUndoState {
+                    source_id: ctx.source.id.clone(),
+                    path: ctx.entry.relative_path.clone(),
+                    tag: target,
+                    locked: target_locked,
+                });
+            }
             Err(err) => last_error = Some(err),
         }
     }
-    let tagged_any = !applied.is_empty();
+    let tagged_any = !applied_updates.is_empty();
     if tagged_any {
         let label = if target == crate::sample_sources::Rating::KEEP_1 {
             "Tag keep"
@@ -95,23 +114,27 @@ pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample
         } else {
             "Tag sample"
         };
-        let redo_updates: Vec<(SourceId, PathBuf, crate::sample_sources::Rating)> = applied
-            .iter()
-            .map(|(source_id, path, _)| (source_id.clone(), path.clone(), target))
-            .collect();
+        let redo_updates = applied_updates.clone();
+        let undo_values = previous_values;
         let refocus_path_undo = refocus_path.clone();
         controller.push_undo_entry(super::undo::UndoEntry::<AppController>::new(
             label,
             move |controller: &mut AppController| {
-                for (source_id, path, tag) in applied.iter() {
+                for update in undo_values.iter() {
                     let source = controller
                         .library
                         .sources
                         .iter()
-                        .find(|s| &s.id == source_id)
+                        .find(|s| s.id == update.source_id)
                         .cloned()
                         .ok_or_else(|| "Source not available".to_string())?;
-                    controller.set_sample_tag_for_source(&source, path, *tag, false)?;
+                    controller.set_sample_tag_and_locked_for_source(
+                        &source,
+                        &update.path,
+                        update.tag,
+                        update.locked,
+                        false,
+                    )?;
                 }
                 if let Some(path) = refocus_path_undo.as_deref()
                     && let Some(row) = controller.visible_row_for_path(path)
@@ -121,15 +144,21 @@ pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample
                 Ok(super::undo::UndoExecution::Applied)
             },
             move |controller: &mut AppController| {
-                for (source_id, path, tag) in redo_updates.iter() {
+                for update in redo_updates.iter() {
                     let source = controller
                         .library
                         .sources
                         .iter()
-                        .find(|s| &s.id == source_id)
+                        .find(|s| s.id == update.source_id)
                         .cloned()
                         .ok_or_else(|| "Source not available".to_string())?;
-                    controller.set_sample_tag_for_source(&source, path, *tag, false)?;
+                    controller.set_sample_tag_and_locked_for_source(
+                        &source,
+                        &update.path,
+                        update.tag,
+                        update.locked,
+                        false,
+                    )?;
                 }
                 Ok(super::undo::UndoExecution::Applied)
             },
@@ -193,8 +222,8 @@ pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) 
 
     // Use a HashMap to store previous values to allow per-item untagging if needed
     // However, the standard pattern in tagging.rs is to store (SourceId, Path, Rating).
-    let mut previous_values: Vec<(SourceId, PathBuf, crate::sample_sources::Rating)> = Vec::new();
-    let mut applied_updates: Vec<(SourceId, PathBuf, crate::sample_sources::Rating)> = Vec::new();
+    let mut previous_values: Vec<RatingUndoState> = Vec::new();
+    let mut applied_updates: Vec<RatingUndoState> = Vec::new();
 
     let mut contexts = Vec::with_capacity(rows.len());
     let mut seen = std::collections::HashSet::new();
@@ -218,6 +247,34 @@ pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) 
             auto_trash_samples.push((ctx.source.clone(), ctx.entry.clone()));
             continue;
         }
+        if current_rating == crate::sample_sources::Rating::KEEP_3 && delta > 0 {
+            if ctx.entry.locked {
+                continue;
+            }
+            match controller.set_sample_locked_for_source(
+                &ctx.source,
+                &ctx.entry.relative_path,
+                true,
+                true,
+            ) {
+                Ok(()) => {
+                    previous_values.push(RatingUndoState {
+                        source_id: ctx.source.id.clone(),
+                        path: ctx.entry.relative_path.clone(),
+                        tag: current_rating,
+                        locked: ctx.entry.locked,
+                    });
+                    applied_updates.push(RatingUndoState {
+                        source_id: ctx.source.id.clone(),
+                        path: ctx.entry.relative_path.clone(),
+                        tag: current_rating,
+                        locked: true,
+                    });
+                }
+                Err(err) => last_error = Some(err),
+            }
+            continue;
+        }
         let mut new_val = current_rating.val() + delta;
 
         // If we were rated and hit 0, skip it
@@ -229,25 +286,27 @@ pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) 
         let target = crate::sample_sources::Rating::new(new_val);
 
         if target != current_rating {
-            let before = (
-                ctx.source.id.clone(),
-                ctx.entry.relative_path.clone(),
-                current_rating,
-            );
-
-            match controller.set_sample_tag_for_source(
+            let target_locked = false;
+            match controller.set_sample_tag_and_locked_for_source(
                 &ctx.source,
                 &ctx.entry.relative_path,
                 target,
+                target_locked,
                 true,
             ) {
                 Ok(()) => {
-                    previous_values.push(before);
-                    applied_updates.push((
-                        ctx.source.id.clone(),
-                        ctx.entry.relative_path.clone(),
-                        target,
-                    ));
+                    previous_values.push(RatingUndoState {
+                        source_id: ctx.source.id.clone(),
+                        path: ctx.entry.relative_path.clone(),
+                        tag: current_rating,
+                        locked: ctx.entry.locked,
+                    });
+                    applied_updates.push(RatingUndoState {
+                        source_id: ctx.source.id.clone(),
+                        path: ctx.entry.relative_path.clone(),
+                        tag: target,
+                        locked: target_locked,
+                    });
                 }
                 Err(err) => last_error = Some(err),
             }
@@ -269,15 +328,21 @@ pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) 
         controller.push_undo_entry(super::undo::UndoEntry::<AppController>::new(
             label,
             move |controller: &mut AppController| {
-                for (source_id, path, tag) in undo_values.iter() {
+                for update in undo_values.iter() {
                     let source = controller
                         .library
                         .sources
                         .iter()
-                        .find(|s| &s.id == source_id)
+                        .find(|s| s.id == update.source_id)
                         .cloned()
                         .ok_or_else(|| "Source not available".to_string())?;
-                    controller.set_sample_tag_for_source(&source, path, *tag, false)?;
+                    controller.set_sample_tag_and_locked_for_source(
+                        &source,
+                        &update.path,
+                        update.tag,
+                        update.locked,
+                        false,
+                    )?;
                 }
                 if let Some(path) = refocus_path_undo.as_deref()
                     && let Some(row) = controller.visible_row_for_path(path)
@@ -287,15 +352,21 @@ pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) 
                 Ok(super::undo::UndoExecution::Applied)
             },
             move |controller: &mut AppController| {
-                for (source_id, path, tag) in redo_updates.iter() {
+                for update in redo_updates.iter() {
                     let source = controller
                         .library
                         .sources
                         .iter()
-                        .find(|s| &s.id == source_id)
+                        .find(|s| s.id == update.source_id)
                         .cloned()
                         .ok_or_else(|| "Source not available".to_string())?;
-                    controller.set_sample_tag_for_source(&source, path, *tag, false)?;
+                    controller.set_sample_tag_and_locked_for_source(
+                        &source,
+                        &update.path,
+                        update.tag,
+                        update.locked,
+                        false,
+                    )?;
                 }
                 Ok(super::undo::UndoExecution::Applied)
             },

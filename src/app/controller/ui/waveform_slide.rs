@@ -227,11 +227,11 @@ impl AppController {
             .map_err(|err| format!("Failed to sync database entry: {err}"))?;
         db.set_tag(&state.relative_path, tag)
             .map_err(|err| format!("Failed to sync tag: {err}"))?;
-        let (last_played_at, looped) = self
+        let (last_played_at, looped, locked) = self
             .wav_index_for_path(&state.relative_path)
             .and_then(|idx| self.wav_entry(idx))
-            .map(|entry| (entry.last_played_at, entry.looped))
-            .unwrap_or((None, false));
+            .map(|entry| (entry.last_played_at, entry.looped, entry.locked))
+            .unwrap_or((None, false, false));
         let entry = WavEntry {
             relative_path: state.relative_path.clone(),
             file_size,
@@ -239,6 +239,7 @@ impl AppController {
             content_hash: None,
             tag,
             looped,
+            locked,
             missing: false,
             last_played_at,
         };

@@ -307,6 +307,7 @@ fn register_loop_crossfade_entry(
             content_hash: None,
             tag,
             looped: false,
+            locked: false,
             missing: false,
             last_played_at: None,
         },

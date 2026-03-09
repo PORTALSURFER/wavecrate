@@ -107,6 +107,12 @@ pub struct WavEntry {
     /// True when the sample is marked as a loop for quick filtering in the UI.
     #[serde(default)]
     pub looped: bool,
+    /// True when the sample has been promoted past `KEEP_3` and should render as locked.
+    ///
+    /// The lock marker survives reloads so repeated keep-confirmation can show up
+    /// consistently across browser refreshes, rescans, and app restarts.
+    #[serde(default)]
+    pub locked: bool,
     /// Whether the file is missing on disk.
     pub missing: bool,
     /// Epoch seconds of the most recent playback, if any.

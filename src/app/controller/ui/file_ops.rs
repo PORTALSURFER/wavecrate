@@ -184,6 +184,7 @@ impl AppController {
                     content_hash: None,
                     tag: *tag,
                     looped: *looped,
+                    locked: false,
                     missing: false,
                     last_played_at: *last_played_at,
                 };
@@ -234,6 +235,7 @@ impl AppController {
                         content_hash: None,
                         tag: *tag,
                         looped: *looped,
+                        locked: false,
                         missing: false,
                         last_played_at: *last_played_at,
                     },

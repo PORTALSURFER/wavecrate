@@ -6,7 +6,7 @@ use super::{SourceDatabase, SourceDbError, WavEntry};
 use rusqlite::{OptionalExtension, Row};
 
 const WAV_FILE_SELECT_COLUMNS: &str =
-    "path, file_size, modified_ns, content_hash, tag, looped, missing, last_played_at";
+    "path, file_size, modified_ns, content_hash, tag, looped, locked, missing, last_played_at";
 
 fn decode_relative_path(path: String, context: &str) -> rusqlite::Result<Option<PathBuf>> {
     match parse_relative_path_from_db(&path) {
@@ -30,8 +30,9 @@ fn decode_wav_entry_row(row: &Row<'_>, context: &str) -> rusqlite::Result<Option
         content_hash: row.get::<_, Option<String>>(3)?,
         tag: super::Rating::from_i64(row.get(4)?),
         looped: row.get::<_, i64>(5)? != 0,
-        missing: row.get::<_, i64>(6)? != 0,
-        last_played_at: row.get(7)?,
+        locked: row.get::<_, i64>(6)? != 0,
+        missing: row.get::<_, i64>(7)? != 0,
+        last_played_at: row.get(8)?,
     }))
 }
 
@@ -296,6 +297,24 @@ impl SourceDatabase {
             .connection
             .query_row(
                 "SELECT looped FROM wav_files WHERE path = ?1",
+                rusqlite::params![path_str.as_str()],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(map_sql_error)?;
+        Ok(value.map(|flag| flag != 0))
+    }
+
+    /// Fetch the keep-lock state for a specific wav path.
+    pub fn locked_for_path(&self, path: &Path) -> Result<Option<bool>, SourceDbError> {
+        if !crate::sample_sources::is_supported_audio(path) {
+            return Ok(None);
+        }
+        let path_str = super::normalize_relative_path(path)?;
+        let value: Option<i64> = self
+            .connection
+            .query_row(
+                "SELECT locked FROM wav_files WHERE path = ?1",
                 rusqlite::params![path_str.as_str()],
                 |row| row.get(0),
             )

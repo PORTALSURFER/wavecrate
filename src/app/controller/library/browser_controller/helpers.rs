@@ -88,6 +88,10 @@ impl BrowserController<'_> {
             content_hash: None,
             tag,
             looped,
+            locked: entry_index
+                .and_then(|idx| self.wav_entries.entry(idx))
+                .map(|entry| entry.locked)
+                .unwrap_or(false),
             missing: false,
             last_played_at,
         };
@@ -229,6 +233,7 @@ impl BrowserController<'_> {
                 content_hash: None,
                 tag,
                 looped: ctx.entry.looped,
+                locked: ctx.entry.locked,
                 missing: false,
                 last_played_at: ctx.entry.last_played_at,
             },

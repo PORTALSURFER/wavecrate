@@ -37,6 +37,7 @@ impl AppController {
             content_hash: None,
             tag: target_tag.unwrap_or(Rating::NEUTRAL),
             looped,
+            locked: false,
             missing: false,
             last_played_at: None,
         };

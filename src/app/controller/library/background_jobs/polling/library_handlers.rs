@@ -163,6 +163,11 @@ impl AppController {
                             .and_then(|idx| self.wav_entries.entry(idx))
                             .map(|e| e.looped)
                             .unwrap_or(false),
+                        locked: self
+                            .wav_index_for_path(&message.relative_path)
+                            .and_then(|idx| self.wav_entries.entry(idx))
+                            .map(|e| e.locked)
+                            .unwrap_or(false),
                         missing: false,
                         last_played_at: self
                             .wav_index_for_path(&message.relative_path)

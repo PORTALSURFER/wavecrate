@@ -194,6 +194,11 @@ impl HotkeysController<'_> {
             content_hash: None,
             tag,
             looped,
+            locked: self
+                .wav_index_for_path(&relative_path)
+                .and_then(|idx| self.wav_entries.entry(idx))
+                .map(|entry| entry.locked)
+                .unwrap_or(false),
             missing: false,
             last_played_at,
         };
@@ -301,6 +306,7 @@ impl HotkeysController<'_> {
                     content_hash: None,
                     tag: crate::sample_sources::Rating::NEUTRAL,
                     looped: false,
+                    locked: false,
                     missing: false,
                     last_played_at: None,
                 },

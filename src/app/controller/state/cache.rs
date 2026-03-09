@@ -232,6 +232,7 @@ mod tests {
                 content_hash: None,
                 tag: crate::sample_sources::Rating::NEUTRAL,
                 looped: false,
+                locked: false,
                 missing: false,
                 last_played_at: None,
             }],
@@ -244,6 +245,7 @@ mod tests {
             content_hash: None,
             tag: crate::sample_sources::Rating::KEEP_1,
             looped: false,
+            locked: false,
             missing: false,
             last_played_at: None,
         };

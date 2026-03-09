@@ -1,6 +1,31 @@
 use super::*;
 use tracing::{debug, warn};
 
+fn sample_locked_for_source(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+) -> Result<bool, String> {
+    if let Some(index) = controller.wav_index_for_path(path) {
+        let _ = controller.ensure_wav_page_loaded(index);
+        if let Some(entry) = controller.wav_entries.entry(index) {
+            return Ok(entry.locked);
+        }
+    }
+    if let Some(cache) = controller.cache.wav.entries.get(&source.id)
+        && let Some(index) = cache.lookup.get(path).copied()
+        && let Some(entry) = cache.entry(index)
+    {
+        return Ok(entry.locked);
+    }
+    controller
+        .database_for(source)
+        .map_err(|err| err.to_string())?
+        .locked_for_path(path)
+        .map_err(|err| err.to_string())?
+        .ok_or_else(|| "Sample not found".to_string())
+}
+
 /// Set a triage-column tag for the target sample path.
 pub(crate) fn set_sample_tag(
     controller: &mut AppController,
@@ -33,6 +58,30 @@ pub(crate) fn set_sample_tag_for_source(
     source: &SampleSource,
     path: &Path,
     target_tag: Rating,
+    require_present: bool,
+) -> Result<(), String> {
+    let target_locked = if target_tag == Rating::KEEP_3 {
+        sample_locked_for_source(controller, source, path)?
+    } else {
+        false
+    };
+    set_sample_tag_and_locked_for_source(
+        controller,
+        source,
+        path,
+        target_tag,
+        target_locked,
+        require_present,
+    )
+}
+
+/// Persist and propagate a rating tag plus keep-lock update for a specific source/path.
+pub(crate) fn set_sample_tag_and_locked_for_source(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+    target_tag: Rating,
+    locked: bool,
     require_present: bool,
 ) -> Result<(), String> {
     let db = controller.database_for(source).map_err(|err| {
@@ -76,11 +125,27 @@ pub(crate) fn set_sample_tag_for_source(
             "triage tag: db updated"
         );
     }
+    if let Err(err) = db.set_locked(path, locked) {
+        warn!(
+            source_id = %source.id,
+            path = %path.display(),
+            error = %err,
+            "keep lock: db set_locked failed"
+        );
+    } else {
+        debug!(
+            source_id = %source.id,
+            path = %path.display(),
+            locked,
+            "keep lock: db updated"
+        );
+    }
     let mut updated_active = false;
     if let Some(index) = controller.wav_index_for_path(path) {
         let _ = controller.ensure_wav_page_loaded(index);
         if let Some(entry) = controller.wav_entries.entry_mut(index) {
             entry.tag = target_tag;
+            entry.locked = locked;
             updated_active = true;
         }
     }
@@ -89,6 +154,7 @@ pub(crate) fn set_sample_tag_for_source(
         && let Some(entry) = cache.entry_mut(index)
     {
         entry.tag = target_tag;
+        entry.locked = locked;
     }
     if updated_active {
         debug!(
@@ -99,6 +165,39 @@ pub(crate) fn set_sample_tag_for_source(
         controller.rebuild_browser_lists();
     }
     Ok(())
+}
+
+/// Persist and propagate a keep-lock update for a specific source/path.
+pub(crate) fn set_sample_locked_for_source(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+    locked: bool,
+    require_present: bool,
+) -> Result<(), String> {
+    let tag = controller
+        .wav_index_for_path(path)
+        .and_then(|index| controller.wav_entry(index).map(|entry| entry.tag))
+        .or_else(|| {
+            controller
+                .cache
+                .wav
+                .entries
+                .get(&source.id)
+                .and_then(|cache| cache.lookup.get(path).copied())
+                .and_then(|index| controller.cache.wav.entries.get(&source.id)?.entry(index))
+                .map(|entry| entry.tag)
+        })
+        .or_else(|| {
+            controller
+                .database_for(source)
+                .ok()?
+                .tag_for_path(path)
+                .ok()
+                .flatten()
+        })
+        .ok_or_else(|| "Sample not found".to_string())?;
+    set_sample_tag_and_locked_for_source(controller, source, path, tag, locked, require_present)
 }
 
 /// Persist and propagate a loop-marker update for a specific source/path.
