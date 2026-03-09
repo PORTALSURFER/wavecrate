@@ -134,7 +134,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: `git grep -n "eprintln!" -- src/app src/app_core` should only match intentional entrypoint-adjacent cases, then run `cargo clippy --workspace --all-targets` and `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
   - Completed: 2026-03-09 (UTC) - `sempal` commit `fa1727c5`
 
-- [ ] 11) Retire remaining app-core wide-signature and type-complexity suppressions with typed parameter objects
+- [x] 11) Retire remaining app-core wide-signature and type-complexity suppressions with typed parameter objects
   - ROI/Effort: Medium / M
   - Why it matters: The remaining suppressions mark exactly the places where signatures and tuple-shaped return values are obscuring ownership and responsibility boundaries.
   - Evidence:
@@ -151,6 +151,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: Introduce typed request/context structs or named result structs incrementally, starting with the highest-churn paths, and remove the suppressions as each area becomes explicit.
   - Risk/tradeoffs: Medium. Signature cleanup ripples across call sites and should be done in small batches.
   - Suggested validation: targeted module tests, `cargo clippy --workspace --all-targets`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
+  - Completed: 2026-03-09 (UTC) - `sempal` commit `f3fa9b8b`
 
 - [ ] 12) Refresh stale architecture/tooling docs after the workspace split
   - ROI/Effort: Medium / S
@@ -177,3 +178,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-09: Completed item 8 (added waveform cache/refresh lifecycle coverage for same-path refresh reuse and cache-backed reloads, plus explicit load-vs-refresh docs).
 - 2026-03-09: Completed item 9 (documented retained projection segments, invalidation boundaries, and native-bridge profiling/assertion contracts in a dedicated developer note).
 - 2026-03-09: Completed item 10 (replaced non-entrypoint controller/native-bridge stderr logging with structured tracing while preserving opt-in analysis job telemetry gates).
+- 2026-03-09: Completed item 11 (replaced the remaining wide-signature suppression sites with typed worker/export/render request contexts, split selection-export recording into focused modules, and cleared `scripts/ci_local.ps1`).
