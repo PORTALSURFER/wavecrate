@@ -19,6 +19,7 @@ use crate::app::state::{
 use crate::app::view_model;
 use crate::sample_sources::SourceId;
 use std::collections::HashSet;
+use tracing::warn;
 
 impl AppController {
     /// Start background recovery for staged folder deletes after the UI is ready.
@@ -47,7 +48,7 @@ impl AppController {
             self.set_status(message, tone);
         }
         for error in &errors {
-            eprintln!("Delete recovery error: {error}");
+            warn!(error = %error, "Delete recovery error");
         }
         self.refresh_recovered_sources(&summary.affected_sources);
     }

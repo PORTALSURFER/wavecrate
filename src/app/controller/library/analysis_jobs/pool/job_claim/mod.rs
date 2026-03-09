@@ -14,6 +14,7 @@ use std::sync::{
 };
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
+use tracing::{info, warn};
 
 use super::progress_cache::ProgressCache;
 use crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
@@ -102,14 +103,15 @@ pub(crate) fn spawn_decoder_worker(
             }
             if !decode_queue.try_mark_inflight(job.id) {
                 if log_jobs {
-                    eprintln!("analysis decode skipped inflight: {}", job.sample_id);
+                    info!(sample_id = %job.sample_id, "analysis decode skipped inflight");
                 }
                 continue;
             }
             if log_jobs {
-                eprintln!(
-                    "analysis decode start: {} ({})",
-                    job.sample_id, job.job_type
+                info!(
+                    sample_id = %job.sample_id,
+                    job_type = %job.job_type,
+                    "analysis decode start"
                 );
             }
             let heartbeat = if job.job_type == analysis_db::ANALYZE_SAMPLE_JOB_TYPE {
@@ -133,16 +135,20 @@ pub(crate) fn spawn_decoder_worker(
             if log_jobs {
                 match &outcome {
                     DecodeOutcome::Decoded(_) => {
-                        eprintln!("analysis decode done: {}", job.sample_id);
+                        info!(sample_id = %job.sample_id, "analysis decode done");
                     }
                     DecodeOutcome::Skipped { .. } => {
-                        eprintln!("analysis decode skipped: {}", job.sample_id);
+                        info!(sample_id = %job.sample_id, "analysis decode skipped");
                     }
                     DecodeOutcome::Failed(err) => {
-                        eprintln!("analysis decode failed: {} ({})", job.sample_id, err);
+                        warn!(
+                            sample_id = %job.sample_id,
+                            error = %err,
+                            "analysis decode failed"
+                        );
                     }
                     DecodeOutcome::NotNeeded => {
-                        eprintln!("analysis decode not needed: {}", job.sample_id);
+                        info!(sample_id = %job.sample_id, "analysis decode not needed");
                     }
                 }
             }
@@ -152,7 +158,10 @@ pub(crate) fn spawn_decoder_worker(
             if !queued {
                 decode_queue.clear_inflight(job_id);
                 if log_jobs && !shutdown.load(Ordering::Relaxed) {
-                    eprintln!("analysis decode skipped duplicate: {}", job_sample_id);
+                    info!(
+                        sample_id = %job_sample_id,
+                        "analysis decode skipped duplicate"
+                    );
                 }
             }
         }
@@ -207,12 +216,12 @@ pub(crate) fn spawn_compute_worker(
             }
             if log_queue && last_queue_log.elapsed() >= Duration::from_secs(2) {
                 last_queue_log = Instant::now();
-                eprintln!(
-                    "analysis queue: decoded={}, max={}, batch={}, wait_ms={}",
-                    decode_queue.len(),
-                    decode_queue.max_size(),
-                    batch.len(),
-                    wait_ms
+                info!(
+                    decoded = decode_queue.len(),
+                    max = decode_queue.max_size(),
+                    batch = batch.len(),
+                    wait_ms,
+                    "analysis queue"
                 );
             }
             let max_analysis_duration_seconds =
@@ -243,9 +252,10 @@ pub(crate) fn spawn_compute_worker(
                         Ok(conn) => lease::release_claim(conn, work.job.id),
                         Err(err) => {
                             if log_jobs {
-                                eprintln!(
-                                    "analysis release failed: {} ({})",
-                                    work.job.sample_id, err
+                                warn!(
+                                    sample_id = %work.job.sample_id,
+                                    error = %err,
+                                    "analysis release failed"
                                 );
                             }
                         }
@@ -254,9 +264,10 @@ pub(crate) fn spawn_compute_worker(
                     continue;
                 }
                 if log_jobs {
-                    eprintln!(
-                        "analysis run start: {} ({})",
-                        work.job.sample_id, work.job.job_type
+                    info!(
+                        sample_id = %work.job.sample_id,
+                        job_type = %work.job.job_type,
+                        "analysis run start"
                     );
                 }
                 let job_fallback = work.job.clone();
@@ -363,7 +374,7 @@ pub(crate) fn spawn_compute_worker(
                 }))
                 .unwrap_or_else(|payload| {
                     let err = logging::panic_to_string(payload);
-                    tracing::warn!("Analysis batch panicked: {err}");
+                    warn!(error = %err, "Analysis batch panicked");
                     jobs_for_failure
                         .into_iter()
                         .map(|job| (job, Err(err.clone())))

@@ -2,7 +2,7 @@ use super::super::super::DragDropController;
 use crate::app::controller::StatusTone;
 use crate::app::controller::jobs::{FolderMoveResult, FolderSampleMoveResult};
 use crate::sample_sources::WavEntry;
-use tracing::info;
+use tracing::{info, warn};
 
 impl DragDropController<'_> {
     /// Apply a completed background in-source sample move job.
@@ -67,7 +67,7 @@ impl DragDropController<'_> {
         }
         self.set_status(message, tone);
         for err in &result.errors {
-            eprintln!("Folder move error: {err}");
+            warn!(error = %err, moved, "Folder move error");
         }
         info!(
             "Folder move completed: {} moved, {} errors",
@@ -101,7 +101,12 @@ impl DragDropController<'_> {
                 self.set_status(result.errors[0].clone(), StatusTone::Error);
             }
             for err in &result.errors {
-                eprintln!("Folder move error: {err}");
+                warn!(
+                    error = %err,
+                    folder_moved = result.folder_moved,
+                    cancelled = result.cancelled,
+                    "Folder move error"
+                );
             }
             return;
         }
@@ -149,7 +154,12 @@ impl DragDropController<'_> {
         }
         self.set_status(message, tone);
         for err in &result.errors {
-            eprintln!("Folder move error: {err}");
+            warn!(
+                error = %err,
+                new_folder = %result.new_folder.display(),
+                cancelled = result.cancelled,
+                "Folder move error"
+            );
         }
     }
 }

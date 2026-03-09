@@ -8,6 +8,7 @@ use crate::app::controller::jobs::{
 use crate::app::controller::undo::{DeferredUndo, UndoDirection};
 use crate::app::controller::undo_jobs;
 use std::sync::{Arc, atomic::AtomicBool};
+use tracing::warn;
 
 impl AppController {
     /// Apply a completed background file operation to controller state.
@@ -94,7 +95,14 @@ impl AppController {
         }
         self.set_status(message, tone);
         for err in &result.errors {
-            eprintln!("File operation error: {err}");
+            warn!(
+                error = %err,
+                action = %result.action_past_tense,
+                target = %result.target_label,
+                skipped = result.skipped,
+                cancelled = result.cancelled,
+                "File operation error"
+            );
         }
     }
 

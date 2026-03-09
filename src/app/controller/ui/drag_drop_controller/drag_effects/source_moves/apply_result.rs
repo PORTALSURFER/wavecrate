@@ -2,7 +2,7 @@ use crate::app::controller::StatusTone;
 use crate::app::controller::jobs::SourceMoveResult;
 use crate::app::controller::ui::drag_drop_controller::DragDropController;
 use std::collections::HashSet;
-use tracing::info;
+use tracing::{info, warn};
 
 impl DragDropController<'_> {
     /// Apply a completed background source move job.
@@ -21,7 +21,12 @@ impl DragDropController<'_> {
         self.invalidate_moved_sources(&moved_sources);
         self.set_source_move_status(&result);
         for err in &result.errors {
-            eprintln!("Source move error: {err}");
+            warn!(
+                error = %err,
+                moved = result.moved.len(),
+                cancelled = result.cancelled,
+                "Source move error"
+            );
         }
         info!(
             "Source move completed: {} moved, {} errors",

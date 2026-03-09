@@ -13,6 +13,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, RwLock};
 use std::thread::{JoinHandle, sleep};
 use std::time::{Duration, Instant};
+use tracing::{info, warn};
 
 pub(crate) struct DeferredJobUpdate {
     pub(crate) job: analysis_db::ClaimedJob,
@@ -32,10 +33,10 @@ pub(crate) fn finalize_immediate_job(
     if log_jobs {
         match &outcome {
             Ok(()) => {
-                eprintln!("analysis run done: {}", job.sample_id);
+                info!(sample_id = %job.sample_id, "analysis run done");
             }
             Err(err) => {
-                eprintln!("analysis run failed: {} ({})", job.sample_id, err);
+                warn!(sample_id = %job.sample_id, error = %err, "analysis run failed");
             }
         }
     }
@@ -47,7 +48,7 @@ pub(crate) fn finalize_immediate_job(
     let conn = match open_connection_with_retry(connections, &job.source_root) {
         Ok(conn) => conn,
         Err(err) => {
-            tracing::warn!("Analysis job DB open failed for {}: {err}", job.sample_id);
+            warn!(sample_id = %job.sample_id, error = %err, "Analysis job DB open failed");
             decode_queue.clear_inflight(job.id);
             return Some(DeferredJobUpdate {
                 job,
@@ -150,9 +151,10 @@ pub(crate) fn spawn_decode_heartbeat(
         let conn = match open_connection_with_retry(&mut connections, &source_root) {
             Ok(conn) => conn,
             Err(err) => {
-                tracing::warn!(
-                    "Analysis decode heartbeat failed to open DB for {}: {err}",
-                    source_root.display()
+                warn!(
+                    source_root = %source_root.display(),
+                    error = %err,
+                    "Analysis decode heartbeat failed to open DB"
                 );
                 return;
             }
