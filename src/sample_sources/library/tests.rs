@@ -1,92 +1,10 @@
 use super::*;
 use rusqlite::OptionalExtension;
-use std::collections::HashSet;
 use tempfile::tempdir;
 
 fn with_config_home<T>(dir: &Path, f: impl FnOnce() -> T) -> T {
     let _guard = crate::app_dirs::ConfigBaseGuard::set(dir.to_path_buf());
     f()
-}
-
-#[allow(dead_code)]
-const LEGACY_SCHEMA_SQL: &str = r#"
-CREATE TABLE metadata (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-CREATE TABLE sources (
-    id TEXT PRIMARY KEY,
-    root TEXT NOT NULL,
-    sort_order INTEGER NOT NULL
-);
-CREATE TABLE analysis_jobs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sample_id TEXT NOT NULL,
-    job_type TEXT NOT NULL,
-    status TEXT NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL,
-    last_error TEXT,
-    UNIQUE(sample_id, job_type)
-);
-CREATE INDEX idx_analysis_jobs_status_created_id
-    ON analysis_jobs (status, created_at, id);
-CREATE INDEX idx_analysis_jobs_status_sample_id
-    ON analysis_jobs (status, sample_id);
-CREATE TABLE samples (
-    sample_id TEXT PRIMARY KEY,
-    content_hash TEXT NOT NULL,
-    size INTEGER NOT NULL,
-    mtime_ns INTEGER NOT NULL
-);
-CREATE TABLE analysis_features (
-    sample_id TEXT PRIMARY KEY,
-    content_hash TEXT NOT NULL,
-    features BLOB
-);
-CREATE TABLE embeddings (
-    sample_id TEXT PRIMARY KEY,
-    model_id TEXT NOT NULL,
-    dim INTEGER NOT NULL,
-    vec_blob BLOB NOT NULL
-) WITHOUT ROWID;
-"#;
-
-#[allow(dead_code)]
-fn create_legacy_schema(conn: &Connection) {
-    conn.execute_batch(LEGACY_SCHEMA_SQL).unwrap();
-}
-
-#[allow(dead_code)]
-fn table_columns(conn: &Connection, table: &str) -> HashSet<String> {
-    let mut stmt = conn
-        .prepare(&format!("PRAGMA table_info({})", table))
-        .unwrap();
-    stmt.query_map([], |row| row.get::<_, String>(1))
-        .unwrap()
-        .filter_map(Result::ok)
-        .collect()
-}
-
-#[allow(dead_code)]
-fn assert_table_exists(conn: &Connection, table: &str) {
-    let exists: Option<String> = conn
-        .query_row(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name = ?1",
-            [table],
-            |row| row.get(0),
-        )
-        .optional()
-        .unwrap();
-    assert_eq!(exists.as_deref(), Some(table));
-}
-
-#[allow(dead_code)]
-fn assert_has_columns(conn: &Connection, table: &str, columns: &[&str]) {
-    let present = table_columns(conn, table);
-    for column in columns {
-        assert!(present.contains(*column), "expected {}.{}", table, column);
-    }
 }
 
 #[test]

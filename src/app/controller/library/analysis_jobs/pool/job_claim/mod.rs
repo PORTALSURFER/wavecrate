@@ -1,18 +1,27 @@
+#[cfg(not(test))]
 use super::job_execution::{run_analysis_jobs_with_decoded_batch, run_job};
 use crate::app::controller::jobs::JobMessageSender;
 use crate::app::controller::library::analysis_jobs::db as analysis_db;
 use crate::gui::repaint::SharedRepaintSignal;
 use crate::sample_sources::SourceId;
+#[cfg(not(test))]
 use rusqlite::Connection;
-use std::collections::{HashMap, HashSet};
+#[cfg(not(test))]
+use std::collections::HashMap;
+use std::collections::HashSet;
+#[cfg(not(test))]
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{
     Arc, Mutex, RwLock,
     atomic::AtomicU32,
     atomic::{AtomicBool, Ordering},
 };
+#[cfg(not(test))]
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+#[cfg(not(test))]
+use std::time::Duration;
+use std::time::Instant;
+#[cfg(not(test))]
 use tracing::{info, warn};
 
 use super::progress_cache::ProgressCache;
@@ -35,7 +44,9 @@ mod selection;
 pub(crate) use claim::{
     decode_queue_target, decode_worker_count_with_override, worker_count_with_override,
 };
-pub(crate) use queue::{DecodeOutcome, DecodedQueue, DecodedWork};
+#[cfg(not(test))]
+use queue::DecodedWork;
+pub(crate) use queue::{DecodeOutcome, DecodedQueue};
 
 #[cfg(test)]
 mod tests;
@@ -70,7 +81,7 @@ pub(crate) struct ComputeWorkerContext {
     pub(crate) progress_wakeup: Arc<super::job_progress::ProgressPollerWakeup>,
 }
 
-#[cfg_attr(test, allow(dead_code))]
+#[cfg(not(test))]
 pub(crate) fn spawn_decoder_worker(
     _worker_index: usize,
     context: DecoderWorkerContext,
@@ -200,7 +211,7 @@ pub(crate) fn spawn_decoder_worker(
     })
 }
 
-#[cfg_attr(test, allow(dead_code))]
+#[cfg(not(test))]
 pub(crate) fn spawn_compute_worker(
     _worker_index: usize,
     context: ComputeWorkerContext,

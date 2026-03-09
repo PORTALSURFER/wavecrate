@@ -13,16 +13,8 @@ pub(crate) struct InstallPlan {
 }
 
 pub(crate) enum PlanAction {
-    CreateDir {
-        #[allow(dead_code)]
-        path: PathBuf,
-    },
-    Copy {
-        #[allow(dead_code)]
-        source: PathBuf,
-        #[allow(dead_code)]
-        target: PathBuf,
-    },
+    CreateDir { path: PathBuf },
+    Copy { source: PathBuf, target: PathBuf },
 }
 
 pub(crate) fn run_install(
@@ -72,7 +64,19 @@ pub(crate) fn run_dry_run() -> Result<(), String> {
         plan.actions.len(),
         install_dir.display()
     );
+    for action in &plan.actions {
+        println!("  - {}", describe_action(action));
+    }
     Ok(())
+}
+
+fn describe_action(action: &PlanAction) -> String {
+    match action {
+        PlanAction::CreateDir { path } => format!("create {}", path.display()),
+        PlanAction::Copy { source, target } => {
+            format!("copy {} -> {}", source.display(), target.display())
+        }
+    }
 }
 
 pub(crate) fn plan_install(bundle_dir: &Path, install_dir: &Path) -> Result<InstallPlan, String> {

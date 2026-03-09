@@ -26,7 +26,6 @@ pub(super) struct ReleaseAsset {
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct Release {
     pub(super) tag_name: String,
-    #[allow(dead_code)]
     pub(super) prerelease: bool,
     pub(super) html_url: String,
     pub(super) published_at: Option<String>,

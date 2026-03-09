@@ -28,7 +28,6 @@ pub(crate) use silence::detect_non_silent_ranges;
 
 /// Decoded mono audio ready for analysis.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub(crate) struct AnalysisAudio {
     pub(crate) mono: Vec<f32>,
     pub(crate) duration_seconds: f32,

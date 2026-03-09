@@ -65,7 +65,6 @@ fn scan(
 
 /// Spawn a background thread that opens the source database and performs one scan.
 /// Useful for fire-and-forget refreshes without blocking the UI thread.
-#[allow(dead_code)]
 pub fn scan_in_background(root: PathBuf) -> thread::JoinHandle<Result<ScanStats, ScanError>> {
     thread::spawn(move || {
         let db = SourceDatabase::open_fast(&root)?;

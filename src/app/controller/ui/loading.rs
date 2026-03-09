@@ -111,29 +111,6 @@ impl AppController {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    /// Compatibility wrapper that forwards legacy argument lists into typed params.
-    pub(crate) fn apply_wav_entries(
-        &mut self,
-        entries: Vec<WavEntry>,
-        total: usize,
-        page_size: usize,
-        page_index: usize,
-        from_cache: bool,
-        source_id: Option<SourceId>,
-        elapsed: Option<Duration>,
-    ) {
-        self.apply_wav_entries_with_params(ApplyWavEntriesParams {
-            entries,
-            total,
-            page_size,
-            page_index,
-            from_cache,
-            source_id,
-            elapsed,
-        });
-    }
-
     /// Apply a wav-entry page update using a structured payload.
     pub(crate) fn apply_wav_entries_with_params(&mut self, params: ApplyWavEntriesParams) {
         let ApplyWavEntriesParams {

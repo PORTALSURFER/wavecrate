@@ -56,7 +56,6 @@ pub(crate) fn refresh_sources(
     *sources = next;
 }
 
-#[cfg_attr(test, allow(dead_code))]
 pub(crate) fn worker_count_with_override(override_count: u32) -> usize {
     if override_count >= 1 {
         return override_count as usize;
@@ -74,7 +73,6 @@ pub(crate) fn worker_count_with_override(override_count: u32) -> usize {
         .max(1)
 }
 
-#[cfg_attr(test, allow(dead_code))]
 pub(crate) fn decode_worker_count_with_override(worker_count: usize, override_count: u32) -> usize {
     if override_count >= 1 {
         return override_count as usize;
@@ -101,7 +99,6 @@ pub(crate) fn claim_batch_size() -> usize {
     64
 }
 
-#[cfg_attr(test, allow(dead_code))]
 pub(crate) fn decode_queue_target(embedding_batch_max: usize, worker_count: usize) -> usize {
     if let Ok(value) = std::env::var("SEMPAL_DECODE_QUEUE_TARGET")
         && let Ok(parsed) = value.trim().parse::<usize>()

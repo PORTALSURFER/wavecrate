@@ -15,14 +15,16 @@ impl AppController {
         }
         match message.result {
             Ok(entries) => {
-                self.apply_wav_entries(
-                    entries,
-                    message.total,
-                    self.wav_entries.page_size,
-                    message.page_index,
-                    false,
-                    Some(message.source_id.clone()),
-                    Some(message.elapsed),
+                self.apply_wav_entries_with_params(
+                    super::super::super::ui::loading::ApplyWavEntriesParams {
+                        entries,
+                        total: message.total,
+                        page_size: self.wav_entries.page_size,
+                        page_index: message.page_index,
+                        from_cache: false,
+                        source_id: Some(message.source_id.clone()),
+                        elapsed: Some(message.elapsed),
+                    },
                 );
                 self.cache.wav.insert_page(
                     message.source_id.clone(),

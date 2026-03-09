@@ -218,8 +218,5 @@ fn run_similarity_finalize(
         },
     )?;
     crate::analysis::flush_ann_index(&conn)?;
-    Ok(jobs::SimilarityPrepOutcome {
-        cluster_stats,
-        umap_version: umap_version.to_string(),
-    })
+    Ok(jobs::SimilarityPrepOutcome { cluster_stats })
 }

@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 
-#[cfg_attr(test, allow(dead_code))]
 pub(crate) fn parse_sample_id(sample_id: &str) -> Result<(String, PathBuf), String> {
     let (source, path) = sample_id
         .split_once("::")

@@ -32,10 +32,10 @@ pub(crate) struct AnalysisWorkerPool {
     analysis_sample_rate: Arc<AtomicU32>,
     analysis_version_override: Arc<RwLock<Option<String>>>,
     worker_count_override: Arc<AtomicU32>,
-    #[cfg_attr(test, allow(dead_code))]
+    #[cfg(not(test))]
     decode_worker_count_override: Arc<AtomicU32>,
     _progress_cache: Arc<RwLock<ProgressCache>>,
-    #[cfg_attr(test, allow(dead_code))]
+    #[cfg(not(test))]
     progress_wakeup: Arc<job_progress::ProgressPollerWakeup>,
     repaint_signal: Arc<SharedRepaintSignal>,
     threads: Vec<JoinHandle<()>>,
@@ -55,8 +55,10 @@ impl AnalysisWorkerPool {
             )),
             analysis_version_override: Arc::new(RwLock::new(None)),
             worker_count_override: Arc::new(AtomicU32::new(0)),
+            #[cfg(not(test))]
             decode_worker_count_override: Arc::new(AtomicU32::new(0)),
             _progress_cache: Arc::new(RwLock::new(ProgressCache::default())),
+            #[cfg(not(test))]
             progress_wakeup: Arc::new(job_progress::ProgressPollerWakeup::new()),
             repaint_signal: Arc::new(SharedRepaintSignal::default()),
             threads: Vec::new(),
@@ -77,13 +79,6 @@ impl AnalysisWorkerPool {
         if previous != value {
             tracing::debug!("Analysis worker count override set to {}", value);
         }
-    }
-
-    #[cfg_attr(test, allow(dead_code))]
-    #[allow(dead_code)]
-    pub(crate) fn set_decode_worker_count(&self, value: u32) {
-        self.decode_worker_count_override
-            .store(value, Ordering::Relaxed);
     }
 
     pub(crate) fn set_analysis_sample_rate(&self, value: u32) {

@@ -258,7 +258,6 @@ pub(crate) fn claim_next_jobs(
     Ok(jobs)
 }
 
-#[cfg_attr(test, allow(dead_code))]
 pub(crate) fn mark_done(conn: &Connection, job_id: i64) -> Result<(), String> {
     conn.execute(
         "UPDATE analysis_jobs

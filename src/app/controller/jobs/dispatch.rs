@@ -211,7 +211,6 @@ impl ControllerJobs {
         self.in_progress.trash_move
     }
 
-    #[cfg_attr(test, allow(dead_code))]
     /// Begin forwarding trash-move progress from a background worker.
     pub(in super::super) fn start_trash_move(
         &mut self,

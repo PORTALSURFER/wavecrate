@@ -98,7 +98,6 @@ impl ControllerJobs {
                     job.source_id.as_ref(),
                 );
                 UmapClusterBuildResult {
-                    umap_version: job.umap_version,
                     source_id: job.source_id,
                     result,
                 }

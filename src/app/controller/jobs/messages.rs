@@ -3,7 +3,6 @@
 use super::*;
 
 #[derive(Debug)]
-#[cfg_attr(test, allow(dead_code))]
 pub(crate) enum JobMessage {
     WavLoaded(WavLoadResult),
     AudioLoaded(AudioLoadResult),
@@ -159,8 +158,6 @@ pub(crate) struct UmapClusterBuildJob {
 
 #[derive(Debug)]
 pub(crate) struct UmapClusterBuildResult {
-    #[allow(dead_code)]
-    pub(crate) umap_version: String,
     pub(crate) source_id: Option<SourceId>,
     pub(crate) result: Result<crate::analysis::hdbscan::HdbscanStats, String>,
 }
@@ -168,8 +165,6 @@ pub(crate) struct UmapClusterBuildResult {
 #[derive(Debug)]
 pub(crate) struct SimilarityPrepOutcome {
     pub(crate) cluster_stats: crate::analysis::hdbscan::HdbscanStats,
-    #[allow(dead_code)]
-    pub(crate) umap_version: String,
 }
 
 #[derive(Debug)]

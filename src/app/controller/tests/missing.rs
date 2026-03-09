@@ -128,14 +128,16 @@ fn apply_wav_entries_updates_missing_lookup() {
         },
     ];
 
-    controller.apply_wav_entries(
-        entries,
-        2,
-        controller.wav_entries.page_size,
-        0,
-        true,
-        Some(source.id.clone()),
-        None,
+    controller.apply_wav_entries_with_params(
+        crate::app::controller::ui::loading::ApplyWavEntriesParams {
+            entries,
+            total: 2,
+            page_size: controller.wav_entries.page_size,
+            page_index: 0,
+            from_cache: true,
+            source_id: Some(source.id.clone()),
+            elapsed: None,
+        },
     );
 
     assert!(
@@ -179,14 +181,16 @@ fn remove_dead_links_rebuilds_missing_state() -> Result<(), String> {
     db.set_missing(Path::new("gone.wav"), true).unwrap();
 
     let entries = db.list_files().unwrap();
-    controller.apply_wav_entries(
-        entries,
-        2,
-        controller.wav_entries.page_size,
-        0,
-        true,
-        Some(source.id.clone()),
-        None,
+    controller.apply_wav_entries_with_params(
+        crate::app::controller::ui::loading::ApplyWavEntriesParams {
+            entries,
+            total: 2,
+            page_size: controller.wav_entries.page_size,
+            page_index: 0,
+            from_cache: true,
+            source_id: Some(source.id.clone()),
+            elapsed: None,
+        },
     );
 
     let removed = controller.remove_dead_links_for_source_entries(&source)?;

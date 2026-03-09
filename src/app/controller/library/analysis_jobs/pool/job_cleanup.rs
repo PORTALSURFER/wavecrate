@@ -1,6 +1,5 @@
 use crate::app::controller::library::analysis_jobs::db;
 
-#[cfg_attr(test, allow(dead_code))]
 pub(crate) fn reset_running_jobs() -> Result<(), String> {
     let state = crate::sample_sources::library::load().map_err(|err| err.to_string())?;
     for source in state.sources {

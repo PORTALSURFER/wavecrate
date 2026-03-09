@@ -31,7 +31,6 @@ impl AppController {
             .map(|model| &model.negated)
     }
 
-    #[allow(dead_code)]
     pub(crate) fn folder_filter_accepts(&self, relative_path: &Path) -> bool {
         let selection = self.folder_selection_for_filter();
         let negated = self.folder_negation_for_filter();

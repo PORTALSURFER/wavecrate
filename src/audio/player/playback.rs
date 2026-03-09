@@ -11,7 +11,6 @@ use super::{AudioPlayer, EditFadeSource};
 
 impl AudioPlayer {
     /// Begin playback from the stored buffer.
-    #[allow(dead_code)]
     pub fn play(&mut self) -> Result<(), String> {
         self.play_range(0.0, 1.0, false)
     }

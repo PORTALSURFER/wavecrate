@@ -187,18 +187,6 @@ impl WaveformRenderer {
 }
 
 #[cfg(test)]
-#[allow(dead_code)]
-pub(super) fn reset_symphonia_decode_count() {
-    SYMPHONIA_DECODE_COUNT.store(0, Ordering::Relaxed);
-}
-
-#[cfg(test)]
-#[allow(dead_code)]
-pub(super) fn symphonia_decode_count() -> usize {
-    SYMPHONIA_DECODE_COUNT.load(Ordering::Relaxed)
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
     use hound::SampleFormat;

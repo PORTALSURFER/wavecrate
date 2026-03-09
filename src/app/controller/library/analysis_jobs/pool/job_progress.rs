@@ -3,10 +3,10 @@ use crate::app::controller::library::analysis_jobs::db;
 use crate::app::controller::library::analysis_jobs::types::{AnalysisJobMessage, AnalysisProgress};
 use crate::gui::repaint::SharedRepaintSignal;
 use rusqlite::Connection;
-use std::sync::{
-    Arc, Condvar, Mutex, RwLock,
-    atomic::{AtomicBool, Ordering},
-};
+#[cfg(not(test))]
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
+#[cfg(not(test))]
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -191,7 +191,7 @@ fn now_epoch_seconds() -> i64 {
         .as_secs() as i64
 }
 
-#[cfg_attr(test, allow(dead_code))]
+#[cfg(not(test))]
 pub(crate) fn spawn_progress_poller(
     tx: JobMessageSender,
     signal: Arc<SharedRepaintSignal>,

@@ -10,8 +10,8 @@ mod rebuild;
 mod status;
 mod support;
 
-pub(crate) use analysis::AnalysisContext;
-pub(crate) use analysis::run_analysis_jobs_with_decoded_batch;
+#[cfg(not(test))]
+pub(crate) use analysis::{AnalysisContext, run_analysis_jobs_with_decoded_batch};
 pub(crate) use status::update_job_status_with_retry;
 
 pub(crate) fn run_job(

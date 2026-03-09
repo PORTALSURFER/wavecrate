@@ -9,8 +9,6 @@ pub(crate) struct CachedFeatures {
 }
 
 pub(crate) struct CachedEmbedding {
-    #[allow(dead_code)]
-    pub(crate) analysis_version: String,
     pub(crate) model_id: String,
     pub(crate) dim: i64,
     pub(crate) dtype: String,
@@ -242,19 +240,18 @@ pub(crate) fn cached_embedding_by_hash(
     model_id: &str,
 ) -> Result<Option<CachedEmbedding>, String> {
     conn.query_row(
-        "SELECT analysis_version, model_id, dim, dtype, l2_normed, vec, created_at
+        "SELECT model_id, dim, dtype, l2_normed, vec, created_at
          FROM analysis_cache_embeddings
          WHERE content_hash = ?1 AND analysis_version = ?2 AND model_id = ?3",
         params![content_hash, analysis_version, model_id],
         |row| {
             Ok(CachedEmbedding {
-                analysis_version: row.get(0)?,
-                model_id: row.get(1)?,
-                dim: row.get(2)?,
-                dtype: row.get(3)?,
-                l2_normed: row.get::<_, i64>(4)? != 0,
-                vec_blob: row.get(5)?,
-                created_at: row.get(6)?,
+                model_id: row.get(0)?,
+                dim: row.get(1)?,
+                dtype: row.get(2)?,
+                l2_normed: row.get::<_, i64>(3)? != 0,
+                vec_blob: row.get(4)?,
+                created_at: row.get(5)?,
             })
         },
     )

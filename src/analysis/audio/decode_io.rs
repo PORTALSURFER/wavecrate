@@ -17,9 +17,8 @@ pub(crate) fn decode_for_analysis(path: &Path) -> Result<AnalysisAudio, String> 
 
 pub(crate) struct AudioProbe {
     pub(crate) duration_seconds: Option<f32>,
-    #[allow(dead_code)]
     pub(crate) sample_rate: Option<u32>,
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) channels: Option<u16>,
 }
 
@@ -39,6 +38,7 @@ pub(crate) fn probe_metadata(path: &Path) -> Result<AudioProbe, String> {
         return Ok(AudioProbe {
             duration_seconds: Some(duration_seconds),
             sample_rate: Some(sample_rate),
+            #[cfg(test)]
             channels: Some(channels),
         });
     }
@@ -60,6 +60,7 @@ pub(crate) fn probe_metadata(path: &Path) -> Result<AudioProbe, String> {
             .total_duration()
             .map(|dur: Duration| dur.as_secs_f32()),
         sample_rate: Some(decoder.sample_rate().max(1)),
+        #[cfg(test)]
         channels: Some(decoder.channels().max(1)),
     })
 }
