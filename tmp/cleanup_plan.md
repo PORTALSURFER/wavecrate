@@ -62,7 +62,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Suggested validation: focused map query tests, map-view controller tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
   - Completion: 2026-03-09 (`f752dec6`)
 
-- [ ] 5) Break waveform loading into request, finalize, and metadata-persistence units and retire the compatibility shim
+- [x] 5) Break waveform loading into request, finalize, and metadata-persistence units and retire the compatibility shim
   - ROI/Effort: High / M
   - Why it matters: waveform loading still combines cache lookup, decode/stretch preparation, UI application, and deferred metadata persistence in one wide module.
   - Evidence:
@@ -73,6 +73,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: split request/preparation, finalize/apply, and deferred-metadata concerns into focused modules, then remove the owned-parameter shim once callers are migrated.
   - Risk/tradeoffs: Medium. Same-path refresh, cache-hit behavior, and loaded-duration persistence timing must remain stable.
   - Suggested validation: waveform-loading tests, cache-loading controller tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
+  - Completion: 2026-03-09 (`8d2c30e8`)
 
 - [ ] 6) Isolate clipboard paste/import into an explicit staged workflow and add real failure-path coverage
   - ROI/Effort: High / M
@@ -218,3 +219,4 @@ Canonical local CI command: `bash scripts/ci_local.sh`
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
+- 2026-03-09: Completed item 5 in commit `8d2c30e8`.
