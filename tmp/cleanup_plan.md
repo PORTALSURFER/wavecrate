@@ -116,7 +116,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: docs link checks plus a focused `cargo test -p sempal app_core::native_bridge` run and `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
   - Completed: 2026-03-09 (UTC) - `sempal` commit `38ea54c5`
 
-- [ ] 10) Standardize controller/worker error logging by replacing non-entrypoint `eprintln!` calls with structured tracing
+- [x] 10) Standardize controller/worker error logging by replacing non-entrypoint `eprintln!` calls with structured tracing
   - ROI/Effort: Medium / M
   - Why it matters: Mixed stderr logging is inconsistent with the rest of the tracing-based diagnostics surface and makes error triage harder in production and automated runs.
   - Evidence:
@@ -132,6 +132,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: Replace internal `eprintln!` calls with `tracing::{info,warn,error}` and preserve plain stderr only at binary entrypoints/tools where immediate CLI output is intended.
   - Risk/tradeoffs: Medium. Log volume/levels may need tuning to avoid noisy hot paths.
   - Suggested validation: `git grep -n "eprintln!" -- src/app src/app_core` should only match intentional entrypoint-adjacent cases, then run `cargo clippy --workspace --all-targets` and `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
+  - Completed: 2026-03-09 (UTC) - `sempal` commit `fa1727c5`
 
 - [ ] 11) Retire remaining app-core wide-signature and type-complexity suppressions with typed parameter objects
   - ROI/Effort: Medium / M
@@ -175,3 +176,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-09: Completed item 7 (split browser actions into focus-navigation, selection, and row-action modules; added local anchor/autoscroll invariant coverage).
 - 2026-03-09: Completed item 8 (added waveform cache/refresh lifecycle coverage for same-path refresh reuse and cache-backed reloads, plus explicit load-vs-refresh docs).
 - 2026-03-09: Completed item 9 (documented retained projection segments, invalidation boundaries, and native-bridge profiling/assertion contracts in a dedicated developer note).
+- 2026-03-09: Completed item 10 (replaced non-entrypoint controller/native-bridge stderr logging with structured tracing while preserving opt-in analysis job telemetry gates).
