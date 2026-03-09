@@ -95,6 +95,7 @@ fn apply_browser_frame(model: &mut NativeAppModel, frame: NativeBrowserPanelMode
     model.browser.view_start_row = frame.view_start_row;
     model.browser.selected_path_count = frame.selected_path_count;
     model.browser.search_query = frame.search_query;
+    model.browser.active_rating_filters = frame.active_rating_filters;
     model.browser.search_placeholder = frame.search_placeholder;
     model.browser.busy = frame.busy;
     model.browser.sort_label = frame.sort_label;
