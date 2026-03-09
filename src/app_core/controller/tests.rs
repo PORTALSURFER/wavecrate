@@ -230,6 +230,38 @@ fn apply_native_waveform_normalize_routes_to_controller_behavior() {
 }
 
 #[test]
+fn apply_native_waveform_crop_routes_to_controller_behavior() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.apply_native_ui_action(NativeUiAction::CropWaveformSelection);
+
+    assert!(
+        controller
+            .ui
+            .status
+            .text
+            .contains("Load a sample to edit it"),
+        "status was {:?}",
+        controller.ui.status.text
+    );
+}
+
+#[test]
+fn apply_native_waveform_trim_routes_to_controller_behavior() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.apply_native_ui_action(NativeUiAction::TrimWaveformSelection);
+
+    assert!(
+        controller
+            .ui
+            .status
+            .text
+            .contains("Load a sample to edit it"),
+        "status was {:?}",
+        controller.ui.status.text
+    );
+}
+
+#[test]
 /// Native folder-row focus action should select the clicked folder for filtering.
 fn focus_folder_row_action_replaces_folder_selection() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);

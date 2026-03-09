@@ -53,7 +53,7 @@ impl Default for InteractionOptionsState {
 pub enum DestructiveSelectionEdit {
     /// Crop the selection and discard the rest.
     CropSelection,
-    /// Trim everything outside the selection.
+    /// Remove the selected span and close the gap in the file.
     TrimSelection,
     /// Reverse the selected audio.
     ReverseSelection,

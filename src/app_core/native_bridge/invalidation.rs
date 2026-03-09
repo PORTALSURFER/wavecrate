@@ -88,7 +88,10 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::ZoomWaveformToSelection
         | NativeUiAction::ZoomWaveformFull
         | NativeUiAction::SetWaveformBpmValue { .. }
-        | NativeUiAction::AdjustWaveformBpm { .. } => Some((
+        | NativeUiAction::AdjustWaveformBpm { .. }
+        | NativeUiAction::CropWaveformSelection
+        | NativeUiAction::CropWaveformSelectionToNewSample
+        | NativeUiAction::TrimWaveformSelection => Some((
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformViewAction,
         )),

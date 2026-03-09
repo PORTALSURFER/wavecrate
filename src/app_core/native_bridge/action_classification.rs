@@ -42,6 +42,9 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::SetWaveformBpmValue { .. }
         | NativeUiAction::AdjustWaveformBpm { .. }
         | NativeUiAction::ClearWaveformSelection
+        | NativeUiAction::CropWaveformSelection
+        | NativeUiAction::CropWaveformSelectionToNewSample
+        | NativeUiAction::TrimWaveformSelection
         | NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
         | NativeUiAction::ZoomWaveformFull => Some(InteractionActionClass::Waveform),
