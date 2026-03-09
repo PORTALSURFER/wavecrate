@@ -91,8 +91,6 @@ pub(super) fn resolve_or_project_with_derived(
 fn apply_browser_frame(model: &mut NativeAppModel, frame: NativeBrowserPanelModel) {
     model.browser.visible_count = frame.visible_count;
     model.browser.selected_visible_row = frame.selected_visible_row;
-    model.browser.autoscroll = frame.autoscroll;
-    model.browser.view_start_row = frame.view_start_row;
     model.browser.selected_path_count = frame.selected_path_count;
     model.browser.search_query = frame.search_query;
     model.browser.active_rating_filters = frame.active_rating_filters;

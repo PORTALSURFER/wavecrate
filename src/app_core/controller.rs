@@ -268,9 +268,6 @@ fn apply_browser_native_ui_action(
             controller.set_invert_waveform_scroll(enabled)
         }
         NativeUiAction::MoveBrowserFocus { delta } => controller.focus_browser_delta_action(delta),
-        NativeUiAction::SetBrowserViewStart { visible_row } => {
-            controller.set_browser_view_start_action(visible_row)
-        }
         NativeUiAction::FocusBrowserRow { visible_row } => {
             controller.focus_browser_row_and_play_action(visible_row)
         }

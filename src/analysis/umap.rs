@@ -17,7 +17,10 @@ const DEFAULT_MAX_ITER: usize = 1500;
 const DEFAULT_N_COMPONENTS: usize = 2;
 const DEFAULT_PCA_COMPONENTS: usize = 50;
 
-/// Report summarizing the UMAP/t-SNE layout coverage and bounds.
+/// Report summarizing the legacy UMAP-named layout coverage and bounds.
+///
+/// The underlying layout builder currently uses t-SNE while preserving the
+/// existing `layout_umap` schema and public naming.
 #[derive(Debug, Serialize)]
 pub struct UmapReport {
     /// Total number of embeddings considered.
@@ -39,6 +42,10 @@ pub struct UmapReport {
 }
 
 /// Build and persist a 2D layout for the given model embeddings.
+///
+/// Despite the legacy `umap` naming, the current implementation uses a
+/// t-SNE projection and stores the result in the existing `layout_umap`
+/// table for compatibility with callers and persisted data.
 pub fn build_umap_layout(
     conn: &mut Connection,
     model_id: &str,
@@ -61,13 +68,16 @@ pub fn build_umap_layout(
     validate_layout(&layout, min_coverage)
 }
 
-/// Return the default JSON report path for a given database and UMAP version.
+/// Return the default JSON report path for a given database and layout version.
+///
+/// The `umap_version` parameter name is retained for compatibility with the
+/// existing CLI and persisted schema.
 pub fn default_report_path(db_path: &Path, umap_version: &str) -> PathBuf {
     let parent = db_path.parent().unwrap_or_else(|| Path::new("."));
     parent.join(format!("umap_report_{}.json", umap_version))
 }
 
-/// Serialize and write a UMAP report to disk.
+/// Serialize and write a layout report to disk as pretty-printed JSON.
 pub fn write_report(path: &Path, report: &UmapReport) -> Result<(), String> {
     let data = serde_json::to_vec_pretty(report)
         .map_err(|err| format!("Serialize report failed: {err}"))?;
@@ -270,4 +280,69 @@ fn write_layout(
     tx.commit()
         .map_err(|err| format!("Commit layout failed: {err}"))?;
     Ok(sample_ids.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn create_layout_tables(conn: &Connection) {
+        conn.execute_batch(
+            "CREATE TABLE embeddings (
+                sample_id TEXT PRIMARY KEY,
+                model_id TEXT NOT NULL,
+                dim INTEGER NOT NULL,
+                dtype TEXT NOT NULL,
+                l2_normed INTEGER NOT NULL,
+                vec BLOB NOT NULL,
+                created_at INTEGER NOT NULL
+            ) WITHOUT ROWID;
+             CREATE TABLE layout_umap (
+                sample_id TEXT PRIMARY KEY,
+                model_id TEXT NOT NULL,
+                umap_version TEXT NOT NULL,
+                x REAL NOT NULL,
+                y REAL NOT NULL,
+                created_at INTEGER NOT NULL
+            ) WITHOUT ROWID;",
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn default_report_path_uses_parent_directory_and_version() {
+        let path = default_report_path(Path::new("/tmp/library/source.db"), "v2");
+        assert_eq!(path, PathBuf::from("/tmp/library/umap_report_v2.json"));
+    }
+
+    #[test]
+    fn write_report_serializes_pretty_json() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("report.json");
+        let report = UmapReport {
+            total: 4,
+            valid: 4,
+            invalid: 0,
+            coverage_ratio: 1.0,
+            x_min: -1.0,
+            x_max: 1.0,
+            y_min: -2.0,
+            y_max: 2.0,
+        };
+
+        write_report(&path, &report).expect("write report");
+        let written = std::fs::read_to_string(&path).expect("read report");
+        assert!(written.contains("\"coverage_ratio\": 1.0"));
+        assert!(written.contains('\n'));
+    }
+
+    #[test]
+    fn build_umap_layout_rejects_missing_embeddings() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        create_layout_tables(&conn);
+
+        let err = build_umap_layout(&mut conn, "missing-model", "v1", 0, 0.5).unwrap_err();
+        assert!(err.contains("No embeddings found"));
+    }
 }

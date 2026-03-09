@@ -4,7 +4,6 @@
 //! Recovery uses that contract to decide whether a folder should be restored back into the
 //! source tree or finalized from the staging area after a crash.
 
-use super::DELETE_STAGING_DIR;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};

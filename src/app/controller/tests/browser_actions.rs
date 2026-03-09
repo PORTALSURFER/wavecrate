@@ -214,7 +214,7 @@ fn native_set_browser_view_start_scrolls_without_changing_selection() {
     controller.runtime.jobs.pending_audio = None;
     controller.runtime.jobs.pending_playback = None;
 
-    controller.apply_native_ui_action(NativeUiAction::SetBrowserViewStart { visible_row: 2 });
+    controller.set_browser_view_start_action(2);
 
     assert_eq!(
         controller.sample_view.wav.selected_wav.as_deref(),

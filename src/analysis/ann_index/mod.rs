@@ -85,7 +85,11 @@ fn with_index_state_read<R>(
     f(&guard)
 }
 
-/// Insert or update a single embedding in the ANN index.
+/// Insert a single embedding into the ANN index when the sample id is absent.
+///
+/// Existing sample ids are left unchanged. This API currently does not replace
+/// or rebuild an already indexed vector in place; callers that need to refresh
+/// the full index should use [`crate::analysis::rebuild_ann_index`].
 pub fn upsert_embedding(
     conn: &Connection,
     sample_id: &str,
@@ -96,7 +100,10 @@ pub fn upsert_embedding(
     })
 }
 
-/// Insert or update a batch of embeddings in the ANN index.
+/// Insert a batch of embeddings into the ANN index, skipping existing ids.
+///
+/// This preserves the current in-memory index contents for duplicate sample
+/// ids and only appends embeddings that are not already present.
 pub fn upsert_embeddings_batch<'a, I>(conn: &Connection, items: I) -> Result<(), String>
 where
     I: IntoIterator<Item = (&'a str, &'a [f32])>,
@@ -116,6 +123,10 @@ pub fn flush_pending_inserts(conn: &Connection) -> Result<(), String> {
 }
 
 /// Find the `k` nearest neighbors for a stored sample id.
+///
+/// If the sample exists in the embeddings table but is missing from the
+/// current ANN index cache, this call lazily backfills the missing ANN entry
+/// before searching.
 pub fn find_similar(
     conn: &Connection,
     sample_id: &str,

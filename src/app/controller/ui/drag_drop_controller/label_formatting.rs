@@ -1,4 +1,5 @@
 use super::*;
+#[cfg(target_os = "windows")]
 use crate::app::controller::library::selection_export::SelectionClipExportRequest;
 
 impl DragDropController<'_> {

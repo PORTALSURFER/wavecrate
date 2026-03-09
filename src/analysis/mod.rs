@@ -10,7 +10,10 @@ pub(crate) mod frequency_domain;
 pub mod hdbscan;
 pub mod similarity;
 pub(crate) mod time_domain;
-/// UMAP layout generation utilities for visualization.
+/// Legacy UMAP-named 2D layout generation utilities for visualization.
+///
+/// The current implementation is backed by t-SNE, but the public naming stays
+/// aligned with the persisted `layout_umap` schema and existing callers.
 pub mod umap;
 /// Feature vector encoding/decoding helpers.
 pub mod vector;
@@ -45,6 +48,9 @@ pub fn compute_similarity_embedding_for_path(path: &Path) -> Result<Vec<f32>, St
 }
 
 /// Compute the V1 feature vector from mono samples without decoding from disk.
+///
+/// Rejects empty input and a zero sample rate, and sanitizes non-finite sample
+/// values before running the analysis pipeline.
 pub fn compute_feature_vector_v1_for_mono_samples(
     samples: &[f32],
     sample_rate: u32,
@@ -82,7 +88,10 @@ pub fn preprocess_mono_for_embedding(samples: &[f32], sample_rate: u32) -> Vec<f
     audio::preprocess_mono_for_embedding(samples, sample_rate)
 }
 
-/// Infer the embedding for a mono sample buffer.
+/// Deprecated compatibility stub for removed PANNs embedding inference.
+///
+/// This always returns an error because runtime embedding inference no longer
+/// ships in this codebase.
 pub fn infer_embedding(_samples: &[f32], _sample_rate: u32) -> Result<Vec<f32>, String> {
     Err("PANNs embedding inference is deprecated and removed.".to_string())
 }
@@ -135,5 +144,40 @@ mod tests {
 
         let vec = compute_feature_vector_v1_for_path(&path).unwrap();
         assert_eq!(vec.len(), FEATURE_VECTOR_LEN_V1);
+    }
+
+    #[test]
+    fn compute_feature_vector_v1_for_mono_samples_rejects_zero_sample_rate() {
+        let err = compute_feature_vector_v1_for_mono_samples(&[0.1, -0.2], 0).unwrap_err();
+        assert!(err.contains("Sample rate"));
+    }
+
+    #[test]
+    fn compute_feature_vector_v1_for_mono_samples_rejects_empty_input() {
+        let err = compute_feature_vector_v1_for_mono_samples(&[], 44_100).unwrap_err();
+        assert!(err.contains("No samples"));
+    }
+
+    #[test]
+    fn compute_feature_vector_v1_for_mono_samples_sanitizes_non_finite_values() {
+        let mut samples = Vec::with_capacity(4096);
+        for i in 0..4096 {
+            let t = i as f32 / 44_100.0;
+            samples.push((t * 220.0 * std::f32::consts::TAU).sin() * 0.25);
+        }
+        samples[10] = f32::NAN;
+        samples[20] = f32::INFINITY;
+
+        let features =
+            compute_feature_vector_v1_for_mono_samples(&samples, 44_100).expect("features");
+        assert_eq!(features.len(), FEATURE_VECTOR_LEN_V1);
+        assert!(features.iter().all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn infer_embedding_reports_removed_runtime_support() {
+        let err = infer_embedding(&[0.0, 1.0], 44_100).unwrap_err();
+        assert!(err.to_ascii_lowercase().contains("deprecated"));
+        assert!(err.to_ascii_lowercase().contains("removed"));
     }
 }

@@ -130,6 +130,82 @@ fn ann_index_incremental_update_matches_full_rebuild() {
 }
 
 #[test]
+fn ann_index_upsert_embedding_skips_existing_ids() {
+    with_ann_test_db(|conn| {
+        let dim = similarity::SIMILARITY_DIM;
+        insert_embeddings(conn, dim, &basic_samples(dim));
+
+        ann_index::rebuild_index(conn).expect("ANN rebuild");
+        let replacement = normalize(unit_vec(dim, 7));
+
+        ann_index::upsert_embedding(conn, "s1", &replacement).expect("ANN upsert");
+        ann_index::flush_pending_inserts(conn).expect("ANN flush");
+
+        let state = load_disk_state(conn);
+        assert_eq!(state.id_map.len(), 3);
+        assert_eq!(
+            state.id_map.iter().filter(|id| id.as_str() == "s1").count(),
+            1
+        );
+    });
+}
+
+#[test]
+fn ann_index_upsert_embeddings_batch_only_appends_new_ids() {
+    with_ann_test_db(|conn| {
+        let dim = similarity::SIMILARITY_DIM;
+        insert_embeddings(conn, dim, &basic_samples(dim));
+
+        ann_index::rebuild_index(conn).expect("ANN rebuild");
+        let duplicate = normalize(unit_vec(dim, 5));
+        let fresh = normalize(blend_unit(dim, 0, 1, 0.2));
+
+        ann_index::upsert_embeddings_batch(
+            conn,
+            [("s1", duplicate.as_slice()), ("s4", fresh.as_slice())],
+        )
+        .expect("ANN batch upsert");
+        ann_index::flush_pending_inserts(conn).expect("ANN flush");
+
+        let state = load_disk_state(conn);
+        assert_eq!(state.id_map.len(), 4);
+        assert_eq!(
+            state.id_map.iter().filter(|id| id.as_str() == "s1").count(),
+            1
+        );
+        assert!(state.id_lookup.contains_key("s4"));
+    });
+}
+
+#[test]
+fn ann_index_find_similar_backfills_missing_query_id_from_embeddings_table() {
+    with_ann_test_db(|conn| {
+        let dim = similarity::SIMILARITY_DIM;
+        let base_samples = basic_samples(dim);
+        insert_embeddings(conn, dim, &base_samples);
+        ann_index::rebuild_index(conn).expect("ANN rebuild");
+
+        let new_sample = normalize(blend_unit(dim, 0, 1, 0.12));
+        insert_embeddings(conn, dim, &[("s4", new_sample.clone())]);
+
+        let results = ann_index::find_similar(conn, "s4", 1).expect("ANN search");
+        assert_eq!(results.len(), 1);
+        assert_ne!(results[0].sample_id, "s4");
+
+        ann_index::flush_pending_inserts(conn).expect("ANN flush");
+        let state = load_disk_state(conn);
+        assert!(state.id_lookup.contains_key("s4"));
+
+        let result_ids: Vec<_> = ann_index::find_similar(conn, "s1", 3)
+            .expect("ANN search")
+            .into_iter()
+            .map(|entry| entry.sample_id)
+            .collect();
+        assert!(result_ids.iter().any(|id| id == "s4"));
+    });
+}
+
+#[test]
 fn ann_index_container_round_trip_loads() {
     with_ann_test_db(|conn| {
         let dim = similarity::SIMILARITY_DIM;
@@ -261,6 +337,16 @@ fn with_ann_test_db<T>(f: impl FnOnce(&Connection) -> T) -> T {
     let conn = Connection::open_in_memory().unwrap();
     create_ann_tables(&conn);
     f(&conn)
+}
+
+fn load_disk_state(conn: &Connection) -> crate::analysis::ann_index::state::AnnIndexState {
+    let meta = ann_storage::read_meta(conn, similarity::SIMILARITY_MODEL_ID)
+        .unwrap()
+        .expect("ann meta");
+    ann_build::load_index_from_disk(conn, &meta)
+        .unwrap()
+        .expect("ann load")
+        .state
 }
 
 fn basic_samples(dim: usize) -> Vec<(&'static str, Vec<f32>)> {

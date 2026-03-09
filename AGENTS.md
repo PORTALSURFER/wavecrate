@@ -57,7 +57,7 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: runtime responsiveness/performance redesign (Xilem-inspired scoped invalidation + cache reuse)
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
-- Current status: the `tmp/perf_plan.md` runtime performance execution backlog is complete through item 11, and `tmp/cleanup_plan.md` was refreshed on 2026-03-09 against the current `next` head with a 16-item ROI-ranked cleanup backlog that is awaiting explicit Phase 2 confirmation.
+- Current status: the `tmp/perf_plan.md` runtime performance execution backlog is complete through item 11, and `tmp/cleanup_plan.md` was refreshed on 2026-03-09 against the current `next` head with a 17-item strict ROI-ranked cleanup backlog that is awaiting explicit Phase 2 confirmation.
 
 ## Immediate Next Actions
 1. Use `docs/plans/active/runtime_performance_exec_plan.md` for any follow-up perf work beyond the completed `tmp/perf_plan.md` backlog.
@@ -69,7 +69,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/cleanup_plan.md`: ROI-ranked cleanup backlog + execution checklist (last refresh: 2026-03-09, 16 pending items from the current `next` head, Phase 1 complete and waiting for explicit Phase 2 confirmation)
+- `tmp/cleanup_plan.md`: strict ROI-ranked cleanup backlog + execution checklist (last refresh: 2026-03-09, 17 pending items from the current `next` head, Phase 1 complete and waiting for explicit Phase 2 confirmation)
 - `docs/plans/active/cleanup_architecture_note.md`: cleanup boundary/ownership guidance
 - `tmp/perf_plan.md`: current ROI-ranked runtime performance audit backlog and execution order
 
