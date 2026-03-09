@@ -53,6 +53,15 @@ App-focused lane:
 - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - runs `cargo nextest run -p sempal --profile quick --lib --tests`
 
+Fast local runtime lane:
+
+- `cargo run-fast -- <args>`
+- equivalent to `cargo run -p sempal --bin sempal --profile release-local -- <args>`
+- intended for repeated local runs where `cargo run -r` is too slow
+- `release-local` keeps release-style codegen but enables incremental rebuilds,
+  raises codegen units, and lowers optimization to `opt-level = 2`
+- use plain `cargo run -r` when you need exact shipping-profile behavior
+
 Workspace-wide lane:
 
 - `bash scripts/devcheck_workspace.sh`

@@ -139,3 +139,10 @@ harness = false
 [[bench]]
 name = "ann_index"
 harness = false
+
+[profile.release-local]
+inherits = "release"
+incremental = true
+codegen-units = 256
+opt-level = 2
+strip = "none"
