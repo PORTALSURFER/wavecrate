@@ -87,9 +87,9 @@ case "$CHANNEL" in
 esac
 
 if ! is_truthy "$SKIP_BUILD"; then
-  "$BUILD_CARGO_BIN" build --release --bin "$APP_NAME" --target "$TARGET"
+  "$BUILD_CARGO_BIN" build --release -p "$APP_NAME" --bin "$APP_NAME" --target "$TARGET"
   if [[ "$TARGET" == *windows* ]]; then
-    "$BUILD_CARGO_BIN" build --release --bin "${APP_NAME}-updater" --target "$TARGET"
+    "$BUILD_CARGO_BIN" build --release -p "${APP_NAME}-updater-helper" --bin "${APP_NAME}-updater" --target "$TARGET"
   fi
 fi
 

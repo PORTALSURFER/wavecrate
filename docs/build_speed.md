@@ -1,47 +1,73 @@
 # Build Speed
 
-This note captures the current local compile workflow and the next structural
-steps that should reduce Cargo fan-out in a measurable way.
+This note tracks the current Cargo package shape and the remaining structural
+follow-up work for build-speed improvements.
 
 ## Current Shape
 
-The root package in [Cargo.toml](/C:/dev/sempal/Cargo.toml) is still one large
-crate named `sempal`. A normal library edit can fan out into:
+As of 2026-03-09, the repository is now a Cargo workspace.
 
-- main app binary: [main.rs](/C:/dev/sempal/src/main.rs)
-- grouped bin packages under [`src/bin/bench`](/C:/dev/sempal/src/bin/bench),
-  [`src/bin/sempal-installer`](/C:/dev/sempal/src/bin/sempal-installer), and
-  [`src/bin/sempal-updater`](/C:/dev/sempal/src/bin/sempal-updater)
-- standalone bin targets in [`src/bin`](/C:/dev/sempal/src/bin):
-  - `sempal-ann-rebuild.rs`
-  - `sempal-bench.rs`
-  - `sempal-db-inspect.rs`
-  - `sempal-hdbscan.rs`
-  - `sempal-similarity-prep.rs`
-  - `sempal-umap.rs`
-  - `sempal-updater.rs`
-- library tests and integration-style test targets
+The root package is still the shipping app package:
 
-On 2026-03-08, a warm `cargo check --tests --bins --timings` run still took
-about two minutes. The expensive part was not dependency compilation. It was
-re-checking many `sempal` targets that all depend on the same root crate.
+- package: `sempal`
+- binary: `sempal`
+- workspace default member: root package only
+
+Support tools now live in separate workspace members instead of being
+auto-discovered under the root package:
+
+- `tools/bench-cli`
+  - binary: `sempal-bench`
+- `tools/similarity-prep`
+  - binary: `sempal-similarity-prep`
+- `tools/analysis-admin`
+  - binaries:
+    - `sempal-ann-rebuild`
+    - `sempal-db-inspect`
+    - `sempal-hdbscan`
+    - `sempal-umap`
+- `apps/updater-helper`
+  - binary: `sempal-updater`
+- `apps/installer`
+  - binary: `sempal-installer`
+
+The root package now sets `autobins = false` and explicitly declares only the
+shipping app binary. That means normal root-level `cargo check --bins` and
+`cargo nextest` runs no longer fan out across all support-tool binaries.
 
 ## Fast Local Loop
 
-Use the narrowest check that still covers the code you touched:
+Use the narrowest check that still covers the code you touched.
 
-- App-only compile gate:
-  - `bash scripts/devcheck_app.sh`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck_app.ps1`
-  - Runs `cargo check --lib --bin sempal`
-- Required smoke gate:
-  - `bash scripts/devcheck.sh`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - Runs `cargo check --tests --bins`
-- Fast test gate:
-  - `bash scripts/ci_quick.sh`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-  - Runs `cargo nextest run --profile quick --lib --tests`
+App-focused lane:
+
+- `bash scripts/devcheck_app.sh`
+- `powershell -ExecutionPolicy Bypass -File scripts/devcheck_app.ps1`
+- runs `cargo check -p sempal --lib --bin sempal`
+
+- `bash scripts/devcheck.sh`
+- `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+- runs `cargo check -p sempal --tests --bins`
+
+- `bash scripts/ci_quick.sh`
+- `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- runs `cargo nextest run -p sempal --profile quick --lib --tests`
+
+Workspace-wide lane:
+
+- `bash scripts/devcheck_workspace.sh`
+- `powershell -ExecutionPolicy Bypass -File scripts/devcheck_workspace.ps1`
+- runs `cargo check --workspace --tests --bins`
+
+- `bash scripts/ci_quick_workspace.sh`
+- `powershell -ExecutionPolicy Bypass -File scripts/ci_quick_workspace.ps1`
+- runs `cargo nextest run --workspace --profile quick --all-targets`
+
+Full CI parity:
+
+- `bash scripts/ci_local.sh`
+- `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+- runs workspace-wide clippy, tests, and doc tests
 
 Recommended command matrix:
 
@@ -49,17 +75,17 @@ Recommended command matrix:
   - start with `devcheck_app`
   - then `devcheck`
 - Browser/runtime input, native shell, projection, controller work:
-  - start with targeted `cargo test --lib <name>`
+  - start with targeted `cargo test -p sempal --lib <name>`
   - then `devcheck`
 - Support-tool bin changes:
-  - run `cargo check --bin <target>`
-  - then `devcheck`
-- Broader refactors, dependency work, build-system edits:
-  - go straight to `ci_quick`
+  - run `cargo check -p <package-or-bin-owner>`
+  - then `devcheck_workspace`
+- Broader refactors, dependency work, package-shape edits:
+  - go straight to `ci_quick_workspace`
 
 ## sccache
 
-Repo Cargo scripts now auto-use `sccache` when all of the following are true:
+Repo Cargo scripts auto-use `sccache` when all of the following are true:
 
 - `sccache` is installed and on `PATH`
 - `RUSTC_WRAPPER` is not already set
@@ -81,70 +107,37 @@ Expected benefit:
 - little or no benefit for the first full cold build
 - no help for target fan-out by itself
 
-## Why The Current Package Is Slow
+## Why This Helps
 
-The root package currently mixes three roles:
+The old root package mixed three roles:
 
 - shipping app/runtime
 - operational/admin tooling
 - experimental/benchmark tooling
 
-That is the wrong dependency boundary for compile speed. `cargo check --bins`
-and broad test commands treat all those targets as part of one package, so a
-single shared-lib change causes many target rechecks.
+That forced broad commands like `cargo check --bins` to re-check many `sempal`
+targets whenever shared library code changed.
 
-The immediate problem is package shape, not low-level Rust compiler tuning.
+The workspace split removes that target fan-out from the default app-focused
+lane while preserving the same CLI names for support tools.
 
-## Highest-ROI Structural Change
+## Implemented Phase 1 Work
 
-The best next step is to convert the repo into a workspace and move the
-support-tool binaries out of the root `sempal` package first.
+Completed:
 
-### Phase 1: Split Off Support Tools
+1. added a top-level workspace
+2. kept the root `sempal` app package and default app binary stable
+3. split support-tool binaries into dedicated workspace members
+4. updated local scripts so the default lane targets only the app package
+5. added explicit workspace-wide smoke/test scripts for packaging and tooling work
+6. updated CI and release commands to use workspace-wide coverage where needed
 
-Create workspace members with the same CLI names but separate packages:
+## Remaining Follow-Up
 
-- `apps/sempal-app`
-  - owns the shipping app binary and the main runtime path
-  - keeps package name `sempal`
-  - keeps `default-run = "sempal"`
-- `tools/analysis-admin`
-  - owns `sempal-ann-rebuild`
-  - owns `sempal-db-inspect`
-  - owns `sempal-hdbscan`
-  - owns `sempal-umap`
-- `tools/similarity-prep`
-  - owns `sempal-similarity-prep`
-- `tools/bench-cli`
-  - owns `sempal-bench`
-  - owns the code now grouped under [`src/bin/bench`](/C:/dev/sempal/src/bin/bench)
-- `apps/updater-helper`
-  - owns `sempal-updater`
-  - owns the code now grouped under
-    [`src/bin/sempal-updater`](/C:/dev/sempal/src/bin/sempal-updater)
-- `apps/installer`
-  - owns the code now grouped under
-    [`src/bin/sempal-installer`](/C:/dev/sempal/src/bin/sempal-installer)
+The highest-ROI package split is done, but the root library crate is still
+broad. Only continue if timing data says the app package is still too slow.
 
-Why this split is first:
-
-- it reduces root-package target count without deep domain surgery
-- it preserves the app path users actually run
-- it is mostly Cargo/workspace plumbing plus import cleanup
-- it gives measurable speed results before harder architectural changes
-
-### Phase 1 Boundaries
-
-Keep these boundaries explicit:
-
-- app package owns GUI/runtime-specific code paths
-- support tools should depend on shared libraries, not on app binaries
-- tool packages should not pull in GUI-only dependencies unless required
-- do not move `vendor/radiant` or native runtime code during this phase
-
-### Phase 1 Likely Shared Libraries
-
-Once bins move out, introduce only the minimum shared crates needed to compile:
+Likely next shared-library candidates:
 
 - `crates/sempal-analysis`
   - feature extraction
@@ -158,84 +151,32 @@ Once bins move out, introduce only the minimum shared crates needed to compile:
 - `crates/sempal-updater-core`
   - updater download/apply/check logic shared by app and updater helper
 
-Do not split GUI/runtime crates just to make the workspace compile. That adds
-coordination cost before the high-ROI package split is complete.
+Do not split GUI/runtime crates just to make the workspace compile. Only do the
+next round after re-measuring.
 
-## Execution Plan
+## Re-measure Before More Refactors
 
-### Step 1: Workspace Conversion
+After the workspace split:
 
-- add a top-level `[workspace]`
-- keep the current root package buildable during transition
-- preserve binary names and current default app entrypoint
-- move package-specific dependencies down to the packages that actually use them
-
-### Step 2: Move Tool Targets
-
-Move one tool package at a time:
-
-1. `tools/bench-cli`
-2. `tools/similarity-prep`
-3. `tools/analysis-admin`
-4. `apps/updater-helper`
-5. `apps/installer`
-
-That order is deliberate:
-
-- bench and similarity prep are lower-risk than installer/runtime helpers
-- updater and installer are more likely to touch app-adjacent integration code
-
-### Step 3: Update Local Scripts
-
-After the workspace exists, adjust script behavior:
-
-- `devcheck_app` should keep targeting only the shipping app package
-- `devcheck` should stay broad enough for normal app work, but avoid unrelated
-  tool packages by default if possible
-- add an explicit “all workspace packages” script if full-package coverage is
-  still needed locally
-
-The goal is two lanes:
-
-- fast app lane for normal UI/runtime edits
-- broad workspace lane for packaging/tooling changes
-
-### Step 4: Re-measure Before More Refactors
-
-After the package split:
-
-- rerun `cargo check --tests --bins --timings`
-- compare warm timings against the 2026-03-08 baseline
+- rerun warm timings for:
+  - `cargo check -p sempal --tests --bins --timings`
+  - `cargo check --workspace --tests --bins --timings`
+- compare against the 2026-03-08 single-package baseline
 - only continue splitting crates if the app package is still too broad
 
 ## Success Criteria
 
-Treat this as successful only if the numbers move:
+Treat this pass as successful only if the numbers move:
 
-- warm `devcheck_app` stays comfortably below current app-edit loop time
+- warm `devcheck_app` stays comfortably below the old app-edit loop time
 - warm `devcheck` drops materially because support-tool bins no longer recheck
-- broad workspace checks become more predictable because unrelated packages stop
-  recompiling with every app edit
-
-Practical acceptance target for Phase 1:
-
-- reduce warm app-focused smoke checks by at least 30 to 45 percent compared to
-  the current single-package baseline
+- broad workspace checks remain available for packaging/tooling changes
 
 ## Non-Goals
 
-These should not be bundled into the first build-speed pass:
+These should still stay out of the first build-speed pass:
 
 - rewriting runtime architecture
 - splitting `audio`, `waveform`, `gui_runtime`, or `app_core` preemptively
 - changing end-user CLI names
 - broad dependency swaps without timing evidence
-
-## Suggested Next Move
-
-If the next task is implementation rather than more planning, start with:
-
-1. add `[workspace]` while keeping the current app package name and binary name stable
-2. extract `tools/bench-cli` first
-3. rerun timings
-4. continue only if the numbers justify the next package move

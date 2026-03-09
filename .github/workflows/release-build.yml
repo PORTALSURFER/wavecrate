@@ -122,7 +122,7 @@ jobs:
         if: ${{ matrix.platform == 'windows' }}
         shell: bash
         run: |
-          cargo build --release --bin sempal-installer --target "${{ matrix.target }}"
+          cargo build --release -p sempal-installer --bin sempal-installer --target "${{ matrix.target }}"
       - name: Sign Windows executables
         if: ${{ matrix.platform == 'windows' }}
         shell: pwsh

@@ -1,8 +1,21 @@
+[workspace]
+members = [
+    ".",
+    "apps/installer",
+    "apps/updater-helper",
+    "tools/analysis-admin",
+    "tools/bench-cli",
+    "tools/similarity-prep",
+]
+default-members = ["."]
+resolver = "3"
+
 [package]
 name = "sempal"
 version = "19.0.0"
 edition = "2024"
 default-run = "sempal"
+autobins = false
 
 [lints.rust]
 warnings = "deny"
@@ -114,6 +127,10 @@ criterion = "0.8.1"
 
 [build-dependencies]
 embed-resource = "3.0"
+
+[[bin]]
+name = "sempal"
+path = "src/main.rs"
 
 [[bench]]
 name = "tagging"
