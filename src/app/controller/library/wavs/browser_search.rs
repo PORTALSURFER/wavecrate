@@ -1,3 +1,7 @@
+use super::search_scoring::{
+    QueryScoreCacheEntry, ScoreCandidateResult, promote_exact_query_score_cache_entry,
+    reusable_prefix_query_score_cache_entry, score_query_candidates, store_query_score_cache_entry,
+};
 use super::*;
 use crate::app::state::SampleBrowserSort;
 use crate::app::view_model;
@@ -13,17 +17,7 @@ const SEARCH_ASYNC_PIPELINE_ENV: &str = "SEMPAL_BROWSER_ASYNC_PIPELINE";
 const DEFAULT_SEARCH_OFFLOAD_THRESHOLD: usize = 5_000;
 
 /// Cached score payload for a specific source/query combination.
-#[derive(Clone)]
-struct QueryScoreCacheEntry {
-    /// Source associated with the score vector.
-    source_id: Option<SourceId>,
-    /// Exact query string associated with the score vector.
-    query: String,
-    /// Score vector aligned to absolute entry indices.
-    scores: Arc<[Option<i64>]>,
-    /// Absolute entry indices whose labels matched `query`.
-    matched_indices: Arc<[usize]>,
-}
+type BrowserQueryScoreCacheEntry = QueryScoreCacheEntry<Option<SourceId>>;
 
 /// Cache state for browser search scoring and sort scratch buffers.
 pub(crate) struct BrowserSearchCache {
@@ -31,9 +25,8 @@ pub(crate) struct BrowserSearchCache {
     query: String,
     pub(crate) scores: Arc<[Option<i64>]>,
     scratch: Vec<(usize, i64)>,
-    query_score_cache: Vec<QueryScoreCacheEntry>,
+    query_score_cache: Vec<BrowserQueryScoreCacheEntry>,
     max_cached_queries: usize,
-    pub(crate) matcher: SkimMatcherV2,
 }
 
 impl BrowserSearchCache {
@@ -46,7 +39,6 @@ impl BrowserSearchCache {
             scratch: Vec::new(),
             query_score_cache: Vec::new(),
             max_cached_queries: 6,
-            matcher: SkimMatcherV2::default(),
         }
     }
 
@@ -100,7 +92,7 @@ impl AppController {
             query,
             entries_len,
         ) {
-            self.ui_cache.browser.search.source_id = cached.source_id.clone();
+            self.ui_cache.browser.search.source_id = cached.scope.clone();
             self.ui_cache.browser.search.query.clone_from(&cached.query);
             self.ui_cache.browser.search.scores = cached.scores.clone();
             return;
@@ -136,52 +128,31 @@ impl AppController {
             );
             let candidate_indices = prefix_cache
                 .as_ref()
-                .map(|cached| Arc::clone(&cached.matched_indices));
+                .map(|cached| cached.matched_indices.as_ref());
             let mut new_scores = vec![None; entries_len];
-            let mut matched_indices = Vec::new();
             let matcher = SkimMatcherV2::default();
-            if let Some(indices) = candidate_indices.as_deref() {
-                for &index in indices {
-                    let Some(label) = self.label_for_ref(index) else {
-                        continue;
-                    };
-                    if label.is_empty() {
-                        continue;
-                    }
-                    if let Some(score) = matcher.fuzzy_match(label, query) {
-                        new_scores[index] = Some(score);
-                        matched_indices.push(index);
-                    }
-                }
-            } else {
-                for (index, score_slot) in new_scores.iter_mut().enumerate().take(entries_len) {
-                    let Some(label) = self.label_for_ref(index) else {
-                        continue;
-                    };
-                    if label.is_empty() {
-                        continue;
-                    }
-                    if let Some(score) = matcher.fuzzy_match(label, query) {
-                        *score_slot = Some(score);
-                        matched_indices.push(index);
-                    }
-                }
-            }
-            self.ui_cache.browser.search.scores = Arc::from(new_scores);
-            self.ui_cache.browser.search.query_score_cache.insert(
-                0,
-                QueryScoreCacheEntry {
-                    source_id: self.ui_cache.browser.search.source_id.clone(),
-                    query: self.ui_cache.browser.search.query.clone(),
-                    scores: self.ui_cache.browser.search.scores.clone(),
-                    matched_indices: matched_indices.into(),
+            let matched_indices = score_query_candidates(
+                &mut new_scores,
+                candidate_indices,
+                entries_len,
+                |index, _| {
+                    let score = self
+                        .label_for_ref(index)
+                        .filter(|label| !label.is_empty())
+                        .and_then(|label| matcher.fuzzy_match(label, query));
+                    ScoreCandidateResult::Continue(score)
                 },
+            )
+            .expect("synchronous search scoring cannot cancel");
+            self.ui_cache.browser.search.scores = Arc::from(new_scores);
+            store_query_score_cache_entry(
+                &mut self.ui_cache.browser.search.query_score_cache,
+                self.ui_cache.browser.search.max_cached_queries,
+                self.ui_cache.browser.search.source_id.clone(),
+                self.ui_cache.browser.search.query.clone(),
+                self.ui_cache.browser.search.scores.clone(),
+                matched_indices,
             );
-            self.ui_cache
-                .browser
-                .search
-                .query_score_cache
-                .truncate(self.ui_cache.browser.search.max_cached_queries);
         }
     }
 
@@ -260,41 +231,6 @@ impl AppController {
                 root_mode,
             });
     }
-}
-
-/// Promote an exact query-score cache hit to the front of the bounded LRU list.
-fn promote_exact_query_score_cache_entry(
-    cache: &mut Vec<QueryScoreCacheEntry>,
-    source_id: &Option<SourceId>,
-    query: &str,
-    entries_len: usize,
-) -> Option<QueryScoreCacheEntry> {
-    let cached_index = cache.iter().position(|entry| {
-        entry.source_id == *source_id && entry.query == query && entry.scores.len() == entries_len
-    })?;
-    let cached = cache.remove(cached_index);
-    cache.insert(0, cached.clone());
-    Some(cached)
-}
-
-/// Return the longest reusable prefix-query cache entry for `query`.
-fn reusable_prefix_query_score_cache_entry(
-    cache: &[QueryScoreCacheEntry],
-    source_id: &Option<SourceId>,
-    query: &str,
-    entries_len: usize,
-) -> Option<QueryScoreCacheEntry> {
-    cache
-        .iter()
-        .filter(|entry| {
-            entry.source_id == *source_id
-                && entry.scores.len() == entries_len
-                && !entry.query.is_empty()
-                && query.starts_with(&entry.query)
-                && query.len() > entry.query.len()
-        })
-        .max_by_key(|entry| entry.query.len())
-        .cloned()
 }
 
 pub(crate) fn set_browser_filter(controller: &mut AppController, filter: TriageFlagFilter) {
@@ -432,34 +368,5 @@ fn browser_async_pipeline_enabled() -> bool {
                 .and_then(crate::env_flags::parse_env_bool)
                 .unwrap_or(true)
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reusable_prefix_query_score_cache_entry_prefers_longest_match() {
-        let cache = vec![
-            QueryScoreCacheEntry {
-                source_id: None,
-                query: String::from("k"),
-                scores: Arc::from([Some(10), None]),
-                matched_indices: Arc::from([0]),
-            },
-            QueryScoreCacheEntry {
-                source_id: None,
-                query: String::from("ki"),
-                scores: Arc::from([Some(9), None]),
-                matched_indices: Arc::from([0]),
-            },
-        ];
-
-        let reused = reusable_prefix_query_score_cache_entry(&cache, &None, "kick", 2)
-            .expect("expected reusable prefix");
-
-        assert_eq!(reused.query, "ki");
-        assert_eq!(reused.matched_indices.as_ref(), &[0]);
     }
 }

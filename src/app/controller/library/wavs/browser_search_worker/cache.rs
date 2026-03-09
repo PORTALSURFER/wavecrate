@@ -1,5 +1,6 @@
 //! Worker-local source/query caches for browser search processing.
 
+use super::super::search_scoring::QueryScoreCacheEntry;
 use super::*;
 
 pub(super) struct CompactSearchEntry {
@@ -99,15 +100,15 @@ fn reserve_growth<T>(buffer: &mut Vec<T>, target_capacity: usize) -> usize {
     buffer.capacity().saturating_sub(before)
 }
 
-/// Cached query score vector keyed by source revision and query text.
-#[derive(Clone)]
-pub(super) struct WorkerQueryScoreCacheEntry {
+/// Source/revision scope for one worker query-score cache entry.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct WorkerQueryScoreCacheScope {
     pub(super) source_id: String,
     pub(super) revision: u64,
-    pub(super) query: String,
-    pub(super) scores: Arc<[Option<i64>]>,
-    pub(super) matched_indices: Arc<[usize]>,
 }
+
+/// Cached query score vector keyed by source revision and query text.
+pub(super) type WorkerQueryScoreCacheEntry = QueryScoreCacheEntry<WorkerQueryScoreCacheScope>;
 
 /// Cached folder-filter acceptance vector for one source revision + folder filter shape.
 pub(super) struct WorkerFolderAcceptCacheEntry {

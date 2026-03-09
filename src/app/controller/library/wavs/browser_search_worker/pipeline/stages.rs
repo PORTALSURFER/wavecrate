@@ -119,13 +119,25 @@ pub(super) fn resolve_query_scores_for_job(
         return Some(Arc::from([]));
     }
 
-    if let Some(scores) =
-        try_reuse_cached_query_scores(cache, source_id, cache.revision, &job.query, entries_len)
-    {
+    let scope = WorkerQueryScoreCacheScope {
+        source_id: source_id.to_string(),
+        revision: cache.revision,
+    };
+    if let Some(cached) = promote_exact_query_score_cache_entry(
+        &mut cache.query_score_cache,
+        &scope,
+        &job.query,
+        entries_len,
+    ) {
+        let scores = Arc::clone(&cached.scores);
         return Some(scores);
     }
-    let prefix_cache =
-        reusable_prefix_query_scores(cache, source_id, cache.revision, &job.query, entries_len);
+    let prefix_cache = reusable_prefix_query_score_cache_entry(
+        &cache.query_score_cache,
+        &scope,
+        &job.query,
+        entries_len,
+    );
 
     let added_score_capacity = cache.prepare_score_scratch(entries_len);
     record_search_worker_score_alloc(
@@ -134,48 +146,36 @@ pub(super) fn resolve_query_scores_for_job(
     let Some(entries) = cache.entries.as_ref() else {
         return Some(Arc::from([]));
     };
-
-    let mut matched_indices = Vec::new();
-    if let Some(prefix_cache) = prefix_cache {
-        for (offset, &index) in prefix_cache.matched_indices.iter().enumerate() {
+    let candidate_indices = prefix_cache
+        .as_ref()
+        .map(|cached| cached.matched_indices.as_ref());
+    let matched_indices = score_query_candidates(
+        &mut cache.score_scratch,
+        candidate_indices,
+        entries_len,
+        |index, offset| {
             if super::search_job_canceled_for_index(queue, generation, offset) {
-                return None;
+                return ScoreCandidateResult::Cancel;
             }
             let Some(entry) = entries.get(index) else {
-                continue;
+                return ScoreCandidateResult::Continue(None);
             };
-            cache.score_scratch[index] = matcher.fuzzy_match(&entry.display_label, &job.query);
-            if cache.score_scratch[index].is_some() {
-                matched_indices.push(index);
-            }
-        }
-    } else {
-        for (index, entry) in entries.iter().enumerate() {
-            if super::search_job_canceled_for_index(queue, generation, index) {
-                return None;
-            }
-            cache.score_scratch[index] = matcher.fuzzy_match(&entry.display_label, &job.query);
-            if cache.score_scratch[index].is_some() {
-                matched_indices.push(index);
-            }
-        }
-    }
+            ScoreCandidateResult::Continue(matcher.fuzzy_match(&entry.display_label, &job.query))
+        },
+    )?;
     if super::search_job_canceled(queue, generation) {
         return None;
     }
 
     let computed_scores: Arc<[Option<i64>]> = Arc::from(cache.score_scratch.as_slice());
-    cache.query_score_cache.insert(
-        0,
-        WorkerQueryScoreCacheEntry {
-            source_id: source_id.to_string(),
-            revision: cache.revision,
-            query: job.query.clone(),
-            scores: Arc::clone(&computed_scores),
-            matched_indices: matched_indices.into(),
-        },
+    store_query_score_cache_entry(
+        &mut cache.query_score_cache,
+        cache.max_cached_queries,
+        scope,
+        job.query.clone(),
+        Arc::clone(&computed_scores),
+        matched_indices,
     );
-    cache.query_score_cache.truncate(cache.max_cached_queries);
     Some(computed_scores)
 }
 
@@ -187,16 +187,12 @@ pub(super) fn try_reuse_cached_query_scores(
     query: &str,
     entries_len: usize,
 ) -> Option<Arc<[Option<i64>]>> {
-    let index = cache.query_score_cache.iter().position(|cached| {
-        cached.source_id == source_id
-            && cached.revision == revision
-            && cached.query == query
-            && cached.scores.len() == entries_len
-    })?;
-    let cached = cache.query_score_cache.remove(index);
-    let scores = Arc::clone(&cached.scores);
-    cache.query_score_cache.insert(0, cached);
-    Some(scores)
+    let scope = WorkerQueryScoreCacheScope {
+        source_id: source_id.to_string(),
+        revision,
+    };
+    promote_exact_query_score_cache_entry(&mut cache.query_score_cache, &scope, query, entries_len)
+        .map(|cached| Arc::clone(&cached.scores))
 }
 
 /// Return the longest reusable prefix-query score cache entry.
@@ -207,19 +203,11 @@ pub(super) fn reusable_prefix_query_scores(
     query: &str,
     entries_len: usize,
 ) -> Option<WorkerQueryScoreCacheEntry> {
-    cache
-        .query_score_cache
-        .iter()
-        .filter(|cached| {
-            cached.source_id == source_id
-                && cached.revision == revision
-                && cached.scores.len() == entries_len
-                && !cached.query.is_empty()
-                && query.starts_with(&cached.query)
-                && query.len() > cached.query.len()
-        })
-        .max_by_key(|cached| cached.query.len())
-        .cloned()
+    let scope = WorkerQueryScoreCacheScope {
+        source_id: source_id.to_string(),
+        revision,
+    };
+    reusable_prefix_query_score_cache_entry(&cache.query_score_cache, &scope, query, entries_len)
 }
 
 /// Return an `All` visible-rows result when no filtering/sorting/scoring work is required.

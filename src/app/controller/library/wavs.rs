@@ -24,6 +24,8 @@ mod focus_similarity;
 mod metadata_cache;
 /// Metadata and entry-mutation facade methods on `AppController`.
 mod metadata_facade;
+/// Shared fuzzy-search scoring and cache-reuse helpers for sync and worker paths.
+mod search_scoring;
 mod selection_ops;
 mod similar;
 mod waveform_loading;

@@ -13,15 +13,19 @@ fn query_score_cache_reuse_moves_hit_to_front() {
         revision: 12,
         query_score_cache: vec![
             WorkerQueryScoreCacheEntry {
-                source_id: "source-a".to_string(),
-                revision: 12,
+                scope: WorkerQueryScoreCacheScope {
+                    source_id: "source-a".to_string(),
+                    revision: 12,
+                },
                 query: "snare".to_string(),
                 scores: Arc::from([Some(10), Some(8)]),
                 matched_indices: Arc::from([0, 1]),
             },
             WorkerQueryScoreCacheEntry {
-                source_id: "source-a".to_string(),
-                revision: 12,
+                scope: WorkerQueryScoreCacheScope {
+                    source_id: "source-a".to_string(),
+                    revision: 12,
+                },
                 query: "kick".to_string(),
                 scores: Arc::from([Some(4), Some(3)]),
                 matched_indices: Arc::from([0, 1]),
@@ -43,15 +47,19 @@ fn prefix_query_score_cache_prefers_longest_matching_prefix() {
         revision: 12,
         query_score_cache: vec![
             WorkerQueryScoreCacheEntry {
-                source_id: "source-a".to_string(),
-                revision: 12,
+                scope: WorkerQueryScoreCacheScope {
+                    source_id: "source-a".to_string(),
+                    revision: 12,
+                },
                 query: "k".to_string(),
                 scores: Arc::from([Some(4), None]),
                 matched_indices: Arc::from([0]),
             },
             WorkerQueryScoreCacheEntry {
-                source_id: "source-a".to_string(),
-                revision: 12,
+                scope: WorkerQueryScoreCacheScope {
+                    source_id: "source-a".to_string(),
+                    revision: 12,
+                },
                 query: "ki".to_string(),
                 scores: Arc::from([Some(3), None]),
                 matched_indices: Arc::from([0]),

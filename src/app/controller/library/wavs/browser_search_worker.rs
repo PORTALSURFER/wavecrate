@@ -15,6 +15,11 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 use tracing::warn;
 
+pub(super) use super::search_scoring::{
+    ScoreCandidateResult, promote_exact_query_score_cache_entry,
+    reusable_prefix_query_score_cache_entry, score_query_candidates, store_query_score_cache_entry,
+};
+
 /// Source/revision-scoped search worker cache types.
 mod cache;
 /// Search execution pipeline and filter/sort helper routines.

@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-09T18:57:30Z
+Last updated (UTC): 2026-03-09T19:03:54Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -18,7 +18,7 @@ Purpose:
 ## Next tasks (ordered)
 
 1. Treat `tmp/perf_plan.md` as the completed runtime perf execution record for items 1-11.
-2. Continue the active cleanup execution lane from `tmp/cleanup_plan.md` in strict ROI order; items 1 and 2 are complete.
+2. Continue the active cleanup execution lane from `tmp/cleanup_plan.md` in strict ROI order; items 1-3 are complete and item 4 is next.
 3. Use `docs/plans/active/runtime_performance_exec_plan.md` to decide whether a new perf follow-up lane should be opened after the cleanup lane.
 4. Keep handoff docs synchronized on future cleanup or perf milestones:
    update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and the active `tmp/*.md` backlog in the same cycle.
