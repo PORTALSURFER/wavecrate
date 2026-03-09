@@ -78,6 +78,7 @@ Write for future selves: be precise, kind, and clear.
 - Before commit/push and after non-trivial edits: `bash scripts/ci_quick.sh`
 - If devcheck or quick CI fails: fix and rerun until green
 - Do not run Rust test commands in multiple concurrent processes; run them serially in one process to avoid cargo lock contention and misleading timeouts
+- On Windows, use the PowerShell workflow wrappers (`scripts/*.ps1`) for preflight/CI/devcheck and do not also run the Bash duplicates
 - After code changes: commit and push
 - Do not push unless `scripts/ci_quick.sh` is green
 - Run `bash scripts/ci_local.sh` before pushing broader validation/tooling/perf/dependency changes or when you need full CI parity
