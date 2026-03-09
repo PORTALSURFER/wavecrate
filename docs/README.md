@@ -13,6 +13,7 @@ Start here:
 - `docs/FEATURE_CHECKLIST.md` — safe path for implementing changes
 - `docs/ARCHITECTURE.md` — module ownership map
 - `docs/file_ops_journal_recovery.md` — file-op journal stage contract and startup recovery rules
+- `docs/folder_delete_recovery.md` — folder-delete staging and restore/finalize recovery contract
 - `docs/ENV_VARS.md` — environment variable reference
 - `docs/build_speed.md` — local compile-speed workflow and crate-split sketch
 - `docs/TEST.md` — test suite map and commands
