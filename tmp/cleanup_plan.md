@@ -162,7 +162,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Suggested validation: `app_core::native_shell` tests, browser integration tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
   - Completion: 2026-03-09 (`bceaaeeb`)
 
-- [ ] 13) Fix handoff/doc-gardening drift and correct CI contract documentation
+- [x] 13) Fix handoff/doc-gardening drift and correct CI contract documentation
   - ROI/Effort: High / S
   - Why it matters: the repository currently contains automation and handoff docs that can direct future agents or contributors to stale plan files and inaccurate CI expectations.
   - Evidence:
@@ -172,6 +172,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: align handoff docs on the active cleanup backlog, retarget doc-gardening rewrites to the real active plan entrypoints, and correct CI-entrypoint descriptions so “preflight”, “quick CI”, and “CI parity” each mean exactly one thing.
   - Risk/tradeoffs: Low. The main risk is churn in docs terminology; the fix should prefer accuracy over preserving outdated labels.
   - Suggested validation: `bash scripts/check_docs_index.sh`, `bash scripts/check_markdown_links.sh`, `bash scripts/knowledge_lint.sh`, then `bash scripts/ci_quick.sh`.
+  - Completion: 2026-03-09 (`319cefdd`)
 
 - [ ] 14) Decompose `src/app_core/native_bridge.rs` and related metrics/tests into reducer, invalidation, projection, and metrics modules
   - ROI/Effort: Medium / L
