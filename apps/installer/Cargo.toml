@@ -8,6 +8,7 @@ name = "sempal-installer"
 path = "src/main.rs"
 
 [dependencies]
+image = "0.25.9"
 open = "5.3.3"
 rfd = "0.16.0"
 sempal = { path = "../.." }

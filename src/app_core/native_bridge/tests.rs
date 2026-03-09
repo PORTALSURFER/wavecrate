@@ -967,7 +967,9 @@ fn projection_segment_browser_frame_copies_active_rating_filters() {
     let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
     assert_eq!(
         dirty_segments,
-        NativeDirtySegments::from_bits(NativeDirtySegments::BROWSER_FRAME)
+        NativeDirtySegments::from_bits(
+            NativeDirtySegments::STATUS_BAR | NativeDirtySegments::BROWSER_FRAME
+        )
     );
     assert!(model.browser.active_rating_filters[6]);
     assert_eq!(

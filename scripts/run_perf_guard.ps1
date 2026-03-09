@@ -207,7 +207,7 @@ function Invoke-PerfBenchRun {
     [int]$MeasureIters
   )
 
-  cargo run --bin sempal-bench -- `
+  cargo run -p sempal-bench-cli --bin sempal-bench -- `
     --out $OutputPath `
     --no-analysis `
     --no-similarity `
