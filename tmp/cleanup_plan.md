@@ -87,7 +87,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Suggested validation: clipboard/external-drop tests, staged failure-path tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
   - Completion: 2026-03-09 (`30d25841`)
 
-- [ ] 7) Split `src/sample_sources/db/file_ops_journal.rs` into entry, store, and reconciliation modules
+- [x] 7) Split `src/sample_sources/db/file_ops_journal.rs` into entry, store, and reconciliation modules
   - ROI/Effort: High / M
   - Why it matters: this is crash-recovery code, so clearer boundaries improve reviewability and reduce startup-recovery risk.
   - Evidence:
@@ -97,6 +97,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: separate journal entry/schema types, persistence API, and reconciliation executor behavior into focused sibling modules.
   - Risk/tradeoffs: Medium. Startup recovery semantics and journal cleanup must remain byte-for-byte compatible in behavior.
   - Suggested validation: journal unit tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
+  - Completion: 2026-03-09 (`08541a52`, follow-up `d538fd60`)
 
 - [ ] 8) Prune or explicitly justify remaining non-vendor `#[allow(dead_code)]` and `#[allow(clippy::too_many_arguments)]` suppressions
   - ROI/Effort: Medium-High / S
@@ -222,3 +223,4 @@ Canonical local CI command: `bash scripts/ci_local.sh`
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
 - 2026-03-09: Completed item 5 in commit `8d2c30e8`.
 - 2026-03-09: Completed item 6 in commit `30d25841`.
+- 2026-03-09: Completed item 7 in commits `08541a52` and `d538fd60`.
