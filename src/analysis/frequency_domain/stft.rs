@@ -1,3 +1,5 @@
+//! STFT frame extraction keeps scratch buffers and output sinks separate to avoid
+//! hot-path allocations while streaming one frame at a time.
 #![allow(clippy::too_many_arguments)]
 
 use super::mel::{MelBank, MelScratch};

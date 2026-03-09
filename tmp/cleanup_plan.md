@@ -99,7 +99,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Suggested validation: journal unit tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
   - Completion: 2026-03-09 (`08541a52`, follow-up `d538fd60`)
 
-- [ ] 8) Prune or explicitly justify remaining non-vendor `#[allow(dead_code)]` and `#[allow(clippy::too_many_arguments)]` suppressions
+- [x] 8) Prune or explicitly justify remaining non-vendor `#[allow(dead_code)]` and `#[allow(clippy::too_many_arguments)]` suppressions
   - ROI/Effort: Medium-High / S
   - Why it matters: the remaining suppressions make it harder to distinguish intentional compatibility shims from simply stale code.
   - Evidence:
@@ -108,6 +108,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: remove truly unused code, move test-only helpers behind `#[cfg(test)]`, and add short rationale comments only where compatibility or platform glue requires the suppression.
   - Risk/tradeoffs: Low-medium. A few suppressed fields may still be intentionally retained for serialization/platform integration.
   - Suggested validation: `cargo clippy --workspace --all-targets`, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
+  - Completion: 2026-03-09 (`b5702240`)
 
 - [ ] 9) Decompose destructive selection-edit workflows into focused write services and thin controller orchestration
   - ROI/Effort: High / M

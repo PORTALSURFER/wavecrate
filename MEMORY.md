@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-09T19:26:59Z
+Last Updated: 2026-03-09T19:35:20Z
 Updated By: Codex
 
 ## Purpose
@@ -15,12 +15,12 @@ Updated By: Codex
 - The active source of truth for any follow-up perf work remains `docs/plans/active/runtime_performance_exec_plan.md`.
 - I have refreshed `tmp/cleanup_plan.md` against the current `next` head with a 17-item strict ROI-ranked cleanup backlog.
 - Cleanup Phase 2 is in progress from `tmp/cleanup_plan.md`.
-- Cleanup items 1, 2, 3, 4, 5, 6, and 7 are complete; they landed in commits `16932de4`, `1fe099ae`, `0b0be54a`, `f752dec6`, `8d2c30e8`, `30d25841`, `08541a52`, and `d538fd60`.
+- Cleanup items 1, 2, 3, 4, 5, 6, 7, and 8 are complete; they landed in commits `16932de4`, `1fe099ae`, `0b0be54a`, `f752dec6`, `8d2c30e8`, `30d25841`, `08541a52`, `d538fd60`, and `b5702240`.
 
 ## Immediate Next Actions
 
 1. Use `docs/plans/active/runtime_performance_exec_plan.md` for any follow-up runtime/perf work beyond the completed `tmp/perf_plan.md` backlog.
-2. Use `tmp/cleanup_plan.md` as the ordered cleanup backlog and implement items strictly in that order.
+2. Use `tmp/cleanup_plan.md` as the ordered cleanup backlog and implement items strictly in that order, starting from item 9.
 3. Keep `AGENTS.md`, `MEMORY.md`, and `tmp/cleanup_plan.md` synchronized when future work changes the current state.
 4. Continue using `bash scripts/ci_quick.sh` and `bash scripts/ci_local.sh` as the required gates before each push.
 
