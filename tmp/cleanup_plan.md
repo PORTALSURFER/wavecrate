@@ -60,7 +60,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: move DB/query responsibilities into a dedicated repository module and keep `map_view.rs` controller-oriented.
   - Risk/tradeoffs: Medium. Connection ownership and per-source cache lifetime need to stay explicit.
   - Suggested validation: focused map query tests, map-view controller tests, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
-  - Completion: 2026-03-09 (commit hash recorded in the next synchronized plan update after commit creation)
+  - Completion: 2026-03-09 (`f752dec6`)
 
 - [ ] 5) Break waveform loading into request, finalize, and metadata-persistence units and retire the compatibility shim
   - ROI/Effort: High / M
@@ -217,4 +217,4 @@ Canonical local CI command: `bash scripts/ci_local.sh`
 - 2026-03-09: Confirmed the canonical local CI parity command for this environment is `bash scripts/ci_local.sh`.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
-- 2026-03-09: Completed item 4 implementation and validation; commit hash will be recorded in the next synchronized plan update after commit creation.
+- 2026-03-09: Completed item 4 in commit `f752dec6`.
