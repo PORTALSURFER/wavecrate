@@ -48,7 +48,7 @@ Canonical local CI command: `bash scripts/ci_local.sh`
   - Recommended change: extract shared scoring/cache primitives into one module used by both controller and worker paths.
   - Risk/tradeoffs: Medium. Query ranking, exact-hit reuse, and prefix-cache semantics must remain unchanged.
   - Suggested validation: browser search unit tests for sync and worker paths, `bash scripts/devcheck.sh`, then `bash scripts/ci_quick.sh`.
-  - Completion: 2026-03-09 (commit hash recorded in the next synchronized plan update after commit creation)
+  - Completion: 2026-03-09 (`0b0be54a`)
 
 - [ ] 4) Separate map UI orchestration from UMAP query/repository code
   - ROI/Effort: High / M
@@ -215,4 +215,4 @@ Canonical local CI command: `bash scripts/ci_local.sh`
 - 2026-03-09: Read repository guidance first (`AGENTS.md`, `README.md`, `docs/README.md`, active plans, and `MEMORY.md`) before the audit.
 - 2026-03-09: Confirmed the canonical local CI parity command for this environment is `bash scripts/ci_local.sh`.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
-- 2026-03-09: Completed item 3 implementation and validation; commit hash will be recorded in the next synchronized plan update after commit creation.
+- 2026-03-09: Completed item 3 in commit `0b0be54a`.
