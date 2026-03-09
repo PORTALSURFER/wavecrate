@@ -62,14 +62,14 @@ Write for future selves: be precise, kind, and clear.
 ## Immediate Next Actions
 1. Use `docs/plans/active/runtime_performance_exec_plan.md` for any follow-up perf work beyond the completed `tmp/perf_plan.md` backlog.
 2. Keep handoff docs synchronized on future perf milestone commits (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
-3. Execute `tmp/cleanup_plan.md` Phase 2 strictly in order, with item 7 complete and item 8 next.
+3. Execute `tmp/cleanup_plan.md` Phase 2 strictly in order, with item 8 complete and item 9 next.
 4. Keep `tmp/perf_plan.md` as the completed execution record for items 1-11.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/cleanup_plan.md`: ROI-ranked cleanup backlog + execution checklist (last refresh: 2026-03-09, 5 pending items; item 8 next)
+- `tmp/cleanup_plan.md`: ROI-ranked cleanup backlog + execution checklist (last refresh: 2026-03-09, 4 pending items; item 9 next)
 - `docs/plans/active/cleanup_architecture_note.md`: cleanup boundary/ownership guidance
 - `tmp/perf_plan.md`: current ROI-ranked runtime performance audit backlog and execution order
 

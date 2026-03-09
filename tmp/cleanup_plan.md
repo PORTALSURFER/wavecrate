@@ -91,7 +91,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: browser action tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
   - Completed: 2026-03-09 (UTC) - `sempal` commit `2163c6eb`
 
-- [ ] 8) Add waveform load/cache lifecycle tests for cache hits, refresh reuse, and selection preservation
+- [x] 8) Add waveform load/cache lifecycle tests for cache hits, refresh reuse, and selection preservation
   - ROI/Effort: Medium / M
   - Why it matters: Waveform loading affects perceived responsiveness and view stability; subtle regressions here are easy to miss because the module couples cache use, selection preservation, transient extraction, and deferred metadata writes.
   - Evidence:
@@ -102,6 +102,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: Add focused tests for cache-hit reuse, refresh-with-same-selection preservation, missing-file recovery after cached state exists, and transient/cache persistence interactions; add short docs on what “refresh” vs “selection load” guarantees.
   - Risk/tradeoffs: Medium. Test support may need more seam helpers to observe cache state without coupling to implementation details.
   - Suggested validation: targeted waveform-loading tests, broader waveform controller tests, then `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
+  - Completed: 2026-03-09 (UTC) - `sempal` commit `b279884c`
 
 - [ ] 9) Document native-bridge projection cache, invalidation, and profiling contracts
   - ROI/Effort: Medium / S
@@ -171,3 +172,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-09: Completed item 5 (split folder-delete recovery into journal/recovery/controller-apply modules, added stage-matrix coverage, and documented the restore/finalize contract).
 - 2026-03-09: Completed item 6 (split the source-move flow into plan, registration, result-application, and transactional worker modules; added collision, rollback, and cancellation-path tests).
 - 2026-03-09: Completed item 7 (split browser actions into focus-navigation, selection, and row-action modules; added local anchor/autoscroll invariant coverage).
+- 2026-03-09: Completed item 8 (added waveform cache/refresh lifecycle coverage for same-path refresh reuse and cache-backed reloads, plus explicit load-vs-refresh docs).

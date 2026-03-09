@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-09T12:06:36Z
+Last Updated: 2026-03-09T12:20:08Z
 Updated By: Codex
 
 ## Purpose
@@ -14,11 +14,11 @@ Updated By: Codex
 - Perf items 1-11 are complete, including hot native input layout borrowing in vendor commit `fd542453` and root perf attribution work in commit `f239b03b`.
 - The active source of truth for any follow-up perf work remains `docs/plans/active/runtime_performance_exec_plan.md`.
 - I have refreshed `tmp/cleanup_plan.md` with a new ROI-ranked cleanup backlog from the current codebase state.
-- Cleanup item 7 from `tmp/cleanup_plan.md` is complete in commit `2163c6eb`, and item 8 is next.
+- Cleanup item 8 from `tmp/cleanup_plan.md` is complete in commit `b279884c`, and item 9 is next.
 
 ## Immediate Next Actions
 
-1. Start cleanup item 8 from `tmp/cleanup_plan.md` and add waveform load/cache lifecycle coverage for cache-hit reuse and selection preservation.
+1. Start cleanup item 9 from `tmp/cleanup_plan.md` and document native-bridge projection cache, invalidation boundaries, and profiling contracts.
 2. Keep `AGENTS.md`, `MEMORY.md`, and `tmp/cleanup_plan.md` synchronized as each cleanup item lands.
 3. Continue using `scripts/ci_quick.ps1` and `scripts/ci_local.ps1` as the required gates before each push.
 
