@@ -8,7 +8,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 
 ## Ordered Backlog
 
-- [ ] 1) Decompose the retained native Vello runtime into focused runtime, redraw, input, text, and startup modules
+- [x] 1) Decompose the retained native Vello runtime into focused runtime, redraw, input, text, and startup modules
   - ROI/Effort: High / L
   - Why it matters: `vendor/radiant` runtime code is the largest single cleanup hotspot in the repo; one file currently owns event-loop state, redraw scheduling, cache fingerprints, immediate input paths, text editing, startup reveal policy, and application handler wiring.
   - Evidence:
@@ -18,6 +18,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: Split `native_vello.rs` into focused modules such as `runtime_state`, `startup`, `redraw_pipeline`, `immediate_input`, `text_input`, and `profiling`, then split the test file to match those seams.
   - Risk/tradeoffs: High. This is performance-sensitive event-loop code, so extraction mistakes can regress input latency or redraw ordering.
   - Suggested validation: `cargo nextest run --manifest-path vendor/radiant/Cargo.toml native_vello`, snapshot tests under `vendor/radiant`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
+  - Completed: 2026-03-09 — `vendor/radiant` commit `5d4e3aa5`
 
 - [ ] 2) Split native-shell interaction state and frame building by responsibility
   - ROI/Effort: High / L
