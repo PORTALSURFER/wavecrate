@@ -121,6 +121,9 @@ pub(super) fn apply_waveform_native_ui_action(
             controller.zoom_waveform_to_selection_with_focus()
         }
         NativeUiAction::ZoomWaveformFull => controller.zoom_waveform_full_with_focus(),
+        NativeUiAction::NormalizeWaveformSelectionOrSample => {
+            controller.normalize_waveform_selection_or_sample_action()
+        }
         action => return Err(action),
     }
     Ok(())

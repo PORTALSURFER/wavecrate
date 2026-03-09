@@ -305,6 +305,16 @@ fn apply_browser_native_ui_action(
         NativeUiAction::TagBrowserSelection { target } => {
             controller.tag_selected_browser_target(target.into())
         }
+        NativeUiAction::NormalizeFocusedBrowserSample => {
+            if let Some(row) = controller.focused_browser_row() {
+                let _ = controller.normalize_browser_sample(row);
+            } else {
+                controller.set_status(
+                    "Focus a sample to normalize it",
+                    crate::app::controller::StatusTone::Info,
+                );
+            }
+        }
         NativeUiAction::DeleteBrowserSelection => {
             controller.delete_active_browser_selection_action()
         }

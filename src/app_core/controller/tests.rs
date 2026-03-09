@@ -1,3 +1,4 @@
+use crate::app::state::FocusContext;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::state::{SampleBrowserTab, UpdateStatus};
 use crate::waveform::WaveformChannelView;
@@ -120,6 +121,8 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
     for case in cases {
         let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
         controller.ui.browser.search_focus_requested = true;
+        controller.ui.focus.context = FocusContext::Waveform;
+        controller.ui.waveform.selection = Some(crate::selection::SelectionRange::new(0.2, 0.8));
         controller.apply_native_ui_action(case.action);
         match case.expected {
             Expected::BrowserSearch(expected) => {
@@ -192,6 +195,38 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
             }
         }
     }
+}
+
+#[test]
+fn apply_native_browser_normalize_routes_to_hotkey_behavior() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.apply_native_ui_action(NativeUiAction::NormalizeFocusedBrowserSample);
+
+    assert!(
+        controller
+            .ui
+            .status
+            .text
+            .contains("Focus a sample to normalize it"),
+        "status was {:?}",
+        controller.ui.status.text
+    );
+}
+
+#[test]
+fn apply_native_waveform_normalize_routes_to_controller_behavior() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.apply_native_ui_action(NativeUiAction::NormalizeWaveformSelectionOrSample);
+
+    assert!(
+        controller
+            .ui
+            .status
+            .text
+            .contains("Load a sample to normalize it"),
+        "status was {:?}",
+        controller.ui.status.text
+    );
 }
 
 #[test]
