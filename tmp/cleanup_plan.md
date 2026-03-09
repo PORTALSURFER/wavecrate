@@ -1,183 +1,169 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-09 (UTC)
-Phase: 2 complete
+Phase: 1 complete, awaiting explicit Phase 2 confirmation
 Status legend: `[ ]` pending, `[x]` done
+Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
 ## Ordered Backlog
 
-- [x] 1) Repair stale file-size allowlist entries and remove no-longer-needed exemptions
-  - ROI/Effort: High / S
-  - Why it matters: Stale allowlist rows hide real budget regressions and create maintenance noise in every file-size audit.
-  - Evidence:
-    - `docs/file_size_budget_allowlist.txt` contained stale and now-under-budget rows before the 2026-03-04 cleanup pass.
-    - The old report showed missing and removable entries, which made file-size guardrails less trustworthy.
-  - Recommended change: Remove stale/missing allowlist rows, prune all now-under-budget rows, and keep only active over-budget exceptions.
-  - Risk/tradeoffs: Low. Only guardrail metadata changes.
-  - Suggested validation: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `8bb36ecc`
-
-- [x] 2) Make folder-move DB-failure regression test deterministic (remove timing race)
-  - ROI/Effort: High / S
-  - Why it matters: A flaky core file-op test blocks CI confidence and wastes iteration time.
-  - Evidence:
-    - `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs` previously used sleep-based lock timing in `folder_sample_move_db_write_failure_rolls_back_source_and_keeps_journal_for_recovery`.
-    - The pre-fix test relied on long sleeps and timeout-based ordering instead of explicit synchronization.
-  - Recommended change: Replace sleep-based lock timing with deterministic synchronization and guaranteed release scope.
-  - Risk/tradeoffs: Low-medium. Test harness changes must preserve intended DB-failure semantics.
-  - Suggested validation: targeted repeated test runs plus `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
-  - Completed: 2026-03-04 (UTC) - `sempal` commit `fa24a4ff`
-
-- [x] 3) Split background-job polling into focused message-router and handler modules with behavior tests
+- [ ] 1) Decompose the retained native Vello runtime into focused runtime, redraw, input, text, and startup modules
   - ROI/Effort: High / L
-  - Why it matters: Job polling is a high-change integration hotspot; the old monolith shape increased coupling and regression risk.
+  - Why it matters: `vendor/radiant` runtime code is the largest single cleanup hotspot in the repo; one file currently owns event-loop state, redraw scheduling, cache fingerprints, immediate input paths, text editing, startup reveal policy, and application handler wiring.
   - Evidence:
-    - `src/app/controller/library/background_jobs/polling.rs` previously combined routing, per-domain handlers, and helper logic in one 600+ LOC module.
-    - Coverage was concentrated on helper predicates instead of end-to-end handler behavior before the split.
-  - Recommended change: Extract routing plus per-domain handlers and add stale-message/progress/state tests.
-  - Risk/tradeoffs: Medium-high. Dispatch rewiring can break subtle progress/state behavior.
-  - Suggested validation: targeted background-job tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
-  - Completed: 2026-03-06 (UTC) - `sempal` commit `4a4c1098`
+    - `vendor/radiant/src/gui_runtime/native_vello.rs` is 4362 LOC.
+    - The file mixes initialization (`initialize_runtime` around `:1551`), redraw/build flow (`rebuild_scene_if_needed` around `:1818`, `redraw` around `:2956`), immediate input/drag paths (`:2119-2363`), text-editing state (`:3229-3919`), and `ApplicationHandler` methods (`:4024-4478`).
+    - The paired test surface is also oversized: `vendor/radiant/src/gui_runtime/native_vello/tests.rs` is 2121 LOC.
+  - Recommended change: Split `native_vello.rs` into focused modules such as `runtime_state`, `startup`, `redraw_pipeline`, `immediate_input`, `text_input`, and `profiling`, then split the test file to match those seams.
+  - Risk/tradeoffs: High. This is performance-sensitive event-loop code, so extraction mistakes can regress input latency or redraw ordering.
+  - Suggested validation: `cargo nextest run --manifest-path vendor/radiant/Cargo.toml native_vello`, snapshot tests under `vendor/radiant`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
 
-- [x] 4) Expand file-op journal recovery coverage and document stage contracts
+- [ ] 2) Split native-shell interaction state and frame building by responsibility
+  - ROI/Effort: High / L
+  - Why it matters: native-shell state, hit testing, static-frame building, waveform overlay geometry, and render-time caches are spread across a small cluster of giant files, which raises review cost and makes behavior changes hard to localize.
+  - Evidence:
+    - `vendor/radiant/src/gui/native_shell/state.rs` is 3645 LOC.
+    - `vendor/radiant/src/gui/native_shell/state/frame_build.rs` is 2288 LOC, with one dominant builder entrypoint starting around `build_frame_with_style_into_with_motion_sinks` (`:18`).
+    - `vendor/radiant/src/gui/native_shell/state/waveform_segments.rs` is 1014 LOC and owns segment routing plus waveform overlay emission.
+    - `vendor/radiant/src/gui/native_shell/state/tests.rs` is 3651 LOC.
+  - Recommended change: Separate state/cache ownership, hit-testing, browser-row caching, static-frame composition, and waveform overlay rendering into smaller modules, and split the tests to sit beside the extracted behavior.
+  - Risk/tradeoffs: High. The payoff is large, but any extraction here can disturb hit-testing, animation, or retained-scene invalidation behavior.
+  - Suggested validation: `cargo nextest run --manifest-path vendor/radiant/Cargo.toml`, targeted snapshot suites, then `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
+
+- [ ] 3) Split `src/app/controller/playback/transport.rs` by interaction domain
   - ROI/Effort: High / M
-  - Why it matters: `file_ops_journal` is the durability boundary for crash recovery across source moves/copies; partial-stage mistakes can silently corrupt DB/file reconciliation.
+  - Why it matters: the main playback transport file is the densest controller SRP violation left in `src/`; it mixes unrelated waveform, loop, seek, playback-start, volume, and escape behavior in one place.
   - Evidence:
-    - `src/sample_sources/db/file_ops_journal.rs` is 793 LOC.
-    - The module exposes critical helpers and state transitions at `staged_relative_for_target` (`:190`), `insert_entry` (`:202`), `update_stage` (`:246`), `list_entries` (`:280`), and `reconcile_pending_ops` (`:436`).
-    - Only four local tests exist (`:624`, `:691`, `:745`, `:782`), mostly happy-path move/copy recovery plus malformed-row cleanup.
-    - There is no dedicated documentation in `docs/**` describing `Intent -> Staged -> TargetDb -> SourceDb` recovery semantics.
-  - Recommended change: Add a focused test matrix for same-source move, cross-source move, copy, `TargetDb`/`SourceDb` partial completion, and missing staged-file scenarios; add a short design note documenting stage invariants and rollback expectations.
-  - Risk/tradeoffs: Medium. Recovery tests touch real FS/SQLite state and can become brittle if setup is not explicit.
-  - Suggested validation: targeted journal tests, repeated runs for the new matrix, then `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
-  - Completed: 2026-03-09 (UTC) - `sempal` commit `2e3c35f2`
+    - `src/app/controller/playback/transport.rs` is 878 LOC.
+    - Selection/edit drag logic spans roughly `:19-184`.
+    - Loop-toggle state and loop playback policy span roughly `:192-394`.
+    - Seek/debounce behavior spans roughly `:395-456`.
+    - BPM snapping spans roughly `:457-592`.
+    - Playback start helpers span roughly `:593-670`.
+    - Volume persistence and escape handling span roughly `:671-763`.
+  - Recommended change: Extract focused modules such as `selection_drag`, `looping`, `seek`, `playback_start`, and `volume`, keeping the external controller surface stable.
+  - Risk/tradeoffs: Medium. Behavior should stay stable, but playback and selection edge cases need to stay covered during the split.
+  - Suggested validation: transport in-file tests, `src/app/controller/tests/playback_loop.rs`, `src/app/controller/tests/volume.rs`, `src/app/controller/tests/waveform_nav_cursor.rs`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-- [x] 5) Separate folder-delete recovery journal logic, recovery execution, and UI application; add a recovery matrix
-  - ROI/Effort: High / L
-  - Why it matters: Folder-delete recovery is safety-critical and currently hard to reason about because journal persistence, recovery policy, and controller/UI application live together.
-  - Evidence:
-    - `src/app/controller/library/source_folders/delete_recovery.rs` is 645 LOC.
-    - One module currently owns staging/journaling (`stage_folder_for_delete` at `:109`), rollback (`rollback_staged_folder` at `:154`), bulk recovery (`recover_staged_deletes` at `:176`), and controller/UI application (`AppController::apply_folder_delete_recovery_report` starting at `:209`).
-    - The file has only one local test (`:677`), which covers `unique_restore_path` but not journal stages or recovery outcomes.
-    - Aside from `docs/plans/active/cleanup_architecture_note.md`, there is no concrete doc describing delete journal stages or when restore vs finalize is expected.
-  - Recommended change: Split the module into focused journal/recovery/controller-apply pieces, add tests for `Intent`, `Staged`, `DbCommitted`, unjournaled staged folders, and restore collision handling, and document the recovery contract.
-  - Risk/tradeoffs: Medium-high. Any refactor here must preserve crash-recovery behavior exactly.
-  - Suggested validation: targeted delete-recovery tests, existing folder/file-op suites, then `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
-  - Completed: 2026-03-09 (UTC) - `sempal` commit `cbc3c480`
-
-- [x] 6) Refactor the source-move worker pipeline around explicit transactional stages and broaden failure-path tests
+- [ ] 4) Decompose the native bridge reducer and retained projection-cache surface into smaller modules
   - ROI/Effort: High / M
-  - Why it matters: Source moves mutate filesystem state, DB state, and journal state in one workflow; sparse test coverage leaves cancellation and partial-failure behavior under-specified.
+  - Why it matters: the retained projection bridge is now a core runtime subsystem, but action coalescing, invalidation policy, projection scheduling, and projection-key/materialization logic remain tightly coupled.
   - Evidence:
-    - `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs` is 672 LOC.
-    - The file mixes request collection, background execution, controller apply, and stage helpers in one module, with the main worker flow centered around `run_source_move_task`.
-    - Only two local tests exist (`:597` and `:654`), covering browser-row clearing and one progress-report case for a missing file.
-    - The module still relies on journal-backed recovery infrastructure via `crate::sample_sources::db::file_ops_journal`, but there are no direct tests for mid-transaction DB/fs failures or cancellation ordering.
-  - Recommended change: Split request prep, per-request transaction stages, and result application into separate helpers/modules; add tests for same-source no-op, target collision, DB write failure after stage, and cancellation after some requests complete.
-  - Risk/tradeoffs: Medium. Transaction order bugs can show up only in failure paths, so test setup must stay explicit.
-  - Suggested validation: targeted source-move tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
-  - Completed: 2026-03-09 (UTC) - `sempal` commit `9615c7fe`
+    - `src/app_core/native_bridge.rs` is 777 LOC.
+    - It mixes pending waveform action batching (`PendingWaveformActions` around `:100-283`), preparation/projection scheduling (`:308-380`), immediate action reduction (`:401-677`), and bridge trait wiring (`:698-803`).
+    - `src/app_core/native_bridge/projection_cache.rs` keeps a wide cache-key schema starting around `:74`, while the `projection_cache/` submodules still repeat per-segment materialization concerns.
+    - The test surface is already large: `src/app_core/native_bridge/tests.rs` is 1142 LOC.
+  - Recommended change: Split bridge reduction into explicit reducer/coalescer/invalidation/projection modules, and further narrow the projection-cache key/materialization helpers so segment refresh logic changes do not require touching multiple coupled files.
+  - Risk/tradeoffs: Medium-high. This code is hot-path infrastructure, so module moves need to preserve projection-key and invalidation semantics exactly.
+  - Suggested validation: targeted `app_core::native_bridge` tests, `cargo test --doc`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
 
-- [x] 7) Decompose the browser actions facade and tighten behavior tests around focus/selection invariants
-  - ROI/Effort: High / L
-  - Why it matters: Browser actions are central to daily UX; one wide controller facade makes it difficult to see which invariants are guaranteed by preview-vs-commit, anchor selection, and action-row logic.
+- [ ] 5) Further split native-shell projection, especially browser projection and retained row-window refresh
+  - ROI/Effort: High / M
+  - Why it matters: staged projection has improved, but browser projection still mixes row-windowing, cache refresh, preload decisions, and row materialization in one file, which keeps app-core/native-shell coupling higher than necessary.
   - Evidence:
-    - `src/app/controller/library/wavs/browser_actions.rs` is 725 LOC.
-    - The file mixes selected-path syncing, focus movement, view-window manipulation, range selection, prompt actions, and file/reveal helpers.
-    - There is good higher-level coverage in `src/app/controller/tests/browser_actions.rs` (23 tests), but the production module still bundles multiple unrelated responsibilities and lacks module-level documentation describing key invariants.
-  - Recommended change: Split the file into focused modules such as `focus_nav`, `selection_ranges`, and `row_actions`; add module docs for preview/commit semantics and keep the existing regression tests while adding anchor/autoscroll edge cases close to the extracted logic.
-  - Risk/tradeoffs: Medium. Call-site churn is broad, but behavior can remain stable if extracted behind the same controller surface.
-  - Suggested validation: browser action tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
-  - Completed: 2026-03-09 (UTC) - `sempal` commit `2163c6eb`
+    - `src/app_core/native_shell/browser_projection.rs` is 515 LOC.
+    - It mixes projection inputs (`:24-44`), frame metadata projection (`:47-81`), row-window materialization (`:84-186`), BPM preload logic (`:188-313`), and browser chrome projection (`:315-497`).
+    - `src/app_core/native_shell.rs` already treats projection as staged work around `:159`, `:175`, and `:191`, but the browser path still holds too many concerns in one module.
+  - Recommended change: Split browser projection into focused `frame`, `rows`, `preload`, and `chrome` modules, with helper tests close to the extracted row-window and preload logic.
+  - Risk/tradeoffs: Medium. The split is behavior-preserving if row ordering and preload windows remain identical, but browser regressions would be user-visible.
+  - Suggested validation: targeted `app_core::native_shell` tests, controller browser integration tests, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-- [x] 8) Add waveform load/cache lifecycle tests for cache hits, refresh reuse, and selection preservation
+- [ ] 6) Deduplicate fuzzy-search cache and scoring logic shared by synchronous and worker browser search paths
+  - ROI/Effort: High / M
+  - Why it matters: the current search stack duplicates cache reuse and fuzzy-score computation across two implementations, which raises correctness risk whenever scoring policy changes.
+  - Evidence:
+    - `src/app/controller/library/wavs/browser_search.rs` defines `QueryScoreCacheEntry`, bounded query-score caching, exact-hit promotion, prefix-cache reuse, and fuzzy scoring around `:15-59` and `:87-184`.
+    - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` duplicates the same concepts for the worker path around `:108-221`.
+  - Recommended change: Move shared query-cache and score-resolution primitives into one common module used by both immediate and worker search paths.
+  - Risk/tradeoffs: Medium. Search order and cache-hit behavior must remain stable across both paths.
+  - Suggested validation: `src/app/controller/tests/browser_core.rs`, new shared unit tests for exact-hit promotion and prefix reuse, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+- [ ] 7) Split `src/sample_sources/db/file_ops_journal.rs` into journal codec, persistence API, and reconciliation executor modules
+  - ROI/Effort: High / M
+  - Why it matters: this is crash-recovery code, so isolation and readability are higher-value than raw LOC; recovery semantics are still harder to reason about than they should be.
+  - Evidence:
+    - `src/sample_sources/db/file_ops_journal.rs` is 592 LOC even after the recent coverage/doc pass.
+    - The file still mixes entry types, SQL decoding, malformed-row handling, and reconciliation/finalize logic from `list_entries` (`:301`) through `reconcile_source_entry` (`:573`).
+  - Recommended change: Split the file into `entry`, `codec`, `store`, and `reconcile` modules while keeping the stage contract documented in `docs/file_ops_journal_recovery.md`.
+  - Risk/tradeoffs: Medium. Any split here must preserve startup recovery behavior and the current test matrix.
+  - Suggested validation: existing journal tests in `src/sample_sources/db/file_ops_journal/tests.rs` plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+- [ ] 8) Break waveform loading into load-request, finalize, and duration-metadata units and retire the legacy wide-argument shim
+  - ROI/Effort: High / M
+  - Why it matters: `waveform_loading.rs` still mixes cache lookups, decode/stretch work, UI apply logic, deferred metadata writeback, and a compatibility shim that keeps a too-wide signature alive.
+  - Evidence:
+    - `src/app/controller/library/wavs/waveform_loading.rs` is 630 LOC.
+    - `finish_waveform_load(...)` around `:175-194` still uses `#[allow(clippy::too_many_arguments)]`.
+    - Deferred metadata persistence is a separate dense block around `:374-499`.
+  - Recommended change: Split the file into `load_request`, `load_finalize`, and `duration_metadata` helpers, and migrate callers away from the legacy compatibility shim.
+  - Risk/tradeoffs: Medium. The split touches cache-hit and same-path refresh behavior, which must remain stable.
+  - Suggested validation: existing waveform load tests, `src/app/controller/tests/waveform_cache_loading.rs`, broader waveform controller tests, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+- [ ] 9) Decompose destructive selection-edit workflows into focused application services
+  - ROI/Effort: High / M
+  - Why it matters: selection-edit code still bundles preview math, file writes, DB updates, cache refreshes, undo capture, playback carry-over, and UI/status mutations in one module.
+  - Evidence:
+    - `src/app/controller/library/selection_edits/mod.rs` is 507 LOC.
+    - `crop_waveform_selection_to_new_sample` spans roughly `:148-248` and mixes buffer mutation, fade handling, file output, DB updates, cache/index refresh, undo capture, playback continuation, and status reporting.
+  - Recommended change: Extract a focused “write edited clip” service and keep controller/UI follow-up behavior in thinner orchestration methods.
+  - Risk/tradeoffs: Medium. This path mutates both files and DB state, so test coverage has to expand before moving code aggressively.
+  - Suggested validation: extend `src/app/controller/tests/waveform.rs` for crop-to-new-sample and playback-continuation branches, then run `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+- [ ] 10) Remove duplicated `wav_files` row mapping and upsert SQL in the source DB layer
+  - ROI/Effort: High / M
+  - Why it matters: persistence fixes currently require editing several near-identical SQL and row-mapping blocks, which increases regression risk for DB schema work.
+  - Evidence:
+    - `src/sample_sources/db/read.rs` repeats `WavEntry` row decoding in at least three places (`:31`, `:70`, `:230`).
+    - `src/sample_sources/db/write.rs` repeats near-identical `INSERT INTO wav_files ... ON CONFLICT` statements at `:25`, `:162`, `:198`, `:236`, and `:278`.
+  - Recommended change: Centralize `wav_files` row decoding and introduce a shared upsert builder/helper for the write paths.
+  - Risk/tradeoffs: Medium. SQL refactors can accidentally change null/default handling if the shared helper is too clever.
+  - Suggested validation: `tests/unit/source_db_mod_tests.rs`, DB-layer unit tests under `src/sample_sources/db`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+- [ ] 11) Isolate clipboard import into an explicit workflow/state machine and add failure-path coverage
+  - ROI/Effort: Medium-High / M
+  - Why it matters: clipboard import performs real filesystem mutations and journal bookkeeping, but most failure branches still live inside one wide function with limited focused coverage.
+  - Evidence:
+    - `src/app/controller/ui/clipboard_paste.rs` is 475 LOC.
+    - `run_clipboard_paste_job` spans roughly `:239-449` and owns validation, duplicate naming, staging, copy, DB writes, finalize rename, cleanup, progress updates, and error accumulation.
+    - Existing tests are light compared with the mutation surface.
+  - Recommended change: Extract a staged workflow runner with explicit stage/result types so failure-path behavior can be unit-tested without full controller setup.
+  - Risk/tradeoffs: Medium. This touches journal-backed file operations, so the split should prioritize observability over clever abstractions.
+  - Suggested validation: existing clipboard/external drop tests, new failure-path unit tests, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+- [ ] 12) Separate map UI commands from UMAP query/repository code
   - ROI/Effort: Medium / M
-  - Why it matters: Waveform loading affects perceived responsiveness and view stability; subtle regressions here are easy to miss because the module couples cache use, selection preservation, transient extraction, and deferred metadata writes.
+  - Why it matters: map controller intent and raw SQL/query code are coupled in one file, which makes the map path harder to test and obscures the intended ownership boundary.
   - Evidence:
-    - `src/app/controller/library/wavs/waveform_loading.rs` is 621 LOC.
-    - Critical lifecycle entrypoints include `load_waveform_for_selection` (`:37`) and `finish_waveform_load_shared` (`:120`).
-    - The file’s local tests only cover deferred metadata persistence deadlines (`:609` and `:636`).
-    - Existing broader waveform controller tests in `src/app/controller/tests/waveform.rs` cover many edit/view behaviors, but not the cache-hit and refresh-preserve paths specific to `waveform_loading.rs`.
-  - Recommended change: Add focused tests for cache-hit reuse, refresh-with-same-selection preservation, missing-file recovery after cached state exists, and transient/cache persistence interactions; add short docs on what “refresh” vs “selection load” guarantees.
-  - Risk/tradeoffs: Medium. Test support may need more seam helpers to observe cache state without coupling to implementation details.
-  - Suggested validation: targeted waveform-loading tests, broader waveform controller tests, then `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
-  - Completed: 2026-03-09 (UTC) - `sempal` commit `b279884c`
+    - `src/app/controller/ui/map_view.rs` is 460 LOC.
+    - UI/controller commands are at the top (`set_browser_tab`, `focus_map_sample_and_preview`).
+    - Connection caching and raw loaders live lower in the same file: `open_source_db` (`:205`), `load_umap_bounds` (`:247`), `load_umap_points` (`:304`), `load_umap_point_for_sample` (`:385`), and `load_umap_cluster_centroids` (`:407`).
+  - Recommended change: Move DB/query functions into a dedicated map repository module and keep `map_view.rs` as controller-facing orchestration only.
+  - Risk/tradeoffs: Medium. Query extraction is straightforward, but test fixtures will need to move with the new repository boundary.
+  - Suggested validation: `src/app/controller/tests/map_view.rs`, new query-layer tests, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-- [x] 9) Document native-bridge projection cache, invalidation, and profiling contracts
+- [ ] 13) Split the updater-helper and installer UI bridges into reducer, background-task, and model-projection modules
+  - ROI/Effort: Medium / M
+  - Why it matters: both workspace app UIs are effectively small state machines, but their async polling, reducer logic, and model composition are still concentrated in single files with very light direct coverage.
+  - Evidence:
+    - `apps/updater-helper/src/ui.rs` is 530 LOC; `UpdateNativeBridge` owns release fetching, apply orchestration, log buffering, selection state, app model construction, and action reduction. The file only has two tests starting around `:517`.
+    - `apps/installer/src/ui.rs` is 461 LOC; `InstallerNativeBridge` owns wizard navigation, worker polling, finish actions, icon loading, and model rendering. The file only has one direct test starting around `:481`.
+  - Recommended change: Split each UI into `state`, `background`, and `view_model` modules, then add reducer-style tests for success, failure, retry, and tab/step transitions.
+  - Risk/tradeoffs: Medium. These are smaller apps, but mistakes here show up directly in install/update flows.
+  - Suggested validation: app-local unit tests for both workspace apps, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+- [ ] 14) Prune or explicitly justify remaining `#[allow(dead_code)]` suppressions in controller and integration code
   - ROI/Effort: Medium / S
-  - Why it matters: The native bridge is now a critical retained-model subsystem; code and tests are extensive, but the design contract is mostly implicit, which raises change risk for future cleanup or perf work.
+  - Why it matters: the remaining suppressions blur the line between intentional compatibility seams and abandoned API surface, which weakens future cleanup signals.
   - Evidence:
-    - `src/app_core/native_bridge.rs` is 778 LOC, `src/app_core/native_bridge/projection_cache.rs` is 240+ LOC, `src/app_core/native_bridge/metrics.rs` is 863 LOC, and `src/app_core/native_bridge/tests.rs` is 1140 LOC.
-    - The code defines important concepts such as `PendingWaveformActions` in `src/app_core/native_bridge.rs`, per-segment cache keys in `src/app_core/native_bridge/projection_cache.rs`, and multiple env-gated profiling/assertion modes in `src/app_core/native_bridge/metrics.rs`.
-    - `docs/ARCHITECTURE.md` only provides an ownership-level note for `src/app_core`; there is no dedicated doc explaining retained projection segments, invalidation policy, or when bridge metrics/assertions should be used.
-  - Recommended change: Add a dedicated developer note describing segment keys, invalidation boundaries, local-only pull fast paths, and profiling/assertion env vars; link it from `docs/README.md` and keep it synchronized with the existing test surface.
-  - Risk/tradeoffs: Low. Docs-only, but the content must stay close to code reality.
-  - Suggested validation: docs link checks plus a focused `cargo test -p sempal app_core::native_bridge` run and `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
-  - Completed: 2026-03-09 (UTC) - `sempal` commit `38ea54c5`
-
-- [x] 10) Standardize controller/worker error logging by replacing non-entrypoint `eprintln!` calls with structured tracing
-  - ROI/Effort: Medium / M
-  - Why it matters: Mixed stderr logging is inconsistent with the rest of the tracing-based diagnostics surface and makes error triage harder in production and automated runs.
-  - Evidence:
-    - Direct stderr logging remains in controller/worker paths such as:
-      - `src/app/controller/library/analysis_jobs/pool/job_claim/db.rs:35`
-      - `src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs:105`
-      - `src/app/controller/library/source_folders/delete_recovery.rs:308`
-      - `src/app/controller/library/trash.rs:189`
-      - `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs:226`
-      - `src/app/controller/ui/file_ops.rs:97`
-      - `src/app_core/native_bridge.rs:807`
-    - Some of these are long-running worker loops or recovery paths where structured context would be more useful than raw stderr lines.
-  - Recommended change: Replace internal `eprintln!` calls with `tracing::{info,warn,error}` and preserve plain stderr only at binary entrypoints/tools where immediate CLI output is intended.
-  - Risk/tradeoffs: Medium. Log volume/levels may need tuning to avoid noisy hot paths.
-  - Suggested validation: `git grep -n "eprintln!" -- src/app src/app_core` should only match intentional entrypoint-adjacent cases, then run `cargo clippy --workspace --all-targets` and `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
-  - Completed: 2026-03-09 (UTC) - `sempal` commit `fa1727c5`
-
-- [x] 11) Retire remaining app-core wide-signature and type-complexity suppressions with typed parameter objects
-  - ROI/Effort: Medium / M
-  - Why it matters: The remaining suppressions mark exactly the places where signatures and tuple-shaped return values are obscuring ownership and responsibility boundaries.
-  - Evidence:
-    - File-level suppressions remain in:
-      - `src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs:1`
-      - `src/app/controller/library/analysis_jobs/pool/job_claim/db.rs:1`
-      - `src/app/controller/library/selection_edits/ops.rs:1`
-      - `src/app/controller/library/selection_export.rs:1`
-      - `src/app/controller/library/source_cache_invalidator.rs:1`
-      - `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs:1`
-      - `src/audio/output.rs:1`
-      - `src/waveform/render.rs:1`
-    - Several of these areas also appear in the size audit, which suggests the suppressions are masking real decomposition opportunities rather than one-off unavoidable signatures.
-  - Recommended change: Introduce typed request/context structs or named result structs incrementally, starting with the highest-churn paths, and remove the suppressions as each area becomes explicit.
-  - Risk/tradeoffs: Medium. Signature cleanup ripples across call sites and should be done in small batches.
-  - Suggested validation: targeted module tests, `cargo clippy --workspace --all-targets`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
-  - Completed: 2026-03-09 (UTC) - `sempal` commit `f3fa9b8b`
-
-- [x] 12) Refresh stale architecture/tooling docs after the workspace split
-  - ROI/Effort: Medium / S
-  - Why it matters: The docs are now partially inconsistent with the actual package layout, which makes onboarding and future cleanup decisions harder.
-  - Evidence:
-    - `docs/ARCHITECTURE.md:29-30` still points to `src/bin/sempal-updater` and `src/bin/sempal-installer`, but those binaries now live under `apps/updater-helper` and `apps/installer`.
-    - `docs/file_size_budget_allowlist.txt:52-53` still references the pre-workspace tool paths.
-    - The root `README.md` build instructions still default to shipping-profile `cargo run --release`, while the local iteration path now also includes `cargo run-fast` in `docs/build_speed.md`.
-  - Recommended change: Refresh the architecture/build docs to reflect the workspace members and local fast-run lane, and clean stale tool paths from supporting docs/allowlists.
-  - Risk/tradeoffs: Low. Documentation/tooling metadata only.
-  - Suggested validation: docs/link checks plus `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
-  - Completed: 2026-03-09 (UTC) - `sempal` commit `73d5f860`
+    - Controller-area suppressions remain in `src/app/controller/library/source_folders/selection/filter.rs:34`, `src/app/controller/library/source_folders/selection/ops.rs:232`, `src/app/controller/state/cache.rs:86`, `src/app/controller/library/analysis_jobs/db/artifacts.rs:12`, and `src/app/controller/jobs/messages.rs:162`/`:171`.
+    - Persistence/integration suppressions also remain in `src/sample_sources/scanner/scan/runner.rs:68`, `src/updater/github.rs:29`, and `apps/installer/src/install.rs:17`/`:21`/`:23`.
+  - Recommended change: remove unused helpers/fields where possible, move test-only helpers behind `#[cfg(test)]`, and add short rationale comments only for truly intentional dormant compatibility seams.
+  - Risk/tradeoffs: Low-medium. The change is small, but some suppressed fields may still be serving serialization or compatibility roles that need to stay explicit.
+  - Suggested validation: `cargo clippy --workspace --all-targets` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
 ## Progress Log
 
-- 2026-03-04: Phase 1 cleanup backlog first refreshed from current code state; waiting for explicit user confirmation before Phase 2.
-- 2026-03-04: Completed item 1 (stale/under-budget allowlist entries removed; file-size guardrails cleaned).
-- 2026-03-04: Completed item 2 (folder-move DB-failure test now uses explicit synchronization instead of timing sleeps).
-- 2026-03-06: Completed item 3 (background-job polling split into focused modules; added stale-message and progress/state behavior tests).
-- 2026-03-09: Cleanup backlog re-audited after the workspace split, native-bridge perf work, and recent ASIO/build-speed changes; pending items re-ranked for current ROI.
-- 2026-03-09: Completed item 4 (expanded file-op journal recovery matrix, documented stage contracts, and cleared prerequisite CI blockers so `scripts/ci_local.ps1` is green again).
-- 2026-03-09: Completed item 5 (split folder-delete recovery into journal/recovery/controller-apply modules, added stage-matrix coverage, and documented the restore/finalize contract).
-- 2026-03-09: Completed item 6 (split the source-move flow into plan, registration, result-application, and transactional worker modules; added collision, rollback, and cancellation-path tests).
-- 2026-03-09: Completed item 7 (split browser actions into focus-navigation, selection, and row-action modules; added local anchor/autoscroll invariant coverage).
-- 2026-03-09: Completed item 8 (added waveform cache/refresh lifecycle coverage for same-path refresh reuse and cache-backed reloads, plus explicit load-vs-refresh docs).
-- 2026-03-09: Completed item 9 (documented retained projection segments, invalidation boundaries, and native-bridge profiling/assertion contracts in a dedicated developer note).
-- 2026-03-09: Completed item 10 (replaced non-entrypoint controller/native-bridge stderr logging with structured tracing while preserving opt-in analysis job telemetry gates).
-- 2026-03-09: Completed item 11 (replaced the remaining wide-signature suppression sites with typed worker/export/render request contexts, split selection-export recording into focused modules, and cleared `scripts/ci_local.ps1`).
-- 2026-03-09: Completed item 12 (updated architecture/build docs and file-size allowlist paths to match the workspace package split and local `cargo run-fast` loop).
+- 2026-03-09: Phase 1 cleanup audit refreshed from the current workspace state; no Phase 2 implementation has started.
+- 2026-03-09: Read repository guidance first (`AGENTS.md`, `README.md`, `docs/README.md`, active plans, and `MEMORY.md`) before the audit.
+- 2026-03-09: Detected a Rust 2024 Cargo workspace with `vendor/radiant` as the primary runtime/UI hotspot and `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` as the canonical local CI parity command on this machine.
