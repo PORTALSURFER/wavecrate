@@ -115,3 +115,54 @@ fn taking_out_trash_deletes_files() {
     let remaining: Vec<_> = std::fs::read_dir(&trash_root).unwrap().collect();
     assert!(remaining.is_empty());
 }
+
+#[test]
+fn over_trashing_sample_moves_it_to_configured_trash_folder() {
+    let temp = tempdir().unwrap();
+    let trash_root = temp.path().join("trash");
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.settings.trash_folder = Some(trash_root.clone());
+    controller.ui.trash_folder = Some(trash_root.clone());
+
+    let trash_file = source.root.join("trash.wav");
+    let keep_file = source.root.join("keep.wav");
+    write_test_wav(&trash_file, &[0.1, -0.1]);
+    write_test_wav(&keep_file, &[0.2, -0.2]);
+
+    let db = controller.database_for(&source).unwrap();
+    db.upsert_file(Path::new("trash.wav"), 4, 1).unwrap();
+    db.upsert_file(Path::new("keep.wav"), 4, 1).unwrap();
+    db.set_tag(
+        Path::new("trash.wav"),
+        crate::sample_sources::Rating::TRASH_3,
+    )
+    .unwrap();
+    db.set_tag(Path::new("keep.wav"), crate::sample_sources::Rating::KEEP_1)
+        .unwrap();
+
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("trash.wav", crate::sample_sources::Rating::TRASH_3),
+        sample_entry("keep.wav", crate::sample_sources::Rating::KEEP_1),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.focus_browser_row_only(0);
+
+    controller.adjust_selected_rating(-1);
+
+    assert!(trash_root.join("trash.wav").is_file());
+    assert!(!source.root.join("trash.wav").exists());
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("keep.wav"))
+    );
+    assert_eq!(controller.ui.browser.selected_visible, Some(0));
+    let rows = controller
+        .database_for(&source)
+        .unwrap()
+        .list_files()
+        .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].relative_path, PathBuf::from("keep.wav"));
+}

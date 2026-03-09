@@ -4,10 +4,37 @@ fn should_advance_after_rating(
     controller: &mut AppController,
     primary_row: usize,
     refocus_path: Option<&Path>,
+    changed: bool,
 ) -> bool {
-    controller.settings.controls.advance_after_rating
+    changed
+        && controller.settings.controls.advance_after_rating
         && controller.ui.browser.selected_visible == Some(primary_row)
         && refocus_path.and_then(|path| controller.visible_row_for_path(path)) == Some(primary_row)
+}
+
+fn next_focus_path_for_removed_rows(
+    controller: &mut AppController,
+    rows: &[usize],
+) -> Option<PathBuf> {
+    let mut sorted_rows = rows.to_vec();
+    sorted_rows.sort_unstable();
+    sorted_rows.dedup();
+    let first = *sorted_rows.first()?;
+    let last = *sorted_rows.last()?;
+    let after = last
+        .checked_add(1)
+        .filter(|idx| *idx < controller.ui.browser.visible.len())
+        .and_then(|idx| controller.ui.browser.visible.get(idx))
+        .and_then(|entry_idx| controller.wav_entry(entry_idx))
+        .map(|entry| entry.relative_path.clone());
+    if after.is_some() {
+        return after;
+    }
+    first
+        .checked_sub(1)
+        .and_then(|idx| controller.ui.browser.visible.get(idx))
+        .and_then(|entry_idx| controller.wav_entry(entry_idx))
+        .map(|entry| entry.relative_path.clone())
 }
 
 pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample_sources::Rating) {
@@ -57,7 +84,8 @@ pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample
             Err(err) => last_error = Some(err),
         }
     }
-    if !applied.is_empty() {
+    let tagged_any = !applied.is_empty();
+    if tagged_any {
         let label = if target == crate::sample_sources::Rating::KEEP_1 {
             "Tag keep"
         } else if target == crate::sample_sources::Rating::TRASH_3 {
@@ -112,7 +140,7 @@ pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample
         controller.set_status(err, StatusTone::Error);
     }
 
-    if should_advance_after_rating(controller, primary_row, refocus_path.as_deref()) {
+    if should_advance_after_rating(controller, primary_row, refocus_path.as_deref(), tagged_any) {
         if controller.random_navigation_mode_enabled() {
             controller.focus_random_visible_sample();
         } else {
@@ -160,6 +188,8 @@ pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) 
     controller.focus_browser_context();
     controller.ui.browser.autoscroll = true;
     let mut last_error = None;
+    let mut auto_trash_samples: Vec<(SampleSource, WavEntry)> = Vec::new();
+    let mut auto_trash_rows = Vec::new();
 
     // Use a HashMap to store previous values to allow per-item untagging if needed
     // However, the standard pattern in tagging.rs is to store (SourceId, Path, Rating).
@@ -181,6 +211,13 @@ pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) 
 
     for ctx in contexts {
         let current_rating = ctx.entry.tag;
+        if current_rating == crate::sample_sources::Rating::TRASH_3 && delta < 0 {
+            if let Some(row) = controller.visible_row_for_path(&ctx.entry.relative_path) {
+                auto_trash_rows.push(row);
+            }
+            auto_trash_samples.push((ctx.source.clone(), ctx.entry.clone()));
+            continue;
+        }
         let mut new_val = current_rating.val() + delta;
 
         // If we were rated and hit 0, skip it
@@ -264,12 +301,23 @@ pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) 
             },
         ));
     }
+    let auto_trashed = if auto_trash_samples.is_empty() {
+        false
+    } else {
+        let next_focus = next_focus_path_for_removed_rows(controller, &auto_trash_rows);
+        controller.move_samples_to_configured_trash(auto_trash_samples, next_focus)
+    };
     controller.refocus_after_filtered_removal(primary_row);
     if let Some(err) = last_error {
         controller.set_status(err, StatusTone::Error);
     }
 
-    if should_advance_after_rating(controller, primary_row, refocus_path.as_deref()) {
+    if should_advance_after_rating(
+        controller,
+        primary_row,
+        refocus_path.as_deref(),
+        !applied_updates.is_empty() || auto_trashed,
+    ) {
         if controller.random_navigation_mode_enabled() {
             controller.focus_random_visible_sample();
         } else {
