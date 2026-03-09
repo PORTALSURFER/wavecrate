@@ -61,17 +61,20 @@ if (( SKIP_AGENT_PREFLIGHT == 0 )); then
   fi
 fi
 
-echo "[ci_local] cargo clippy --all-targets"
-cargo clippy --all-targets
+echo "[ci_local] cargo clippy -p sempal --lib --bins --tests --no-deps"
+cargo clippy -p sempal --lib --bins --tests --no-deps
+
+echo "[ci_local] cargo clippy -p sempal-bench-cli --bins --no-deps"
+cargo clippy -p sempal-bench-cli --bins --no-deps
 
 echo "[ci_local] cargo doc -p sempal --no-deps (RUSTDOCFLAGS=-D warnings)"
 RUSTDOCFLAGS="-D warnings" cargo doc -p sempal --no-deps
 
-echo "[ci_local] cargo nextest run --all-targets --no-fail-fast"
-cargo nextest run --all-targets --no-fail-fast
+echo "[ci_local] cargo nextest run --workspace --all-targets --no-fail-fast"
+cargo nextest run --workspace --all-targets --no-fail-fast
 
-echo "[ci_local] cargo test --doc"
-cargo test --doc
+echo "[ci_local] cargo test --workspace --doc"
+cargo test --workspace --doc
 
 echo "[ci_local] scripts/run_perf_guard.sh"
 ./scripts/run_perf_guard.sh

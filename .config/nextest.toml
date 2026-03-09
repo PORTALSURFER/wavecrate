@@ -9,7 +9,6 @@ default-filter = '''
 not binary_id(=sempal::bench/ann_index)
 and not binary_id(=sempal::bench/tagging)
 and not binary_id(=sempal::bin/sempal)
-and not binary_id(=sempal::bin/sempal-bench)
 and not binary_id(=sempal::bin/sempal-installer)
 and not binary_id(=sempal::bin/sempal-updater)
 and not test(=app::controller::ui::drag_drop_controller::drag_effects::folder_moves::tests::folder_sample_move_db_write_failure_rolls_back_source_and_keeps_journal_for_recovery)

@@ -39,7 +39,7 @@ while (( $# > 0 )); do
   esac
 done
 
-echo "[ci_quick] cargo nextest run --profile quick --lib --tests"
-cargo nextest run --profile quick --lib --tests
+echo "[ci_quick] cargo nextest run -p sempal --profile quick --lib --tests"
+cargo nextest run -p sempal --profile quick --lib --tests
 
 echo "[ci_quick] OK"

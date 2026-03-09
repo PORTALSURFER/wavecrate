@@ -6,9 +6,9 @@ $ErrorActionPreference = "Stop"
 Runs the local runtime performance guard on Windows.
 
 .DESCRIPTION
-Executes the GUI-focused `sempal-bench` profile with the same benchmark inputs
-used by local CI, then validates the generated JSON report against the
-repository's warning and fail thresholds.
+Executes the GUI-focused `sempal-bench` workspace package with the same
+benchmark inputs used by local CI, then validates the generated JSON report
+against the repository's warning and fail thresholds.
 
 Warning thresholds are non-blocking and are emitted as log lines. Explicit fail
 thresholds remain blocking so the CI wrapper can stop on hard regressions.
@@ -207,7 +207,7 @@ function Invoke-PerfBenchRun {
     [int]$MeasureIters
   )
 
-  cargo run --bin sempal-bench -- `
+  cargo run -p sempal-bench-cli --bin sempal-bench -- `
     --out $OutputPath `
     --no-analysis `
     --no-similarity `

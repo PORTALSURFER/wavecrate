@@ -191,7 +191,8 @@ Output path used by `scripts/run_perf_guard.sh` for the benchmark JSON report.
 Default: `target/perf/bench.json`.
 
 - `SEMPAL_PERF_GUARD_GUI_ROWS`
-Synthetic GUI row count passed to `sempal-bench` for the guard run.
+Synthetic GUI row count passed to the `sempal-bench` benchmark CLI for the
+guard run.
 Default: `2500`.
 
 - `SEMPAL_PERF_GUARD_GUI_INTERACTION_ROWS`
@@ -211,9 +212,9 @@ Measured iteration count used for each guard benchmark action.
 Default: `16`.
 
 - `SEMPAL_PERF_GUARD_RUNS`
-Number of full `sempal-bench` runs executed by `scripts/run_perf_guard.sh`.
-When greater than `1`, the guard reports median percentiles across runs and the
-p95 spread across runs. Default: `1`.
+Number of full `sempal-bench` benchmark CLI runs executed by
+`scripts/run_perf_guard.sh`. When greater than `1`, the guard reports median
+percentiles across runs and the p95 spread across runs. Default: `1`.
 
 - `SEMPAL_PERF_GUARD_STARTUP_PROFILE`
 When set to `1`/`true`/`on`/`yes`, `scripts/run_perf_guard.sh` also captures

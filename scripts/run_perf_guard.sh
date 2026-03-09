@@ -125,7 +125,7 @@ for run in $(seq 1 "$RUNS"); do
   fi
   REPORT_PATHS+=("$run_out")
   echo "[perf_guard] running sempal-bench interaction profile (run ${run}/${RUNS})"
-  "$CARGO_BIN" run --bin sempal-bench -- \
+  "$CARGO_BIN" run -p sempal-bench-cli --bin sempal-bench -- \
     --out "$run_out" \
     --no-analysis \
     --no-similarity \

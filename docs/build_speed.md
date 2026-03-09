@@ -5,22 +5,26 @@ steps that should reduce Cargo fan-out in a measurable way.
 
 ## Current Shape
 
-The root package in [Cargo.toml](/C:/dev/sempal/Cargo.toml) is still one large
-crate named `sempal`. A normal library edit can fan out into:
+The root package in [Cargo.toml](/C:/dev/sempal/Cargo.toml) is now the workspace
+root and still owns the shipping app crate named `sempal`. A normal library
+edit can still fan out into:
 
 - main app binary: [main.rs](/C:/dev/sempal/src/main.rs)
-- grouped bin packages under [`src/bin/bench`](/C:/dev/sempal/src/bin/bench),
-  [`src/bin/sempal-installer`](/C:/dev/sempal/src/bin/sempal-installer), and
+- grouped bin packages under [`src/bin/sempal-installer`](/C:/dev/sempal/src/bin/sempal-installer) and
   [`src/bin/sempal-updater`](/C:/dev/sempal/src/bin/sempal-updater)
 - standalone bin targets in [`src/bin`](/C:/dev/sempal/src/bin):
   - `sempal-ann-rebuild.rs`
-  - `sempal-bench.rs`
   - `sempal-db-inspect.rs`
   - `sempal-hdbscan.rs`
   - `sempal-similarity-prep.rs`
   - `sempal-umap.rs`
   - `sempal-updater.rs`
 - library tests and integration-style test targets
+
+The first package split is complete:
+
+- benchmark tooling now lives in [`tools/bench-cli`](/C:/dev/sempal/tools/bench-cli)
+- the root app package no longer owns the `sempal-bench` binary target
 
 On 2026-03-08, a warm `cargo check --tests --bins --timings` run still took
 about two minutes. The expensive part was not dependency compilation. It was
@@ -37,11 +41,11 @@ Use the narrowest check that still covers the code you touched:
 - Required smoke gate:
   - `bash scripts/devcheck.sh`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - Runs `cargo check --tests --bins`
+  - Runs `cargo check -p sempal --tests --bins`
 - Fast test gate:
   - `bash scripts/ci_quick.sh`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-  - Runs `cargo nextest run --profile quick --lib --tests`
+  - Runs `cargo nextest run -p sempal --profile quick --lib --tests`
 
 Recommended command matrix:
 
@@ -52,7 +56,7 @@ Recommended command matrix:
   - start with targeted `cargo test --lib <name>`
   - then `devcheck`
 - Support-tool bin changes:
-  - run `cargo check --bin <target>`
+  - run `cargo check -p <package> --bin <target>`
   - then `devcheck`
 - Broader refactors, dependency work, build-system edits:
   - go straight to `ci_quick`
@@ -117,7 +121,7 @@ Create workspace members with the same CLI names but separate packages:
   - owns `sempal-similarity-prep`
 - `tools/bench-cli`
   - owns `sempal-bench`
-  - owns the code now grouped under [`src/bin/bench`](/C:/dev/sempal/src/bin/bench)
+  - complete on 2026-03-09 at [`tools/bench-cli`](/C:/dev/sempal/tools/bench-cli)
 - `apps/updater-helper`
   - owns `sempal-updater`
   - owns the code now grouped under
@@ -174,15 +178,14 @@ coordination cost before the high-ROI package split is complete.
 
 Move one tool package at a time:
 
-1. `tools/bench-cli`
-2. `tools/similarity-prep`
-3. `tools/analysis-admin`
-4. `apps/updater-helper`
-5. `apps/installer`
+1. `tools/similarity-prep`
+2. `tools/analysis-admin`
+3. `apps/updater-helper`
+4. `apps/installer`
 
 That order is deliberate:
 
-- bench and similarity prep are lower-risk than installer/runtime helpers
+- similarity prep is lower-risk than installer/runtime helpers
 - updater and installer are more likely to touch app-adjacent integration code
 
 ### Step 3: Update Local Scripts
@@ -236,6 +239,6 @@ These should not be bundled into the first build-speed pass:
 If the next task is implementation rather than more planning, start with:
 
 1. add `[workspace]` while keeping the current app package name and binary name stable
-2. extract `tools/bench-cli` first
+2. extract `tools/similarity-prep` next
 3. rerun timings
 4. continue only if the numbers justify the next package move

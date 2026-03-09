@@ -42,7 +42,7 @@ def parse_args() -> argparse.Namespace:
     """Parse command-line arguments for frame-quality threshold lock output."""
     parser = argparse.ArgumentParser(
         description=(
-            "Read sempal-bench GUI reports and write frame-quality threshold env assignments."
+            "Read sempal benchmark CLI GUI reports and write frame-quality threshold env assignments."
         )
     )
     parser.add_argument(
@@ -59,7 +59,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "reports",
         nargs="+",
-        help="One or more sempal-bench JSON report paths.",
+        help="One or more sempal benchmark CLI JSON report paths.",
     )
     return parser.parse_args()
 

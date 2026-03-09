@@ -23,8 +23,10 @@ src/app/controller/library/source_folders/tree.rs
 src/app/controller/library/sources.rs
 src/app/controller/library/wavs/browser_actions.rs
 src/app/controller/library/background_jobs/polling.rs
+src/app/controller/library/wavs/browser_lists.rs
 src/app/controller/library/wavs/similar/resolve.rs
 src/app/controller/library/wavs/browser_search.rs
+src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs
 src/app/controller/library/wavs/waveform_loading.rs
 src/app/controller/playback/audio_options.rs
 src/app/controller/playback/loop_crossfade.rs
@@ -44,8 +46,10 @@ src/app/controller/ui/hotkeys_controller/waveform.rs
 src/app/controller/ui/map_view.rs
 src/app_core/native_bridge.rs
 src/app_core/native_bridge/metrics.rs
+src/app_core/native_bridge/projection_cache.rs
 src/app_core/native_bridge/tests.rs
 src/app_core/native_shell.rs
+src/app_core/native_shell/browser_projection.rs
 src/app_core/native_shell/tests.rs
 src/audio/output.rs
 src/audio/source.rs

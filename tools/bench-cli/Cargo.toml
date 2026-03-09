@@ -1,0 +1,22 @@
+[package]
+name = "sempal-bench-cli"
+version = "19.0.0"
+edition = "2024"
+
+[lints.rust]
+warnings = "deny"
+missing_docs = "deny"
+
+[dependencies]
+sempal = { path = "../.." }
+hound = "3.5.1"
+rand = "0.9.2"
+rusqlite = { version = "0.37.0", features = ["bundled", "load_extension"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+sysinfo = "0.37.2"
+tempfile = "3.23.0"
+
+[[bin]]
+name = "sempal-bench"
+path = "src/main.rs"

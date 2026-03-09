@@ -44,9 +44,9 @@ function Invoke-NativeStep {
 Push-Location $rootDir
 try {
   Enable-SempalCargoCache
-  Write-Host "[devcheck] cargo check --tests --bins"
-  Invoke-NativeStep -Label "cargo check --tests --bins" -Command {
-    cargo check --tests --bins
+  Write-Host "[devcheck] cargo check -p sempal --tests --bins"
+  Invoke-NativeStep -Label "cargo check -p sempal --tests --bins" -Command {
+    cargo check -p sempal --tests --bins
   }
 
   Write-Host "[devcheck] OK"

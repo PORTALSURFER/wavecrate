@@ -37,7 +37,7 @@ while (( $# > 0 )); do
   esac
 done
 
-echo "[devcheck] cargo check --tests --bins"
-cargo check --tests --bins
+echo "[devcheck] cargo check -p sempal --tests --bins"
+cargo check -p sempal --tests --bins
 
 echo "[devcheck] OK"

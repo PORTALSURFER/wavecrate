@@ -52,8 +52,15 @@ try {
     & (Join-Path $rootDir "scripts/run_agent_ci_checks.ps1")
   }
 
-  Write-Host "[ci_local] cargo clippy --all-targets"
-  Invoke-NativeStep -Label "cargo clippy --all-targets" -Command { cargo clippy --all-targets }
+  Write-Host "[ci_local] cargo clippy -p sempal --lib --bins --tests --no-deps"
+  Invoke-NativeStep -Label "cargo clippy -p sempal --lib --bins --tests --no-deps" -Command {
+    cargo clippy -p sempal --lib --bins --tests --no-deps
+  }
+
+  Write-Host "[ci_local] cargo clippy -p sempal-bench-cli --bins --no-deps"
+  Invoke-NativeStep -Label "cargo clippy -p sempal-bench-cli --bins --no-deps" -Command {
+    cargo clippy -p sempal-bench-cli --bins --no-deps
+  }
 
   Write-Host "[ci_local] cargo doc -p sempal --no-deps (RUSTDOCFLAGS=-D warnings)"
   $prevRustdocFlags = $env:RUSTDOCFLAGS
@@ -68,13 +75,15 @@ try {
     }
   }
 
-  Write-Host "[ci_local] cargo nextest run --all-targets --no-fail-fast"
-  Invoke-NativeStep -Label "cargo nextest run --all-targets --no-fail-fast" -Command {
-    cargo nextest run --all-targets --no-fail-fast
+  Write-Host "[ci_local] cargo nextest run --workspace --all-targets --no-fail-fast"
+  Invoke-NativeStep -Label "cargo nextest run --workspace --all-targets --no-fail-fast" -Command {
+    cargo nextest run --workspace --all-targets --no-fail-fast
   }
 
-  Write-Host "[ci_local] cargo test --doc"
-  Invoke-NativeStep -Label "cargo test --doc" -Command { cargo test --doc }
+  Write-Host "[ci_local] cargo test --workspace --doc"
+  Invoke-NativeStep -Label "cargo test --workspace --doc" -Command {
+    cargo test --workspace --doc
+  }
 
   Write-Host "[ci_local] scripts/run_perf_guard.ps1"
   & (Join-Path $rootDir "scripts/run_perf_guard.ps1")
