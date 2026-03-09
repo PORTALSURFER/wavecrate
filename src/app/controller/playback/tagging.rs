@@ -1,5 +1,15 @@
 use super::*;
 
+fn should_advance_after_rating(
+    controller: &mut AppController,
+    primary_row: usize,
+    refocus_path: Option<&Path>,
+) -> bool {
+    controller.settings.controls.advance_after_rating
+        && controller.ui.browser.selected_visible == Some(primary_row)
+        && refocus_path.and_then(|path| controller.visible_row_for_path(path)) == Some(primary_row)
+}
+
 pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample_sources::Rating) {
     let Some(selected_index) = controller.selected_row_index() else {
         return;
@@ -102,9 +112,7 @@ pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample
         controller.set_status(err, StatusTone::Error);
     }
 
-    if controller.settings.controls.advance_after_rating
-        && controller.ui.browser.selected_visible == Some(primary_row)
-    {
+    if should_advance_after_rating(controller, primary_row, refocus_path.as_deref()) {
         if controller.random_navigation_mode_enabled() {
             controller.focus_random_visible_sample();
         } else {
@@ -261,9 +269,7 @@ pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) 
         controller.set_status(err, StatusTone::Error);
     }
 
-    if controller.settings.controls.advance_after_rating
-        && controller.ui.browser.selected_visible == Some(primary_row)
-    {
+    if should_advance_after_rating(controller, primary_row, refocus_path.as_deref()) {
         if controller.random_navigation_mode_enabled() {
             controller.focus_random_visible_sample();
         } else {
