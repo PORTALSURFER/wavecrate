@@ -1,3 +1,17 @@
+//! Durable per-source file-operation journal and crash-recovery helpers.
+//!
+//! Why this exists:
+//! - copy/move flows can crash after filesystem work but before both databases
+//!   reflect the final state
+//! - the journal records enough metadata to reconcile source and target DB rows
+//!   on the next startup
+//!
+//! Stage contract:
+//! - `Intent`: journal row exists, no filesystem mutation is assumed yet
+//! - `Staged`: data exists at `staged_relative` and has not been finalized
+//! - `TargetDb`: the target-side DB update has committed
+//! - `SourceDb`: the source-side DB cleanup has committed for moves
+
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -33,7 +47,14 @@ impl FileOpKind {
     }
 }
 
-/// Persistent stages for file operations that need crash recovery.
+/// Persistent journal stages for file operations that need crash recovery.
+///
+/// Recovery treats the enum as an append-only lifecycle:
+/// `Intent -> Staged -> TargetDb -> SourceDb`.
+///
+/// The stage is descriptive rather than authoritative; reconcile still inspects
+/// the actual filesystem and database state so startup recovery remains
+/// idempotent after partial writes or repeated runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FileOpStage {
     /// Intent recorded before any filesystem mutations.
@@ -602,248 +623,6 @@ fn now_epoch_seconds() -> Result<i64, SourceDbError> {
     Ok(now.as_secs() as i64)
 }
 
+/// Behavior and recovery-matrix tests for the journal lifecycle.
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    fn write_wav(path: &Path) {
-        std::fs::write(path, [0u8; 16]).unwrap();
-    }
-
-    /// Assert that no valid or malformed journal rows remain for the source DB.
-    fn assert_no_journal_entries(db: &SourceDatabase) {
-        let listed = match list_entries(db) {
-            Ok(listed) => listed,
-            Err(err) => panic!("failed to load journal entries: {err}"),
-        };
-        assert!(listed.entries.is_empty());
-        assert!(listed.malformed.is_empty());
-    }
-
-    #[test]
-    fn reconcile_move_from_staged_file() {
-        let temp = tempdir().unwrap();
-        let source_root = temp.path().join("source");
-        let target_root = temp.path().join("target");
-        std::fs::create_dir_all(&source_root).unwrap();
-        std::fs::create_dir_all(&target_root).unwrap();
-        let source_db = SourceDatabase::open(&source_root).unwrap();
-        let target_db = SourceDatabase::open(&target_root).unwrap();
-
-        let source_relative = PathBuf::from("one.wav");
-        let source_absolute = source_root.join(&source_relative);
-        write_wav(&source_absolute);
-        source_db.upsert_file(&source_relative, 16, 1).unwrap();
-        source_db.set_tag(&source_relative, Rating::KEEP_1).unwrap();
-        source_db.set_looped(&source_relative, true).unwrap();
-        source_db.set_last_played_at(&source_relative, 123).unwrap();
-
-        let target_relative = PathBuf::from("moved.wav");
-        let staged_relative = staged_relative_for_target(&target_relative, "test").unwrap();
-        let entry = FileOpJournalEntry::new_move(
-            "move-test".to_string(),
-            MoveJournalEntryInit {
-                source_root: source_root.clone(),
-                source_relative: source_relative.clone(),
-                target_relative: target_relative.clone(),
-                staged_relative: staged_relative.clone(),
-                tag: Rating::KEEP_1,
-                looped: true,
-                last_played_at: Some(123),
-            },
-        )
-        .unwrap();
-        insert_entry(&target_db, &entry).unwrap();
-
-        let staged_absolute = target_root.join(&staged_relative);
-        std::fs::rename(&source_absolute, &staged_absolute).unwrap();
-        update_stage(
-            &target_db,
-            &entry.id,
-            FileOpStage::Staged,
-            Some(16),
-            Some(1),
-        )
-        .unwrap();
-
-        let summary = reconcile_pending_ops(&target_db).unwrap();
-        assert_eq!(summary.completed, 1);
-
-        assert!(!staged_absolute.exists());
-        assert!(target_root.join(&target_relative).exists());
-        assert!(source_db.tag_for_path(&source_relative).unwrap().is_none());
-        assert_eq!(
-            target_db.tag_for_path(&target_relative).unwrap(),
-            Some(Rating::KEEP_1)
-        );
-        assert_eq!(
-            target_db.looped_for_path(&target_relative).unwrap(),
-            Some(true)
-        );
-        assert_eq!(
-            target_db.last_played_at_for_path(&target_relative).unwrap(),
-            Some(123)
-        );
-        assert_no_journal_entries(&target_db);
-    }
-
-    #[test]
-    fn reconcile_same_source_move_from_staged_file() {
-        let temp = tempdir().unwrap();
-        let source_root = temp.path().join("source");
-        std::fs::create_dir_all(&source_root).unwrap();
-        let db = SourceDatabase::open(&source_root).unwrap();
-
-        let source_relative = PathBuf::from("one.wav");
-        let source_absolute = source_root.join(&source_relative);
-        write_wav(&source_absolute);
-        db.upsert_file(&source_relative, 16, 1).unwrap();
-        db.set_tag(&source_relative, Rating::KEEP_1).unwrap();
-        db.set_looped(&source_relative, true).unwrap();
-        db.set_last_played_at(&source_relative, 123).unwrap();
-
-        let target_relative = PathBuf::from("moved.wav");
-        let staged_relative = staged_relative_for_target(&target_relative, "test").unwrap();
-        let entry = FileOpJournalEntry::new_move(
-            "move-test".to_string(),
-            MoveJournalEntryInit {
-                source_root: source_root.clone(),
-                source_relative: source_relative.clone(),
-                target_relative: target_relative.clone(),
-                staged_relative: staged_relative.clone(),
-                tag: Rating::KEEP_1,
-                looped: true,
-                last_played_at: Some(123),
-            },
-        )
-        .unwrap();
-        insert_entry(&db, &entry).unwrap();
-
-        let staged_absolute = source_root.join(&staged_relative);
-        std::fs::rename(&source_absolute, &staged_absolute).unwrap();
-        update_stage(&db, &entry.id, FileOpStage::Staged, Some(16), Some(1)).unwrap();
-
-        let summary = reconcile_pending_ops(&db).unwrap();
-        assert_eq!(summary.completed, 1);
-
-        assert!(!staged_absolute.exists());
-        assert!(source_root.join(&target_relative).exists());
-        assert!(db.tag_for_path(&source_relative).unwrap().is_none());
-        assert_eq!(
-            db.tag_for_path(&target_relative).unwrap(),
-            Some(Rating::KEEP_1)
-        );
-        assert_eq!(db.looped_for_path(&target_relative).unwrap(), Some(true));
-        assert_eq!(
-            db.last_played_at_for_path(&target_relative).unwrap(),
-            Some(123)
-        );
-        assert_no_journal_entries(&db);
-    }
-
-    #[test]
-    fn reconcile_copy_from_staged_file() {
-        let temp = tempdir().unwrap();
-        let target_root = temp.path().join("target");
-        std::fs::create_dir_all(&target_root).unwrap();
-        let target_db = SourceDatabase::open(&target_root).unwrap();
-
-        let source_path = temp.path().join("external.wav");
-        write_wav(&source_path);
-        let target_relative = PathBuf::from("copied.wav");
-        let staged_relative = staged_relative_for_target(&target_relative, "copy").unwrap();
-        let entry = FileOpJournalEntry::new_copy(
-            "copy-test".to_string(),
-            target_relative.clone(),
-            staged_relative.clone(),
-        )
-        .unwrap();
-        insert_entry(&target_db, &entry).unwrap();
-
-        let staged_absolute = target_root.join(&staged_relative);
-        std::fs::copy(&source_path, &staged_absolute).unwrap();
-        update_stage(
-            &target_db,
-            &entry.id,
-            FileOpStage::Staged,
-            Some(16),
-            Some(1),
-        )
-        .unwrap();
-
-        let summary = reconcile_pending_ops(&target_db).unwrap();
-        assert_eq!(summary.completed, 1);
-        assert!(target_root.join(&target_relative).exists());
-        assert!(target_db.tag_for_path(&target_relative).unwrap().is_some());
-        assert_no_journal_entries(&target_db);
-    }
-
-    #[test]
-    /// Malformed journal rows are reported in reconcile output and removed from the journal.
-    fn reconcile_reports_and_drops_malformed_journal_rows() {
-        let temp = match tempdir() {
-            Ok(temp) => temp,
-            Err(err) => panic!("failed to create tempdir: {err}"),
-        };
-        let target_root = temp.path().join("target");
-        if let Err(err) = std::fs::create_dir_all(&target_root) {
-            panic!("failed to create target root: {err}");
-        }
-        let target_db = match SourceDatabase::open(&target_root) {
-            Ok(db) => db,
-            Err(err) => panic!("failed to open source db: {err}"),
-        };
-        let insert_result = target_db.connection.execute(
-            "INSERT INTO file_ops_journal (
-                id, op_type, stage, source_root, source_relative, target_relative,
-                staged_relative, file_size, modified_ns, tag, looped, last_played_at, created_at
-             )
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-            params![
-                "bad-row",
-                "move",
-                "intent",
-                Option::<String>::None,
-                Option::<String>::None,
-                "/absolute.wav",
-                Option::<String>::None,
-                Option::<i64>::None,
-                Option::<i64>::None,
-                Option::<i64>::None,
-                Option::<i64>::None,
-                Option::<i64>::None,
-                1i64,
-            ],
-        );
-        assert!(
-            insert_result.is_ok(),
-            "failed to seed malformed journal row: {insert_result:?}"
-        );
-
-        let summary = reconcile_pending_ops(&target_db);
-        assert!(summary.is_ok(), "reconcile_pending_ops failed: {summary:?}");
-        let summary = match summary {
-            Ok(summary) => summary,
-            Err(err) => panic!("{err}"),
-        };
-        assert_eq!(summary.total, 1);
-        assert_eq!(summary.completed, 0);
-        assert_eq!(summary.errors.len(), 1);
-        assert!(summary.errors[0].contains("bad-row"));
-        assert!(summary.errors[0].contains("dropped malformed journal row"));
-
-        let entry_count =
-            target_db
-                .connection
-                .query_row("SELECT COUNT(*) FROM file_ops_journal", [], |row| {
-                    row.get::<_, i64>(0)
-                });
-        assert!(entry_count.is_ok(), "failed to read journal row count");
-        let entry_count = match entry_count {
-            Ok(count) => count,
-            Err(err) => panic!("failed to read journal row count: {err}"),
-        };
-        assert_eq!(entry_count, 0);
-    }
-}
+mod tests;
