@@ -53,7 +53,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: targeted journal tests, repeated runs for the new matrix, then `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
   - Completed: 2026-03-09 (UTC) - `sempal` commit `2e3c35f2`
 
-- [ ] 5) Separate folder-delete recovery journal logic, recovery execution, and UI application; add a recovery matrix
+- [x] 5) Separate folder-delete recovery journal logic, recovery execution, and UI application; add a recovery matrix
   - ROI/Effort: High / L
   - Why it matters: Folder-delete recovery is safety-critical and currently hard to reason about because journal persistence, recovery policy, and controller/UI application live together.
   - Evidence:
@@ -64,6 +64,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: Split the module into focused journal/recovery/controller-apply pieces, add tests for `Intent`, `Staged`, `DbCommitted`, unjournaled staged folders, and restore collision handling, and document the recovery contract.
   - Risk/tradeoffs: Medium-high. Any refactor here must preserve crash-recovery behavior exactly.
   - Suggested validation: targeted delete-recovery tests, existing folder/file-op suites, then `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
+  - Completed: 2026-03-09 (UTC) - `sempal` commit `cbc3c480`
 
 - [ ] 6) Refactor the source-move worker pipeline around explicit transactional stages and broaden failure-path tests
   - ROI/Effort: High / M
@@ -165,3 +166,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-06: Completed item 3 (background-job polling split into focused modules; added stale-message and progress/state behavior tests).
 - 2026-03-09: Cleanup backlog re-audited after the workspace split, native-bridge perf work, and recent ASIO/build-speed changes; pending items re-ranked for current ROI.
 - 2026-03-09: Completed item 4 (expanded file-op journal recovery matrix, documented stage contracts, and cleared prerequisite CI blockers so `scripts/ci_local.ps1` is green again).
+- 2026-03-09: Completed item 5 (split folder-delete recovery into journal/recovery/controller-apply modules, added stage-matrix coverage, and documented the restore/finalize contract).
