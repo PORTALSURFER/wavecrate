@@ -169,7 +169,7 @@ impl AppController {
     /// Errors are ignored here because this helper is called from focus actions
     /// where playback may be unavailable (for example in headless tests).
     fn request_playback_for_focused_selection(&mut self) {
-        let _ = self.play_audio(false, None);
+        let _ = self.play_audio(self.ui.waveform.loop_enabled, None);
     }
 
     /// Queue background playback for the focused browser sample without blocking navigation.

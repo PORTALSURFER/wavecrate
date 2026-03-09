@@ -299,7 +299,7 @@ fn adjusting_bpm_while_playing_keeps_playing() {
 }
 
 #[test]
-fn loading_non_looped_sample_disables_loop_playback() {
+fn selection_autoplay_preserves_active_loop_playback() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.settings.feature_flags.autoplay_selection = true;
@@ -322,14 +322,14 @@ fn loading_non_looped_sample_disables_loop_playback() {
 
     controller.select_wav_by_path(Path::new("non_loop.wav"));
 
-    assert!(!controller.ui.waveform.loop_enabled);
+    assert!(controller.ui.waveform.loop_enabled);
     let pending = controller
         .runtime
         .jobs
         .pending_playback
         .as_ref()
         .expect("pending playback to be queued");
-    assert!(!pending.looped);
+    assert!(pending.looped);
 }
 
 #[test]

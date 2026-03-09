@@ -1,9 +1,12 @@
 use super::*;
 use crate::app::controller::test_support::{
-    prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
+    load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
 };
 use crate::sample_sources::Rating;
+use crate::selection::SelectionRange;
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 fn browser_row_is_queued_or_loaded(controller: &AppController, relative_path: &Path) -> bool {
     controller
@@ -128,4 +131,33 @@ fn select_all_browser_rows_preserves_anchor_and_disables_autoscroll() {
             PathBuf::from("three.wav")
         ]
     );
+}
+
+#[test]
+/// Direct browser click playback should respect the active loop toggle.
+fn focus_browser_row_and_play_uses_active_loop_state() {
+    let Some(player) = crate::audio::AudioPlayer::playing_for_tests() else {
+        return;
+    };
+    let (mut controller, source) =
+        prepare_with_source_and_wav_entries(vec![sample_entry("one.wav", Rating::NEUTRAL)]);
+    controller.audio.player = Some(Rc::new(RefCell::new(player)));
+    controller.settings.feature_flags.autoplay_selection = false;
+    load_waveform_selection(
+        &mut controller,
+        &source,
+        "one.wav",
+        &[0.0, 0.1, -0.1, 0.2],
+        SelectionRange::new(0.0, 1.0),
+    );
+    controller.ui.waveform.loop_enabled = true;
+
+    controller.focus_browser_row_and_play_action(0);
+
+    assert!(controller.ui.waveform.loop_enabled);
+    let player_ref = controller.audio.player.as_ref().expect("player").borrow();
+    if !player_ref.is_playing() {
+        return;
+    }
+    assert!(player_ref.is_looping());
 }

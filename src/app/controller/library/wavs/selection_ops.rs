@@ -137,6 +137,7 @@ fn select_wav_known_index_with_options(
         }
     }
     let path_changed = controller.sample_view.wav.selected_wav.as_deref() != Some(path.as_path());
+    let active_loop_enabled = controller.ui.waveform.loop_enabled;
     let entry_looped = controller
         .wav_entries
         .entry(index)
@@ -148,7 +149,9 @@ fn select_wav_known_index_with_options(
     }
     if path_changed {
         controller.ui.waveform.last_start_marker = None;
-        if !loop_lock_enabled {
+        if !loop_lock_enabled
+            && !(controller.settings.feature_flags.autoplay_selection && active_loop_enabled)
+        {
             controller.ui.waveform.loop_enabled = entry_looped;
         }
     }
@@ -199,7 +202,9 @@ fn select_wav_known_index_with_options(
         let autoplay = controller.settings.feature_flags.autoplay_selection
             && !controller.selection_state.suppress_autoplay_once;
         controller.selection_state.suppress_autoplay_once = false;
-        let selection_looped = if path_changed && !loop_lock_enabled {
+        let selection_looped = if active_loop_enabled {
+            true
+        } else if path_changed && !loop_lock_enabled {
             entry_looped
         } else {
             controller.ui.waveform.loop_enabled
