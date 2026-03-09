@@ -104,7 +104,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: targeted waveform-loading tests, broader waveform controller tests, then `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
   - Completed: 2026-03-09 (UTC) - `sempal` commit `b279884c`
 
-- [ ] 9) Document native-bridge projection cache, invalidation, and profiling contracts
+- [x] 9) Document native-bridge projection cache, invalidation, and profiling contracts
   - ROI/Effort: Medium / S
   - Why it matters: The native bridge is now a critical retained-model subsystem; code and tests are extensive, but the design contract is mostly implicit, which raises change risk for future cleanup or perf work.
   - Evidence:
@@ -114,6 +114,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: Add a dedicated developer note describing segment keys, invalidation boundaries, local-only pull fast paths, and profiling/assertion env vars; link it from `docs/README.md` and keep it synchronized with the existing test surface.
   - Risk/tradeoffs: Low. Docs-only, but the content must stay close to code reality.
   - Suggested validation: docs link checks plus a focused `cargo test -p sempal app_core::native_bridge` run and `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
+  - Completed: 2026-03-09 (UTC) - `sempal` commit `38ea54c5`
 
 - [ ] 10) Standardize controller/worker error logging by replacing non-entrypoint `eprintln!` calls with structured tracing
   - ROI/Effort: Medium / M
@@ -173,3 +174,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-09: Completed item 6 (split the source-move flow into plan, registration, result-application, and transactional worker modules; added collision, rollback, and cancellation-path tests).
 - 2026-03-09: Completed item 7 (split browser actions into focus-navigation, selection, and row-action modules; added local anchor/autoscroll invariant coverage).
 - 2026-03-09: Completed item 8 (added waveform cache/refresh lifecycle coverage for same-path refresh reuse and cache-backed reloads, plus explicit load-vs-refresh docs).
+- 2026-03-09: Completed item 9 (documented retained projection segments, invalidation boundaries, and native-bridge profiling/assertion contracts in a dedicated developer note).
