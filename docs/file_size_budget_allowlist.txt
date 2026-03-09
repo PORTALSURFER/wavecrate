@@ -53,8 +53,8 @@ src/app_core/native_shell/browser_projection.rs
 src/app_core/native_shell/tests.rs
 src/audio/output.rs
 src/audio/source.rs
-src/bin/sempal-installer/ui.rs
-src/bin/sempal-updater/ui.rs
+apps/installer/src/ui.rs
+apps/updater-helper/src/ui.rs
 src/external_drag.rs
 src/sample_sources/db/file_ops_journal.rs
 src/sample_sources/scanner/scan/tests.rs
