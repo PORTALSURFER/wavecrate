@@ -79,7 +79,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: targeted source-move tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
   - Completed: 2026-03-09 (UTC) - `sempal` commit `9615c7fe`
 
-- [ ] 7) Decompose the browser actions facade and tighten behavior tests around focus/selection invariants
+- [x] 7) Decompose the browser actions facade and tighten behavior tests around focus/selection invariants
   - ROI/Effort: High / L
   - Why it matters: Browser actions are central to daily UX; one wide controller facade makes it difficult to see which invariants are guaranteed by preview-vs-commit, anchor selection, and action-row logic.
   - Evidence:
@@ -89,6 +89,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: Split the file into focused modules such as `focus_nav`, `selection_ranges`, and `row_actions`; add module docs for preview/commit semantics and keep the existing regression tests while adding anchor/autoscroll edge cases close to the extracted logic.
   - Risk/tradeoffs: Medium. Call-site churn is broad, but behavior can remain stable if extracted behind the same controller surface.
   - Suggested validation: browser action tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
+  - Completed: 2026-03-09 (UTC) - `sempal` commit `2163c6eb`
 
 - [ ] 8) Add waveform load/cache lifecycle tests for cache hits, refresh reuse, and selection preservation
   - ROI/Effort: Medium / M
@@ -169,3 +170,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-09: Completed item 4 (expanded file-op journal recovery matrix, documented stage contracts, and cleared prerequisite CI blockers so `scripts/ci_local.ps1` is green again).
 - 2026-03-09: Completed item 5 (split folder-delete recovery into journal/recovery/controller-apply modules, added stage-matrix coverage, and documented the restore/finalize contract).
 - 2026-03-09: Completed item 6 (split the source-move flow into plan, registration, result-application, and transactional worker modules; added collision, rollback, and cancellation-path tests).
+- 2026-03-09: Completed item 7 (split browser actions into focus-navigation, selection, and row-action modules; added local anchor/autoscroll invariant coverage).
