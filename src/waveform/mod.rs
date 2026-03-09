@@ -11,6 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub use error::{WaveformDecodeError, WaveformLoadError};
+pub use render::WaveformRenderViewport;
 
 const MAX_WAVEFORM_BYTES: u64 = 512 * 1024 * 1024;
 

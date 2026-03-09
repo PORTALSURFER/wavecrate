@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use super::super::job_execution::update_job_status_with_retry;
 use super::super::job_progress::ProgressPollerWakeup;
 use super::super::progress_cache::ProgressCache;
@@ -15,74 +13,116 @@ use std::thread::{JoinHandle, sleep};
 use std::time::{Duration, Instant};
 use tracing::{info, warn};
 
+/// Deferred status update retried after a temporary source-DB-open failure.
 pub(crate) struct DeferredJobUpdate {
     pub(crate) job: analysis_db::ClaimedJob,
     pub(crate) error: String,
 }
 
-pub(crate) fn finalize_immediate_job(
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
-    decode_queue: &DecodedQueue,
-    tx: &JobMessageSender,
-    job: analysis_db::ClaimedJob,
-    outcome: Result<(), String>,
-    log_jobs: bool,
-    progress_cache: &Arc<RwLock<ProgressCache>>,
-    progress_wakeup: &ProgressPollerWakeup,
-) -> Option<DeferredJobUpdate> {
-    if log_jobs {
-        match &outcome {
+/// Shared state for finalizing claimed jobs and broadcasting progress updates.
+pub(crate) struct FinalizeJobContext<'a> {
+    pub(crate) connections: &'a mut HashMap<std::path::PathBuf, Connection>,
+    pub(crate) decode_queue: &'a DecodedQueue,
+    pub(crate) tx: &'a JobMessageSender,
+    pub(crate) progress_cache: &'a Arc<RwLock<ProgressCache>>,
+    pub(crate) progress_wakeup: &'a ProgressPollerWakeup,
+    pub(crate) log_jobs: bool,
+}
+
+impl FinalizeJobContext<'_> {
+    /// Persist one job outcome, clear inflight state, and emit refreshed progress.
+    pub(crate) fn finalize(
+        &mut self,
+        job: analysis_db::ClaimedJob,
+        outcome: Result<(), String>,
+    ) -> Option<DeferredJobUpdate> {
+        if self.log_jobs {
+            match &outcome {
+                Ok(()) => {
+                    info!(sample_id = %job.sample_id, "analysis run done");
+                }
+                Err(err) => {
+                    warn!(sample_id = %job.sample_id, error = %err, "analysis run failed");
+                }
+            }
+        }
+        let error_for_open = outcome
+            .as_ref()
+            .err()
+            .cloned()
+            .unwrap_or_else(|| "Failed to open source DB".to_string());
+        let conn = match open_connection_with_retry(self.connections, &job.source_root) {
+            Ok(conn) => conn,
+            Err(err) => {
+                warn!(sample_id = %job.sample_id, error = %err, "Analysis job DB open failed");
+                self.decode_queue.clear_inflight(job.id);
+                return Some(DeferredJobUpdate {
+                    job,
+                    error: error_for_open,
+                });
+            }
+        };
+        match outcome {
             Ok(()) => {
-                info!(sample_id = %job.sample_id, "analysis run done");
+                update_job_status_with_retry(|| analysis_db::mark_done(conn, job.id));
             }
             Err(err) => {
-                warn!(sample_id = %job.sample_id, error = %err, "analysis run failed");
+                update_job_status_with_retry(|| {
+                    analysis_db::mark_failed_with_reason(conn, job.id, &err)
+                });
             }
         }
+        self.decode_queue.clear_inflight(job.id);
+        if let Ok(progress) = analysis_db::current_progress(conn) {
+            let source_id = analysis_db::parse_sample_id(&job.sample_id)
+                .ok()
+                .map(|(source_id, _)| crate::sample_sources::SourceId::from_string(source_id));
+            if let Some(source_id) = source_id.as_ref()
+                && let Ok(mut cache) = self.progress_cache.write()
+            {
+                cache.update(source_id.clone(), progress);
+            }
+            let _ = self
+                .tx
+                .send(JobMessage::Analysis(AnalysisJobMessage::Progress {
+                    source_id,
+                    progress,
+                }));
+            self.progress_wakeup.notify();
+        }
+        None
     }
-    let error_for_open = outcome
-        .as_ref()
-        .err()
-        .cloned()
-        .unwrap_or_else(|| "Failed to open source DB".to_string());
-    let conn = match open_connection_with_retry(connections, &job.source_root) {
-        Ok(conn) => conn,
-        Err(err) => {
-            warn!(sample_id = %job.sample_id, error = %err, "Analysis job DB open failed");
-            decode_queue.clear_inflight(job.id);
-            return Some(DeferredJobUpdate {
-                job,
-                error: error_for_open,
-            });
+
+    /// Retry any deferred finalization work that was waiting for source DB access.
+    pub(crate) fn flush_deferred(&mut self, deferred_updates: &mut Vec<DeferredJobUpdate>) {
+        if deferred_updates.is_empty() {
+            return;
         }
-    };
-    match outcome {
-        Ok(()) => {
-            update_job_status_with_retry(|| analysis_db::mark_done(conn, job.id));
+        let mut remaining = Vec::new();
+        for deferred in deferred_updates.drain(..) {
+            if let Some(next) = self.finalize(deferred.job, Err(deferred.error)) {
+                remaining.push(next);
+            }
         }
-        Err(err) => {
-            update_job_status_with_retry(|| {
-                analysis_db::mark_failed_with_reason(conn, job.id, &err)
-            });
-        }
+        *deferred_updates = remaining;
     }
-    decode_queue.clear_inflight(job.id);
-    if let Ok(progress) = analysis_db::current_progress(conn) {
-        let source_id = analysis_db::parse_sample_id(&job.sample_id)
-            .ok()
-            .map(|(source_id, _)| crate::sample_sources::SourceId::from_string(source_id));
-        if let Some(source_id) = source_id.as_ref()
-            && let Ok(mut cache) = progress_cache.write()
-        {
-            cache.update(source_id.clone(), progress);
-        }
-        let _ = tx.send(JobMessage::Analysis(AnalysisJobMessage::Progress {
-            source_id,
-            progress,
-        }));
-        progress_wakeup.notify();
-    }
-    None
+}
+
+/// Finalize one immediate job outcome using the shared finalization context.
+pub(crate) fn finalize_immediate_job(
+    context: &mut FinalizeJobContext<'_>,
+    job: analysis_db::ClaimedJob,
+    outcome: Result<(), String>,
+) -> Option<DeferredJobUpdate> {
+    context.finalize(job, outcome)
+}
+
+/// Flush all deferred job updates using the shared finalization context.
+pub(crate) fn flush_deferred_updates(
+    context: &mut FinalizeJobContext<'_>,
+    deferred_updates: &mut Vec<DeferredJobUpdate>,
+) {
+    context.flush_deferred(deferred_updates)
 }
 
 pub(crate) fn open_connection_with_retry<'a>(
@@ -107,36 +147,6 @@ pub(crate) fn open_connection_with_retry<'a>(
             Err(last_err.unwrap_or_else(|| "Failed to open source DB".to_string()))
         }
     }
-}
-
-pub(crate) fn flush_deferred_updates(
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
-    decode_queue: &DecodedQueue,
-    tx: &JobMessageSender,
-    progress_cache: &Arc<RwLock<ProgressCache>>,
-    progress_wakeup: &ProgressPollerWakeup,
-    deferred_updates: &mut Vec<DeferredJobUpdate>,
-    log_jobs: bool,
-) {
-    if deferred_updates.is_empty() {
-        return;
-    }
-    let mut remaining = Vec::new();
-    for deferred in deferred_updates.drain(..) {
-        if let Some(next) = finalize_immediate_job(
-            connections,
-            decode_queue,
-            tx,
-            deferred.job,
-            Err(deferred.error),
-            log_jobs,
-            progress_cache,
-            progress_wakeup,
-        ) {
-            remaining.push(next);
-        }
-    }
-    *deferred_updates = remaining;
 }
 
 pub(crate) fn spawn_decode_heartbeat(

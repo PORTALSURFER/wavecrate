@@ -18,8 +18,8 @@ pub(crate) use selection_click::repair_clicks_selection as repair_clicks_buffer;
 use selection_normalize::normalize_selection;
 
 use ops::{
-    apply_directional_fade, apply_edge_fades, apply_selection_fades, crop_buffer, reverse_buffer,
-    trim_buffer,
+    SelectionFadeRequest, apply_directional_fade, apply_edge_fades, apply_selection_fades,
+    crop_buffer, reverse_buffer, trim_buffer,
 };
 
 #[cfg(test)]
@@ -95,16 +95,16 @@ impl AppController {
             return Ok(false);
         }
         let result = self.apply_selection_edit("Applied edit fades", true, |buffer| {
-            apply_selection_fades(
-                &mut buffer.samples,
-                buffer.channels,
-                buffer.sample_rate,
-                buffer.start_frame,
-                buffer.end_frame,
-                selection.gain(),
-                selection.fade_in(),
-                selection.fade_out(),
-            );
+            apply_selection_fades(SelectionFadeRequest {
+                samples: &mut buffer.samples,
+                channels: buffer.channels,
+                sample_rate: buffer.sample_rate,
+                start_frame: buffer.start_frame,
+                end_frame: buffer.end_frame,
+                selection_gain: selection.gain(),
+                fade_in: selection.fade_in(),
+                fade_out: selection.fade_out(),
+            });
             Ok(())
         });
         match result {

@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use super::super::{DragDropController, file_metadata};
 use super::move_transaction::move_sample_file;
 use super::source_moves::MovedSampleRegistration;
@@ -8,6 +6,22 @@ use crate::app::state::DragSample;
 use crate::sample_sources::{Rating, SourceId, WavEntry};
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
+
+/// Metadata copied from the dragged sample onto the copied/moved target entry.
+struct DroppedSampleMetadata {
+    tag: Rating,
+    looped: bool,
+    last_played_at: Option<i64>,
+}
+
+/// Inputs for copying one dragged sample into another source/folder target.
+struct CopySampleTargetRequest<'a> {
+    absolute: &'a Path,
+    target: &'a crate::sample_sources::SampleSource,
+    target_folder: &'a Path,
+    file_name: &'a std::ffi::OsStr,
+    metadata: DroppedSampleMetadata,
+}
 
 impl DragDropController<'_> {
     pub(crate) fn handle_sample_drop_to_drop_target(
@@ -86,17 +100,19 @@ impl DragDropController<'_> {
         let last_played_at = self
             .sample_last_played_for(&source, &relative_path)
             .unwrap_or(None);
+        let metadata = DroppedSampleMetadata {
+            tag,
+            looped,
+            last_played_at,
+        };
         if copy_requested {
-            match copy_sample_to_target(
-                self,
-                &absolute,
-                &target.source,
-                &target.relative_folder,
-                &file_name,
-                tag,
-                looped,
-                last_played_at,
-            ) {
+            match self.copy_sample_to_target(CopySampleTargetRequest {
+                absolute: &absolute,
+                target: &target.source,
+                target_folder: &target.relative_folder,
+                file_name: &file_name,
+                metadata,
+            }) {
                 Ok(path) => {
                     self.set_status(format!("Copied to {}", path.display()), StatusTone::Info);
                 }
@@ -152,10 +168,10 @@ impl DragDropController<'_> {
             file_size,
             modified_ns,
             content_hash: None,
-            tag,
-            looped,
+            tag: metadata.tag,
+            looped: metadata.looped,
             missing: false,
-            last_played_at,
+            last_played_at: metadata.last_played_at,
         };
         self.insert_cached_entry(&target.source, new_entry);
         self.set_status(
@@ -179,6 +195,69 @@ impl DragDropController<'_> {
             );
         }
     }
+
+    /// Copy one dragged sample into the resolved target folder and register it in caches/DB.
+    fn copy_sample_to_target(
+        &mut self,
+        request: CopySampleTargetRequest<'_>,
+    ) -> Result<PathBuf, String> {
+        let CopySampleTargetRequest {
+            absolute,
+            target,
+            target_folder,
+            file_name,
+            metadata,
+        } = request;
+        let destination_relative = copy_destination_relative(target, target_folder, file_name)?;
+        let destination_absolute = target.root.join(&destination_relative);
+        if let Some(parent) = destination_relative.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            let target_dir = target.root.join(parent);
+            if let Err(err) = std::fs::create_dir_all(&target_dir) {
+                return Err(format!(
+                    "Failed to create target folder {}: {err}",
+                    target_dir.display()
+                ));
+            }
+        }
+        if let Err(err) = std::fs::copy(absolute, &destination_absolute) {
+            return Err(format!("Failed to copy sample: {err}"));
+        }
+        let (file_size, modified_ns) = match file_metadata(&destination_absolute) {
+            Ok(meta) => meta,
+            Err(err) => {
+                let _ = std::fs::remove_file(&destination_absolute);
+                return Err(err);
+            }
+        };
+        if let Err(err) = self.register_moved_sample_for_source(
+            target,
+            &destination_relative,
+            MovedSampleRegistration {
+                file_size,
+                modified_ns,
+                tag: metadata.tag,
+                looped: metadata.looped,
+                last_played_at: metadata.last_played_at,
+            },
+        ) {
+            let _ = std::fs::remove_file(&destination_absolute);
+            return Err(err);
+        }
+        let new_entry = WavEntry {
+            relative_path: destination_relative.clone(),
+            file_size,
+            modified_ns,
+            content_hash: None,
+            tag: metadata.tag,
+            looped: metadata.looped,
+            missing: false,
+            last_played_at: metadata.last_played_at,
+        };
+        self.insert_cached_entry(target, new_entry);
+        Ok(destination_relative)
+    }
 }
 
 fn move_destination_relative(
@@ -199,67 +278,6 @@ fn move_destination_relative(
         ));
     }
     Ok(relative)
-}
-
-fn copy_sample_to_target(
-    controller: &mut DragDropController<'_>,
-    absolute: &Path,
-    target: &crate::sample_sources::SampleSource,
-    target_folder: &Path,
-    file_name: &std::ffi::OsStr,
-    tag: Rating,
-    looped: bool,
-    last_played_at: Option<i64>,
-) -> Result<PathBuf, String> {
-    let destination_relative = copy_destination_relative(target, target_folder, file_name)?;
-    let destination_absolute = target.root.join(&destination_relative);
-    if let Some(parent) = destination_relative.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        let target_dir = target.root.join(parent);
-        if let Err(err) = std::fs::create_dir_all(&target_dir) {
-            return Err(format!(
-                "Failed to create target folder {}: {err}",
-                target_dir.display()
-            ));
-        }
-    }
-    if let Err(err) = std::fs::copy(absolute, &destination_absolute) {
-        return Err(format!("Failed to copy sample: {err}"));
-    }
-    let (file_size, modified_ns) = match file_metadata(&destination_absolute) {
-        Ok(meta) => meta,
-        Err(err) => {
-            let _ = std::fs::remove_file(&destination_absolute);
-            return Err(err);
-        }
-    };
-    if let Err(err) = controller.register_moved_sample_for_source(
-        target,
-        &destination_relative,
-        MovedSampleRegistration {
-            file_size,
-            modified_ns,
-            tag,
-            looped,
-            last_played_at,
-        },
-    ) {
-        let _ = std::fs::remove_file(&destination_absolute);
-        return Err(err);
-    }
-    let new_entry = WavEntry {
-        relative_path: destination_relative.clone(),
-        file_size,
-        modified_ns,
-        content_hash: None,
-        tag,
-        looped,
-        missing: false,
-        last_played_at,
-    };
-    controller.insert_cached_entry(target, new_entry);
-    Ok(destination_relative)
 }
 
 fn copy_destination_relative(

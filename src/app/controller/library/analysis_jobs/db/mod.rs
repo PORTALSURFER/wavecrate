@@ -1,5 +1,6 @@
 mod ann_index;
-mod artifacts;
+/// Analysis artifact persistence helpers and typed upsert requests.
+pub(crate) mod artifacts;
 mod cleanup;
 mod connection;
 mod constants;
@@ -12,14 +13,15 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use ann_index::{
-    clear_ann_index_dirty, enqueue_rebuild_ann_index_job, mark_ann_index_dirty,
-};
-pub(crate) use artifacts::{
-    CachedEmbedding, CachedFeatures, cached_embedding_by_hash, cached_features_by_hash,
+pub(crate) use self::artifacts::{
+    AnalysisMetadataUpdate, CachedEmbedding, CachedEmbeddingUpsert, CachedFeatures,
+    CachedFeaturesUpsert, EmbeddingUpsert, cached_embedding_by_hash, cached_features_by_hash,
     invalidate_analysis_artifacts, update_analysis_metadata, update_sample_duration,
     update_sample_long_mark, upsert_analysis_features, upsert_cached_embedding,
     upsert_cached_features, upsert_embedding,
+};
+pub(crate) use ann_index::{
+    clear_ann_index_dirty, enqueue_rebuild_ann_index_job, mark_ann_index_dirty,
 };
 pub(crate) use cleanup::purge_orphaned_samples;
 pub(crate) use cleanup::{

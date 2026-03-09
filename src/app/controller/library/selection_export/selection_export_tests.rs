@@ -26,10 +26,14 @@ fn export_selection_clip_to_root_can_flatten_name_hint() {
 
     let entry = controller
         .export_selection_clip_to_root(
-            &source.id,
-            Path::new("drums/clip.wav"),
-            SelectionRange::new(0.25, 0.75),
-            None,
+            SelectionClipExportRequest {
+                source_id: &source.id,
+                relative_path: Path::new("drums/clip.wav"),
+                bounds: SelectionRange::new(0.25, 0.75),
+                target_tag: None,
+                add_to_browser: false,
+                register_in_source: false,
+            },
             &clip_root,
             Path::new("clip.wav"),
         )
@@ -93,14 +97,14 @@ fn export_selection_clip_marks_loop_and_bpm_when_looping() {
     controller.ui.waveform.bpm_value = Some(120.0);
 
     let entry = controller
-        .export_selection_clip(
-            &source.id,
-            Path::new("looping.wav"),
-            SelectionRange::new(0.0, 1.0),
-            None,
-            true,
-            true,
-        )
+        .export_selection_clip(SelectionClipExportRequest {
+            source_id: &source.id,
+            relative_path: Path::new("looping.wav"),
+            bounds: SelectionRange::new(0.0, 1.0),
+            target_tag: None,
+            add_to_browser: true,
+            register_in_source: true,
+        })
         .unwrap();
 
     assert!(entry.looped);
@@ -140,14 +144,14 @@ fn export_selection_clip_applies_short_edge_fades_when_enabled() {
         .unwrap();
 
     let entry = controller
-        .export_selection_clip(
-            &source.id,
-            Path::new("fades.wav"),
-            SelectionRange::new(0.0, 1.0),
-            None,
-            true,
-            true,
-        )
+        .export_selection_clip(SelectionClipExportRequest {
+            source_id: &source.id,
+            relative_path: Path::new("fades.wav"),
+            bounds: SelectionRange::new(0.0, 1.0),
+            target_tag: None,
+            add_to_browser: true,
+            register_in_source: true,
+        })
         .unwrap();
 
     let target = source_root.join(&entry.relative_path);

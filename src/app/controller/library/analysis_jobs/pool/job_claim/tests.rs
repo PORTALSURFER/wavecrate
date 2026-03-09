@@ -91,17 +91,17 @@ fn clears_inflight_when_db_open_fails() {
     let mut connections = HashMap::new();
     let progress_cache = Arc::new(RwLock::new(ProgressCache::default()));
     let progress_wakeup = ProgressPollerWakeup::new();
-
-    let deferred = db::finalize_immediate_job(
-        &mut connections,
-        &queue,
-        &tx,
-        job,
-        Err("failed".to_string()),
-        false,
-        &progress_cache,
-        &progress_wakeup,
-    );
+    let deferred = {
+        let mut finalize = db::FinalizeJobContext {
+            connections: &mut connections,
+            decode_queue: &queue,
+            tx: &tx,
+            progress_cache: &progress_cache,
+            progress_wakeup: &progress_wakeup,
+            log_jobs: false,
+        };
+        db::finalize_immediate_job(&mut finalize, job, Err("failed".to_string()))
+    };
 
     assert!(deferred.is_some());
     assert!(queue.try_mark_inflight(42));
@@ -204,30 +204,35 @@ fn mid_loop_db_open_failure_clears_inflight_and_marks_failed() {
 
     let backup_root = dir.path().join("source_backup");
     std::fs::rename(&source_root, &backup_root).unwrap();
-    let deferred = db::finalize_immediate_job(
-        &mut connections,
-        &queue,
-        &tx,
-        job.clone(),
-        Err("Failed to open source DB".to_string()),
-        false,
-        &progress_cache,
-        &progress_wakeup,
-    );
+    let deferred = {
+        let mut finalize = db::FinalizeJobContext {
+            connections: &mut connections,
+            decode_queue: &queue,
+            tx: &tx,
+            progress_cache: &progress_cache,
+            progress_wakeup: &progress_wakeup,
+            log_jobs: false,
+        };
+        db::finalize_immediate_job(
+            &mut finalize,
+            job.clone(),
+            Err("Failed to open source DB".to_string()),
+        )
+    };
     assert!(queue.try_mark_inflight(job.id));
     assert!(deferred.is_some());
 
     std::fs::rename(&backup_root, &source_root).unwrap();
     let mut deferred_updates = vec![deferred.unwrap()];
-    db::flush_deferred_updates(
-        &mut connections,
-        &queue,
-        &tx,
-        &progress_cache,
-        &progress_wakeup,
-        &mut deferred_updates,
-        false,
-    );
+    let mut finalize = db::FinalizeJobContext {
+        connections: &mut connections,
+        decode_queue: &queue,
+        tx: &tx,
+        progress_cache: &progress_cache,
+        progress_wakeup: &progress_wakeup,
+        log_jobs: false,
+    };
+    db::flush_deferred_updates(&mut finalize, &mut deferred_updates);
     assert!(deferred_updates.is_empty());
     let conn = analysis_db::open_source_db(&source_root).unwrap();
     let (status, last_error): (String, Option<String>) = conn

@@ -513,11 +513,13 @@ fn update_analysis_metadata_updates_matching_hash() {
     .unwrap();
     update_analysis_metadata(
         &conn,
-        "s::a.wav",
-        Some("h1"),
-        1.25,
-        crate::analysis::audio::ANALYSIS_SAMPLE_RATE,
-        "analysis_v1_test",
+        AnalysisMetadataUpdate {
+            sample_id: "s::a.wav",
+            content_hash: Some("h1"),
+            duration_seconds: 1.25,
+            sr_used: crate::analysis::audio::ANALYSIS_SAMPLE_RATE,
+            analysis_version: "analysis_v1_test",
+        },
     )
     .unwrap();
     let (duration, sr, version): (Option<f64>, Option<i64>, Option<String>) = conn

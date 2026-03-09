@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
 pub(crate) struct CachedFeatures {
@@ -18,6 +16,49 @@ pub(crate) struct CachedEmbedding {
     pub(crate) dtype: String,
     pub(crate) l2_normed: bool,
     pub(crate) vec_blob: Vec<u8>,
+    pub(crate) created_at: i64,
+}
+
+/// Typed inputs for updating duration/sample-rate metadata on an existing sample row.
+pub(crate) struct AnalysisMetadataUpdate<'a> {
+    pub(crate) sample_id: &'a str,
+    pub(crate) content_hash: Option<&'a str>,
+    pub(crate) duration_seconds: f32,
+    pub(crate) sr_used: u32,
+    pub(crate) analysis_version: &'a str,
+}
+
+/// Typed inputs for inserting or replacing one embedding row.
+pub(crate) struct EmbeddingUpsert<'a> {
+    pub(crate) sample_id: &'a str,
+    pub(crate) model_id: &'a str,
+    pub(crate) dim: i64,
+    pub(crate) dtype: &'a str,
+    pub(crate) l2_normed: bool,
+    pub(crate) vec_blob: &'a [u8],
+    pub(crate) created_at: i64,
+}
+
+/// Typed inputs for caching reusable feature vectors by content hash.
+pub(crate) struct CachedFeaturesUpsert<'a> {
+    pub(crate) content_hash: &'a str,
+    pub(crate) analysis_version: &'a str,
+    pub(crate) feat_version: i64,
+    pub(crate) vec_blob: &'a [u8],
+    pub(crate) computed_at: i64,
+    pub(crate) duration_seconds: f32,
+    pub(crate) sr_used: u32,
+}
+
+/// Typed inputs for caching reusable embeddings by content hash and model.
+pub(crate) struct CachedEmbeddingUpsert<'a> {
+    pub(crate) content_hash: &'a str,
+    pub(crate) analysis_version: &'a str,
+    pub(crate) model_id: &'a str,
+    pub(crate) dim: i64,
+    pub(crate) dtype: &'a str,
+    pub(crate) l2_normed: bool,
+    pub(crate) vec_blob: &'a [u8],
     pub(crate) created_at: i64,
 }
 
@@ -61,11 +102,7 @@ pub(crate) fn invalidate_analysis_artifacts(
 
 pub(crate) fn update_analysis_metadata(
     conn: &Connection,
-    sample_id: &str,
-    content_hash: Option<&str>,
-    duration_seconds: f32,
-    sr_used: u32,
-    analysis_version: &str,
+    update: AnalysisMetadataUpdate<'_>,
 ) -> Result<(), String> {
     let updated = conn
         .execute(
@@ -73,16 +110,19 @@ pub(crate) fn update_analysis_metadata(
              SET duration_seconds = ?3, sr_used = ?4, analysis_version = ?5
              WHERE sample_id = ?1 AND content_hash = COALESCE(?2, content_hash)",
             params![
-                sample_id,
-                content_hash,
-                duration_seconds as f64,
-                sr_used as i64,
-                analysis_version
+                update.sample_id,
+                update.content_hash,
+                update.duration_seconds as f64,
+                update.sr_used as i64,
+                update.analysis_version
             ],
         )
         .map_err(|err| format!("Failed to update analysis metadata: {err}"))?;
     if updated == 0 {
-        return Err(format!("No sample row updated for sample_id={sample_id}"));
+        return Err(format!(
+            "No sample row updated for sample_id={}",
+            update.sample_id
+        ));
     }
     Ok(())
 }
@@ -144,13 +184,7 @@ pub(crate) fn upsert_analysis_features(
 
 pub(crate) fn upsert_embedding(
     conn: &Connection,
-    sample_id: &str,
-    model_id: &str,
-    dim: i64,
-    dtype: &str,
-    l2_normed: bool,
-    vec_blob: &[u8],
-    created_at: i64,
+    embedding: EmbeddingUpsert<'_>,
 ) -> Result<(), String> {
     conn.execute(
         "INSERT INTO embeddings (sample_id, model_id, dim, dtype, l2_normed, vec, created_at)
@@ -163,7 +197,13 @@ pub(crate) fn upsert_embedding(
             vec = excluded.vec,
             created_at = excluded.created_at",
         params![
-            sample_id, model_id, dim, dtype, l2_normed, vec_blob, created_at
+            embedding.sample_id,
+            embedding.model_id,
+            embedding.dim,
+            embedding.dtype,
+            embedding.l2_normed,
+            embedding.vec_blob,
+            embedding.created_at
         ],
     )
     .map_err(|err| format!("Failed to upsert embedding: {err}"))?;
@@ -224,13 +264,7 @@ pub(crate) fn cached_embedding_by_hash(
 
 pub(crate) fn upsert_cached_features(
     conn: &Connection,
-    content_hash: &str,
-    analysis_version: &str,
-    feat_version: i64,
-    vec_blob: &[u8],
-    computed_at: i64,
-    duration_seconds: f32,
-    sr_used: u32,
+    features: CachedFeaturesUpsert<'_>,
 ) -> Result<(), String> {
     conn.execute(
         "INSERT INTO analysis_cache_features
@@ -244,13 +278,13 @@ pub(crate) fn upsert_cached_features(
             duration_seconds = excluded.duration_seconds,
             sr_used = excluded.sr_used",
         params![
-            content_hash,
-            analysis_version,
-            feat_version,
-            vec_blob,
-            computed_at,
-            duration_seconds as f64,
-            sr_used as i64
+            features.content_hash,
+            features.analysis_version,
+            features.feat_version,
+            features.vec_blob,
+            features.computed_at,
+            features.duration_seconds as f64,
+            features.sr_used as i64
         ],
     )
     .map_err(|err| format!("Failed to upsert cached features: {err}"))?;
@@ -259,14 +293,7 @@ pub(crate) fn upsert_cached_features(
 
 pub(crate) fn upsert_cached_embedding(
     conn: &Connection,
-    content_hash: &str,
-    analysis_version: &str,
-    model_id: &str,
-    dim: i64,
-    dtype: &str,
-    l2_normed: bool,
-    vec_blob: &[u8],
-    created_at: i64,
+    embedding: CachedEmbeddingUpsert<'_>,
 ) -> Result<(), String> {
     conn.execute(
         "INSERT INTO analysis_cache_embeddings
@@ -280,14 +307,14 @@ pub(crate) fn upsert_cached_embedding(
             vec = excluded.vec,
             created_at = excluded.created_at",
         params![
-            content_hash,
-            analysis_version,
-            model_id,
-            dim,
-            dtype,
-            l2_normed,
-            vec_blob,
-            created_at
+            embedding.content_hash,
+            embedding.analysis_version,
+            embedding.model_id,
+            embedding.dim,
+            embedding.dtype,
+            embedding.l2_normed,
+            embedding.vec_blob,
+            embedding.created_at
         ],
     )
     .map_err(|err| format!("Failed to upsert cached embedding: {err}"))?;

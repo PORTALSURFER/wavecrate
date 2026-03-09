@@ -324,12 +324,13 @@ impl AppController {
             .renderer
             .render_color_image_for_view_with_size_and_fade(
                 decoded,
-                view.start as f32,
-                view.end as f32,
                 self.ui.waveform.channel_view,
-                effective_width,
-                height,
-                desired_meta.edit_fade,
+                crate::waveform::WaveformRenderViewport {
+                    size: [effective_width, height],
+                    view_start: view.start as f32,
+                    view_end: view.end as f32,
+                    edit_fade: desired_meta.edit_fade,
+                },
             );
         // Keep waveform image metadata in the renderer to preserve precision.
         self.store_waveform_image(color_image, desired_meta);

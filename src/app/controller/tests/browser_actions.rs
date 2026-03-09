@@ -4,6 +4,7 @@ use super::super::test_support::{
 };
 use super::super::*;
 use super::common::visible_indices;
+use crate::app::controller::library::selection_export::SelectionClipExportRequest;
 use crate::app::controller::state::audio::PendingAgeUpdate;
 use crate::app::controller::ui::hotkeys;
 use crate::app::state::FocusContext;
@@ -479,14 +480,14 @@ fn exporting_selection_updates_entries_and_db() {
         .unwrap();
 
     let entry = controller
-        .export_selection_clip(
-            &source.id,
-            Path::new("orig.wav"),
-            SelectionRange::new(0.0, 0.5),
-            Some(crate::sample_sources::Rating::KEEP_1),
-            true,
-            true,
-        )
+        .export_selection_clip(SelectionClipExportRequest {
+            source_id: &source.id,
+            relative_path: Path::new("orig.wav"),
+            bounds: SelectionRange::new(0.0, 0.5),
+            target_tag: Some(crate::sample_sources::Rating::KEEP_1),
+            add_to_browser: true,
+            register_in_source: true,
+        })
         .unwrap();
 
     assert_eq!(entry.tag, crate::sample_sources::Rating::KEEP_1);

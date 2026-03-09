@@ -13,11 +13,13 @@ pub(crate) fn apply_cached_features_and_embedding(
 ) -> Result<(), String> {
     db::update_analysis_metadata(
         conn,
-        &job.sample_id,
-        Some(content_hash),
-        features.duration_seconds,
-        features.sr_used,
-        analysis_version,
+        db::AnalysisMetadataUpdate {
+            sample_id: &job.sample_id,
+            content_hash: Some(content_hash),
+            duration_seconds: features.duration_seconds,
+            sr_used: features.sr_used,
+            analysis_version,
+        },
     )?;
     db::upsert_analysis_features(
         conn,
@@ -28,13 +30,15 @@ pub(crate) fn apply_cached_features_and_embedding(
     )?;
     db::upsert_embedding(
         conn,
-        &job.sample_id,
-        &embedding.model_id,
-        embedding.dim,
-        &embedding.dtype,
-        embedding.l2_normed,
-        &embedding.vec_blob,
-        embedding.created_at,
+        db::EmbeddingUpsert {
+            sample_id: &job.sample_id,
+            model_id: &embedding.model_id,
+            dim: embedding.dim,
+            dtype: &embedding.dtype,
+            l2_normed: embedding.l2_normed,
+            vec_blob: &embedding.vec_blob,
+            created_at: embedding.created_at,
+        },
     )?;
     crate::analysis::ann_index::upsert_embedding(conn, &job.sample_id, embedding_vec)?;
     Ok(())
@@ -47,13 +51,15 @@ pub(crate) fn apply_cached_embedding(
 ) -> Result<(), String> {
     db::upsert_embedding(
         conn,
-        &job.sample_id,
-        &embedding.model_id,
-        embedding.dim,
-        &embedding.dtype,
-        embedding.l2_normed,
-        &embedding.vec_blob,
-        embedding.created_at,
+        db::EmbeddingUpsert {
+            sample_id: &job.sample_id,
+            model_id: &embedding.model_id,
+            dim: embedding.dim,
+            dtype: &embedding.dtype,
+            l2_normed: embedding.l2_normed,
+            vec_blob: &embedding.vec_blob,
+            created_at: embedding.created_at,
+        },
     )?;
     Ok(())
 }
@@ -67,11 +73,13 @@ pub(crate) fn update_metadata_for_skip(
 ) -> Result<(), String> {
     db::update_analysis_metadata(
         conn,
-        &job.sample_id,
-        job.content_hash.as_deref(),
-        duration_seconds,
-        sample_rate,
-        analysis_version,
+        db::AnalysisMetadataUpdate {
+            sample_id: &job.sample_id,
+            content_hash: job.content_hash.as_deref(),
+            duration_seconds,
+            sr_used: sample_rate,
+            analysis_version,
+        },
     )
 }
 
@@ -104,22 +112,26 @@ pub(crate) fn finalize_analysis_job(
         let created_at = now_epoch_seconds();
         db::upsert_embedding(
             conn,
-            &job.sample_id,
-            crate::analysis::similarity::SIMILARITY_MODEL_ID,
-            crate::analysis::similarity::SIMILARITY_DIM as i64,
-            crate::analysis::similarity::SIMILARITY_DTYPE_F32,
-            true,
-            &embedding_blob,
-            created_at,
+            db::EmbeddingUpsert {
+                sample_id: &job.sample_id,
+                model_id: crate::analysis::similarity::SIMILARITY_MODEL_ID,
+                dim: crate::analysis::similarity::SIMILARITY_DIM as i64,
+                dtype: crate::analysis::similarity::SIMILARITY_DTYPE_F32,
+                l2_normed: true,
+                vec_blob: &embedding_blob,
+                created_at,
+            },
         )?;
     }
     db::update_analysis_metadata(
         conn,
-        &job.sample_id,
-        job.content_hash.as_deref(),
-        decoded.duration_seconds,
-        decoded.sample_rate_used,
-        analysis_version,
+        db::AnalysisMetadataUpdate {
+            sample_id: &job.sample_id,
+            content_hash: job.content_hash.as_deref(),
+            duration_seconds: decoded.duration_seconds,
+            sr_used: decoded.sample_rate_used,
+            analysis_version,
+        },
     )?;
     let current_hash = db::sample_content_hash(conn, &job.sample_id)?;
     if current_hash.as_deref() != Some(content_hash) {
@@ -140,24 +152,28 @@ pub(crate) fn finalize_analysis_job(
     let embedding_blob = crate::analysis::vector::encode_f32_le_blob(&embedding);
     db::upsert_cached_features(
         conn,
-        content_hash,
-        analysis_version,
-        crate::analysis::vector::FEATURE_VERSION_V1,
-        &blob,
-        computed_at,
-        decoded.duration_seconds,
-        decoded.sample_rate_used,
+        db::CachedFeaturesUpsert {
+            content_hash,
+            analysis_version,
+            feat_version: crate::analysis::vector::FEATURE_VERSION_V1,
+            vec_blob: &blob,
+            computed_at,
+            duration_seconds: decoded.duration_seconds,
+            sr_used: decoded.sample_rate_used,
+        },
     )?;
     db::upsert_cached_embedding(
         conn,
-        content_hash,
-        analysis_version,
-        crate::analysis::similarity::SIMILARITY_MODEL_ID,
-        crate::analysis::similarity::SIMILARITY_DIM as i64,
-        crate::analysis::similarity::SIMILARITY_DTYPE_F32,
-        true,
-        &embedding_blob,
-        now_epoch_seconds(),
+        db::CachedEmbeddingUpsert {
+            content_hash,
+            analysis_version,
+            model_id: crate::analysis::similarity::SIMILARITY_MODEL_ID,
+            dim: crate::analysis::similarity::SIMILARITY_DIM as i64,
+            dtype: crate::analysis::similarity::SIMILARITY_DTYPE_F32,
+            l2_normed: true,
+            vec_blob: &embedding_blob,
+            created_at: now_epoch_seconds(),
+        },
     )?;
     Ok(())
 }

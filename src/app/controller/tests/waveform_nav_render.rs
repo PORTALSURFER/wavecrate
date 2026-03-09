@@ -156,12 +156,13 @@ fn adjacent_pan_translation_matches_full_render_output() {
         .renderer
         .render_color_image_for_view_with_size_and_fade(
             decoded,
-            controller.ui.waveform.view.start as f32,
-            controller.ui.waveform.view.end as f32,
             controller.ui.waveform.channel_view,
-            render_meta.texture_width,
-            render_meta.size[1],
-            render_meta.edit_fade,
+            crate::waveform::WaveformRenderViewport {
+                size: [render_meta.texture_width, render_meta.size[1]],
+                view_start: controller.ui.waveform.view.start as f32,
+                view_end: controller.ui.waveform.view.end as f32,
+                edit_fade: render_meta.edit_fade,
+            },
         );
     assert_eq!(actual.size, expected.size);
     let mismatched = actual

@@ -5,6 +5,8 @@ use super::WaveformImage;
 use super::WaveformRenderer;
 use crate::waveform::WaveformRgba;
 
+pub(super) use self::lines::{LinePaintConfig, SplitLinePaintConfig};
+
 /// Precomputed gradient colors for waveform recoloring.
 #[derive(Clone, Copy)]
 struct WaveformGradientPalette {

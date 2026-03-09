@@ -1,7 +1,47 @@
-#![allow(clippy::too_many_arguments)]
-
 use super::WaveformRenderer;
 use crate::waveform::{WaveformImage, WaveformRgba};
+
+/// Raster + channel-selection inputs for one mono line-render pass.
+pub(in crate::waveform::render) struct LinePaintConfig {
+    pub width: u32,
+    pub height: u32,
+    pub foreground: WaveformRgba,
+    pub background: WaveformRgba,
+    pub channel_index: Option<usize>,
+}
+
+/// Raster + color inputs for one split-stereo line-render pass.
+pub(in crate::waveform::render) struct SplitLinePaintConfig {
+    pub width: u32,
+    pub height: u32,
+    pub foreground: WaveformRgba,
+    pub background: WaveformRgba,
+}
+
+/// Mutable raster target plus one anti-aliased line segment to draw into it.
+pub(super) struct RasterLineConfig<'a> {
+    pub image: &'a mut WaveformImage,
+    pub stride: usize,
+    pub width: usize,
+    pub height: usize,
+    pub x0: f32,
+    pub y0: f32,
+    pub x1: f32,
+    pub y1: f32,
+    pub fg: (u8, u8, u8, u8),
+}
+
+/// Mutable raster target plus one covered pixel sample to blend.
+struct RasterPlotConfig<'a> {
+    image: &'a mut WaveformImage,
+    stride: usize,
+    width: usize,
+    height: usize,
+    x: isize,
+    y: isize,
+    fg: (u8, u8, u8, u8),
+    coverage: f32,
+}
 
 impl WaveformRenderer {
     /// Render a waveform line image for a single drawing pass.
@@ -13,12 +53,15 @@ impl WaveformRenderer {
     pub(in crate::waveform::render) fn paint_line_image(
         samples: &[f32],
         channels: usize,
-        width: u32,
-        height: u32,
-        foreground: WaveformRgba,
-        background: WaveformRgba,
-        channel_index: Option<usize>,
+        config: LinePaintConfig,
     ) -> WaveformImage {
+        let LinePaintConfig {
+            width,
+            height,
+            foreground,
+            background,
+            channel_index,
+        } = config;
         let fill =
             WaveformRgba::from_rgba_unmultiplied(background.r(), background.g(), background.b(), 0);
         let mut image = WaveformImage::new(
@@ -53,17 +96,17 @@ impl WaveformRenderer {
             );
             let y = to_y(sample);
             if let Some(prev) = prev_y {
-                Self::draw_line_aa(
-                    &mut image,
+                Self::draw_line_aa(RasterLineConfig {
+                    image: &mut image,
                     stride,
-                    width as usize,
-                    height as usize,
-                    (x as f32) - 1.0,
-                    prev,
-                    x as f32,
-                    y,
+                    width: width as usize,
+                    height: height as usize,
+                    x0: (x as f32) - 1.0,
+                    y0: prev,
+                    x1: x as f32,
+                    y1: y,
                     fg,
-                );
+                });
             } else {
                 Self::blend_pixel(&mut image, stride, x, y.round() as usize, fg, 1.0);
             }
@@ -80,11 +123,14 @@ impl WaveformRenderer {
     pub(in crate::waveform::render) fn paint_split_line_image(
         samples: &[f32],
         channels: usize,
-        width: u32,
-        height: u32,
-        foreground: WaveformRgba,
-        background: WaveformRgba,
+        config: SplitLinePaintConfig,
     ) -> WaveformImage {
+        let SplitLinePaintConfig {
+            width,
+            height,
+            foreground,
+            background,
+        } = config;
         let gap = if height >= 3 { 2 } else { 0 };
         let split_height = height.saturating_sub(gap);
         let top_height = (split_height / 2).max(1);
@@ -93,20 +139,24 @@ impl WaveformRenderer {
         let top = Self::paint_line_image(
             samples,
             channels,
-            width,
-            top_height,
-            foreground,
-            background,
-            Some(0),
+            LinePaintConfig {
+                width,
+                height: top_height,
+                foreground,
+                background,
+                channel_index: Some(0),
+            },
         );
         let bottom = Self::paint_line_image(
             samples,
             channels,
-            width,
-            bottom_height,
-            foreground,
-            background,
-            Some(1),
+            LinePaintConfig {
+                width,
+                height: bottom_height,
+                foreground,
+                background,
+                channel_index: Some(1),
+            },
         );
         let fill =
             WaveformRgba::from_rgba_unmultiplied(background.r(), background.g(), background.b(), 0);
@@ -259,17 +309,18 @@ impl WaveformRenderer {
     }
 
     /// Draw an anti-aliased line segment with steep-line and vertical-line handling.
-    pub(super) fn draw_line_aa(
-        image: &mut WaveformImage,
-        stride: usize,
-        width: usize,
-        height: usize,
-        mut x0: f32,
-        mut y0: f32,
-        mut x1: f32,
-        mut y1: f32,
-        fg: (u8, u8, u8, u8),
-    ) {
+    pub(super) fn draw_line_aa(config: RasterLineConfig<'_>) {
+        let RasterLineConfig {
+            image,
+            stride,
+            width,
+            height,
+            mut x0,
+            mut y0,
+            mut x1,
+            mut y1,
+            fg,
+        } = config;
         let steep = (y1 - y0).abs() > (x1 - x0).abs();
         if steep {
             std::mem::swap(&mut x0, &mut y0);
@@ -301,47 +352,47 @@ impl WaveformRenderer {
         let xpxl1 = xend as isize;
         let ypxl1 = yend.floor() as isize;
         if steep {
-            Self::plot_aa(
+            Self::plot_aa(RasterPlotConfig {
                 image,
                 stride,
                 width,
                 height,
-                ypxl1,
-                xpxl1,
+                x: ypxl1,
+                y: xpxl1,
                 fg,
-                (1.0 - (yend.fract())) * xgap,
-            );
-            Self::plot_aa(
+                coverage: (1.0 - (yend.fract())) * xgap,
+            });
+            Self::plot_aa(RasterPlotConfig {
                 image,
                 stride,
                 width,
                 height,
-                ypxl1 + 1,
-                xpxl1,
+                x: ypxl1 + 1,
+                y: xpxl1,
                 fg,
-                yend.fract() * xgap,
-            );
+                coverage: yend.fract() * xgap,
+            });
         } else {
-            Self::plot_aa(
+            Self::plot_aa(RasterPlotConfig {
                 image,
                 stride,
                 width,
                 height,
-                xpxl1,
-                ypxl1,
+                x: xpxl1,
+                y: ypxl1,
                 fg,
-                (1.0 - (yend.fract())) * xgap,
-            );
-            Self::plot_aa(
+                coverage: (1.0 - (yend.fract())) * xgap,
+            });
+            Self::plot_aa(RasterPlotConfig {
                 image,
                 stride,
                 width,
                 height,
-                xpxl1,
-                ypxl1 + 1,
+                x: xpxl1,
+                y: ypxl1 + 1,
                 fg,
-                yend.fract() * xgap,
-            );
+                coverage: yend.fract() * xgap,
+            });
         }
         let mut intery = yend + gradient;
 
@@ -355,71 +406,108 @@ impl WaveformRenderer {
             let y = intery.floor() as isize;
             let frac = intery.fract();
             if steep {
-                Self::plot_aa(image, stride, width, height, y, x, fg, 1.0 - frac);
-                Self::plot_aa(image, stride, width, height, y + 1, x, fg, frac);
+                Self::plot_aa(RasterPlotConfig {
+                    image,
+                    stride,
+                    width,
+                    height,
+                    x: y,
+                    y: x,
+                    fg,
+                    coverage: 1.0 - frac,
+                });
+                Self::plot_aa(RasterPlotConfig {
+                    image,
+                    stride,
+                    width,
+                    height,
+                    x: y + 1,
+                    y: x,
+                    fg,
+                    coverage: frac,
+                });
             } else {
-                Self::plot_aa(image, stride, width, height, x, y, fg, 1.0 - frac);
-                Self::plot_aa(image, stride, width, height, x, y + 1, fg, frac);
+                Self::plot_aa(RasterPlotConfig {
+                    image,
+                    stride,
+                    width,
+                    height,
+                    x,
+                    y,
+                    fg,
+                    coverage: 1.0 - frac,
+                });
+                Self::plot_aa(RasterPlotConfig {
+                    image,
+                    stride,
+                    width,
+                    height,
+                    x,
+                    y: y + 1,
+                    fg,
+                    coverage: frac,
+                });
             }
             intery += gradient;
         }
 
         if steep {
-            Self::plot_aa(
+            Self::plot_aa(RasterPlotConfig {
                 image,
                 stride,
                 width,
                 height,
-                ypxl2,
-                xpxl2,
+                x: ypxl2,
+                y: xpxl2,
                 fg,
-                (1.0 - (yend.fract())) * xgap,
-            );
-            Self::plot_aa(
+                coverage: (1.0 - (yend.fract())) * xgap,
+            });
+            Self::plot_aa(RasterPlotConfig {
                 image,
                 stride,
                 width,
                 height,
-                ypxl2 + 1,
-                xpxl2,
+                x: ypxl2 + 1,
+                y: xpxl2,
                 fg,
-                yend.fract() * xgap,
-            );
+                coverage: yend.fract() * xgap,
+            });
         } else {
-            Self::plot_aa(
+            Self::plot_aa(RasterPlotConfig {
                 image,
                 stride,
                 width,
                 height,
-                xpxl2,
-                ypxl2,
+                x: xpxl2,
+                y: ypxl2,
                 fg,
-                (1.0 - (yend.fract())) * xgap,
-            );
-            Self::plot_aa(
+                coverage: (1.0 - (yend.fract())) * xgap,
+            });
+            Self::plot_aa(RasterPlotConfig {
                 image,
                 stride,
                 width,
                 height,
-                xpxl2,
-                ypxl2 + 1,
+                x: xpxl2,
+                y: ypxl2 + 1,
                 fg,
-                yend.fract() * xgap,
-            );
+                coverage: yend.fract() * xgap,
+            });
         }
     }
 
     /// Plot one anti-aliased pixel if it is inside bounds and has positive coverage.
-    fn plot_aa(
-        image: &mut WaveformImage,
-        stride: usize,
-        width: usize,
-        height: usize,
-        x: isize,
-        y: isize,
-        fg: (u8, u8, u8, u8),
-        coverage: f32,
-    ) {
+    fn plot_aa(config: RasterPlotConfig<'_>) {
+        let RasterPlotConfig {
+            image,
+            stride,
+            width,
+            height,
+            x,
+            y,
+            fg,
+            coverage,
+        } = config;
         if coverage <= 0.0 {
             return;
         }

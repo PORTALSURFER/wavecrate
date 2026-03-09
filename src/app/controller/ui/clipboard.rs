@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::controller::library::selection_export::SelectionClipExportRequest;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -71,10 +72,14 @@ impl AppController {
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("selection.wav"));
         let entry = self.export_selection_clip_to_root(
-            &source_id,
-            &relative_path,
-            bounds,
-            None,
+            SelectionClipExportRequest {
+                source_id: &source_id,
+                relative_path: &relative_path,
+                bounds,
+                target_tag: None,
+                add_to_browser: false,
+                register_in_source: false,
+            },
             &clip_root,
             &name_hint,
         )?;
