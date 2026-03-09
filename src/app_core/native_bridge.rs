@@ -804,7 +804,6 @@ impl NativeAppBridge for SempalNativeBridge {
         self.flush_pending_input_actions();
         if let Err(err) = self.controller.persist_native_exit_config() {
             error!(err = %err, "Failed to persist config on native exit");
-            eprintln!("{err}");
             return;
         }
         info!("Persisted config on native exit");

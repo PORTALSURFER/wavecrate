@@ -1,5 +1,6 @@
 use super::AppController;
 use super::MIN_SELECTION_WIDTH;
+use super::selection_export::SelectionEntryRecordRequest;
 use crate::analysis::audio::{detect_non_silent_ranges, downmix_to_mono_into};
 use crate::app::controller::playback::audio_samples::{
     DecodedSamples, crop_samples, decode_samples_from_bytes, write_wav,
@@ -234,7 +235,15 @@ impl AppController {
         let target_rel = self.next_slice_path_in_dir(source, relative_path, counter);
         let target_abs = source.root.join(&target_rel);
         write_wav(&target_abs, &samples, decoded.sample_rate, decoded.channels)?;
-        self.record_selection_entry(source, target_rel, None, true, true, false, None)?;
+        self.record_selection_entry(SelectionEntryRecordRequest {
+            source,
+            relative_path: target_rel,
+            target_tag: None,
+            add_to_browser: true,
+            register_in_source: true,
+            looped: false,
+            bpm: None,
+        })?;
         Ok(())
     }
 

@@ -954,6 +954,30 @@ fn projection_segment_browser_frame_dirty_mask_and_lookup_counts() {
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
 }
 
+/// Retained browser-frame materialization must copy active rating-filter flags.
+#[test]
+fn projection_segment_browser_frame_copies_active_rating_filters() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let mut cache = NativeProjectionCache::default();
+    let _ = cache.resolve_or_project(&mut controller);
+
+    controller.ui.browser.rating_filter.insert(3);
+    controller.mark_browser_search_projection_revision_dirty();
+
+    let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(
+            NativeDirtySegments::STATUS_BAR | NativeDirtySegments::BROWSER_FRAME
+        )
+    );
+    assert!(model.browser.active_rating_filters[6]);
+    assert_eq!(
+        model.browser.active_rating_filters,
+        [false, false, false, false, false, false, true]
+    );
+}
+
 /// Browser row-revision changes should only rematerialize browser rows.
 #[test]
 fn projection_segment_browser_rows_dirty_mask_and_lookup_counts() {

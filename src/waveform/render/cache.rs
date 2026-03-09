@@ -1,8 +1,5 @@
-#![allow(clippy::too_many_arguments)]
-
 use super::WaveformImage;
-use super::{DecodedWaveform, WaveformChannelView, WaveformRenderer};
-use crate::selection::SelectionRange;
+use super::{DecodedWaveform, WaveformChannelView, WaveformRenderViewport, WaveformRenderer};
 use crate::waveform::render::LINE_RENDER_MAX_FRAMES_PER_COLUMN;
 use crate::waveform::zoom_cache::CachedColumns;
 
@@ -41,13 +38,13 @@ impl WaveformRenderer {
     pub(super) fn render_cached_view(
         &self,
         decoded: &DecodedWaveform,
-        view_start: f32,
-        view_end: f32,
         view: WaveformChannelView,
-        width: u32,
-        height: u32,
-        edit_fade: Option<SelectionRange>,
+        viewport: WaveformRenderViewport,
     ) -> Option<WaveformImage> {
+        let [width, height] = viewport.size;
+        let view_start = viewport.view_start;
+        let view_end = viewport.view_end;
+        let edit_fade = viewport.edit_fade;
         let frame_count = decoded.frame_count();
         let fraction = (view_end - view_start).max(0.000_001);
         let full_width = self.cached_full_width(width, fraction, frame_count);
@@ -161,8 +158,16 @@ mod tests {
     fn render_cached_view_skips_cache_for_high_zoom_line_mode() {
         let renderer = WaveformRenderer::new(8, 8);
         let decoded = decoded_waveform(8);
-        let image =
-            renderer.render_cached_view(&decoded, 0.0, 1.0, WaveformChannelView::Mono, 8, 8, None);
+        let image = renderer.render_cached_view(
+            &decoded,
+            WaveformChannelView::Mono,
+            WaveformRenderViewport {
+                size: [8, 8],
+                view_start: 0.0,
+                view_end: 1.0,
+                edit_fade: None,
+            },
+        );
         assert!(image.is_none());
     }
 
@@ -171,8 +176,16 @@ mod tests {
     fn render_cached_view_uses_cache_for_dense_views() {
         let renderer = WaveformRenderer::new(8, 8);
         let decoded = decoded_waveform(64);
-        let image =
-            renderer.render_cached_view(&decoded, 0.0, 1.0, WaveformChannelView::Mono, 8, 8, None);
+        let image = renderer.render_cached_view(
+            &decoded,
+            WaveformChannelView::Mono,
+            WaveformRenderViewport {
+                size: [8, 8],
+                view_start: 0.0,
+                view_end: 1.0,
+                edit_fade: None,
+            },
+        );
         assert!(image.is_some());
     }
 }

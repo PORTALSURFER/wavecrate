@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::controller::library::selection_export::SelectionClipExportRequest;
 
 impl DragDropController<'_> {
     pub(crate) fn selection_drag_label(
@@ -27,14 +28,14 @@ impl DragDropController<'_> {
             .as_ref()
             .ok_or_else(|| "Load a sample before dragging a selection".to_string())?;
         let clip = self.selection_audio(&audio.source_id, &audio.relative_path)?;
-        let entry = self.export_selection_clip(
-            &clip.source_id,
-            &clip.relative_path,
+        let entry = self.export_selection_clip(SelectionClipExportRequest {
+            source_id: &clip.source_id,
+            relative_path: &clip.relative_path,
             bounds,
-            None,
-            true,
-            true,
-        )?;
+            target_tag: None,
+            add_to_browser: true,
+            register_in_source: true,
+        })?;
         let source = self
             .library
             .sources

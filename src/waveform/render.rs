@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 mod cache;
 mod paint;
 
@@ -10,6 +8,19 @@ use crate::selection::{SelectionRange, fade_gain_at_position};
 /// Maximum frames-per-column where high-zoom line rendering is preferred.
 pub(super) const LINE_RENDER_MAX_FRAMES_PER_COLUMN: f32 = 1.5;
 
+/// View-window and raster-size inputs for one waveform render request.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WaveformRenderViewport {
+    /// Render target size in pixels.
+    pub size: [u32; 2],
+    /// Normalized view start within the full waveform.
+    pub view_start: f32,
+    /// Normalized view end within the full waveform.
+    pub view_end: f32,
+    /// Optional edit-fade preview applied while rendering.
+    pub edit_fade: Option<SelectionRange>,
+}
+
 impl WaveformRenderer {
     /// Produce an empty waveform image buffer.
     pub fn empty_color_image(&self) -> WaveformImage {
@@ -17,11 +28,12 @@ impl WaveformRenderer {
             &[],
             1,
             WaveformChannelView::Mono,
-            self.width,
-            self.height,
-            0.0,
-            1.0,
-            None,
+            WaveformRenderViewport {
+                size: [self.width, self.height],
+                view_start: 0.0,
+                view_end: 1.0,
+                edit_fade: None,
+            },
         )
     }
 
@@ -34,22 +46,25 @@ impl WaveformRenderer {
         if decoded.samples.is_empty() {
             return self.render_color_image_for_view_with_size(
                 decoded,
-                0.0,
-                1.0,
                 view,
-                self.width,
-                self.height,
+                WaveformRenderViewport {
+                    size: [self.width, self.height],
+                    view_start: 0.0,
+                    view_end: 1.0,
+                    edit_fade: None,
+                },
             );
         }
         self.render_color_image_with_size(
             &decoded.samples,
             decoded.channel_count(),
             view,
-            self.width,
-            self.height,
-            0.0,
-            1.0,
-            None,
+            WaveformRenderViewport {
+                size: [self.width, self.height],
+                view_start: 0.0,
+                view_end: 1.0,
+                edit_fade: None,
+            },
         )
     }
 
@@ -60,15 +75,10 @@ impl WaveformRenderer {
     pub fn render_color_image_for_view_with_size(
         &self,
         decoded: &DecodedWaveform,
-        view_start: f32,
-        view_end: f32,
         view: WaveformChannelView,
-        width: u32,
-        height: u32,
+        viewport: WaveformRenderViewport,
     ) -> WaveformImage {
-        self.render_color_image_for_view_with_size_and_fade(
-            decoded, view_start, view_end, view, width, height, None,
-        )
+        self.render_color_image_for_view_with_size_and_fade(decoded, view, viewport)
     }
 
     /// Render a waveform image for a decoded waveform over a normalized view window
@@ -76,13 +86,15 @@ impl WaveformRenderer {
     pub fn render_color_image_for_view_with_size_and_fade(
         &self,
         decoded: &DecodedWaveform,
-        view_start: f32,
-        view_end: f32,
         view: WaveformChannelView,
-        width: u32,
-        height: u32,
-        edit_fade: Option<SelectionRange>,
+        viewport: WaveformRenderViewport,
     ) -> WaveformImage {
+        let WaveformRenderViewport {
+            size: [width, height],
+            view_start,
+            view_end,
+            edit_fade,
+        } = viewport;
         let width = width.max(1);
         let height = height.max(1);
         let channels = decoded.channel_count();
@@ -92,11 +104,12 @@ impl WaveformRenderer {
                 &[],
                 1,
                 WaveformChannelView::Mono,
-                width,
-                height,
-                0.0,
-                1.0,
-                None,
+                WaveformRenderViewport {
+                    size: [width, height],
+                    view_start: 0.0,
+                    view_end: 1.0,
+                    edit_fade: None,
+                },
             );
         }
 
@@ -144,16 +157,25 @@ impl WaveformRenderer {
                 &[],
                 1,
                 WaveformChannelView::Mono,
-                width,
-                height,
-                0.0,
-                1.0,
-                None,
+                WaveformRenderViewport {
+                    size: [width, height],
+                    view_start: 0.0,
+                    view_end: 1.0,
+                    edit_fade: None,
+                },
             );
         }
 
-        if let Some(image) = self.render_cached_view(decoded, start, end, view, width, height, fade)
-        {
+        if let Some(image) = self.render_cached_view(
+            decoded,
+            view,
+            WaveformRenderViewport {
+                size: [width, height],
+                view_start: start,
+                view_end: end,
+                edit_fade: fade,
+            },
+        ) {
             return image;
         }
 
@@ -173,11 +195,12 @@ impl WaveformRenderer {
             &decoded.samples[start_idx..end_idx],
             channels,
             view,
-            width,
-            height,
-            start,
-            end,
-            fade,
+            WaveformRenderViewport {
+                size: [width, height],
+                view_start: start,
+                view_end: end,
+                edit_fade: fade,
+            },
         )
     }
 
@@ -190,12 +213,14 @@ impl WaveformRenderer {
         samples: &[f32],
         channels: usize,
         view: WaveformChannelView,
-        width: u32,
-        height: u32,
-        view_start: f32,
-        view_end: f32,
-        edit_fade: Option<SelectionRange>,
+        viewport: WaveformRenderViewport,
     ) -> WaveformImage {
+        let WaveformRenderViewport {
+            size: [width, height],
+            view_start,
+            view_end,
+            edit_fade,
+        } = viewport;
         let width = width.max(1);
         let height = height.max(1);
         let frame_count = samples.len() / channels.max(1);
@@ -216,19 +241,23 @@ impl WaveformRenderer {
                     WaveformChannelView::Mono => Self::paint_line_image(
                         &faded,
                         channels,
-                        width,
-                        height,
-                        self.foreground,
-                        self.background,
-                        None,
+                        paint::LinePaintConfig {
+                            width,
+                            height,
+                            foreground: self.foreground,
+                            background: self.background,
+                            channel_index: None,
+                        },
                     ),
                     WaveformChannelView::SplitStereo => Self::paint_split_line_image(
                         &faded,
                         channels,
-                        width,
-                        height,
-                        self.foreground,
-                        self.background,
+                        paint::SplitLinePaintConfig {
+                            width,
+                            height,
+                            foreground: self.foreground,
+                            background: self.background,
+                        },
                     ),
                 };
             }
@@ -236,19 +265,23 @@ impl WaveformRenderer {
                 WaveformChannelView::Mono => Self::paint_line_image(
                     samples,
                     channels,
-                    width,
-                    height,
-                    self.foreground,
-                    self.background,
-                    None,
+                    paint::LinePaintConfig {
+                        width,
+                        height,
+                        foreground: self.foreground,
+                        background: self.background,
+                        channel_index: None,
+                    },
                 ),
                 WaveformChannelView::SplitStereo => Self::paint_split_line_image(
                     samples,
                     channels,
-                    width,
-                    height,
-                    self.foreground,
-                    self.background,
+                    paint::SplitLinePaintConfig {
+                        width,
+                        height,
+                        foreground: self.foreground,
+                        background: self.background,
+                    },
                 ),
             };
         }
@@ -375,11 +408,12 @@ mod tests {
             &[0.0, 0.5],
             1,
             WaveformChannelView::Mono,
-            4,
-            6,
-            0.0,
-            1.0,
-            None,
+            WaveformRenderViewport {
+                size: [4, 6],
+                view_start: 0.0,
+                view_end: 1.0,
+                edit_fade: None,
+            },
         );
         assert_eq!(image.size, [4, 6]);
     }
@@ -400,11 +434,13 @@ mod tests {
         };
         let image = renderer.render_color_image_for_view_with_size(
             &decoded,
-            0.25,
-            0.75,
             WaveformChannelView::Mono,
-            5,
-            3,
+            WaveformRenderViewport {
+                size: [5, 3],
+                view_start: 0.25,
+                view_end: 0.75,
+                edit_fade: None,
+            },
         );
         assert_eq!(image.size, [5, 3]);
     }

@@ -1,10 +1,28 @@
-#![allow(clippy::too_many_arguments)]
-
 use super::FadeDirection;
 use super::buffer::SelectionEditBuffer;
 use crate::selection::FadeParams;
 
 const MIN_MUTE_FADE_SECS: f32 = 0.002;
+
+/// Inputs for applying gain and fade envelopes within a selected frame span.
+pub(crate) struct SelectionFadeRequest<'a> {
+    /// Audio samples to update in place.
+    pub samples: &'a mut [f32],
+    /// Channel count for interleaved sample layout.
+    pub channels: usize,
+    /// Sample rate used to translate minimum mute-fade durations into frames.
+    pub sample_rate: u32,
+    /// Inclusive selection start frame.
+    pub start_frame: usize,
+    /// Exclusive selection end frame.
+    pub end_frame: usize,
+    /// Gain applied uniformly across the selected span before edge fades.
+    pub selection_gain: f32,
+    /// Optional fade-in parameters for the left edge.
+    pub fade_in: Option<FadeParams>,
+    /// Optional fade-out parameters for the right edge.
+    pub fade_out: Option<FadeParams>,
+}
 
 pub(crate) fn crop_buffer(buffer: &mut SelectionEditBuffer) -> Result<(), String> {
     let cropped = slice_frames(
@@ -171,16 +189,17 @@ pub(crate) fn apply_edge_fades(
 
 /// Apply optional fade-in and fade-out ramps within the selection bounds.
 /// A minimal fade is applied when a mute region is present but the fade length is zero.
-pub(crate) fn apply_selection_fades(
-    samples: &mut [f32],
-    channels: usize,
-    sample_rate: u32,
-    start_frame: usize,
-    end_frame: usize,
-    selection_gain: f32,
-    fade_in: Option<FadeParams>,
-    fade_out: Option<FadeParams>,
-) {
+pub(crate) fn apply_selection_fades(request: SelectionFadeRequest<'_>) {
+    let SelectionFadeRequest {
+        samples,
+        channels,
+        sample_rate,
+        start_frame,
+        end_frame,
+        selection_gain,
+        fade_in,
+        fade_out,
+    } = request;
     let channels = channels.max(1);
     let total_frames = samples.len() / channels;
     let (clamped_start, clamped_end) = clamped_selection_span(total_frames, start_frame, end_frame);

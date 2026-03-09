@@ -26,8 +26,11 @@ use `docs/FEATURE_CHECKLIST.md` as the default safe path.
 - Sample catalog, scanning, database integration: `src/sample_sources`
 - Selection math and focus helpers: `src/selection.rs`
 - Filesystem paths for app data/caches/settings: `src/app_dirs`
-- Update checking/download/install flow: `src/updater` and `src/bin/sempal-updater`
-- Installer UI: `src/bin/sempal-installer`
+- Update checking/download/install flow: `src/updater` and `apps/updater-helper`
+- Installer UI: `apps/installer`
+- Benchmark CLI and perf probes: `tools/bench-cli`
+- Analysis/admin support tools: `tools/analysis-admin`
+- Similarity-prep support tool: `tools/similarity-prep`
 - Logging setup and tracing helpers: `src/logging.rs`
 - HTTP request helpers: `src/http_client.rs`
 - Issue reporting and GitHub issue flow: `src/issue_gateway`
@@ -81,7 +84,7 @@ When changing ownership boundaries:
   - `updater` — update checking, download, install, and patch flow.
   - `wav_sanitize.rs` — WAV header/corpus sanitization helpers.
   - `waveform` — waveform decoding, rendering, and caching.
-  - `main.rs` and `bin/` entrypoints — app and updater binaries.
+  - `main.rs` — shipping app entrypoint for the root `sempal` package.
 - `vendor/radiant/`: UI shell, layout, and rendering engine used by native shells.
   - Layout contract: `docs/radiant_slot_layout_spec.md`.
   - `vendor/radiant/src/app/` — native-app bridge model types and action enums.
@@ -97,6 +100,13 @@ When changing ownership boundaries:
 - `scripts/`: build/dev helper scripts.
 - `docs/`: developer documentation.
 - `manual/`: user-facing documentation (usage guide + published site).
+- `apps/`: workspace app packages that ship alongside the root app.
+  - `apps/installer` — installer GUI and install workflow.
+  - `apps/updater-helper` — standalone updater GUI used during update/apply flows.
+- `tools/`: workspace support-tool packages.
+  - `tools/analysis-admin` — ANN rebuild, DB inspection, HDBSCAN, and UMAP binaries.
+  - `tools/bench-cli` — benchmark runner and GUI perf probes.
+  - `tools/similarity-prep` — offline similarity prep utility.
 
 ### Submodules
 

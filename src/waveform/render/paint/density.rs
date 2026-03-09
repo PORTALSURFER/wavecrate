@@ -158,25 +158,33 @@ impl WaveformRenderer {
             return;
         }
         if points.len() == 1 {
-            Self::draw_line_aa(
-                image, stride, width, height, 0.0, points[0], 0.0, points[0], color,
-            );
+            Self::draw_line_aa(super::lines::RasterLineConfig {
+                image,
+                stride,
+                width,
+                height,
+                x0: 0.0,
+                y0: points[0],
+                x1: 0.0,
+                y1: points[0],
+                fg: color,
+            });
             return;
         }
         for x in 1..points.len() {
             let prev = points[x - 1];
             let current = points[x];
-            Self::draw_line_aa(
+            Self::draw_line_aa(super::lines::RasterLineConfig {
                 image,
                 stride,
                 width,
                 height,
-                (x - 1) as f32,
-                prev,
-                x as f32,
-                current,
-                color,
-            );
+                x0: (x - 1) as f32,
+                y0: prev,
+                x1: x as f32,
+                y1: current,
+                fg: color,
+            });
         }
     }
 }

@@ -1,5 +1,3 @@
-#![allow(clippy::type_complexity)]
-
 use cpal;
 use cpal::traits::{DeviceTrait, HostTrait};
 use serde::{Deserialize, Serialize};
@@ -329,6 +327,14 @@ pub struct OpenStreamOutcome {
     pub resolved: ResolvedOutput,
 }
 
+/// Raw stream construction pieces returned before wrapping in `CpalAudioStream`.
+struct BuiltStreamState {
+    stream: cpal::Stream,
+    command_sender: SyncSender<StreamCommand>,
+    error_receiver: Receiver<String>,
+    clear_pending: Arc<AtomicBool>,
+}
+
 /// Enumerate audio hosts available on this platform.
 pub fn available_hosts() -> Vec<AudioHostSummary> {
     let default_host = cpal::default_host();
@@ -442,7 +448,12 @@ pub fn open_output_stream(
     let clear_pending = Arc::new(AtomicBool::new(false));
 
     let mut resolved_stream_config = stream_config.clone();
-    let (stream, command_sender, error_receiver, clear_pending) = match build_stream_with_state(
+    let BuiltStreamState {
+        stream,
+        command_sender,
+        error_receiver,
+        clear_pending,
+    } = match build_stream_with_state(
         &device,
         &stream_config,
         volume_bits.clone(),
@@ -635,15 +646,7 @@ fn build_stream_with_state(
     volume_bits: Arc<AtomicU32>,
     active_sources: Arc<AtomicUsize>,
     clear_pending: Arc<AtomicBool>,
-) -> Result<
-    (
-        cpal::Stream,
-        SyncSender<StreamCommand>,
-        Receiver<String>,
-        Arc<AtomicBool>,
-    ),
-    cpal::BuildStreamError,
-> {
+) -> Result<BuiltStreamState, cpal::BuildStreamError> {
     const COMMAND_QUEUE_CAPACITY: usize = 512;
     let (command_sender, command_receiver) = mpsc::sync_channel(COMMAND_QUEUE_CAPACITY);
     let (error_sender, error_receiver) = mpsc::channel();
@@ -663,7 +666,12 @@ fn build_stream_with_state(
         |err| tracing::error!("Stream error: {}", err),
         None,
     )?;
-    Ok((stream, command_sender, error_receiver, clear_pending))
+    Ok(BuiltStreamState {
+        stream,
+        command_sender,
+        error_receiver,
+        clear_pending,
+    })
 }
 
 fn sanitize_gain(value: f32) -> f32 {

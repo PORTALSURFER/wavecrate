@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use super::{
     ControllerUiCacheState, LibraryCacheState, MissingState, SourceDatabase, SourceId,
     controller_state::FeatureCache,
@@ -32,46 +30,17 @@ impl<'a> SourceCacheInvalidator<'a> {
         ui_cache: &'a mut ControllerUiCacheState,
         missing: &'a mut MissingState,
     ) -> Self {
-        Self::new(
-            &mut cache.db,
-            &mut cache.wav.entries,
-            &mut ui_cache.browser.labels,
-            &mut ui_cache.browser.bpm_values,
-            &mut ui_cache.browser.durations,
-            &mut ui_cache.browser.analysis_failures,
-            &mut ui_cache.browser.features,
-            &mut ui_cache.browser.pipeline,
-            &mut missing.wavs,
-            &mut ui_cache.folders.models,
-        )
-    }
-
-    pub(crate) fn new(
-        db_cache: &'a mut HashMap<SourceId, Rc<SourceDatabase>>,
-        wav_cache: &'a mut HashMap<SourceId, super::WavEntriesState>,
-        label_cache: &'a mut HashMap<SourceId, Vec<String>>,
-        bpm_cache: &'a mut HashMap<SourceId, HashMap<PathBuf, Option<f32>>>,
-        duration_cache: &'a mut HashMap<SourceId, HashMap<PathBuf, f32>>,
-        analysis_failures_cache: &'a mut HashMap<SourceId, HashMap<PathBuf, String>>,
-        feature_cache: &'a mut HashMap<SourceId, FeatureCache>,
-        browser_pipeline_cache: &'a mut crate::app::controller::library::wavs::BrowserPipelineCache,
-        missing_wavs: &'a mut HashMap<SourceId, HashSet<PathBuf>>,
-        folder_browsers: &'a mut HashMap<
-            SourceId,
-            crate::app::controller::library::source_folders::FolderBrowserModel,
-        >,
-    ) -> Self {
         Self {
-            db_cache,
-            wav_cache,
-            label_cache,
-            bpm_cache,
-            duration_cache,
-            analysis_failures_cache,
-            feature_cache,
-            browser_pipeline_cache,
-            missing_wavs,
-            folder_browsers,
+            db_cache: &mut cache.db,
+            wav_cache: &mut cache.wav.entries,
+            label_cache: &mut ui_cache.browser.labels,
+            bpm_cache: &mut ui_cache.browser.bpm_values,
+            duration_cache: &mut ui_cache.browser.durations,
+            analysis_failures_cache: &mut ui_cache.browser.analysis_failures,
+            feature_cache: &mut ui_cache.browser.features,
+            browser_pipeline_cache: &mut ui_cache.browser.pipeline,
+            missing_wavs: &mut missing.wavs,
+            folder_browsers: &mut ui_cache.folders.models,
         }
     }
 

@@ -161,33 +161,37 @@ impl AnalysisWorkerPool {
                 for worker_index in 0..decode_workers {
                     self.threads.push(job_claim::spawn_decoder_worker(
                         worker_index,
-                        queue.clone(),
-                        self.cancel.clone(),
-                        self.shutdown.clone(),
-                        self.pause_claiming.clone(),
-                        self.allowed_source_ids.clone(),
-                        self.max_duration_bits.clone(),
-                        self.analysis_sample_rate.clone(),
-                        decode_queue_target,
-                        claim_wakeup.clone(),
-                        reset_done.clone(),
+                        job_claim::DecoderWorkerContext {
+                            decode_queue: queue.clone(),
+                            cancel: self.cancel.clone(),
+                            shutdown: self.shutdown.clone(),
+                            pause_claiming: self.pause_claiming.clone(),
+                            allowed_source_ids: self.allowed_source_ids.clone(),
+                            max_duration_bits: self.max_duration_bits.clone(),
+                            analysis_sample_rate: self.analysis_sample_rate.clone(),
+                            decode_queue_target,
+                            claim_wakeup: claim_wakeup.clone(),
+                            reset_done: reset_done.clone(),
+                        },
                     ));
                 }
                 for worker_index in 0..worker_count {
                     self.threads.push(job_claim::spawn_compute_worker(
                         worker_index,
-                        message_tx.clone(),
-                        self.repaint_signal.clone(),
-                        queue.clone(),
-                        self.cancel.clone(),
-                        self.shutdown.clone(),
-                        self.use_cache.clone(),
-                        self.allowed_source_ids.clone(),
-                        self.max_duration_bits.clone(),
-                        self.analysis_sample_rate.clone(),
-                        self.analysis_version_override.clone(),
-                        self._progress_cache.clone(),
-                        self.progress_wakeup.clone(),
+                        job_claim::ComputeWorkerContext {
+                            tx: message_tx.clone(),
+                            signal: self.repaint_signal.clone(),
+                            decode_queue: queue.clone(),
+                            cancel: self.cancel.clone(),
+                            shutdown: self.shutdown.clone(),
+                            use_cache: self.use_cache.clone(),
+                            allowed_source_ids: self.allowed_source_ids.clone(),
+                            max_duration_bits: self.max_duration_bits.clone(),
+                            analysis_sample_rate: self.analysis_sample_rate.clone(),
+                            analysis_version_override: self.analysis_version_override.clone(),
+                            progress_cache: self._progress_cache.clone(),
+                            progress_wakeup: self.progress_wakeup.clone(),
+                        },
                     ));
                 }
                 self.threads.push(job_progress::spawn_progress_poller(

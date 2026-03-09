@@ -1,9 +1,8 @@
-#![allow(clippy::too_many_arguments)]
-
 use super::job_execution::{run_analysis_jobs_with_decoded_batch, run_job};
 use crate::app::controller::jobs::JobMessageSender;
 use crate::app::controller::library::analysis_jobs::db as analysis_db;
 use crate::gui::repaint::SharedRepaintSignal;
+use crate::sample_sources::SourceId;
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -14,6 +13,7 @@ use std::sync::{
 };
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
+use tracing::{info, warn};
 
 use super::progress_cache::ProgressCache;
 use crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
@@ -40,21 +40,54 @@ pub(crate) use queue::{DecodeOutcome, DecodedQueue, DecodedWork};
 #[cfg(test)]
 mod tests;
 
+/// Shared inputs for one decoder worker thread.
+pub(crate) struct DecoderWorkerContext {
+    pub(crate) decode_queue: Arc<DecodedQueue>,
+    pub(crate) cancel: Arc<AtomicBool>,
+    pub(crate) shutdown: Arc<AtomicBool>,
+    pub(crate) pause_claiming: Arc<AtomicBool>,
+    pub(crate) allowed_source_ids: Arc<RwLock<Option<HashSet<SourceId>>>>,
+    pub(crate) max_duration_bits: Arc<AtomicU32>,
+    pub(crate) analysis_sample_rate: Arc<AtomicU32>,
+    pub(crate) decode_queue_target: usize,
+    pub(crate) claim_wakeup: Arc<ClaimWakeup>,
+    pub(crate) reset_done: Arc<Mutex<HashSet<std::path::PathBuf>>>,
+}
+
+/// Shared inputs for one compute worker thread.
+pub(crate) struct ComputeWorkerContext {
+    pub(crate) tx: JobMessageSender,
+    pub(crate) signal: Arc<SharedRepaintSignal>,
+    pub(crate) decode_queue: Arc<DecodedQueue>,
+    pub(crate) cancel: Arc<AtomicBool>,
+    pub(crate) shutdown: Arc<AtomicBool>,
+    pub(crate) use_cache: Arc<AtomicBool>,
+    pub(crate) allowed_source_ids: Arc<RwLock<Option<HashSet<SourceId>>>>,
+    pub(crate) max_duration_bits: Arc<AtomicU32>,
+    pub(crate) analysis_sample_rate: Arc<AtomicU32>,
+    pub(crate) analysis_version_override: Arc<std::sync::RwLock<Option<String>>>,
+    pub(crate) progress_cache: Arc<RwLock<ProgressCache>>,
+    pub(crate) progress_wakeup: Arc<super::job_progress::ProgressPollerWakeup>,
+}
+
 #[cfg_attr(test, allow(dead_code))]
 pub(crate) fn spawn_decoder_worker(
     _worker_index: usize,
-    decode_queue: Arc<DecodedQueue>,
-    cancel: Arc<AtomicBool>,
-    shutdown: Arc<AtomicBool>,
-    pause_claiming: Arc<AtomicBool>,
-    allowed_source_ids: Arc<RwLock<Option<HashSet<crate::sample_sources::SourceId>>>>,
-    max_duration_bits: Arc<AtomicU32>,
-    analysis_sample_rate: Arc<AtomicU32>,
-    decode_queue_target: usize,
-    claim_wakeup: Arc<ClaimWakeup>,
-    reset_done: Arc<Mutex<HashSet<std::path::PathBuf>>>,
+    context: DecoderWorkerContext,
 ) -> JoinHandle<()> {
     std::thread::spawn(move || {
+        let DecoderWorkerContext {
+            decode_queue,
+            cancel,
+            shutdown,
+            pause_claiming,
+            allowed_source_ids,
+            max_duration_bits,
+            analysis_sample_rate,
+            decode_queue_target,
+            claim_wakeup,
+            reset_done,
+        } = context;
         lower_worker_priority();
         let log_jobs = logging::analysis_log_enabled();
         let mut selector = selection::ClaimSelector::new(reset_done);
@@ -102,14 +135,15 @@ pub(crate) fn spawn_decoder_worker(
             }
             if !decode_queue.try_mark_inflight(job.id) {
                 if log_jobs {
-                    eprintln!("analysis decode skipped inflight: {}", job.sample_id);
+                    info!(sample_id = %job.sample_id, "analysis decode skipped inflight");
                 }
                 continue;
             }
             if log_jobs {
-                eprintln!(
-                    "analysis decode start: {} ({})",
-                    job.sample_id, job.job_type
+                info!(
+                    sample_id = %job.sample_id,
+                    job_type = %job.job_type,
+                    "analysis decode start"
                 );
             }
             let heartbeat = if job.job_type == analysis_db::ANALYZE_SAMPLE_JOB_TYPE {
@@ -133,16 +167,20 @@ pub(crate) fn spawn_decoder_worker(
             if log_jobs {
                 match &outcome {
                     DecodeOutcome::Decoded(_) => {
-                        eprintln!("analysis decode done: {}", job.sample_id);
+                        info!(sample_id = %job.sample_id, "analysis decode done");
                     }
                     DecodeOutcome::Skipped { .. } => {
-                        eprintln!("analysis decode skipped: {}", job.sample_id);
+                        info!(sample_id = %job.sample_id, "analysis decode skipped");
                     }
                     DecodeOutcome::Failed(err) => {
-                        eprintln!("analysis decode failed: {} ({})", job.sample_id, err);
+                        warn!(
+                            sample_id = %job.sample_id,
+                            error = %err,
+                            "analysis decode failed"
+                        );
                     }
                     DecodeOutcome::NotNeeded => {
-                        eprintln!("analysis decode not needed: {}", job.sample_id);
+                        info!(sample_id = %job.sample_id, "analysis decode not needed");
                     }
                 }
             }
@@ -152,7 +190,10 @@ pub(crate) fn spawn_decoder_worker(
             if !queued {
                 decode_queue.clear_inflight(job_id);
                 if log_jobs && !shutdown.load(Ordering::Relaxed) {
-                    eprintln!("analysis decode skipped duplicate: {}", job_sample_id);
+                    info!(
+                        sample_id = %job_sample_id,
+                        "analysis decode skipped duplicate"
+                    );
                 }
             }
         }
@@ -162,20 +203,23 @@ pub(crate) fn spawn_decoder_worker(
 #[cfg_attr(test, allow(dead_code))]
 pub(crate) fn spawn_compute_worker(
     _worker_index: usize,
-    tx: JobMessageSender,
-    signal: Arc<SharedRepaintSignal>,
-    decode_queue: Arc<DecodedQueue>,
-    cancel: Arc<AtomicBool>,
-    shutdown: Arc<AtomicBool>,
-    use_cache: Arc<AtomicBool>,
-    allowed_source_ids: Arc<RwLock<Option<HashSet<crate::sample_sources::SourceId>>>>,
-    max_duration_bits: Arc<AtomicU32>,
-    analysis_sample_rate: Arc<AtomicU32>,
-    analysis_version_override: Arc<std::sync::RwLock<Option<String>>>,
-    progress_cache: Arc<RwLock<ProgressCache>>,
-    progress_wakeup: Arc<super::job_progress::ProgressPollerWakeup>,
+    context: ComputeWorkerContext,
 ) -> JoinHandle<()> {
     std::thread::spawn(move || {
+        let ComputeWorkerContext {
+            tx,
+            signal,
+            decode_queue,
+            cancel,
+            shutdown,
+            use_cache,
+            allowed_source_ids,
+            max_duration_bits,
+            analysis_sample_rate,
+            analysis_version_override,
+            progress_cache,
+            progress_wakeup,
+        } = context;
         lower_worker_priority();
         let log_jobs = logging::analysis_log_enabled();
         let log_queue = logging::analysis_log_queue_enabled();
@@ -193,26 +237,26 @@ pub(crate) fn spawn_compute_worker(
             }
             let (batch, wait_ms) = decode_queue.pop_batch(&shutdown, embedding_batch_max);
             if batch.is_empty() {
-                db::flush_deferred_updates(
-                    &mut connections,
-                    &decode_queue,
-                    &tx,
-                    &progress_cache,
-                    &progress_wakeup,
-                    &mut deferred_updates,
+                let mut finalize = db::FinalizeJobContext {
+                    connections: &mut connections,
+                    decode_queue: &decode_queue,
+                    tx: &tx,
+                    progress_cache: &progress_cache,
+                    progress_wakeup: &progress_wakeup,
                     log_jobs,
-                );
+                };
+                db::flush_deferred_updates(&mut finalize, &mut deferred_updates);
                 signal.request_repaint();
                 continue;
             }
             if log_queue && last_queue_log.elapsed() >= Duration::from_secs(2) {
                 last_queue_log = Instant::now();
-                eprintln!(
-                    "analysis queue: decoded={}, max={}, batch={}, wait_ms={}",
-                    decode_queue.len(),
-                    decode_queue.max_size(),
-                    batch.len(),
-                    wait_ms
+                info!(
+                    decoded = decode_queue.len(),
+                    max = decode_queue.max_size(),
+                    batch = batch.len(),
+                    wait_ms,
+                    "analysis queue"
                 );
             }
             let max_analysis_duration_seconds =
@@ -243,9 +287,10 @@ pub(crate) fn spawn_compute_worker(
                         Ok(conn) => lease::release_claim(conn, work.job.id),
                         Err(err) => {
                             if log_jobs {
-                                eprintln!(
-                                    "analysis release failed: {} ({})",
-                                    work.job.sample_id, err
+                                warn!(
+                                    sample_id = %work.job.sample_id,
+                                    error = %err,
+                                    "analysis release failed"
                                 );
                             }
                         }
@@ -254,9 +299,10 @@ pub(crate) fn spawn_compute_worker(
                     continue;
                 }
                 if log_jobs {
-                    eprintln!(
-                        "analysis run start: {} ({})",
-                        work.job.sample_id, work.job.job_type
+                    info!(
+                        sample_id = %work.job.sample_id,
+                        job_type = %work.job.job_type,
+                        "analysis run start"
                     );
                 }
                 let job_fallback = work.job.clone();
@@ -289,11 +335,13 @@ pub(crate) fn spawn_compute_worker(
                             } => {
                                 let res = analysis_db::update_analysis_metadata(
                                     conn,
-                                    &work.job.sample_id,
-                                    work.job.content_hash.as_deref(),
-                                    duration_seconds,
-                                    sample_rate,
-                                    &analysis_version,
+                                    analysis_db::AnalysisMetadataUpdate {
+                                        sample_id: &work.job.sample_id,
+                                        content_hash: work.job.content_hash.as_deref(),
+                                        duration_seconds,
+                                        sr_used: sample_rate,
+                                        analysis_version: &analysis_version,
+                                    },
                                 );
                                 immediate_job = Some((work.job, res));
                                 Ok(())
@@ -363,7 +411,7 @@ pub(crate) fn spawn_compute_worker(
                 }))
                 .unwrap_or_else(|payload| {
                     let err = logging::panic_to_string(payload);
-                    tracing::warn!("Analysis batch panicked: {err}");
+                    warn!(error = %err, "Analysis batch panicked");
                     jobs_for_failure
                         .into_iter()
                         .map(|job| (job, Err(err.clone())))
@@ -373,28 +421,27 @@ pub(crate) fn spawn_compute_worker(
             }
 
             for (job, outcome) in immediate_jobs {
-                if let Some(deferred) = db::finalize_immediate_job(
-                    &mut connections,
-                    &decode_queue,
-                    &tx,
-                    job,
-                    outcome,
+                let mut finalize = db::FinalizeJobContext {
+                    connections: &mut connections,
+                    decode_queue: &decode_queue,
+                    tx: &tx,
+                    progress_cache: &progress_cache,
+                    progress_wakeup: &progress_wakeup,
                     log_jobs,
-                    &progress_cache,
-                    &progress_wakeup,
-                ) {
+                };
+                if let Some(deferred) = db::finalize_immediate_job(&mut finalize, job, outcome) {
                     deferred_updates.push(deferred);
                 }
             }
-            db::flush_deferred_updates(
-                &mut connections,
-                &decode_queue,
-                &tx,
-                &progress_cache,
-                &progress_wakeup,
-                &mut deferred_updates,
+            let mut finalize = db::FinalizeJobContext {
+                connections: &mut connections,
+                decode_queue: &decode_queue,
+                tx: &tx,
+                progress_cache: &progress_cache,
+                progress_wakeup: &progress_wakeup,
                 log_jobs,
-            );
+            };
+            db::flush_deferred_updates(&mut finalize, &mut deferred_updates);
             signal.request_repaint();
         }
     })

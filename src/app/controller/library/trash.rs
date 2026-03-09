@@ -9,6 +9,7 @@ use std::sync::atomic::Ordering;
 #[cfg(not(test))]
 use std::sync::mpsc::channel;
 use std::sync::{Arc, atomic::AtomicBool};
+use tracing::warn;
 use trash_move::TrashMoveFinished;
 #[cfg(test)]
 use trash_move::TrashMoveMessage;
@@ -186,7 +187,7 @@ impl AppController {
             );
             self.set_status(summary, StatusTone::Warning);
             for err in errors {
-                eprintln!("Trash delete error: {err}");
+                warn!(error = %err, trash_root = %trash_root.display(), "Trash delete error");
             }
         }
     }
@@ -240,7 +241,7 @@ impl AppController {
         }
 
         for err in result.errors {
-            eprintln!("Trash move error: {err}");
+            warn!(error = %err, moved = result.moved, total = result.total, "Trash move error");
         }
         self.clear_progress();
     }

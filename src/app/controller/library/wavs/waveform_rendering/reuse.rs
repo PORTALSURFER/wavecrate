@@ -200,12 +200,13 @@ impl AppController {
             .renderer
             .render_color_image_for_view_with_size_and_fade(
                 decoded,
-                edge_start as f32,
-                edge_end as f32,
                 desired_meta.channel_view,
-                patch_width as u32,
-                desired_meta.size[1],
-                desired_meta.edit_fade,
+                crate::waveform::WaveformRenderViewport {
+                    size: [patch_width as u32, desired_meta.size[1]],
+                    view_start: edge_start as f32,
+                    view_end: edge_end as f32,
+                    edit_fade: desired_meta.edit_fade,
+                },
             );
         blit_waveform_image_at_x(&mut translated, &edge_image, edge_x);
         Some(translated)

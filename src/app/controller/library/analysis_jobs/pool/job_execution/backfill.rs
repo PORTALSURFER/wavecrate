@@ -421,27 +421,31 @@ fn write_backfill_chunk(
         let embedding_blob = crate::analysis::vector::encode_f32_le_blob(&result.embedding);
         if let Err(err) = db::upsert_embedding(
             conn,
-            &result.sample_id,
-            crate::analysis::similarity::SIMILARITY_MODEL_ID,
-            crate::analysis::similarity::SIMILARITY_DIM as i64,
-            crate::analysis::similarity::SIMILARITY_DTYPE_F32,
-            true,
-            &embedding_blob,
-            result.created_at,
+            db::EmbeddingUpsert {
+                sample_id: &result.sample_id,
+                model_id: crate::analysis::similarity::SIMILARITY_MODEL_ID,
+                dim: crate::analysis::similarity::SIMILARITY_DIM as i64,
+                dtype: crate::analysis::similarity::SIMILARITY_DTYPE_F32,
+                l2_normed: true,
+                vec_blob: &embedding_blob,
+                created_at: result.created_at,
+            },
         ) {
             let _ = conn.execute_batch("ROLLBACK");
             return Err(err);
         }
         db::upsert_cached_embedding(
             conn,
-            &result.content_hash,
-            analysis_version,
-            crate::analysis::similarity::SIMILARITY_MODEL_ID,
-            crate::analysis::similarity::SIMILARITY_DIM as i64,
-            crate::analysis::similarity::SIMILARITY_DTYPE_F32,
-            true,
-            &embedding_blob,
-            result.created_at,
+            db::CachedEmbeddingUpsert {
+                content_hash: &result.content_hash,
+                analysis_version,
+                model_id: crate::analysis::similarity::SIMILARITY_MODEL_ID,
+                dim: crate::analysis::similarity::SIMILARITY_DIM as i64,
+                dtype: crate::analysis::similarity::SIMILARITY_DTYPE_F32,
+                l2_normed: true,
+                vec_blob: &embedding_blob,
+                created_at: result.created_at,
+            },
         )?;
     }
     conn.execute_batch("COMMIT")

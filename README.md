@@ -22,8 +22,9 @@ Audio sample triage tool built with Rust.
 
 - Requires Rust (stable toolchain) and `cargo`.
 - Initialize submodules after clone: `git submodule update --init --recursive`.
-- From the project root: `cargo run --release`.
-- Or build once and run the binary: `cargo build --release` then `target/release/sempal`.
+- For the fastest local app loop from the project root: `cargo run-fast`.
+- For exact shipping-profile behavior: `cargo run -p sempal --bin sempal --release`.
+- Or build once and run the shipping binary: `cargo build -p sempal --release` then `target/release/sempal`.
 - Playback uses your default audio output device.
 - GUI backend:
   - Main app uses `native_vello` (radiant runtime path) by default and no longer exposes a legacy backend switch.
@@ -35,6 +36,11 @@ Audio sample triage tool built with Rust.
 Local CI parity command (canonical):
 - macOS/Linux/WSL: `bash scripts/ci_local.sh`
 - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+
+Fast local app loop:
+- macOS/Linux/WSL: `bash scripts/devcheck.sh`
+- Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+- local release-like runs: `cargo run-fast`
 
 The CI-parity scripts run formatting, linting, docs, tests, and perf guardrails
 in the same order used by repository workflows.
@@ -127,7 +133,7 @@ Legacy golden regression tests still use PANNs reference artifacts:
 - Install tooling once: `rustup component add rustfmt clippy`.
 - Format locally: `cargo fmt --all`.
 - Check formatting (same as CI): `cargo fmt --all -- --check`.
-- Lint locally (same as CI): `cargo clippy --all-targets`.
+- Lint locally (same as CI): `cargo clippy --workspace --all-targets`.
 - CI runs `rustfmt`, `clippy`, and `cargo test` on Ubuntu/Windows/macOS for every push to `main`/`next` and all pull requests targeting those branches.
 
 ## Configuration and data

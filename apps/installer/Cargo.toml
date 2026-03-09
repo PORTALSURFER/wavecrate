@@ -1,0 +1,26 @@
+[package]
+name = "sempal-installer"
+version = "19.0.0"
+edition = "2024"
+
+[[bin]]
+name = "sempal-installer"
+path = "src/main.rs"
+
+[dependencies]
+image = "0.25.9"
+open = "5.3.3"
+rfd = "0.16.0"
+sempal = { path = "../.." }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_UI_Shell",
+] }
+winreg = "0.52.0"
+
+[dev-dependencies]
+tempfile = "3.23.0"

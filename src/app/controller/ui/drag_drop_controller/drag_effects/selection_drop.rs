@@ -1,5 +1,6 @@
 use super::super::DragDropController;
 use crate::app::controller::StatusTone;
+use crate::app::controller::library::selection_export::SelectionClipExportRequest;
 use crate::app::state::TriageFlagColumn;
 use crate::sample_sources::{Rating, SourceId};
 use crate::selection::SelectionRange;
@@ -103,12 +104,14 @@ impl DragDropController<'_> {
             return;
         }
         match self.export_selection_clip_in_folder(
-            source_id,
-            relative_path,
-            bounds,
-            None,
-            true,
-            true,
+            SelectionClipExportRequest {
+                source_id,
+                relative_path,
+                bounds,
+                target_tag: None,
+                add_to_browser: true,
+                register_in_source: true,
+            },
             folder,
         ) {
             Ok(entry) => {
@@ -154,16 +157,25 @@ impl DragDropController<'_> {
             .filter(|path| !path.as_os_str().is_empty());
         let export = if let Some(folder) = folder_override.as_deref() {
             self.export_selection_clip_in_folder(
+                SelectionClipExportRequest {
+                    source_id,
+                    relative_path,
+                    bounds,
+                    target_tag,
+                    add_to_browser: true,
+                    register_in_source: true,
+                },
+                folder,
+            )
+        } else {
+            self.export_selection_clip(SelectionClipExportRequest {
                 source_id,
                 relative_path,
                 bounds,
                 target_tag,
-                true,
-                true,
-                folder,
-            )
-        } else {
-            self.export_selection_clip(source_id, relative_path, bounds, target_tag, true, true)
+                add_to_browser: true,
+                register_in_source: true,
+            })
         };
         match export {
             Ok(entry) => {

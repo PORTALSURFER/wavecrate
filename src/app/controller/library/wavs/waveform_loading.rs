@@ -34,6 +34,11 @@ pub(crate) struct FinishWaveformLoadOwned<'a> {
 }
 
 impl AppController {
+    /// Load the waveform for the active browser selection.
+    ///
+    /// A fresh selection load rebuilds waveform state from cache or disk and clears
+    /// transient selection state. A same-path refresh is treated as a no-op reuse of
+    /// the currently loaded sample so existing view and selection state stay intact.
     pub(crate) fn load_waveform_for_selection(
         &mut self,
         source: &SampleSource,
@@ -550,6 +555,10 @@ impl AppController {
         self.clear_waveform_slices();
     }
 
+    /// Reload the active waveform after external content changes invalidate caches.
+    ///
+    /// This path preserves the current view window so edits and background refreshes
+    /// do not snap the user back to the default zoom after a successful reload.
     pub(crate) fn reload_waveform_for_selection_if_active(
         &mut self,
         source: &SampleSource,

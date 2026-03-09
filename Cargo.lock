@@ -4565,6 +4565,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sempal-analysis-admin"
+version = "19.0.0"
+dependencies = [
+ "hdbscan",
+ "rusqlite",
+ "sempal",
+]
+
+[[package]]
 name = "sempal-bench-cli"
 version = "19.0.0"
 dependencies = [
@@ -4576,6 +4585,33 @@ dependencies = [
  "serde_json",
  "sysinfo",
  "tempfile",
+]
+
+[[package]]
+name = "sempal-installer"
+version = "19.0.0"
+dependencies = [
+ "image",
+ "open",
+ "rfd",
+ "sempal",
+ "tempfile",
+ "windows 0.62.2",
+ "winreg 0.52.0",
+]
+
+[[package]]
+name = "sempal-similarity-prep"
+version = "19.0.0"
+dependencies = [
+ "sempal",
+]
+
+[[package]]
+name = "sempal-updater-helper"
+version = "19.0.0"
+dependencies = [
+ "sempal",
 ]
 
 [[package]]

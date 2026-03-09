@@ -1,5 +1,3 @@
-#![allow(clippy::type_complexity)]
-
 use crate::app::controller::library::analysis_jobs::db;
 use rusqlite::params;
 use std::collections::{HashMap, HashSet};
@@ -9,6 +7,19 @@ pub(crate) struct BackfillPlan {
     pub(crate) jobs: Vec<(String, String)>,
     pub(crate) invalidate: Vec<String>,
     pub(crate) failed_requeued: usize,
+}
+
+/// Sample/job changes that should be applied after deciding which items need backfill.
+pub(crate) struct BackfillUpdates {
+    pub(crate) sample_metadata: Vec<db::SampleMetadata>,
+    pub(crate) jobs: Vec<(String, String)>,
+    pub(crate) invalidate: Vec<String>,
+}
+
+/// Temporary split of queued jobs from invalidation-only updates.
+struct QueuedBackfillJobs {
+    sample_metadata: Vec<db::SampleMetadata>,
+    jobs: Vec<(String, String)>,
 }
 
 pub(crate) fn collect_changed_sample_updates(
@@ -39,20 +50,34 @@ pub(crate) fn collect_backfill_updates(
     conn: &mut rusqlite::Connection,
     job_type: &str,
     force_full: bool,
-) -> Result<(Vec<db::SampleMetadata>, Vec<(String, String)>, Vec<String>), String> {
+) -> Result<BackfillUpdates, String> {
     if force_full {
-        let (sample_metadata, jobs) = fetch_force_backfill_jobs(conn, job_type)?;
-        return Ok((sample_metadata, jobs, Vec::new()));
+        let QueuedBackfillJobs {
+            sample_metadata,
+            jobs,
+        } = fetch_force_backfill_jobs(conn, job_type)?;
+        return Ok(BackfillUpdates {
+            sample_metadata,
+            jobs,
+            invalidate: Vec::new(),
+        });
     }
     let current_version = crate::analysis::version::analysis_version();
     let invalidate = fetch_backfill_invalidations(conn, current_version)?;
-    let (sample_metadata, jobs) = fetch_backfill_jobs(
+    let QueuedBackfillJobs {
+        sample_metadata,
+        jobs,
+    } = fetch_backfill_jobs(
         conn,
         current_version,
         job_type,
         crate::analysis::similarity::SIMILARITY_MODEL_ID,
     )?;
-    Ok((sample_metadata, jobs, invalidate))
+    Ok(BackfillUpdates {
+        sample_metadata,
+        jobs,
+        invalidate,
+    })
 }
 
 pub(crate) fn build_backfill_plan(
@@ -66,8 +91,11 @@ pub(crate) fn build_backfill_plan(
         .iter()
         .map(|sample| (sample.sample_id.clone(), sample.clone()))
         .collect();
-    let (mut sample_metadata, mut jobs, mut invalidate) =
-        collect_backfill_updates(conn, job_type, force_full)?;
+    let BackfillUpdates {
+        mut sample_metadata,
+        mut jobs,
+        mut invalidate,
+    } = collect_backfill_updates(conn, job_type, force_full)?;
     let failed_jobs = if force_full {
         fetch_failed_backfill_jobs(conn, job_type, source_id)?
     } else {
@@ -156,7 +184,7 @@ pub(crate) fn merge_failed_backfill_jobs(
 fn fetch_force_backfill_jobs(
     conn: &mut rusqlite::Connection,
     job_type: &str,
-) -> Result<(Vec<db::SampleMetadata>, Vec<(String, String)>), String> {
+) -> Result<QueuedBackfillJobs, String> {
     let mut sample_metadata = Vec::new();
     let mut jobs = Vec::new();
     let mut stmt = conn
@@ -196,7 +224,10 @@ fn fetch_force_backfill_jobs(
         });
         jobs.push((sample_id, content_hash));
     }
-    Ok((sample_metadata, jobs))
+    Ok(QueuedBackfillJobs {
+        sample_metadata,
+        jobs,
+    })
 }
 
 fn fetch_backfill_invalidations(
@@ -235,7 +266,7 @@ fn fetch_backfill_jobs(
     current_version: &str,
     job_type: &str,
     model_id: &str,
-) -> Result<(Vec<db::SampleMetadata>, Vec<(String, String)>), String> {
+) -> Result<QueuedBackfillJobs, String> {
     let mut sample_metadata = Vec::new();
     let mut jobs = Vec::new();
     let mut stmt = conn
@@ -285,5 +316,8 @@ fn fetch_backfill_jobs(
         });
         jobs.push((sample_id, content_hash));
     }
-    Ok((sample_metadata, jobs))
+    Ok(QueuedBackfillJobs {
+        sample_metadata,
+        jobs,
+    })
 }
