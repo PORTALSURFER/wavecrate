@@ -2,8 +2,10 @@
 
 use super::helpers::{pending_audio_matches, pending_recording_waveform_matches};
 use super::*;
+use crate::app::controller::library::wavs::FinishWaveformLoadShared;
 use crate::app::controller::playback::recording::waveform_loader::RecordingWaveformLoadResult;
 use crate::app::controller::state::runtime::WavLoadResult;
+use std::sync::Arc;
 
 impl AppController {
     /// Apply one completed wav-page load to the active source browser.
@@ -121,15 +123,15 @@ impl AppController {
                         .cloned()
                     {
                         if let Some(bytes) = bytes {
-                            let _ = self.finish_waveform_load(
-                                &source,
-                                &pending.relative_path,
-                                decoded,
-                                bytes.into(),
-                                AudioLoadIntent::Selection,
-                                false,
-                                None,
-                            );
+                            let _ = self.finish_waveform_load_shared(FinishWaveformLoadShared {
+                                source: &source,
+                                relative_path: &pending.relative_path,
+                                decoded: Arc::new(decoded),
+                                bytes: bytes.into(),
+                                intent: AudioLoadIntent::Selection,
+                                preserve_selections: false,
+                                transients: None,
+                            });
                             if let Some(target) = self.audio.recording_target.as_mut() {
                                 target.loaded_once = true;
                             }
