@@ -66,7 +66,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: targeted delete-recovery tests, existing folder/file-op suites, then `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
   - Completed: 2026-03-09 (UTC) - `sempal` commit `cbc3c480`
 
-- [ ] 6) Refactor the source-move worker pipeline around explicit transactional stages and broaden failure-path tests
+- [x] 6) Refactor the source-move worker pipeline around explicit transactional stages and broaden failure-path tests
   - ROI/Effort: High / M
   - Why it matters: Source moves mutate filesystem state, DB state, and journal state in one workflow; sparse test coverage leaves cancellation and partial-failure behavior under-specified.
   - Evidence:
@@ -77,6 +77,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: Split request prep, per-request transaction stages, and result application into separate helpers/modules; add tests for same-source no-op, target collision, DB write failure after stage, and cancellation after some requests complete.
   - Risk/tradeoffs: Medium. Transaction order bugs can show up only in failure paths, so test setup must stay explicit.
   - Suggested validation: targeted source-move tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
+  - Completed: 2026-03-09 (UTC) - `sempal` commit `9615c7fe`
 
 - [ ] 7) Decompose the browser actions facade and tighten behavior tests around focus/selection invariants
   - ROI/Effort: High / L
@@ -167,3 +168,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-09: Cleanup backlog re-audited after the workspace split, native-bridge perf work, and recent ASIO/build-speed changes; pending items re-ranked for current ROI.
 - 2026-03-09: Completed item 4 (expanded file-op journal recovery matrix, documented stage contracts, and cleared prerequisite CI blockers so `scripts/ci_local.ps1` is green again).
 - 2026-03-09: Completed item 5 (split folder-delete recovery into journal/recovery/controller-apply modules, added stage-matrix coverage, and documented the restore/finalize contract).
+- 2026-03-09: Completed item 6 (split the source-move flow into plan, registration, result-application, and transactional worker modules; added collision, rollback, and cancellation-path tests).
