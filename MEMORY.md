@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-09T19:03:54Z
+Last Updated: 2026-03-09T19:07:56Z
 Updated By: Codex
 
 ## Purpose
@@ -15,7 +15,7 @@ Updated By: Codex
 - The active source of truth for any follow-up perf work remains `docs/plans/active/runtime_performance_exec_plan.md`.
 - I have refreshed `tmp/cleanup_plan.md` against the current `next` head with a 17-item strict ROI-ranked cleanup backlog.
 - Cleanup Phase 2 is in progress from `tmp/cleanup_plan.md`.
-- Cleanup items 1, 2, and 3 are complete; they landed in commits `16932de4`, `1fe099ae`, and `0b0be54a`.
+- Cleanup items 1, 2, 3, and 4 are complete; items 1-3 landed in commits `16932de4`, `1fe099ae`, and `0b0be54a`, and item 4 is validated and ready for its commit/push cycle.
 
 ## Immediate Next Actions
 
