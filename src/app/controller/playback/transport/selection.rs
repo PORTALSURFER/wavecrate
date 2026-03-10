@@ -10,9 +10,7 @@ const SELECTION_START_SNAP_SECONDS: f32 = 0.1;
 pub(crate) fn start_selection_drag(controller: &mut AppController, position: f32) {
     controller.selection_state.bpm_scale_beats = None;
     controller.begin_selection_undo("Selection");
-    let start = snap_selection_start(controller, position)
-        .or_else(|| snap_to_transient(controller, position))
-        .unwrap_or(position);
+    let start = snapped_selection_drag_anchor(controller, position);
     let range = controller.selection_state.range.begin_new(start);
     controller.apply_selection(Some(range));
 }
@@ -296,6 +294,23 @@ fn apply_scaled_bpm(controller: &mut AppController, beats: f32, range: Selection
     }
 }
 
+fn snapped_selection_drag_anchor(controller: &AppController, position: f32) -> f32 {
+    if let Some(step) = bpm_snap_step(controller) {
+        return snap_position_to_bpm_step(position, step);
+    }
+    snap_selection_start(controller, position)
+        .or_else(|| snap_to_transient(controller, position))
+        .unwrap_or(position)
+}
+
+fn snap_position_to_bpm_step(position: f32, step: f32) -> f32 {
+    if !position.is_finite() || !step.is_finite() || step <= 0.0 {
+        return position;
+    }
+    let snapped = (position / step).round() * step;
+    snapped.clamp(0.0, 1.0)
+}
+
 pub(crate) fn scaled_selection_bpm(
     controller: &AppController,
     beats: f32,
@@ -337,5 +352,30 @@ mod tests {
             panic!("selection range should be initialized");
         };
         assert!((range.start() - 0.0).abs() <= f32::EPSILON);
+    }
+
+    #[test]
+    fn start_selection_drag_snaps_anchor_to_bpm_step() {
+        let (mut controller, source) = test_support::dummy_controller();
+        controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: PathBuf::from("snap_anchor.wav"),
+            bytes: Vec::new().into(),
+            duration_seconds: 4.0,
+            sample_rate: 48_000,
+        });
+        controller.ui.waveform.bpm_snap_enabled = true;
+        controller.ui.waveform.bpm_value = Some(120.0);
+
+        start_selection_drag(&mut controller, 0.31);
+
+        let range = controller
+            .selection_state
+            .range
+            .range()
+            .expect("selection range should be initialized");
+        assert!((range.start() - 0.25).abs() < 1.0e-6);
+        assert!((range.end() - 0.25).abs() < 1.0e-6);
     }
 }
