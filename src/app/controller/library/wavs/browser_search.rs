@@ -277,6 +277,44 @@ pub(crate) fn set_browser_rating_filter(controller: &mut AppController, level: i
     }
 }
 
+/// Replace the active browser rating filter set and refresh visible rows when it changes.
+fn replace_browser_rating_filter(
+    controller: &mut AppController,
+    levels: impl IntoIterator<Item = i8>,
+) {
+    let next_filter = levels
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    if controller.ui.browser.rating_filter == next_filter {
+        return;
+    }
+    controller.ui.browser.rating_filter = next_filter;
+    controller.mark_browser_search_projection_revision_dirty();
+    if controller.should_dispatch_browser_search_async() {
+        controller.dispatch_search_job();
+    } else {
+        controller.rebuild_browser_lists();
+    }
+}
+
+/// Return the inverse rating-filter bucket for one clicked chip level.
+fn inverted_browser_rating_filter_levels(level: i8) -> Option<&'static [i8]> {
+    match level {
+        -3..=-1 => Some(&[1, 2, 3, 4]),
+        0 => Some(&[-3, -2, -1, 1, 2, 3, 4]),
+        1..=4 => Some(&[-3, -2, -1]),
+        _ => None,
+    }
+}
+
+/// Invert one browser rating-filter chip into the opposite rated bucket.
+pub(crate) fn invert_browser_rating_filter(controller: &mut AppController, level: i8) {
+    let Some(levels) = inverted_browser_rating_filter_levels(level) else {
+        return;
+    };
+    replace_browser_rating_filter(controller, levels.iter().copied());
+}
+
 /// Clear all browser rating filters.
 pub(crate) fn clear_browser_rating_filter(controller: &mut AppController) {
     if controller.ui.browser.rating_filter.is_empty() {

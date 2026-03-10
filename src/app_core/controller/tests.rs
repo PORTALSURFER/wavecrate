@@ -73,8 +73,19 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
         },
         Case {
             label: "browser rating filter group",
-            action: NativeUiAction::ToggleBrowserRatingFilter { level: 3 },
+            action: NativeUiAction::ToggleBrowserRatingFilter {
+                level: 3,
+                invert: false,
+            },
             expected: Expected::BrowserRatingFilter(vec![3]),
+        },
+        Case {
+            label: "browser rating invert group",
+            action: NativeUiAction::ToggleBrowserRatingFilter {
+                level: 4,
+                invert: true,
+            },
+            expected: Expected::BrowserRatingFilter(vec![-3, -2, -1]),
         },
         Case {
             label: "map group",

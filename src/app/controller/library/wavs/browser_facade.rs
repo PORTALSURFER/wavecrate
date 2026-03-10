@@ -55,6 +55,11 @@ impl AppController {
         browser_search::set_browser_rating_filter(self, level, additive);
     }
 
+    /// Invert one rating chip into the opposite rated bucket in the browser list.
+    pub fn invert_browser_rating_filter(&mut self, level: i8) {
+        browser_search::invert_browser_rating_filter(self, level);
+    }
+
     /// Clear any active rating-level filters in the browser list.
     pub fn clear_browser_rating_filter(&mut self) {
         browser_search::clear_browser_rating_filter(self);
