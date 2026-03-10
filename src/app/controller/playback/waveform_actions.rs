@@ -530,13 +530,13 @@ fn snap_waveform_selection_range_milli(
         return (snapped_start, snapped_end);
     }
     if start == existing_end {
-        end = snap_milli_to_bpm_step(end, step);
+        end = snap_waveform_resize_endpoint_to_bpm_step(controller, end, step);
     } else if end == existing_start {
-        start = snap_milli_to_bpm_step(start, step);
+        start = snap_waveform_resize_endpoint_to_bpm_step(controller, start, step);
     } else if start == existing_start {
-        end = snap_milli_to_bpm_step(end, step);
+        end = snap_waveform_resize_endpoint_to_bpm_step(controller, end, step);
     } else if end == existing_end {
-        start = snap_milli_to_bpm_step(start, step);
+        start = snap_waveform_resize_endpoint_to_bpm_step(controller, start, step);
     }
     (start, end)
 }
@@ -586,6 +586,25 @@ fn snap_milli_to_bpm_step(value_milli: u16, step: f32) -> u16 {
     let normalized = normalized_from_milli(value_milli);
     let snapped = (normalized / step).round() * step;
     normalized_to_milli(snapped)
+}
+
+/// Snap one resized waveform endpoint unless it is already clamped to the visible edge.
+///
+/// When the pointer moves beyond the waveform plot, native input clamps the raw
+/// endpoint to the current viewport edge. In that case we preserve the viewport
+/// edge exactly instead of snapping back inward to the nearest BPM step.
+fn snap_waveform_resize_endpoint_to_bpm_step(
+    controller: &AppController,
+    value_milli: u16,
+    step: f32,
+) -> u16 {
+    let value_milli = value_milli.min(1000);
+    let view_start_milli = normalized_to_milli(controller.ui.waveform.view.start as f32);
+    let view_end_milli = normalized_to_milli(controller.ui.waveform.view.end as f32);
+    if value_milli == view_start_milli || value_milli == view_end_milli {
+        return value_milli;
+    }
+    snap_milli_to_bpm_step(value_milli, step)
 }
 
 /// Update edit fade-in length from one absolute waveform milli handle position.
