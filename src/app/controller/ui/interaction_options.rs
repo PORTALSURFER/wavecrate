@@ -262,6 +262,19 @@ impl AppController {
     /// When stretch is enabled and a sample is loaded, the waveform reloads to
     /// apply the new tempo.
     pub fn set_bpm_value(&mut self, value: f32) {
+        self.apply_bpm_value(value, true);
+    }
+
+    /// Update the live waveform BPM without persisting settings.
+    ///
+    /// Smart-scale drag preview uses this path so pointer motion stays smooth while
+    /// still reflecting the current inferred BPM in the waveform UI.
+    pub(crate) fn preview_bpm_value(&mut self, value: f32) {
+        self.apply_bpm_value(value, false);
+    }
+
+    /// Apply a BPM update to waveform UI state and optionally persist it.
+    fn apply_bpm_value(&mut self, value: f32, persist: bool) {
         if !value.is_finite() || value <= 0.0 {
             return;
         }
@@ -271,7 +284,7 @@ impl AppController {
             .waveform
             .bpm_value
             .is_some_and(|bpm| (bpm - value).abs() < f32::EPSILON);
-        if settings_match && ui_match {
+        if ui_match && (!persist || settings_match) {
             return;
         }
         let was_playing = self.is_playing();
@@ -281,9 +294,13 @@ impl AppController {
             None
         };
         let looped = self.ui.waveform.loop_enabled;
-        self.settings.controls.bpm_value = value;
+        if persist {
+            self.settings.controls.bpm_value = value;
+        }
         self.ui.waveform.bpm_value = Some(value);
-        self.persist_controls();
+        if persist {
+            self.persist_controls();
+        }
         if self.ui.waveform.bpm_stretch_enabled
             && !self.selection_state.range.is_dragging()
             && !self.selection_state.edit_range.is_dragging()

@@ -87,8 +87,27 @@ pub(crate) fn update_edit_selection_drag(
 
 pub(crate) fn finish_selection_drag(controller: &mut AppController) {
     controller.selection_state.range.finish_drag();
-    controller.selection_state.bpm_scale_beats = None;
+    let commit_scaled_bpm = controller.selection_state.bpm_scale_beats.take().is_some();
     clear_too_small_bpm_selection(controller);
+    if commit_scaled_bpm {
+        if controller
+            .selection_state
+            .range
+            .range()
+            .or(controller.ui.waveform.selection)
+            .is_some()
+        {
+            if let Some(bpm) = controller.ui.waveform.bpm_value {
+                controller.set_bpm_value(bpm);
+            }
+        } else {
+            let persisted_bpm = controller.settings.controls.bpm_value;
+            controller.preview_bpm_value(persisted_bpm);
+            if let Some(input) = format_waveform_bpm_input(persisted_bpm) {
+                controller.ui.waveform.bpm_input = input;
+            }
+        }
+    }
     controller.commit_selection_undo();
     let is_playing = controller
         .audio
@@ -288,7 +307,11 @@ fn apply_scaled_bpm(controller: &mut AppController, beats: f32, range: Selection
     let Some(bpm) = scaled_selection_bpm(controller, beats, range) else {
         return;
     };
-    controller.set_bpm_value(bpm);
+    if controller.selection_state.bpm_scale_beats.is_some() {
+        controller.preview_bpm_value(bpm);
+    } else {
+        controller.set_bpm_value(bpm);
+    }
     if let Some(input) = format_waveform_bpm_input(bpm) {
         controller.ui.waveform.bpm_input = input;
     }
