@@ -27,22 +27,15 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
     let view_span = (ui.waveform.view.end - ui.waveform.view.start).clamp(0.000_1, 1.0) as f32;
     let zoom_percent = (100.0 / view_span).round().clamp(100.0, 9999.0);
     let fade_overlay = project_waveform_edit_fade_overlay_milli(ui);
+    let projected_playhead = projected_playhead_ratio(controller);
     WaveformPanelModel {
         loaded_label: ui
             .loaded_wav
             .as_deref()
             .map(view_model::sample_display_label),
         cursor_milli: ui.waveform.cursor.map(normalized_to_milli),
-        playhead_milli: ui
-            .waveform
-            .playhead
-            .visible
-            .then_some(normalized_to_milli(ui.waveform.playhead.position)),
-        playhead_micros: ui
-            .waveform
-            .playhead
-            .visible
-            .then_some(normalized_to_micros(ui.waveform.playhead.position)),
+        playhead_milli: projected_playhead.map(normalized_to_milli),
+        playhead_micros: projected_playhead.map(normalized_to_micros),
         selection_milli: ui.waveform.selection.map(|selection| {
             NormalizedRangeModel::new(
                 normalized_to_milli(selection.start()),
@@ -67,6 +60,38 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
         waveform_image_signature: ui.waveform.waveform_image_signature,
         waveform_image: project_waveform_image(controller),
     }
+}
+
+/// Resolve the waveform playhead ratio used by native projection.
+///
+/// When transport is actively playing, prefer the live audio-player progress so
+/// motion-only redraws are not limited by the UI state's playhead update cadence.
+/// Fall back to the last UI playhead snapshot for paused or unavailable players.
+pub(super) fn projected_playhead_ratio(controller: &AppController) -> Option<f32> {
+    resolve_projected_playhead_ratio(
+        controller.ui.waveform.playhead.visible,
+        controller.ui.waveform.playhead.position,
+        controller.live_playback_progress(),
+    )
+}
+
+/// Resolve the preferred playhead ratio from UI and live transport inputs.
+///
+/// The native runtime uses this to keep playhead motion smooth while preserving
+/// the last known UI snapshot whenever transport is idle or live progress is
+/// temporarily unavailable.
+pub(super) fn resolve_projected_playhead_ratio(
+    playhead_visible: bool,
+    ui_ratio: f32,
+    live_progress: Option<f32>,
+) -> Option<f32> {
+    if !playhead_visible {
+        return None;
+    }
+    live_progress
+        .filter(|progress| progress.is_finite())
+        .map(|progress| progress.clamp(0.0, 1.0))
+        .or(Some(ui_ratio.clamp(0.0, 1.0)))
 }
 
 /// Project normalized beat spacing for BPM-aligned waveform overlays.

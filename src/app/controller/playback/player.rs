@@ -164,6 +164,21 @@ pub(crate) fn is_playing(controller: &AppController) -> bool {
         .unwrap_or(false)
 }
 
+/// Return live player progress while transport is actively running.
+///
+/// This accessor lets projection paths sample the transport clock directly so
+/// animation-only redraws can avoid visible stepping between UI-state updates.
+pub(crate) fn live_progress(controller: &AppController) -> Option<f32> {
+    let player = controller.audio.player.as_ref()?;
+    let player = player.borrow();
+    player
+        .is_playing()
+        .then(|| player.progress())
+        .flatten()
+        .filter(|progress| progress.is_finite())
+        .map(|progress| progress.clamp(0.0, 1.0))
+}
+
 pub(crate) fn tick_playhead(controller: &mut AppController) {
     controller.poll_background_jobs();
     let Some(player) = controller.audio.player.as_ref().cloned() else {

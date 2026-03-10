@@ -307,6 +307,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
     let selected_column = selected_column_index(&controller.ui);
     let fade_overlay =
         waveform_projection::project_waveform_edit_fade_overlay_milli(&controller.ui);
+    let projected_playhead = waveform_projection::projected_playhead_ratio(controller);
     MotionModel {
         transport_running: controller.is_playing(),
         map_active: matches!(
@@ -341,12 +342,8 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
             .waveform
             .cursor
             .map(waveform_projection::normalized_to_milli),
-        waveform_playhead_milli: controller.ui.waveform.playhead.visible.then_some(
-            waveform_projection::normalized_to_milli(controller.ui.waveform.playhead.position),
-        ),
-        waveform_playhead_micros: controller.ui.waveform.playhead.visible.then_some(
-            waveform_projection::normalized_to_micros(controller.ui.waveform.playhead.position),
-        ),
+        waveform_playhead_milli: projected_playhead.map(waveform_projection::normalized_to_milli),
+        waveform_playhead_micros: projected_playhead.map(waveform_projection::normalized_to_micros),
         waveform_view_start_milli: waveform_projection::normalized64_to_milli(
             controller.ui.waveform.view.start,
         ),

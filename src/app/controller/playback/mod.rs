@@ -290,6 +290,14 @@ impl AppController {
         player::is_playing(self)
     }
 
+    /// Return live player progress while transport is actively running.
+    ///
+    /// Native projection paths use this to derive smoother motion-only playhead
+    /// updates than the coarser retained UI snapshot alone can provide.
+    pub(crate) fn live_playback_progress(&self) -> Option<f32> {
+        player::live_progress(self)
+    }
+
     /// Advance the playhead position based on playback progress.
     pub fn tick_playhead(&mut self) {
         player::tick_playhead(self);

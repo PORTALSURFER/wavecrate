@@ -147,6 +147,24 @@ fn browser_projection_marks_search_placeholder_when_focused() {
     assert_eq!(projected.search_placeholder.as_deref(), Some("▌"));
 }
 
+/// Live transport progress should override stale UI playhead snapshots during motion pulls.
+#[test]
+fn resolve_projected_playhead_ratio_prefers_live_transport_progress() {
+    let resolved =
+        waveform_projection::resolve_projected_playhead_ratio(true, 0.125, Some(0.625_5))
+            .expect("playhead ratio");
+    assert!((resolved - 0.625_5).abs() < 1.0e-6);
+
+    let fallback =
+        waveform_projection::resolve_projected_playhead_ratio(true, 0.125, Some(f32::NAN))
+            .expect("fallback ratio");
+    assert!((fallback - 0.125).abs() < 1.0e-6);
+
+    assert!(
+        waveform_projection::resolve_projected_playhead_ratio(false, 0.125, Some(0.625)).is_none()
+    );
+}
+
 /// Browser projection should expose manual viewport state for native scrollbar rendering.
 #[test]
 fn browser_projection_exposes_manual_viewport_state() {
