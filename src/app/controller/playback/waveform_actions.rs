@@ -117,7 +117,11 @@ impl AppController {
 
     /// Set waveform selection range using 0..=1000 milli positions from UI actions.
     pub fn set_waveform_selection_range_milli(&mut self, start_milli: u16, end_milli: u16) {
-        self.set_waveform_selection_range_milli_with_edge_policy(start_milli, end_milli, false);
+        self.set_waveform_selection_range_micros_with_edge_policy(
+            micros_from_milli(start_milli),
+            micros_from_milli(end_milli),
+            false,
+        );
     }
 
     /// Set waveform selection range from UI milli positions with optional view-edge pinning.
@@ -127,19 +131,33 @@ impl AppController {
         end_milli: u16,
         preserve_view_edge: bool,
     ) {
+        self.set_waveform_selection_range_micros_with_edge_policy(
+            micros_from_milli(start_milli),
+            micros_from_milli(end_milli),
+            preserve_view_edge,
+        );
+    }
+
+    /// Set waveform selection range from UI micro positions with optional view-edge pinning.
+    pub(crate) fn set_waveform_selection_range_micros_with_edge_policy(
+        &mut self,
+        start_micros: u32,
+        end_micros: u32,
+        preserve_view_edge: bool,
+    ) {
         let existing_range = self
             .selection_state
             .range
             .range()
             .or(self.ui.waveform.selection);
-        let (start_milli, end_milli) = snap_waveform_selection_range_milli(
+        let (start_micros, end_micros) = snap_waveform_selection_range_micros(
             self,
-            start_milli,
-            end_milli,
+            start_micros,
+            end_micros,
             existing_range,
             preserve_view_edge,
         );
-        let next_range = selection_range_from_milli(start_milli, end_milli);
+        let next_range = selection_range_from_micros(start_micros, end_micros);
         if existing_range == Some(next_range) && waveform_focus_active(self) {
             return;
         }
@@ -153,12 +171,24 @@ impl AppController {
         start_milli: u16,
         end_milli: u16,
     ) {
+        self.set_waveform_selection_range_micros_smart_scale(
+            micros_from_milli(start_milli),
+            micros_from_milli(end_milli),
+        );
+    }
+
+    /// Set waveform selection range from UI micro positions and recalculate BPM for a 4-beat span.
+    pub fn set_waveform_selection_range_micros_smart_scale(
+        &mut self,
+        start_micros: u32,
+        end_micros: u32,
+    ) {
         let existing_range = self
             .selection_state
             .range
             .range()
             .or(self.ui.waveform.selection);
-        let next_range = selection_range_from_milli(start_milli, end_milli);
+        let next_range = selection_range_from_micros(start_micros, end_micros);
         let next_bpm =
             transport::scaled_selection_bpm(self, SMART_SCALE_SELECTION_BEATS, next_range);
         let bpm_unchanged = bpm_matches(self.ui.waveform.bpm_value, next_bpm);
@@ -178,9 +208,9 @@ impl AppController {
     /// Edge-resize gestures preserve existing edit fades and keep them attached to the
     /// moved selection edge until the resized span becomes too small to fit them.
     pub fn set_waveform_edit_selection_range_milli(&mut self, start_milli: u16, end_milli: u16) {
-        self.set_waveform_edit_selection_range_milli_with_edge_policy(
-            start_milli,
-            end_milli,
+        self.set_waveform_edit_selection_range_micros_with_edge_policy(
+            micros_from_milli(start_milli),
+            micros_from_milli(end_milli),
             false,
         );
     }
@@ -192,23 +222,37 @@ impl AppController {
         end_milli: u16,
         preserve_view_edge: bool,
     ) {
+        self.set_waveform_edit_selection_range_micros_with_edge_policy(
+            micros_from_milli(start_milli),
+            micros_from_milli(end_milli),
+            preserve_view_edge,
+        );
+    }
+
+    /// Set waveform edit selection range with optional view-edge pinning for out-of-bounds drags.
+    pub(crate) fn set_waveform_edit_selection_range_micros_with_edge_policy(
+        &mut self,
+        start_micros: u32,
+        end_micros: u32,
+        preserve_view_edge: bool,
+    ) {
         let existing_range = self
             .selection_state
             .edit_range
             .range()
             .or(self.ui.waveform.edit_selection);
-        let (start_milli, end_milli) = snap_waveform_selection_range_milli(
+        let (start_micros, end_micros) = snap_waveform_selection_range_micros(
             self,
-            start_milli,
-            end_milli,
+            start_micros,
+            end_micros,
             existing_range,
             preserve_view_edge,
         );
         let next_range = existing_range
             .map(|existing| {
-                update_edit_selection_range_from_milli(existing, start_milli, end_milli)
+                update_edit_selection_range_from_micros(existing, start_micros, end_micros)
             })
-            .unwrap_or_else(|| selection_range_from_milli(start_milli, end_milli));
+            .unwrap_or_else(|| selection_range_from_micros(start_micros, end_micros));
         if existing_range == Some(next_range) && waveform_focus_active(self) {
             return;
         }
@@ -218,6 +262,11 @@ impl AppController {
 
     /// Set waveform edit fade-in handle using a 0..=1000 milli position from UI actions.
     pub fn set_waveform_edit_fade_in_end_milli(&mut self, position_milli: u16) {
+        self.set_waveform_edit_fade_in_end_micros(micros_from_milli(position_milli));
+    }
+
+    /// Set waveform edit fade-in handle using a 0..=1_000_000 micro position from UI actions.
+    pub fn set_waveform_edit_fade_in_end_micros(&mut self, position_micros: u32) {
         let Some(existing_range) = self
             .selection_state
             .edit_range
@@ -228,7 +277,7 @@ impl AppController {
         };
         let drag_range =
             prepare_edit_fade_drag_range(self, EditFadeDragKind::InEnd, existing_range);
-        let next_range = update_edit_fade_in_end_from_milli(drag_range, position_milli);
+        let next_range = update_edit_fade_in_end_from_micros(drag_range, position_micros);
         if existing_range == next_range && waveform_focus_active(self) {
             return;
         }
@@ -242,6 +291,11 @@ impl AppController {
     /// The UI action name still refers to the legacy mute-start handle, but the bottom
     /// handle now resizes the edit-selection start while keeping the fade-in end fixed.
     pub fn set_waveform_edit_fade_in_mute_start_milli(&mut self, position_milli: u16) {
+        self.set_waveform_edit_fade_in_mute_start_micros(micros_from_milli(position_milli));
+    }
+
+    /// Set the waveform edit fade-in bottom handle using a 0..=1_000_000 micro position.
+    pub fn set_waveform_edit_fade_in_mute_start_micros(&mut self, position_micros: u32) {
         let Some(existing_range) = self
             .selection_state
             .edit_range
@@ -252,7 +306,7 @@ impl AppController {
         };
         let drag_range =
             prepare_edit_fade_drag_range(self, EditFadeDragKind::InMuteStart, existing_range);
-        let next_range = update_edit_fade_in_mute_start_from_milli(drag_range, position_milli);
+        let next_range = update_edit_fade_in_mute_start_from_micros(drag_range, position_micros);
         if existing_range == next_range && waveform_focus_active(self) {
             return;
         }
@@ -284,6 +338,11 @@ impl AppController {
 
     /// Set waveform edit fade-out handle using a 0..=1000 milli position from UI actions.
     pub fn set_waveform_edit_fade_out_start_milli(&mut self, position_milli: u16) {
+        self.set_waveform_edit_fade_out_start_micros(micros_from_milli(position_milli));
+    }
+
+    /// Set waveform edit fade-out handle using a 0..=1_000_000 micro position from UI actions.
+    pub fn set_waveform_edit_fade_out_start_micros(&mut self, position_micros: u32) {
         let Some(existing_range) = self
             .selection_state
             .edit_range
@@ -294,7 +353,7 @@ impl AppController {
         };
         let drag_range =
             prepare_edit_fade_drag_range(self, EditFadeDragKind::OutStart, existing_range);
-        let next_range = update_edit_fade_out_start_from_milli(drag_range, position_milli);
+        let next_range = update_edit_fade_out_start_from_micros(drag_range, position_micros);
         if existing_range == next_range && waveform_focus_active(self) {
             return;
         }
@@ -308,6 +367,11 @@ impl AppController {
     /// The UI action name still refers to the legacy mute-end handle, but the bottom
     /// handle now resizes the edit-selection end while keeping the fade-out start fixed.
     pub fn set_waveform_edit_fade_out_mute_end_milli(&mut self, position_milli: u16) {
+        self.set_waveform_edit_fade_out_mute_end_micros(micros_from_milli(position_milli));
+    }
+
+    /// Set the waveform edit fade-out bottom handle using a 0..=1_000_000 micro position.
+    pub fn set_waveform_edit_fade_out_mute_end_micros(&mut self, position_micros: u32) {
         let Some(existing_range) = self
             .selection_state
             .edit_range
@@ -318,7 +382,7 @@ impl AppController {
         };
         let drag_range =
             prepare_edit_fade_drag_range(self, EditFadeDragKind::OutMuteEnd, existing_range);
-        let next_range = update_edit_fade_out_mute_end_from_milli(drag_range, position_milli);
+        let next_range = update_edit_fade_out_mute_end_from_micros(drag_range, position_micros);
         if existing_range == next_range && waveform_focus_active(self) {
             return;
         }
@@ -433,11 +497,31 @@ pub(super) fn normalized_to_milli(value: f32) -> u16 {
     (value.clamp(0.0, 1.0) * 1000.0).round() as u16
 }
 
+/// Convert one normalized waveform position into UI micro space (`0..=1_000_000`).
+pub(super) fn normalized_to_micros(value: f32) -> u32 {
+    (value.clamp(0.0, 1.0) * 1_000_000.0).round() as u32
+}
+
+/// Convert one UI waveform micro value (`0..=1_000_000`) back into normalized space.
+pub(super) fn normalized_from_micros(value: u32) -> f32 {
+    (value.min(1_000_000) as f32) / 1_000_000.0
+}
+
+/// Convert one UI waveform milli value (`0..=1000`) into micro space.
+pub(super) fn micros_from_milli(value: u16) -> u32 {
+    u32::from(value.min(1000)) * 1000
+}
+
 /// Build a normalized selection range from two UI waveform milli values (`0..=1000`).
 pub(super) fn selection_range_from_milli(start_milli: u16, end_milli: u16) -> SelectionRange {
+    selection_range_from_micros(micros_from_milli(start_milli), micros_from_milli(end_milli))
+}
+
+/// Build a normalized selection range from two UI waveform micro values (`0..=1_000_000`).
+pub(super) fn selection_range_from_micros(start_micros: u32, end_micros: u32) -> SelectionRange {
     SelectionRange::new(
-        normalized_from_milli(start_milli),
-        normalized_from_milli(end_milli),
+        normalized_from_micros(start_micros),
+        normalized_from_micros(end_micros),
     )
 }
 
@@ -447,11 +531,24 @@ pub(super) fn update_edit_selection_range_from_milli(
     start_milli: u16,
     end_milli: u16,
 ) -> SelectionRange {
-    let next = selection_range_from_milli(start_milli, end_milli);
+    update_edit_selection_range_from_micros(
+        existing,
+        micros_from_milli(start_milli),
+        micros_from_milli(end_milli),
+    )
+}
+
+/// Update an edit-selection range from UI micro values while preserving live fade state.
+pub(super) fn update_edit_selection_range_from_micros(
+    existing: SelectionRange,
+    start_micros: u32,
+    end_micros: u32,
+) -> SelectionRange {
+    let next = selection_range_from_micros(start_micros, end_micros);
     preserve_edit_selection_effects(
         existing,
         next,
-        resized_edit_selection_edge(existing, start_milli, end_milli),
+        resized_edit_selection_edge(existing, start_micros, end_micros),
     )
 }
 
@@ -481,14 +578,14 @@ pub(super) fn clear_edit_fade_drag(controller: &mut AppController) {
 /// Return which edit-selection edge a raw UI range update is dragging, if any.
 fn resized_edit_selection_edge(
     existing: SelectionRange,
-    start_milli: u16,
-    end_milli: u16,
+    start_micros: u32,
+    end_micros: u32,
 ) -> Option<crate::selection::SelectionEdge> {
-    let existing_start = normalized_to_milli(existing.start());
-    let existing_end = normalized_to_milli(existing.end());
-    if start_milli == existing_end || end_milli == existing_end {
+    let existing_start = normalized_to_micros(existing.start());
+    let existing_end = normalized_to_micros(existing.end());
+    if start_micros == existing_end || end_micros == existing_end {
         Some(crate::selection::SelectionEdge::Start)
-    } else if start_milli == existing_start || end_milli == existing_start {
+    } else if start_micros == existing_start || end_micros == existing_start {
         Some(crate::selection::SelectionEdge::End)
     } else {
         None
@@ -568,28 +665,29 @@ fn clamped_preserved_edit_fade_lengths(
     }
 }
 
-/// Snap waveform selection milli values to BPM steps for translated or resized ranges.
-fn snap_waveform_selection_range_milli(
+/// Snap waveform selection micro values to BPM steps for translated or resized ranges.
+fn snap_waveform_selection_range_micros(
     controller: &AppController,
-    start_milli: u16,
-    end_milli: u16,
+    start_micros: u32,
+    end_micros: u32,
     existing_range: Option<SelectionRange>,
     preserve_view_edge: bool,
-) -> (u16, u16) {
-    let mut start = start_milli.min(1000);
-    let mut end = end_milli.min(1000);
+) -> (u32, u32) {
+    let mut start = start_micros.min(1_000_000);
+    let mut end = end_micros.min(1_000_000);
     let Some(step) = waveform_bpm_snap_step(controller) else {
         return (start, end);
     };
     let Some(existing) = existing_range else {
         return (start, end);
     };
-    let existing_start = normalized_to_milli(existing.start());
-    let existing_end = normalized_to_milli(existing.end());
+    let existing_start = normalized_to_micros(existing.start());
+    let existing_end = normalized_to_micros(existing.end());
     if translated_waveform_selection_range(start, end, existing_start, existing_end) {
         let width = existing_end.saturating_sub(existing_start);
-        let snapped_start = snap_milli_to_bpm_step(start, step).min(1000u16.saturating_sub(width));
-        let snapped_end = snapped_start.saturating_add(width).min(1000);
+        let snapped_start =
+            snap_micros_to_bpm_step(start, step).min(1_000_000u32.saturating_sub(width));
+        let snapped_end = snapped_start.saturating_add(width).min(1_000_000);
         return (snapped_start, snapped_end);
     }
     if start == existing_end {
@@ -608,17 +706,17 @@ fn snap_waveform_selection_range_milli(
 
 /// Return whether the proposed range is a pure translation of the existing range.
 fn translated_waveform_selection_range(
-    start_milli: u16,
-    end_milli: u16,
-    existing_start_milli: u16,
-    existing_end_milli: u16,
+    start_micros: u32,
+    end_micros: u32,
+    existing_start_micros: u32,
+    existing_end_micros: u32,
 ) -> bool {
-    let width = end_milli.abs_diff(start_milli);
-    let existing_width = existing_end_milli.abs_diff(existing_start_milli);
+    let width = end_micros.abs_diff(start_micros);
+    let existing_width = existing_end_micros.abs_diff(existing_start_micros);
     width == existing_width
-        && start_milli != existing_start_milli
-        && end_milli != existing_end_milli
-        && start_milli != end_milli
+        && start_micros != existing_start_micros
+        && end_micros != existing_end_micros
+        && start_micros != end_micros
 }
 
 /// Resolve the normalized BPM snap step used for waveform selection gestures.
@@ -643,14 +741,14 @@ fn waveform_bpm_snap_step(controller: &AppController) -> Option<f32> {
     (step.is_finite() && step > 0.0).then_some(step)
 }
 
-/// Snap one normalized milli position to the closest BPM step.
-fn snap_milli_to_bpm_step(value_milli: u16, step: f32) -> u16 {
+/// Snap one normalized micro position to the closest BPM step.
+fn snap_micros_to_bpm_step(value_micros: u32, step: f32) -> u32 {
     if !step.is_finite() || step <= 0.0 {
-        return value_milli.min(1000);
+        return value_micros.min(1_000_000);
     }
-    let normalized = normalized_from_milli(value_milli);
+    let normalized = normalized_from_micros(value_micros);
     let snapped = (normalized / step).round() * step;
-    normalized_to_milli(snapped)
+    normalized_to_micros(snapped)
 }
 
 /// Snap one resized waveform endpoint unless it is already clamped to the visible edge.
@@ -660,17 +758,18 @@ fn snap_milli_to_bpm_step(value_milli: u16, step: f32) -> u16 {
 /// edge exactly instead of snapping back inward to the nearest BPM step.
 fn snap_waveform_resize_endpoint_to_bpm_step(
     controller: &AppController,
-    value_milli: u16,
+    value_micros: u32,
     step: f32,
     preserve_view_edge: bool,
-) -> u16 {
-    let value_milli = value_milli.min(1000);
-    let view_start_milli = normalized_to_milli(controller.ui.waveform.view.start as f32);
-    let view_end_milli = normalized_to_milli(controller.ui.waveform.view.end as f32);
-    if preserve_view_edge && (value_milli == view_start_milli || value_milli == view_end_milli) {
-        return value_milli;
+) -> u32 {
+    let value_micros = value_micros.min(1_000_000);
+    let view_start_micros = normalized_to_micros(controller.ui.waveform.view.start as f32);
+    let view_end_micros = normalized_to_micros(controller.ui.waveform.view.end as f32);
+    if preserve_view_edge && (value_micros == view_start_micros || value_micros == view_end_micros)
+    {
+        return value_micros;
     }
-    snap_milli_to_bpm_step(value_milli, step)
+    snap_micros_to_bpm_step(value_micros, step)
 }
 
 /// Update edit fade-in length from one absolute waveform milli handle position.
@@ -678,13 +777,21 @@ pub(super) fn update_edit_fade_in_end_from_milli(
     range: SelectionRange,
     position_milli: u16,
 ) -> SelectionRange {
+    update_edit_fade_in_end_from_micros(range, micros_from_milli(position_milli))
+}
+
+/// Update edit fade-in length from one absolute waveform micro handle position.
+pub(super) fn update_edit_fade_in_end_from_micros(
+    range: SelectionRange,
+    position_micros: u32,
+) -> SelectionRange {
     let width = range.width();
     if width <= 0.0 {
         return range;
     }
     let start = range.start();
     let end = range.end();
-    let clamped_position = normalized_from_milli(position_milli).clamp(start, end);
+    let clamped_position = normalized_from_micros(position_micros).clamp(start, end);
     let length = ((clamped_position - start) / width).clamp(0.0, 1.0);
     let curve = range.fade_in().map(|fade| fade.curve).unwrap_or(0.5);
     range.with_fade_in(length, curve)
@@ -719,6 +826,14 @@ pub(super) fn update_edit_fade_in_mute_start_from_milli(
     range: SelectionRange,
     position_milli: u16,
 ) -> SelectionRange {
+    update_edit_fade_in_mute_start_from_micros(range, micros_from_milli(position_milli))
+}
+
+/// Update edit fade-in mute/start edge from one absolute waveform micro handle position.
+pub(super) fn update_edit_fade_in_mute_start_from_micros(
+    range: SelectionRange,
+    position_micros: u32,
+) -> SelectionRange {
     let Some(fade_in) = range.fade_in() else {
         return range;
     };
@@ -727,7 +842,7 @@ pub(super) fn update_edit_fade_in_mute_start_from_milli(
         return range;
     }
     let fade_in_end = range.start() + (width * fade_in.length);
-    let new_start = normalized_from_milli(position_milli).clamp(0.0, fade_in_end);
+    let new_start = normalized_from_micros(position_micros).clamp(0.0, fade_in_end);
     let new_width = (range.end() - new_start).max(0.0);
     let new_length = if new_width <= f32::EPSILON {
         0.0
@@ -749,13 +864,21 @@ pub(super) fn update_edit_fade_out_start_from_milli(
     range: SelectionRange,
     position_milli: u16,
 ) -> SelectionRange {
+    update_edit_fade_out_start_from_micros(range, micros_from_milli(position_milli))
+}
+
+/// Update edit fade-out length from one absolute waveform micro handle position.
+pub(super) fn update_edit_fade_out_start_from_micros(
+    range: SelectionRange,
+    position_micros: u32,
+) -> SelectionRange {
     let width = range.width();
     if width <= 0.0 {
         return range;
     }
     let start = range.start();
     let end = range.end();
-    let clamped_position = normalized_from_milli(position_milli).clamp(start, end);
+    let clamped_position = normalized_from_micros(position_micros).clamp(start, end);
     let length = ((end - clamped_position) / width).clamp(0.0, 1.0);
     let curve = range.fade_out().map(|fade| fade.curve).unwrap_or(0.5);
     range.with_fade_out(length, curve)
@@ -766,6 +889,14 @@ pub(super) fn update_edit_fade_out_mute_end_from_milli(
     range: SelectionRange,
     position_milli: u16,
 ) -> SelectionRange {
+    update_edit_fade_out_mute_end_from_micros(range, micros_from_milli(position_milli))
+}
+
+/// Update edit fade-out mute/end edge from one absolute waveform micro handle position.
+pub(super) fn update_edit_fade_out_mute_end_from_micros(
+    range: SelectionRange,
+    position_micros: u32,
+) -> SelectionRange {
     let Some(fade_out) = range.fade_out() else {
         return range;
     };
@@ -774,7 +905,7 @@ pub(super) fn update_edit_fade_out_mute_end_from_milli(
         return range;
     }
     let fade_out_start = range.end() - (width * fade_out.length);
-    let new_end = normalized_from_milli(position_milli).clamp(fade_out_start, 1.0);
+    let new_end = normalized_from_micros(position_micros).clamp(fade_out_start, 1.0);
     let new_width = (new_end - range.start()).max(0.0);
     let new_length = if new_width <= f32::EPSILON {
         0.0

@@ -506,8 +506,8 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
         anchor_ratio_micros: Some(250_000),
     }));
     assert!(queue.enqueue(&NativeUiAction::SetWaveformSelectionRange {
-        start_milli: 120,
-        end_milli: 640,
+        start_micros: 120_000,
+        end_micros: 640_000,
         preserve_view_edge: false,
     }));
     assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
@@ -530,8 +530,8 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
                 anchor_ratio_micros: Some(250_000),
             },
             NativeUiAction::SetWaveformSelectionRange {
-                start_milli: 120,
-                end_milli: 640,
+                start_micros: 120_000,
+                end_micros: 640_000,
                 preserve_view_edge: false,
             },
             NativeUiAction::SetWaveformCursor {
@@ -600,14 +600,14 @@ fn waveform_action_queue_selection_range_overrides_clear() {
     let mut queue = PendingWaveformActions::default();
     assert!(queue.enqueue(&NativeUiAction::ClearWaveformSelection));
     assert!(queue.clear_selection);
-    assert!(queue.selection_range_milli.is_none());
+    assert!(queue.selection_range_micros.is_none());
     assert!(queue.enqueue(&NativeUiAction::SetWaveformSelectionRange {
-        start_milli: 120,
-        end_milli: 400,
+        start_micros: 120_000,
+        end_micros: 400_000,
         preserve_view_edge: false,
     }));
     assert!(!queue.clear_selection);
-    assert_eq!(queue.selection_range_milli, Some((120, 400)));
+    assert_eq!(queue.selection_range_micros, Some((120_000, 400_000)));
 }
 
 #[test]
@@ -615,18 +615,18 @@ fn waveform_action_queue_keeps_smart_scale_selection_as_view_action() {
     let mut queue = PendingWaveformActions::default();
     assert!(
         queue.enqueue(&NativeUiAction::SetWaveformSelectionRangeSmartScale {
-            start_milli: 120,
-            end_milli: 640,
+            start_micros: 120_000,
+            end_micros: 640_000,
         })
     );
-    assert_eq!(queue.selection_range_milli, Some((120, 640)));
+    assert_eq!(queue.selection_range_micros, Some((120_000, 640_000)));
     assert!(queue.selection_smart_scale);
     assert_eq!(queue.dirty_reason(), super::DirtyReason::WaveformViewAction);
     assert_eq!(
         queue.selection_action(),
         Some(NativeUiAction::SetWaveformSelectionRangeSmartScale {
-            start_milli: 120,
-            end_milli: 640,
+            start_micros: 120_000,
+            end_micros: 640_000,
         })
     );
 }
@@ -637,17 +637,17 @@ fn waveform_action_queue_does_not_absorb_edit_selection_actions() {
     let mut queue = PendingWaveformActions::default();
     assert!(
         !queue.enqueue(&NativeUiAction::SetWaveformEditSelectionRange {
-            start_milli: 140,
-            end_milli: 460,
+            start_micros: 140_000,
+            end_micros: 460_000,
             preserve_view_edge: false,
         })
     );
     assert!(!queue.enqueue(&NativeUiAction::SetWaveformEditFadeInEnd {
-        position_milli: 300,
+        position_micros: 300_000,
     }));
     assert!(
         !queue.enqueue(&NativeUiAction::SetWaveformEditFadeOutStart {
-            position_milli: 690,
+            position_micros: 690_000,
         })
     );
     assert!(!queue.enqueue(&NativeUiAction::FinishWaveformEditFadeDrag));

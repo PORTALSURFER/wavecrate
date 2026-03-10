@@ -274,6 +274,18 @@ fn waveform_projection_includes_edit_fade_handles() {
     assert_eq!(projected.edit_fade_out_curve_milli, Some(250));
 }
 
+#[test]
+fn waveform_projection_preserves_selection_micro_precision() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.selection = Some(crate::selection::SelectionRange::new(0.5004, 0.5006));
+
+    let projected = project_waveform_model(&mut controller);
+    let selection = projected.selection_milli.expect("projected selection");
+
+    assert_eq!(selection.start_micros, 500_400);
+    assert_eq!(selection.end_micros, 500_600);
+}
+
 /// Build a controller fixture with non-default fields for full app-model parity checks.
 fn app_model_projection_fixture_controller() -> AppController {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);

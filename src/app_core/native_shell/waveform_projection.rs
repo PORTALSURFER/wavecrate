@@ -2,18 +2,26 @@
 
 use super::*;
 
-/// Projected edit-fade overlay endpoints and curve values in normalized milli-space.
-pub(super) struct WaveformEditFadeOverlayMilli {
+/// Projected edit-fade overlay endpoints and curve values for the native waveform shell.
+pub(super) struct WaveformEditFadeOverlayModel {
     /// End position of the fade-in ramp within the edit selection.
     pub(super) fade_in_end_milli: Option<u16>,
+    /// End position of the fade-in ramp within the edit selection at micro precision.
+    pub(super) fade_in_end_micros: Option<u32>,
     /// Start position of the fade-in mute segment before the edit selection.
     pub(super) fade_in_mute_start_milli: Option<u16>,
+    /// Start position of the fade-in mute segment before the edit selection at micro precision.
+    pub(super) fade_in_mute_start_micros: Option<u32>,
     /// Fade-in curve amount mapped into milli-space.
     pub(super) fade_in_curve_milli: Option<u16>,
     /// Start position of the fade-out ramp within the edit selection.
     pub(super) fade_out_start_milli: Option<u16>,
+    /// Start position of the fade-out ramp within the edit selection at micro precision.
+    pub(super) fade_out_start_micros: Option<u32>,
     /// End position of the fade-out mute segment after the edit selection.
     pub(super) fade_out_mute_end_milli: Option<u16>,
+    /// End position of the fade-out mute segment after the edit selection at micro precision.
+    pub(super) fade_out_mute_end_micros: Option<u32>,
     /// Fade-out curve amount mapped into milli-space.
     pub(super) fade_out_curve_milli: Option<u16>,
 }
@@ -26,7 +34,7 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
     let ui = &controller.ui;
     let view_span = (ui.waveform.view.end - ui.waveform.view.start).clamp(0.000_1, 1.0) as f32;
     let zoom_percent = (100.0 / view_span).round().clamp(100.0, 9999.0);
-    let fade_overlay = project_waveform_edit_fade_overlay_milli(ui);
+    let fade_overlay = project_waveform_edit_fade_overlay_model(ui);
     let projected_playhead = projected_playhead_ratio(controller);
     WaveformPanelModel {
         loaded_label: ui
@@ -37,17 +45,21 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
         playhead_milli: projected_playhead.map(normalized_to_milli),
         playhead_micros: projected_playhead.map(normalized_to_micros),
         selection_milli: ui.waveform.selection.map(|selection| {
-            NormalizedRangeModel::new(
-                normalized_to_milli(selection.start()),
-                normalized_to_milli(selection.end()),
+            NormalizedRangeModel::from_micros(
+                normalized_to_micros(selection.start()),
+                normalized_to_micros(selection.end()),
             )
         }),
         edit_selection_milli: project_waveform_edit_selection_milli(ui),
         edit_fade_in_end_milli: fade_overlay.fade_in_end_milli,
+        edit_fade_in_end_micros: fade_overlay.fade_in_end_micros,
         edit_fade_in_mute_start_milli: fade_overlay.fade_in_mute_start_milli,
+        edit_fade_in_mute_start_micros: fade_overlay.fade_in_mute_start_micros,
         edit_fade_in_curve_milli: fade_overlay.fade_in_curve_milli,
         edit_fade_out_start_milli: fade_overlay.fade_out_start_milli,
+        edit_fade_out_start_micros: fade_overlay.fade_out_start_micros,
         edit_fade_out_mute_end_milli: fade_overlay.fade_out_mute_end_milli,
+        edit_fade_out_mute_end_micros: fade_overlay.fade_out_mute_end_micros,
         edit_fade_out_curve_milli: fade_overlay.fade_out_curve_milli,
         view_start_milli: normalized64_to_milli(ui.waveform.view.start),
         view_end_milli: normalized64_to_milli(ui.waveform.view.end),
@@ -174,17 +186,17 @@ pub(crate) fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel
 /// Project edit-selection bounds into normalized milli-space.
 pub(super) fn project_waveform_edit_selection_milli(ui: &UiState) -> Option<NormalizedRangeModel> {
     ui.waveform.edit_selection.map(|selection| {
-        NormalizedRangeModel::new(
-            normalized_to_milli(selection.start()),
-            normalized_to_milli(selection.end()),
+        NormalizedRangeModel::from_micros(
+            normalized_to_micros(selection.start()),
+            normalized_to_micros(selection.end()),
         )
     })
 }
 
-/// Project edit fade-handle positions into normalized milli-space.
-pub(super) fn project_waveform_edit_fade_overlay_milli(
+/// Project edit fade-handle positions into normalized milli and micro space.
+pub(super) fn project_waveform_edit_fade_overlay_model(
     ui: &UiState,
-) -> WaveformEditFadeOverlayMilli {
+) -> WaveformEditFadeOverlayModel {
     ui.waveform
         .edit_selection
         .map(|selection| {
@@ -192,15 +204,31 @@ pub(super) fn project_waveform_edit_fade_overlay_milli(
             let end = selection.end();
             let width = selection.width();
             if width <= 0.0 {
-                return WaveformEditFadeOverlayMilli {
+                return WaveformEditFadeOverlayModel {
                     fade_in_end_milli: None,
+                    fade_in_end_micros: None,
                     fade_in_mute_start_milli: None,
+                    fade_in_mute_start_micros: None,
                     fade_in_curve_milli: None,
                     fade_out_start_milli: None,
+                    fade_out_start_micros: None,
                     fade_out_mute_end_milli: None,
+                    fade_out_mute_end_micros: None,
                     fade_out_curve_milli: None,
                 };
             }
+            let fade_in_end = selection
+                .fade_in()
+                .map(|fade| (start + (width * fade.length)).clamp(start, end));
+            let fade_in_mute_start = selection
+                .fade_in()
+                .map(|fade| (start - (width * fade.mute)).clamp(0.0, start));
+            let fade_out_start = selection
+                .fade_out()
+                .map(|fade| (end - (width * fade.length)).clamp(start, end));
+            let fade_out_mute_end = selection
+                .fade_out()
+                .map(|fade| (end + (width * fade.mute)).clamp(end, 1.0));
             let fade_in_end_milli = selection
                 .fade_in()
                 .map(|fade| normalized_to_milli((start + (width * fade.length)).clamp(start, end)));
@@ -219,21 +247,29 @@ pub(super) fn project_waveform_edit_fade_overlay_milli(
             let fade_out_curve_milli = selection
                 .fade_out()
                 .map(|fade| normalized_to_milli(fade.curve));
-            WaveformEditFadeOverlayMilli {
+            WaveformEditFadeOverlayModel {
                 fade_in_end_milli,
+                fade_in_end_micros: fade_in_end.map(normalized_to_micros),
                 fade_in_mute_start_milli,
+                fade_in_mute_start_micros: fade_in_mute_start.map(normalized_to_micros),
                 fade_in_curve_milli,
                 fade_out_start_milli,
+                fade_out_start_micros: fade_out_start.map(normalized_to_micros),
                 fade_out_mute_end_milli,
+                fade_out_mute_end_micros: fade_out_mute_end.map(normalized_to_micros),
                 fade_out_curve_milli,
             }
         })
-        .unwrap_or(WaveformEditFadeOverlayMilli {
+        .unwrap_or(WaveformEditFadeOverlayModel {
             fade_in_end_milli: None,
+            fade_in_end_micros: None,
             fade_in_mute_start_milli: None,
+            fade_in_mute_start_micros: None,
             fade_in_curve_milli: None,
             fade_out_start_milli: None,
+            fade_out_start_micros: None,
             fade_out_mute_end_milli: None,
+            fade_out_mute_end_micros: None,
             fade_out_curve_milli: None,
         })
 }

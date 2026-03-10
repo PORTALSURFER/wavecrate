@@ -117,8 +117,8 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
         Case {
             label: "waveform edit group",
             action: NativeUiAction::SetWaveformEditSelectionRange {
-                start_milli: 125,
-                end_milli: 625,
+                start_micros: 125_000,
+                end_micros: 625_000,
                 preserve_view_edge: false,
             },
             expected: Expected::EditSelectionRange(Some((125, 625))),
@@ -280,8 +280,8 @@ fn apply_native_waveform_smart_scale_routes_to_controller_behavior() {
     controller.ui.waveform.bpm_value = Some(150.0);
 
     controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRangeSmartScale {
-        start_milli: 0,
-        end_milli: 500,
+        start_micros: 0,
+        end_micros: 500_000,
     });
 
     assert_eq!(

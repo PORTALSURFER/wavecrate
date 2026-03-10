@@ -46,41 +46,41 @@ pub(super) fn apply_waveform_native_ui_action(
             controller.set_waveform_cursor_milli(position_milli)
         }
         NativeUiAction::SetWaveformSelectionRange {
-            start_milli,
-            end_milli,
+            start_micros,
+            end_micros,
             preserve_view_edge,
-        } => controller.set_waveform_selection_range_milli_with_edge_policy(
-            start_milli,
-            end_milli,
+        } => controller.set_waveform_selection_range_micros_with_edge_policy(
+            start_micros,
+            end_micros,
             preserve_view_edge,
         ),
         NativeUiAction::SetWaveformSelectionRangeSmartScale {
-            start_milli,
-            end_milli,
-        } => controller.set_waveform_selection_range_milli_smart_scale(start_milli, end_milli),
+            start_micros,
+            end_micros,
+        } => controller.set_waveform_selection_range_micros_smart_scale(start_micros, end_micros),
         NativeUiAction::SetWaveformEditSelectionRange {
-            start_milli,
-            end_milli,
+            start_micros,
+            end_micros,
             preserve_view_edge,
-        } => controller.set_waveform_edit_selection_range_milli_with_edge_policy(
-            start_milli,
-            end_milli,
+        } => controller.set_waveform_edit_selection_range_micros_with_edge_policy(
+            start_micros,
+            end_micros,
             preserve_view_edge,
         ),
-        NativeUiAction::SetWaveformEditFadeInEnd { position_milli } => {
-            controller.set_waveform_edit_fade_in_end_milli(position_milli)
+        NativeUiAction::SetWaveformEditFadeInEnd { position_micros } => {
+            controller.set_waveform_edit_fade_in_end_micros(position_micros)
         }
-        NativeUiAction::SetWaveformEditFadeInMuteStart { position_milli } => {
-            controller.set_waveform_edit_fade_in_mute_start_milli(position_milli)
+        NativeUiAction::SetWaveformEditFadeInMuteStart { position_micros } => {
+            controller.set_waveform_edit_fade_in_mute_start_micros(position_micros)
         }
         NativeUiAction::SetWaveformEditFadeInCurve { curve_milli } => {
             controller.set_waveform_edit_fade_in_curve_milli(curve_milli)
         }
-        NativeUiAction::SetWaveformEditFadeOutStart { position_milli } => {
-            controller.set_waveform_edit_fade_out_start_milli(position_milli)
+        NativeUiAction::SetWaveformEditFadeOutStart { position_micros } => {
+            controller.set_waveform_edit_fade_out_start_micros(position_micros)
         }
-        NativeUiAction::SetWaveformEditFadeOutMuteEnd { position_milli } => {
-            controller.set_waveform_edit_fade_out_mute_end_milli(position_milli)
+        NativeUiAction::SetWaveformEditFadeOutMuteEnd { position_micros } => {
+            controller.set_waveform_edit_fade_out_mute_end_micros(position_micros)
         }
         NativeUiAction::SetWaveformEditFadeOutCurve { curve_milli } => {
             controller.set_waveform_edit_fade_out_curve_milli(curve_milli)

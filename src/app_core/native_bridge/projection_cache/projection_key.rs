@@ -1,6 +1,7 @@
 use super::super::projection_key_encoding::{
     encode_browser_filter, encode_browser_sort, encode_browser_tab, encode_focus_context,
-    encode_update_status, normalized_f32_to_milli, normalized_f64_to_milli,
+    encode_update_status, normalized_f32_to_micros, normalized_f32_to_milli,
+    normalized_f64_to_micros, normalized_f64_to_milli,
 };
 use super::{
     BrowserFrameProjectionCacheKey, BrowserRowsProjectionCacheKey, MapProjectionCacheKey,
@@ -56,16 +57,26 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         waveform_signature: controller.ui.waveform.waveform_image_signature,
         waveform_selection_start_milli: waveform_millis.selection_start_milli,
         waveform_selection_end_milli: waveform_millis.selection_end_milli,
+        waveform_selection_start_micros: waveform_millis.selection_start_micros,
+        waveform_selection_end_micros: waveform_millis.selection_end_micros,
         waveform_edit_selection_start_milli: waveform_millis.edit_selection_start_milli,
         waveform_edit_selection_end_milli: waveform_millis.edit_selection_end_milli,
+        waveform_edit_selection_start_micros: waveform_millis.edit_selection_start_micros,
+        waveform_edit_selection_end_micros: waveform_millis.edit_selection_end_micros,
         waveform_edit_fade_in_end_milli: waveform_millis.edit_fade_in_end_milli,
         waveform_edit_fade_in_mute_start_milli: waveform_millis.edit_fade_in_mute_start_milli,
         waveform_edit_fade_in_curve_milli: waveform_millis.edit_fade_in_curve_milli,
         waveform_edit_fade_out_start_milli: waveform_millis.edit_fade_out_start_milli,
         waveform_edit_fade_out_mute_end_milli: waveform_millis.edit_fade_out_mute_end_milli,
         waveform_edit_fade_out_curve_milli: waveform_millis.edit_fade_out_curve_milli,
+        waveform_edit_fade_in_end_micros: waveform_millis.edit_fade_in_end_micros,
+        waveform_edit_fade_in_mute_start_micros: waveform_millis.edit_fade_in_mute_start_micros,
+        waveform_edit_fade_out_start_micros: waveform_millis.edit_fade_out_start_micros,
+        waveform_edit_fade_out_mute_end_micros: waveform_millis.edit_fade_out_mute_end_micros,
         waveform_view_start_milli: waveform_millis.view_start_milli,
         waveform_view_end_milli: waveform_millis.view_end_milli,
+        waveform_view_start_micros: waveform_millis.view_start_micros,
+        waveform_view_end_micros: waveform_millis.view_end_micros,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_bpm_bits: controller.ui.waveform.bpm_value.map(f32::to_bits),
         waveform_channel_view: encode_waveform_channel_view(controller),
@@ -214,16 +225,26 @@ pub(super) fn build_waveform_projection_key(
         waveform_signature: controller.ui.waveform.waveform_image_signature,
         waveform_selection_start_milli: waveform_millis.selection_start_milli,
         waveform_selection_end_milli: waveform_millis.selection_end_milli,
+        waveform_selection_start_micros: waveform_millis.selection_start_micros,
+        waveform_selection_end_micros: waveform_millis.selection_end_micros,
         waveform_edit_selection_start_milli: waveform_millis.edit_selection_start_milli,
         waveform_edit_selection_end_milli: waveform_millis.edit_selection_end_milli,
+        waveform_edit_selection_start_micros: waveform_millis.edit_selection_start_micros,
+        waveform_edit_selection_end_micros: waveform_millis.edit_selection_end_micros,
         waveform_edit_fade_in_end_milli: waveform_millis.edit_fade_in_end_milli,
         waveform_edit_fade_in_mute_start_milli: waveform_millis.edit_fade_in_mute_start_milli,
         waveform_edit_fade_in_curve_milli: waveform_millis.edit_fade_in_curve_milli,
         waveform_edit_fade_out_start_milli: waveform_millis.edit_fade_out_start_milli,
         waveform_edit_fade_out_mute_end_milli: waveform_millis.edit_fade_out_mute_end_milli,
         waveform_edit_fade_out_curve_milli: waveform_millis.edit_fade_out_curve_milli,
+        waveform_edit_fade_in_end_micros: waveform_millis.edit_fade_in_end_micros,
+        waveform_edit_fade_in_mute_start_micros: waveform_millis.edit_fade_in_mute_start_micros,
+        waveform_edit_fade_out_start_micros: waveform_millis.edit_fade_out_start_micros,
+        waveform_edit_fade_out_mute_end_micros: waveform_millis.edit_fade_out_mute_end_micros,
         waveform_view_start_milli: waveform_millis.view_start_milli,
         waveform_view_end_milli: waveform_millis.view_end_milli,
+        waveform_view_start_micros: waveform_millis.view_start_micros,
+        waveform_view_end_micros: waveform_millis.view_end_micros,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_bpm_bits: controller.ui.waveform.bpm_value.map(f32::to_bits),
         waveform_channel_view: encode_waveform_channel_view(controller),
@@ -258,21 +279,31 @@ pub(super) fn build_non_segment_static_projection_key(
     }
 }
 
-/// Normalized waveform projection values converted to milli-space key fields.
+/// Normalized waveform projection values converted to cache-key scalars.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct WaveformProjectionMillis {
     selection_start_milli: Option<u16>,
     selection_end_milli: Option<u16>,
+    selection_start_micros: Option<u32>,
+    selection_end_micros: Option<u32>,
     edit_selection_start_milli: Option<u16>,
     edit_selection_end_milli: Option<u16>,
+    edit_selection_start_micros: Option<u32>,
+    edit_selection_end_micros: Option<u32>,
     edit_fade_in_end_milli: Option<u16>,
     edit_fade_in_mute_start_milli: Option<u16>,
     edit_fade_in_curve_milli: Option<u16>,
     edit_fade_out_start_milli: Option<u16>,
     edit_fade_out_mute_end_milli: Option<u16>,
     edit_fade_out_curve_milli: Option<u16>,
+    edit_fade_in_end_micros: Option<u32>,
+    edit_fade_in_mute_start_micros: Option<u32>,
+    edit_fade_out_start_micros: Option<u32>,
+    edit_fade_out_mute_end_micros: Option<u32>,
     view_start_milli: u16,
     view_end_milli: u16,
+    view_start_micros: u32,
+    view_end_micros: u32,
 }
 
 /// Derive normalized waveform projection key fields once for cache-key builders.
@@ -287,6 +318,16 @@ fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProj
             (Some(start.min(end)), Some(start.max(end)))
         })
         .unwrap_or((None, None));
+    let (selection_start_micros, selection_end_micros) = controller
+        .ui
+        .waveform
+        .selection
+        .map(|selection| {
+            let start = normalized_f32_to_micros(selection.start());
+            let end = normalized_f32_to_micros(selection.end());
+            (Some(start.min(end)), Some(start.max(end)))
+        })
+        .unwrap_or((None, None));
     let (edit_selection_start_milli, edit_selection_end_milli) = controller
         .ui
         .waveform
@@ -294,6 +335,16 @@ fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProj
         .map(|selection| {
             let start = normalized_f32_to_milli(selection.start());
             let end = normalized_f32_to_milli(selection.end());
+            (Some(start.min(end)), Some(start.max(end)))
+        })
+        .unwrap_or((None, None));
+    let (edit_selection_start_micros, edit_selection_end_micros) = controller
+        .ui
+        .waveform
+        .edit_selection
+        .map(|selection| {
+            let start = normalized_f32_to_micros(selection.start());
+            let end = normalized_f32_to_micros(selection.end());
             (Some(start.min(end)), Some(start.max(end)))
         })
         .unwrap_or((None, None));
@@ -316,6 +367,10 @@ fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProj
         edit_fade_in_mute_start_milli,
         edit_fade_out_start_milli,
         edit_fade_out_mute_end_milli,
+        edit_fade_in_end_micros,
+        edit_fade_in_mute_start_micros,
+        edit_fade_out_start_micros,
+        edit_fade_out_mute_end_micros,
     ) = controller
         .ui
         .waveform
@@ -325,7 +380,7 @@ fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProj
             let end = selection.end();
             let width = selection.width();
             if width <= 0.0 {
-                return (None, None, None, None);
+                return (None, None, None, None, None, None, None, None);
             }
             let fade_in_end = selection.fade_in().map(|fade| {
                 normalized_f32_to_milli((start + (width * fade.length)).clamp(start, end))
@@ -339,27 +394,53 @@ fn derive_waveform_projection_millis(controller: &AppController) -> WaveformProj
             let fade_out_mute_end = selection
                 .fade_out()
                 .map(|fade| normalized_f32_to_milli((end + (width * fade.mute)).clamp(end, 1.0)));
+            let fade_in_end_micros = selection.fade_in().map(|fade| {
+                normalized_f32_to_micros((start + (width * fade.length)).clamp(start, end))
+            });
+            let fade_in_mute_start_micros = selection.fade_in().map(|fade| {
+                normalized_f32_to_micros((start - (width * fade.mute)).clamp(0.0, start))
+            });
+            let fade_out_start_micros = selection.fade_out().map(|fade| {
+                normalized_f32_to_micros((end - (width * fade.length)).clamp(start, end))
+            });
+            let fade_out_mute_end_micros = selection
+                .fade_out()
+                .map(|fade| normalized_f32_to_micros((end + (width * fade.mute)).clamp(end, 1.0)));
             (
                 fade_in_end,
                 fade_in_mute_start,
                 fade_out_start,
                 fade_out_mute_end,
+                fade_in_end_micros,
+                fade_in_mute_start_micros,
+                fade_out_start_micros,
+                fade_out_mute_end_micros,
             )
         })
-        .unwrap_or((None, None, None, None));
+        .unwrap_or((None, None, None, None, None, None, None, None));
     WaveformProjectionMillis {
         selection_start_milli,
         selection_end_milli,
+        selection_start_micros,
+        selection_end_micros,
         edit_selection_start_milli,
         edit_selection_end_milli,
+        edit_selection_start_micros,
+        edit_selection_end_micros,
         edit_fade_in_end_milli,
         edit_fade_in_mute_start_milli,
         edit_fade_in_curve_milli,
         edit_fade_out_start_milli,
         edit_fade_out_mute_end_milli,
         edit_fade_out_curve_milli,
+        edit_fade_in_end_micros,
+        edit_fade_in_mute_start_micros,
+        edit_fade_out_start_micros,
+        edit_fade_out_mute_end_micros,
         view_start_milli: normalized_f64_to_milli(controller.ui.waveform.view.start),
         view_end_milli: normalized_f64_to_milli(controller.ui.waveform.view.end),
+        view_start_micros: normalized_f64_to_micros(controller.ui.waveform.view.start),
+        view_end_micros: normalized_f64_to_micros(controller.ui.waveform.view.end),
     }
 }
 

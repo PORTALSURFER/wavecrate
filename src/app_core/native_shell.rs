@@ -306,7 +306,7 @@ pub(crate) fn project_focus_context_model(focus: FocusContext) -> FocusContextMo
 pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionModel {
     let selected_column = selected_column_index(&controller.ui);
     let fade_overlay =
-        waveform_projection::project_waveform_edit_fade_overlay_milli(&controller.ui);
+        waveform_projection::project_waveform_edit_fade_overlay_model(&controller.ui);
     let projected_playhead = waveform_projection::projected_playhead_ratio(controller);
     MotionModel {
         transport_running: controller.is_playing(),
@@ -322,19 +322,23 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
             flags
         },
         waveform_selection_milli: controller.ui.waveform.selection.map(|selection| {
-            crate::app_core::actions::NativeNormalizedRangeModel::new(
-                waveform_projection::normalized_to_milli(selection.start()),
-                waveform_projection::normalized_to_milli(selection.end()),
+            crate::app_core::actions::NativeNormalizedRangeModel::from_micros(
+                waveform_projection::normalized_to_micros(selection.start()),
+                waveform_projection::normalized_to_micros(selection.end()),
             )
         }),
         waveform_edit_selection_milli: waveform_projection::project_waveform_edit_selection_milli(
             &controller.ui,
         ),
         waveform_edit_fade_in_end_milli: fade_overlay.fade_in_end_milli,
+        waveform_edit_fade_in_end_micros: fade_overlay.fade_in_end_micros,
         waveform_edit_fade_in_mute_start_milli: fade_overlay.fade_in_mute_start_milli,
+        waveform_edit_fade_in_mute_start_micros: fade_overlay.fade_in_mute_start_micros,
         waveform_edit_fade_in_curve_milli: fade_overlay.fade_in_curve_milli,
         waveform_edit_fade_out_start_milli: fade_overlay.fade_out_start_milli,
+        waveform_edit_fade_out_start_micros: fade_overlay.fade_out_start_micros,
         waveform_edit_fade_out_mute_end_milli: fade_overlay.fade_out_mute_end_milli,
+        waveform_edit_fade_out_mute_end_micros: fade_overlay.fade_out_mute_end_micros,
         waveform_edit_fade_out_curve_milli: fade_overlay.fade_out_curve_milli,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_cursor_milli: controller

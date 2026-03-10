@@ -113,7 +113,7 @@ struct PendingWaveformActions {
     /// Latest cursor target in normalized milli space.
     cursor_milli: Option<u16>,
     /// Latest explicit selection range in normalized milli space.
-    selection_range_milli: Option<(u16, u16)>,
+    selection_range_micros: Option<(u32, u32)>,
     /// Whether the queued selection range should preserve an out-of-bounds view edge.
     selection_preserve_view_edge: bool,
     /// Whether the queued selection range should recompute BPM from a 4-beat span.
@@ -135,7 +135,7 @@ impl PendingWaveformActions {
     fn has_pending(&self) -> bool {
         self.seek_milli.is_some()
             || self.cursor_milli.is_some()
-            || self.selection_range_milli.is_some()
+            || self.selection_range_micros.is_some()
             || self.clear_selection
             || self.zoom_steps_delta != 0
             || self.zoom_to_selection
@@ -154,28 +154,28 @@ impl PendingWaveformActions {
                 true
             }
             NativeUiAction::SetWaveformSelectionRange {
-                start_milli,
-                end_milli,
+                start_micros,
+                end_micros,
                 preserve_view_edge,
             } => {
-                self.selection_range_milli = Some((*start_milli, *end_milli));
+                self.selection_range_micros = Some((*start_micros, *end_micros));
                 self.selection_preserve_view_edge = *preserve_view_edge;
                 self.selection_smart_scale = false;
                 self.clear_selection = false;
                 true
             }
             NativeUiAction::SetWaveformSelectionRangeSmartScale {
-                start_milli,
-                end_milli,
+                start_micros,
+                end_micros,
             } => {
-                self.selection_range_milli = Some((*start_milli, *end_milli));
+                self.selection_range_micros = Some((*start_micros, *end_micros));
                 self.selection_preserve_view_edge = false;
                 self.selection_smart_scale = true;
                 self.clear_selection = false;
                 true
             }
             NativeUiAction::ClearWaveformSelection => {
-                self.selection_range_milli = None;
+                self.selection_range_micros = None;
                 self.selection_preserve_view_edge = false;
                 self.selection_smart_scale = false;
                 self.clear_selection = true;
@@ -267,16 +267,16 @@ impl PendingWaveformActions {
 
     /// Build the highest-priority selection action for this pending batch, if any.
     fn selection_action(&self) -> Option<NativeUiAction> {
-        if let Some((start_milli, end_milli)) = self.selection_range_milli {
+        if let Some((start_micros, end_micros)) = self.selection_range_micros {
             return Some(if self.selection_smart_scale {
                 NativeUiAction::SetWaveformSelectionRangeSmartScale {
-                    start_milli,
-                    end_milli,
+                    start_micros,
+                    end_micros,
                 }
             } else {
                 NativeUiAction::SetWaveformSelectionRange {
-                    start_milli,
-                    end_milli,
+                    start_micros,
+                    end_micros,
                     preserve_view_edge: self.selection_preserve_view_edge,
                 }
             });
