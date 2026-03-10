@@ -50,7 +50,7 @@ impl AppController {
         browser_search::set_browser_filter(self, filter);
     }
 
-    /// Apply a rating-level filter to the browser list (-3..=3).
+    /// Apply a rating-level filter to the browser list (`-3..=3`, plus `4` for locked keeps).
     pub fn set_browser_rating_filter(&mut self, level: i8, additive: bool) {
         browser_search::set_browser_rating_filter(self, level, additive);
     }

@@ -82,18 +82,21 @@ fn sort_visible_indices_respects_playback_age_and_list_order() {
             display_label: "a".into(),
             relative_path: "a.wav".into(),
             tag: Rating::NEUTRAL,
+            locked: false,
             last_played_at: Some(20),
         },
         CompactSearchEntry {
             display_label: "b".into(),
             relative_path: "b.wav".into(),
             tag: Rating::NEUTRAL,
+            locked: false,
             last_played_at: Some(10),
         },
         CompactSearchEntry {
             display_label: "c".into(),
             relative_path: "c.wav".into(),
             tag: Rating::NEUTRAL,
+            locked: false,
             last_played_at: None,
         },
     ];
@@ -118,18 +121,21 @@ fn list_order_query_keeps_source_order_without_score_sort_scratch() {
             display_label: "kick".into(),
             relative_path: "kick.wav".into(),
             tag: Rating::NEUTRAL,
+            locked: false,
             last_played_at: None,
         },
         CompactSearchEntry {
             display_label: "snare".into(),
             relative_path: "snare.wav".into(),
             tag: Rating::NEUTRAL,
+            locked: false,
             last_played_at: None,
         },
         CompactSearchEntry {
             display_label: "hat".into(),
             relative_path: "hat.wav".into(),
             tag: Rating::NEUTRAL,
+            locked: false,
             last_played_at: None,
         },
     ];

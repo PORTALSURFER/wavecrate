@@ -121,6 +121,7 @@ mod tests {
                         } else {
                             Rating::TRASH_1
                         },
+                        locked: false,
                         last_played_at: None,
                     })
                     .collect(),

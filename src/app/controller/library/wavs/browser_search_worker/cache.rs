@@ -7,6 +7,7 @@ pub(super) struct CompactSearchEntry {
     pub(super) display_label: Box<str>,
     pub(super) relative_path: Box<str>,
     pub(super) tag: Rating,
+    pub(super) locked: bool,
     pub(super) last_played_at: Option<i64>,
 }
 

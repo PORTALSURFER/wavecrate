@@ -78,6 +78,7 @@ mod tests {
                     display_label: display_label.into_boxed_str(),
                     relative_path: relative_path.into_boxed_str(),
                     tag: e.tag,
+                    locked: e.locked,
                     last_played_at: e.last_played_at,
                 }
             })
@@ -218,6 +219,7 @@ mod tests {
             display_label: relative_path.into(),
             relative_path: relative_path.into(),
             tag,
+            locked: false,
             last_played_at: None,
         }
     }

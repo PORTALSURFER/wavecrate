@@ -37,7 +37,7 @@ pub(crate) struct SearchJob {
     pub(crate) source_root: PathBuf,
     pub(crate) query: String,
     pub(crate) filter: crate::app::state::TriageFlagFilter,
-    /// Rating levels selected for filtering (-3..=3). Empty means no rating filter.
+    /// Rating levels selected for filtering (`-3..=3`, plus `4` for locked keeps).
     pub(crate) rating_filter: BTreeSet<i8>,
     pub(crate) sort: crate::app::state::SampleBrowserSort,
     pub(crate) similar_query: Option<crate::app::state::SimilarQuery>,

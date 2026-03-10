@@ -128,7 +128,7 @@ pub(crate) fn build_visible_rows(
             let Some(entry) = controller.wav_entry(index) else {
                 continue;
             };
-            if !helpers::filter_accepts(filter, &rating_filter, entry.tag) {
+            if !helpers::filter_accepts(filter, &rating_filter, entry.tag, entry.locked) {
                 continue;
             }
             if !folder_accepts(controller, index) {
@@ -154,7 +154,7 @@ pub(crate) fn build_visible_rows(
                 let Some(entry) = controller.wav_entry(index) else {
                     continue;
                 };
-                if !helpers::filter_accepts(filter, &rating_filter, entry.tag) {
+                if !helpers::filter_accepts(filter, &rating_filter, entry.tag, entry.locked) {
                     continue;
                 }
                 if !folder_accepts(controller, index) {

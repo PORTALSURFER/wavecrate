@@ -121,6 +121,8 @@ fn browser_filter_limits_visible_rows() {
 fn browser_rating_filter_limits_visible_rows() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source);
+    let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
+    locked_keep.locked = true;
     controller.set_wav_entries_for_tests(vec![
         sample_entry("trash3.wav", Rating::TRASH_3),
         sample_entry("trash2.wav", Rating::new(-2)),
@@ -129,6 +131,7 @@ fn browser_rating_filter_limits_visible_rows() {
         sample_entry("keep1.wav", Rating::KEEP_1),
         sample_entry("keep2.wav", Rating::new(2)),
         sample_entry("keep3.wav", Rating::KEEP_3),
+        locked_keep,
     ]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -145,8 +148,11 @@ fn browser_rating_filter_limits_visible_rows() {
     controller.set_browser_rating_filter(2, true);
     assert_eq!(visible_indices(&controller), vec![1, 5]);
 
+    controller.set_browser_rating_filter(4, false);
+    assert_eq!(visible_indices(&controller), vec![7]);
+
     controller.clear_browser_rating_filter();
-    assert_eq!(visible_indices(&controller), vec![0, 1, 2, 3, 4, 5, 6]);
+    assert_eq!(visible_indices(&controller), vec![0, 1, 2, 3, 4, 5, 6, 7]);
 }
 
 #[test]

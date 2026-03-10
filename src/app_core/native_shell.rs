@@ -314,8 +314,8 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
             SampleBrowserTab::Map
         ),
         active_rating_filters: {
-            let mut flags = [false; 7];
-            for (index, level) in (-3..=3).enumerate() {
+            let mut flags = [false; 8];
+            for (index, level) in [-3, -2, -1, 0, 1, 2, 3, 4].into_iter().enumerate() {
                 flags[index] = controller.ui.browser.rating_filter.contains(&level);
             }
             flags

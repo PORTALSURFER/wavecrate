@@ -79,10 +79,10 @@ pub(crate) fn project_browser_model(controller: &mut AppController) -> BrowserPa
     panel
 }
 
-/// Project active browser rating-filter levels into a fixed `-3..=3` chip-state array.
-fn browser_rating_filter_flags(rating_filter: &std::collections::BTreeSet<i8>) -> [bool; 7] {
-    let mut flags = [false; 7];
-    for (index, level) in (-3..=3).enumerate() {
+/// Project active browser rating-filter levels into a fixed chip-state array.
+fn browser_rating_filter_flags(rating_filter: &std::collections::BTreeSet<i8>) -> [bool; 8] {
+    let mut flags = [false; 8];
+    for (index, level) in [-3, -2, -1, 0, 1, 2, 3, 4].into_iter().enumerate() {
         flags[index] = rating_filter.contains(&level);
     }
     flags

@@ -55,6 +55,7 @@ pub(super) fn filter_accepts(
     filter: TriageFlagFilter,
     rating_filter: &std::collections::BTreeSet<i8>,
     tag: crate::sample_sources::Rating,
+    locked: bool,
 ) -> bool {
     let triage_ok = match filter {
         TriageFlagFilter::All => true,
@@ -62,7 +63,9 @@ pub(super) fn filter_accepts(
         TriageFlagFilter::Trash => tag.is_trash(),
         TriageFlagFilter::Untagged => tag.is_neutral(),
     };
-    let rating_ok = rating_filter.is_empty() || rating_filter.contains(&tag.val());
+    let rating_ok = rating_filter.is_empty()
+        || rating_filter.contains(&tag.val())
+        || (locked && rating_filter.contains(&4));
     triage_ok && rating_ok
 }
 

@@ -7,6 +7,7 @@ pub(super) fn filter_accepts_tag(
     filter: TriageFlagFilter,
     rating_filter: &std::collections::BTreeSet<i8>,
     tag: Rating,
+    locked: bool,
 ) -> bool {
     let triage_ok = match filter {
         TriageFlagFilter::All => true,
@@ -14,7 +15,9 @@ pub(super) fn filter_accepts_tag(
         TriageFlagFilter::Trash => tag.is_trash(),
         TriageFlagFilter::Untagged => tag.is_neutral(),
     };
-    let rating_ok = rating_filter.is_empty() || rating_filter.contains(&tag.val());
+    let rating_ok = rating_filter.is_empty()
+        || rating_filter.contains(&tag.val())
+        || (locked && rating_filter.contains(&4));
     triage_ok && rating_ok
 }
 
@@ -135,6 +138,24 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
+    fn locked_keep_filter_accepts_only_locked_keep_rows() {
+        let rating_filter = BTreeSet::from([4]);
+
+        assert!(filter_accepts_tag(
+            TriageFlagFilter::All,
+            &rating_filter,
+            Rating::KEEP_3,
+            true,
+        ));
+        assert!(!filter_accepts_tag(
+            TriageFlagFilter::All,
+            &rating_filter,
+            Rating::KEEP_3,
+            false,
+        ));
+    }
+
+    #[test]
     fn folder_accepts_build_stops_when_generation_turns_stale() {
         let mut cache = SearchWorkerCache {
             entries: Some(
@@ -143,6 +164,7 @@ mod tests {
                         display_label: format!("item-{index}").into_boxed_str(),
                         relative_path: format!("group/item-{index}.wav").into_boxed_str(),
                         tag: Rating::NEUTRAL,
+                        locked: false,
                         last_played_at: None,
                     })
                     .collect(),

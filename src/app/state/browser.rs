@@ -65,7 +65,7 @@ pub struct SampleBrowserState {
     pub autoscroll: bool,
     /// Active triage filter.
     pub filter: TriageFlagFilter,
-    /// Rating levels selected for filtering (-3..=3). Empty means no rating filter.
+    /// Rating levels selected for filtering (`-3..=3`, plus `4` for locked keeps).
     pub rating_filter: BTreeSet<i8>,
     /// Text query applied to visible rows via fuzzy search.
     pub search_query: String,

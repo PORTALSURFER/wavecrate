@@ -962,6 +962,7 @@ fn projection_segment_browser_frame_copies_active_rating_filters() {
     let _ = cache.resolve_or_project(&mut controller);
 
     controller.ui.browser.rating_filter.insert(3);
+    controller.ui.browser.rating_filter.insert(4);
     controller.mark_browser_search_projection_revision_dirty();
 
     let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
@@ -974,7 +975,7 @@ fn projection_segment_browser_frame_copies_active_rating_filters() {
     assert!(model.browser.active_rating_filters[6]);
     assert_eq!(
         model.browser.active_rating_filters,
-        [false, false, false, false, false, false, true]
+        [false, false, false, false, false, false, true, true]
     );
 }
 

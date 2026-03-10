@@ -82,6 +82,7 @@ pub(super) fn ensure_search_entries_loaded_for_job(
                     display_label: display_label.into_boxed_str(),
                     relative_path: relative_path.into_boxed_str(),
                     tag: entry.tag,
+                    locked: entry.locked,
                     last_played_at: entry.last_played_at,
                 });
             }
@@ -310,7 +311,7 @@ pub(super) fn build_visible_rows_for_job(
         if super::search_job_canceled_for_index(queue, generation, index) {
             return None;
         }
-        if !filter_accepts_tag(job.filter, &job.rating_filter, entry.tag)
+        if !filter_accepts_tag(job.filter, &job.rating_filter, entry.tag, entry.locked)
             || !folder_accepts_index(folder_accepts.as_ref(), index)
         {
             continue;
@@ -392,7 +393,7 @@ fn build_visible_rows_for_similar(
             return None;
         }
         if let Some(entry) = entries.get(index)
-            && filter_accepts_tag(job.filter, &job.rating_filter, entry.tag)
+            && filter_accepts_tag(job.filter, &job.rating_filter, entry.tag, entry.locked)
             && folder_accepts_index(folder_accepts, index)
         {
             visible.push(index);
@@ -422,7 +423,7 @@ fn build_visible_rows_for_similar(
 
         if let Some(anchor) = similar.anchor_index
             && let Some(entry) = entries.get(anchor)
-            && filter_accepts_tag(job.filter, &job.rating_filter, entry.tag)
+            && filter_accepts_tag(job.filter, &job.rating_filter, entry.tag, entry.locked)
             && folder_accepts_index(folder_accepts, anchor)
         {
             if let Some(pos) = visible.iter().position(|index| *index == anchor) {
