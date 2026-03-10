@@ -57,19 +57,19 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: runtime responsiveness/performance redesign (Xilem-inspired scoped invalidation + cache reuse)
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
-- Current status: the `tmp/perf_plan.md` runtime performance execution backlog is complete through item 11, and cleanup Phase 2 is now in progress from `tmp/cleanup_plan.md`; items 1-13 are complete in commits `16932de4`, `1fe099ae`, `0b0be54a`, `f752dec6`, `8d2c30e8`, `30d25841`, `08541a52`, `d538fd60`, `b5702240`, `07afb548`, `1a0a20eb`, `bb7216dd`, `bceaaeeb`, and `319cefdd`, and item 14 is next.
+- Current status: the `tmp/perf_plan.md` runtime performance execution backlog is complete through item 11, and `tmp/cleanup_plan.md` was refreshed on 2026-03-10 against the current `next` head; cleanup items 1-13 remain complete in commits `16932de4`, `1fe099ae`, `0b0be54a`, `f752dec6`, `8d2c30e8`, `30d25841`, `08541a52`, `d538fd60`, `b5702240`, `07afb548`, `1a0a20eb`, `bb7216dd`, `bceaaeeb`, and `319cefdd`, and Phase 2 implementation is paused pending explicit user confirmation.
 
 ## Immediate Next Actions
 1. Use `docs/plans/active/runtime_performance_exec_plan.md` for any follow-up perf work beyond the completed `tmp/perf_plan.md` backlog.
 2. Keep handoff docs synchronized on future perf milestone commits (`AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`).
-3. Treat `tmp/cleanup_plan.md` as the active ROI-ranked cleanup backlog and continue implementation in strict order.
+3. Treat `tmp/cleanup_plan.md` as the active ROI-ranked cleanup backlog and start Phase 2 only after explicit user confirmation, beginning with item 14.
 4. Keep `tmp/perf_plan.md` as the completed execution record for items 1-11.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/cleanup_plan.md`: strict ROI-ranked cleanup backlog + execution checklist (last refresh: 2026-03-09, Phase 2 active, items 1-13 complete, item 14 next)
+- `tmp/cleanup_plan.md`: strict ROI-ranked cleanup backlog + execution checklist (last refresh: 2026-03-10, awaiting confirmation; items 1-13 complete, item 14 next)
 - `docs/plans/active/cleanup_architecture_note.md`: cleanup boundary/ownership guidance
 - `tmp/perf_plan.md`: current ROI-ranked runtime performance audit backlog and execution order
 
