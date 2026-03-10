@@ -175,7 +175,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: docs index/link checks if touched, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-09 (`319cefdd`)
 
-- [ ] 14) Split waveform selection/edit-fade action logic out of `src/app/controller/playback/waveform_actions.rs`
+- [x] 14) Split waveform selection/edit-fade action logic out of `src/app/controller/playback/waveform_actions.rs`
   - ROI/Effort: High / M
   - Why it matters: play-selection, edit-selection, fade-handle, smart-scale, BPM-snap, and drag-state transitions are concentrated in one 973 LOC controller file, which keeps recent waveform fixes expensive and easy to regress.
   - Evidence:
@@ -185,6 +185,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: extract focused modules for selection dragging, edit-mark handling, fade adjustment, and BPM-snap/smart-scale helpers, and keep the top-level controller entrypoints as thin orchestrators.
   - Risk/tradeoffs: Medium. This code is heavily user-visible, so behavior must remain stable while the seams move.
   - Suggested validation: waveform action unit tests, focused playback/controller tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-10
 
 - [ ] 15) Decompose `src/app_core/native_bridge.rs` and split the catch-all native-bridge test surface
   - ROI/Effort: High / M-L
@@ -362,6 +363,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 
 - 2026-03-10: Refreshed the cleanup audit against the current `next` head and reordered the remaining work into a 30-item strict ROI backlog.
 - 2026-03-10: Revalidated the remaining top hotspots after the latest waveform/native-shell changes; item 14 remains the highest-ROI next step and the evidence counts above now match the current head.
+- 2026-03-10: Completed item 14 by splitting `waveform_actions` into focused `shared`, `selection_updates`, `edit_selection`, and `edit_fades` modules while keeping the `AppController` waveform facade stable.
 - 2026-03-10: Read repository guidance first (`AGENTS.md`, `README.md`, `docs/README.md`, `docs/plans/index.md`, `docs/plans/active/runtime_performance_exec_plan.md`, `docs/plans/active/todo.md`, `docs/plans/active/cleanup_architecture_note.md`, and `MEMORY.md`) before refreshing the plan.
 - 2026-03-10: Confirmed the canonical local CI parity command for this current Windows environment is `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
 - 2026-03-10: Audit evidence was gathered from `src/app`, `src/app_core`, `src/sample_sources`, `src/audio`, `src/analysis`, `tools/analysis-admin`, and `vendor/radiant`, plus targeted file-size and suppression scans.
