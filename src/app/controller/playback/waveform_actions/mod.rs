@@ -395,6 +395,14 @@ impl AppController {
         self.focus_waveform();
     }
 
+    /// Scroll waveform viewport to a normalized center while preserving waveform focus.
+    pub fn scroll_waveform_view_with_focus(&mut self, center_micros: u32) {
+        self.scroll_waveform_view(
+            f64::from(center_micros.min(1_000_000)) / WAVEFORM_ANCHOR_RATIO_MICROS_SCALE,
+        );
+        self.focus_waveform();
+    }
+
     /// Reset waveform zoom to full range while preserving waveform focus.
     pub fn zoom_waveform_full_with_focus(&mut self) {
         self.zoom_waveform_full();

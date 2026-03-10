@@ -7,6 +7,7 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
         action,
         NativeUiAction::SeekWaveform { .. }
             | NativeUiAction::SetWaveformCursor { .. }
+            | NativeUiAction::SetWaveformViewCenter { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
             | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
             | NativeUiAction::SetWaveformEditSelectionRange { .. }
@@ -88,6 +89,7 @@ pub(super) fn classify_dirty_source(
         NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
         | NativeUiAction::ZoomWaveformFull
+        | NativeUiAction::SetWaveformViewCenter { .. }
         | NativeUiAction::SetWaveformBpmValue { .. }
         | NativeUiAction::AdjustWaveformBpm { .. }
         | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }

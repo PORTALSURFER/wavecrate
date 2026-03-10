@@ -48,6 +48,8 @@ pub(super) struct PendingWaveformActions {
     pub(super) selection_smart_scale: bool,
     /// Whether selection should be cleared when no range override is queued.
     pub(super) clear_selection: bool,
+    /// Latest waveform viewport center in normalized micro space.
+    pub(super) view_center_micros: Option<u32>,
     /// Net signed waveform zoom step delta accumulated this frame.
     pub(super) zoom_steps_delta: i16,
     /// Latest queued pointer-anchor ratio for waveform zoom (`0..=1_000_000`).
@@ -65,6 +67,7 @@ impl PendingWaveformActions {
             || self.cursor_milli.is_some()
             || self.selection_range_micros.is_some()
             || self.clear_selection
+            || self.view_center_micros.is_some()
             || self.zoom_steps_delta != 0
             || self.zoom_to_selection
             || self.zoom_full
@@ -107,6 +110,10 @@ impl PendingWaveformActions {
                 self.selection_preserve_view_edge = false;
                 self.selection_smart_scale = false;
                 self.clear_selection = true;
+                true
+            }
+            NativeUiAction::SetWaveformViewCenter { center_micros } => {
+                self.view_center_micros = Some((*center_micros).min(1_000_000));
                 true
             }
             NativeUiAction::ZoomWaveform {
@@ -153,6 +160,7 @@ impl PendingWaveformActions {
         if self.zoom_full
             || self.zoom_to_selection
             || self.zoom_steps_delta != 0
+            || self.view_center_micros.is_some()
             || self.selection_smart_scale
         {
             DirtyReason::WaveformViewAction
@@ -224,6 +232,10 @@ impl PendingWaveformActions {
             emit(action);
             emitted_actions = emitted_actions.saturating_add(1);
         }
+        if let Some(center_micros) = self.view_center_micros {
+            emit(NativeUiAction::SetWaveformViewCenter { center_micros });
+            emitted_actions = emitted_actions.saturating_add(1);
+        }
         if let Some(position_milli) = self.deduped_cursor_milli() {
             emit(NativeUiAction::SetWaveformCursor { position_milli });
             emitted_actions = emitted_actions.saturating_add(1);
@@ -240,6 +252,9 @@ impl PendingWaveformActions {
     /// Zoom actions change the waveform viewport and image payload, so native
     /// runtime must pull a full projected model instead of motion-only state.
     pub(super) fn requires_full_model_pull(&self) -> bool {
-        self.zoom_steps_delta != 0 || self.zoom_to_selection || self.zoom_full
+        self.zoom_steps_delta != 0
+            || self.zoom_to_selection
+            || self.zoom_full
+            || self.view_center_micros.is_some()
     }
 }

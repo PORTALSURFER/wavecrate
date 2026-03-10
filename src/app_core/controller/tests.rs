@@ -292,6 +292,22 @@ fn apply_native_waveform_smart_scale_routes_to_controller_behavior() {
 }
 
 #[test]
+fn apply_native_waveform_view_center_routes_to_controller_behavior() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.ui.waveform.view = crate::app::state::WaveformView {
+        start: 0.2,
+        end: 0.4,
+    };
+
+    controller.apply_native_ui_action(NativeUiAction::SetWaveformViewCenter {
+        center_micros: 700_000,
+    });
+
+    assert!((controller.ui.waveform.view.start - 0.6).abs() < 1.0e-6);
+    assert!((controller.ui.waveform.view.end - 0.8).abs() < 1.0e-6);
+}
+
+#[test]
 /// Native folder-row focus action should select the clicked folder for filtering.
 fn focus_folder_row_action_replaces_folder_selection() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);

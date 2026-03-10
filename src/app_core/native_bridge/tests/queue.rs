@@ -47,6 +47,9 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
         end_micros: 640_000,
         preserve_view_edge: false,
     }));
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformViewCenter {
+        center_micros: 500_000,
+    }));
     assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
         position_milli: 410,
     }));
@@ -57,7 +60,7 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
     let mut emitted = Vec::new();
     let count = queue.emit_actions(|action| emitted.push(action));
 
-    assert_eq!(count, 4);
+    assert_eq!(count, 5);
     assert_eq!(
         emitted,
         vec![
@@ -71,6 +74,9 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
                 end_micros: 640_000,
                 preserve_view_edge: false,
             },
+            NativeUiAction::SetWaveformViewCenter {
+                center_micros: 500_000,
+            },
             NativeUiAction::SetWaveformCursor {
                 position_milli: 410,
             },
@@ -79,6 +85,19 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
             },
         ]
     );
+}
+
+#[test]
+fn waveform_action_queue_keeps_latest_view_center() {
+    let mut queue = PendingWaveformActions::default();
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformViewCenter {
+        center_micros: 200_000,
+    }));
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformViewCenter {
+        center_micros: 700_000,
+    }));
+    assert_eq!(queue.view_center_micros, Some(700_000));
+    assert_eq!(queue.dirty_reason(), DirtyReason::WaveformViewAction);
 }
 
 /// Zoom-to-selection and zoom-full should override discrete zoom deltas.

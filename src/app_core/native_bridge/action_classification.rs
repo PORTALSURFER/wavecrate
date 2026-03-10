@@ -26,6 +26,7 @@ pub(super) fn classify_action_interaction(
         }
         NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
+        | NativeUiAction::SetWaveformViewCenter { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
         | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
         | NativeUiAction::SetWaveformEditSelectionRange { .. }
