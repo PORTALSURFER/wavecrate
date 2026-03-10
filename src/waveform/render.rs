@@ -126,7 +126,7 @@ impl WaveformRenderer {
                 return match columns {
                     WaveformColumnView::Mono(cols) => {
                         let mut cols = Self::smooth_columns(&cols, smooth_radius);
-                        apply_fade_to_columns(&mut cols, start, end, width, fade);
+                        apply_fade_to_columns(&mut cols, start, end, fade);
                         Self::paint_color_image_for_size_with_density(
                             &cols,
                             width,
@@ -139,8 +139,8 @@ impl WaveformRenderer {
                     WaveformColumnView::SplitStereo { left, right } => {
                         let mut left = Self::smooth_columns(&left, smooth_radius);
                         let mut right = Self::smooth_columns(&right, smooth_radius);
-                        apply_fade_to_columns(&mut left, start, end, width, fade);
-                        apply_fade_to_columns(&mut right, start, end, width, fade);
+                        apply_fade_to_columns(&mut left, start, end, fade);
+                        apply_fade_to_columns(&mut right, start, end, fade);
                         Self::paint_split_color_image_with_density(
                             &left,
                             &right,
@@ -290,7 +290,7 @@ impl WaveformRenderer {
         match columns {
             WaveformColumnView::Mono(cols) => {
                 let mut cols = Self::smooth_columns(&cols, smooth_radius);
-                apply_fade_to_columns(&mut cols, view_start, view_end, width, edit_fade);
+                apply_fade_to_columns(&mut cols, view_start, view_end, edit_fade);
                 Self::paint_color_image_for_size_with_density(
                     &cols,
                     width,
@@ -303,8 +303,8 @@ impl WaveformRenderer {
             WaveformColumnView::SplitStereo { left, right } => {
                 let mut left = Self::smooth_columns(&left, smooth_radius);
                 let mut right = Self::smooth_columns(&right, smooth_radius);
-                apply_fade_to_columns(&mut left, view_start, view_end, width, edit_fade);
-                apply_fade_to_columns(&mut right, view_start, view_end, width, edit_fade);
+                apply_fade_to_columns(&mut left, view_start, view_end, edit_fade);
+                apply_fade_to_columns(&mut right, view_start, view_end, edit_fade);
                 Self::paint_split_color_image_with_density(
                     &left,
                     &right,
@@ -330,7 +330,6 @@ fn apply_fade_to_columns(
     columns: &mut [(f32, f32)],
     view_start: f32,
     view_end: f32,
-    width: u32,
     edit_fade: Option<SelectionRange>,
 ) {
     if !fade_intersects_view(view_start, view_end, edit_fade) {
@@ -339,11 +338,9 @@ fn apply_fade_to_columns(
     let Some(selection) = edit_fade else {
         return;
     };
-    let width = width.max(1) as f32;
-    let fraction = (view_end - view_start).max(1e-6);
+    let column_count = columns.len();
     for (index, column) in columns.iter_mut().enumerate() {
-        let t = (index as f32 + 0.5) / width;
-        let position = view_start + fraction * t;
+        let position = preview_position_for_index(index, column_count, view_start, view_end);
         let gain = fade_gain_at_position(
             position,
             selection.start(),
@@ -371,11 +368,9 @@ fn apply_fade_to_samples(
     let Some(selection) = edit_fade else {
         return samples.to_vec();
     };
-    let fraction = (view_end - view_start).max(1e-6);
     let mut faded = samples.to_vec();
     for frame in 0..frame_count {
-        let t = (frame as f32 + 0.5) / frame_count.max(1) as f32;
-        let position = view_start + fraction * t;
+        let position = preview_position_for_index(frame, frame_count, view_start, view_end);
         let gain = fade_gain_at_position(
             position,
             selection.start(),
@@ -395,6 +390,25 @@ fn apply_fade_to_samples(
         }
     }
     faded
+}
+
+/// Resolve one edit-fade preview sample position using inclusive endpoints.
+///
+/// Preview fades need the first and last rendered points to land exactly on the
+/// current view bounds. That keeps edge-aligned edit fades visually consistent
+/// with the destructive edit path, which zeroes the final selected frame.
+fn preview_position_for_index(
+    index: usize,
+    sample_count: usize,
+    view_start: f32,
+    view_end: f32,
+) -> f32 {
+    let fraction = (view_end - view_start).max(1e-6);
+    if sample_count <= 1 {
+        return view_end;
+    }
+    let t = index as f32 / (sample_count.saturating_sub(1)) as f32;
+    view_start + fraction * t.clamp(0.0, 1.0)
 }
 
 #[cfg(test)]
@@ -443,6 +457,28 @@ mod tests {
             },
         );
         assert_eq!(image.size, [5, 3]);
+    }
+
+    #[test]
+    fn sample_fade_preview_zeroes_tail_when_selection_reaches_waveform_end() {
+        let selection = SelectionRange::new(0.8, 1.0).with_fade_out(1.0, 0.0);
+        let faded = apply_fade_to_samples(&[1.0, 1.0, 1.0, 1.0], 1, 4, 0.8, 1.0, Some(selection));
+
+        assert!(faded.last().is_some_and(|sample| sample.abs() < 1e-6));
+    }
+
+    #[test]
+    fn column_fade_preview_zeroes_tail_when_selection_reaches_waveform_end() {
+        let selection = SelectionRange::new(0.8, 1.0).with_fade_out(1.0, 0.0);
+        let mut columns = vec![(-1.0, 1.0); 4];
+
+        apply_fade_to_columns(&mut columns, 0.8, 1.0, Some(selection));
+
+        assert!(
+            columns
+                .last()
+                .is_some_and(|column| column.0.abs() < 1e-6 && column.1.abs() < 1e-6)
+        );
     }
 
     #[test]
