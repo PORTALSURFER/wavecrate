@@ -29,6 +29,31 @@ fn alt_drag_scales_selection_and_recalculates_bpm() {
 }
 
 #[test]
+fn smart_scale_resize_interprets_selection_as_four_beats() {
+    let (mut controller, source) = dummy_controller();
+    let samples = vec![0.0; 32];
+    let selection = SelectionRange::new(0.0, 0.25);
+    load_waveform_selection(
+        &mut controller,
+        &source,
+        "smart_scale_four_beats.wav",
+        &samples,
+        selection,
+    );
+
+    controller.selection_state.range.set_range(Some(selection));
+    controller.apply_selection(Some(selection));
+    controller.set_bpm_value(150.0);
+
+    controller.set_waveform_selection_range_milli_smart_scale(0, 500);
+
+    let updated = controller.ui.waveform.selection.unwrap();
+    assert_eq!(updated, SelectionRange::new(0.0, 0.5));
+    let bpm = controller.ui.waveform.bpm_value.unwrap();
+    assert!((bpm - 120.0).abs() < 0.1);
+}
+
+#[test]
 fn alt_drag_scales_without_loop_enabled() {
     let (mut controller, source) = dummy_controller();
     let samples = vec![0.0; 32];

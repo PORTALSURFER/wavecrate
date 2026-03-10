@@ -114,6 +114,8 @@ struct PendingWaveformActions {
     cursor_milli: Option<u16>,
     /// Latest explicit selection range in normalized milli space.
     selection_range_milli: Option<(u16, u16)>,
+    /// Whether the queued selection range should recompute BPM from a 4-beat span.
+    selection_smart_scale: bool,
     /// Whether selection should be cleared when no range override is queued.
     clear_selection: bool,
     /// Net signed waveform zoom step delta accumulated this frame.
@@ -154,11 +156,22 @@ impl PendingWaveformActions {
                 end_milli,
             } => {
                 self.selection_range_milli = Some((*start_milli, *end_milli));
+                self.selection_smart_scale = false;
+                self.clear_selection = false;
+                true
+            }
+            NativeUiAction::SetWaveformSelectionRangeSmartScale {
+                start_milli,
+                end_milli,
+            } => {
+                self.selection_range_milli = Some((*start_milli, *end_milli));
+                self.selection_smart_scale = true;
                 self.clear_selection = false;
                 true
             }
             NativeUiAction::ClearWaveformSelection => {
                 self.selection_range_milli = None;
+                self.selection_smart_scale = false;
                 self.clear_selection = true;
                 true
             }
@@ -203,7 +216,11 @@ impl PendingWaveformActions {
 
     /// Return the derived-graph dirty reason represented by this pending batch.
     fn dirty_reason(&self) -> DirtyReason {
-        if self.zoom_full || self.zoom_to_selection || self.zoom_steps_delta != 0 {
+        if self.zoom_full
+            || self.zoom_to_selection
+            || self.zoom_steps_delta != 0
+            || self.selection_smart_scale
+        {
             DirtyReason::WaveformViewAction
         } else {
             DirtyReason::WaveformOverlayAction
@@ -245,9 +262,16 @@ impl PendingWaveformActions {
     /// Build the highest-priority selection action for this pending batch, if any.
     fn selection_action(&self) -> Option<NativeUiAction> {
         if let Some((start_milli, end_milli)) = self.selection_range_milli {
-            return Some(NativeUiAction::SetWaveformSelectionRange {
-                start_milli,
-                end_milli,
+            return Some(if self.selection_smart_scale {
+                NativeUiAction::SetWaveformSelectionRangeSmartScale {
+                    start_milli,
+                    end_milli,
+                }
+            } else {
+                NativeUiAction::SetWaveformSelectionRange {
+                    start_milli,
+                    end_milli,
+                }
             });
         }
         self.clear_selection

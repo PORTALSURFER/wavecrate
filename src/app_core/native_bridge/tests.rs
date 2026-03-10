@@ -597,6 +597,27 @@ fn waveform_action_queue_selection_range_overrides_clear() {
     assert_eq!(queue.selection_range_milli, Some((120, 400)));
 }
 
+#[test]
+fn waveform_action_queue_keeps_smart_scale_selection_as_view_action() {
+    let mut queue = PendingWaveformActions::default();
+    assert!(
+        queue.enqueue(&NativeUiAction::SetWaveformSelectionRangeSmartScale {
+            start_milli: 120,
+            end_milli: 640,
+        })
+    );
+    assert_eq!(queue.selection_range_milli, Some((120, 640)));
+    assert!(queue.selection_smart_scale);
+    assert_eq!(queue.dirty_reason(), super::DirtyReason::WaveformViewAction);
+    assert_eq!(
+        queue.selection_action(),
+        Some(NativeUiAction::SetWaveformSelectionRangeSmartScale {
+            start_milli: 120,
+            end_milli: 640,
+        })
+    );
+}
+
 /// Edit-selection actions are applied immediately and must not be coalesced.
 #[test]
 fn waveform_action_queue_does_not_absorb_edit_selection_actions() {

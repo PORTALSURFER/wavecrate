@@ -273,6 +273,24 @@ fn apply_native_waveform_trim_routes_to_controller_behavior() {
 }
 
 #[test]
+fn apply_native_waveform_smart_scale_routes_to_controller_behavior() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.set_loaded_audio_duration_for_tests(4.0);
+    controller.ui.waveform.bpm_value = Some(150.0);
+
+    controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRangeSmartScale {
+        start_milli: 0,
+        end_milli: 500,
+    });
+
+    assert_eq!(
+        controller.ui.waveform.selection,
+        Some(crate::selection::SelectionRange::new(0.0, 0.5))
+    );
+    assert_eq!(controller.ui.waveform.bpm_value, Some(120.0));
+}
+
+#[test]
 /// Native folder-row focus action should select the clicked folder for filtering.
 fn focus_folder_row_action_replaces_folder_selection() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);

@@ -35,7 +35,7 @@ pub(crate) fn start_selection_edge_drag(
     }
     controller.begin_selection_undo("Selection");
     controller.selection_state.bpm_scale_beats = if bpm_scale {
-        selection_scale_beats(controller)
+        smart_scale_target_beats(controller)
     } else {
         None
     };
@@ -142,6 +142,15 @@ pub(crate) fn set_selection_range(controller: &mut AppController, range: Selecti
     {
         controller.set_status(err, StatusTone::Error);
     }
+}
+
+pub(crate) fn set_selection_range_with_smart_scale(
+    controller: &mut AppController,
+    range: SelectionRange,
+    beats: f32,
+) {
+    set_selection_range(controller, range);
+    apply_scaled_bpm(controller, beats, range);
 }
 
 pub(crate) fn set_edit_selection_range(controller: &mut AppController, range: SelectionRange) {
@@ -260,14 +269,7 @@ fn selection_start_snap_radius(controller: &AppController) -> f32 {
     radius
 }
 
-fn selection_scale_beats(controller: &AppController) -> Option<f32> {
-    if !controller.ui.waveform.bpm_snap_enabled {
-        return None;
-    }
-    let bpm = controller.ui.waveform.bpm_value?;
-    if !bpm.is_finite() || bpm <= 0.0 {
-        return None;
-    }
+fn smart_scale_target_beats(controller: &AppController) -> Option<f32> {
     let duration = controller.loaded_audio_duration_seconds()?;
     if !duration.is_finite() || duration <= 0.0 {
         return None;
@@ -281,38 +283,40 @@ fn selection_scale_beats(controller: &AppController) -> Option<f32> {
     if !seconds.is_finite() || seconds <= 0.0 {
         return None;
     }
-    let beats = seconds * bpm / 60.0;
-    if !beats.is_finite() || beats <= 0.0 {
-        return None;
-    }
-    let rounded = beats.round();
-    if (beats - rounded).abs() < 1.0e-3 {
-        Some(rounded)
-    } else {
-        Some(beats)
-    }
+    Some(SMART_SCALE_SELECTION_BEATS)
 }
 
 fn apply_scaled_bpm(controller: &mut AppController, beats: f32, range: SelectionRange) {
-    if !beats.is_finite() || beats <= 0.0 {
+    let Some(bpm) = scaled_selection_bpm(controller, beats, range) else {
         return;
-    }
-    let duration = match controller.loaded_audio_duration_seconds() {
-        Some(duration) if duration.is_finite() && duration > 0.0 => duration,
-        _ => return,
     };
-    let seconds = range.width() * duration;
-    if !seconds.is_finite() || seconds <= 0.0 {
-        return;
-    }
-    let bpm = beats * 60.0 / seconds;
-    if !bpm.is_finite() || bpm <= 0.0 {
-        return;
-    }
     controller.set_bpm_value(bpm);
     if let Some(input) = format_waveform_bpm_input(bpm) {
         controller.ui.waveform.bpm_input = input;
     }
+}
+
+pub(crate) fn scaled_selection_bpm(
+    controller: &AppController,
+    beats: f32,
+    range: SelectionRange,
+) -> Option<f32> {
+    if !beats.is_finite() || beats <= 0.0 {
+        return None;
+    }
+    let duration = match controller.loaded_audio_duration_seconds() {
+        Some(duration) if duration.is_finite() && duration > 0.0 => duration,
+        _ => return None,
+    };
+    let seconds = range.width() * duration;
+    if !seconds.is_finite() || seconds <= 0.0 {
+        return None;
+    }
+    let bpm = beats * 60.0 / seconds;
+    if !bpm.is_finite() || bpm <= 0.0 {
+        return None;
+    }
+    Some(bpm)
 }
 
 #[cfg(test)]

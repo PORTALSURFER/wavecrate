@@ -5,6 +5,8 @@ use crate::app::controller::state::selection::{EditFadeDragKind, EditFadeDragSta
 
 /// Equality epsilon used for normalized waveform cursor no-op detection.
 const WAVEFORM_CURSOR_NOOP_EPSILON: f32 = 1.0e-6;
+/// Equality epsilon used for BPM no-op detection during smart-scale selection updates.
+const WAVEFORM_BPM_NOOP_EPSILON: f32 = 1.0e-3;
 
 impl AppController {
     /// Begin a selection drag gesture at the given position.
@@ -127,6 +129,32 @@ impl AppController {
             return;
         }
         self.set_selection_range(next_range);
+        self.focus_waveform();
+    }
+
+    /// Set waveform selection range without BPM snapping and recalculate BPM for a 4-beat span.
+    pub fn set_waveform_selection_range_milli_smart_scale(
+        &mut self,
+        start_milli: u16,
+        end_milli: u16,
+    ) {
+        let existing_range = self
+            .selection_state
+            .range
+            .range()
+            .or(self.ui.waveform.selection);
+        let next_range = selection_range_from_milli(start_milli, end_milli);
+        let next_bpm =
+            transport::scaled_selection_bpm(self, SMART_SCALE_SELECTION_BEATS, next_range);
+        let bpm_unchanged = bpm_matches(self.ui.waveform.bpm_value, next_bpm);
+        if existing_range == Some(next_range) && waveform_focus_active(self) && bpm_unchanged {
+            return;
+        }
+        transport::set_selection_range_with_smart_scale(
+            self,
+            next_range,
+            SMART_SCALE_SELECTION_BEATS,
+        );
         self.focus_waveform();
     }
 
@@ -764,4 +792,13 @@ pub(super) fn waveform_view_changed(
 ) -> bool {
     (before.start - after.start).abs() > WAVEFORM_VIEW_NOOP_EPSILON
         || (before.end - after.end).abs() > WAVEFORM_VIEW_NOOP_EPSILON
+}
+
+/// Return whether two optional BPM values are equal within smart-scale drag tolerance.
+fn bpm_matches(current: Option<f32>, next: Option<f32>) -> bool {
+    match (current, next) {
+        (Some(current), Some(next)) => (current - next).abs() <= WAVEFORM_BPM_NOOP_EPSILON,
+        (None, None) => true,
+        _ => false,
+    }
 }

@@ -8,6 +8,7 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
         NativeUiAction::SeekWaveform { .. }
             | NativeUiAction::SetWaveformCursor { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
+            | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
             | NativeUiAction::SetWaveformEditSelectionRange { .. }
             | NativeUiAction::SetWaveformEditFadeInEnd { .. }
             | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
@@ -89,6 +90,7 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::ZoomWaveformFull
         | NativeUiAction::SetWaveformBpmValue { .. }
         | NativeUiAction::AdjustWaveformBpm { .. }
+        | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
         | NativeUiAction::CropWaveformSelection
         | NativeUiAction::CropWaveformSelectionToNewSample
         | NativeUiAction::TrimWaveformSelection => Some((

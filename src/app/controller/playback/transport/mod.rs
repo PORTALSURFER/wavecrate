@@ -16,8 +16,9 @@ pub(crate) use seek::{
 };
 pub(crate) use selection::{
     clear_edit_selection, clear_selection, finish_edit_selection_drag, finish_selection_drag,
-    is_edit_selection_dragging, is_selection_dragging, set_edit_selection_range,
-    set_selection_range, start_edit_selection_drag, start_selection_drag,
-    start_selection_edge_drag, update_edit_selection_drag, update_selection_drag,
+    is_edit_selection_dragging, is_selection_dragging, scaled_selection_bpm,
+    set_edit_selection_range, set_selection_range, set_selection_range_with_smart_scale,
+    start_edit_selection_drag, start_selection_drag, start_selection_edge_drag,
+    update_edit_selection_drag, update_selection_drag,
 };
 pub(crate) use volume::{commit_volume_setting, flush_pending_volume_setting, set_volume_live};

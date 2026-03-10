@@ -55,6 +55,7 @@ pub(crate) use ui::status_message::StatusMessage;
 
 pub(crate) const MIN_SELECTION_WIDTH: f32 = 0.001;
 pub(crate) const BPM_MIN_SELECTION_DIVISOR: f32 = 16.0;
+pub(crate) const SMART_SCALE_SELECTION_BEATS: f32 = 4.0;
 pub(crate) const AUDIO_CACHE_CAPACITY: usize = 12;
 pub(crate) const AUDIO_HISTORY_LIMIT: usize = 8;
 pub(crate) const RANDOM_HISTORY_LIMIT: usize = 20;

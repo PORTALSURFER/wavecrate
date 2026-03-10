@@ -49,6 +49,10 @@ pub(super) fn apply_waveform_native_ui_action(
             start_milli,
             end_milli,
         } => controller.set_waveform_selection_range_milli(start_milli, end_milli),
+        NativeUiAction::SetWaveformSelectionRangeSmartScale {
+            start_milli,
+            end_milli,
+        } => controller.set_waveform_selection_range_milli_smart_scale(start_milli, end_milli),
         NativeUiAction::SetWaveformEditSelectionRange {
             start_milli,
             end_milli,
