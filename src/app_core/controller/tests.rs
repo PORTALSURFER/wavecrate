@@ -119,6 +119,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
             action: NativeUiAction::SetWaveformEditSelectionRange {
                 start_milli: 125,
                 end_milli: 625,
+                preserve_view_edge: false,
             },
             expected: Expected::EditSelectionRange(Some((125, 625))),
         },

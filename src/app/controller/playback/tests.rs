@@ -229,8 +229,8 @@ fn set_waveform_selection_range_milli_snaps_resize_endpoint_when_bpm_snap_enable
 }
 
 #[test]
-/// Resizing against the visible left waveform edge should pin there instead of snapping inward.
-fn set_waveform_selection_range_milli_keeps_left_view_edge_when_dragged_past_it() {
+/// In-bounds selection updates should still BPM-snap even when they land on the visible edge.
+fn set_waveform_selection_range_milli_snaps_visible_edge_without_preserve_flag() {
     let (mut controller, source) = test_support::dummy_controller();
     controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
         source_id: source.id.clone(),
@@ -251,6 +251,39 @@ fn set_waveform_selection_range_milli_keeps_left_view_edge_when_dragged_past_it(
     controller.ui.waveform.selection = Some(range);
 
     controller.set_waveform_selection_range_milli(500, 180);
+
+    let updated = controller
+        .ui
+        .waveform
+        .selection
+        .expect("selection should remain active");
+    assert!((updated.start() - 0.25).abs() < 0.001);
+    assert!((updated.end() - 0.5).abs() < 0.001);
+}
+
+#[test]
+/// Native out-of-bounds drags should pin to the visible left waveform edge.
+fn set_waveform_selection_range_milli_preserves_left_view_edge_when_requested() {
+    let (mut controller, source) = test_support::dummy_controller();
+    controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
+        source_id: source.id.clone(),
+        root: source.root.clone(),
+        relative_path: PathBuf::from("snap_view_edge_preserved.wav"),
+        bytes: Vec::new().into(),
+        duration_seconds: 4.0,
+        sample_rate: 48_000,
+    });
+    controller.ui.waveform.bpm_snap_enabled = true;
+    controller.ui.waveform.bpm_value = Some(60.0);
+    controller.ui.waveform.view = crate::app::state::WaveformView {
+        start: 0.18,
+        end: 0.68,
+    };
+    let range = SelectionRange::new(0.3, 0.5);
+    controller.selection_state.range.set_range(Some(range));
+    controller.ui.waveform.selection = Some(range);
+
+    controller.set_waveform_selection_range_milli_with_edge_policy(500, 180, true);
 
     let updated = controller
         .ui

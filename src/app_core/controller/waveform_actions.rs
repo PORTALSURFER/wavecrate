@@ -48,7 +48,12 @@ pub(super) fn apply_waveform_native_ui_action(
         NativeUiAction::SetWaveformSelectionRange {
             start_milli,
             end_milli,
-        } => controller.set_waveform_selection_range_milli(start_milli, end_milli),
+            preserve_view_edge,
+        } => controller.set_waveform_selection_range_milli_with_edge_policy(
+            start_milli,
+            end_milli,
+            preserve_view_edge,
+        ),
         NativeUiAction::SetWaveformSelectionRangeSmartScale {
             start_milli,
             end_milli,
@@ -56,7 +61,12 @@ pub(super) fn apply_waveform_native_ui_action(
         NativeUiAction::SetWaveformEditSelectionRange {
             start_milli,
             end_milli,
-        } => controller.set_waveform_edit_selection_range_milli(start_milli, end_milli),
+            preserve_view_edge,
+        } => controller.set_waveform_edit_selection_range_milli_with_edge_policy(
+            start_milli,
+            end_milli,
+            preserve_view_edge,
+        ),
         NativeUiAction::SetWaveformEditFadeInEnd { position_milli } => {
             controller.set_waveform_edit_fade_in_end_milli(position_milli)
         }

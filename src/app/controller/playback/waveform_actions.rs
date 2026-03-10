@@ -117,13 +117,28 @@ impl AppController {
 
     /// Set waveform selection range using 0..=1000 milli positions from UI actions.
     pub fn set_waveform_selection_range_milli(&mut self, start_milli: u16, end_milli: u16) {
+        self.set_waveform_selection_range_milli_with_edge_policy(start_milli, end_milli, false);
+    }
+
+    /// Set waveform selection range from UI milli positions with optional view-edge pinning.
+    pub(crate) fn set_waveform_selection_range_milli_with_edge_policy(
+        &mut self,
+        start_milli: u16,
+        end_milli: u16,
+        preserve_view_edge: bool,
+    ) {
         let existing_range = self
             .selection_state
             .range
             .range()
             .or(self.ui.waveform.selection);
-        let (start_milli, end_milli) =
-            snap_waveform_selection_range_milli(self, start_milli, end_milli, existing_range);
+        let (start_milli, end_milli) = snap_waveform_selection_range_milli(
+            self,
+            start_milli,
+            end_milli,
+            existing_range,
+            preserve_view_edge,
+        );
         let next_range = selection_range_from_milli(start_milli, end_milli);
         if existing_range == Some(next_range) && waveform_focus_active(self) {
             return;
@@ -163,13 +178,32 @@ impl AppController {
     /// Edge-resize gestures preserve existing edit fades and keep them attached to the
     /// moved selection edge until the resized span becomes too small to fit them.
     pub fn set_waveform_edit_selection_range_milli(&mut self, start_milli: u16, end_milli: u16) {
+        self.set_waveform_edit_selection_range_milli_with_edge_policy(
+            start_milli,
+            end_milli,
+            false,
+        );
+    }
+
+    /// Set waveform edit selection range with optional view-edge pinning for out-of-bounds drags.
+    pub(crate) fn set_waveform_edit_selection_range_milli_with_edge_policy(
+        &mut self,
+        start_milli: u16,
+        end_milli: u16,
+        preserve_view_edge: bool,
+    ) {
         let existing_range = self
             .selection_state
             .edit_range
             .range()
             .or(self.ui.waveform.edit_selection);
-        let (start_milli, end_milli) =
-            snap_waveform_selection_range_milli(self, start_milli, end_milli, existing_range);
+        let (start_milli, end_milli) = snap_waveform_selection_range_milli(
+            self,
+            start_milli,
+            end_milli,
+            existing_range,
+            preserve_view_edge,
+        );
         let next_range = existing_range
             .map(|existing| {
                 update_edit_selection_range_from_milli(existing, start_milli, end_milli)
@@ -540,6 +574,7 @@ fn snap_waveform_selection_range_milli(
     start_milli: u16,
     end_milli: u16,
     existing_range: Option<SelectionRange>,
+    preserve_view_edge: bool,
 ) -> (u16, u16) {
     let mut start = start_milli.min(1000);
     let mut end = end_milli.min(1000);
@@ -558,13 +593,15 @@ fn snap_waveform_selection_range_milli(
         return (snapped_start, snapped_end);
     }
     if start == existing_end {
-        end = snap_waveform_resize_endpoint_to_bpm_step(controller, end, step);
+        end = snap_waveform_resize_endpoint_to_bpm_step(controller, end, step, preserve_view_edge);
     } else if end == existing_start {
-        start = snap_waveform_resize_endpoint_to_bpm_step(controller, start, step);
+        start =
+            snap_waveform_resize_endpoint_to_bpm_step(controller, start, step, preserve_view_edge);
     } else if start == existing_start {
-        end = snap_waveform_resize_endpoint_to_bpm_step(controller, end, step);
+        end = snap_waveform_resize_endpoint_to_bpm_step(controller, end, step, preserve_view_edge);
     } else if end == existing_end {
-        start = snap_waveform_resize_endpoint_to_bpm_step(controller, start, step);
+        start =
+            snap_waveform_resize_endpoint_to_bpm_step(controller, start, step, preserve_view_edge);
     }
     (start, end)
 }
@@ -625,11 +662,12 @@ fn snap_waveform_resize_endpoint_to_bpm_step(
     controller: &AppController,
     value_milli: u16,
     step: f32,
+    preserve_view_edge: bool,
 ) -> u16 {
     let value_milli = value_milli.min(1000);
     let view_start_milli = normalized_to_milli(controller.ui.waveform.view.start as f32);
     let view_end_milli = normalized_to_milli(controller.ui.waveform.view.end as f32);
-    if value_milli == view_start_milli || value_milli == view_end_milli {
+    if preserve_view_edge && (value_milli == view_start_milli || value_milli == view_end_milli) {
         return value_milli;
     }
     snap_milli_to_bpm_step(value_milli, step)

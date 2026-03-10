@@ -498,6 +498,7 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
     assert!(queue.enqueue(&NativeUiAction::SetWaveformSelectionRange {
         start_milli: 120,
         end_milli: 640,
+        preserve_view_edge: false,
     }));
     assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
         position_milli: 410,
@@ -521,6 +522,7 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
             NativeUiAction::SetWaveformSelectionRange {
                 start_milli: 120,
                 end_milli: 640,
+                preserve_view_edge: false,
             },
             NativeUiAction::SetWaveformCursor {
                 position_milli: 410,
@@ -592,6 +594,7 @@ fn waveform_action_queue_selection_range_overrides_clear() {
     assert!(queue.enqueue(&NativeUiAction::SetWaveformSelectionRange {
         start_milli: 120,
         end_milli: 400,
+        preserve_view_edge: false,
     }));
     assert!(!queue.clear_selection);
     assert_eq!(queue.selection_range_milli, Some((120, 400)));
@@ -626,6 +629,7 @@ fn waveform_action_queue_does_not_absorb_edit_selection_actions() {
         !queue.enqueue(&NativeUiAction::SetWaveformEditSelectionRange {
             start_milli: 140,
             end_milli: 460,
+            preserve_view_edge: false,
         })
     );
     assert!(!queue.enqueue(&NativeUiAction::SetWaveformEditFadeInEnd {

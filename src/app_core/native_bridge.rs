@@ -114,6 +114,8 @@ struct PendingWaveformActions {
     cursor_milli: Option<u16>,
     /// Latest explicit selection range in normalized milli space.
     selection_range_milli: Option<(u16, u16)>,
+    /// Whether the queued selection range should preserve an out-of-bounds view edge.
+    selection_preserve_view_edge: bool,
     /// Whether the queued selection range should recompute BPM from a 4-beat span.
     selection_smart_scale: bool,
     /// Whether selection should be cleared when no range override is queued.
@@ -154,8 +156,10 @@ impl PendingWaveformActions {
             NativeUiAction::SetWaveformSelectionRange {
                 start_milli,
                 end_milli,
+                preserve_view_edge,
             } => {
                 self.selection_range_milli = Some((*start_milli, *end_milli));
+                self.selection_preserve_view_edge = *preserve_view_edge;
                 self.selection_smart_scale = false;
                 self.clear_selection = false;
                 true
@@ -165,12 +169,14 @@ impl PendingWaveformActions {
                 end_milli,
             } => {
                 self.selection_range_milli = Some((*start_milli, *end_milli));
+                self.selection_preserve_view_edge = false;
                 self.selection_smart_scale = true;
                 self.clear_selection = false;
                 true
             }
             NativeUiAction::ClearWaveformSelection => {
                 self.selection_range_milli = None;
+                self.selection_preserve_view_edge = false;
                 self.selection_smart_scale = false;
                 self.clear_selection = true;
                 true
@@ -271,6 +277,7 @@ impl PendingWaveformActions {
                 NativeUiAction::SetWaveformSelectionRange {
                     start_milli,
                     end_milli,
+                    preserve_view_edge: self.selection_preserve_view_edge,
                 }
             });
         }
