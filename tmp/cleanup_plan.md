@@ -197,7 +197,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: split reducer/coalescing, invalidation, projection handoff, and metrics/reporting into explicit modules, then move tests beside those seams instead of continuing to grow one shared harness.
   - Risk/tradeoffs: High. This is hot-path runtime code, so batching and invalidation behavior cannot drift.
   - Suggested validation: targeted native-bridge tests, projection cache tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-  - Completion: 2026-03-10
+  - Completion: 2026-03-10 (`d18e19dc`)
 
 - [ ] 16) Split source DB schema/migration logic and add dedicated migration fixtures
   - ROI/Effort: High / M
