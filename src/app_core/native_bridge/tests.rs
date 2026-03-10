@@ -58,6 +58,16 @@ fn projection_cache_key_changes_when_update_status_changes() {
 }
 
 #[test]
+fn projection_cache_key_changes_when_options_panel_state_changes() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let first = build_projection_cache_key(&controller);
+    controller.ui.options_panel.open = true;
+    controller.ui.trash_folder = Some(PathBuf::from("trash_bin"));
+    let second = build_projection_cache_key(&controller);
+    assert_ne!(first, second);
+}
+
+#[test]
 /// Projection cache key should change when browser filter enum encoding changes.
 fn projection_cache_key_changes_when_browser_filter_encoding_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
@@ -1174,6 +1184,29 @@ fn projection_overlay_only_miss_skips_static_non_segment_refresh() {
     assert_eq!(dirty_segments, NativeDirtySegments::empty());
     assert_eq!(model.sources_label.as_str(), "sentinel");
     assert!(model.progress_overlay.visible);
+}
+
+#[test]
+fn projection_overlay_only_miss_refreshes_options_panel_fields() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let mut cache = NativeProjectionCache::default();
+    let (first_model, _) = cache.resolve_or_project(&mut controller);
+    let mut retained = Arc::unwrap_or_clone(first_model);
+    retained.options_panel.visible = false;
+    retained.options_panel.trash_folder_label = None;
+    cache.app_model_working = Some(retained.clone());
+    cache.app_model = Some(Arc::new(retained));
+
+    controller.ui.options_panel.open = true;
+    controller.ui.trash_folder = Some(PathBuf::from("trash_bin"));
+
+    let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
+    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert!(model.options_panel.visible);
+    assert_eq!(
+        model.options_panel.trash_folder_label.as_deref(),
+        Some("trash_bin")
+    );
 }
 
 /// Status-key misses should still refresh selected-column metadata.

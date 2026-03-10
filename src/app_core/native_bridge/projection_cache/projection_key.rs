@@ -8,10 +8,13 @@ use super::{
     WaveformProjectionCacheKey,
 };
 use crate::app_core::controller::AppController;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 /// Build the full projection cache key from current controller state.
 pub(super) fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCacheKey {
     let waveform_millis = derive_waveform_projection_millis(controller);
+    let options_panel = crate::app_core::native_shell::project_options_panel_model(&controller.ui);
     NativeProjectionCacheKey {
         status_revision: controller.ui.projection_revisions.status,
         sources_selected: controller.ui.sources.selected,
@@ -40,6 +43,16 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
             || controller.ui.sources.folders.new_folder.is_some()
             || controller.ui.waveform.pending_destructive.is_some(),
         drag_active: controller.ui.drag.payload.is_some(),
+        options_panel_visible: options_panel.visible,
+        options_panel_input_monitoring_enabled: options_panel.input_monitoring_enabled,
+        options_panel_advance_after_rating_enabled: options_panel.advance_after_rating_enabled,
+        options_panel_destructive_yolo_mode_enabled: options_panel.destructive_yolo_mode_enabled,
+        options_panel_invert_waveform_scroll_enabled: options_panel.invert_waveform_scroll_enabled,
+        options_panel_trash_folder_hash: controller
+            .ui
+            .trash_folder
+            .as_ref()
+            .map(|path| hash_path_for_projection_key(path.as_path())),
         waveform_signature: controller.ui.waveform.waveform_image_signature,
         waveform_selection_start_milli: waveform_millis.selection_start_milli,
         waveform_selection_end_milli: waveform_millis.selection_end_milli,
@@ -77,6 +90,13 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         transport_running: controller.is_playing(),
         focus_context: encode_focus_context(controller.ui.focus.context),
     }
+}
+
+/// Hash one configured path into a compact projection-key scalar.
+fn hash_path_for_projection_key(path: &std::path::Path) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    hasher.finish()
 }
 
 /// Build a status-bar projection key from the current controller snapshot.

@@ -255,6 +255,8 @@ fn apply_browser_native_ui_action(
         NativeUiAction::OpenAddSourceDialog => controller.add_source_via_dialog(),
         NativeUiAction::OpenOptionsMenu => controller.open_options_panel(),
         NativeUiAction::CloseOptionsPanel => controller.close_options_panel(),
+        NativeUiAction::PickTrashFolder => controller.pick_trash_folder(),
+        NativeUiAction::OpenTrashFolder => controller.open_trash_folder(),
         NativeUiAction::SetInputMonitoringEnabled { enabled } => {
             controller.set_input_monitoring_enabled(enabled)
         }

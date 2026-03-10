@@ -130,6 +130,7 @@ fn refresh_non_segment_static_fields(model: &mut NativeAppModel, controller: &mu
 
 /// Refresh transient non-segment overlays from current controller state.
 fn refresh_non_segment_overlay_fields(model: &mut NativeAppModel, controller: &AppController) {
+    model.options_panel = native_shell::project_options_panel_model(&controller.ui);
     model.progress_overlay = native_shell::project_progress_overlay_model(&controller.ui);
     model.confirm_prompt = native_shell::project_confirm_prompt_model(&controller.ui);
     model.drag_overlay = native_shell::project_drag_overlay_model(&controller.ui);

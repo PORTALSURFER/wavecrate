@@ -139,6 +139,8 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::DismissUpdate
         | NativeUiAction::OpenOptionsMenu
         | NativeUiAction::CloseOptionsPanel
+        | NativeUiAction::PickTrashFolder
+        | NativeUiAction::OpenTrashFolder
         | NativeUiAction::SetInputMonitoringEnabled { .. }
         | NativeUiAction::SetAdvanceAfterRatingEnabled { .. }
         | NativeUiAction::SetDestructiveYoloMode { .. }
