@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-10T16:32:36Z
+Last updated (UTC): 2026-03-10T16:49:18Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -17,6 +17,6 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Continue cleanup item 15 from `tmp/cleanup_plan.md` in strict ROI order.
+1. Continue cleanup item 16 from `tmp/cleanup_plan.md` in strict ROI order.
 2. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` synchronized on the next cleanup or perf milestone.
 3. Use `docs/plans/active/runtime_performance_exec_plan.md` only if a new perf follow-up lane is opened after cleanup.
