@@ -189,7 +189,7 @@ fn browser_target_rating_steps_without_dropping_back_to_neutral() {
 }
 
 #[test]
-fn fourth_keep_rating_locks_sample_and_downgrade_clears_lock() {
+fn fourth_keep_rating_locks_sample_and_blocks_future_rating_changes() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.set_wav_entries_for_tests(vec![sample_entry("keep3.wav", Rating::KEEP_3)]);
@@ -214,18 +214,19 @@ fn fourth_keep_rating_locks_sample_and_downgrade_clears_lock() {
     );
 
     controller.adjust_selected_rating(-1);
+    controller.tag_selected(Rating::NEUTRAL);
 
     let entry = controller
         .wav_entry(0)
-        .expect("downgraded sample should stay loaded");
-    assert_eq!(entry.tag, Rating::new(2));
-    assert!(!entry.locked);
+        .expect("locked sample should stay loaded");
+    assert_eq!(entry.tag, Rating::KEEP_3);
+    assert!(entry.locked);
     assert_eq!(
         controller
             .database_for(&source)
             .unwrap()
             .locked_for_path(std::path::Path::new("keep3.wav"))
             .unwrap(),
-        Some(false)
+        Some(true)
     );
 }
