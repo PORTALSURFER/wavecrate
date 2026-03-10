@@ -160,6 +160,12 @@ pub(super) struct StatusProjectionCacheKey {
     browser_anchor_visible: Option<usize>,
     browser_search_revision: u64,
     browser_search_busy: bool,
+    inline_progress_visible: bool,
+    inline_progress_completed: usize,
+    inline_progress_total: usize,
+    inline_progress_cancel_requested: bool,
+    inline_progress_title_hash: u64,
+    inline_progress_detail_hash: Option<u64>,
     selected_column: usize,
 }
 

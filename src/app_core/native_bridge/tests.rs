@@ -1154,6 +1154,7 @@ fn projection_segment_non_segment_static_dirty_mask_and_lookup_counts() {
 fn projection_segment_overlay_only_changes_keep_segment_hits_and_static_clean() {
     let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
         controller.ui.progress.visible = true;
+        controller.ui.progress.modal = true;
         controller.ui.progress.completed = 2;
         controller.ui.progress.total = 5;
     });
@@ -1177,6 +1178,7 @@ fn projection_overlay_only_miss_skips_static_non_segment_refresh() {
     cache.app_model = Some(Arc::new(retained));
 
     controller.ui.progress.visible = true;
+    controller.ui.progress.modal = true;
     controller.ui.progress.completed = 1;
     controller.ui.progress.total = 3;
 
@@ -1226,6 +1228,34 @@ fn projection_status_miss_updates_selected_column_without_static_dirty() {
 
     let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
     assert_eq!(model.selected_column, 0);
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::STATUS_BAR)
+    );
+}
+
+/// Non-modal progress updates should invalidate the retained status segment.
+#[test]
+fn projection_status_segment_refreshes_for_footer_progress_updates() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let mut cache = NativeProjectionCache::default();
+    let _ = cache.resolve_or_project(&mut controller);
+
+    controller.show_status_progress(
+        crate::app::state::ProgressTaskKind::Normalization,
+        "Normalizing sample",
+        4,
+        true,
+    );
+    let (_, dirty_segments) = cache.resolve_or_project(&mut controller);
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::STATUS_BAR)
+    );
+
+    controller.ui.progress.completed = 2;
+    controller.ui.progress.detail = Some(String::from("kick.wav"));
+    let (_, dirty_segments) = cache.resolve_or_project(&mut controller);
     assert_eq!(
         dirty_segments,
         NativeDirtySegments::from_bits(NativeDirtySegments::STATUS_BAR)
