@@ -20,7 +20,7 @@ Updated By: Codex
 - I have repaired the Bash-side diff-aware guardrails for this Windows-mounted worktree so `run_agent_request.sh` and `ci_local.sh` see the same real changes as the Windows git workflow.
 - The required housekeeping validation passes: `bash scripts/run_agent_request.sh` and `bash scripts/ci_local.sh` are green in the current environment.
 - Future Windows sessions must not run the Bash workflow scripts; they should use only the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
-- Cleanup items 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, and 14 are complete; they landed in commits `16932de4`, `1fe099ae`, `0b0be54a`, `f752dec6`, `8d2c30e8`, `30d25841`, `08541a52`, `d538fd60`, `b5702240`, `07afb548`, `1a0a20eb`, `bb7216dd`, `bceaaeeb`, `319cefdd`, and the current in-flight item-14 commit.
+- Cleanup items 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, and 14 are complete; they landed in commits `16932de4`, `1fe099ae`, `0b0be54a`, `f752dec6`, `8d2c30e8`, `30d25841`, `08541a52`, `d538fd60`, `b5702240`, `07afb548`, `1a0a20eb`, `bb7216dd`, `bceaaeeb`, `319cefdd`, and `002ce1b9`.
 
 ## Immediate Next Actions
 

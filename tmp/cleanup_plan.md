@@ -185,7 +185,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: extract focused modules for selection dragging, edit-mark handling, fade adjustment, and BPM-snap/smart-scale helpers, and keep the top-level controller entrypoints as thin orchestrators.
   - Risk/tradeoffs: Medium. This code is heavily user-visible, so behavior must remain stable while the seams move.
   - Suggested validation: waveform action unit tests, focused playback/controller tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-  - Completion: 2026-03-10
+  - Completion: 2026-03-10 (`002ce1b9`)
 
 - [ ] 15) Decompose `src/app_core/native_bridge.rs` and split the catch-all native-bridge test surface
   - ROI/Effort: High / M-L
