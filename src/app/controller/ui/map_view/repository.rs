@@ -23,40 +23,14 @@ pub(super) fn load_umap_bounds(
 ) -> Result<Option<UmapBounds>, String> {
     let row = if let Some(source_id) = source_id {
         let prefix = format!("{}::%", source_id.as_str());
-        let mut stmt = conn
-            .prepare_cached(
-                "SELECT MIN(x), MAX(x), MIN(y), MAX(y)
-                 FROM layout_umap
-                 WHERE model_id = ?1 AND umap_version = ?2
-                   AND sample_id LIKE ?3",
-            )
-            .map_err(|err| format!("Prepare t-SNE bounds query failed: {err}"))?;
-        stmt.query_row(params![model_id, umap_version, prefix], |row| {
-            let min_x: Option<f32> = row.get(0)?;
-            let max_x: Option<f32> = row.get(1)?;
-            let min_y: Option<f32> = row.get(2)?;
-            let max_y: Option<f32> = row.get(3)?;
-            Ok((min_x, max_x, min_y, max_y))
-        })
-        .optional()
-        .map_err(|err| format!("Query t-SNE bounds failed: {err}"))?
+        let filtered = query_umap_bounds(conn, model_id, umap_version, Some(prefix.as_str()))?;
+        if filtered.is_some_and(bounds_row_has_values) {
+            filtered
+        } else {
+            query_umap_bounds(conn, model_id, umap_version, None)?
+        }
     } else {
-        let mut stmt = conn
-            .prepare_cached(
-                "SELECT MIN(x), MAX(x), MIN(y), MAX(y)
-                 FROM layout_umap
-                 WHERE model_id = ?1 AND umap_version = ?2",
-            )
-            .map_err(|err| format!("Prepare t-SNE bounds query failed: {err}"))?;
-        stmt.query_row(params![model_id, umap_version], |row| {
-            let min_x: Option<f32> = row.get(0)?;
-            let max_x: Option<f32> = row.get(1)?;
-            let min_y: Option<f32> = row.get(2)?;
-            let max_y: Option<f32> = row.get(3)?;
-            Ok((min_x, max_x, min_y, max_y))
-        })
-        .optional()
-        .map_err(|err| format!("Query t-SNE bounds failed: {err}"))?
+        query_umap_bounds(conn, model_id, umap_version, None)?
     };
     let Some((min_x, max_x, min_y, max_y)) = row else {
         return Ok(None);
@@ -72,12 +46,80 @@ pub(super) fn load_umap_bounds(
     }
 }
 
+/// Query aggregate UMAP bounds with an optional sample-id prefix filter.
+fn query_umap_bounds(
+    conn: &mut Connection,
+    model_id: &str,
+    umap_version: &str,
+    sample_prefix: Option<&str>,
+) -> Result<Option<(Option<f32>, Option<f32>, Option<f32>, Option<f32>)>, String> {
+    let (sql, params): (&str, Vec<Value>) = if let Some(prefix) = sample_prefix {
+        (
+            "SELECT MIN(x), MAX(x), MIN(y), MAX(y)
+             FROM layout_umap
+             WHERE model_id = ?1 AND umap_version = ?2
+               AND sample_id LIKE ?3",
+            vec![
+                Value::Text(model_id.to_string()),
+                Value::Text(umap_version.to_string()),
+                Value::Text(prefix.to_string()),
+            ],
+        )
+    } else {
+        (
+            "SELECT MIN(x), MAX(x), MIN(y), MAX(y)
+             FROM layout_umap
+             WHERE model_id = ?1 AND umap_version = ?2",
+            vec![
+                Value::Text(model_id.to_string()),
+                Value::Text(umap_version.to_string()),
+            ],
+        )
+    };
+    let mut stmt = conn
+        .prepare_cached(sql)
+        .map_err(|err| format!("Prepare t-SNE bounds query failed: {err}"))?;
+    stmt.query_row(params_from_iter(params), |row| {
+        let min_x: Option<f32> = row.get(0)?;
+        let max_x: Option<f32> = row.get(1)?;
+        let min_y: Option<f32> = row.get(2)?;
+        let max_y: Option<f32> = row.get(3)?;
+        Ok((min_x, max_x, min_y, max_y))
+    })
+    .optional()
+    .map_err(|err| format!("Query t-SNE bounds failed: {err}"))
+}
+
+/// Return whether an aggregate-bounds row contains concrete coordinate values.
+fn bounds_row_has_values(bounds: (Option<f32>, Option<f32>, Option<f32>, Option<f32>)) -> bool {
+    matches!(bounds, (Some(_), Some(_), Some(_), Some(_)))
+}
+
 pub(super) fn load_umap_points(
     conn: &mut Connection,
     query: &UmapPointQuery<'_>,
 ) -> Result<Vec<UmapPoint>, String> {
-    let (sql, params) = if let Some(source_id) = query.source_id {
+    let points = if let Some(source_id) = query.source_id {
         let prefix = format!("{}::%", source_id.as_str());
+        let filtered = query_umap_points(conn, query, Some(prefix.as_str()))?;
+        if filtered.is_empty() {
+            query_umap_points(conn, query, None)?
+        } else {
+            filtered
+        }
+    } else {
+        query_umap_points(conn, query, None)?
+    };
+    Ok(points)
+}
+
+/// Query rendered UMAP points with an optional sample-id prefix filter.
+fn query_umap_points(
+    conn: &mut Connection,
+    query: &UmapPointQuery<'_>,
+    sample_prefix: Option<&str>,
+) -> Result<Vec<UmapPoint>, String> {
+    let (sql, params) = if let Some(prefix) = sample_prefix {
         (
             "SELECT layout_umap.sample_id, layout_umap.x, layout_umap.y, hdbscan_clusters.cluster_id
              FROM layout_umap
@@ -97,7 +139,7 @@ pub(super) fn load_umap_points(
                 Value::Text(query.umap_version.to_string()),
                 Value::Text(query.cluster_method.to_string()),
                 Value::Text(query.cluster_umap_version.to_string()),
-                Value::Text(prefix),
+                Value::Text(prefix.to_string()),
                 Value::Real(query.bounds.min_x as f64),
                 Value::Real(query.bounds.max_x as f64),
                 Value::Real(query.bounds.min_y as f64),
@@ -333,6 +375,26 @@ mod tests {
     }
 
     #[test]
+    fn load_umap_bounds_falls_back_when_source_prefix_misses() {
+        let mut conn = test_connection();
+        seed_layout(&conn);
+
+        let bounds = load_umap_bounds(
+            &mut conn,
+            "model",
+            "umap-v1",
+            Some(&SourceId::from_string("source-z")),
+        )
+        .expect("bounds query should succeed")
+        .expect("fallback bounds should exist");
+
+        assert_eq!(bounds.min_x, 1.0);
+        assert_eq!(bounds.max_x, 9.0);
+        assert_eq!(bounds.min_y, 2.0);
+        assert_eq!(bounds.max_y, 8.0);
+    }
+
+    #[test]
     fn load_umap_points_joins_clusters_and_applies_bounds() {
         let mut conn = test_connection();
         seed_layout(&conn);
@@ -359,6 +421,33 @@ mod tests {
         assert_eq!(points[0].cluster_id, Some(7));
         assert_eq!(points[1].sample_id, "source-a::snare.wav");
         assert_eq!(points[1].cluster_id, Some(7));
+    }
+
+    #[test]
+    fn load_umap_points_fall_back_when_source_prefix_misses() {
+        let mut conn = test_connection();
+        seed_layout(&conn);
+
+        let query = UmapPointQuery {
+            model_id: "model",
+            umap_version: "umap-v1",
+            cluster_method: "hdbscan",
+            cluster_umap_version: "umap-v1",
+            source_id: Some(&SourceId::from_string("source-z")),
+            bounds: crate::app::state::MapQueryBounds {
+                min_x: 0.0,
+                max_x: 10.0,
+                min_y: 0.0,
+                max_y: 10.0,
+            },
+            limit: 10,
+        };
+
+        let points = load_umap_points(&mut conn, &query).expect("points query should succeed");
+
+        assert_eq!(points.len(), 3);
+        assert_eq!(points[0].sample_id, "source-a::kick.wav");
+        assert_eq!(points[2].sample_id, "source-b::hat.wav");
     }
 
     #[test]
