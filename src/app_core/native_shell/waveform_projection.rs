@@ -38,6 +38,11 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
             .playhead
             .visible
             .then_some(normalized_to_milli(ui.waveform.playhead.position)),
+        playhead_micros: ui
+            .waveform
+            .playhead
+            .visible
+            .then_some(normalized_to_micros(ui.waveform.playhead.position)),
         selection_milli: ui.waveform.selection.map(|selection| {
             NormalizedRangeModel::new(
                 normalized_to_milli(selection.start()),
@@ -53,6 +58,8 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
         edit_fade_out_curve_milli: fade_overlay.fade_out_curve_milli,
         view_start_milli: normalized64_to_milli(ui.waveform.view.start),
         view_end_milli: normalized64_to_milli(ui.waveform.view.end),
+        view_start_micros: normalized64_to_micros(ui.waveform.view.start),
+        view_end_micros: normalized64_to_micros(ui.waveform.view.end),
         beat_step_micros: project_waveform_beat_step_micros(controller),
         loop_enabled: ui.waveform.loop_enabled,
         tempo_label: ui.waveform.bpm_value.map(|bpm| format!("{bpm:.1} BPM")),
@@ -231,4 +238,9 @@ pub(super) fn normalized_to_micros(value: f32) -> u32 {
 /// Convert normalized `f64` scalar values to millisecond-style thousandths.
 pub(super) fn normalized64_to_milli(value: f64) -> u16 {
     (value.clamp(0.0, 1.0) * 1000.0).round() as u16
+}
+
+/// Convert normalized `f64` scalar values to micro-style millionths.
+pub(super) fn normalized64_to_micros(value: f64) -> u32 {
+    (value.clamp(0.0, 1.0) * 1_000_000.0).round() as u32
 }

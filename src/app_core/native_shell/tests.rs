@@ -1096,3 +1096,19 @@ fn motion_projection_sets_status_right_from_selected_column() {
 
     assert_eq!(motion.status_right, "col: 3/3");
 }
+
+#[test]
+/// Motion projection should preserve micro-precision playhead and waveform view bounds.
+fn motion_projection_preserves_waveform_micro_precision() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.playhead.visible = true;
+    controller.ui.waveform.playhead.position = 0.500_456;
+    controller.ui.waveform.view.start = 0.500_123;
+    controller.ui.waveform.view.end = 0.501_123;
+
+    let motion = project_motion_model(&mut controller);
+
+    assert_eq!(motion.waveform_playhead_micros, Some(500_456));
+    assert_eq!(motion.waveform_view_start_micros, 500_123);
+    assert_eq!(motion.waveform_view_end_micros, 501_123);
+}
