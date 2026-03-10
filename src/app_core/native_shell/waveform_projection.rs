@@ -94,7 +94,7 @@ pub(super) fn resolve_projected_playhead_ratio(
         .or(Some(ui_ratio.clamp(0.0, 1.0)))
 }
 
-/// Project normalized beat spacing for BPM-aligned waveform overlays.
+/// Project normalized quarter-note beat spacing for BPM-aligned waveform overlays.
 fn project_waveform_beat_step_micros(controller: &AppController) -> Option<u32> {
     let bpm = controller.ui.waveform.bpm_value?;
     if !bpm.is_finite() || bpm <= 0.0 {
