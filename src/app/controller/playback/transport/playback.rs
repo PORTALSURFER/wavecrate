@@ -21,7 +21,7 @@ pub(crate) fn play_from_start(controller: &mut AppController) -> bool {
     if !waveform_playback_target_exists(controller) {
         return false;
     }
-    super::seek::seek_to(controller, 0.0);
+    super::seek::seek_to(controller, play_from_start_position(controller));
     true
 }
 
@@ -134,4 +134,21 @@ fn current_playhead_position(controller: &AppController) -> Option<f32> {
         .or(controller.ui.waveform.cursor)
         .or(controller.ui.waveform.last_start_marker)
         .or(Some(0.0))
+}
+
+/// Resolve the playback start used by the global "play from start" action.
+///
+/// When a real playback selection is active, restarting should audition from the
+/// selection start rather than the file head so repeated `Space` presses respect
+/// the marked play range.
+fn play_from_start_position(controller: &AppController) -> f32 {
+    controller
+        .selection_state
+        .range
+        .range()
+        .or(controller.ui.waveform.selection)
+        .filter(|range| range.width() > 0.0)
+        .filter(|range| super::super::selection_meets_bpm_min_for_playback(controller, *range))
+        .map(|range| range.start())
+        .unwrap_or(0.0)
 }
