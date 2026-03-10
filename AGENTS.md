@@ -78,22 +78,44 @@ Write for future selves: be precise, kind, and clear.
 - `tmp/perf_plan.md`: current ROI-ranked runtime performance audit backlog and execution order
 
 ## Non-Negotiable Workflow Rules
-- During the tight edit loop: `bash scripts/devcheck.sh`
-- Before commit/push and after non-trivial edits: `bash scripts/ci_quick.sh`
+- During the tight edit loop:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - macOS/Linux/WSL: `bash scripts/devcheck.sh`
+- Before commit/push and after non-trivial edits:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+  - macOS/Linux/WSL: `bash scripts/ci_quick.sh`
 - If devcheck or quick CI fails: fix and rerun until green
 - Do not run Rust test commands in multiple concurrent processes; run them serially in one process to avoid cargo lock contention and misleading timeouts
-- On Windows, use the PowerShell workflow wrappers (`scripts/*.ps1`) for preflight/CI/devcheck and do not also run the Bash duplicates
+- On Windows, do not run the Bash workflow scripts. Use only the PowerShell wrappers (`scripts/*.ps1`) for preflight/CI/devcheck unless the user explicitly overrides this.
 - After code changes: commit and push
-- Do not push unless `scripts/ci_quick.sh` is green
-- Run `bash scripts/ci_local.sh` before pushing broader validation/tooling/perf/dependency changes or when you need full CI parity
+- Do not push unless quick CI is green in the current platform wrapper (`ci_quick.ps1` on Windows, `ci_quick.sh` elsewhere)
+- Run full CI in the platform wrapper before pushing broader validation/tooling/perf/dependency changes or when you need full CI parity (`ci_local.ps1` on Windows, `ci_local.sh` elsewhere)
 
 ## Golden Commands
-- Bootstrap: `bash scripts/bootstrap.sh`
-- Smoke devcheck: `bash scripts/devcheck.sh`
-- Fast dev checks: `bash scripts/ci_quick.sh`
-- CI parity: `bash scripts/ci_local.sh`
-- Safe run: `bash scripts/run_sandbox.sh --`
-- Clean sandbox: `bash scripts/clean_sandbox.sh`
-- Diagnostics: `bash scripts/doctor.sh`
-- Latest log: `bash scripts/latest_log.sh`
-- Bug bundle: `bash scripts/bug_bundle.sh`
+- Bootstrap:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1`
+  - macOS/Linux/WSL: `bash scripts/bootstrap.sh`
+- Smoke devcheck:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - macOS/Linux/WSL: `bash scripts/devcheck.sh`
+- Fast dev checks:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+  - macOS/Linux/WSL: `bash scripts/ci_quick.sh`
+- CI parity:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+  - macOS/Linux/WSL: `bash scripts/ci_local.sh`
+- Safe run:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --`
+  - macOS/Linux/WSL: `bash scripts/run_sandbox.sh --`
+- Clean sandbox:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/clean_sandbox.ps1`
+  - macOS/Linux/WSL: `bash scripts/clean_sandbox.sh`
+- Diagnostics:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1`
+  - macOS/Linux/WSL: `bash scripts/doctor.sh`
+- Latest log:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/latest_log.ps1`
+  - macOS/Linux/WSL: `bash scripts/latest_log.sh`
+- Bug bundle:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/bug_bundle.ps1`
+  - macOS/Linux/WSL: `bash scripts/bug_bundle.sh`
