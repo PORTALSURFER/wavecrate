@@ -179,17 +179,15 @@ fn browser_chrome_projection_marks_search_focus_copy() {
 /// Waveform projection should derive tempo and zoom labels from UI waveform state.
 #[test]
 fn waveform_projection_exposes_tempo_and_zoom_labels() {
-    let mut ui = UiState::default();
-    ui.waveform.bpm_value = Some(128.0);
-    ui.waveform.view.start = 0.25;
-    ui.waveform.view.end = 0.75;
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
     controller.ui.waveform.bpm_value = Some(128.0);
     controller.ui.waveform.view.start = 0.25;
     controller.ui.waveform.view.end = 0.75;
+    controller.set_loaded_audio_duration_for_tests(4.0);
     let projected = project_waveform_model(&mut controller);
     assert_eq!(projected.tempo_label.as_deref(), Some("128.0 BPM"));
     assert_eq!(projected.zoom_label.as_deref(), Some("200%"));
+    assert_eq!(projected.beat_step_micros, Some(117_188));
     assert!(projected.waveform_image.is_none());
 }
 

@@ -321,6 +321,21 @@ impl AppController {
     pub(crate) fn hide_waveform_playhead_for_tests(&mut self) {
         player::hide_waveform_playhead_for_tests(self);
     }
+
+    #[cfg(test)]
+    /// Seed a minimal loaded-audio fixture for tests that only need duration metadata.
+    pub(crate) fn set_loaded_audio_duration_for_tests(&mut self, duration_seconds: f32) {
+        self.sample_view.wav.loaded_audio = (duration_seconds.is_finite()
+            && duration_seconds > 0.0)
+            .then_some(crate::app::controller::state::audio::LoadedAudio {
+                source_id: crate::sample_sources::SourceId::new(),
+                root: PathBuf::new(),
+                relative_path: PathBuf::from("test.wav"),
+                bytes: Vec::new().into(),
+                duration_seconds,
+                sample_rate: 48_000,
+            });
+    }
     /// Apply a committed playback selection range and refresh dependent labels/preview state.
     pub(crate) fn apply_selection(&mut self, range: Option<SelectionRange>) {
         player::apply_selection(self, range);

@@ -53,12 +53,28 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
         edit_fade_out_curve_milli: fade_overlay.fade_out_curve_milli,
         view_start_milli: normalized64_to_milli(ui.waveform.view.start),
         view_end_milli: normalized64_to_milli(ui.waveform.view.end),
+        beat_step_micros: project_waveform_beat_step_micros(controller),
         loop_enabled: ui.waveform.loop_enabled,
         tempo_label: ui.waveform.bpm_value.map(|bpm| format!("{bpm:.1} BPM")),
         zoom_label: Some(format!("{zoom_percent:.0}%")),
         waveform_image_signature: ui.waveform.waveform_image_signature,
         waveform_image: project_waveform_image(controller),
     }
+}
+
+/// Project normalized beat spacing for BPM-aligned waveform overlays.
+fn project_waveform_beat_step_micros(controller: &AppController) -> Option<u32> {
+    let bpm = controller.ui.waveform.bpm_value?;
+    if !bpm.is_finite() || bpm <= 0.0 {
+        return None;
+    }
+    let duration = controller.loaded_audio_duration_seconds()?;
+    if !duration.is_finite() || duration <= 0.0 {
+        return None;
+    }
+    let normalized_step = 60.0 / bpm / duration;
+    (normalized_step.is_finite() && normalized_step > 0.0)
+        .then_some(normalized_to_micros(normalized_step))
 }
 
 /// Reuse or rebuild the projected waveform raster payload for the native model.
