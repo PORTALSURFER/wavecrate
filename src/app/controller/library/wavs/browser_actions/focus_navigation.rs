@@ -3,6 +3,7 @@
 use super::*;
 use crate::app::controller::StatusTone;
 use crate::app::state::FocusContext;
+use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
 
 impl AppController {
     /// Move browser column selection to the requested triage-column index.
@@ -60,7 +61,10 @@ impl AppController {
             self.ui.browser.autoscroll = false;
             return;
         }
-        let clamped = visible_row.min(visible_count.saturating_sub(1));
+        let clamped = visible_row.min(super::super::browser_viewport::browser_viewport_max_start(
+            visible_count,
+            MAX_RENDERED_BROWSER_ROWS,
+        ));
         self.ui.browser.autoscroll = false;
         self.ui.browser.view_window_start = clamped;
         self.ui.browser.render_window_start = clamped;

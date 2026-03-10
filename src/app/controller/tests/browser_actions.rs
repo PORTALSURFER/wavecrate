@@ -202,14 +202,16 @@ fn native_move_browser_focus_queues_async_preview_playback() {
 
 #[test]
 fn native_set_browser_view_start_scrolls_without_changing_selection() {
-    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
-        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
-        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
-        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
-    ]);
-    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
-    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
-    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+    let mut entries = Vec::new();
+    for index in 0..(MAX_RENDERED_BROWSER_ROWS + 8) {
+        entries.push(sample_entry(
+            &format!("row_{index:03}.wav"),
+            crate::sample_sources::Rating::NEUTRAL,
+        ));
+    }
+    let (mut controller, source) = prepare_with_source_and_wav_entries(entries);
+    write_test_wav(&source.root.join("row_000.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("row_001.wav"), &[0.0, 0.1]);
 
     controller.focus_browser_row_only(1);
     controller.runtime.jobs.pending_audio = None;
@@ -219,13 +221,37 @@ fn native_set_browser_view_start_scrolls_without_changing_selection() {
 
     assert_eq!(
         controller.sample_view.wav.selected_wav.as_deref(),
-        Some(Path::new("two.wav"))
+        Some(Path::new("row_001.wav"))
     );
     assert_eq!(controller.ui.browser.selected_visible, Some(1));
     assert_eq!(controller.ui.browser.view_window_start, 2);
+    assert_eq!(controller.ui.browser.render_window_start, 2);
     assert!(!controller.ui.browser.autoscroll);
     assert!(controller.runtime.jobs.pending_audio.is_none());
     assert!(controller.runtime.jobs.pending_playback.is_none());
+}
+
+#[test]
+fn native_set_browser_view_start_clamps_to_last_viewport_start() {
+    let mut entries = Vec::new();
+    for index in 0..(MAX_RENDERED_BROWSER_ROWS + 8) {
+        entries.push(sample_entry(
+            &format!("row_{index:03}.wav"),
+            crate::sample_sources::Rating::NEUTRAL,
+        ));
+    }
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(entries);
+    let visible_count = controller.ui.browser.visible.len();
+    let expected_max_start = visible_count.saturating_sub(MAX_RENDERED_BROWSER_ROWS);
+
+    controller.set_browser_view_start_action(visible_count.saturating_sub(1));
+
+    assert_eq!(controller.ui.browser.view_window_start, expected_max_start);
+    assert_eq!(
+        controller.ui.browser.render_window_start,
+        expected_max_start
+    );
+    assert!(!controller.ui.browser.autoscroll);
 }
 
 /// Preview focus should defer pending playback-age writes until commit.
