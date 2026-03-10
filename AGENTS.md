@@ -73,7 +73,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/cleanup_plan.md`: strict ROI-ranked cleanup backlog + execution checklist (last refresh: 2026-03-10, awaiting confirmation; items 1-13 complete, item 14 next)
+- `tmp/cleanup_plan.md`: strict ROI-ranked cleanup backlog + execution checklist (last refresh/revalidation: 2026-03-10, awaiting confirmation; items 1-13 complete, item 14 next)
 - `docs/plans/active/cleanup_architecture_note.md`: cleanup boundary/ownership guidance
 - `tmp/perf_plan.md`: current ROI-ranked runtime performance audit backlog and execution order
 

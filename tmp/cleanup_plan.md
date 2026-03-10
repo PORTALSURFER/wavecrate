@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: 1 refreshed, awaiting confirmation
+Phase: 1 refreshed and revalidated against current `next`, awaiting confirmation
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -177,10 +177,10 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 
 - [ ] 14) Split waveform selection/edit-fade action logic out of `src/app/controller/playback/waveform_actions.rs`
   - ROI/Effort: High / M
-  - Why it matters: play-selection, edit-selection, fade-handle, smart-scale, BPM-snap, and drag-state transitions are concentrated in one 779 LOC controller file, which keeps recent waveform fixes expensive and easy to regress.
+  - Why it matters: play-selection, edit-selection, fade-handle, smart-scale, BPM-snap, and drag-state transitions are concentrated in one 973 LOC controller file, which keeps recent waveform fixes expensive and easy to regress.
   - Evidence:
-    - `src/app/controller/playback/waveform_actions.rs:119`, `:151`, and `:180` branch across multiple drag domains before shared state mutation.
-    - Selection/edit mutation and fade-handling logic spread through `:459`, `:625`, and `:694`.
+    - `src/app/controller/playback/waveform_actions.rs:119`, `:128`, `:169`, and `:208` mix selection dragging, edge policy, smart-scale, and edit-range preservation in the same file.
+    - Fade-handle and edit-range mutation logic still spreads through `:263-417`, `:555-775`, and `:784-944`.
     - Recent behavior changes in this area have stacked more hotkey/native-action routing into the same file.
   - Recommended change: extract focused modules for selection dragging, edit-mark handling, fade adjustment, and BPM-snap/smart-scale helpers, and keep the top-level controller entrypoints as thin orchestrators.
   - Risk/tradeoffs: Medium. This code is heavily user-visible, so behavior must remain stable while the seams move.
@@ -188,10 +188,10 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 
 - [ ] 15) Decompose `src/app_core/native_bridge.rs` and split the catch-all native-bridge test surface
   - ROI/Effort: High / M-L
-  - Why it matters: native action reduction, invalidation classification, projection scheduling, and telemetry still sit behind one 808 LOC bridge entrypoint plus a 1223 LOC test hub, which slows any runtime work and obscures ownership.
+  - Why it matters: native action reduction, invalidation classification, projection scheduling, and telemetry still sit behind one 858 LOC bridge entrypoint plus a 1342 LOC test hub, which slows any runtime work and obscures ownership.
   - Evidence:
-    - `src/app_core/native_bridge.rs:98`, `:320`, `:337`, and `:727` mix queueing, invalidation, projection, and bookkeeping paths in one module.
-    - `src/app_core/native_bridge/tests.rs` remains a broad end-to-end assertion sink rather than feature-aligned test modules.
+    - `src/app_core/native_bridge.rs:146-314`, `:447-596`, and `:729-834` still mix queued reduction, immediate application, model pulling, and frame bookkeeping in one module.
+    - `src/app_core/native_bridge/tests.rs` remains a broad end-to-end assertion sink rather than feature-aligned test modules, and it has grown to 1342 LOC.
     - `src/app_core/native_bridge/metrics.rs` is also 863 LOC, amplifying the same concentration.
   - Recommended change: split reducer/coalescing, invalidation, projection handoff, and metrics/reporting into explicit modules, then move tests beside those seams instead of continuing to grow one shared harness.
   - Risk/tradeoffs: High. This is hot-path runtime code, so batching and invalidation behavior cannot drift.
@@ -223,7 +223,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - ROI/Effort: High / M
   - Why it matters: the root controller still mixes construction, dispatch, high-level orchestration, and feature-specific helpers, which makes boundary ownership unclear and encourages more growth in the root file.
   - Evidence:
-    - `src/app/controller.rs:66`, `:138`, `:177`, `:254`, `:324`, `:369`, and `:479` cross from root wiring into feature handling and UI/runtime behaviors.
+    - `src/app/controller.rs:177-239`, `:254-312`, `:324-454`, and `:479-504` still combine construction, perf governor bookkeeping, status handling, undo/redo flow, and feature-controller accessors.
     - The file remains one of the densest non-vendor controller entrypoints after the recent feature additions.
   - Recommended change: keep `controller.rs` focused on type definition, construction, and top-level delegation, while moving feature-specific routing or helpers into the existing domain modules under `src/app/controller/`.
   - Risk/tradeoffs: Medium. Dispatch boundaries and borrow flow need to stay clear during the split.
@@ -233,7 +233,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - ROI/Effort: High / M
   - Why it matters: sample similarity resolution still concentrates candidate gathering, repository lookups, score shaping, and background-job coordination in one place.
   - Evidence:
-    - `src/app/controller/library/wavs/similar/resolve.rs` branches heavily across the pipeline around `:56`, `:98`, `:111`, `:148`, `:238`, `:276`, and `:352`.
+    - `src/app/controller/library/wavs/similar/resolve.rs` is now 531 LOC and still branches heavily across the pipeline around `:56`, `:98`, `:111`, `:148`, `:238`, and `:276`.
     - The file owns both domain policy and the low-level steps needed to compute results.
   - Recommended change: split repository access, score composition, and job coordination into smaller modules, leaving `resolve.rs` as a clear orchestration layer or replacing it with a small module tree.
   - Risk/tradeoffs: Medium. Similarity ordering and fallback behavior must remain stable.
@@ -243,9 +243,9 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - ROI/Effort: High / L
   - Why it matters: retained native-shell state still concentrates cached row models, sync-from-model logic, frame building, overlay routing, and test scaffolding in a few massive files.
   - Evidence:
-    - `vendor/radiant/src/gui/native_shell/state.rs` is 3727 LOC.
-    - `vendor/radiant/src/gui/native_shell/state/frame_build.rs` is 2464 LOC.
-    - `vendor/radiant/src/gui/native_shell/state/tests.rs` is 4459 LOC.
+    - `vendor/radiant/src/gui/native_shell/state.rs` is 3948 LOC.
+    - `vendor/radiant/src/gui/native_shell/state/frame_build.rs` is 2492 LOC.
+    - `vendor/radiant/src/gui/native_shell/state/tests.rs` is 4823 LOC.
   - Recommended change: split state/cache ownership, model sync, frame build, overlays, and row-specific rendering into focused sibling modules, then split tests to match those seams.
   - Risk/tradeoffs: High. This is central retained-scene code, so hit-testing, invalidation, and snapshot behavior can regress if the split is sloppy.
   - Suggested validation: targeted `radiant` native-shell tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
@@ -254,9 +254,9 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - ROI/Effort: High / L
   - Why it matters: immediate input handling, drag state, scene fingerprinting, redraw scheduling, and the runtime tests are still too coupled for safe incremental changes.
   - Evidence:
-    - `vendor/radiant/src/gui_runtime/native_vello.rs` is 4442 LOC.
-    - `vendor/radiant/src/gui_runtime/native_vello/input.rs` is 1224 LOC.
-    - `vendor/radiant/src/gui_runtime/native_vello/tests.rs` is 2414 LOC.
+    - `vendor/radiant/src/gui_runtime/native_vello.rs` is 4680 LOC.
+    - `vendor/radiant/src/gui_runtime/native_vello/input.rs` is 1302 LOC.
+    - `vendor/radiant/src/gui_runtime/native_vello/tests.rs` is 2678 LOC.
   - Recommended change: continue splitting runtime state, input/pointer routing, redraw scheduling, and scene diff/fingerprint logic into behavior-focused modules with matching tests.
   - Risk/tradeoffs: High. This is hot-path event-loop/render code and easy to regress under real interaction.
   - Suggested validation: targeted `radiant` runtime/input tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
@@ -265,7 +265,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - ROI/Effort: Medium-High / M
   - Why it matters: one large public `radiant` module still defines most of the projection contract, which obscures ownership boundaries and makes the bridge/UI contract harder to understand.
   - Evidence:
-    - `vendor/radiant/src/app/mod.rs` is 1512 LOC.
+    - `vendor/radiant/src/app/mod.rs` is 1635 LOC.
     - It currently mixes panel models, `UiAction`, dirty-segment bookkeeping, motion projection, and bridge traits in one public module.
     - The file still carries broad suppressions such as `#[allow(dead_code)]` near `:104`.
   - Recommended change: split the public app surface into focused modules such as `models`, `actions`, `dirty_segments`, and `bridge`, and add short module docs that explain how the host and native shell interact.
@@ -276,10 +276,10 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - ROI/Effort: Medium-High / M
   - Why it matters: several test files have grown into catch-all regression bins, which slows navigation and makes it harder to see coverage gaps by feature.
   - Evidence:
-    - `src/app_core/native_bridge/tests.rs` is 1223 LOC.
+    - `src/app_core/native_bridge/tests.rs` is 1342 LOC.
     - `src/app_core/native_shell/tests.rs` is 1054 LOC.
     - `src/app/controller/tests/browser_actions.rs` and `src/app/controller/tests/folders_core.rs` are still large multi-domain hubs.
-    - `vendor/radiant/src/gui/native_shell/state/tests.rs` and `vendor/radiant/src/gui_runtime/native_vello/tests.rs` are each multi-thousand-line umbrellas.
+    - `vendor/radiant/src/gui/native_shell/state/tests.rs` (4823 LOC) and `vendor/radiant/src/gui_runtime/native_vello/tests.rs` (2678 LOC) are still multi-thousand-line umbrellas.
   - Recommended change: move tests next to the production seams created by the earlier refactors, and split remaining integration-style tests by behavior domain instead of piling onto one file.
   - Risk/tradeoffs: Low-medium. Mostly structural, but careless moves can weaken discoverability if the new module layout is inconsistent.
   - Suggested validation: affected unit tests run serially where Rust test binaries overlap, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
@@ -299,7 +299,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - ROI/Effort: Medium / M
   - Why it matters: player lifecycle, transport-follow-up, waveform sync, and selection-aware playback helpers still live together, which keeps playback changes broad.
   - Evidence:
-    - `src/app/controller/playback/player.rs` spreads concerns across `:10`, `:158`, `:182`, `:324`, and `:374`.
+    - `src/app/controller/playback/player.rs` is 446 LOC and still spreads concerns across `:10`, `:182`, `:219`, `:325`, and `:374`.
     - The file mixes transport intent, playback setup, and follow-on UI synchronization work.
   - Recommended change: separate transport-facing playback helpers, player-state update helpers, and UI follow-up behaviors into smaller modules with clear docs.
   - Risk/tradeoffs: Medium. Playback sequencing and loop/focus interactions are user-visible and easy to regress.
@@ -309,7 +309,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - ROI/Effort: Medium / M
   - Why it matters: visual tokens and scaling policy are still clustered together, which makes future UI cleanup harder and blurs which values are semantic colors versus layout decisions.
   - Evidence:
-    - `vendor/radiant/src/gui/native_shell/style.rs` remains a broad token file.
+    - `vendor/radiant/src/gui/native_shell/style.rs` is 938 LOC and remains a broad token file.
     - Related layout/state code still imports it as a catch-all dependency.
   - Recommended change: separate semantic palette values, sizing constants, and tier/scaling policy into focused modules with small docs on intended usage.
   - Risk/tradeoffs: Low-medium. Mostly structural, but token moves can create churn across imports.
@@ -341,6 +341,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Why it matters: one of the remaining `too_many_arguments` suppressions is on live DSP code, which signals a real readability issue rather than legacy glue.
   - Evidence:
     - `src/analysis/frequency_domain/stft.rs:3` carries `#[allow(clippy::too_many_arguments)]`.
+    - `src/analysis/frequency_domain/stft.rs` is 414 LOC.
     - `compute_frames` starts at `:37`.
     - `process_frame` starts at `:106`.
   - Recommended change: introduce a small typed context/scratch container for the repeated frame-processing inputs so the STFT flow becomes easier to read and test without changing math behavior.
@@ -360,6 +361,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 ## Progress Log
 
 - 2026-03-10: Refreshed the cleanup audit against the current `next` head and reordered the remaining work into a 30-item strict ROI backlog.
+- 2026-03-10: Revalidated the remaining top hotspots after the latest waveform/native-shell changes; item 14 remains the highest-ROI next step and the evidence counts above now match the current head.
 - 2026-03-10: Read repository guidance first (`AGENTS.md`, `README.md`, `docs/README.md`, `docs/plans/index.md`, `docs/plans/active/runtime_performance_exec_plan.md`, `docs/plans/active/todo.md`, `docs/plans/active/cleanup_architecture_note.md`, and `MEMORY.md`) before refreshing the plan.
 - 2026-03-10: Confirmed the canonical local CI parity command for this current Windows environment is `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
 - 2026-03-10: Audit evidence was gathered from `src/app`, `src/app_core`, `src/sample_sources`, `src/audio`, `src/analysis`, `tools/analysis-admin`, and `vendor/radiant`, plus targeted file-size and suppression scans.

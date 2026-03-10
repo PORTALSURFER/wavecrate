@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-10T14:21:09Z
+Last Updated: 2026-03-10T15:19:58Z
 Updated By: Codex
 
 ## Purpose
@@ -14,6 +14,7 @@ Updated By: Codex
 - Perf items 1-11 are complete, including hot native input layout borrowing in vendor commit `fd542453` and root perf attribution work in commit `f239b03b`.
 - The active source of truth for any follow-up perf work remains `docs/plans/active/runtime_performance_exec_plan.md`.
 - I have refreshed `tmp/cleanup_plan.md` against the current `next` head with a 30-item strict ROI-ranked cleanup backlog.
+- I have revalidated the remaining cleanup hotspots against the current `next` head after the latest waveform and native-shell fixes, and item 14 is still the correct next step.
 - Cleanup Phase 1 is complete, and Phase 2 implementation is still paused because it is waiting for explicit user confirmation.
 - I have aligned `AGENTS.md`, `MEMORY.md`, `docs/README.md`, `docs/plans/index.md`, and `docs/plans/active/todo.md` so the active mission and next actions are obvious on wake-up.
 - I have repaired the Bash-side diff-aware guardrails for this Windows-mounted worktree so `run_agent_request.sh` and `ci_local.sh` see the same real changes as the Windows git workflow.
