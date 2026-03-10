@@ -147,6 +147,22 @@ fn browser_projection_marks_search_placeholder_when_focused() {
     assert_eq!(projected.search_placeholder.as_deref(), Some("▌"));
 }
 
+/// Browser projection should expose manual viewport state for native scrollbar rendering.
+#[test]
+fn browser_projection_exposes_manual_viewport_state() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.browser.autoscroll = false;
+    controller.ui.browser.view_window_start = 1_470;
+    controller.ui.browser.visible =
+        crate::app_core::app_api::state::VisibleRows::All { total: 1_506 };
+
+    let projected = project_browser_panel_frame_model(&controller);
+
+    assert!(!projected.autoscroll);
+    assert_eq!(projected.view_start_row, 1_470);
+    assert_eq!(projected.visible_count, 1_506);
+}
+
 /// Browser chrome projection should expose the toolbar copy shown in the native shell.
 #[test]
 fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {

@@ -54,6 +54,8 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
     BrowserPanelModel {
         visible_count: row_inputs.visible_count,
         selected_visible_row: row_inputs.selected_visible_row,
+        autoscroll: row_inputs.autoscroll,
+        view_start_row: row_inputs.view_start_row,
         selected_path_count,
         search_query,
         active_rating_filters,
