@@ -1,8 +1,24 @@
-use super::super::test_support::{dummy_controller, sample_entry};
+use super::super::test_support::{
+    dummy_controller, prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
+};
 use super::common::visible_indices;
 use crate::app::state::{TriageFlagColumn, TriageFlagFilter};
 use crate::sample_sources::Rating;
 use std::path::{Path, PathBuf};
+
+fn browser_row_is_queued_or_loaded(
+    controller: &crate::app::controller::AppController,
+    relative_path: &Path,
+) -> bool {
+    controller
+        .runtime
+        .jobs
+        .pending_audio
+        .as_ref()
+        .is_some_and(|pending| pending.relative_path == relative_path)
+        || controller.ui.waveform.loading.as_deref() == Some(relative_path)
+        || controller.sample_view.wav.loaded_wav.as_deref() == Some(relative_path)
+}
 
 #[test]
 fn missing_source_is_marked_during_load() {
@@ -301,17 +317,18 @@ fn tagging_under_filter_advances_focus_to_next_visible() {
 
 #[test]
 fn rating_filter_rating_keeps_focus_on_next_visible_item() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source.clone());
-    controller.cache_db(&source).unwrap();
-    controller.set_wav_entries_for_tests(vec![
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
         sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
         sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
         sample_entry("four.wav", crate::sample_sources::Rating::NEUTRAL),
     ]);
-    controller.rebuild_wav_lookup();
-    controller.rebuild_browser_lists();
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("four.wav"), &[0.0, 0.1]);
+    controller.settings.controls.advance_after_rating = true;
+    controller.settings.feature_flags.autoplay_selection = false;
     controller.set_browser_rating_filter(0, false);
 
     controller.focus_browser_row_only(1);
@@ -323,6 +340,10 @@ fn rating_filter_rating_keeps_focus_on_next_visible_item() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("three.wav"))
     );
+    assert!(browser_row_is_queued_or_loaded(
+        &controller,
+        Path::new("three.wav")
+    ));
 }
 
 #[test]

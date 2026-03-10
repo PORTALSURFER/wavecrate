@@ -20,6 +20,41 @@ fn should_advance_after_rating(
         && refocus_path.and_then(|path| controller.visible_row_for_path(path)) == Some(primary_row)
 }
 
+/// Advance rating focus or commit the filtered replacement row after a rating change.
+///
+/// When the rated sample remains visible, normal auto-advance moves to the next
+/// visible browser row. When the active filter removes the rated sample, the
+/// browser already refocuses the replacement row in the same visible position;
+/// in that case this helper commits that replacement so waveform/audio loading
+/// follows the filtered list instead of skipping past it.
+fn advance_or_commit_after_rating(
+    controller: &mut AppController,
+    primary_row: usize,
+    refocus_path: Option<&Path>,
+    changed: bool,
+) {
+    if !changed || !controller.settings.controls.advance_after_rating {
+        return;
+    }
+    if should_advance_after_rating(controller, primary_row, refocus_path, changed) {
+        if controller.random_navigation_mode_enabled() {
+            controller.focus_random_visible_sample();
+        } else {
+            let next_row = primary_row + 1;
+            if next_row < controller.ui.browser.visible.len() {
+                controller.focus_browser_row(next_row);
+            }
+        }
+        return;
+    }
+    if refocus_path
+        .and_then(|path| controller.visible_row_for_path(path))
+        .is_none()
+    {
+        let _ = controller.commit_focused_browser_row();
+    }
+}
+
 fn next_focus_path_for_removed_rows(
     controller: &mut AppController,
     rows: &[usize],
@@ -169,16 +204,7 @@ pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample
         controller.set_status(err, StatusTone::Error);
     }
 
-    if should_advance_after_rating(controller, primary_row, refocus_path.as_deref(), tagged_any) {
-        if controller.random_navigation_mode_enabled() {
-            controller.focus_random_visible_sample();
-        } else {
-            let next_row = primary_row + 1;
-            if next_row < controller.ui.browser.visible.len() {
-                controller.focus_browser_row(next_row);
-            }
-        }
-    }
+    advance_or_commit_after_rating(controller, primary_row, refocus_path.as_deref(), tagged_any);
 }
 
 pub(crate) fn move_selection_column(controller: &mut AppController, delta: isize) {
@@ -383,19 +409,10 @@ pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) 
         controller.set_status(err, StatusTone::Error);
     }
 
-    if should_advance_after_rating(
+    advance_or_commit_after_rating(
         controller,
         primary_row,
         refocus_path.as_deref(),
         !applied_updates.is_empty() || auto_trashed,
-    ) {
-        if controller.random_navigation_mode_enabled() {
-            controller.focus_random_visible_sample();
-        } else {
-            let next_row = primary_row + 1;
-            if next_row < controller.ui.browser.visible.len() {
-                controller.focus_browser_row(next_row);
-            }
-        }
-    }
+    );
 }
