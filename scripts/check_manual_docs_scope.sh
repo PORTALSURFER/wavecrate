@@ -9,6 +9,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+if [[ -f "$ROOT_DIR/scripts/git_diff_env.sh" ]]; then
+  # shellcheck source=scripts/git_diff_env.sh
+  source "$ROOT_DIR/scripts/git_diff_env.sh"
+else
+  sempal_git() {
+    git "$@"
+  }
+fi
 
 BASE_REF=""
 HEAD_REF="HEAD"
@@ -50,7 +58,7 @@ while (( $# > 0 )); do
 done
 
 git_has_commit() {
-  git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
+  sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
 }
 
 collect_manual_changes() {
@@ -59,13 +67,13 @@ collect_manual_changes() {
 
   local out=()
   if [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
-    mapfile -t out < <(git diff --name-only --diff-filter=AM "$base...$head" -- manual || true)
+    mapfile -t out < <(sempal_git diff --name-only --diff-filter=AM "$base...$head" -- manual || true)
   elif git_has_commit "$head"; then
-    mapfile -t out < <(git show --name-only --pretty=format: "$head" -- manual || true)
+    mapfile -t out < <(sempal_git show --name-only --pretty=format: "$head" -- manual || true)
   fi
 
-  mapfile -t staged < <(git diff --name-only --diff-filter=AM --cached -- manual || true)
-  mapfile -t unstaged < <(git diff --name-only --diff-filter=AM -- manual || true)
+  mapfile -t staged < <(sempal_git diff --name-only --diff-filter=AM --cached -- manual || true)
+  mapfile -t unstaged < <(sempal_git diff --name-only --diff-filter=AM -- manual || true)
 
   printf "%s\n" "${out[@]}" "${staged[@]}" "${unstaged[@]}" \
     | sed 's#^\\./##' \

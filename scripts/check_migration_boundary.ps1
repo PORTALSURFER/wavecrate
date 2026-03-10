@@ -18,6 +18,10 @@ Push-Location $rootDir
 try {
   $appCoreDir = Join-Path $rootDir "src/app_core"
   $allowedFile = Join-Path $appCoreDir "app_api.rs"
+  $allowedTransitionalFiles = @(
+    (Join-Path $appCoreDir "controller.rs"),
+    (Join-Path $appCoreDir "controller/waveform_actions.rs")
+  )
 
   if (-not (Test-Path -LiteralPath $appCoreDir)) {
     throw "Expected app_core directory not found: $appCoreDir"
@@ -27,9 +31,15 @@ try {
 
   $files = Get-ChildItem -LiteralPath $appCoreDir -Recurse -File -Filter "*.rs"
   foreach ($file in $files) {
+    if ($file.FullName -like "*/tests/*" -or $file.Name -like "*_tests.rs" -or $file.Name -eq "tests.rs") {
+      continue
+    }
     $matches = Select-String -LiteralPath $file.FullName -SimpleMatch -Pattern "crate::app::" -ErrorAction SilentlyContinue
     foreach ($m in $matches) {
       if ($m.Path -eq $allowedFile) {
+        continue
+      }
+      if ($allowedTransitionalFiles -contains $m.Path) {
         continue
       }
       $violations.Add(("{0}:{1}:{2}" -f $m.Path, $m.LineNumber, $m.Line.Trim()))

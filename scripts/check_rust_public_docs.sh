@@ -18,6 +18,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+if [[ -f "$ROOT_DIR/scripts/git_diff_env.sh" ]]; then
+  # shellcheck source=scripts/git_diff_env.sh
+  source "$ROOT_DIR/scripts/git_diff_env.sh"
+else
+  sempal_git() {
+    git "$@"
+  }
+fi
 
 BASE_REF=""
 HEAD_REF="HEAD"
@@ -56,7 +64,7 @@ fi
 ALLOWLIST_PATH="$ROOT_DIR/docs/rust_public_docs_allowlist.txt"
 
 git_has_commit() {
-  git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
+  sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
 }
 
 scan_diff() {
@@ -65,7 +73,7 @@ scan_diff() {
   local head_ref="$3" # only used when source=commit
   shift 3
 
-  git diff --unified=0 --diff-filter=AMR "$@" -- src vendor/radiant/src \
+  sempal_git diff --unified=0 --diff-filter=AMR "$@" -- src vendor/radiant/src \
     | python3 scripts/check_rust_public_docs_impl.py \
         --label "$label" \
         --source "$source" \

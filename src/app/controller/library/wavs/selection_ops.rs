@@ -152,8 +152,8 @@ fn select_wav_known_index_with_options(
     }
     if path_changed {
         controller.ui.waveform.last_start_marker = None;
-        if !loop_lock_enabled
-            && !(controller.settings.feature_flags.autoplay_selection && active_loop_enabled)
+        if !(loop_lock_enabled
+            || (controller.settings.feature_flags.autoplay_selection && active_loop_enabled))
         {
             controller.ui.waveform.loop_enabled = entry_looped;
         }

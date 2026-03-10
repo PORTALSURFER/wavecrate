@@ -10,6 +10,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+if [[ -f "$ROOT_DIR/scripts/git_diff_env.sh" ]]; then
+  # shellcheck source=scripts/git_diff_env.sh
+  source "$ROOT_DIR/scripts/git_diff_env.sh"
+else
+  sempal_git() {
+    git "$@"
+  }
+fi
 
 LIMIT=400
 BASE_REF=""
@@ -87,7 +95,7 @@ if [[ -f "$ALLOWLIST_PATH" ]]; then
 fi
 
 git_has_commit() {
-  git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
+  sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
 }
 
 collect_files() {
@@ -97,18 +105,18 @@ collect_files() {
   local -a rust_files=()
 
   if (( CHECK_ALL == 1 )); then
-    mapfile -t raw_files < <(git ls-files -- "${TRACKED_PATHS[@]}" || true)
+    mapfile -t raw_files < <(sempal_git ls-files -- "${TRACKED_PATHS[@]}" || true)
     COLLECT_SCOPE="all"
   elif [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
     mapfile -t raw_files < <(
-      git diff --name-only --diff-filter=AM "$base...$head" -- "${TRACKED_PATHS[@]}" \
+      sempal_git diff --name-only --diff-filter=AM "$base...$head" -- "${TRACKED_PATHS[@]}" \
         || true
     )
     COLLECT_SCOPE="diff(base...head)"
   elif git_has_commit "$head"; then
     # If base isn't available (e.g. first push), fall back to the head commit's file list.
     mapfile -t raw_files < <(
-      git show --name-only --pretty=format: "$head" -- "${TRACKED_PATHS[@]}" || true
+      sempal_git show --name-only --pretty=format: "$head" -- "${TRACKED_PATHS[@]}" || true
     )
     COLLECT_SCOPE="diff(head)"
   else
@@ -122,10 +130,10 @@ collect_files() {
     local -a staged=()
     local -a unstaged=()
     mapfile -t staged < <(
-      git diff --name-only --diff-filter=AM --cached -- "${TRACKED_PATHS[@]}" || true
+      sempal_git diff --name-only --diff-filter=AM --cached -- "${TRACKED_PATHS[@]}" || true
     )
     mapfile -t unstaged < <(
-      git diff --name-only --diff-filter=AM -- "${TRACKED_PATHS[@]}" || true
+      sempal_git diff --name-only --diff-filter=AM -- "${TRACKED_PATHS[@]}" || true
     )
     staged_count="${#staged[@]}"
     unstaged_count="${#unstaged[@]}"

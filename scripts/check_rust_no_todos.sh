@@ -14,6 +14,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+if [[ -f "$ROOT_DIR/scripts/git_diff_env.sh" ]]; then
+  # shellcheck source=scripts/git_diff_env.sh
+  source "$ROOT_DIR/scripts/git_diff_env.sh"
+else
+  sempal_git() {
+    git "$@"
+  }
+fi
 
 BASE_REF=""
 HEAD_REF="HEAD"
@@ -55,7 +63,7 @@ if [[ -f "$ALLOWLIST_PATH" ]]; then
 fi
 
 git_has_commit() {
-  git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
+  sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
 }
 
 is_allowlisted() {
@@ -122,7 +130,7 @@ scan_diff_stream() {
 scan_git_diff() {
   local label="$1"
   shift
-  git diff --unified=0 --diff-filter=AMR "$@" -- src vendor/radiant/src \
+  sempal_git diff --unified=0 --diff-filter=AMR "$@" -- src vendor/radiant/src \
     | scan_diff_stream "$label"
 }
 
@@ -141,4 +149,3 @@ fi
 
 echo "[no_todos] OK"
 exit 0
-

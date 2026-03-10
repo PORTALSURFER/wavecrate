@@ -33,7 +33,14 @@ fi
 
 missing_refs=0
 for path in "${required[@]}"; do
-  if ! rg -F -q "$path" "$DOCS_README"; then
+  if command -v rg >/dev/null 2>&1; then
+    found_path=0
+    rg -F -q "$path" "$DOCS_README" || found_path=1
+  else
+    found_path=0
+    grep -F -q "$path" "$DOCS_README" || found_path=1
+  fi
+  if (( found_path != 0 )); then
     if (( missing_refs == 0 )); then
       echo "[docs_index] docs/README.md is missing required references:" >&2
     fi
