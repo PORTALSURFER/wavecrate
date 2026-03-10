@@ -10,6 +10,7 @@ use crate::app::controller::ui::hotkeys;
 use crate::app::state::FocusContext;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::controller::AppControllerNativeRuntimeExt;
+use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
 use crate::sample_sources::Rating;
 use hound::WavReader;
 use std::cell::RefCell;
@@ -720,4 +721,25 @@ fn rating_auto_advance_works() {
         Some(1),
         "tag_selected should also advance"
     );
+}
+
+#[test]
+fn keyboard_focus_near_bottom_edge_scrolls_browser_window() {
+    let mut entries = Vec::new();
+    for index in 0..(MAX_RENDERED_BROWSER_ROWS + 8) {
+        entries.push(sample_entry(
+            &format!("row_{index:03}.wav"),
+            Rating::NEUTRAL,
+        ));
+    }
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(entries);
+
+    controller.focus_browser_row_only(MAX_RENDERED_BROWSER_ROWS.saturating_sub(3));
+
+    assert_eq!(
+        controller.ui.browser.selected_visible,
+        Some(MAX_RENDERED_BROWSER_ROWS.saturating_sub(3))
+    );
+    assert_eq!(controller.ui.browser.render_window_start, 1);
+    assert_eq!(controller.ui.browser.view_window_start, 1);
 }

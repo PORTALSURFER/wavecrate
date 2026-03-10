@@ -46,15 +46,11 @@ impl AppController {
             .or_else(|| loaded_index.and_then(|index| self.browser_visible_row_for_entry(index)));
         self.ui.browser.marker_cache = None;
         let visible_len = self.ui.browser.visible.len();
-        let max_window_start =
-            visible_len.saturating_sub(visible_len.min(MAX_RENDERED_BROWSER_ROWS));
-        self.ui.browser.render_window_start =
-            self.ui.browser.render_window_start.min(max_window_start);
-        self.ui.browser.view_window_start = self
-            .ui
-            .browser
-            .view_window_start
-            .min(visible_len.saturating_sub(1));
+        super::browser_viewport::sync_browser_viewport_window(
+            &mut self.ui.browser,
+            visible_len,
+            MAX_RENDERED_BROWSER_ROWS,
+        );
         if let Some(anchor) = self.ui.browser.selection_anchor_visible
             && anchor >= visible_len
         {
@@ -184,6 +180,11 @@ impl AppController {
         });
         self.set_ui_loaded_wav(loaded_wav);
         let visible_len = self.ui.browser.visible.len();
+        super::browser_viewport::sync_browser_viewport_window(
+            &mut self.ui.browser,
+            visible_len,
+            MAX_RENDERED_BROWSER_ROWS,
+        );
         if let Some(anchor) = self.ui.browser.selection_anchor_visible
             && anchor >= visible_len
         {
