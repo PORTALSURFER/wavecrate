@@ -1,0 +1,138 @@
+//! Waveform playback-selection action adapters.
+
+use super::*;
+use crate::selection::SelectionRange;
+
+impl AppController {
+    /// Begin a selection drag gesture at the given position.
+    pub fn start_selection_drag(&mut self, position: f32) {
+        transport::start_selection_drag(self, position);
+    }
+
+    /// Begin dragging a selection edge, optionally scaling for BPM.
+    pub fn start_selection_edge_drag(
+        &mut self,
+        edge: crate::selection::SelectionEdge,
+        bpm_scale: bool,
+    ) -> bool {
+        transport::start_selection_edge_drag(self, edge, bpm_scale)
+    }
+
+    /// Update the active selection drag with the latest position.
+    pub fn update_selection_drag(&mut self, position: f32, snap_override: bool) {
+        transport::update_selection_drag(self, position, snap_override);
+    }
+
+    /// Finish the active selection drag gesture.
+    pub fn finish_selection_drag(&mut self) {
+        transport::finish_selection_drag(self);
+    }
+
+    /// Set the active selection range.
+    pub fn set_selection_range(&mut self, range: SelectionRange) {
+        transport::set_selection_range(self, range);
+    }
+
+    /// True while a selection drag gesture is active.
+    pub fn is_selection_dragging(&self) -> bool {
+        transport::is_selection_dragging(self)
+    }
+
+    /// Clear the active selection.
+    pub fn clear_selection(&mut self) {
+        transport::clear_selection(self);
+    }
+
+    /// Toggle loop playback for the current selection.
+    pub fn toggle_loop(&mut self) {
+        transport::toggle_loop(self);
+    }
+
+    /// Set waveform selection range using 0..=1000 milli positions from UI actions.
+    pub fn set_waveform_selection_range_milli(&mut self, start_milli: u16, end_milli: u16) {
+        self.set_waveform_selection_range_micros_with_edge_policy(
+            micros_from_milli(start_milli),
+            micros_from_milli(end_milli),
+            false,
+        );
+    }
+
+    /// Set waveform selection range from UI milli positions with optional view-edge pinning.
+    pub(crate) fn set_waveform_selection_range_milli_with_edge_policy(
+        &mut self,
+        start_milli: u16,
+        end_milli: u16,
+        preserve_view_edge: bool,
+    ) {
+        self.set_waveform_selection_range_micros_with_edge_policy(
+            micros_from_milli(start_milli),
+            micros_from_milli(end_milli),
+            preserve_view_edge,
+        );
+    }
+
+    /// Set waveform selection range from UI micro positions with optional view-edge pinning.
+    pub(crate) fn set_waveform_selection_range_micros_with_edge_policy(
+        &mut self,
+        start_micros: u32,
+        end_micros: u32,
+        preserve_view_edge: bool,
+    ) {
+        let existing_range = current_playback_selection(self);
+        let (start_micros, end_micros) = selection_updates::snap_waveform_selection_range_micros(
+            self,
+            start_micros,
+            end_micros,
+            existing_range,
+            preserve_view_edge,
+        );
+        let next_range = selection_range_from_micros(start_micros, end_micros);
+        if existing_range == Some(next_range) && waveform_focus_active(self) {
+            return;
+        }
+        self.set_selection_range(next_range);
+        self.focus_waveform();
+    }
+
+    /// Set waveform selection range without BPM snapping and recalculate BPM for a 4-beat span.
+    pub fn set_waveform_selection_range_milli_smart_scale(
+        &mut self,
+        start_milli: u16,
+        end_milli: u16,
+    ) {
+        self.set_waveform_selection_range_micros_smart_scale(
+            micros_from_milli(start_milli),
+            micros_from_milli(end_milli),
+        );
+    }
+
+    /// Set waveform selection range from UI micro positions and recalculate BPM for a 4-beat span.
+    pub fn set_waveform_selection_range_micros_smart_scale(
+        &mut self,
+        start_micros: u32,
+        end_micros: u32,
+    ) {
+        let existing_range = current_playback_selection(self);
+        let next_range = selection_range_from_micros(start_micros, end_micros);
+        let next_bpm =
+            transport::scaled_selection_bpm(self, SMART_SCALE_SELECTION_BEATS, next_range);
+        if existing_range == Some(next_range)
+            && waveform_focus_active(self)
+            && bpm_matches(self.ui.waveform.bpm_value, next_bpm)
+        {
+            return;
+        }
+        transport::set_selection_range_with_smart_scale(
+            self,
+            next_range,
+            SMART_SCALE_SELECTION_BEATS,
+        );
+        self.focus_waveform();
+    }
+
+    /// Clear waveform selection and keep waveform focus active.
+    pub fn clear_waveform_selection_with_focus(&mut self) {
+        self.clear_selection();
+        self.focus_waveform();
+    }
+}
