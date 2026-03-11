@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T18:54:20Z`
+- Refreshed (UTC): `2026-03-11T19:06:53Z`
 - Branch: `next`
-- Head: `fee4901d`
+- Head: `d1776d5e`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-11 complete; continuing strict sequential implementation at item 12`
+- Status: `Items 1-12 complete; continuing strict sequential implementation at item 13`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -109,13 +109,14 @@
 - Suggested validation: Existing ANN container tests, ANN migration/load tests, and `ci_quick.ps1`.
 - Completed: `2026-03-11` — main repo commit `fee4901d` replaced `src/analysis/ann_index/container.rs` with `container/{mod,header,codec,stream_io}.rs`, kept the public container facade stable, added focused header/checksum corruption tests, and preserved the existing ANN migration/load paths under `ci_quick.ps1`.
 
-### 12. [ ] Separate similarity-map layout/reporting façade from the t-SNE engine in `src/analysis/umap.rs`
+### 12. [x] Separate similarity-map layout/reporting façade from the t-SNE engine in `src/analysis/umap.rs`
 - ROI / Effort: Medium / M
 - Why it matters: The public layout module still uses a legacy `umap` compatibility shell around a t-SNE implementation, and it mixes report types, SQL load/write behavior, projection, and validation in one place.
 - Evidence: `src/analysis/umap.rs` is about 358 LOC. `build_map_layout`, `build_umap_layout`, report-path helpers, embedding loading, `compute_tsne`, and validation all live together.
 - Recommended change: Keep the public compatibility façade small and move projection math, DB load/write helpers, and report serialization into dedicated modules with explicit docs about the compatibility contract.
 - Risk / tradeoffs: Low-to-moderate; must preserve persisted schema names and CLI compatibility.
 - Suggested validation: Existing similarity-map tests, admin CLI tests, and `ci_quick.ps1`.
+- Completed: `2026-03-11` — main repo commit `d1776d5e` replaced `src/analysis/umap.rs` with `umap/{mod,projection,report,storage}.rs`, kept the legacy `umap`-named compatibility entrypoints and `layout_umap` persistence contract intact, and hardened flaky async decode timing assertions so `ci_quick.ps1` remained deterministic after the split.
 
 ### 13. [ ] Break `src/app_core/native_bridge/tests/projection_cache.rs` into segment-focused test modules
 - ROI / Effort: Medium-High / M
