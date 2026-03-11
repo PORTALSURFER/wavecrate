@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T17:19:32Z`
+- Refreshed (UTC): `2026-03-11T17:38:17Z`
 - Branch: `next`
-- Head: `dcc0842b`
+- Head: `0f6fc70d`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-3 complete; continuing strict sequential implementation at item 4`
+- Status: `Items 1-4 complete; continuing strict sequential implementation at item 5`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -37,13 +37,14 @@
 - Suggested validation: Targeted `radiant` frame/segment tests, screenshot/golden coverage where available, and `ci_quick.ps1`.
 - Completed: `2026-03-11` — `vendor/radiant` commit `bcaaef6d` moved status-bar painting into `frame_build/status_bar.rs`, extracted state-overlay rendering into `frame_build/overlay.rs`, moved waveform BPM-grid painting into `frame_build/waveform.rs`, and reduced `frame_build.rs` to orchestration/context responsibilities.
 
-### 4. [ ] Finish slimming `vendor/radiant/src/gui/native_shell/state.rs` root state façade
+### 4. [x] Finish slimming `vendor/radiant/src/gui/native_shell/state.rs` root state façade
 - ROI / Effort: High / L
 - Why it matters: The root native-shell state file still mixes mutable interaction state, hit-testing, frame build entrypoints, animation bookkeeping, and cache access, so changes to one area keep pulling broad rebuilds and test churn.
 - Evidence: `vendor/radiant/src/gui/native_shell/state.rs` is about 1694 LOC and still owns `NativeShellState`, hit-test entrypoints such as `browser_row_at_point`, and frame-build entrypoints such as `build_frame_with_style`.
 - Recommended change: Keep `state.rs` as a façade plus state struct definition only, and move the remaining hit-testing, overlay assembly, and browser/waveform interaction helpers into dedicated submodules.
 - Risk / tradeoffs: Large internal API movement inside `radiant`; must preserve scene-cache fingerprints and hit-test semantics.
 - Suggested validation: Existing native-shell state tests, targeted hit-test regressions, and `ci_quick.ps1`.
+- Completed: `2026-03-11` — `vendor/radiant` commit `412426a9` moved remaining hit-testing, hover-resolution, motion-overlay, and playhead-trail logic into focused `state/*` modules so `state.rs` is reduced to the `NativeShellState` façade plus small lifecycle/build wrappers.
 
 ### 5. [ ] Decompose embedding backfill orchestration in `src/app/controller/library/analysis_jobs/pool/job_execution/backfill.rs`
 - ROI / Effort: High / M
