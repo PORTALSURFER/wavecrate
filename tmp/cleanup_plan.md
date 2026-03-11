@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T17:58:33Z`
+- Refreshed (UTC): `2026-03-11T18:07:07Z`
 - Branch: `next`
-- Head: `17d911b2`
+- Head: `ae5e1715`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-7 complete; continuing strict sequential implementation at item 8`
+- Status: `Items 1-8 complete; continuing strict sequential implementation at item 9`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -73,13 +73,14 @@
 - Suggested validation: Map-view tests, bounds/points fallback regressions, admin layout build tests, and `ci_quick.ps1`.
 - Completed: `2026-03-11` — main repo commit `17d911b2` converted `ui/map_view.rs` into a module tree with separate controller, jobs, connection-policy, model, and repository query modules, and split the repository SQL helpers into focused bounds/points/clusters loaders while preserving the public `map_view` facade.
 
-### 8. [ ] Split the waveform render pipeline around cached viewport, fade preview, and line paint backends
+### 8. [x] Split the waveform render pipeline around cached viewport, fade preview, and line paint backends
 - ROI / Effort: High / M
 - Why it matters: The public waveform renderer still contains a long decision tree for empty/full/peaks/cached/fade cases, which makes rendering behavior and performance-sensitive code paths difficult to reason about.
 - Evidence: `src/waveform/render.rs` is about 542 LOC and `src/waveform/render/paint/lines.rs` is about 503 LOC. `render_color_image_for_view_with_size_and_fade` and `render_color_image_with_size` still branch across many concerns.
 - Recommended change: Split viewport normalization, cache selection, fade-preview application, and paint backend dispatch into focused modules with a small public façade.
 - Risk / tradeoffs: Moderate; waveform rendering is visual and performance-sensitive, so behavior drift is easy to miss without focused tests.
 - Suggested validation: Existing waveform render/cache tests, fade-tail regressions, any benchmark smoke tests, and `ci_quick.ps1`.
+- Completed: `2026-03-11` — main repo commit `ae5e1715` replaced `src/waveform/render.rs` with `render/{mod,viewport,fade_preview}.rs`, moved viewport planning and fade-preview helpers behind a smaller render façade, and removed the stale `backfill.rs` / `map_view.rs` monolith shims so the previously-split module trees are the active code paths.
 
 ### 9. [ ] Finish splitting `src/app/controller/playback/waveform_actions/mod.rs` into smaller adapter surfaces
 - ROI / Effort: Medium-High / M
