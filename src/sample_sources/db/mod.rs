@@ -379,4 +379,8 @@ fn user_root_dir() -> Result<PathBuf, &'static str> {
 /// Unit tests for source-database open, migration, and metadata invariants.
 #[cfg(test)]
 #[path = "../../../tests/unit/source_db_mod_tests.rs"]
-mod tests;
+mod source_db_mod_tests;
+
+#[cfg(test)]
+#[path = "../../../tests/unit/source_db_migration_tests.rs"]
+mod source_db_migration_tests;
