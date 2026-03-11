@@ -1,6 +1,5 @@
 //! STFT frame extraction keeps scratch buffers and output sinks separate to avoid
 //! hot-path allocations while streaming one frame at a time.
-#![allow(clippy::too_many_arguments)]
 
 use super::mel::{MelBank, MelScratch};
 use crate::analysis::fft::{Complex32, FftPlan, fft_radix2_inplace_with_plan, hann_window};
@@ -31,6 +30,43 @@ pub(super) struct BandFrame {
     pub(super) air: f32,
 }
 
+/// Shared immutable inputs for one STFT pass over a sample slice.
+struct StftProcessor<'a> {
+    samples: &'a [f32],
+    sample_rate: u32,
+    frame_size: usize,
+    window: &'a [f32],
+    plan: &'a FftPlan,
+    mel: &'a MelBank,
+}
+
+/// Scratch buffers reused across STFT frames to keep the hot path allocation-free.
+struct StftScratch {
+    mel: MelScratch,
+    complex: Vec<Complex32>,
+    power: Vec<f32>,
+}
+
+impl StftScratch {
+    fn new(frame_size: usize, mel: &MelBank) -> Self {
+        Self {
+            mel: MelScratch::new(mel.mel_bands()),
+            complex: vec![Complex32::default(); frame_size],
+            power: Vec::with_capacity(frame_size / 2 + 1),
+        }
+    }
+}
+
+impl FrameSet {
+    fn with_capacity(frame_count: usize) -> Self {
+        Self {
+            spectral: Vec::with_capacity(frame_count),
+            bands: Vec::with_capacity(frame_count),
+            mfcc: Vec::with_capacity(frame_count),
+        }
+    }
+}
+
 const ROLLOFF_FRACTION: f32 = 0.85;
 
 /// Compute STFT-derived frames for spectral, band, and MFCC statistics.
@@ -44,34 +80,24 @@ pub(super) fn compute_frames(
     let (frame_size, hop_size) = validate_stft_sizes(frame_size, hop_size)?;
     let window = hann_window(frame_size);
     let plan = FftPlan::new(frame_size)?;
-    let mut mel_scratch = MelScratch::new(mel.mel_bands());
-    let mut complex = vec![Complex32::default(); frame_size];
-    let mut power = Vec::with_capacity(frame_size / 2 + 1);
     let max_frames = if samples.len() <= frame_size {
         1
     } else {
         ((samples.len().saturating_sub(frame_size)) / hop_size).saturating_add(1)
     };
-    let mut spectral = Vec::with_capacity(max_frames);
-    let mut bands = Vec::with_capacity(max_frames);
-    let mut mfcc = Vec::with_capacity(max_frames);
+    let processor = StftProcessor {
+        samples,
+        sample_rate,
+        frame_size,
+        window: &window,
+        plan: &plan,
+        mel,
+    };
+    let mut scratch = StftScratch::new(frame_size, mel);
+    let mut frames = FrameSet::with_capacity(max_frames);
     let mut start = 0usize;
     while start < samples.len() {
-        if !process_frame(
-            &mut complex,
-            &mut power,
-            &window,
-            &plan,
-            &mut mel_scratch,
-            samples,
-            start,
-            sample_rate,
-            frame_size,
-            mel,
-            &mut spectral,
-            &mut bands,
-            &mut mfcc,
-        ) {
+        if !process_frame(&processor, &mut scratch, &mut frames, start) {
             break;
         }
         start = start.saturating_add(hop_size);
@@ -80,12 +106,8 @@ pub(super) fn compute_frames(
         }
     }
 
-    ensure_minimum_frame(&mut spectral, &mut bands, &mut mfcc);
-    Ok(FrameSet {
-        spectral,
-        bands,
-        mfcc,
-    })
+    ensure_minimum_frame(&mut frames, mel.dct_size());
+    Ok(frames)
 }
 
 fn validate_stft_sizes(frame_size: usize, hop_size: usize) -> Result<(usize, usize), String> {
@@ -104,56 +126,60 @@ fn validate_stft_sizes(frame_size: usize, hop_size: usize) -> Result<(usize, usi
 }
 
 fn process_frame(
-    complex: &mut [Complex32],
-    power: &mut Vec<f32>,
-    window: &[f32],
-    plan: &FftPlan,
-    mel_scratch: &mut MelScratch,
-    samples: &[f32],
+    processor: &StftProcessor<'_>,
+    scratch: &mut StftScratch,
+    frames: &mut FrameSet,
     start: usize,
-    sample_rate: u32,
-    frame_size: usize,
-    mel: &MelBank,
-    spectral: &mut Vec<SpectralFrame>,
-    bands: &mut Vec<BandFrame>,
-    mfcc: &mut Vec<Vec<f32>>,
 ) -> bool {
-    fill_windowed(complex, samples, start, window);
-    if fft_radix2_inplace_with_plan(complex, plan).is_err() {
+    fill_windowed(
+        &mut scratch.complex,
+        processor.samples,
+        start,
+        processor.window,
+    );
+    if fft_radix2_inplace_with_plan(&mut scratch.complex, processor.plan).is_err() {
         return false;
     }
-    power_spectrum_into(complex, power);
-    spectral.push(spectral_from_power(power, sample_rate, frame_size));
-    bands.push(bands_from_power(power, sample_rate, frame_size));
-    mfcc.push(Vec::with_capacity(mel.dct_size()));
-    if let Some(entry) = mfcc.last_mut() {
-        mel.mfcc_from_power_into(power, mel_scratch, entry);
+    power_spectrum_into(&scratch.complex, &mut scratch.power);
+    frames.spectral.push(spectral_from_power(
+        &scratch.power,
+        processor.sample_rate,
+        processor.frame_size,
+    ));
+    frames.bands.push(bands_from_power(
+        &scratch.power,
+        processor.sample_rate,
+        processor.frame_size,
+    ));
+    frames
+        .mfcc
+        .push(Vec::with_capacity(processor.mel.dct_size()));
+    if let Some(entry) = frames.mfcc.last_mut() {
+        processor
+            .mel
+            .mfcc_from_power_into(&scratch.power, &mut scratch.mel, entry);
     }
     true
 }
 
-fn ensure_minimum_frame(
-    spectral: &mut Vec<SpectralFrame>,
-    bands: &mut Vec<BandFrame>,
-    mfcc: &mut Vec<Vec<f32>>,
-) {
-    if !spectral.is_empty() {
+fn ensure_minimum_frame(frames: &mut FrameSet, mfcc_size: usize) {
+    if !frames.spectral.is_empty() {
         return;
     }
-    spectral.push(SpectralFrame {
+    frames.spectral.push(SpectralFrame {
         centroid_hz: 0.0,
         rolloff_hz: 0.0,
         flatness: 0.0,
         bandwidth_hz: 0.0,
     });
-    bands.push(BandFrame {
+    frames.bands.push(BandFrame {
         sub: 0.0,
         low: 0.0,
         mid: 0.0,
         high: 0.0,
         air: 0.0,
     });
-    mfcc.push(vec![0.0_f32; 20]);
+    frames.mfcc.push(vec![0.0_f32; mfcc_size]);
 }
 
 fn fill_windowed(target: &mut [Complex32], samples: &[f32], start: usize, window: &[f32]) {
@@ -410,5 +436,27 @@ mod tests {
         if let Err(message) = err {
             assert!(message.contains("power-of-two"));
         }
+    }
+
+    #[test]
+    fn compute_frames_uses_active_mfcc_width_for_empty_input() {
+        let mel = MelBank::new(
+            ANALYSIS_SAMPLE_RATE,
+            STFT_FRAME_SIZE,
+            40,
+            13,
+            20.0,
+            16_000.0,
+        );
+        let frames = compute_frames(
+            &[],
+            ANALYSIS_SAMPLE_RATE,
+            STFT_FRAME_SIZE,
+            STFT_HOP_SIZE,
+            &mel,
+        )
+        .expect("empty STFT input should still produce one zeroed frame");
+        assert_eq!(frames.mfcc.len(), 1);
+        assert_eq!(frames.mfcc[0].len(), 13);
     }
 }
