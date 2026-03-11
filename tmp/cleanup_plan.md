@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: Phase 2 resumed; items 1-19 complete; item 20 is next
+Phase: Phase 2 resumed; items 1-20 complete; item 21 is next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -245,7 +245,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: similar-sample controller tests, background-job polling tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`db2e99d7`)
 
-- [ ] 20) Split `vendor/radiant` native-shell state and frame composition by responsibility
+- [x] 20) Split `vendor/radiant` native-shell state and frame composition by responsibility
   - ROI/Effort: High / L
   - Why it matters: retained native-shell state still concentrates cached row models, sync-from-model logic, frame building, overlay routing, and test scaffolding in a few massive files.
   - Evidence:
@@ -255,6 +255,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: split state/cache ownership, model sync, frame build, overlays, and row-specific rendering into focused sibling modules, then split tests to match those seams.
   - Risk/tradeoffs: High. This is central retained-scene code, so hit-testing, invalidation, and snapshot behavior can regress if the split is sloppy.
   - Suggested validation: targeted `radiant` native-shell tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`53f70d56`)
 
 - [ ] 21) Finish decomposing `vendor/radiant` native Vello runtime, input routing, and test surface
   - ROI/Effort: High / L
@@ -378,6 +379,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 17 by routing one-shot source DB mutations through `SourceWriteBatch`, consolidating wav upsert/update helpers, and adding wrapper-vs-batch parity tests.
 - 2026-03-11: Completed item 18 by moving controller performance/status/undo helpers and remaining job/playback delegations out of `src/app/controller.rs`, leaving the root controller focused on construction and top-level accessors.
 - 2026-03-11: Completed item 19 by splitting similarity resolution into focused repository, reranking, and analysis-enqueue modules while preserving the existing query/apply surface.
+- 2026-03-11: Completed item 20 by splitting `vendor/radiant` native-shell retained-state sync/cache helpers and frame-build status-bar helpers into focused modules while preserving the retained shell behavior and test surface.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
