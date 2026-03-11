@@ -1,9 +1,9 @@
 use super::super::job_execution::update_job_status_with_retry;
 use super::super::job_progress::ProgressPollerWakeup;
 use super::super::progress_cache::ProgressCache;
-use super::analysis_db;
 use super::queue::DecodedQueue;
 use crate::app::controller::jobs::{JobMessage, JobMessageSender};
+use crate::app::controller::library::analysis_jobs::db as analysis_db;
 use crate::app::controller::library::analysis_jobs::types::AnalysisJobMessage;
 use rusqlite::Connection;
 use std::collections::HashMap;
