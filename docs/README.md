@@ -23,7 +23,8 @@ Start here:
 - `docs/QUALITY_SCORE.md` — coarse quality scorecard and known gaps
 - `docs/plans/index.md` — current/archived plan index for parallel agents
 - `docs/plans/active/todo.md` — short ordered queue for the active execution lane
-- `tmp/cleanup_plan.md` — completed ROI-ranked cleanup backlog through item 30
+- `tmp/cleanup_plan.md` — refreshed ROI-ranked cleanup backlog with
+  Phase 2 in progress (item 1 complete, item 2 next)
 - `tmp/perf_plan.md` — completed runtime performance execution record through item 11
 - `docs/plans/TEMPLATE_execution_plan.md` — template for multi-step work
 - `docs/plans/TEMPLATE_investigation.md` — template for bug/perf investigations
