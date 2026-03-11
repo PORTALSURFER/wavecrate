@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-11 (UTC)
-Phase: Phase 2 in progress; items 1-10 complete, item 11 next
+Phase: Phase 2 in progress; items 1-11 complete, item 12 next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -143,7 +143,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: analysis-jobs DB tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`29e76b31`)
 
-- [ ] 11) Split waveform overlay rendering in `radiant` by scrollbar, selection, fades, and trail
+- [x] 11) Split waveform overlay rendering in `radiant` by scrollbar, selection, fades, and trail
   - ROI/Effort: Medium-High / M
   - Why it matters: waveform overlay rendering is now one of the densest feature areas in `radiant`, and recent selection/fade/playhead changes continue to stack into one file.
   - Evidence:
@@ -155,6 +155,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: split the file into focused sibling modules for scrollbar/view-window chrome, selection handles, fade overlays, and playhead trail rendering.
   - Risk/tradeoffs: Medium. Overlay geometry is visually sensitive, so the split needs strong targeted tests.
   - Suggested validation: targeted `radiant` waveform overlay tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`36b8cd37`)
 
 - [ ] 12) Split `radiant` static frame building into browser, map, waveform, and chrome builders
   - ROI/Effort: High / L
@@ -219,3 +220,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 8 in commit `19bccb0c` by splitting normalization into a thin facade plus dedicated runtime dispatch, scalar math, and x86 SIMD backend modules.
 - 2026-03-11: Completed item 9 in commits `2fc03b2c`, `9c1c3dfe`, and `5e309661` by splitting the remaining controller test hubs into behavior-focused `browser_actions`, `folders_core`, and `waveform` module trees.
 - 2026-03-11: Completed item 10 in commit `29e76b31` by turning the analysis-jobs DB tests into a focused module tree with a shared schema/row fixture helper for common setup.
+- 2026-03-11: Completed item 11 in vendor commit `36b8cd37` by splitting waveform overlay rendering into focused scrollbar, selection, edit-fade, and playhead-trail modules while keeping the native-shell helper surface stable.
