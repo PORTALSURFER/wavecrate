@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-11T13:11:24Z
+Last Updated: 2026-03-11T13:16:31Z
 Updated By: Codex
 
 ## Purpose
@@ -35,14 +35,15 @@ Updated By: Codex
 - I have completed cleanup item 2 by moving the staged top-level native-shell app-model projection pipeline into `src/app_core/native_shell/app_model.rs`, leaving `src/app_core/native_shell.rs` as a thinner facade around shared motion and overlay helpers in commit `517ec252`.
 - I have completed cleanup item 3 by splitting the recording waveform loader into focused IO, retained-state, incremental-update, and test modules while preserving the existing request-id and incremental-append behavior in commit `0524d980`.
 - I have completed cleanup item 4 by turning `src/waveform/mod.rs` into a thin facade and moving the waveform public model and disk-loading entrypoints into focused `model` and `loading` modules while preserving the existing public imports in commit `5fea7bc1`.
+- I have completed cleanup item 5 by splitting drag-drop action handling into focused drop-resolution, payload-finish, and external-drag modules while preserving the existing controller-facing drag/drop API in commit `e29d8464`.
 - I am keeping `AGENTS.md`, `MEMORY.md`, `docs/README.md`, `docs/plans/index.md`, and `docs/plans/active/todo.md` aligned so wake-up context stays consistent.
 - Future Windows sessions must not run the Bash workflow scripts; they should use only the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
 - Cleanup items 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, and 30 are complete; they landed in commits `16932de4`, `1fe099ae`, `0b0be54a`, `f752dec6`, `8d2c30e8`, `30d25841`, `08541a52`, `d538fd60`, `b5702240`, `07afb548`, `1a0a20eb`, `bb7216dd`, `bceaaeeb`, `319cefdd`, `002ce1b9`, `d18e19dc`, `d13b38fe`, `cc0edd90`, `336b2c65`, `db2e99d7`, `53f70d56`, `b6f3eb6f`, `d00bdd08`, `9e4b092c`, `71f2d9bf`, `a1e1195b`, `4a3e6660`, `c3005581`, `cf6c233a`, `934ad10b`, `cbe1c428`, `981b5337`, and vendor commit `9e8b3708`.
 
 ## Immediate Next Actions
 
-1. Continue the refreshed cleanup lane in strict order from item 5.
-2. Record the item 4 completion hash in `tmp/cleanup_plan.md` immediately after the refactor commit lands.
+1. Continue the refreshed cleanup lane in strict order from item 6.
+2. Record the item 5 completion hash in `tmp/cleanup_plan.md` immediately after the refactor commit lands.
 3. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` synchronized at the next milestone.
 4. Continue using the required local gates before each push in the current environment.
 
@@ -52,7 +53,7 @@ Updated By: Codex
 - Runtime redesign source of truth: `docs/plans/active/runtime_performance_exec_plan.md`.
 - Bench evidence is still anchored in `target/perf/bench.json`, and the completed execution backlog is recorded in `tmp/perf_plan.md`.
 - Short queue reference: `docs/plans/active/todo.md`.
-- Active cleanup backlog: `tmp/cleanup_plan.md` (refreshed 2026-03-11; Phase 2 in progress, items 1-4 complete, item 5 next).
+- Active cleanup backlog: `tmp/cleanup_plan.md` (refreshed 2026-03-11; Phase 2 in progress, items 1-5 complete, item 6 next).
 
 
 

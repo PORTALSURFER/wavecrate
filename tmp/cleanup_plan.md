@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-11 (UTC)
-Phase: Phase 2 in progress; items 1-4 complete, item 5 next
+Phase: Phase 2 in progress; items 1-5 complete, item 6 next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -68,7 +68,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: waveform unit tests, controller waveform tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`5fea7bc1`)
 
-- [ ] 5) Split drag-drop controller actions by payload family and drop-target resolution
+- [x] 5) Split drag-drop controller actions by payload family and drop-target resolution
   - ROI/Effort: High / M
   - Why it matters: drag/drop behavior is still concentrated in one action file that has to understand samples, folders, selections, browser triage, folder targets, source moves, and drop-target reordering. That makes any new drag rule expensive to reason about.
   - Evidence:
@@ -79,6 +79,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: separate drag start/update lifecycle from payload-specific finish handlers (samples, folders, selections, drop-target reorder) and isolate target resolution into explicit helpers.
   - Risk/tradeoffs: Medium. Drag behavior is highly user-visible and regression-prone around modifier keys and folder-target fallback.
   - Suggested validation: drag/drop controller tests, folder-move tests, selection export drag tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`e29d8464`)
 
 - [ ] 6) Split the GUI benchmark harness into workspace seeding, scenario registry, and report assembly
   - ROI/Effort: Medium-High / M
@@ -207,3 +208,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 2 in commit `517ec252` by moving the staged top-level app-model projection pipeline into `src/app_core/native_shell/app_model.rs` and leaving `src/app_core/native_shell.rs` as a thinner facade.
 - 2026-03-11: Completed item 3 in commit `0524d980` by splitting recording waveform loading into focused `io`, `state_cache`, `incremental_update`, and test modules while preserving incremental refresh behavior.
 - 2026-03-11: Completed item 4 in commit `5fea7bc1` by turning `src/waveform/mod.rs` into a thin facade and moving the waveform public model and load-from-disk entrypoints into focused `model` and `loading` modules.
+- 2026-03-11: Completed item 5 in commit `e29d8464` by splitting drag/drop action handling into focused drop-target resolution, payload-specific finish handlers, and external-drag timing modules.

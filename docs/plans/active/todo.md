@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-11T13:11:24Z
+Last updated (UTC): 2026-03-11T13:16:31Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -13,11 +13,11 @@ Purpose:
 
 - Runtime responsiveness/performance redesign (Xilem-inspired retained/incremental update path).
 - Perf Phase 2 items 1-11 in `tmp/perf_plan.md` are complete.
-- The refreshed cleanup backlog in `tmp/cleanup_plan.md` has 15 items; Phase 2 is in progress, items 1-4 are complete, and item 5 is next.
+- The refreshed cleanup backlog in `tmp/cleanup_plan.md` has 15 items; Phase 2 is in progress, items 1-5 are complete, and item 6 is next.
 
 ## Next tasks (ordered)
 
-1. Continue the refreshed cleanup backlog in strict order from item 5.
+1. Continue the refreshed cleanup backlog in strict order from item 6.
 2. Record item completions in `tmp/cleanup_plan.md` as each refactor commit lands.
 3. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` synchronized at the next milestone.
 4. Use `docs/plans/active/runtime_performance_exec_plan.md` only if a new perf follow-up lane is explicitly opened after cleanup.
