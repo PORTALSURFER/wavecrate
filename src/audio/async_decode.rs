@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::panic::{self, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -15,11 +16,19 @@ const PREFILL_TIMEOUT: Duration = Duration::from_millis(5);
 const PREFILL_POLL: Duration = Duration::from_millis(1);
 
 /// Streams samples from a source on a background thread into a lock-free ring buffer.
+///
+/// The decoder thread owns `S` and cooperatively checks `stop` between source reads and
+/// ring-buffer backpressure waits. Consumer-facing methods join the worker once it has
+/// quiesced so resources are reclaimed deterministically. Dropping `AsyncSource` always
+/// requests stop, but it only blocks to join if the worker has already finished; otherwise
+/// the worker is intentionally left detached so audio teardown never stalls on a blocked
+/// decoder backend.
 pub(crate) struct AsyncSource<S> {
     consumer: ringbuf::HeapCons<f32>,
     sample_rate: u32,
     channels: u16,
     total_duration: Option<Duration>,
+    worker: Option<thread::JoinHandle<()>>,
     done: Arc<AtomicBool>,
     stop: Arc<AtomicBool>,
     last_error: Arc<Mutex<Option<String>>>,
@@ -36,6 +45,8 @@ where
     }
 
     /// Spawn a decoder thread with a buffer sized to `buffer_seconds`.
+    ///
+    /// Non-finite or tiny buffer sizes are sanitized through [`buffer_samples`].
     pub(crate) fn with_buffer_seconds(source: S, buffer_seconds: f32) -> Self {
         let sample_rate = source.sample_rate();
         let channels = source.channels();
@@ -55,58 +66,96 @@ where
         let spawn_result = thread::Builder::new()
             .name("audio-decode".to_string())
             .spawn(move || {
-                let mut source = source;
-                loop {
-                    if thread_stop.load(Ordering::Relaxed) {
-                        break;
-                    }
-                    match source.next() {
-                        Some(sample) => {
-                            let mut sample = sample;
-                            loop {
-                                if thread_stop.load(Ordering::Relaxed) {
-                                    break;
-                                }
-                                match producer.try_push(sample) {
-                                    Ok(()) => {
-                                        break;
-                                    }
-                                    Err(returned) => {
-                                        sample = returned;
-                                        thread::sleep(PRODUCER_BACKOFF);
-                                    }
-                                }
-                            }
-                        }
-                        None => {
-                            if let Some(err) = source.last_error()
-                                && let Ok(mut slot) = thread_error.lock()
-                            {
-                                *slot = Some(err);
-                            }
+                let decode_result = panic::catch_unwind(AssertUnwindSafe(|| {
+                    let mut source = source;
+                    loop {
+                        if thread_stop.load(Ordering::Relaxed) {
                             break;
                         }
+                        match source.next() {
+                            Some(sample) => {
+                                let mut sample = sample;
+                                loop {
+                                    if thread_stop.load(Ordering::Relaxed) {
+                                        break;
+                                    }
+                                    match producer.try_push(sample) {
+                                        Ok(()) => {
+                                            break;
+                                        }
+                                        Err(returned) => {
+                                            sample = returned;
+                                            thread::sleep(PRODUCER_BACKOFF);
+                                        }
+                                    }
+                                }
+                            }
+                            None => {
+                                if let Some(err) = source.last_error()
+                                    && let Ok(mut slot) = thread_error.lock()
+                                {
+                                    *slot = Some(err);
+                                }
+                                break;
+                            }
+                        }
                     }
+                }));
+                if let Err(payload) = decode_result
+                    && let Ok(mut slot) = thread_error.lock()
+                {
+                    *slot = Some(format!(
+                        "Async decode thread panicked: {}",
+                        panic_payload_message(&payload)
+                    ));
                 }
                 thread_done.store(true, Ordering::Relaxed);
             });
 
-        if let Err(err) = spawn_result {
-            if let Ok(mut slot) = last_error.lock() {
-                *slot = Some(format!("Async decode thread failed to start: {err}"));
+        let worker = match spawn_result {
+            Ok(worker) => Some(worker),
+            Err(err) => {
+                if let Ok(mut slot) = last_error.lock() {
+                    *slot = Some(format!("Async decode thread failed to start: {err}"));
+                }
+                done.store(true, Ordering::Relaxed);
+                None
             }
-            done.store(true, Ordering::Relaxed);
-        }
+        };
 
         Self {
             consumer,
             sample_rate,
             channels,
             total_duration,
+            worker,
             done,
             stop,
             last_error,
             _marker: PhantomData,
+        }
+    }
+
+    /// Join the worker once it is known to be finished.
+    ///
+    /// This is intentionally non-blocking for active workers so real-time audio teardown can
+    /// request stop without waiting for arbitrary decoder backends to return.
+    fn join_finished_worker(&mut self) {
+        let can_join = self.done.load(Ordering::Acquire)
+            || self
+                .worker
+                .as_ref()
+                .is_some_and(thread::JoinHandle::is_finished);
+        if !can_join {
+            return;
+        }
+
+        if let Some(worker) = self.worker.take()
+            && worker.join().is_err()
+            && let Ok(mut slot) = self.last_error.lock()
+            && slot.is_none()
+        {
+            *slot = Some(String::from("Async decode thread panicked"));
         }
     }
 
@@ -132,6 +181,7 @@ where
                 return available;
             }
             if self.done.load(Ordering::Relaxed) {
+                self.join_finished_worker();
                 return available;
             }
             if Instant::now() >= deadline {
@@ -153,6 +203,7 @@ where
             return Some(sample);
         }
         if self.done.load(Ordering::Relaxed) {
+            self.join_finished_worker();
             return None;
         }
         Some(0.0)
@@ -191,9 +242,26 @@ where
 impl<S> Drop for AsyncSource<S> {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
+        let can_join = self.done.load(Ordering::Acquire)
+            || self
+                .worker
+                .as_ref()
+                .is_some_and(thread::JoinHandle::is_finished);
+        if !can_join {
+            return;
+        }
+
+        if let Some(worker) = self.worker.take()
+            && worker.join().is_err()
+            && let Ok(mut slot) = self.last_error.lock()
+            && slot.is_none()
+        {
+            *slot = Some(String::from("Async decode thread panicked"));
+        }
     }
 }
 
+/// Convert the requested buffering window into a sample count for the source format.
 fn buffer_samples(sample_rate: u32, channels: u16, buffer_seconds: f32) -> usize {
     let channels = channels.max(1) as f32;
     let sample_rate = sample_rate.max(1) as f32;
@@ -205,6 +273,7 @@ fn buffer_samples(sample_rate: u32, channels: u16, buffer_seconds: f32) -> usize
     (sample_rate * channels * buffer_seconds).ceil() as usize
 }
 
+/// Convert a prefill duration into the number of interleaved samples to wait for.
 fn prefill_samples(sample_rate: u32, channels: u16, duration: Duration) -> usize {
     let channels = channels.max(1) as f64;
     let sample_rate = sample_rate.max(1) as f64;
@@ -212,186 +281,16 @@ fn prefill_samples(sample_rate: u32, channels: u16, duration: Duration) -> usize
     (sample_rate * channels * seconds).ceil() as usize
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[derive(Clone)]
-    struct TestSource {
-        samples: Vec<f32>,
-        pos: usize,
-        sample_rate: u32,
-        channels: u16,
-        delay: Duration,
-        error: Option<String>,
-        start_barrier: Option<Arc<std::sync::Barrier>>,
-        start_barrier_waited: bool,
-    }
-
-    impl Iterator for TestSource {
-        type Item = f32;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            if !self.start_barrier_waited
-                && let Some(barrier) = self.start_barrier.as_ref()
-            {
-                self.start_barrier_waited = true;
-                barrier.wait();
-            }
-            if self.delay > Duration::ZERO {
-                thread::sleep(self.delay);
-            }
-            if self.pos < self.samples.len() {
-                let sample = self.samples[self.pos];
-                self.pos += 1;
-                Some(sample)
-            } else {
-                None
-            }
-        }
-    }
-
-    impl Source for TestSource {
-        fn current_frame_len(&self) -> Option<usize> {
-            Some(self.samples.len().saturating_sub(self.pos))
-        }
-
-        fn channels(&self) -> u16 {
-            self.channels
-        }
-
-        fn sample_rate(&self) -> u32 {
-            self.sample_rate
-        }
-
-        fn total_duration(&self) -> Option<Duration> {
-            None
-        }
-
-        fn last_error(&self) -> Option<String> {
-            self.error.clone()
-        }
-    }
-
-    #[test]
-    fn async_source_emits_samples_after_decode() {
-        let source = TestSource {
-            samples: vec![0.1, 0.2, 0.3],
-            pos: 0,
-            sample_rate: 10,
-            channels: 1,
-            delay: Duration::ZERO,
-            error: None,
-            start_barrier: None,
-            start_barrier_waited: false,
-        };
-        let mut async_source = AsyncSource::with_buffer_seconds(source, 1.0);
-        let available = async_source
-            .prefill_for_duration(Duration::from_millis(300), Duration::from_millis(100));
-        assert!(
-            available >= 3,
-            "expected three prefetched samples, got {available}"
-        );
-        let mut collected = Vec::with_capacity(3);
-        for _ in 0..3 {
-            collected.push(async_source.next().expect("prefilled sample"));
-        }
-        assert_eq!(collected, vec![0.1, 0.2, 0.3]);
-    }
-
-    #[test]
-    fn async_source_returns_silence_on_underrun() {
-        let source = TestSource {
-            samples: vec![0.5],
-            pos: 0,
-            sample_rate: 10,
-            channels: 1,
-            delay: Duration::from_millis(30),
-            error: None,
-            start_barrier: Some(Arc::new(std::sync::Barrier::new(2))),
-            start_barrier_waited: false,
-        };
-        let start_barrier = source.start_barrier.clone().expect("barrier present");
-        let mut async_source = AsyncSource::with_buffer_seconds(source, 0.1);
-        let first = async_source.next().unwrap();
-        assert_eq!(first, 0.0);
-        start_barrier.wait();
-        let mut second = 0.0;
-        for _ in 0..10 {
-            if let Some(sample) = async_source.next()
-                && sample != 0.0
-            {
-                second = sample;
-                break;
-            }
-            thread::sleep(Duration::from_millis(5));
-        }
-        assert_eq!(second, 0.5);
-    }
-
-    #[test]
-    fn async_source_prefill_waits_for_samples() {
-        let source = TestSource {
-            samples: vec![0.4],
-            pos: 0,
-            sample_rate: 10,
-            channels: 1,
-            delay: Duration::from_millis(5),
-            error: None,
-            start_barrier: None,
-            start_barrier_waited: false,
-        };
-        let mut async_source = AsyncSource::with_buffer_seconds(source, 0.1);
-        let available =
-            async_source.prefill_for_duration(Duration::from_millis(1), Duration::from_millis(100));
-        assert!(available >= 1);
-        assert_eq!(async_source.next(), Some(0.4));
-    }
-
-    #[test]
-    fn async_source_waits_for_consumer_when_buffer_full() {
-        let source = TestSource {
-            samples: vec![0.1, 0.2],
-            pos: 0,
-            sample_rate: 1,
-            channels: 1,
-            delay: Duration::ZERO,
-            error: None,
-            start_barrier: None,
-            start_barrier_waited: false,
-        };
-        let mut async_source = AsyncSource::with_buffer_seconds(source, 0.1);
-        thread::sleep(Duration::from_millis(20));
-        let first = async_source.next().unwrap();
-        assert_eq!(first, 0.1);
-        let mut second = None;
-        for _ in 0..50 {
-            if let Some(sample) = async_source.next()
-                && sample != 0.0
-            {
-                second = Some(sample);
-                break;
-            }
-            thread::sleep(Duration::from_millis(1));
-        }
-        assert_eq!(second, Some(0.2));
-    }
-
-    #[test]
-    fn async_source_propagates_errors() {
-        let source = TestSource {
-            samples: vec![0.7],
-            pos: 0,
-            sample_rate: 10,
-            channels: 1,
-            delay: Duration::ZERO,
-            error: Some("decode failed".to_string()),
-            start_barrier: None,
-            start_barrier_waited: false,
-        };
-        let mut async_source = AsyncSource::with_buffer_seconds(source, 1.0);
-        thread::sleep(Duration::from_millis(20));
-        while async_source.next().is_some() {}
-        assert_eq!(async_source.last_error(), Some("decode failed".to_string()));
+/// Render a human-readable panic payload for the decoder worker.
+fn panic_payload_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(message) = payload.downcast_ref::<&'static str>() {
+        (*message).to_string()
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        String::from("unknown panic payload")
     }
 }
+
+#[cfg(test)]
+mod tests;
