@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-11 (UTC)
-Phase: Phase 2 in progress; items 1-13 complete, item 14 next
+Phase: Phase 2 complete; items 1-15 complete
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -182,7 +182,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: targeted `radiant` native-shell state tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (vendor `faa752ea`)
 
-- [ ] 14) Further decompose `radiant` native Vello runtime into runner, profiler, caches, and text/BPM helpers
+- [x] 14) Further decompose `radiant` native Vello runtime into runner, profiler, caches, and text/BPM helpers
   - ROI/Effort: High / L
   - Why it matters: the native runtime entrypoint is still the largest Rust file in the repo and continues to mix event-loop state, frame caches, startup profiling, scene fingerprints, helper parsing, and public runners.
   - Evidence:
@@ -194,8 +194,9 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: keep the public runtime facade stable but split runner state, profiling/startup timing, static-segment caches/fingerprints, and misc helper parsing into focused modules.
   - Risk/tradeoffs: High. This is hot-path event-loop/render code and one of the highest-regression-risk areas in the repo.
   - Suggested validation: targeted `radiant` runtime/input tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (vendor `109818a4`, main `3bf3b6a8`)
 
-- [ ] 15) Deduplicate installer and updater-helper native GUI bridges
+- [x] 15) Deduplicate installer and updater-helper native GUI bridges
   - ROI/Effort: Low-Medium / M
   - Why it matters: the small companion apps now each carry their own large `radiant` bridge UI file with similar progress/status plumbing, icon decoding, and process-exit glue. That duplication will keep drifting as these UIs evolve.
   - Evidence:
@@ -204,6 +205,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: extract a small shared native-app helper layer or at least align each app into the same internal module shape (view state, bridge adapter, icon/process helpers) so future maintenance is symmetrical.
   - Risk/tradeoffs: Medium. These binaries are small, so over-abstracting would hurt clarity; the change should stay intentionally lightweight.
   - Suggested validation: app-specific unit tests or smoke builds plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`b3a3ded9`)
 
 ## Progress Log
 
@@ -225,3 +227,5 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 11 in vendor commit `36b8cd37` by splitting waveform overlay rendering into focused scrollbar, selection, edit-fade, and playhead-trail modules while keeping the native-shell helper surface stable.
 - 2026-03-11: Completed item 12 in vendor commit `4501442d` by splitting static native-shell frame building into focused browser, map, waveform, and chrome builder modules while preserving paint order and passing `ci_quick.ps1`.
 - 2026-03-11: Completed item 13 by splitting `vendor/radiant/src/gui/native_shell/state.rs` into focused cache, hit-testing, and toolbar/browser helper modules while preserving the `NativeShellState` surface and passing targeted `radiant` state tests plus `ci_quick.ps1`.
+- 2026-03-11: Completed item 14 in vendor commit `109818a4` by splitting the native Vello runtime support surface into focused `profiling`, `runtime_state`, `scene_cache`, `startup`, and `text_bpm` modules while preserving the runtime facade and passing focused `radiant` runtime tests plus `ci_quick.ps1`.
+- 2026-03-11: Completed item 15 in commit `b3a3ded9` by extracting shared companion-app native window/bootstrap helpers into `src/companion_apps/native_ui.rs` and routing both installer and updater-helper through the same options/icon policy.

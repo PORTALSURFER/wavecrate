@@ -61,19 +61,18 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: runtime responsiveness/performance redesign (Xilem-inspired scoped invalidation + cache reuse)
 - Source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
-- Current status: `tmp/perf_plan.md` is complete through item 11; `tmp/cleanup_plan.md` was refreshed on 2026-03-11 with a new second-pass cleanup backlog; Phase 2 is now in progress, items 1-13 are complete, and item 14 is next.
+- Current status: `tmp/perf_plan.md` is complete through item 11; the refreshed second-pass cleanup backlog in `tmp/cleanup_plan.md` is now fully complete through item 15, and the cleanup lane is closed unless a new follow-up audit is opened.
 
 ## Immediate Next Actions
-1. Continue the refreshed cleanup backlog in strict order from item 14.
-2. Record each cleanup item completion in `tmp/cleanup_plan.md` immediately after the code/tests are green.
-3. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` synchronized at the next milestone.
-4. Use `docs/plans/active/runtime_performance_exec_plan.md` only if a new perf follow-up lane is explicitly opened after cleanup.
+1. Treat `tmp/cleanup_plan.md` as complete through item 15 unless the user asks for a new cleanup pass.
+2. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` synchronized on the next newly opened lane.
+3. Use `docs/plans/active/runtime_performance_exec_plan.md` only if a new perf follow-up lane is explicitly opened after cleanup.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/cleanup_plan.md`: refreshed strict ROI-ranked cleanup backlog (Phase 2 in progress; items 1-13 complete, item 14 next)
+- `tmp/cleanup_plan.md`: refreshed strict ROI-ranked cleanup backlog (Phase 2 complete; items 1-15 complete)
 - `docs/plans/active/cleanup_architecture_note.md`: cleanup boundary/ownership guidance
 - `tmp/perf_plan.md`: current ROI-ranked runtime performance audit backlog and execution order
 
