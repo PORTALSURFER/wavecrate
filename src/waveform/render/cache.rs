@@ -1,5 +1,6 @@
 use super::WaveformImage;
-use super::{DecodedWaveform, WaveformChannelView, WaveformRenderViewport, WaveformRenderer};
+use super::{WaveformChannelView, WaveformRenderViewport, WaveformRenderer};
+use crate::waveform::DecodedWaveform;
 use crate::waveform::render::LINE_RENDER_MAX_FRAMES_PER_COLUMN;
 use crate::waveform::zoom_cache::CachedColumns;
 
@@ -39,7 +40,9 @@ impl WaveformRenderer {
         let image = match cached {
             CachedColumns::Mono(cols) => {
                 let mut cols = Self::smooth_columns(&cols[start_col..end_col], smooth_radius);
-                super::apply_fade_to_columns(&mut cols, view_start, view_end, edit_fade);
+                super::fade_preview::apply_fade_to_columns(
+                    &mut cols, view_start, view_end, edit_fade,
+                );
                 Self::paint_color_image_for_size_with_density(
                     &cols,
                     width,
@@ -52,8 +55,12 @@ impl WaveformRenderer {
             CachedColumns::SplitStereo { left, right } => {
                 let mut left = Self::smooth_columns(&left[start_col..end_col], smooth_radius);
                 let mut right = Self::smooth_columns(&right[start_col..end_col], smooth_radius);
-                super::apply_fade_to_columns(&mut left, view_start, view_end, edit_fade);
-                super::apply_fade_to_columns(&mut right, view_start, view_end, edit_fade);
+                super::fade_preview::apply_fade_to_columns(
+                    &mut left, view_start, view_end, edit_fade,
+                );
+                super::fade_preview::apply_fade_to_columns(
+                    &mut right, view_start, view_end, edit_fade,
+                );
                 Self::paint_split_color_image_with_density(
                     &left,
                     &right,
