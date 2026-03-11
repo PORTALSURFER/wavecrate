@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T18:22:35Z`
+- Refreshed (UTC): `2026-03-11T18:54:20Z`
 - Branch: `next`
-- Head: `50f4da56`
+- Head: `fee4901d`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-10 complete; continuing strict sequential implementation at item 11`
+- Status: `Items 1-11 complete; continuing strict sequential implementation at item 12`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -100,13 +100,14 @@
 - Suggested validation: Existing recording tests, monitor attach/detach coverage, and `ci_quick.ps1`.
 - Completed: `2026-03-11` — main repo commit `50f4da56` replaced `src/audio/recording.rs` with `recording/{mod,capture,monitor,writer}.rs`, separating CPAL capture bootstrap, WAV writer threading, and live monitor plumbing while preserving the public `AudioRecorder` / `InputMonitor` surface.
 
-### 11. [ ] Split ANN container format handling in `src/analysis/ann_index/container.rs`
+### 11. [x] Split ANN container format handling in `src/analysis/ann_index/container.rs`
 - ROI / Effort: Medium / M
 - Why it matters: The ANN container implementation mixes header encoding/validation, streaming copy helpers, tempfile persistence, and unpack logic in one file, which makes future format evolution and corruption handling harder.
 - Evidence: `src/analysis/ann_index/container.rs` is about 465 LOC. `AnnContainerHeader`, `write_container`, `unpack_container`, header parsing, and copy/read helpers all live together.
 - Recommended change: Split into header/codec, IO streaming, and container façade modules with clearer boundary tests.
 - Risk / tradeoffs: Moderate; any mistake can break index migration or corruption detection.
 - Suggested validation: Existing ANN container tests, ANN migration/load tests, and `ci_quick.ps1`.
+- Completed: `2026-03-11` — main repo commit `fee4901d` replaced `src/analysis/ann_index/container.rs` with `container/{mod,header,codec,stream_io}.rs`, kept the public container facade stable, added focused header/checksum corruption tests, and preserved the existing ANN migration/load paths under `ci_quick.ps1`.
 
 ### 12. [ ] Separate similarity-map layout/reporting façade from the t-SNE engine in `src/analysis/umap.rs`
 - ROI / Effort: Medium / M
