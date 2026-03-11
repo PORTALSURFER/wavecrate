@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: Phase 2 resumed; items 1-17 complete; item 18 is next
+Phase: Phase 2 resumed; items 1-18 complete; item 19 is next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -223,7 +223,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: source DB write tests, targeted rating/tag persistence tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`cc0edd90`)
 
-- [ ] 18) Reduce `src/app/controller.rs` to controller-root responsibilities only
+- [x] 18) Reduce `src/app/controller.rs` to controller-root responsibilities only
   - ROI/Effort: High / M
   - Why it matters: the root controller still mixes construction, dispatch, high-level orchestration, and feature-specific helpers, which makes boundary ownership unclear and encourages more growth in the root file.
   - Evidence:
@@ -232,6 +232,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: keep `controller.rs` focused on type definition, construction, and top-level delegation, while moving feature-specific routing or helpers into the existing domain modules under `src/app/controller/`.
   - Risk/tradeoffs: Medium. Dispatch boundaries and borrow flow need to stay clear during the split.
   - Suggested validation: controller-focused unit tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`336b2c65`)
 
 - [ ] 19) Split similarity resolution orchestration from repository, math, and job-enqueue code
   - ROI/Effort: High / M
@@ -374,6 +375,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-10: Further cleanup implementation remains paused pending explicit user reconfirmation to resume at item 16.
 - 2026-03-11: Resumed cleanup Phase 2 and completed item 16 by splitting source DB schema DDL and migrations into focused modules and adding legacy-schema migration fixtures in unit tests.
 - 2026-03-11: Completed item 17 by routing one-shot source DB mutations through `SourceWriteBatch`, consolidating wav upsert/update helpers, and adding wrapper-vs-batch parity tests.
+- 2026-03-11: Completed item 18 by moving controller performance/status/undo helpers and remaining job/playback delegations out of `src/app/controller.rs`, leaving the root controller focused on construction and top-level accessors.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.

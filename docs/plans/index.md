@@ -10,8 +10,8 @@ This directory keeps agent handoff planning state out of the way of other docs.
   queue for the 5 largest Rust hotspots
 - `active/cleanup_architecture_note.md` — boundary/ownership guardrails for
   cleanup refactors across controller, native bridge, DB, and vendor layers
-- `../../tmp/cleanup_plan.md` — active ROI-ranked cleanup backlog; items 1-17
-  complete, item 18 next, Phase 2 in progress
+- `../../tmp/cleanup_plan.md` — active ROI-ranked cleanup backlog; items 1-18
+  complete, item 19 next, Phase 2 in progress
 - `../../tmp/perf_plan.md` — completed runtime performance execution record
   through item 11
 - `active/todo.md` — short ordered queue for immediate next tasks under the
