@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: Phase 2 resumed; items 1-21 complete; item 22 is next
+Phase: Phase 2 resumed; items 1-22 complete; item 23 is next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -269,16 +269,17 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: targeted `radiant` runtime/input tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`b6f3eb6f`)
 
-- [ ] 22) Split the public `radiant::app` contract surface and add boundary docs
+- [x] 22) Split the public `radiant::app` contract surface and add boundary docs
   - ROI/Effort: Medium-High / M
   - Why it matters: one large public `radiant` module still defines most of the projection contract, which obscures ownership boundaries and makes the bridge/UI contract harder to understand.
   - Evidence:
-    - `vendor/radiant/src/app/mod.rs` is 1635 LOC.
-    - It currently mixes panel models, `UiAction`, dirty-segment bookkeeping, motion projection, and bridge traits in one public module.
-    - The file still carries broad suppressions such as `#[allow(dead_code)]` near `:104`.
+    - `vendor/radiant/src/app/mod.rs` previously mixed panel models, `UiAction`, dirty-segment bookkeeping, motion projection, and bridge traits in one public module.
+    - Host/runtime callers in `vendor/radiant/src/gui/native_shell/*` and `vendor/radiant/src/gui_runtime/native_vello*` depended on a broad `crate::app::*` surface with no internal responsibility split.
+    - Boundary docs for the host/native-shell contract were concentrated in one file instead of living beside the focused contract areas they described.
   - Recommended change: split the public app surface into focused modules such as `models`, `actions`, `dirty_segments`, and `bridge`, and add short module docs that explain how the host and native shell interact.
   - Risk/tradeoffs: Medium. The main risk is API churn across imports rather than behavior change.
   - Suggested validation: `radiant` unit tests, `cargo doc -p radiant --no-deps`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`d00bdd08`, doc follow-up `9e4b092c`)
 
 - [ ] 23) Break up giant test hubs to match production seams
   - ROI/Effort: Medium-High / M
@@ -382,6 +383,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 19 by splitting similarity resolution into focused repository, reranking, and analysis-enqueue modules while preserving the existing query/apply surface.
 - 2026-03-11: Completed item 20 by splitting `vendor/radiant` native-shell retained-state sync/cache helpers and frame-build status-bar helpers into focused modules while preserving the retained shell behavior and test surface.
 - 2026-03-11: Completed item 21 by splitting `vendor/radiant` native Vello waveform input routing into focused geometry/handle/wheel modules and extracting the immediate cursor/drag runtime state machine into `runtime_input.rs`.
+- 2026-03-11: Completed item 22 by splitting the public `vendor/radiant/src/app` contract into focused `actions`, `browser`, `bridge`, `dirty_segments`, `motion`, `shell`, `sources`, and `waveform` modules while preserving the existing `crate::app::*` facade and adding boundary docs to the new contract seams.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
