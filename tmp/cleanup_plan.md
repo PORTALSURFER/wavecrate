@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T17:38:17Z`
+- Refreshed (UTC): `2026-03-11T17:44:55Z`
 - Branch: `next`
-- Head: `0f6fc70d`
+- Head: `f8dbd240`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-4 complete; continuing strict sequential implementation at item 5`
+- Status: `Items 1-5 complete; continuing strict sequential implementation at item 6`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -46,13 +46,14 @@
 - Suggested validation: Existing native-shell state tests, targeted hit-test regressions, and `ci_quick.ps1`.
 - Completed: `2026-03-11` — `vendor/radiant` commit `412426a9` moved remaining hit-testing, hover-resolution, motion-overlay, and playhead-trail logic into focused `state/*` modules so `state.rs` is reduced to the `NativeShellState` façade plus small lifecycle/build wrappers.
 
-### 5. [ ] Decompose embedding backfill orchestration in `src/app/controller/library/analysis_jobs/pool/job_execution/backfill.rs`
+### 5. [x] Decompose embedding backfill orchestration in `src/app/controller/library/analysis_jobs/pool/job_execution/backfill.rs`
 - ROI / Effort: High / M
 - Why it matters: Embedding backfill still combines payload parsing, cache reuse, DB lookups, filesystem path resolution, worker fan-out, retry policy, and result persistence in one module, which raises bug risk in a high-value background pipeline.
 - Evidence: `src/app/controller/library/analysis_jobs/pool/job_execution/backfill.rs` is about 525 LOC. `run_embedding_backfill_job`, `build_backfill_plan`, cache lookup helpers, and result persistence all live together.
 - Recommended change: Split into planning, cache/repository access, worker execution, and persistence/reporting modules behind a thin job façade.
 - Risk / tradeoffs: Moderate; DB/cache behavior must stay stable and duplicate-content reuse must not regress.
 - Suggested validation: Existing backfill tests, worker retry tests, ANN/update integration tests, and `ci_quick.ps1`.
+- Completed: `2026-03-11` — main repo commit `f8dbd240` replaced the single `backfill.rs` file with focused `backfill/{planning,repository,workers,persistence,model}.rs` modules while keeping `run_embedding_backfill_job` as a thin orchestration façade.
 
 ### 6. [ ] Split analysis job claim/worker orchestration in `src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs`
 - ROI / Effort: High / M
