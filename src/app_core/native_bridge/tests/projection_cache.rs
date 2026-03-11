@@ -570,7 +570,7 @@ fn projection_status_segment_refreshes_for_footer_progress_updates() {
     let _ = cache.resolve_or_project(&mut controller);
 
     controller.show_status_progress(
-        crate::app::state::ProgressTaskKind::Normalization,
+        crate::app_core::app_api::state::ProgressTaskKind::Normalization,
         "Normalizing sample",
         4,
         true,
