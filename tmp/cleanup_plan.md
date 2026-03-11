@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-11 (UTC)
-Phase: Phase 2 in progress; items 1-2 complete, item 3 next
+Phase: Phase 2 in progress; items 1-3 complete, item 4 next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -41,7 +41,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: `app_core::native_shell` tests, native-bridge projection tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`517ec252`)
 
-- [ ] 3) Decompose recording waveform loading into IO, retained-state, and incremental-update modules
+- [x] 3) Decompose recording waveform loading into IO, retained-state, and incremental-update modules
   - ROI/Effort: High / M
   - Why it matters: recording-waveform refreshes are still driven by one top-level worker module that mixes filesystem reads, retained incremental state, decode fallback policy, and test helpers. This area is performance-sensitive and still awkward to extend safely.
   - Evidence:
@@ -52,6 +52,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: keep the existing `aggregation`, `decode`, `queue`, and `result` submodules, but move the remaining top-level load/state-flow into dedicated `io`, `state_cache`, and `incremental_update` modules with tests beside those seams.
   - Risk/tradeoffs: Medium. Request-id gating, truncation handling, and no-change behavior must remain identical.
   - Suggested validation: recording waveform loader tests, playback recording tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`0524d980`)
 
 - [ ] 4) Split the waveform public surface into model, loading, and render facades
   - ROI/Effort: High / M
@@ -203,3 +204,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Phase 2 resumed after explicit user confirmation.
 - 2026-03-11: Completed item 1 in commit `0286445a` by splitting native-bridge metrics into focused registry, snapshot, and reporting modules while keeping the trace-hook facade stable.
 - 2026-03-11: Completed item 2 in commit `517ec252` by moving the staged top-level app-model projection pipeline into `src/app_core/native_shell/app_model.rs` and leaving `src/app_core/native_shell.rs` as a thinner facade.
+- 2026-03-11: Completed item 3 in commit `0524d980` by splitting recording waveform loading into focused `io`, `state_cache`, `incremental_update`, and test modules while preserving incremental refresh behavior.
