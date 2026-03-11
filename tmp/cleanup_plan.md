@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T17:52:16Z`
+- Refreshed (UTC): `2026-03-11T17:58:33Z`
 - Branch: `next`
-- Head: `072fb0ca`
+- Head: `17d911b2`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-6 complete; continuing strict sequential implementation at item 7`
+- Status: `Items 1-7 complete; continuing strict sequential implementation at item 8`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -64,13 +64,14 @@
 - Suggested validation: Existing job-claim pool tests, decode heartbeat tests, and `ci_quick.ps1`.
 - Completed: `2026-03-11` — main repo commit `072fb0ca` moved worker contexts into `job_claim/context.rs`, split decoder and compute worker orchestration into dedicated modules, isolated OS-priority glue in `job_claim/priority.rs`, and reduced `job_claim/mod.rs` to the module/export surface.
 
-### 7. [ ] Finish separating map view orchestration from repository and job flows
+### 7. [x] Finish separating map view orchestration from repository and job flows
 - ROI / Effort: High / M
 - Why it matters: The map-view path still spreads user actions, DB connection policy, cluster/layout job submission, and legacy-named helper types across controller and repository modules, making future map work expensive.
 - Evidence: `src/app/controller/ui/map_view.rs` is about 483 LOC and `src/app/controller/ui/map_view/repository.rs` is about 443 LOC. The controller still owns tab toggles, focus/preview behavior, cluster/layout enqueues, and DB-opening helpers, while repository code still contains repeated query-shape construction and `umap` compatibility naming.
 - Recommended change: Split into controller actions, runtime jobs, source-DB access, and query/persistence modules, and continue narrowing legacy `umap` naming to explicit compatibility shims only.
 - Risk / tradeoffs: Moderate; map focus/preview and source-scoped DB fallback behavior must remain stable.
 - Suggested validation: Map-view tests, bounds/points fallback regressions, admin layout build tests, and `ci_quick.ps1`.
+- Completed: `2026-03-11` — main repo commit `17d911b2` converted `ui/map_view.rs` into a module tree with separate controller, jobs, connection-policy, model, and repository query modules, and split the repository SQL helpers into focused bounds/points/clusters loaders while preserving the public `map_view` facade.
 
 ### 8. [ ] Split the waveform render pipeline around cached viewport, fade preview, and line paint backends
 - ROI / Effort: High / M

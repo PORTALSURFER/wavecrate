@@ -24,7 +24,7 @@ Start here:
 - `docs/plans/index.md` — current/archived plan index for parallel agents
 - `docs/plans/active/todo.md` — short ordered queue for the active execution lane
 - `tmp/cleanup_plan.md` — active ROI-ranked cleanup backlog
-  (Phase 2 active; items 1-6 complete on 2026-03-11, 10 items remaining)
+  (Phase 2 active; items 1-7 complete on 2026-03-11, 9 items remaining)
 - `tmp/perf_plan.md` — completed runtime performance execution record through item 11
 - `docs/plans/TEMPLATE_execution_plan.md` — template for multi-step work
 - `docs/plans/TEMPLATE_investigation.md` — template for bug/perf investigations

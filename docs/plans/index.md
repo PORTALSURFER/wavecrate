@@ -11,7 +11,7 @@ This directory keeps agent handoff planning state out of the way of other docs.
 - `active/cleanup_architecture_note.md` — boundary/ownership guardrails for
   cleanup refactors across controller, native bridge, DB, and vendor layers
 - `../../tmp/cleanup_plan.md` — active refreshed ROI-ranked cleanup backlog
-  (Phase 2 active; items 1-6 complete, 10 items remaining, item 7 next)
+  (Phase 2 active; items 1-7 complete, 9 items remaining, item 8 next)
 - `../../tmp/perf_plan.md` — completed runtime performance execution record
   through item 11
 - `active/todo.md` — short ordered queue for immediate next tasks under the
