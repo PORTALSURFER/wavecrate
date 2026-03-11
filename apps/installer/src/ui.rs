@@ -6,15 +6,17 @@ use std::{
 
 use sempal::{
     app_core::actions::{
-        NativeAppBridge, NativeAppModel as AppModel,
-        NativeBrowserActionsModel as BrowserActionsModel,
-        NativeBrowserChromeModel as BrowserChromeModel,
-        NativeBrowserPanelModel as BrowserPanelModel, NativeBrowserRowModel as BrowserRowModel,
+        NativeAppBridge, NativeAppModel as AppModel, NativeBrowserRowModel as BrowserRowModel,
         NativeSourceRowModel as SourceRowModel, NativeStatusBarModel as StatusBarModel,
         NativeUiAction as UiAction, NativeUpdatePanelModel as UpdatePanelModel,
         NativeUpdateStatusModel as UpdateStatusModel,
     },
-    gui_runtime::{NativeRunOptions, WindowIconRgba, run_native_vello_app_declarative},
+    companion_apps::native_ui::{
+        CompanionAppModelConfig, CompanionBrowserChromeConfig, CompanionBrowserPanelConfig,
+        decode_first_window_icon, standard_app_model, standard_browser_chrome,
+        standard_browser_panel, standard_window_options,
+    },
+    gui_runtime::run_native_vello_app_declarative,
 };
 
 use crate::{APP_NAME, install, paths};
@@ -274,11 +276,36 @@ impl InstallerNativeBridge {
 
     fn app_model(&self) -> AppModel {
         let rows = self.browser_rows();
-        let mut model = AppModel {
+        let browser = standard_browser_panel(CompanionBrowserPanelConfig {
+            selected_visible_row: if matches!(self.step, InstallStep::Location) {
+                Some(0)
+            } else {
+                None
+            },
+            selected_path_count: 0,
+            search_query: step_label(self.step).to_string(),
+            search_placeholder: Some(String::from("Use top action buttons")),
+            busy: matches!(self.step, InstallStep::Installing),
+            active_tab_label: Some(String::from("Flow")),
+            focused_sample_label: None,
+            rows,
+            sort_label: Some(String::from("installer")),
+        });
+        let browser_chrome = standard_browser_chrome(CompanionBrowserChromeConfig {
+            samples_tab_label: String::from("Flow"),
+            map_tab_label: String::from("Log"),
+            search_prefix_label: String::from("Step"),
+            search_placeholder: String::from("Installer flow"),
+            activity_ready_label: String::from("Ready"),
+            activity_busy_label: String::from("Installing"),
+            sort_prefix_label: String::from("Mode"),
+            sort_order_label: String::from("Installer"),
+            item_count: browser.visible_count,
+        });
+        standard_app_model(CompanionAppModelConfig {
             title: format!("{APP_NAME} installer"),
             backend_label: format!("install dir: {}", self.install_dir.display()),
             sources_label: String::from("Installer"),
-            status_text: String::new(),
             status: StatusBarModel {
                 left: step_label(self.step).to_string(),
                 center: match self.step {
@@ -294,58 +321,24 @@ impl InstallerNativeBridge {
                     String::from("active")
                 },
             },
-            transport_running: true,
-            ..AppModel::default()
-        };
-        model.browser_actions = BrowserActionsModel::default();
-        model.sources.rows = vec![
-            SourceRowModel::new(
-                "Install dir",
-                self.install_dir.display().to_string(),
-                false,
-                false,
-            ),
-            SourceRowModel::new(
-                "Bundle dir",
-                self.bundle_dir.display().to_string(),
-                false,
-                false,
-            ),
-        ];
-        model.browser = BrowserPanelModel {
-            visible_count: rows.len(),
-            selected_visible_row: if matches!(self.step, InstallStep::Location) {
-                Some(0)
-            } else {
-                None
-            },
-            autoscroll: true,
-            view_start_row: 0,
-            selected_path_count: 0,
-            search_query: step_label(self.step).to_string(),
-            active_rating_filters: [false; 8],
-            search_placeholder: Some(String::from("Use top action buttons")),
-            busy: matches!(self.step, InstallStep::Installing),
-            sort_label: Some(String::from("installer")),
-            active_tab_label: Some(String::from("Flow")),
-            focused_sample_label: None,
-            anchor_visible_row: None,
-            rows,
-        };
-        model.browser_chrome = BrowserChromeModel {
-            samples_tab_label: String::from("Flow"),
-            map_tab_label: String::from("Log"),
-            search_prefix_label: String::from("Step"),
-            search_placeholder: String::from("Installer flow"),
-            activity_ready_label: String::from("Ready"),
-            activity_busy_label: String::from("Installing"),
-            sort_prefix_label: String::from("Mode"),
-            sort_order_label: String::from("Installer"),
-            similarity_toggle_label: String::from("n/a"),
-            item_count_label: format!("{} rows", model.browser.visible_count),
-        };
-        model.update = self.update_panel();
-        model
+            browser,
+            browser_chrome,
+            source_rows: vec![
+                SourceRowModel::new(
+                    "Install dir",
+                    self.install_dir.display().to_string(),
+                    false,
+                    false,
+                ),
+                SourceRowModel::new(
+                    "Bundle dir",
+                    self.bundle_dir.display().to_string(),
+                    false,
+                    false,
+                ),
+            ],
+            update: self.update_panel(),
+        })
     }
 }
 
@@ -397,35 +390,19 @@ impl NativeAppBridge for InstallerNativeBridge {
 
 /// Run the installer UI using the native radiant runtime.
 pub(crate) fn run_installer_app() -> Result<(), String> {
-    let options = NativeRunOptions {
-        title: String::from("SemPal Installer"),
-        inner_size: Some([860.0, 620.0]),
-        min_inner_size: Some([640.0, 420.0]),
-        maximized: false,
-        target_fps: 120,
-        icon: load_installer_icon(),
-    };
+    let options = standard_window_options("SemPal Installer", load_installer_icon());
     run_native_vello_app_declarative(options, InstallerNativeBridge::new())
 }
 
-fn load_installer_icon() -> Option<WindowIconRgba> {
-    decode_icon(include_bytes!("../../../assets/logo3.ico")).or_else(|| {
-        let fallback = decode_icon(include_bytes!("../../../assets/logo3.png"));
-        if fallback.is_none() {
-            eprintln!("Failed to decode installer icon assets.");
-        }
-        fallback
-    })
-}
-
-fn decode_icon(bytes: &[u8]) -> Option<WindowIconRgba> {
-    let image = image::load_from_memory(bytes).ok()?.to_rgba8();
-    let (width, height) = image.dimensions();
-    Some(WindowIconRgba {
-        rgba: image.into_raw(),
-        width,
-        height,
-    })
+fn load_installer_icon() -> Option<sempal::gui_runtime::WindowIconRgba> {
+    let icon = decode_first_window_icon(&[
+        include_bytes!("../../../assets/logo3.ico"),
+        include_bytes!("../../../assets/logo3.png"),
+    ]);
+    if icon.is_none() {
+        eprintln!("Failed to decode installer icon assets.");
+    }
+    icon
 }
 
 fn step_label(step: InstallStep) -> &'static str {

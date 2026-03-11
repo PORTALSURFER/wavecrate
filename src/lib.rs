@@ -19,6 +19,8 @@ pub mod app_core;
 pub mod app_dirs;
 /// Audio playback utilities.
 pub mod audio;
+/// Shared helpers used by companion binaries such as the installer and updater helper.
+pub mod companion_apps;
 /// Internal helpers for parsing environment-flag booleans.
 mod env_flags;
 /// Platform helpers for copying files to the clipboard.

@@ -1,14 +1,16 @@
 use sempal::{
     app_core::actions::{
-        NativeAppBridge, NativeAppModel as AppModel,
-        NativeBrowserActionsModel as BrowserActionsModel,
-        NativeBrowserChromeModel as BrowserChromeModel,
-        NativeBrowserPanelModel as BrowserPanelModel, NativeBrowserRowModel as BrowserRowModel,
+        NativeAppBridge, NativeAppModel as AppModel, NativeBrowserRowModel as BrowserRowModel,
         NativeSourceRowModel as SourceRowModel, NativeStatusBarModel as StatusBarModel,
         NativeUiAction as UiAction, NativeUpdatePanelModel as UpdatePanelModel,
         NativeUpdateStatusModel as UpdateStatusModel,
     },
-    gui_runtime::{NativeRunOptions, run_native_vello_app_declarative},
+    companion_apps::native_ui::{
+        CompanionAppModelConfig, CompanionBrowserChromeConfig, CompanionBrowserPanelConfig,
+        standard_app_model, standard_browser_chrome, standard_browser_panel,
+        standard_window_options,
+    },
+    gui_runtime::run_native_vello_app_declarative,
     updater::{
         APP_NAME, ApplyPlan, ReleaseSummary, UpdateChannel, UpdateProgress, UpdaterRunArgs,
         apply_update_with_progress, list_recent_releases, open_release_page,
@@ -27,14 +29,7 @@ const RELEASE_LIST_LIMIT: usize = 5;
 
 /// Run the updater UI using the native radiant runtime.
 pub fn run_gui(args: UpdaterRunArgs) -> Result<(), String> {
-    let options = NativeRunOptions {
-        title: format!("{APP_NAME} updater"),
-        inner_size: Some([860.0, 620.0]),
-        min_inner_size: Some([640.0, 420.0]),
-        maximized: false,
-        target_fps: 120,
-        icon: None,
-    };
+    let options = standard_window_options(format!("{APP_NAME} updater"), None);
     run_native_vello_app_declarative(options, UpdateNativeBridge::new(args))
 }
 
@@ -343,7 +338,44 @@ impl UpdateNativeBridge {
     }
 
     fn app_model(&self) -> AppModel {
-        let mut model = AppModel {
+        let rows = self.browser_rows();
+        let browser = standard_browser_panel(CompanionBrowserPanelConfig {
+            selected_visible_row: self.selected_tag.as_ref().and_then(|selected| {
+                let ReleaseState::Loaded(options) = &self.release_state else {
+                    return None;
+                };
+                options.iter().position(|option| option.tag == *selected)
+            }),
+            selected_path_count: usize::from(self.selected_tag.is_some()),
+            search_query: if self.show_log_view {
+                String::from("log view")
+            } else {
+                String::from("release list")
+            },
+            search_placeholder: Some(String::from("Arrows + enter to select release")),
+            busy: matches!(self.release_state, ReleaseState::Loading)
+                || matches!(self.status, UiStatus::Updating),
+            active_tab_label: Some(if self.show_log_view {
+                String::from("Log")
+            } else {
+                String::from("Versions")
+            }),
+            focused_sample_label: self.selected_tag.clone(),
+            rows,
+            sort_label: Some(String::from("recent first")),
+        });
+        let browser_chrome = standard_browser_chrome(CompanionBrowserChromeConfig {
+            samples_tab_label: String::from("Versions"),
+            map_tab_label: String::from("Progress log"),
+            search_prefix_label: String::from("Mode"),
+            search_placeholder: String::from("Use top actions"),
+            activity_ready_label: String::from("Ready"),
+            activity_busy_label: String::from("Updating"),
+            sort_prefix_label: String::from("Order"),
+            sort_order_label: String::from("Recent"),
+            item_count: browser.visible_count,
+        });
+        standard_app_model(CompanionAppModelConfig {
             title: format!("{APP_NAME} updater"),
             backend_label: format!(
                 "{} | {}",
@@ -351,7 +383,6 @@ impl UpdateNativeBridge {
                 self.args.install_dir.display()
             ),
             sources_label: String::from("Updater"),
-            status_text: String::new(),
             status: StatusBarModel {
                 left: format!("channel: {}", channel_label(self.args.identity.channel)),
                 center: self
@@ -366,64 +397,19 @@ impl UpdateNativeBridge {
                     UiStatus::Idle => String::from("idle"),
                 },
             },
-            transport_running: true,
-            ..AppModel::default()
-        };
-
-        model.browser_actions = BrowserActionsModel::default();
-        model.browser = BrowserPanelModel {
-            visible_count: self.browser_rows().len(),
-            selected_visible_row: self.selected_tag.as_ref().and_then(|selected| {
-                let ReleaseState::Loaded(options) = &self.release_state else {
-                    return None;
-                };
-                options.iter().position(|option| option.tag == *selected)
-            }),
-            autoscroll: true,
-            view_start_row: 0,
-            selected_path_count: usize::from(self.selected_tag.is_some()),
-            search_query: if self.show_log_view {
-                String::from("log view")
-            } else {
-                String::from("release list")
-            },
-            active_rating_filters: [false; 8],
-            search_placeholder: Some(String::from("Arrows + enter to select release")),
-            busy: matches!(self.release_state, ReleaseState::Loading)
-                || matches!(self.status, UiStatus::Updating),
-            sort_label: Some(String::from("recent first")),
-            active_tab_label: Some(if self.show_log_view {
-                String::from("Log")
-            } else {
-                String::from("Versions")
-            }),
-            focused_sample_label: self.selected_tag.clone(),
-            anchor_visible_row: None,
-            rows: self.browser_rows(),
-        };
-        model.browser_chrome = BrowserChromeModel {
-            samples_tab_label: String::from("Versions"),
-            map_tab_label: String::from("Progress log"),
-            search_prefix_label: String::from("Mode"),
-            search_placeholder: String::from("Use top actions"),
-            activity_ready_label: String::from("Ready"),
-            activity_busy_label: String::from("Updating"),
-            sort_prefix_label: String::from("Order"),
-            sort_order_label: String::from("Recent"),
-            similarity_toggle_label: String::from("n/a"),
-            item_count_label: format!("{} rows", model.browser.visible_count),
-        };
-        model.sources.rows = vec![
-            SourceRowModel::new(
-                "Install dir",
-                self.args.install_dir.display().to_string(),
-                false,
-                false,
-            ),
-            SourceRowModel::new("Target", self.args.identity.target.clone(), false, false),
-        ];
-        model.update = self.update_panel_model();
-        model
+            browser,
+            browser_chrome,
+            source_rows: vec![
+                SourceRowModel::new(
+                    "Install dir",
+                    self.args.install_dir.display().to_string(),
+                    false,
+                    false,
+                ),
+                SourceRowModel::new("Target", self.args.identity.target.clone(), false, false),
+            ],
+            update: self.update_panel_model(),
+        })
     }
 }
 
