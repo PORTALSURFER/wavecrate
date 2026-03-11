@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-11 (UTC)
-Phase: Phase 2 in progress; items 1-9 complete, item 10 next
+Phase: Phase 2 in progress; items 1-10 complete, item 11 next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -131,7 +131,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: affected controller test modules, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`2fc03b2c`, `9c1c3dfe`, `5e309661`)
 
-- [ ] 10) Factor analysis-jobs DB tests around a shared fixture/schema builder
+- [x] 10) Factor analysis-jobs DB tests around a shared fixture/schema builder
   - ROI/Effort: Medium / S
   - Why it matters: the analysis-jobs DB tests are large, repeat a hand-built schema, and manually insert rows over and over. That increases maintenance cost for persistence changes and makes the test intent noisier than necessary.
   - Evidence:
@@ -141,6 +141,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: extract a tiny fixture DSL/shared setup helpers for schema + common sample/job rows while preserving the current test coverage and determinism.
   - Risk/tradeoffs: Low. This is test-only cleanup, but the helper layer should stay small enough that tests remain readable.
   - Suggested validation: analysis-jobs DB tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`29e76b31`)
 
 - [ ] 11) Split waveform overlay rendering in `radiant` by scrollbar, selection, fades, and trail
   - ROI/Effort: Medium-High / M
@@ -217,3 +218,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 7 in commit `b68f80e5` by turning `src/audio/source.rs` into a focused module tree and extracting shared source sample-accounting helpers for duration limits and fade progression.
 - 2026-03-11: Completed item 8 in commit `19bccb0c` by splitting normalization into a thin facade plus dedicated runtime dispatch, scalar math, and x86 SIMD backend modules.
 - 2026-03-11: Completed item 9 in commits `2fc03b2c`, `9c1c3dfe`, and `5e309661` by splitting the remaining controller test hubs into behavior-focused `browser_actions`, `folders_core`, and `waveform` module trees.
+- 2026-03-11: Completed item 10 in commit `29e76b31` by turning the analysis-jobs DB tests into a focused module tree with a shared schema/row fixture helper for common setup.
