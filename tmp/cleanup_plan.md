@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: Phase 2 resumed; items 1-27 complete; item 28 is next
+Phase: Phase 2 resumed; items 1-28 complete; item 29 is next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -339,7 +339,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: analysis-admin tool tests, command help smoke checks, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`934ad10b`)
 
-- [ ] 28) Resolve UMAP/t-SNE naming drift across public APIs, CLI, and status text
+- [x] 28) Resolve UMAP/t-SNE naming drift across public APIs, CLI, and status text
   - ROI/Effort: Medium / S
   - Why it matters: the codebase still exposes UMAP names in places that actually talk to t-SNE-backed data or status messages, which makes the product language inconsistent.
   - Evidence:
@@ -349,6 +349,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: pick the canonical user-facing term, align status text and public docs on it, and isolate any legacy/internal compatibility naming behind clearly documented adapters.
   - Risk/tradeoffs: Low-medium. Renaming must avoid breaking persisted schema names or external tool expectations without a compatibility plan.
   - Suggested validation: map-view/status tests, analysis/tooling smoke tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`cbe1c428`)
 
 - [ ] 29) Replace the live STFT complexity suppression with a context/scratch struct
   - ROI/Effort: Medium / S-M
@@ -394,6 +395,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 25 by splitting playback transport start, player lifecycle, playhead follow-up, and waveform UI synchronization helpers into focused `player/` modules while preserving the `AppController` playback facade.
 - 2026-03-11: Completed item 26 by splitting the `radiant` native-shell style surface into focused palette, sizing, and tier-policy modules while preserving the `StyleTokens`/`SizingTokens` contract and existing style behavior.
 - 2026-03-11: Completed item 27 by extracting shared analysis-admin CLI bootstrap helpers for command execution, help detection, and default library DB resolution and by adding focused parser tests for each binary's unique flags.
+- 2026-03-11: Completed item 28 by aligning the canonical user-facing term on “similarity map layout” across the public analysis surface, CLI/help output, status/progress text, and related docs while preserving the legacy `umap` compatibility shims and persisted names.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
