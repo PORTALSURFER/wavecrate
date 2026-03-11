@@ -26,7 +26,7 @@ Updated By: Codex
 - Cleanup Phase 2 is in progress, and item 25 is the next pending cleanup step.
 - I am keeping `AGENTS.md`, `MEMORY.md`, `docs/README.md`, `docs/plans/index.md`, and `docs/plans/active/todo.md` aligned so wake-up context stays consistent.
 - Future Windows sessions must not run the Bash workflow scripts; they should use only the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
-- Cleanup items 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, and 24 are complete; they landed in commits `16932de4`, `1fe099ae`, `0b0be54a`, `f752dec6`, `8d2c30e8`, `30d25841`, `08541a52`, `d538fd60`, `b5702240`, `07afb548`, `1a0a20eb`, `bb7216dd`, `bceaaeeb`, `319cefdd`, `002ce1b9`, `d18e19dc`, `d13b38fe`, `cc0edd90`, `336b2c65`, `db2e99d7`, `53f70d56`, `b6f3eb6f`, `d00bdd08`, `9e4b092c`, `71f2d9bf`, `a1e1195b`, and `TBD`.
+- Cleanup items 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, and 24 are complete; they landed in commits `16932de4`, `1fe099ae`, `0b0be54a`, `f752dec6`, `8d2c30e8`, `30d25841`, `08541a52`, `d538fd60`, `b5702240`, `07afb548`, `1a0a20eb`, `bb7216dd`, `bceaaeeb`, `319cefdd`, `002ce1b9`, `d18e19dc`, `d13b38fe`, `cc0edd90`, `336b2c65`, `db2e99d7`, `53f70d56`, `b6f3eb6f`, `d00bdd08`, `9e4b092c`, `71f2d9bf`, `a1e1195b`, and `4a3e6660`.
 
 ## Immediate Next Actions
 

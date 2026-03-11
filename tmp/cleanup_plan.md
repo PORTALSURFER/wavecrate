@@ -304,7 +304,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: document the lifecycle explicitly, retain the worker handle or justify detached behavior, and add tests for stop/shutdown expectations.
   - Risk/tradeoffs: Medium. Joining on drop can deadlock if the worker waits on callbacks, so the shutdown contract must be explicit.
   - Suggested validation: async decode tests, audio-related unit tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-  - Completion: 2026-03-11 (`TBD`)
+  - Completion: 2026-03-11 (`4a3e6660`)
 
 - [ ] 25) Split playback transport/player lifecycle helpers in `src/app/controller/playback/player.rs`
   - ROI/Effort: Medium / M
