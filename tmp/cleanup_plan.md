@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T17:07:36Z`
+- Refreshed (UTC): `2026-03-11T17:19:32Z`
 - Branch: `next`
-- Head: `91ef3e3c`
+- Head: `dcc0842b`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-2 complete; continuing strict sequential implementation at item 3`
+- Status: `Items 1-3 complete; continuing strict sequential implementation at item 4`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -28,13 +28,14 @@
 - Suggested validation: Targeted `radiant` toolbar hit-test/render tests plus `ci_quick.ps1`.
 - Completed: `2026-03-11` — `vendor/radiant` commit `c1d68d7a` split browser-toolbar, waveform-toolbar, waveform-visual, top-bar, browser-row, and sidebar helper families into focused `toolbar_helpers/*` modules while keeping the parent `state` call surface stable.
 
-### 3. [ ] Split `vendor/radiant/src/gui/native_shell/state/frame_build.rs` into smaller paint builders
+### 3. [x] Split `vendor/radiant/src/gui/native_shell/state/frame_build.rs` into smaller paint builders
 - ROI / Effort: High / L
 - Why it matters: Static-frame assembly remains oversized even after previous splits, which keeps browser/map/waveform/chrome rendering concerns coupled and makes cache invalidation work harder to reason about.
 - Evidence: `vendor/radiant/src/gui/native_shell/state/frame_build.rs` is about 997 LOC, and its sub-builders such as `frame_build/browser.rs` and `frame_build/chrome.rs` are also still very large.
 - Recommended change: Push more work into focused browser/map/waveform/status/chrome builders and keep `frame_build.rs` as a thin orchestration façade with small context structs only.
 - Risk / tradeoffs: Paint-order regressions are easy to introduce; keep segment ordering and overlay/static composition invariant.
 - Suggested validation: Targeted `radiant` frame/segment tests, screenshot/golden coverage where available, and `ci_quick.ps1`.
+- Completed: `2026-03-11` — `vendor/radiant` commit `bcaaef6d` moved status-bar painting into `frame_build/status_bar.rs`, extracted state-overlay rendering into `frame_build/overlay.rs`, moved waveform BPM-grid painting into `frame_build/waveform.rs`, and reduced `frame_build.rs` to orchestration/context responsibilities.
 
 ### 4. [ ] Finish slimming `vendor/radiant/src/gui/native_shell/state.rs` root state façade
 - ROI / Effort: High / L
