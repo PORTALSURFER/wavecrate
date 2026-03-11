@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-11 (UTC)
-Phase: Phase 2 in progress; items 1-5 complete, item 6 next
+Phase: Phase 2 in progress; items 1-6 complete, item 7 next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -81,7 +81,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: drag/drop controller tests, folder-move tests, selection export drag tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`e29d8464`)
 
-- [ ] 6) Split the GUI benchmark harness into workspace seeding, scenario registry, and report assembly
+- [x] 6) Split the GUI benchmark harness into workspace seeding, scenario registry, and report assembly
   - ROI/Effort: Medium-High / M
   - Why it matters: the bench harness is now large enough that perf-scenario additions require touching setup, run-loop orchestration, and result shaping in the same places. That increases maintenance cost for the repository’s main latency guardrails.
   - Evidence:
@@ -92,6 +92,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: extract a small scenario registry/shared staged-run helper layer, keep workspace seeding isolated, and leave the top-level benchmark entrypoint as a short orchestration facade.
   - Risk/tradeoffs: Medium. Benchmark semantics and JSON output must stay stable so perf guard thresholds remain comparable.
   - Suggested validation: bench-cli tests, benchmark JSON smoke run, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`d702d343`, `4cc2ad7e`)
 
 - [ ] 7) Split audio source combinators into focused modules with shared sample-accounting helpers
   - ROI/Effort: Medium-High / M
@@ -209,3 +210,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 3 in commit `0524d980` by splitting recording waveform loading into focused `io`, `state_cache`, `incremental_update`, and test modules while preserving incremental refresh behavior.
 - 2026-03-11: Completed item 4 in commit `5fea7bc1` by turning `src/waveform/mod.rs` into a thin facade and moving the waveform public model and load-from-disk entrypoints into focused `model` and `loading` modules.
 - 2026-03-11: Completed item 5 in commit `e29d8464` by splitting drag/drop action handling into focused drop-target resolution, payload-specific finish handlers, and external-drag timing modules.
+- 2026-03-11: Completed item 6 in commits `d702d343` and `4cc2ad7e` by splitting the GUI benchmark harness into focused workspace seeding, scenario registry, and report assembly modules, then aligning the benchmark interaction helpers with the current waveform selection action contract.
