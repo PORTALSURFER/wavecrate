@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-11T16:56:24Z
+Last Updated: 2026-03-11T17:07:36Z
 Updated By: Codex
 
 ## Purpose
@@ -16,8 +16,9 @@ Updated By: Codex
 - I have now opened a fresh cleanup audit pass and rebuilt `tmp/cleanup_plan.md`.
 - The refreshed cleanup plan is now in Phase 2 execution.
 - Cleanup item 1 is complete in `vendor/radiant` commit `e0ce0710`.
-- There are 15 remaining cleanup items in strict ROI order.
-- Cleanup item 2 is next.
+- Cleanup item 2 is complete in `vendor/radiant` commit `c1d68d7a`.
+- There are 14 remaining cleanup items in strict ROI order.
+- Cleanup item 3 is next.
 - The current cleanup source of truth is `tmp/cleanup_plan.md`.
 - The perf source of truth remains `docs/plans/active/runtime_performance_exec_plan.md` and stays dormant unless a separate perf lane is reopened.
 - Future Windows sessions must not run the Bash workflow scripts; they should use only the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -25,7 +26,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue cleanup at item 2 in `tmp/cleanup_plan.md`.
+1. Continue cleanup at item 3 in `tmp/cleanup_plan.md`.
 2. After each completed cleanup item, rerun validation and update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md`.
 3. Commit and push each cleanup milestone after quick CI is green.
 

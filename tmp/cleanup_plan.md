@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T16:56:24Z`
+- Refreshed (UTC): `2026-03-11T17:07:36Z`
 - Branch: `next`
-- Head: `46df058d`
+- Head: `91ef3e3c`
 - Phase: `Phase 2 in progress`
-- Status: `Item 1 complete; continuing strict sequential implementation at item 2`
+- Status: `Items 1-2 complete; continuing strict sequential implementation at item 3`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -19,13 +19,14 @@
 - Suggested validation: Targeted `radiant` runtime/input tests, startup smoke tests, `cargo fmt --all`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Completed: `2026-03-11` — `vendor/radiant` commit `e0ce0710` split startup/window lifecycle, scene rebuild/present, and event-loop handling into dedicated `native_vello` modules while keeping public runtime entrypoints stable.
 
-### 2. [ ] Split `vendor/radiant/src/gui/native_shell/state/toolbar_helpers.rs` by toolbar family
+### 2. [x] Split `vendor/radiant/src/gui/native_shell/state/toolbar_helpers.rs` by toolbar family
 - ROI / Effort: High / M
 - Why it matters: Toolbar geometry and action assembly for browser, waveform, and top-bar controls are still concentrated in one oversized helper file, making UI changes noisy and increasing coupling between unrelated chrome surfaces.
 - Evidence: `vendor/radiant/src/gui/native_shell/state/toolbar_helpers.rs` is about 1099 LOC. The file builds browser toolbar chips, waveform toolbar buttons, and top-bar/status helper geometry in one module.
 - Recommended change: Split into focused browser-toolbar, waveform-toolbar, and top-bar helper modules with shared token/geometry helpers factored into a small common layer.
 - Risk / tradeoffs: Moderate cache-key and hit-test wiring churn; keep button order, icon choice, and action payloads byte-for-byte stable.
 - Suggested validation: Targeted `radiant` toolbar hit-test/render tests plus `ci_quick.ps1`.
+- Completed: `2026-03-11` — `vendor/radiant` commit `c1d68d7a` split browser-toolbar, waveform-toolbar, waveform-visual, top-bar, browser-row, and sidebar helper families into focused `toolbar_helpers/*` modules while keeping the parent `state` call surface stable.
 
 ### 3. [ ] Split `vendor/radiant/src/gui/native_shell/state/frame_build.rs` into smaller paint builders
 - ROI / Effort: High / L
