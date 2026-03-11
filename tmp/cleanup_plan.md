@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-11 (UTC)
-Phase: Phase 2 in progress; items 1-8 complete, item 9 next
+Phase: Phase 2 in progress; items 1-9 complete, item 10 next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -119,7 +119,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: normalize/audio analysis tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`19bccb0c`)
 
-- [ ] 9) Break the remaining controller test hubs into behavior-focused modules
+- [x] 9) Break the remaining controller test hubs into behavior-focused modules
   - ROI/Effort: Medium / M
   - Why it matters: several large controller test files are still acting as catch-all behavior bins, which slows navigation and hides gaps by feature domain.
   - Evidence:
@@ -129,6 +129,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: split these hubs into smaller modules that mirror production seams (browser focus/navigation, browser destructive actions, folder CRUD/recovery, waveform edit commands, waveform playback interactions).
   - Risk/tradeoffs: Low-medium. Mostly structural, but inconsistent naming could make tests harder to find if the split is sloppy.
   - Suggested validation: affected controller test modules, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`2fc03b2c`, `9c1c3dfe`, `5e309661`)
 
 - [ ] 10) Factor analysis-jobs DB tests around a shared fixture/schema builder
   - ROI/Effort: Medium / S
@@ -215,3 +216,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 6 in commits `d702d343` and `4cc2ad7e` by splitting the GUI benchmark harness into focused workspace seeding, scenario registry, and report assembly modules, then aligning the benchmark interaction helpers with the current waveform selection action contract.
 - 2026-03-11: Completed item 7 in commit `b68f80e5` by turning `src/audio/source.rs` into a focused module tree and extracting shared source sample-accounting helpers for duration limits and fade progression.
 - 2026-03-11: Completed item 8 in commit `19bccb0c` by splitting normalization into a thin facade plus dedicated runtime dispatch, scalar math, and x86 SIMD backend modules.
+- 2026-03-11: Completed item 9 in commits `2fc03b2c`, `9c1c3dfe`, and `5e309661` by splitting the remaining controller test hubs into behavior-focused `browser_actions`, `folders_core`, and `waveform` module trees.
