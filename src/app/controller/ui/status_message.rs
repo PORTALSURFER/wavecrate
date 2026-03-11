@@ -9,9 +9,9 @@ pub(crate) enum StatusMessage {
     ScanAlreadyRunning,
     SimilarityPrepAlreadyRunning,
     SimilarityScanAlreadyRunning,
-    TsneBuildAlreadyRunning,
+    MapLayoutBuildAlreadyRunning,
     ClusterBuildAlreadyRunning,
-    BuildingTsneLayout,
+    BuildingMapLayout,
     BuildingClusters,
     PreparingSimilarity {
         source: String,
@@ -62,14 +62,15 @@ impl StatusMessage {
             StatusMessage::SimilarityScanAlreadyRunning => {
                 ("Scan already in progress".into(), StatusTone::Info)
             }
-            StatusMessage::TsneBuildAlreadyRunning => {
-                ("t-SNE build already in progress".into(), StatusTone::Info)
-            }
+            StatusMessage::MapLayoutBuildAlreadyRunning => (
+                "Similarity map layout build already in progress".into(),
+                StatusTone::Info,
+            ),
             StatusMessage::ClusterBuildAlreadyRunning => {
                 ("Cluster build already running".into(), StatusTone::Info)
             }
-            StatusMessage::BuildingTsneLayout => {
-                ("Building t-SNE layout...".into(), StatusTone::Info)
+            StatusMessage::BuildingMapLayout => {
+                ("Building similarity map layout...".into(), StatusTone::Info)
             }
             StatusMessage::BuildingClusters => ("Building clusters...".into(), StatusTone::Info),
             StatusMessage::PreparingSimilarity { source } => (

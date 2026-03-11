@@ -104,7 +104,7 @@ When changing ownership boundaries:
   - `apps/installer` — installer GUI and install workflow.
   - `apps/updater-helper` — standalone updater GUI used during update/apply flows.
 - `tools/`: workspace support-tool packages.
-  - `tools/analysis-admin` — ANN rebuild, DB inspection, HDBSCAN, and UMAP binaries.
+  - `tools/analysis-admin` — ANN rebuild, DB inspection, HDBSCAN, and similarity-map layout binaries.
   - `tools/bench-cli` — benchmark runner and GUI perf probes.
   - `tools/similarity-prep` — offline similarity prep utility.
 

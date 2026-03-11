@@ -46,7 +46,7 @@ pub(super) fn load_umap_bounds(
     }
 }
 
-/// Query aggregate UMAP bounds with an optional sample-id prefix filter.
+/// Query aggregate similarity-map bounds with an optional sample-id prefix filter.
 fn query_umap_bounds(
     conn: &mut Connection,
     model_id: &str,
@@ -78,7 +78,7 @@ fn query_umap_bounds(
     };
     let mut stmt = conn
         .prepare_cached(sql)
-        .map_err(|err| format!("Prepare t-SNE bounds query failed: {err}"))?;
+        .map_err(|err| format!("Prepare map-layout bounds query failed: {err}"))?;
     stmt.query_row(params_from_iter(params), |row| {
         let min_x: Option<f32> = row.get(0)?;
         let max_x: Option<f32> = row.get(1)?;
@@ -87,7 +87,7 @@ fn query_umap_bounds(
         Ok((min_x, max_x, min_y, max_y))
     })
     .optional()
-    .map_err(|err| format!("Query t-SNE bounds failed: {err}"))
+    .map_err(|err| format!("Query map-layout bounds failed: {err}"))
 }
 
 /// Return whether an aggregate-bounds row contains concrete coordinate values.
@@ -113,7 +113,7 @@ pub(super) fn load_umap_points(
     Ok(points)
 }
 
-/// Query rendered UMAP points with an optional sample-id prefix filter.
+/// Query rendered similarity-map points with an optional sample-id prefix filter.
 fn query_umap_points(
     conn: &mut Connection,
     query: &UmapPointQuery<'_>,
@@ -207,14 +207,14 @@ pub(super) fn load_umap_point_for_sample(
              FROM layout_umap
              WHERE model_id = ?1 AND umap_version = ?2 AND sample_id = ?3",
         )
-        .map_err(|err| format!("Prepare t-SNE point query failed: {err}"))?;
+        .map_err(|err| format!("Prepare map-layout point query failed: {err}"))?;
     stmt.query_row(params![model_id, umap_version, sample_id], |row| {
         let x: f32 = row.get(0)?;
         let y: f32 = row.get(1)?;
         Ok((x, y))
     })
     .optional()
-    .map_err(|err| format!("Query t-SNE point failed: {err}"))
+    .map_err(|err| format!("Query map-layout point failed: {err}"))
 }
 
 pub(super) fn load_umap_cluster_centroids(

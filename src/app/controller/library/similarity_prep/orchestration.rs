@@ -39,7 +39,7 @@ impl AppController {
             return;
         }
         if self.runtime.jobs.umap_build_in_progress() {
-            self.set_status_message(StatusMessage::TsneBuildAlreadyRunning);
+            self.set_status_message(StatusMessage::MapLayoutBuildAlreadyRunning);
             return;
         }
         let Some(source) = self.current_source() else {

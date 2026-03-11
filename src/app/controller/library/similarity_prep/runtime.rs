@@ -186,7 +186,7 @@ fn run_similarity_finalize(
     let store = DbSimilarityPrepStore;
     let mut conn = store.open_source_db_for_similarity(source_id)?;
     let sample_id_prefix = format!("{}::%", source_id.as_str());
-    crate::analysis::umap::build_umap_layout(
+    crate::analysis::build_map_layout(
         &mut conn,
         crate::analysis::similarity::SIMILARITY_MODEL_ID,
         umap_version,
@@ -201,7 +201,7 @@ fn run_similarity_finalize(
     )?;
     if layout_rows == 0 {
         return Err(format!(
-            "No t-SNE layout rows for source {} (check embeddings)",
+            "No similarity map layout rows for source {} (check embeddings)",
             source_id.as_str()
         ));
     }

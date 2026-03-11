@@ -17,12 +17,12 @@ const DEFAULT_MAX_ITER: usize = 1500;
 const DEFAULT_N_COMPONENTS: usize = 2;
 const DEFAULT_PCA_COMPONENTS: usize = 50;
 
-/// Report summarizing the legacy UMAP-named layout coverage and bounds.
+/// Report summarizing one similarity-map layout build.
 ///
-/// The underlying layout builder currently uses t-SNE while preserving the
-/// existing `layout_umap` schema and public naming.
+/// The current layout implementation uses t-SNE while persisting into the
+/// existing `layout_umap` schema for compatibility.
 #[derive(Debug, Serialize)]
-pub struct UmapReport {
+pub struct MapLayoutReport {
     /// Total number of embeddings considered.
     pub total: usize,
     /// Number of embeddings included in the final layout.
@@ -41,11 +41,40 @@ pub struct UmapReport {
     pub y_max: f32,
 }
 
-/// Build and persist a 2D layout for the given model embeddings.
+/// Legacy compatibility alias for the similarity-map layout report type.
+pub type UmapReport = MapLayoutReport;
+
+/// Build and persist a 2D similarity-map layout for the given model embeddings.
 ///
-/// Despite the legacy `umap` naming, the current implementation uses a
-/// t-SNE projection and stores the result in the existing `layout_umap`
-/// table for compatibility with callers and persisted data.
+/// The projection is currently computed with t-SNE and then written into the
+/// existing `layout_umap` table so persisted data and older callers remain
+/// compatible.
+pub fn build_map_layout(
+    conn: &mut Connection,
+    model_id: &str,
+    layout_version: &str,
+    seed: u64,
+    min_coverage: f32,
+) -> Result<MapLayoutReport, String> {
+    let (sample_ids, vectors, dim) = load_embeddings(conn, model_id)?;
+    if vectors.is_empty() {
+        return Err(format!("No embeddings found for model_id {model_id}"));
+    }
+    let layout = compute_tsne(vectors, dim, seed)?;
+    if layout.len() != sample_ids.len() {
+        return Err("Similarity map layout output length mismatch".to_string());
+    }
+    let inserted = write_layout(conn, &sample_ids, &layout, model_id, layout_version)?;
+    if inserted != sample_ids.len() {
+        return Err("Similarity map layout insert count mismatch".to_string());
+    }
+    validate_layout(&layout, min_coverage)
+}
+
+/// Build and persist a 2D layout through the legacy UMAP-named entrypoint.
+///
+/// This forwards to [`build_map_layout`] while keeping the established API
+/// shape used by older internal callers.
 pub fn build_umap_layout(
     conn: &mut Connection,
     model_id: &str,
@@ -53,36 +82,34 @@ pub fn build_umap_layout(
     seed: u64,
     min_coverage: f32,
 ) -> Result<UmapReport, String> {
-    let (sample_ids, vectors, dim) = load_embeddings(conn, model_id)?;
-    if vectors.is_empty() {
-        return Err(format!("No embeddings found for model_id {model_id}"));
-    }
-    let layout = compute_tsne(vectors, dim, seed)?;
-    if layout.len() != sample_ids.len() {
-        return Err("t-SNE output length mismatch".to_string());
-    }
-    let inserted = write_layout(conn, &sample_ids, &layout, model_id, umap_version)?;
-    if inserted != sample_ids.len() {
-        return Err("t-SNE insert count mismatch".to_string());
-    }
-    validate_layout(&layout, min_coverage)
+    build_map_layout(conn, model_id, umap_version, seed, min_coverage)
 }
 
-/// Return the default JSON report path for a given database and layout version.
+/// Return the default JSON report path for one layout build report.
 ///
-/// The `umap_version` parameter name is retained for compatibility with the
-/// existing CLI and persisted schema.
-pub fn default_report_path(db_path: &Path, umap_version: &str) -> PathBuf {
+/// The on-disk filename still uses the historical `umap_report_*` prefix so it
+/// remains compatible with existing scripts and generated artifacts.
+pub fn default_layout_report_path(db_path: &Path, layout_version: &str) -> PathBuf {
     let parent = db_path.parent().unwrap_or_else(|| Path::new("."));
-    parent.join(format!("umap_report_{}.json", umap_version))
+    parent.join(format!("umap_report_{}.json", layout_version))
+}
+
+/// Return the default JSON report path through the legacy UMAP-named helper.
+pub fn default_report_path(db_path: &Path, umap_version: &str) -> PathBuf {
+    default_layout_report_path(db_path, umap_version)
 }
 
 /// Serialize and write a layout report to disk as pretty-printed JSON.
-pub fn write_report(path: &Path, report: &UmapReport) -> Result<(), String> {
+pub fn write_layout_report(path: &Path, report: &MapLayoutReport) -> Result<(), String> {
     let data = serde_json::to_vec_pretty(report)
         .map_err(|err| format!("Serialize report failed: {err}"))?;
     std::fs::write(path, data).map_err(|err| format!("Write report failed: {err}"))?;
     Ok(())
+}
+
+/// Serialize and write a layout report through the legacy UMAP-named helper.
+pub fn write_report(path: &Path, report: &UmapReport) -> Result<(), String> {
+    write_layout_report(path, report)
 }
 
 fn load_embeddings(
@@ -151,7 +178,7 @@ fn load_embeddings(
 fn compute_tsne(vectors: Vec<f64>, dim: usize, seed: u64) -> Result<Vec<[f32; 2]>, String> {
     let n_samples = vectors.len() / dim;
     if n_samples < 2 {
-        return Err("Need at least 2 embeddings to build t-SNE".to_string());
+        return Err("Need at least 2 embeddings to build a similarity map layout".to_string());
     }
     let max_perplexity = ((n_samples as f64) - 1.0).max(1.0) / 3.0;
     let perplexity = DEFAULT_PERPLEXITY.min(max_perplexity).max(1.0);
@@ -181,7 +208,7 @@ fn compute_tsne(vectors: Vec<f64>, dim: usize, seed: u64) -> Result<Vec<[f32; 2]
         .approx_threshold(DEFAULT_APPROX_THRESHOLD)
         .max_iter(DEFAULT_MAX_ITER)
         .transform(matrix)
-        .map_err(|err| format!("t-SNE failed: {err}"))?;
+        .map_err(|err| format!("Similarity map layout projection failed: {err}"))?;
 
     let mut out = Vec::with_capacity(n_samples);
     for row in embedding.rows() {
@@ -216,15 +243,15 @@ fn validate_layout(layout: &[[f32; 2]], min_coverage: f32) -> Result<UmapReport,
     };
     if coverage_ratio < min_coverage {
         return Err(format!(
-            "t-SNE coverage {:.2}% below threshold {:.2}%",
+            "Similarity map layout coverage {:.2}% below threshold {:.2}%",
             coverage_ratio * 100.0,
             min_coverage * 100.0
         ));
     }
     if valid == 0 {
-        return Err("t-SNE produced no valid coordinates".to_string());
+        return Err("Similarity map layout produced no valid coordinates".to_string());
     }
-    Ok(UmapReport {
+    Ok(MapLayoutReport {
         total,
         valid,
         invalid,
@@ -312,7 +339,7 @@ mod tests {
 
     #[test]
     fn default_report_path_uses_parent_directory_and_version() {
-        let path = default_report_path(Path::new("/tmp/library/source.db"), "v2");
+        let path = default_layout_report_path(Path::new("/tmp/library/source.db"), "v2");
         assert_eq!(path, PathBuf::from("/tmp/library/umap_report_v2.json"));
     }
 
@@ -320,7 +347,7 @@ mod tests {
     fn write_report_serializes_pretty_json() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("report.json");
-        let report = UmapReport {
+        let report = MapLayoutReport {
             total: 4,
             valid: 4,
             invalid: 0,
@@ -331,18 +358,27 @@ mod tests {
             y_max: 2.0,
         };
 
-        write_report(&path, &report).expect("write report");
+        write_layout_report(&path, &report).expect("write report");
         let written = std::fs::read_to_string(&path).expect("read report");
         assert!(written.contains("\"coverage_ratio\": 1.0"));
         assert!(written.contains('\n'));
     }
 
     #[test]
-    fn build_umap_layout_rejects_missing_embeddings() {
+    fn build_map_layout_rejects_missing_embeddings() {
         let mut conn = Connection::open_in_memory().unwrap();
         create_layout_tables(&conn);
 
-        let err = build_umap_layout(&mut conn, "missing-model", "v1", 0, 0.5).unwrap_err();
+        let err = build_map_layout(&mut conn, "missing-model", "v1", 0, 0.5).unwrap_err();
         assert!(err.contains("No embeddings found"));
+    }
+
+    #[test]
+    fn legacy_umap_helpers_delegate_to_layout_helpers() {
+        let path = Path::new("/tmp/library/source.db");
+        assert_eq!(
+            default_report_path(path, "v2"),
+            default_layout_report_path(path, "v2")
+        );
     }
 }

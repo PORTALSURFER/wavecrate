@@ -152,7 +152,7 @@ Likely next shared-library candidates:
   - feature extraction
   - embeddings
   - ANN helpers
-  - UMAP/t-SNE support
+  - similarity-map layout support (legacy UMAP/t-SNE compatibility)
 - `crates/sempal-library`
   - source DB access
   - scan helpers

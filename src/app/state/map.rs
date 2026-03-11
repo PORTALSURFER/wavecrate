@@ -145,7 +145,7 @@ pub struct MapQueryBounds {
     pub max_y: f32,
 }
 
-/// Single point in a UMAP layout.
+/// Single point in one similarity-map layout.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MapPoint {
     /// Sample id for this point.

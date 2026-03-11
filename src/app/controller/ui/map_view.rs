@@ -24,7 +24,7 @@ pub(crate) struct UmapPoint {
     pub cluster_id: Option<i32>,
 }
 
-/// Query payload for loading visible UMAP points and optional cluster metadata.
+/// Query payload for loading visible similarity-map points and optional cluster metadata.
 pub(crate) struct UmapPointQuery<'a> {
     pub model_id: &'a str,
     pub umap_version: &'a str,
@@ -80,10 +80,10 @@ impl AppController {
         self.ui.map.open = true;
     }
 
-    /// Enqueue a UMAP layout build for the selected source.
+    /// Enqueue a similarity-map layout build for the selected source.
     pub fn build_umap_layout(&mut self, model_id: &str, umap_version: &str) {
         if self.runtime.jobs.umap_build_in_progress() {
-            self.set_status_message(StatusMessage::TsneBuildAlreadyRunning);
+            self.set_status_message(StatusMessage::MapLayoutBuildAlreadyRunning);
             return;
         }
         let Some(source_id) = self.current_source().map(|source| source.id) else {
@@ -99,10 +99,10 @@ impl AppController {
                 umap_version: umap_version.to_string(),
                 source_id,
             });
-        self.set_status_message(StatusMessage::BuildingTsneLayout);
+        self.set_status_message(StatusMessage::BuildingMapLayout);
     }
 
-    /// Enqueue cluster generation for the current UMAP layout.
+    /// Enqueue cluster generation for the current similarity-map layout.
     pub fn build_umap_clusters(&mut self, model_id: &str, umap_version: &str) {
         if self.runtime.jobs.umap_cluster_build_in_progress() {
             self.set_status_message(StatusMessage::ClusterBuildAlreadyRunning);
@@ -137,7 +137,7 @@ impl AppController {
         load_umap_points(conn, &query)
     }
 
-    /// Lookup a UMAP point for a specific sample id.
+    /// Lookup one similarity-map point for a specific sample id.
     pub fn umap_point_for_sample(
         &mut self,
         model_id: &str,
@@ -150,7 +150,7 @@ impl AppController {
         load_umap_point_for_sample(conn, model_id, umap_version, sample_id)
     }
 
-    /// Load cluster centroids for the requested UMAP layout.
+    /// Load cluster centroids for the requested similarity-map layout.
     pub fn umap_cluster_centroids(
         &mut self,
         model_id: &str,
@@ -177,7 +177,7 @@ pub(crate) fn run_umap_build(
     source_id: &SourceId,
 ) -> Result<(), String> {
     let mut conn = open_source_db_for_id(source_id)?;
-    crate::analysis::umap::build_umap_layout(&mut conn, model_id, umap_version, 0, 0.95)?;
+    crate::analysis::build_map_layout(&mut conn, model_id, umap_version, 0, 0.95)?;
     Ok(())
 }
 

@@ -10,15 +10,18 @@ pub(crate) mod frequency_domain;
 pub mod hdbscan;
 pub mod similarity;
 pub(crate) mod time_domain;
-/// Legacy UMAP-named 2D layout generation utilities for visualization.
+/// Legacy UMAP-named similarity-map layout utilities for visualization.
 ///
-/// The current implementation is backed by t-SNE, but the public naming stays
-/// aligned with the persisted `layout_umap` schema and existing callers.
+/// The current implementation is backed by t-SNE while persisted schema and
+/// compatibility shims still use `umap` naming internally.
 pub mod umap;
 /// Feature vector encoding/decoding helpers.
 pub mod vector;
 pub(crate) mod version;
 
+pub use umap::{
+    MapLayoutReport, build_map_layout, default_layout_report_path, write_layout_report,
+};
 pub use vector::decode_f32_le_blob;
 pub use vector::{FEATURE_VECTOR_LEN_V1, FEATURE_VERSION_V1};
 
