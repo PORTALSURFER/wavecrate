@@ -61,7 +61,7 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: post-cleanup architecture audit refresh
 - Source of truth: `tmp/cleanup_plan.md`
-- Current status: a fresh cleanup audit backlog was rebuilt on `2026-03-11`; Phase 1 is complete, there are 15 pending items in strict ROI order, and Phase 2 is waiting for explicit user confirmation before item 1 starts.
+- Current status: a fresh cleanup audit backlog was rebuilt on `2026-03-11`; Phase 1 is complete, there are 16 pending items in strict ROI order, and Phase 2 is waiting for explicit user confirmation before item 1 starts.
 
 ## Immediate Next Actions
 1. Paste the exact ordered backlog from `tmp/cleanup_plan.md` and get explicit confirmation before starting Phase 2.
@@ -73,7 +73,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/cleanup_plan.md`: active strict ROI-ranked cleanup backlog (Phase 1 refreshed 2026-03-11; 15 pending items, waiting for user confirmation)
+- `tmp/cleanup_plan.md`: active strict ROI-ranked cleanup backlog (Phase 1 refreshed 2026-03-11; 16 pending items, waiting for user confirmation)
 - `docs/plans/active/cleanup_architecture_note.md`: cleanup boundary/ownership guidance
 - `tmp/perf_plan.md`: current ROI-ranked runtime performance audit backlog and execution order
 

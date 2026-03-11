@@ -14,7 +14,7 @@ Updated By: Codex
 - I have completed the runtime performance backlog in `tmp/perf_plan.md` through item 11.
 - I have completed the previous cleanup lanes recorded in older `tmp/cleanup_plan.md` revisions.
 - I have now opened a fresh cleanup audit pass and rebuilt `tmp/cleanup_plan.md`.
-- The new cleanup plan contains 15 pending items in strict ROI order.
+- The new cleanup plan contains 16 pending items in strict ROI order.
 - Phase 1 is complete; no implementation work from the new cleanup backlog has started.
 - Phase 2 is blocked on explicit user confirmation.
 - The current cleanup source of truth is `tmp/cleanup_plan.md`.

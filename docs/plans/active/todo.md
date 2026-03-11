@@ -13,7 +13,7 @@ Purpose:
 
 - Cleanup audit refresh for the post-cleanup codebase.
 - Perf Phase 2 items 1-11 in `tmp/perf_plan.md` remain complete.
-- The active cleanup backlog in `tmp/cleanup_plan.md` was refreshed on 2026-03-11 and has 15 pending items.
+- The active cleanup backlog in `tmp/cleanup_plan.md` was refreshed on 2026-03-11 and has 16 pending items.
 - Cleanup Phase 2 has not started; it is waiting for explicit user confirmation.
 
 ## Next tasks (ordered)
