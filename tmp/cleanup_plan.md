@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-11 (UTC)
-Phase: Phase 2 in progress; items 1-6 complete, item 7 next
+Phase: Phase 2 in progress; items 1-7 complete, item 8 next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -94,7 +94,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: bench-cli tests, benchmark JSON smoke run, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`d702d343`, `4cc2ad7e`)
 
-- [ ] 7) Split audio source combinators into focused modules with shared sample-accounting helpers
+- [x] 7) Split audio source combinators into focused modules with shared sample-accounting helpers
   - ROI/Effort: Medium-High / M
   - Why it matters: the core `Source` trait still lives beside all concrete combinators, buffering behavior, and fade helpers. That keeps low-level playback primitives harder to review and evolve independently.
   - Evidence:
@@ -104,6 +104,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: separate the trait/facade from the concrete wrapper implementations and share duration/sample accounting utilities instead of repeating that policy inside one large file.
   - Risk/tradeoffs: Medium. These primitives sit on playback hot paths and must remain allocation-light and behaviorally identical.
   - Suggested validation: audio source tests, playback transport tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`b68f80e5`)
 
 - [ ] 8) Separate normalization dispatch from SIMD backends and shared scalar math
   - ROI/Effort: Medium / S-M
@@ -211,3 +212,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 4 in commit `5fea7bc1` by turning `src/waveform/mod.rs` into a thin facade and moving the waveform public model and load-from-disk entrypoints into focused `model` and `loading` modules.
 - 2026-03-11: Completed item 5 in commit `e29d8464` by splitting drag/drop action handling into focused drop-target resolution, payload-specific finish handlers, and external-drag timing modules.
 - 2026-03-11: Completed item 6 in commits `d702d343` and `4cc2ad7e` by splitting the GUI benchmark harness into focused workspace seeding, scenario registry, and report assembly modules, then aligning the benchmark interaction helpers with the current waveform selection action contract.
+- 2026-03-11: Completed item 7 in commit `b68f80e5` by turning `src/audio/source.rs` into a focused module tree and extracting shared source sample-accounting helpers for duration limits and fade progression.
