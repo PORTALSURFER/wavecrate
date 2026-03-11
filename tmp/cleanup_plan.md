@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: Phase 2 resumed; items 1-22 complete; item 23 is next
+Phase: Phase 2 resumed; items 1-23 complete; item 24 is next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -281,7 +281,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: `radiant` unit tests, `cargo doc -p radiant --no-deps`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`d00bdd08`, doc follow-up `9e4b092c`)
 
-- [ ] 23) Break up giant test hubs to match production seams
+- [x] 23) Break up giant test hubs to match production seams
   - ROI/Effort: Medium-High / M
   - Why it matters: several test files have grown into catch-all regression bins, which slows navigation and makes it harder to see coverage gaps by feature.
   - Evidence:
@@ -292,6 +292,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: move tests next to the production seams created by the earlier refactors, and split remaining integration-style tests by behavior domain instead of piling onto one file.
   - Risk/tradeoffs: Low-medium. Mostly structural, but careless moves can weaken discoverability if the new module layout is inconsistent.
   - Suggested validation: affected unit tests run serially where Rust test binaries overlap, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`71f2d9bf`, `a1e1195b`)
 
 - [ ] 24) Clarify `AsyncSource` worker lifecycle and teardown contract
   - ROI/Effort: Medium-High / M
@@ -384,6 +385,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 20 by splitting `vendor/radiant` native-shell retained-state sync/cache helpers and frame-build status-bar helpers into focused modules while preserving the retained shell behavior and test surface.
 - 2026-03-11: Completed item 21 by splitting `vendor/radiant` native Vello waveform input routing into focused geometry/handle/wheel modules and extracting the immediate cursor/drag runtime state machine into `runtime_input.rs`.
 - 2026-03-11: Completed item 22 by splitting the public `vendor/radiant/src/app` contract into focused `actions`, `browser`, `bridge`, `dirty_segments`, `motion`, `shell`, `sources`, and `waveform` modules while preserving the existing `crate::app::*` facade and adding boundary docs to the new contract seams.
+- 2026-03-11: Completed item 23 by splitting the `app_core` native-shell projection tests plus the `vendor/radiant` native-shell state and native-Vello runtime test monoliths into focused module trees that match the production seams.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
