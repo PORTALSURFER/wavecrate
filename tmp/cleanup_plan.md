@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: Phase 2 resumed; items 1-18 complete; item 19 is next
+Phase: Phase 2 resumed; items 1-19 complete; item 20 is next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -234,7 +234,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: controller-focused unit tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`336b2c65`)
 
-- [ ] 19) Split similarity resolution orchestration from repository, math, and job-enqueue code
+- [x] 19) Split similarity resolution orchestration from repository, math, and job-enqueue code
   - ROI/Effort: High / M
   - Why it matters: sample similarity resolution still concentrates candidate gathering, repository lookups, score shaping, and background-job coordination in one place.
   - Evidence:
@@ -243,6 +243,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: split repository access, score composition, and job coordination into smaller modules, leaving `resolve.rs` as a clear orchestration layer or replacing it with a small module tree.
   - Risk/tradeoffs: Medium. Similarity ordering and fallback behavior must remain stable.
   - Suggested validation: similar-sample controller tests, background-job polling tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`db2e99d7`)
 
 - [ ] 20) Split `vendor/radiant` native-shell state and frame composition by responsibility
   - ROI/Effort: High / L
@@ -376,6 +377,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Resumed cleanup Phase 2 and completed item 16 by splitting source DB schema DDL and migrations into focused modules and adding legacy-schema migration fixtures in unit tests.
 - 2026-03-11: Completed item 17 by routing one-shot source DB mutations through `SourceWriteBatch`, consolidating wav upsert/update helpers, and adding wrapper-vs-batch parity tests.
 - 2026-03-11: Completed item 18 by moving controller performance/status/undo helpers and remaining job/playback delegations out of `src/app/controller.rs`, leaving the root controller focused on construction and top-level accessors.
+- 2026-03-11: Completed item 19 by splitting similarity resolution into focused repository, reranking, and analysis-enqueue modules while preserving the existing query/apply surface.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
