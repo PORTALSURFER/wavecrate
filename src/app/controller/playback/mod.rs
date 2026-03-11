@@ -95,6 +95,15 @@ pub(crate) fn selection_meets_bpm_min_for_playback(
 }
 
 impl AppController {
+    /// Returns the duration in seconds for the currently loaded audio, if any.
+    pub(crate) fn loaded_audio_duration_seconds(&self) -> Option<f32> {
+        self.sample_view
+            .wav
+            .loaded_audio
+            .as_ref()
+            .map(|audio| audio.duration_seconds)
+    }
+
     /// Start playback from the beginning of the selected sample.
     pub fn play_from_start(&mut self) -> bool {
         transport::play_from_start(self)

@@ -12,6 +12,7 @@ mod ui;
 mod config;
 pub(crate) mod controller_state;
 pub(crate) mod jobs;
+mod performance;
 /// Controller-side synchronization for projection revision counters.
 mod revision_bus;
 /// Derived-state graph access helpers for runtime projection paths.
@@ -26,7 +27,6 @@ use crate::{
     app::state::UiState,
     app::view_model,
     audio::AudioPlayer,
-    gui::repaint::RepaintSignal,
     sample_sources::{SampleSource, SourceDatabase, SourceDbError, SourceId, WavEntry},
     selection::SelectionRange,
     waveform::WaveformRenderer,
@@ -236,244 +236,11 @@ impl AppController {
         }
     }
 
-    fn observe_frame_timing_for_fps(&mut self, now: Instant, user_active: bool) {
-        const SLOW_FRAME_THRESHOLD: Duration = Duration::from_millis(40);
-        if let Some(last_frame) = self.runtime.performance.last_frame_at {
-            let frame_delta = now.saturating_duration_since(last_frame);
-            self.runtime.performance.observe_frame_interval(frame_delta);
-            if frame_delta >= SLOW_FRAME_THRESHOLD {
-                self.runtime.performance.last_slow_frame_at = Some(now);
-            }
-        }
-        self.runtime.performance.last_frame_at = Some(now);
-        if user_active {
-            self.runtime.performance.last_user_activity_at = Some(now);
-        }
-    }
-
-    pub(crate) fn update_performance_governor(&mut self, user_active: bool) {
-        const ACTIVE_WINDOW: Duration = Duration::from_millis(300);
-        const IDLE_WINDOW: Duration = Duration::from_secs(2);
-        let now = Instant::now();
-        self.observe_frame_timing_for_fps(now, user_active);
-        let recent_input = self
-            .runtime
-            .performance
-            .last_user_activity_at
-            .is_some_and(|time| now.saturating_duration_since(time) <= ACTIVE_WINDOW);
-        let recent_slow_frame = self
-            .runtime
-            .performance
-            .last_slow_frame_at
-            .is_some_and(|time| now.saturating_duration_since(time) <= ACTIVE_WINDOW);
-        let busy = self.is_playing() || recent_input || recent_slow_frame;
-        let analysis_active = self
-            .ui
-            .progress
-            .analysis
-            .as_ref()
-            .is_some_and(|snapshot| snapshot.pending > 0 || snapshot.running > 0);
-        let pause_claiming = (self.is_playing() || recent_input) && !analysis_active;
-        let last_activity_at = match (
-            self.runtime.performance.last_user_activity_at,
-            self.runtime.performance.last_slow_frame_at,
-        ) {
-            (Some(input), Some(slow)) => Some(input.max(slow)),
-            (Some(input), None) => Some(input),
-            (None, Some(slow)) => Some(slow),
-            (None, None) => None,
-        };
-        let idle = !self.is_playing()
-            && last_activity_at
-                .is_some_and(|time| now.saturating_duration_since(time) >= IDLE_WINDOW);
-        let base_worker_count = if self.settings.analysis.analysis_worker_count == 0 {
-            crate::app::controller::library::analysis_jobs::default_worker_count()
-        } else {
-            self.settings.analysis.analysis_worker_count
-        };
-        let idle_target = self
-            .runtime
-            .performance
-            .idle_worker_override
-            .unwrap_or(base_worker_count);
-        let target = if busy || !idle { 1 } else { idle_target };
-        if pause_claiming {
-            self.runtime.analysis.pause_claiming();
-        } else {
-            self.runtime.analysis.resume_claiming();
-        }
-        if self.runtime.performance.last_worker_count != Some(target) {
-            self.runtime.analysis.set_worker_count(target);
-            self.runtime.performance.last_worker_count = Some(target);
-        }
-    }
-
-    /// Record the latest inter-frame timing sample used by the FPS counter.
-    pub(crate) fn record_frame_timing_for_fps(&mut self) {
-        let now = Instant::now();
-        self.observe_frame_timing_for_fps(now, false);
-    }
-
     #[cfg(target_os = "windows")]
     /// Store the HWND used for initiating external drag-and-drop operations on Windows.
     /// This is populated from the active host frame when available.
     pub fn set_drag_hwnd(&mut self, hwnd: Option<windows::Win32::Foundation::HWND>) {
         self.drag_hwnd = hwnd;
-    }
-
-    pub(crate) fn set_status(&mut self, text: impl Into<String>, tone: StatusTone) {
-        let text = text.into();
-        let status_changed = self.ui.status.text != text || self.ui.status.status_tone != tone;
-        self.ui.status.text = text.clone();
-        self.ui.status.status_tone = tone;
-        if status_changed {
-            self.mark_status_projection_revision_dirty();
-        }
-        let entry = format!("[{}] {}", status_prefix(tone), text);
-        if self.ui.status.log.last().is_some_and(|last| last == &entry) {
-            return;
-        }
-        self.ui.status.log.push(entry);
-        if self.ui.status.log.len() > STATUS_LOG_LIMIT {
-            let overflow = self.ui.status.log.len() - STATUS_LOG_LIMIT;
-            self.ui.status.log.drain(0..overflow);
-        }
-        log_status_entry(tone, self.ui.status.log.last().expect("just pushed"));
-    }
-
-    pub(crate) fn set_error_status(&mut self, text: impl Into<String>) {
-        self.set_status(text, StatusTone::Error);
-    }
-
-    pub(crate) fn set_status_message(&mut self, message: StatusMessage) {
-        let (text, tone) = message.into_text_and_tone();
-        self.set_status(text, tone);
-    }
-
-    /// Current exponentially weighted average FPS estimated from recent frame intervals.
-    pub(crate) fn average_fps(&self) -> Option<f64> {
-        self.runtime.performance.average_fps()
-    }
-
-    pub(crate) fn set_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
-        self.runtime.jobs.set_repaint_signal(signal.clone());
-        self.runtime.analysis.set_repaint_signal(signal);
-    }
-
-    /// Shut down background workers owned by the controller.
-    pub(crate) fn shutdown(&mut self) {
-        self.runtime.jobs.shutdown();
-        self.runtime.analysis.shutdown();
-    }
-
-    pub(crate) fn undo(&mut self) {
-        if self.history.pending_undo.is_some() {
-            self.set_status("Undo already in progress", StatusTone::Warning);
-            return;
-        }
-        if self.runtime.jobs.file_ops_in_progress() {
-            self.set_status("File operation already in progress", StatusTone::Warning);
-            return;
-        }
-        let mut stack = std::mem::replace(
-            &mut self.history.undo_stack,
-            undo::UndoStack::new(UNDO_LIMIT),
-        );
-        let result = stack.undo(self);
-        self.history.undo_stack = stack;
-        match result {
-            Ok(undo::UndoOutcome::Applied(label)) => {
-                self.set_status(format!("Undid {label}"), StatusTone::Info);
-            }
-            Ok(undo::UndoOutcome::Empty) => self.set_status("Nothing to undo", StatusTone::Info),
-            Ok(undo::UndoOutcome::Deferred(pending)) => {
-                self.begin_deferred_undo_job(*pending);
-            }
-            Err(err) => self.set_status(format!("Undo failed: {err}"), StatusTone::Error),
-        }
-    }
-
-    pub(crate) fn redo(&mut self) {
-        if self.history.pending_undo.is_some() {
-            self.set_status("Redo already in progress", StatusTone::Warning);
-            return;
-        }
-        if self.runtime.jobs.file_ops_in_progress() {
-            self.set_status("File operation already in progress", StatusTone::Warning);
-            return;
-        }
-        let mut stack = std::mem::replace(
-            &mut self.history.undo_stack,
-            undo::UndoStack::new(UNDO_LIMIT),
-        );
-        let result = stack.redo(self);
-        self.history.undo_stack = stack;
-        match result {
-            Ok(undo::UndoOutcome::Applied(label)) => {
-                self.set_status(format!("Redid {label}"), StatusTone::Info);
-            }
-            Ok(undo::UndoOutcome::Empty) => self.set_status("Nothing to redo", StatusTone::Info),
-            Ok(undo::UndoOutcome::Deferred(pending)) => {
-                self.begin_deferred_undo_job(*pending);
-            }
-            Err(err) => self.set_status(format!("Redo failed: {err}"), StatusTone::Error),
-        }
-    }
-
-    pub(crate) fn push_undo_entry(&mut self, entry: undo::UndoEntry<AppController>) {
-        self.history.undo_stack.push(entry);
-    }
-
-    pub(crate) fn begin_selection_undo(&mut self, label: impl Into<String>) {
-        if self.selection_state.pending_undo.is_some() {
-            return;
-        }
-        let before = self
-            .selection_state
-            .range
-            .range()
-            .or(self.ui.waveform.selection);
-        self.selection_state.pending_undo = Some(SelectionUndoState {
-            label: label.into(),
-            before,
-        });
-    }
-
-    pub(crate) fn commit_selection_undo(&mut self) {
-        let Some(pending) = self.selection_state.pending_undo.take() else {
-            return;
-        };
-        let after = self
-            .selection_state
-            .range
-            .range()
-            .or(self.ui.waveform.selection);
-        self.push_selection_undo(pending.label, pending.before, after);
-    }
-
-    pub(crate) fn push_selection_undo(
-        &mut self,
-        label: impl Into<String>,
-        before: Option<SelectionRange>,
-        after: Option<SelectionRange>,
-    ) {
-        if before == after {
-            return;
-        }
-        let label = label.into();
-        self.push_undo_entry(undo::UndoEntry::<AppController>::new(
-            label,
-            move |controller| {
-                controller.selection_state.range.set_range(before);
-                controller.apply_selection(before);
-                Ok(undo::UndoExecution::Applied)
-            },
-            move |controller| {
-                controller.selection_state.range.set_range(after);
-                controller.apply_selection(after);
-                Ok(undo::UndoExecution::Applied)
-            },
-        ));
     }
 
     pub(crate) fn browser(&mut self) -> library::browser_controller::BrowserController<'_> {
@@ -490,38 +257,6 @@ impl AppController {
 
     pub(crate) fn hotkeys_ctrl(&mut self) -> ui::hotkeys_controller::HotkeysController<'_> {
         ui::hotkeys_controller::HotkeysController::new(self)
-    }
-
-    /// Returns the duration in seconds for the currently loaded audio, if any.
-    pub(crate) fn loaded_audio_duration_seconds(&self) -> Option<f32> {
-        self.sample_view
-            .wav
-            .loaded_audio
-            .as_ref()
-            .map(|audio| audio.duration_seconds)
-    }
-
-    pub(crate) fn is_issue_gateway_poll_in_progress(&self) -> bool {
-        self.runtime.jobs.issue_gateway_poll_in_progress()
-    }
-}
-
-fn log_status_entry(tone: StatusTone, entry: &str) {
-    match tone {
-        StatusTone::Warning => tracing::warn!("{entry}"),
-        StatusTone::Error => tracing::error!("{entry}"),
-        StatusTone::Info | StatusTone::Busy | StatusTone::Idle => tracing::info!("{entry}"),
-    }
-}
-
-/// Return the status badge prefix text for a status tone.
-fn status_prefix(tone: StatusTone) -> &'static str {
-    match tone {
-        StatusTone::Idle => "Idle",
-        StatusTone::Busy => "Working",
-        StatusTone::Info => "Info",
-        StatusTone::Warning => "Warning",
-        StatusTone::Error => "Error",
     }
 }
 

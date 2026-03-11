@@ -1,6 +1,7 @@
 //! Lifecycle and queue-plumbing methods for [`ControllerJobs`].
 
 use super::*;
+use crate::app::controller::AppController;
 
 impl ControllerJobs {
     /// Build controller job orchestration from pre-spawned worker channels/handles.
@@ -156,5 +157,19 @@ impl ControllerJobs {
                 }
             }
         });
+    }
+}
+
+impl AppController {
+    /// Install the repaint signal used by controller-owned async subsystems.
+    pub(crate) fn set_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
+        self.runtime.jobs.set_repaint_signal(signal.clone());
+        self.runtime.analysis.set_repaint_signal(signal);
+    }
+
+    /// Shut down background workers owned by the controller.
+    pub(crate) fn shutdown(&mut self) {
+        self.runtime.jobs.shutdown();
+        self.runtime.analysis.shutdown();
     }
 }

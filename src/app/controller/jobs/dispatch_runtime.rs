@@ -1,6 +1,7 @@
 //! Runtime/build/update dispatch helpers for [`ControllerJobs`].
 
 use super::*;
+use crate::app::controller::AppController;
 
 impl ControllerJobs {
     /// Return whether deferred source DB maintenance is currently running.
@@ -141,5 +142,12 @@ impl ControllerJobs {
             move || run_normalization_job(job),
             JobMessage::Normalized,
         );
+    }
+}
+
+impl AppController {
+    /// Return whether issue-gateway auth polling is currently active.
+    pub(crate) fn is_issue_gateway_poll_in_progress(&self) -> bool {
+        self.runtime.jobs.issue_gateway_poll_in_progress()
     }
 }
