@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: Phase 2 resumed; items 1-20 complete; item 21 is next
+Phase: Phase 2 resumed; items 1-21 complete; item 22 is next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -257,7 +257,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: targeted `radiant` native-shell tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`53f70d56`)
 
-- [ ] 21) Finish decomposing `vendor/radiant` native Vello runtime, input routing, and test surface
+- [x] 21) Finish decomposing `vendor/radiant` native Vello runtime, input routing, and test surface
   - ROI/Effort: High / L
   - Why it matters: immediate input handling, drag state, scene fingerprinting, redraw scheduling, and the runtime tests are still too coupled for safe incremental changes.
   - Evidence:
@@ -267,6 +267,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: continue splitting runtime state, input/pointer routing, redraw scheduling, and scene diff/fingerprint logic into behavior-focused modules with matching tests.
   - Risk/tradeoffs: High. This is hot-path event-loop/render code and easy to regress under real interaction.
   - Suggested validation: targeted `radiant` runtime/input tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`b6f3eb6f`)
 
 - [ ] 22) Split the public `radiant::app` contract surface and add boundary docs
   - ROI/Effort: Medium-High / M
@@ -380,6 +381,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 18 by moving controller performance/status/undo helpers and remaining job/playback delegations out of `src/app/controller.rs`, leaving the root controller focused on construction and top-level accessors.
 - 2026-03-11: Completed item 19 by splitting similarity resolution into focused repository, reranking, and analysis-enqueue modules while preserving the existing query/apply surface.
 - 2026-03-11: Completed item 20 by splitting `vendor/radiant` native-shell retained-state sync/cache helpers and frame-build status-bar helpers into focused modules while preserving the retained shell behavior and test surface.
+- 2026-03-11: Completed item 21 by splitting `vendor/radiant` native Vello waveform input routing into focused geometry/handle/wheel modules and extracting the immediate cursor/drag runtime state machine into `runtime_input.rs`.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
