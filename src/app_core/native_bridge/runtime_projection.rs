@@ -119,7 +119,8 @@ impl SempalNativeBridge {
             self.invalidate_projection_key_snapshot();
         }
         if profiling {
-            let flush_duration = flush_start.map_or(Duration::ZERO, |start| start.elapsed());
+            let flush_duration =
+                flush_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
             trace_derived_flush(flush_duration, dirty_sources, dirty_computed);
         }
     }
@@ -150,7 +151,8 @@ impl SempalNativeBridge {
             }
             self.flush_derived_updates_before_pull(false);
         }
-        let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
+        let prepare_duration =
+            prepare_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
         if profiling {
             trace_pull_model_preparation(prepare_duration);
         }
@@ -164,7 +166,8 @@ impl SempalNativeBridge {
         self.last_dirty_segments = dirty_segments;
         self.segment_revisions
             .bump_for_dirty_segments(self.last_dirty_segments);
-        let project_duration = project_start.map_or(Duration::ZERO, |start| start.elapsed());
+        let project_duration =
+            project_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
         if profiling {
             trace_pull_model_projection(project_duration);
         }
@@ -208,13 +211,15 @@ impl SempalNativeBridge {
             self.invalidate_projection_key_snapshot();
         }
         self.flush_derived_updates_before_pull(true);
-        let prepare_duration = prepare_start.map_or(Duration::ZERO, |start| start.elapsed());
+        let prepare_duration =
+            prepare_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
         if profiling {
             trace_pull_motion_preparation(prepare_duration);
         }
         let project_start = profiling.then(Instant::now);
         let model = Some(self.controller.project_native_motion_model());
-        let project_duration = project_start.map_or(Duration::ZERO, |start| start.elapsed());
+        let project_duration =
+            project_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
         if profiling {
             trace_pull_motion_projection(project_duration);
         }

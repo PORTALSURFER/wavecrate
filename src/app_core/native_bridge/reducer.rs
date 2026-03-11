@@ -149,7 +149,8 @@ impl SempalNativeBridge {
         }
         self.apply_browser_focus_delta_immediately(delta);
         if profiling {
-            let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
+            let action_duration =
+                action_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
             trace_action_duration(action_duration);
             trace_action_interaction(InteractionActionClass::Wheel, action_duration);
         }
@@ -166,7 +167,8 @@ impl SempalNativeBridge {
         self.schedule_full_model_pull_preparation();
         self.apply_action_immediately(action);
         if profiling {
-            let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
+            let action_duration =
+                action_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
             trace_action_duration(action_duration);
             trace_action_interaction(InteractionActionClass::Waveform, action_duration);
         }
@@ -185,7 +187,8 @@ impl SempalNativeBridge {
             info!(call, action = ?action, "native bridge: queue waveform action");
         }
         if profiling {
-            let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
+            let action_duration =
+                action_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
             trace_action_duration(action_duration);
             trace_action_interaction(InteractionActionClass::Waveform, action_duration);
         }
@@ -203,7 +206,8 @@ impl SempalNativeBridge {
         }
         self.apply_action_immediately(action);
         if profiling {
-            let action_duration = action_start.map_or(Duration::ZERO, |start| start.elapsed());
+            let action_duration =
+                action_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
             trace_action_duration(action_duration);
             if let Some(kind) = interaction_class {
                 trace_action_interaction(kind, action_duration);
