@@ -7,9 +7,14 @@ use crate::app_core::actions::{
 use serde::Serialize;
 use std::{
     fs,
+    io::ErrorKind,
     path::Path,
+    thread,
     time::{SystemTime, UNIX_EPOCH},
 };
+
+const ARTIFACT_WRITE_RETRY_LIMIT: usize = 20;
+const ARTIFACT_WRITE_RETRY_DELAY_MS: u64 = 25;
 
 /// Serialized trace event for one GUI action observed during a test run.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -108,8 +113,38 @@ pub fn write_artifact_bundle(bundle: &GuiTestArtifactBundle, path: &Path) -> Res
     }
     let json = serde_json::to_string_pretty(bundle)
         .map_err(|err| format!("failed to serialize GUI test bundle: {err}"))?;
-    fs::write(path, json)
-        .map_err(|err| format!("failed to write GUI test bundle {}: {err}", path.display()))
+    write_artifact_json_with_retry(path, json)
+}
+
+fn write_artifact_json_with_retry(path: &Path, json: String) -> Result<(), String> {
+    for attempt in 0..ARTIFACT_WRITE_RETRY_LIMIT {
+        match fs::write(path, &json) {
+            Ok(()) => return Ok(()),
+            Err(err)
+                if attempt + 1 < ARTIFACT_WRITE_RETRY_LIMIT
+                    && is_transient_artifact_write_error(&err) =>
+            {
+                thread::sleep(std::time::Duration::from_millis(
+                    ARTIFACT_WRITE_RETRY_DELAY_MS,
+                ));
+            }
+            Err(err) => {
+                return Err(format!(
+                    "failed to write GUI test bundle {}: {err}",
+                    path.display()
+                ));
+            }
+        }
+    }
+    Err(format!(
+        "failed to write GUI test bundle {} after {} attempts",
+        path.display(),
+        ARTIFACT_WRITE_RETRY_LIMIT
+    ))
+}
+
+fn is_transient_artifact_write_error(err: &std::io::Error) -> bool {
+    matches!(err.kind(), ErrorKind::PermissionDenied | ErrorKind::WouldBlock)
 }
 
 pub(crate) fn catalog_report() -> Vec<GuiActionCatalogEntry> {

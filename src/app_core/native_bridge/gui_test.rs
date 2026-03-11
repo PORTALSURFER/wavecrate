@@ -10,6 +10,7 @@ use crate::{
 };
 use crate::app_core::actions::NativeUiAction;
 use std::path::PathBuf;
+use tracing::warn;
 
 /// Bridge-owned GUI test recorder that mirrors live runtime state into artifacts.
 pub(super) struct BridgeGuiTestRecorder {
@@ -63,7 +64,9 @@ impl BridgeGuiTestRecorder {
             failure_summary,
             step_timings_ms: Vec::new(),
         };
-        let _ = write_artifact_bundle(&bundle, &self.bundle_path());
+        if let Err(err) = write_artifact_bundle(&bundle, &self.bundle_path()) {
+            warn!(path = %self.bundle_path().display(), %err, "failed to write live GUI test artifact");
+        }
     }
 
     fn bundle_path(&self) -> PathBuf {

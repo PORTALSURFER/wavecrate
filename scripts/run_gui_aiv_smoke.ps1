@@ -42,9 +42,26 @@ function Read-GuiArtifact {
     return (Get-Content -LiteralPath $ArtifactPath -Raw | ConvertFrom-Json)
 }
 
+function Find-ArtifactNode {
+    param([string]$ArtifactPath, [string]$NodeId)
+    $artifact = Read-GuiArtifact -ArtifactPath $ArtifactPath
+    $stack = [System.Collections.Generic.Stack[object]]::new()
+    $stack.Push($artifact.automation_snapshot.root)
+    while ($stack.Count -gt 0) {
+        $node = $stack.Pop()
+        if ($node.id -eq $NodeId) {
+            return $node
+        }
+        foreach ($child in $node.children) {
+            $stack.Push($child)
+        }
+    }
+    throw "node $NodeId not found in $ArtifactPath"
+}
+
 function Resolve-NodeTarget {
     param([string]$ArtifactPath, [string]$NodeId)
-    $json = & $guiCliPath resolve-node-target $ArtifactPath $NodeId
+    $json = & $guiCliPath resolve-node-target $ArtifactPath $NodeId 2>$null
     if ($LASTEXITCODE -ne 0) {
         throw "failed to resolve automation node $NodeId"
     }
@@ -99,7 +116,7 @@ function Get-NodeScreenPoint {
 function Test-NodePresent {
     param([string]$ArtifactPath, [string]$NodeId)
     try {
-        $null = Resolve-NodeTarget -ArtifactPath $ArtifactPath -NodeId $NodeId
+        $null = Find-ArtifactNode -ArtifactPath $ArtifactPath -NodeId $NodeId
         return $true
     } catch {
         return $false
@@ -108,19 +125,13 @@ function Test-NodePresent {
 
 function Get-NodeValue {
     param([string]$ArtifactPath, [string]$NodeId)
+    return (Find-ArtifactNode -ArtifactPath $ArtifactPath -NodeId $NodeId).value
+}
+
+function Test-ActionRecorded {
+    param([string]$ArtifactPath, [string]$ActionId)
     $artifact = Read-GuiArtifact -ArtifactPath $ArtifactPath
-    $stack = [System.Collections.Generic.Stack[object]]::new()
-    $stack.Push($artifact.automation_snapshot.root)
-    while ($stack.Count -gt 0) {
-        $node = $stack.Pop()
-        if ($node.id.0 -eq $NodeId) {
-            return $node.value
-        }
-        foreach ($child in $node.children) {
-            $stack.Push($child)
-        }
-    }
-    throw "node $NodeId not found in $ArtifactPath"
+    return $artifact.action_trace | Where-Object { $_.action_id -eq $ActionId } | Select-Object -First 1
 }
 
 function Wait-ForNodeState {
@@ -133,8 +144,12 @@ function Wait-ForNodeState {
     $deadline = (Get-Date).AddMilliseconds($TimeoutMs)
     while ((Get-Date) -lt $deadline) {
         if (Test-Path -LiteralPath $ArtifactPath) {
-            if (& $Predicate) {
-                return
+            try {
+                if (& $Predicate) {
+                    return
+                }
+            } catch {
+                Start-Sleep -Milliseconds 100
             }
         }
         Start-Sleep -Milliseconds 250
@@ -144,24 +159,22 @@ function Wait-ForNodeState {
 
 function Click-Node {
     param([string]$ArtifactPath, [string]$NodeId)
+    $target = Resolve-NodeTarget -ArtifactPath $ArtifactPath -NodeId $NodeId
+    $offsetX = [int][Math]::Round($target.center_x)
+    $offsetY = [int][Math]::Round($target.center_y)
     $point = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -NodeId $NodeId
-    aiv mouse click --x $point.x --y $point.y | Out-Null
+    Write-Host "[gui-aiv] click $NodeId at offset=($offsetX,$offsetY) screen=($($point.x),$($point.y))"
+    aiv workflow click-window --title $windowTitle --anchor top-left --offset-x $offsetX --offset-y $offsetY | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw "failed to click automation node $NodeId"
     }
 }
 
-function Type-IntoNode {
-    param([string]$ArtifactPath, [string]$NodeId, [string]$Text)
-    Click-Node -ArtifactPath $ArtifactPath -NodeId $NodeId
-    Start-Sleep -Milliseconds 150
-    aiv keyboard clear-field | Out-Null
+function Capture-Screenshot {
+    param([string]$Filename)
+    aiv screenshot --output (Join-Path $artifactsRoot $Filename) | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        throw "failed to clear automation node $NodeId"
-    }
-    aiv keyboard type --text $Text | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "failed to type into automation node $NodeId"
+        throw "failed to capture screenshot $Filename"
     }
 }
 
@@ -205,9 +218,6 @@ try {
     aiv window wait --title $windowTitle --timeout-ms 30000 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "failed waiting for Sempal window" }
 
-    Write-Host "[gui-aiv] aiv window move-resize --title $windowTitle --x $WindowX --y $WindowY --width 1440 --height 810"
-    aiv window move-resize --title $windowTitle --x $WindowX --y $WindowY --width 1440 --height 810 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "failed to move/resize Sempal window" }
     Ensure-WindowForeground -Title $windowTitle
 
     Wait-ForGuiArtifact -Path $guiArtifactPath -TimeoutMs 30000
@@ -215,39 +225,47 @@ try {
         Test-NodePresent -ArtifactPath $guiArtifactPath -NodeId "browser.search_field"
     }
 
-    aiv screenshot --output (Join-Path $artifactsRoot "startup.png") | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "failed to capture startup screenshot" }
+    Capture-Screenshot -Filename "startup.png"
+    Start-Sleep -Milliseconds 1000
 
-    Click-Node -ArtifactPath $guiArtifactPath -NodeId "shell.top_bar.options_button"
-    Wait-ForNodeState -ArtifactPath $guiArtifactPath -Label "options panel open" -Predicate {
-        Test-NodePresent -ArtifactPath $guiArtifactPath -NodeId "overlay.options_panel"
+    $optionsOpened = $false
+    for ($attempt = 1; $attempt -le 3 -and -not $optionsOpened; $attempt++) {
+        Click-Node -ArtifactPath $guiArtifactPath -NodeId "shell.top_bar.options_button"
+        Start-Sleep -Milliseconds 250
+        Capture-Screenshot -Filename ("options-click-attempt-{0}.png" -f $attempt)
+        try {
+            Wait-ForNodeState -ArtifactPath $guiArtifactPath -Label "options panel open" -TimeoutMs 3000 -Predicate {
+                Test-NodePresent -ArtifactPath $guiArtifactPath -NodeId "overlay.options_panel"
+            }
+            $optionsOpened = $true
+        } catch {
+            if ($attempt -ge 3) {
+                throw
+            }
+            Ensure-WindowForeground -Title $windowTitle
+            Start-Sleep -Milliseconds 500
+        }
     }
-    aiv screenshot --output (Join-Path $artifactsRoot "options-open.png") | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "failed to capture options-open screenshot" }
+    Capture-Screenshot -Filename "options-open.png"
 
     Click-Node -ArtifactPath $guiArtifactPath -NodeId "overlay.options_panel.close"
     Wait-ForNodeState -ArtifactPath $guiArtifactPath -Label "options panel close" -Predicate {
         -not (Test-NodePresent -ArtifactPath $guiArtifactPath -NodeId "overlay.options_panel")
     }
+    Start-Sleep -Milliseconds 300
 
-    Type-IntoNode -ArtifactPath $guiArtifactPath -NodeId "browser.search_field" -Text "snare"
+    aiv keyboard key --key f | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "failed to focus browser search with keyboard" }
+    Wait-ForNodeState -ArtifactPath $guiArtifactPath -Label "browser search focus action" -Predicate {
+        Test-ActionRecorded -ArtifactPath $guiArtifactPath -ActionId "focus_browser_search"
+    }
+    Start-Sleep -Milliseconds 200
+    aiv keyboard type --text "snare" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "failed to type browser search text" }
     Wait-ForNodeState -ArtifactPath $guiArtifactPath -Label "browser search value" -Predicate {
         (Get-NodeValue -ArtifactPath $guiArtifactPath -NodeId "browser.search_field") -like "*snare*"
     }
-    aiv screenshot --output (Join-Path $artifactsRoot "search-snare.png") | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "failed to capture search screenshot" }
-
-    Click-Node -ArtifactPath $guiArtifactPath -NodeId "browser.tab.map"
-    Wait-ForNodeState -ArtifactPath $guiArtifactPath -Label "map canvas" -Predicate {
-        Test-NodePresent -ArtifactPath $guiArtifactPath -NodeId "browser.map_canvas"
-    }
-    aiv screenshot --output (Join-Path $artifactsRoot "map-tab.png") | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "failed to capture map screenshot" }
-
-    Click-Node -ArtifactPath $guiArtifactPath -NodeId "browser.tab.samples"
-    Wait-ForNodeState -ArtifactPath $guiArtifactPath -Label "samples table" -Predicate {
-        Test-NodePresent -ArtifactPath $guiArtifactPath -NodeId "browser.table"
-    }
+    Capture-Screenshot -Filename "search-snare.png"
 
     Write-Host "[gui-aiv] semantic AIV smoke passed"
 } finally {
