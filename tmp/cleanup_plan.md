@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T17:44:55Z`
+- Refreshed (UTC): `2026-03-11T17:52:16Z`
 - Branch: `next`
-- Head: `f8dbd240`
+- Head: `072fb0ca`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-5 complete; continuing strict sequential implementation at item 6`
+- Status: `Items 1-6 complete; continuing strict sequential implementation at item 7`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -55,13 +55,14 @@
 - Suggested validation: Existing backfill tests, worker retry tests, ANN/update integration tests, and `ci_quick.ps1`.
 - Completed: `2026-03-11` — main repo commit `f8dbd240` replaced the single `backfill.rs` file with focused `backfill/{planning,repository,workers,persistence,model}.rs` modules while keeping `run_embedding_backfill_job` as a thin orchestration façade.
 
-### 6. [ ] Split analysis job claim/worker orchestration in `src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs`
+### 6. [x] Split analysis job claim/worker orchestration in `src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs`
 - ROI / Effort: High / M
 - Why it matters: Decoder/compute worker setup, lease management, queue coordination, wakeups, and OS-specific thread tuning still meet in one module, obscuring failure paths and making worker-lifecycle changes risky.
 - Evidence: `src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs` is about 482 LOC. `spawn_decoder_worker` and `spawn_compute_worker` each carry broad orchestration responsibilities on top of nested module helpers.
 - Recommended change: Split worker-thread loops, lifecycle/bootstrap, and OS-priority/wakeup glue into separate modules, leaving `mod.rs` as a small export surface.
 - Risk / tradeoffs: Moderate concurrency risk; preserve shutdown, cancellation, and inflight-dedupe semantics.
 - Suggested validation: Existing job-claim pool tests, decode heartbeat tests, and `ci_quick.ps1`.
+- Completed: `2026-03-11` — main repo commit `072fb0ca` moved worker contexts into `job_claim/context.rs`, split decoder and compute worker orchestration into dedicated modules, isolated OS-priority glue in `job_claim/priority.rs`, and reduced `job_claim/mod.rs` to the module/export surface.
 
 ### 7. [ ] Finish separating map view orchestration from repository and job flows
 - ROI / Effort: High / M
