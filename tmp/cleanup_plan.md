@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: Phase 2 resumed; items 1-26 complete; item 27 is next
+Phase: Phase 2 resumed; items 1-27 complete; item 28 is next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -328,7 +328,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: `radiant` style/native-shell tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`cf6c233a`)
 
-- [ ] 27) Deduplicate `tools/analysis-admin` CLI scaffolding and add parser tests
+- [x] 27) Deduplicate `tools/analysis-admin` CLI scaffolding and add parser tests
   - ROI/Effort: Medium / S
   - Why it matters: the analysis admin binaries repeat argument parsing and `main`/`run` scaffolding, which makes small tooling fixes noisy.
   - Evidence:
@@ -337,6 +337,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: extract a tiny shared CLI support layer for common parsing/runtime boilerplate and add focused parser tests around each command's unique flags.
   - Risk/tradeoffs: Low. Tooling-only changes, but CLI error text should remain stable where scripts may rely on it.
   - Suggested validation: analysis-admin tool tests, command help smoke checks, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`934ad10b`)
 
 - [ ] 28) Resolve UMAP/t-SNE naming drift across public APIs, CLI, and status text
   - ROI/Effort: Medium / S
@@ -392,6 +393,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 24 by documenting the `AsyncSource` worker lifecycle, retaining the worker handle for explicit finished-thread joining, catching worker panics so streams terminate cleanly, and adding teardown/panic-path coverage in `src/audio/async_decode/tests.rs`.
 - 2026-03-11: Completed item 25 by splitting playback transport start, player lifecycle, playhead follow-up, and waveform UI synchronization helpers into focused `player/` modules while preserving the `AppController` playback facade.
 - 2026-03-11: Completed item 26 by splitting the `radiant` native-shell style surface into focused palette, sizing, and tier-policy modules while preserving the `StyleTokens`/`SizingTokens` contract and existing style behavior.
+- 2026-03-11: Completed item 27 by extracting shared analysis-admin CLI bootstrap helpers for command execution, help detection, and default library DB resolution and by adding focused parser tests for each binary's unique flags.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
