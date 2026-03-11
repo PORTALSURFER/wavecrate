@@ -1,8 +1,9 @@
 //! Segment hit/miss attribution probes for GUI benchmark reporting.
 
+use super::super::options::BenchOptions;
 use super::attribution::{GuiInteractionSegmentAttribution, SegmentAttributionSummary};
 use super::interactions::{execute_interaction_step, prime_map_cache_for_benchmark};
-use super::{BenchOptions, wait_for_rows};
+use super::workspace::wait_for_rows;
 use sempal::app_core::actions::NativeUiAction;
 use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
 use sempal::app_core::native_bridge::{

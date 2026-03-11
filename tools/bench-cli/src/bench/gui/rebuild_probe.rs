@@ -1,5 +1,6 @@
 //! Rebuild-cause attribution probes for GUI benchmark reporting.
 
+use super::super::options::BenchOptions;
 use super::attribution::{
     GuiInteractionRebuildCauseAttribution, rebuild_cause_summary_from_counts,
 };
@@ -10,7 +11,7 @@ use super::interactions::{
         interaction_sort_for_step, volume_milli_for_step, waveform_action_for_step,
     },
 };
-use super::{BenchOptions, wait_for_rows};
+use super::workspace::wait_for_rows;
 use sempal::app_core::actions::NativeUiAction;
 use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
 use sempal::app_core::native_bridge::{

@@ -3,6 +3,7 @@ use super::interactions::step_patterns::{
     adjacent_waveform_action_for_step, interaction_filter_for_step, interaction_query_for_step,
     interaction_sort_for_step, volume_milli_for_step, waveform_action_for_step,
 };
+use super::workspace::{build_controller_with_db_rows, wait_for_rows};
 use super::*;
 use sempal::app_core::actions::NativeUiAction;
 

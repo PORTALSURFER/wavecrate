@@ -13,8 +13,8 @@ pub(in crate::bench::gui) fn waveform_action_for_step(step: usize) -> NativeUiAc
             position_milli: 480,
         },
         2 => NativeUiAction::SetWaveformSelectionRange {
-            start_milli: 220,
-            end_milli: 660,
+            start_micros: 220_000,
+            end_micros: 660_000,
             preserve_view_edge: false,
         },
         3 => NativeUiAction::ZoomWaveform {

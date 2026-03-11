@@ -3,7 +3,8 @@
 /// Deterministic step-selection helpers shared by interaction scenarios and tests.
 pub(super) mod step_patterns;
 
-use super::{BenchOptions, stats, wait_for_rows};
+use super::super::{options::BenchOptions, stats};
+use super::workspace::wait_for_rows;
 use sempal::app_core::actions::{NativeAppModel, NativeMotionModel, NativeUiAction};
 use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
 use sempal::app_core::state::{
