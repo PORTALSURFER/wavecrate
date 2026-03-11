@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-11 (UTC)
-Phase: Phase 2 in progress; items 1-3 complete, item 4 next
+Phase: Phase 2 in progress; items 1-4 complete, item 5 next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -54,7 +54,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: recording waveform loader tests, playback recording tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`0524d980`)
 
-- [ ] 4) Split the waveform public surface into model, loading, and render facades
+- [x] 4) Split the waveform public surface into model, loading, and render facades
   - ROI/Effort: High / M
   - Why it matters: the top-level waveform module still mixes image/pixel types, decoded-audio state, span-analysis helpers, renderer construction, and file IO limits. That keeps the core waveform contract harder to navigate than the rest of the already-split codebase.
   - Evidence:
@@ -66,6 +66,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: move data-model types, decode/load entrypoints, and renderer facade responsibilities into a clearer module tree so `mod.rs` becomes a thin documented re-export surface.
   - Risk/tradeoffs: Medium. The public waveform API is used widely, so import churn needs to stay contained behind re-exports.
   - Suggested validation: waveform unit tests, controller waveform tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`5fea7bc1`)
 
 - [ ] 5) Split drag-drop controller actions by payload family and drop-target resolution
   - ROI/Effort: High / M
@@ -205,3 +206,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 1 in commit `0286445a` by splitting native-bridge metrics into focused registry, snapshot, and reporting modules while keeping the trace-hook facade stable.
 - 2026-03-11: Completed item 2 in commit `517ec252` by moving the staged top-level app-model projection pipeline into `src/app_core/native_shell/app_model.rs` and leaving `src/app_core/native_shell.rs` as a thinner facade.
 - 2026-03-11: Completed item 3 in commit `0524d980` by splitting recording waveform loading into focused `io`, `state_cache`, `incremental_update`, and test modules while preserving incremental refresh behavior.
+- 2026-03-11: Completed item 4 in commit `5fea7bc1` by turning `src/waveform/mod.rs` into a thin facade and moving the waveform public model and load-from-disk entrypoints into focused `model` and `loading` modules.
