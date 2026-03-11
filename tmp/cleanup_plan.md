@@ -1,22 +1,23 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T16:29:31Z`
+- Refreshed (UTC): `2026-03-11T16:56:24Z`
 - Branch: `next`
-- Head: `37a67140`
-- Phase: `Phase 1 complete`
-- Status: `Awaiting explicit user confirmation before Phase 2 implementation`
+- Head: `46df058d`
+- Phase: `Phase 2 in progress`
+- Status: `Item 1 complete; continuing strict sequential implementation at item 2`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
 ## Ordered ROI backlog
 
-### 1. [ ] Split `vendor/radiant/src/gui_runtime/native_vello.rs` runner/event/render monolith
+### 1. [x] Split `vendor/radiant/src/gui_runtime/native_vello.rs` runner/event/render monolith
 - ROI / Effort: High / L
 - Why it matters: The native Vello runtime is the single largest live hotspot in the repo and still concentrates window lifecycle, event dispatch, scene rebuild orchestration, presentation, caches, and startup behavior in one file.
 - Evidence: `vendor/radiant/src/gui_runtime/native_vello.rs` is about 2936 LOC. `NativeVelloRunner` starts near line 140, its main impl starts near line 265, and redraw/present/event-lifecycle code is still intertwined in one façade despite recent helper extraction.
 - Recommended change: Split the file into focused modules for window lifecycle, event dispatch, frame/rebuild scheduling, render/present, and retained cache/resource management while keeping the public runtime entrypoints stable.
 - Risk / tradeoffs: High churn across lifetime-heavy types and `winit` callback wiring; careless moves could regress startup timing or pointer/keyboard behavior.
 - Suggested validation: Targeted `radiant` runtime/input tests, startup smoke tests, `cargo fmt --all`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Completed: `2026-03-11` — `vendor/radiant` commit `e0ce0710` split startup/window lifecycle, scene rebuild/present, and event-loop handling into dedicated `native_vello` modules while keeping public runtime entrypoints stable.
 
 ### 2. [ ] Split `vendor/radiant/src/gui/native_shell/state/toolbar_helpers.rs` by toolbar family
 - ROI / Effort: High / M

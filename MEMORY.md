@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-11T16:31:21Z
+Last Updated: 2026-03-11T16:56:24Z
 Updated By: Codex
 
 ## Purpose
@@ -14,9 +14,10 @@ Updated By: Codex
 - I have completed the runtime performance backlog in `tmp/perf_plan.md` through item 11.
 - I have completed the previous cleanup lanes recorded in older `tmp/cleanup_plan.md` revisions.
 - I have now opened a fresh cleanup audit pass and rebuilt `tmp/cleanup_plan.md`.
-- The new cleanup plan contains 16 pending items in strict ROI order.
-- Phase 1 is complete; no implementation work from the new cleanup backlog has started.
-- Phase 2 is blocked on explicit user confirmation.
+- The refreshed cleanup plan is now in Phase 2 execution.
+- Cleanup item 1 is complete in `vendor/radiant` commit `e0ce0710`.
+- There are 15 remaining cleanup items in strict ROI order.
+- Cleanup item 2 is next.
 - The current cleanup source of truth is `tmp/cleanup_plan.md`.
 - The perf source of truth remains `docs/plans/active/runtime_performance_exec_plan.md` and stays dormant unless a separate perf lane is reopened.
 - Future Windows sessions must not run the Bash workflow scripts; they should use only the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -24,9 +25,9 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Paste the exact ordered backlog from `tmp/cleanup_plan.md` into chat.
-2. Ask for explicit confirmation before starting cleanup item 1.
-3. If the user confirms, execute the plan strictly in order and keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` synchronized after each milestone.
+1. Continue cleanup at item 2 in `tmp/cleanup_plan.md`.
+2. After each completed cleanup item, rerun validation and update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md`.
+3. Commit and push each cleanup milestone after quick CI is green.
 
 ## Work Notes
 
