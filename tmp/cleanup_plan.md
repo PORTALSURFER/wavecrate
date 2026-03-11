@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: Phase 2 resumed; items 1-28 complete; item 29 is next
+Phase: Phase 2 resumed; items 1-29 complete; item 30 is next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -351,7 +351,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: map-view/status tests, analysis/tooling smoke tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`cbe1c428`)
 
-- [ ] 29) Replace the live STFT complexity suppression with a context/scratch struct
+- [x] 29) Replace the live STFT complexity suppression with a context/scratch struct
   - ROI/Effort: Medium / S-M
   - Why it matters: one of the remaining `too_many_arguments` suppressions is on live DSP code, which signals a real readability issue rather than legacy glue.
   - Evidence:
@@ -362,6 +362,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: introduce a small typed context/scratch container for the repeated frame-processing inputs so the STFT flow becomes easier to read and test without changing math behavior.
   - Risk/tradeoffs: Low-medium. DSP code is sensitive to accidental allocation or ordering changes, so the refactor should stay purely structural.
   - Suggested validation: STFT unit tests or new focused math tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`981b5337`)
 
 - [ ] 30) Prune or justify the remaining broad vendor/runtime suppressions and dead layout surface
   - ROI/Effort: Low-Medium / S
@@ -396,6 +397,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 26 by splitting the `radiant` native-shell style surface into focused palette, sizing, and tier-policy modules while preserving the `StyleTokens`/`SizingTokens` contract and existing style behavior.
 - 2026-03-11: Completed item 27 by extracting shared analysis-admin CLI bootstrap helpers for command execution, help detection, and default library DB resolution and by adding focused parser tests for each binary's unique flags.
 - 2026-03-11: Completed item 28 by aligning the canonical user-facing term on “similarity map layout” across the public analysis surface, CLI/help output, status/progress text, and related docs while preserving the legacy `umap` compatibility shims and persisted names.
+- 2026-03-11: Completed item 29 by replacing the STFT hot-path argument suppression with typed processor/scratch structures and by making the minimum-frame MFCC fallback honor the active mel DCT width.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
