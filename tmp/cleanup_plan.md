@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: Phase 2 resumed; items 1-29 complete; item 30 is next
+Phase: Phase 2 complete; items 1-30 complete
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -364,7 +364,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: STFT unit tests or new focused math tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`981b5337`)
 
-- [ ] 30) Prune or justify the remaining broad vendor/runtime suppressions and dead layout surface
+- [x] 30) Prune or justify the remaining broad vendor/runtime suppressions and dead layout surface
   - ROI/Effort: Low-Medium / S
   - Why it matters: after the larger structural items land, the remaining broad `allow(dead_code)` / layout compatibility surface in `vendor/radiant` will be easier to evaluate and either remove or document.
   - Evidence:
@@ -373,6 +373,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: after the module splits, remove dead surface area where possible and add short rationale comments only for the suppressions that remain intentionally public or compatibility-driven.
   - Risk/tradeoffs: Low. This is mostly cleanup, but it depends on earlier refactors making ownership clearer first.
   - Suggested validation: `cargo clippy -p radiant --all-targets`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`9e8b3708`)
 
 ## Progress Log
 
@@ -398,6 +399,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 27 by extracting shared analysis-admin CLI bootstrap helpers for command execution, help detection, and default library DB resolution and by adding focused parser tests for each binary's unique flags.
 - 2026-03-11: Completed item 28 by aligning the canonical user-facing term on “similarity map layout” across the public analysis surface, CLI/help output, status/progress text, and related docs while preserving the legacy `umap` compatibility shims and persisted names.
 - 2026-03-11: Completed item 29 by replacing the STFT hot-path argument suppression with typed processor/scratch structures and by making the minimum-frame MFCC fallback honor the active mel DCT width.
+- 2026-03-11: Completed item 30 by pruning dead `radiant` layout-helper surface, moving test-only layout/frame builders behind `#[cfg(test)]`, and documenting the remaining wider layout-policy suppressions as intentional compatibility surface.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
