@@ -97,8 +97,8 @@ fn make_job(sample_ids: &[&str], root: &Path) -> db::ClaimedJob {
     }
 }
 
-fn make_work(id: &str) -> EmbeddingWork {
-    EmbeddingWork {
+fn make_work(id: &str) -> super::model::EmbeddingWork {
+    super::model::EmbeddingWork {
         content_hash: format!("hash-{id}"),
         absolute_path: PathBuf::from(format!("dummy/{id}.wav")),
         sample_ids: vec![id.to_string()],
@@ -112,7 +112,7 @@ fn drain_batch_caps_at_limit() {
     queue.push_back(make_work("b"));
     queue.push_back(make_work("c"));
 
-    let batch = drain_batch(&mut queue, 2);
+    let batch = super::workers::drain_batch(&mut queue, 2);
     assert_eq!(batch.len(), 2);
     assert_eq!(queue.len(), 1);
     assert_eq!(queue.front().unwrap().sample_ids[0], "c");
@@ -122,7 +122,7 @@ fn drain_batch_caps_at_limit() {
 fn collect_results_limits_error_list() {
     let (tx, rx) = channel();
     tx.send(Err("err-1".to_string())).unwrap();
-    tx.send(Ok(EmbeddingComputation {
+    tx.send(Ok(super::model::EmbeddingComputation {
         content_hash: "hash-a".to_string(),
         sample_ids: vec!["a".to_string()],
         embedding: vec![0.0_f32; 2],
@@ -134,7 +134,7 @@ fn collect_results_limits_error_list() {
     tx.send(Err("err-4".to_string())).unwrap();
     drop(tx);
 
-    let (results, errors) = collect_results(rx);
+    let (results, errors) = super::workers::collect_results(rx);
     assert_eq!(results.len(), 1);
     assert_eq!(errors.len(), 3);
     assert_eq!(errors[0], "err-1");
@@ -144,7 +144,7 @@ fn collect_results_limits_error_list() {
 #[test]
 fn backfill_retry_succeeds_after_failures() {
     let mut attempts = 0;
-    let result = retry_backfill_write_with(
+    let result = super::persistence::retry_backfill_write_with(
         || {
             attempts += 1;
             if attempts < 3 {
@@ -163,7 +163,7 @@ fn backfill_retry_succeeds_after_failures() {
 #[test]
 fn backfill_retry_stops_after_limit() {
     let mut attempts = 0;
-    let result = retry_backfill_write_with(
+    let result = super::persistence::retry_backfill_write_with(
         || {
             attempts += 1;
             Err("nope".to_string())
@@ -178,7 +178,7 @@ fn backfill_retry_stops_after_limit() {
 #[test]
 fn ann_update_retry_succeeds_after_failures() {
     let mut attempts = 0;
-    let result = retry_ann_update_with(
+    let result = super::persistence::retry_ann_update_with(
         || {
             attempts += 1;
             if attempts < 2 {
@@ -197,7 +197,7 @@ fn ann_update_retry_succeeds_after_failures() {
 #[test]
 fn ann_update_retry_returns_last_error() {
     let mut attempts = 0;
-    let result = retry_ann_update_with(
+    let result = super::persistence::retry_ann_update_with(
         || {
             attempts += 1;
             Err(format!("nope-{attempts}"))
@@ -232,7 +232,8 @@ fn plan_uses_cached_embedding_when_available() {
     let temp = tempfile::TempDir::new().unwrap();
     let job = make_job(&["s::a.wav"], temp.path());
     let plan =
-        build_backfill_plan(&conn, &job, &["s::a.wav".to_string()], true, "v1").expect("plan");
+        super::planning::build_backfill_plan(&conn, &job, &["s::a.wav".to_string()], true, "v1")
+            .expect("plan");
 
     assert!(plan.work.is_empty());
     assert_eq!(plan.ready.len(), 1);
@@ -248,7 +249,8 @@ fn plan_builds_work_when_cache_misses() {
     std::fs::write(temp.path().join("a.wav"), b"data").unwrap();
     let job = make_job(&["s::a.wav"], temp.path());
     let plan =
-        build_backfill_plan(&conn, &job, &["s::a.wav".to_string()], false, "v1").expect("plan");
+        super::planning::build_backfill_plan(&conn, &job, &["s::a.wav".to_string()], false, "v1")
+            .expect("plan");
 
     assert!(plan.ready.is_empty());
     assert_eq!(plan.work.len(), 1);
@@ -264,7 +266,7 @@ fn plan_reuses_content_hash_for_work() {
     std::fs::write(temp.path().join("a.wav"), b"data").unwrap();
     std::fs::write(temp.path().join("b.wav"), b"data").unwrap();
     let job = make_job(&["s::a.wav", "s::b.wav"], temp.path());
-    let plan = build_backfill_plan(
+    let plan = super::planning::build_backfill_plan(
         &conn,
         &job,
         &["s::a.wav".to_string(), "s::b.wav".to_string()],
