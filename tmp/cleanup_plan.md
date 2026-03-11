@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: Phase 2 resumed; items 1-25 complete; item 26 is next
+Phase: Phase 2 resumed; items 1-26 complete; item 27 is next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -317,7 +317,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: playback controller tests, loop/transport tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`c3005581`)
 
-- [ ] 26) Split native-shell style tokens into palette, sizing, and tier policy
+- [x] 26) Split native-shell style tokens into palette, sizing, and tier policy
   - ROI/Effort: Medium / M
   - Why it matters: visual tokens and scaling policy are still clustered together, which makes future UI cleanup harder and blurs which values are semantic colors versus layout decisions.
   - Evidence:
@@ -326,6 +326,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: separate semantic palette values, sizing constants, and tier/scaling policy into focused modules with small docs on intended usage.
   - Risk/tradeoffs: Low-medium. Mostly structural, but token moves can create churn across imports.
   - Suggested validation: `radiant` style/native-shell tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`cf6c233a`)
 
 - [ ] 27) Deduplicate `tools/analysis-admin` CLI scaffolding and add parser tests
   - ROI/Effort: Medium / S
@@ -390,6 +391,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 23 by splitting the `app_core` native-shell projection tests plus the `vendor/radiant` native-shell state and native-Vello runtime test monoliths into focused module trees that match the production seams.
 - 2026-03-11: Completed item 24 by documenting the `AsyncSource` worker lifecycle, retaining the worker handle for explicit finished-thread joining, catching worker panics so streams terminate cleanly, and adding teardown/panic-path coverage in `src/audio/async_decode/tests.rs`.
 - 2026-03-11: Completed item 25 by splitting playback transport start, player lifecycle, playhead follow-up, and waveform UI synchronization helpers into focused `player/` modules while preserving the `AppController` playback facade.
+- 2026-03-11: Completed item 26 by splitting the `radiant` native-shell style surface into focused palette, sizing, and tier-policy modules while preserving the `StyleTokens`/`SizingTokens` contract and existing style behavior.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
