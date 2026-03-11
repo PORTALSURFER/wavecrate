@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T18:16:27Z`
+- Refreshed (UTC): `2026-03-11T18:22:35Z`
 - Branch: `next`
-- Head: `803f9d2e`
+- Head: `50f4da56`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-9 complete; continuing strict sequential implementation at item 10`
+- Status: `Items 1-10 complete; continuing strict sequential implementation at item 11`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -91,13 +91,14 @@
 - Suggested validation: Existing waveform controller tests, selection BPM/smart-scale regressions, and `ci_quick.ps1`.
 - Completed: `2026-03-11` — main repo commit `803f9d2e` split the waveform action facade into focused `selection.rs`, `edit.rs`, `view.rs`, and `state.rs` modules while preserving the existing `AppController` waveform API and conversion helpers.
 
-### 10. [ ] Separate audio recording capture, writer, and live-monitor workers in `src/audio/recording.rs`
+### 10. [x] Separate audio recording capture, writer, and live-monitor workers in `src/audio/recording.rs`
 - ROI / Effort: Medium / M
 - Why it matters: Recording still bundles CPAL stream startup, WAV writer worker management, live monitor relay, and thread teardown behavior in one file, which complicates failure-path testing and future device work.
 - Evidence: `src/audio/recording.rs` is about 351 LOC. `AudioRecorder`, `RecorderWriter`, `InputMonitor`, command enums, and the worker loops all live together.
 - Recommended change: Split capture/bootstrap, WAV writing, monitor plumbing, and shared command/state definitions into focused modules with clearer ownership boundaries.
 - Risk / tradeoffs: Moderate; thread teardown and monitor replay need to remain non-blocking and panic-safe.
 - Suggested validation: Existing recording tests, monitor attach/detach coverage, and `ci_quick.ps1`.
+- Completed: `2026-03-11` — main repo commit `50f4da56` replaced `src/audio/recording.rs` with `recording/{mod,capture,monitor,writer}.rs`, separating CPAL capture bootstrap, WAV writer threading, and live monitor plumbing while preserving the public `AudioRecorder` / `InputMonitor` surface.
 
 ### 11. [ ] Split ANN container format handling in `src/analysis/ann_index/container.rs`
 - ROI / Effort: Medium / M

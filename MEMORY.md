@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-11T18:16:27Z
+Last Updated: 2026-03-11T18:22:35Z
 Updated By: Codex
 
 ## Purpose
@@ -24,8 +24,9 @@ Updated By: Codex
 - Cleanup item 7 is complete in main repo commit `17d911b2`.
 - Cleanup item 8 is complete in main repo commit `ae5e1715`.
 - Cleanup item 9 is complete in main repo commit `803f9d2e`.
-- There are 7 remaining cleanup items in strict ROI order.
-- Cleanup item 10 is next.
+- Cleanup item 10 is complete in main repo commit `50f4da56`.
+- There are 6 remaining cleanup items in strict ROI order.
+- Cleanup item 11 is next.
 - The current cleanup source of truth is `tmp/cleanup_plan.md`.
 - The perf source of truth remains `docs/plans/active/runtime_performance_exec_plan.md` and stays dormant unless a separate perf lane is reopened.
 - Future Windows sessions must not run the Bash workflow scripts; they should use only the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -33,7 +34,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue cleanup at item 10 in `tmp/cleanup_plan.md`.
+1. Continue cleanup at item 11 in `tmp/cleanup_plan.md`.
 2. After each completed cleanup item, rerun validation and update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md`.
 3. Commit and push each cleanup milestone after quick CI is green.
 
