@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-11 (UTC)
-Phase: Phase 2 in progress; items 1-7 complete, item 8 next
+Phase: Phase 2 in progress; items 1-8 complete, item 9 next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -106,7 +106,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: audio source tests, playback transport tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`b68f80e5`)
 
-- [ ] 8) Separate normalization dispatch from SIMD backends and shared scalar math
+- [x] 8) Separate normalization dispatch from SIMD backends and shared scalar math
   - ROI/Effort: Medium / S-M
   - Why it matters: normalization still repeats the same runtime CPU-feature dispatch and scalar fallback shape across peak, peak-limit, and RMS flows. That duplication makes SIMD changes noisy and raises consistency risk.
   - Evidence:
@@ -117,6 +117,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: keep the current behavior but isolate platform dispatch, scalar reference math, and SIMD backend implementations into separate helpers/modules.
   - Risk/tradeoffs: Low-medium. DSP behavior must remain numerically stable, and refactors must not introduce extra allocations.
   - Suggested validation: normalize/audio analysis tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`19bccb0c`)
 
 - [ ] 9) Break the remaining controller test hubs into behavior-focused modules
   - ROI/Effort: Medium / M
@@ -213,3 +214,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 5 in commit `e29d8464` by splitting drag/drop action handling into focused drop-target resolution, payload-specific finish handlers, and external-drag timing modules.
 - 2026-03-11: Completed item 6 in commits `d702d343` and `4cc2ad7e` by splitting the GUI benchmark harness into focused workspace seeding, scenario registry, and report assembly modules, then aligning the benchmark interaction helpers with the current waveform selection action contract.
 - 2026-03-11: Completed item 7 in commit `b68f80e5` by turning `src/audio/source.rs` into a focused module tree and extracting shared source sample-accounting helpers for duration limits and fade progression.
+- 2026-03-11: Completed item 8 in commit `19bccb0c` by splitting normalization into a thin facade plus dedicated runtime dispatch, scalar math, and x86 SIMD backend modules.
