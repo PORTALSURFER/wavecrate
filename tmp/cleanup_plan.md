@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T18:07:07Z`
+- Refreshed (UTC): `2026-03-11T18:16:27Z`
 - Branch: `next`
-- Head: `ae5e1715`
+- Head: `803f9d2e`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-8 complete; continuing strict sequential implementation at item 9`
+- Status: `Items 1-9 complete; continuing strict sequential implementation at item 10`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -82,13 +82,14 @@
 - Suggested validation: Existing waveform render/cache tests, fade-tail regressions, any benchmark smoke tests, and `ci_quick.ps1`.
 - Completed: `2026-03-11` — main repo commit `ae5e1715` replaced `src/waveform/render.rs` with `render/{mod,viewport,fade_preview}.rs`, moved viewport planning and fade-preview helpers behind a smaller render façade, and removed the stale `backfill.rs` / `map_view.rs` monolith shims so the previously-split module trees are the active code paths.
 
-### 9. [ ] Finish splitting `src/app/controller/playback/waveform_actions/mod.rs` into smaller adapter surfaces
+### 9. [x] Finish splitting `src/app/controller/playback/waveform_actions/mod.rs` into smaller adapter surfaces
 - ROI / Effort: Medium-High / M
 - Why it matters: The earlier waveform-action split helped, but the façade still carries a large number of UI milli/micro adapters plus selection/edit-selection entrypoints in one file.
 - Evidence: `src/app/controller/playback/waveform_actions/mod.rs` is about 443 LOC and still contains many `set_waveform_*` adapter methods for selection, edit selection, seek, cursor, and smart-scale behaviors.
 - Recommended change: Split the façade into selection adapters, edit-selection adapters, seek/cursor adapters, and shared unit-conversion helpers while keeping the `AppController` call surface stable.
 - Risk / tradeoffs: Low-to-moderate; mostly structural, but waveform input routing is user-visible and heavily exercised.
 - Suggested validation: Existing waveform controller tests, selection BPM/smart-scale regressions, and `ci_quick.ps1`.
+- Completed: `2026-03-11` — main repo commit `803f9d2e` split the waveform action facade into focused `selection.rs`, `edit.rs`, `view.rs`, and `state.rs` modules while preserving the existing `AppController` waveform API and conversion helpers.
 
 ### 10. [ ] Separate audio recording capture, writer, and live-monitor workers in `src/audio/recording.rs`
 - ROI / Effort: Medium / M
