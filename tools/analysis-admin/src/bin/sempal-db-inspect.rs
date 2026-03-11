@@ -1,13 +1,11 @@
 //! Developer utility to inspect a library database and explain row counts.
 
 use rusqlite::{Connection, OpenFlags, params};
+use sempal_analysis_admin::cli_support;
 use std::path::PathBuf;
 
 fn main() {
-    if let Err(err) = run() {
-        eprintln!("{err}");
-        std::process::exit(1);
-    }
+    cli_support::run_command(run);
 }
 
 fn run() -> Result<(), String> {
@@ -138,4 +136,22 @@ fn print_count_where(
         .map_err(|err| format!("Query failed ({label}). {err}"))?;
     println!("{label}: {n}");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_args;
+
+    #[test]
+    fn parse_args_requires_db_flag() {
+        let err = parse_args(Vec::new()).expect_err("missing db should fail");
+        assert_eq!(err, "--db is required");
+    }
+
+    #[test]
+    fn parse_args_rejects_unknown_argument() {
+        let err = parse_args(vec!["--wat".to_string()]).expect_err("unknown arg should fail");
+        assert!(err.contains("Unknown argument: --wat"));
+        assert!(err.contains("sempal-db-inspect"));
+    }
 }

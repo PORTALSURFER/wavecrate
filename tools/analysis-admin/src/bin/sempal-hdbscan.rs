@@ -2,22 +2,20 @@
 
 use hdbscan::{Hdbscan, HdbscanHyperParams};
 use rusqlite::{Connection, params};
+use sempal_analysis_admin::cli_support;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
-    if let Err(err) = run() {
-        eprintln!("{err}");
-        std::process::exit(1);
-    }
+    cli_support::run_command(run);
 }
 
 fn run() -> Result<(), String> {
     let Some(options) = parse_args(std::env::args().skip(1).collect())? else {
         return Ok(());
     };
-    let db_path = resolve_db_path(options.db_path.as_ref())?;
+    let db_path = cli_support::resolve_library_db_path(options.db_path.as_deref())?;
     let conn = Connection::open(&db_path).map_err(|err| format!("Open DB failed: {err}"))?;
     let (sample_ids, data) = load_embeddings(&conn, &options.model_id)?;
 
@@ -223,14 +221,6 @@ fn help_text() -> String {
     .join("\n")
 }
 
-fn resolve_db_path(db_path: Option<&PathBuf>) -> Result<PathBuf, String> {
-    if let Some(path) = db_path {
-        return Ok(path.clone());
-    }
-    let root = sempal::app_dirs::app_root_dir().map_err(|err| err.to_string())?;
-    Ok(root.join(sempal::sample_sources::library::LIBRARY_DB_FILE_NAME))
-}
-
 fn load_embeddings(
     conn: &Connection,
     model_id: &str,
@@ -394,4 +384,40 @@ fn write_clusters(
     tx.commit()
         .map_err(|err| format!("Commit clusters failed: {err}"))?;
     Ok(sample_ids.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NoisePolicy, parse_args};
+
+    #[test]
+    fn parse_args_rejects_unknown_noise_policy() {
+        let err = parse_args(vec![
+            "--model-id".to_string(),
+            "model".to_string(),
+            "--noise-policy".to_string(),
+            "loud".to_string(),
+        ])
+        .expect_err("unknown policy should fail");
+        assert_eq!(err, "Invalid --noise-policy loud. Use warn or error.");
+    }
+
+    #[test]
+    fn parse_args_rejects_noise_range_inversion() {
+        let err = parse_args(vec![
+            "--model-id".to_string(),
+            "model".to_string(),
+            "--min-noise".to_string(),
+            "0.7".to_string(),
+            "--max-noise".to_string(),
+            "0.4".to_string(),
+        ])
+        .expect_err("inverted noise bounds should fail");
+        assert_eq!(err, "--min-noise must be <= --max-noise");
+    }
+
+    #[test]
+    fn noise_policy_warn_allows_out_of_bounds_ratio() {
+        assert!(NoisePolicy::Warn.handle_ratio(1.0, 0.0, 0.5).is_ok());
+    }
 }

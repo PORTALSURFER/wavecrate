@@ -1,20 +1,18 @@
 //! Developer utility to build a t-SNE layout from stored embeddings.
 
 use rusqlite::Connection;
+use sempal_analysis_admin::cli_support;
 use std::path::PathBuf;
 
 fn main() {
-    if let Err(err) = run() {
-        eprintln!("{err}");
-        std::process::exit(1);
-    }
+    cli_support::run_command(run);
 }
 
 fn run() -> Result<(), String> {
     let Some(options) = parse_args(std::env::args().skip(1).collect())? else {
         return Ok(());
     };
-    let db_path = resolve_db_path(options.db_path.as_ref())?;
+    let db_path = cli_support::resolve_library_db_path(options.db_path.as_deref())?;
     let conn = Connection::open(&db_path).map_err(|err| format!("Open DB failed: {err}"))?;
     let mut conn = conn;
     let report = sempal::analysis::umap::build_umap_layout(
@@ -142,10 +140,27 @@ fn help_text() -> String {
     .join("\n")
 }
 
-fn resolve_db_path(db_path: Option<&PathBuf>) -> Result<PathBuf, String> {
-    if let Some(path) = db_path {
-        return Ok(path.clone());
+#[cfg(test)]
+mod tests {
+    use super::parse_args;
+
+    #[test]
+    fn parse_args_requires_model_and_version() {
+        let err = parse_args(Vec::new()).expect_err("missing required flags should fail");
+        assert_eq!(err, "--model-id is required");
     }
-    let root = sempal::app_dirs::app_root_dir().map_err(|err| err.to_string())?;
-    Ok(root.join(sempal::sample_sources::library::LIBRARY_DB_FILE_NAME))
+
+    #[test]
+    fn parse_args_rejects_out_of_range_coverage() {
+        let err = parse_args(vec![
+            "--model-id".to_string(),
+            "model".to_string(),
+            "--umap-version".to_string(),
+            "v1".to_string(),
+            "--min-coverage".to_string(),
+            "1.5".to_string(),
+        ])
+        .expect_err("coverage above 1.0 should fail");
+        assert_eq!(err, "--min-coverage must be between 0.0 and 1.0");
+    }
 }

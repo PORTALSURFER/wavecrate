@@ -1,15 +1,14 @@
 //! Developer utility to rebuild the ANN index from embeddings.
 
 use rusqlite::Connection;
+use sempal_analysis_admin::cli_support;
 use std::path::PathBuf;
 
 fn main() {
-    if let Err(err) = run() {
-        eprintln!("{err}");
-        std::process::exit(1);
-    }
+    cli_support::run_command(run);
 }
 
+#[derive(Debug)]
 struct Options {
     db_path: PathBuf,
 }
@@ -26,7 +25,7 @@ fn run() -> Result<(), String> {
 }
 
 fn parse_args(args: Vec<String>) -> Result<Option<Options>, String> {
-    if args.iter().any(|arg| arg == "--help" || arg == "-h") {
+    if cli_support::help_requested(&args) {
         print_help();
         return Ok(None);
     }
@@ -45,10 +44,7 @@ fn parse_args(args: Vec<String>) -> Result<Option<Options>, String> {
     }
     let db_path = match db_path {
         Some(path) => path,
-        None => {
-            let root = sempal::app_dirs::app_root_dir().map_err(|err| err.to_string())?;
-            root.join(sempal::sample_sources::library::LIBRARY_DB_FILE_NAME)
-        }
+        None => cli_support::resolve_library_db_path(None)?,
     };
     Ok(Some(Options { db_path }))
 }
@@ -58,4 +54,24 @@ fn print_help() {
     println!();
     println!("Options:");
     println!("  --db <path>  Path to library.db (defaults to app data dir)");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_args;
+    use std::path::PathBuf;
+
+    #[test]
+    fn parse_args_defaults_db_path_when_omitted() {
+        let options = parse_args(Vec::new())
+            .expect("parse succeeds")
+            .expect("help not requested");
+        assert!(options.db_path.ends_with(PathBuf::from("library.db")));
+    }
+
+    #[test]
+    fn parse_args_rejects_unknown_argument() {
+        let err = parse_args(vec!["--wat".to_string()]).expect_err("unknown arg should fail");
+        assert!(err.contains("Unknown argument: --wat"));
+    }
 }
