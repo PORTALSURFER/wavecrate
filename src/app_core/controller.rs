@@ -8,6 +8,7 @@
 mod waveform_actions;
 
 use crate::app_core::app_api::controller::AppController as LegacyAppController;
+pub(crate) use crate::app::controller::build_named_gui_fixture_controller;
 
 /// Runtime-facing app controller type used by migration hosts.
 pub type AppController = LegacyAppController;

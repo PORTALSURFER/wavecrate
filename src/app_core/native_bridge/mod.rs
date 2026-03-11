@@ -81,6 +81,21 @@ pub struct SempalNativeBridge {
 }
 
 impl SempalNativeBridge {
+    /// Wrap an already-seeded controller for deterministic fixture-driven tests.
+    pub(crate) fn from_fixture_controller(controller: AppController) -> Self {
+        Self {
+            controller,
+            projection_cache: projection_cache::NativeProjectionCache::default(),
+            projection_key_snapshot: None,
+            last_dirty_segments: NativeDirtySegments::all(),
+            segment_revisions: NativeSegmentRevisions::default(),
+            pending_waveform_actions: PendingWaveformActions::default(),
+            pending_model_pull_preparation: PendingModelPullPreparation::Full,
+            consecutive_local_model_pulls: 0,
+            gui_test_recorder: None,
+        }
+    }
+
     /// Build a new native bridge initialized with persisted sempal configuration.
     pub fn new(
         renderer: WaveformRenderer,
@@ -92,17 +107,7 @@ impl SempalNativeBridge {
             err
         })?;
         info!("Native bridge controller ready");
-        Ok(Self {
-            controller,
-            projection_cache: projection_cache::NativeProjectionCache::default(),
-            projection_key_snapshot: None,
-            last_dirty_segments: NativeDirtySegments::all(),
-            segment_revisions: NativeSegmentRevisions::default(),
-            pending_waveform_actions: PendingWaveformActions::default(),
-            pending_model_pull_preparation: PendingModelPullPreparation::Full,
-            consecutive_local_model_pulls: 0,
-            gui_test_recorder: None,
-        })
+        Ok(Self::from_fixture_controller(controller))
     }
 
     /// Enable live GUI test artifact emission for this bridge instance.
@@ -204,6 +209,17 @@ pub fn new_native_bridge(
     player: Option<Rc<RefCell<AudioPlayer>>>,
 ) -> Result<SempalNativeBridge, String> {
     SempalNativeBridge::new(renderer, player)
+}
+
+/// Construct a native bridge from an already-seeded controller instance.
+///
+/// GUI test fixtures use this to bypass persisted startup config while still
+/// exercising the same bridge, projection cache, and action-reduction logic as
+/// the real runtime.
+pub(crate) fn new_native_bridge_with_controller(
+    controller: AppController,
+) -> SempalNativeBridge {
+    SempalNativeBridge::from_fixture_controller(controller)
 }
 
 #[cfg(test)]

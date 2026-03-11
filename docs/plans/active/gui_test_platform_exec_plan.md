@@ -28,29 +28,35 @@ Acceptance met in this phase:
 
 ## Phase 2: Fixture Expansion
 
-Goal:
+Status: implemented on 2026-03-11
 
-- add seeded GUI fixtures for realistic browser/source/waveform/update states
-- add more scenario assertions and reusable scenario packs
-- cover high-value workflows with in-process scenarios
+Delivered:
 
-Planned work:
-
-1. Introduce named GUI fixtures instead of only the default bridge seed.
-2. Add scenario packs for browser search/select/commit, waveform seek/zoom/selection, options open/close, prompt confirm/cancel.
-3. Extend contract scripts to run those packs by default.
+- named GUI fixtures: `browser`, `waveform`, `options`, `prompt`, `update`
+- controller-seeded fixture bridge wrapper reused by the CLI runner and real desktop runtime
+- reusable `contract-smoke` scenario pack
+- richer semantic assertions including node absence, enabled state, action availability, and metadata contains
+- contract/suite scripts updated to run the broader GUI pack by default
 
 ## Phase 3: Desktop AIV Integration
 
-Goal:
+Status: in progress on 2026-03-11
 
-- consume semantic automation artifacts from the live app while AIV drives the desktop
+Delivered so far:
 
-Planned work:
+- live PowerShell smoke wrapper that launches Sempal in GUI test mode
+- semantic node resolution through `gui-test-cli resolve-node-target`
+- AIV-driven options/search/tab smoke flow wired to semantic node ids
 
-1. Add wrapper scripts that launch Sempal with `SEMPAL_GUI_TEST_MODE=1`.
-2. Resolve semantic node ids from `gui_test_latest.json` into window-relative targets for AIV.
-3. Replace coordinate-heavy AIV smoke flows with semantic target resolution.
+Open issue:
+
+- foreground activation can fail on the current Windows setup with `SetForegroundWindow`, so the wrapper is not yet stable enough for CI promotion
+
+Remaining work:
+
+1. Add focus-recovery or click-fallback handling for AIV foreground failures.
+2. Expand the smoke wrapper to cover waveform and prompt interactions once focus is reliable.
+3. Export machine-readable pass/fail summaries from the AIV wrapper.
 
 ## Phase 4: CI Promotion
 

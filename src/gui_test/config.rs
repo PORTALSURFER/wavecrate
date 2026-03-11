@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 const GUI_TEST_MODE_ENV: &str = "SEMPAL_GUI_TEST_MODE";
 const GUI_TEST_ARTIFACT_DIR_ENV: &str = "SEMPAL_GUI_TEST_ARTIFACT_DIR";
+const GUI_TEST_FIXTURE_ENV: &str = "SEMPAL_GUI_TEST_FIXTURE";
 const GUI_TEST_VIEWPORT_ENV: &str = "SEMPAL_GUI_TEST_VIEWPORT";
 const GUI_TEST_SCENARIO_ENV: &str = "SEMPAL_GUI_TEST_SCENARIO";
 
@@ -58,6 +59,8 @@ impl GuiTestModeConfig {
         config.run_id = run_id.map(String::from);
         config.run_manifest_path = run_manifest_path;
         config.scenario_name = std::env::var(GUI_TEST_SCENARIO_ENV).ok();
+        config.fixture_tag = std::env::var(GUI_TEST_FIXTURE_ENV)
+            .unwrap_or_else(|_| String::from("default"));
         if let Ok(value) = std::env::var(GUI_TEST_VIEWPORT_ENV)
             && let Some(viewport) = parse_viewport(&value)
         {
@@ -79,6 +82,7 @@ impl GuiTestModeConfig {
         options.inner_size = Some(viewport);
         options.min_inner_size = Some(viewport);
         options.maximized = false;
+        options.decorations = false;
     }
 
     /// Return the configured viewport in `f32` logical coordinates.

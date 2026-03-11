@@ -7,13 +7,10 @@
     windows_subsystem = "windows"
 )]
 
-use sempal::app_core::native_bridge::new_native_bridge;
 use sempal::app_core::ui::MIN_VIEWPORT_SIZE;
-use sempal::audio::AudioPlayer;
-use sempal::gui_test::GuiTestModeConfig;
+use sempal::gui_test::{GuiFixtureBridge, GuiTestModeConfig};
 use sempal::gui_runtime::{NativeRunOptions, run_native_vello_app_declarative};
 use sempal::logging;
-use sempal::waveform::WaveformRenderer;
 use std::any::Any;
 use std::panic::{self, AssertUnwindSafe};
 use std::process;
@@ -107,17 +104,25 @@ fn run_application(
         inner_size: None,
         min_inner_size: Some(MIN_VIEWPORT_SIZE),
         maximized: true,
+        decorations: true,
         target_fps: 120,
         icon: app_icon::load_app_icon(),
     };
     if let Some(config) = gui_test_mode.as_ref() {
+        options.title = String::from("Sempal GUI Test");
         config.apply_to_run_options(&mut options);
     }
 
-    let renderer = WaveformRenderer::new(680, 260);
-    info!("sempal startup: waveform renderer initialized");
-    let player: Option<std::rc::Rc<std::cell::RefCell<AudioPlayer>>> = None;
-    let mut bridge = match new_native_bridge(renderer, player) {
+    let fixture_tag = gui_test_mode
+        .as_ref()
+        .map(|config| config.fixture_tag.as_str())
+        .unwrap_or("default");
+    let viewport = gui_test_mode
+        .as_ref()
+        .map(|config| config.viewport)
+        .unwrap_or([680, 260]);
+    info!(fixture_tag, ?viewport, "sempal startup: preparing GUI bridge");
+    let mut bridge = match GuiFixtureBridge::new_with_viewport(fixture_tag, viewport) {
         Ok(bridge) => bridge,
         Err(err) => {
             error!(err = %err, "sempal startup: failed to construct native bridge");

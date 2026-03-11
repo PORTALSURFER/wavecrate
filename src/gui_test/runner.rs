@@ -2,23 +2,25 @@
 
 use super::{
     GuiActionTraceEvent, GuiAssertion, GuiScenario, GuiScenarioStep, GuiStepTimingSample,
-    GuiTestArtifactBundle, GuiTestModeConfig, build_model_summary,
+    GuiTestArtifactBundle, GuiTestModeConfig, build_model_summary, find_automation_node,
 };
 use crate::{
     app_core::{
-        actions::{GUI_ACTION_CATALOG, NativeAppBridge, NativeUiAction, action_catalog_entry, action_catalog_entry_by_id},
-        native_bridge::new_native_bridge,
+        actions::{
+            GUI_ACTION_CATALOG, NativeAppBridge, NativeUiAction, action_catalog_entry,
+            action_catalog_entry_by_id,
+        },
     },
+    gui_test::GuiFixtureBridge,
     gui_test::trace_event_for_action,
     gui_runtime::capture_gui_automation_snapshot,
-    waveform::WaveformRenderer,
 };
 use serde_json::json;
 use std::{path::Path, time::Instant};
 
 /// Capture a deterministic automation bundle from the default bridge fixture.
 pub fn capture_default_bundle(config: &GuiTestModeConfig) -> Result<GuiTestArtifactBundle, String> {
-    let mut bridge = make_bridge()?;
+    let mut bridge = make_bridge_for_fixture(&config.fixture_tag, config.viewport)?;
     Ok(snapshot_bundle(config, &mut bridge, Vec::new(), None, Vec::new()))
 }
 
@@ -27,7 +29,7 @@ pub fn dispatch_action_bundle(
     config: &GuiTestModeConfig,
     action: NativeUiAction,
 ) -> Result<GuiTestArtifactBundle, String> {
-    let mut bridge = make_bridge()?;
+    let mut bridge = make_bridge_for_fixture(&config.fixture_tag, config.viewport)?;
     let started = Instant::now();
     bridge.reduce_action(action.clone());
     let trace = vec![trace_event_for_action(&action)];
@@ -43,7 +45,7 @@ pub fn run_scenario(
     config: &GuiTestModeConfig,
     scenario: &GuiScenario,
 ) -> Result<GuiTestArtifactBundle, String> {
-    let mut bridge = make_bridge()?;
+    let mut bridge = make_bridge_for_fixture(&scenario.fixture_tag, config.viewport)?;
     let mut trace = Vec::new();
     let mut timings = Vec::new();
     let mut failure = None;
@@ -127,8 +129,11 @@ pub fn export_aiv_suite(config: &GuiTestModeConfig, output_path: &Path) -> Resul
         .map_err(|err| format!("failed to write AIV suite {}: {err}", output_path.display()))
 }
 
-fn make_bridge() -> Result<impl NativeAppBridge, String> {
-    new_native_bridge(WaveformRenderer::new(680, 260), None)
+fn make_bridge_for_fixture(
+    fixture_tag: &str,
+    viewport: [u32; 2],
+) -> Result<GuiFixtureBridge, String> {
+    GuiFixtureBridge::new_with_viewport(fixture_tag, viewport)
 }
 
 fn snapshot_bundle(
@@ -172,11 +177,15 @@ fn assert_snapshot(
     assertion: &GuiAssertion,
 ) -> Result<(), String> {
     match assertion {
-        GuiAssertion::NodePresent { node_id } => find_node(&snapshot.root, node_id)
+        GuiAssertion::NodePresent { node_id } => find_automation_node(snapshot, node_id)
             .map(|_| ())
             .ok_or_else(|| format!("missing automation node {node_id}")),
+        GuiAssertion::NodeAbsent { node_id } => find_automation_node(snapshot, node_id)
+            .is_none()
+            .then_some(())
+            .ok_or_else(|| format!("unexpected automation node {node_id}")),
         GuiAssertion::NodeSelected { node_id, selected } => {
-            let node = find_node(&snapshot.root, node_id)
+            let node = find_automation_node(snapshot, node_id)
                 .ok_or_else(|| format!("missing automation node {node_id}"))?;
             if node.selected == *selected {
                 Ok(())
@@ -184,28 +193,49 @@ fn assert_snapshot(
                 Err(format!("automation node {node_id} selected={} expected={selected}", node.selected))
             }
         }
+        GuiAssertion::NodeEnabled { node_id, enabled } => {
+            let node = find_automation_node(snapshot, node_id)
+                .ok_or_else(|| format!("missing automation node {node_id}"))?;
+            if node.enabled == *enabled {
+                Ok(())
+            } else {
+                Err(format!("automation node {node_id} enabled={} expected={enabled}", node.enabled))
+            }
+        }
         GuiAssertion::NodeValueContains { node_id, needle } => {
-            let node = find_node(&snapshot.root, node_id)
+            let node = find_automation_node(snapshot, node_id)
                 .ok_or_else(|| format!("missing automation node {node_id}"))?;
             let value = node.value.as_deref().unwrap_or_default();
             value.contains(needle).then_some(()).ok_or_else(|| {
                 format!("automation node {node_id} value '{value}' does not contain '{needle}'")
             })
         }
+        GuiAssertion::NodeActionAvailable { node_id, action_id } => {
+            let node = find_automation_node(snapshot, node_id)
+                .ok_or_else(|| format!("missing automation node {node_id}"))?;
+            node.available_actions
+                .iter()
+                .any(|available| available == action_id)
+                .then_some(())
+                .ok_or_else(|| format!("automation node {node_id} does not advertise action {action_id}"))
+        }
+        GuiAssertion::NodeMetadataContains { node_id, key, needle } => {
+            let node = find_automation_node(snapshot, node_id)
+                .ok_or_else(|| format!("missing automation node {node_id}"))?;
+            let actual = node.metadata.get(key).map(String::as_str).unwrap_or_default();
+            actual
+                .contains(needle)
+                .then_some(())
+                .ok_or_else(|| {
+                    format!(
+                        "automation node {node_id} metadata {key}='{actual}' does not contain '{needle}'"
+                    )
+                })
+        }
         GuiAssertion::ActionCataloged { action_id } => action_catalog_entry_by_id(action_id)
             .map(|_| ())
             .ok_or_else(|| format!("missing catalog action {action_id}")),
     }
-}
-
-fn find_node<'a>(
-    node: &'a crate::app_core::actions::NativeAutomationNodeSnapshot,
-    node_id: &str,
-) -> Option<&'a crate::app_core::actions::NativeAutomationNodeSnapshot> {
-    if node.id.0 == node_id {
-        return Some(node);
-    }
-    node.children.iter().find_map(|child| find_node(child, node_id))
 }
 
 fn elapsed_ms(started: Instant) -> u64 {

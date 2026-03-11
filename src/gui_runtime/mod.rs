@@ -40,6 +40,8 @@ pub struct NativeRunOptions {
     pub min_inner_size: Option<[f32; 2]>,
     /// Whether the window starts maximized.
     pub maximized: bool,
+    /// Whether native window decorations remain enabled.
+    pub decorations: bool,
     /// Optional window icon.
     pub icon: Option<WindowIconRgba>,
     /// Target frame rate for animation-driven redraws.
@@ -57,6 +59,7 @@ impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
             inner_size: value.inner_size,
             min_inner_size: value.min_inner_size,
             maximized: value.maximized,
+            decorations: value.decorations,
             icon: value.icon.map(Into::into),
             target_fps: value.target_fps,
         }

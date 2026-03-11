@@ -34,10 +34,22 @@ pub enum GuiScenarioStep {
 pub enum GuiAssertion {
     /// Assert that a semantic automation node exists.
     NodePresent { node_id: String },
+    /// Assert that a semantic automation node does not exist.
+    NodeAbsent { node_id: String },
     /// Assert that a semantic automation node has the requested selected state.
     NodeSelected { node_id: String, selected: bool },
+    /// Assert that a semantic automation node has the requested enabled state.
+    NodeEnabled { node_id: String, enabled: bool },
     /// Assert that a semantic automation node value contains the requested text.
     NodeValueContains { node_id: String, needle: String },
+    /// Assert that a semantic automation node advertises one stable action id.
+    NodeActionAvailable { node_id: String, action_id: String },
+    /// Assert that a semantic automation node metadata value contains the requested text.
+    NodeMetadataContains {
+        node_id: String,
+        key: String,
+        needle: String,
+    },
     /// Assert that the stable action id is present in the host action catalog.
     ActionCataloged { action_id: String },
 }

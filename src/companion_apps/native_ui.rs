@@ -28,6 +28,7 @@ pub fn standard_window_options(
         inner_size: Some([860.0, 620.0]),
         min_inner_size: Some([640.0, 420.0]),
         maximized: false,
+        decorations: true,
         target_fps: 120,
         icon,
     }
@@ -183,6 +184,7 @@ mod tests {
         assert_eq!(options.min_inner_size, Some([640.0, 420.0]));
         assert_eq!(options.target_fps, 120);
         assert!(!options.maximized);
+        assert!(options.decorations);
     }
 
     #[test]

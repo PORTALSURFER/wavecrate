@@ -7,7 +7,8 @@ use sempal::{
     app_core::actions::NativeUiAction,
     gui_test::{
         GuiScenario, GuiTestModeConfig, capture_default_bundle, dispatch_action_bundle,
-        export_aiv_suite, run_scenario, write_artifact_bundle,
+        export_aiv_suite, gui_scenario_pack, read_automation_snapshot_from_artifact,
+        resolve_automation_target, run_scenario, write_artifact_bundle,
     },
 };
 use std::path::PathBuf;
@@ -45,17 +46,40 @@ fn main() -> Result<(), String> {
             let bundle = run_scenario(&config, &scenario)?;
             write_artifact_bundle(&bundle, &output)
         }
+        "run-scenario-pack" => {
+            let pack_name = required_arg(args.next(), "scenario pack name")?;
+            let output_dir = required_path(args.next(), "scenario pack output dir")?;
+            let pack = gui_scenario_pack(&pack_name)?;
+            for scenario in &pack.scenarios {
+                let output = output_dir.join(format!("{}.json", scenario.name));
+                let mut config = cli_config(Some(scenario.name.clone()), &output);
+                config.fixture_tag = scenario.fixture_tag.clone();
+                let bundle = run_scenario(&config, scenario)?;
+                write_artifact_bundle(&bundle, &output)?;
+            }
+            Ok(())
+        }
         "export-aiv-suite" => {
             let output = required_path(args.next(), "AIV suite output path")?;
             let config = cli_config(Some(String::from("aiv-suite")), &output);
             export_aiv_suite(&config, &output)
+        }
+        "resolve-node-target" => {
+            let artifact = required_path(args.next(), "GUI artifact path")?;
+            let node_id = required_arg(args.next(), "automation node id")?;
+            let snapshot = read_automation_snapshot_from_artifact(&artifact)?;
+            let target = resolve_automation_target(&snapshot, &node_id)?;
+            let json = serde_json::to_string_pretty(&target)
+                .map_err(|err| format!("failed to serialize automation target: {err}"))?;
+            println!("{json}");
+            Ok(())
         }
         other => Err(format!("unknown command '{other}'\n\n{}", usage())),
     }
 }
 
 fn cli_config(scenario_name: Option<String>, output_path: &std::path::Path) -> GuiTestModeConfig {
-    let mut config = GuiTestModeConfig::default();
+    let mut config = GuiTestModeConfig::from_env(None, None).unwrap_or_default();
     config.scenario_name = scenario_name;
     config.artifact_dir = output_path
         .parent()
@@ -74,6 +98,6 @@ fn required_path(value: Option<String>, what: &str) -> Result<PathBuf, String> {
 
 fn usage() -> String {
     String::from(
-        "usage:\n  gui-test-cli snapshot <output.json>\n  gui-test-cli dispatch-action <action-json> <output.json>\n  gui-test-cli run-scenario <scenario.json> <output.json>\n  gui-test-cli export-aiv-suite <output.json>",
+        "usage:\n  gui-test-cli snapshot <output.json>\n  gui-test-cli dispatch-action <action-json> <output.json>\n  gui-test-cli run-scenario <scenario.json> <output.json>\n  gui-test-cli run-scenario-pack <pack-name> <output-dir>\n  gui-test-cli export-aiv-suite <output.json>\n  gui-test-cli resolve-node-target <artifact.json> <node-id>",
     )
 }

@@ -4,6 +4,8 @@
 
 /// Shared controller-level formatting helpers.
 mod formatting;
+/// Deterministic GUI fixture builders used by GUI test scenarios.
+mod gui_fixtures;
 mod library;
 mod playback;
 mod source_watcher;
@@ -32,6 +34,7 @@ use crate::{
     waveform::WaveformRenderer,
 };
 pub(crate) use controller_state::*;
+pub(crate) use gui_fixtures::build_named_gui_fixture_controller;
 pub(in crate::app::controller) use library::analysis_jobs::AnalysisJobMessage;
 use library::analysis_jobs::AnalysisWorkerPool;
 use open;

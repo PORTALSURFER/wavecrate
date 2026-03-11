@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$ArtifactPath = "artifacts/gui-test/gui-test-snapshot.json"
+    [string]$ArtifactPath = "artifacts/gui-test/gui-test-snapshot.json",
+    [string]$ScenarioPackOutputDir = "artifacts/gui-test/scenario-pack"
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,3 +21,7 @@ if ($artifactDir) {
 Write-Host "[gui-suite] cargo run -p gui-test-cli -- snapshot $ArtifactPath"
 cargo run -p gui-test-cli -- snapshot $ArtifactPath
 if ($LASTEXITCODE -ne 0) { throw "gui snapshot export failed" }
+
+Write-Host "[gui-suite] cargo run -p gui-test-cli -- run-scenario-pack contract-smoke $ScenarioPackOutputDir"
+cargo run -p gui-test-cli -- run-scenario-pack contract-smoke $ScenarioPackOutputDir
+if ($LASTEXITCODE -ne 0) { throw "gui scenario-pack export failed" }

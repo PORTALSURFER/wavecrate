@@ -81,7 +81,7 @@ Commands:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
 - Broader GUI suite loop:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
-- Export the current AIV smoke template:
+- Live semantic AIV smoke wrapper:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_smoke.ps1`
 - Direct CLI snapshot export:
   - `cargo run -p gui-test-cli -- snapshot artifacts/gui-test/gui-test-snapshot.json`
@@ -89,6 +89,19 @@ Commands:
   - `cargo run -p gui-test-cli -- dispatch-action "\"ToggleTransport\"" artifacts/gui-test/dispatch.json`
 - Direct CLI scenario run:
   - `cargo run -p gui-test-cli -- run-scenario artifacts/gui-test/scenario.json artifacts/gui-test/scenario-report.json`
+- Direct CLI scenario-pack run:
+  - `cargo run -p gui-test-cli -- run-scenario-pack contract-smoke artifacts/gui-test/scenario-pack`
+- Resolve one semantic node target from a live artifact:
+  - `cargo run -p gui-test-cli -- resolve-node-target artifacts/gui-test/gui-test-snapshot.json shell.top_bar.options_button`
+
+Current named fixture tags:
+
+- `default`
+- `browser`
+- `waveform`
+- `options`
+- `prompt`
+- `update`
 
 ## 5) Benchmarks
 

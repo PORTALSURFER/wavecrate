@@ -49,6 +49,7 @@ Native-shell snapshot building lives in:
 Current node coverage includes:
 
 - top bar volume and options controls
+- top bar update panel metadata and update action nodes
 - sources panel rows and action buttons
 - waveform toolbar and waveform interaction region
 - browser tabs, search field, rating filters, table rows, and map points
@@ -85,6 +86,7 @@ Current first-slice behavior:
 
 - fixes the runtime viewport
 - disables maximized startup in GUI test mode
+- routes named fixture tags through deterministic controller seeds when requested
 - correlates GUI artifacts with run-contract metadata when available
 - writes `gui_test_latest.json` after first projection and after each reduced `UiAction`
 
@@ -118,13 +120,17 @@ Supported commands:
 - `snapshot <output.json>`
 - `dispatch-action <action-json> <output.json>`
 - `run-scenario <scenario.json> <output.json>`
+- `run-scenario-pack <pack-name> <output-dir>`
 - `export-aiv-suite <output.json>`
+- `resolve-node-target <artifact.json> <node-id>`
 
 Notes:
 
 - `dispatch-action` accepts serialized `UiAction` JSON directly, so the CLI does not need a second payload parser.
 - `run-scenario` uses the same bridge/action path as the catalog and artifact code.
-- `export-aiv-suite` currently exports a first-slice suite template with semantic target metadata and observation/screenshot smoke steps.
+- `run-scenario-pack` executes named packs over deterministic fixture seeds and writes one artifact per scenario.
+- `resolve-node-target` translates one semantic node id into window-relative target geometry for AIV wrappers.
+- `export-aiv-suite` exports a suite template with semantic target metadata and observation/screenshot smoke steps.
 
 ## Current Dev Loops
 
@@ -147,12 +153,17 @@ This runs:
 - the contract loop
 - a native-shell snapshot fixture smoke
 - CLI snapshot export
+- the `contract-smoke` scenario pack
 
 ### AIV smoke loop
 
 - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_smoke.ps1`
 
-This currently exports the suite template and semantic target metadata that AIV can consume as the desktop lane is expanded.
+This now launches the real app in GUI test mode with the `browser` fixture, consumes semantic node targets from `gui_test_latest.json`, and drives options/search/tab flows through AIV.
+
+Known limitation:
+
+- on the current Windows setup, `aiv` can fail foreground activation with `SetForegroundWindow`, so the wrapper is implemented and useful locally but not yet stable enough to promote into CI.
 
 ## Current Gaps
 
@@ -160,14 +171,12 @@ The platform is intentionally first-slice, not final:
 
 - automation coverage is broad but not yet exhaustive for every micro-control
 - screenshot capture is still owned by AIV, not the app runtime
-- scenario fixtures currently use the default bridge seed rather than a richer fixture library
-- the exported AIV suite is a semantic template, not yet a fully semantic click resolver
+- desktop AIV stability still depends on Windows foreground/focus behavior
 - no CI gate yet enforces desktop AIV smoke stability
 
 ## Immediate Next Steps
 
-1. Expand the automation tree to cover update controls, browser action-strip buttons, and any remaining prompt/options affordances.
-2. Add richer seeded GUI fixtures so scenario coverage can exercise realistic browser/source/waveform states.
-3. Add more assertions and scenario actions, including targeted node-value and node-action checks.
-4. Teach AIV wrappers to consume the exported semantic target metadata directly and resolve node ids to coordinates from `gui_test_latest.json`.
-5. Promote the GUI contract loop into `ci_quick` once it is stable enough to be mandatory.
+1. Expand the automation tree to cover the remaining browser action-strip buttons and other micro-controls.
+2. Add more seeded fixtures and scenario assertions for transport, volume drag, and map-point interaction.
+3. Harden the AIV smoke wrapper around Windows foreground/focus failure modes.
+4. Promote the GUI contract loop into `ci_quick` once it is stable enough to be mandatory.
