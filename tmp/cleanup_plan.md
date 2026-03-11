@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: Phase 2 resumed; items 1-24 complete; item 25 is next
+Phase: Phase 2 resumed; items 1-25 complete; item 26 is next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -306,7 +306,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: async decode tests, audio-related unit tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`4a3e6660`)
 
-- [ ] 25) Split playback transport/player lifecycle helpers in `src/app/controller/playback/player.rs`
+- [x] 25) Split playback transport/player lifecycle helpers in `src/app/controller/playback/player.rs`
   - ROI/Effort: Medium / M
   - Why it matters: player lifecycle, transport-follow-up, waveform sync, and selection-aware playback helpers still live together, which keeps playback changes broad.
   - Evidence:
@@ -315,6 +315,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: separate transport-facing playback helpers, player-state update helpers, and UI follow-up behaviors into smaller modules with clear docs.
   - Risk/tradeoffs: Medium. Playback sequencing and loop/focus interactions are user-visible and easy to regress.
   - Suggested validation: playback controller tests, loop/transport tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`c3005581`)
 
 - [ ] 26) Split native-shell style tokens into palette, sizing, and tier policy
   - ROI/Effort: Medium / M
@@ -388,6 +389,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 22 by splitting the public `vendor/radiant/src/app` contract into focused `actions`, `browser`, `bridge`, `dirty_segments`, `motion`, `shell`, `sources`, and `waveform` modules while preserving the existing `crate::app::*` facade and adding boundary docs to the new contract seams.
 - 2026-03-11: Completed item 23 by splitting the `app_core` native-shell projection tests plus the `vendor/radiant` native-shell state and native-Vello runtime test monoliths into focused module trees that match the production seams.
 - 2026-03-11: Completed item 24 by documenting the `AsyncSource` worker lifecycle, retaining the worker handle for explicit finished-thread joining, catching worker panics so streams terminate cleanly, and adding teardown/panic-path coverage in `src/audio/async_decode/tests.rs`.
+- 2026-03-11: Completed item 25 by splitting playback transport start, player lifecycle, playhead follow-up, and waveform UI synchronization helpers into focused `player/` modules while preserving the `AppController` playback facade.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
