@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-11 (UTC)
-Phase: Phase 2 in progress; items 1-11 complete, item 12 next
+Phase: Phase 2 in progress; items 1-12 complete, item 13 next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -157,7 +157,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: targeted `radiant` waveform overlay tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-11 (`36b8cd37`)
 
-- [ ] 12) Split `radiant` static frame building into browser, map, waveform, and chrome builders
+- [x] 12) Split `radiant` static frame building into browser, map, waveform, and chrome builders
   - ROI/Effort: High / L
   - Why it matters: the static frame builder still owns the bulk of the native-shell painting contract, so any visual change requires navigating one very large mixed-responsibility function and many trailing helpers.
   - Evidence:
@@ -167,6 +167,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: extract browser/table, map, waveform, overlay, and chrome/status builders into explicit modules and leave `frame_build.rs` as a short orchestration shell.
   - Risk/tradeoffs: High. Paint ordering and retained dirty-segment behavior must remain exact.
   - Suggested validation: targeted `radiant` native-shell tests run serially, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`4501442d`)
 
 - [ ] 13) Split `radiant` native-shell state into caches, hit-testing, and toolbar/browser helpers
   - ROI/Effort: High / L
@@ -221,3 +222,4 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-11: Completed item 9 in commits `2fc03b2c`, `9c1c3dfe`, and `5e309661` by splitting the remaining controller test hubs into behavior-focused `browser_actions`, `folders_core`, and `waveform` module trees.
 - 2026-03-11: Completed item 10 in commit `29e76b31` by turning the analysis-jobs DB tests into a focused module tree with a shared schema/row fixture helper for common setup.
 - 2026-03-11: Completed item 11 in vendor commit `36b8cd37` by splitting waveform overlay rendering into focused scrollbar, selection, edit-fade, and playhead-trail modules while keeping the native-shell helper surface stable.
+- 2026-03-11: Completed item 12 in vendor commit `4501442d` by splitting static native-shell frame building into focused browser, map, waveform, and chrome builder modules while preserving paint order and passing `ci_quick.ps1`.
