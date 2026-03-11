@@ -1,7 +1,7 @@
 # Cleanup Plan (ROI Ranked)
 
 Generated: 2026-03-10 (UTC)
-Phase: refreshed against current `next`; items 1-15 complete; awaiting explicit reconfirmation before resuming Phase 2 at item 16
+Phase: Phase 2 resumed; items 1-16 complete; item 17 is next
 Status legend: `[ ]` pending, `[x]` done
 Project language/tooling: Rust 2024 Cargo workspace (`sempal` + `apps/*` + `tools/*` + `vendor/radiant`)
 Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -11,7 +11,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - Public API docs are already enforced at the workspace level via `missing_docs = "deny"` in the root and `vendor/radiant` manifests, so the main documentation debt is in naming drift, mixed-responsibility modules, and boundary docs that no longer match current behavior.
 - The best cleanup ROI is still concentrated in mixed-responsibility controller/runtime modules, duplicated persistence paths, and giant native-shell/runtime files in `vendor/radiant`.
 - The backlog intentionally starts with locally owned, behavior-preserving extractions before the larger `vendor/radiant` runtime splits.
-- Cleanup execution is paused until the user explicitly reconfirms sequential implementation from item 16 onward.
+- Cleanup execution is active again and continues in strict ROI order from the first pending item.
 
 ## Ordered Backlog
 
@@ -199,7 +199,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Suggested validation: targeted native-bridge tests, projection cache tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Completion: 2026-03-10 (`d18e19dc`)
 
-- [ ] 16) Split source DB schema/migration logic and add dedicated migration fixtures
+- [x] 16) Split source DB schema/migration logic and add dedicated migration fixtures
   - ROI/Effort: High / M
   - Why it matters: schema creation and opportunistic migrations are still bundled together, which makes persistence evolution hard to review and leaves migration behavior under-tested.
   - Evidence:
@@ -209,6 +209,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
   - Recommended change: split base schema, migration steps, and migration helpers into dedicated modules, and add fixture-driven migration tests that exercise representative old DB states.
   - Risk/tradeoffs: Medium. SQLite migration order and idempotence have to remain exact.
   - Suggested validation: source DB migration tests with fixtures, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Completion: 2026-03-11 (`d13b38fe`)
 
 - [ ] 17) Unify duplicated source DB write mutation paths around `SourceWriteBatch`
   - ROI/Effort: High / M
@@ -370,6 +371,7 @@ Canonical local CI command: `powershell -ExecutionPolicy Bypass -File scripts/ci
 - 2026-03-10: Confirmed the canonical local CI parity command for this current Windows environment is `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
 - 2026-03-10: Audit evidence was gathered from `src/app`, `src/app_core`, `src/sample_sources`, `src/audio`, `src/analysis`, `tools/analysis-admin`, and `vendor/radiant`, plus targeted file-size and suppression scans.
 - 2026-03-10: Further cleanup implementation remains paused pending explicit user reconfirmation to resume at item 16.
+- 2026-03-11: Resumed cleanup Phase 2 and completed item 16 by splitting source DB schema DDL and migrations into focused modules and adding legacy-schema migration fixtures in unit tests.
 - 2026-03-09: Completed item 1 in commit `16932de4` and item 2 in commit `1fe099ae`.
 - 2026-03-09: Completed item 3 in commit `0b0be54a`.
 - 2026-03-09: Completed item 4 in commit `f752dec6`.
