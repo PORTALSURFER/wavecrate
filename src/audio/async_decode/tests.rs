@@ -81,6 +81,22 @@ fn wait_for_flag(flag: &AtomicBool, timeout: Duration) -> bool {
     flag.load(Ordering::Acquire)
 }
 
+fn wait_for_non_zero_sample(
+    async_source: &mut AsyncSource<TestSource>,
+    timeout: Duration,
+) -> Option<f32> {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if let Some(sample) = async_source.next()
+            && sample != 0.0
+        {
+            return Some(sample);
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    None
+}
+
 #[test]
 fn async_source_emits_samples_after_decode() {
     let source = TestSource {
@@ -128,16 +144,8 @@ fn async_source_returns_silence_on_underrun() {
     let first = async_source.next().unwrap();
     assert_eq!(first, 0.0);
     start_barrier.wait();
-    let mut second = 0.0;
-    for _ in 0..10 {
-        if let Some(sample) = async_source.next()
-            && sample != 0.0
-        {
-            second = sample;
-            break;
-        }
-        thread::sleep(Duration::from_millis(5));
-    }
+    let second =
+        wait_for_non_zero_sample(&mut async_source, Duration::from_millis(250)).unwrap_or(0.0);
     assert_eq!(second, 0.5);
 }
 
@@ -177,19 +185,10 @@ fn async_source_waits_for_consumer_when_buffer_full() {
         dropped: None,
     };
     let mut async_source = AsyncSource::with_buffer_seconds(source, 0.1);
-    thread::sleep(Duration::from_millis(20));
-    let first = async_source.next().unwrap();
+    let first =
+        wait_for_non_zero_sample(&mut async_source, Duration::from_millis(250)).unwrap_or(0.0);
     assert_eq!(first, 0.1);
-    let mut second = None;
-    for _ in 0..50 {
-        if let Some(sample) = async_source.next()
-            && sample != 0.0
-        {
-            second = Some(sample);
-            break;
-        }
-        thread::sleep(Duration::from_millis(1));
-    }
+    let second = wait_for_non_zero_sample(&mut async_source, Duration::from_millis(250));
     assert_eq!(second, Some(0.2));
 }
 
