@@ -1,7 +1,15 @@
-//! Migration-facing aliases for native runtime action/model types.
+//! Migration-facing aliases and catalog helpers for native runtime action/model types.
 //!
 //! These aliases centralize runtime-facing type dependencies in `app_core`,
 //! so bridge/controller glue does not import concrete runtime types directly.
+
+mod catalog;
+
+pub use self::catalog::{
+    GUI_ACTION_CATALOG, GuiActionCatalogEntry, GuiActionKind, GuiCoverageLayer, GuiEffectClass,
+    GuiSurface, action_catalog_entry, action_catalog_entry_by_id, action_kind,
+    representative_action_for_kind,
+};
 
 /// Native runtime browser action metadata model.
 pub type NativeBrowserActionsModel = radiant::app::BrowserActionsModel;
@@ -14,6 +22,18 @@ pub type NativeBrowserPanelModel = radiant::app::BrowserPanelModel;
 
 /// Native runtime browser row model.
 pub type NativeBrowserRowModel = radiant::app::BrowserRowModel;
+
+/// Native runtime automation node identifier.
+pub type NativeAutomationNodeId = radiant::app::AutomationNodeId;
+
+/// Native runtime automation node role.
+pub type NativeAutomationRole = radiant::app::AutomationRole;
+
+/// Native runtime automation node snapshot.
+pub type NativeAutomationNodeSnapshot = radiant::app::AutomationNodeSnapshot;
+
+/// Native runtime GUI automation snapshot.
+pub type NativeGuiAutomationSnapshot = radiant::app::GuiAutomationSnapshot;
 
 /// Native runtime browser tag target used by keyboard and pointer triage actions.
 pub type NativeBrowserTagTarget = radiant::app::BrowserTagTarget;
@@ -101,3 +121,6 @@ pub type NativeWaveformPanelModel = radiant::app::WaveformPanelModel;
 
 /// Native runtime bridge trait used by host launchers.
 pub use radiant::app::NativeAppBridge;
+
+#[cfg(test)]
+mod tests;

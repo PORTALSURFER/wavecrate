@@ -15,6 +15,7 @@
 //! in one place while keeping host bootstrapping lightweight.
 
 use crate::app_core::actions::NativeAppBridge;
+use crate::app_core::actions::{NativeAppModel, NativeGuiAutomationSnapshot};
 use tracing::{error, info};
 
 /// RGBA icon payload used by native runtime hosts.
@@ -138,4 +139,12 @@ pub fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String>
     }
 
     result
+}
+
+/// Capture a deterministic GUI automation snapshot without launching the native host.
+pub fn capture_gui_automation_snapshot(
+    viewport: [f32; 2],
+    model: &NativeAppModel,
+) -> NativeGuiAutomationSnapshot {
+    radiant::gui_runtime::capture_gui_automation_snapshot(viewport, model)
 }

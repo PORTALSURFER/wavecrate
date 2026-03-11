@@ -229,6 +229,16 @@ impl RunContract {
             );
         }
     }
+
+    /// Return the stable run identifier for this contract instance.
+    pub(crate) fn run_id(&self) -> &str {
+        &self.run_id
+    }
+
+    /// Return the manifest path written by this contract instance.
+    pub(crate) fn manifest_path(&self) -> &Path {
+        &self.manifest_path
+    }
 }
 
 /// Millisecond-free UTC timestamp wrapper used by contract artifacts.

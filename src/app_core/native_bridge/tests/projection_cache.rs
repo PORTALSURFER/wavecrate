@@ -642,6 +642,7 @@ fn bridge_metrics_track_projection_cache_and_waveform_refresh_paths() {
         pending_waveform_actions: PendingWaveformActions::default(),
         pending_model_pull_preparation: super::PendingModelPullPreparation::Full,
         consecutive_local_model_pulls: 0,
+        gui_test_recorder: None,
     };
     bridge.controller.mark_derived_source_dirty(
         DerivedNodeId::WaveformState,

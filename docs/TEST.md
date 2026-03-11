@@ -67,7 +67,30 @@ Location: `vendor/radiant/src/gui/native_shell` unit tests and `vendor/radiant/t
 - Regenerate fixture baselines (on intentional UI/layout changes):
   - `cargo nextest run --manifest-path vendor/radiant/Cargo.toml native_shell::shots::update_shot_fixtures --run-ignored only`
 
-## 4) Benchmarks
+## 4) GUI test platform loop
+
+Location:
+
+- catalog + runner contracts: `src/app_core/actions`, `src/gui_test`
+- native-shell automation snapshot: `vendor/radiant/src/gui/native_shell/state/automation.rs`
+- CLI: `tools/gui-test-cli`
+
+Commands:
+
+- Fast semantic/runtime GUI contract loop:
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
+- Broader GUI suite loop:
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
+- Export the current AIV smoke template:
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_smoke.ps1`
+- Direct CLI snapshot export:
+  - `cargo run -p gui-test-cli -- snapshot artifacts/gui-test/gui-test-snapshot.json`
+- Direct CLI action dispatch:
+  - `cargo run -p gui-test-cli -- dispatch-action "\"ToggleTransport\"" artifacts/gui-test/dispatch.json`
+- Direct CLI scenario run:
+  - `cargo run -p gui-test-cli -- run-scenario artifacts/gui-test/scenario.json artifacts/gui-test/scenario-report.json`
+
+## 5) Benchmarks
 
 Location: `[[bench]]` targets in `Cargo.toml`.
 
@@ -77,7 +100,7 @@ Location: `[[bench]]` targets in `Cargo.toml`.
   - `cargo bench --bench ann_index`
   - `cargo bench --bench tagging`
 
-## 5) Manual and support checks
+## 6) Manual and support checks
 
 - Migration boundary enforcement:
   - `./scripts/check_migration_boundary.sh`
@@ -85,7 +108,7 @@ Location: `[[bench]]` targets in `Cargo.toml`.
   - `cargo fmt --all`
   - `cargo clippy --all-targets`
 
-## 6) CI matrix (reference)
+## 7) CI matrix (reference)
 
 See `.github/workflows/ci.yml` for branch-wide runs:
 - Runs on `main` and `next`.

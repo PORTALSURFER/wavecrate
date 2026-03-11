@@ -10,6 +10,7 @@
 use sempal::app_core::native_bridge::new_native_bridge;
 use sempal::app_core::ui::MIN_VIEWPORT_SIZE;
 use sempal::audio::AudioPlayer;
+use sempal::gui_test::GuiTestModeConfig;
 use sempal::gui_runtime::{NativeRunOptions, run_native_vello_app_declarative};
 use sempal::logging;
 use sempal::waveform::WaveformRenderer;
@@ -94,7 +95,14 @@ fn run_application(
         contract.record(RUN_PHASE_STARTUP, MILESTONE_STARTUP_BEGIN, "running");
     }
 
-    let options = NativeRunOptions {
+    let gui_test_mode = GuiTestModeConfig::from_env(
+        contract.as_ref().map(|value| value.run_id()),
+        contract
+            .as_ref()
+            .map(|value| value.manifest_path().to_path_buf()),
+    );
+
+    let mut options = NativeRunOptions {
         title: String::from("Sempal"),
         inner_size: None,
         min_inner_size: Some(MIN_VIEWPORT_SIZE),
@@ -102,11 +110,14 @@ fn run_application(
         target_fps: 120,
         icon: app_icon::load_app_icon(),
     };
+    if let Some(config) = gui_test_mode.as_ref() {
+        config.apply_to_run_options(&mut options);
+    }
 
     let renderer = WaveformRenderer::new(680, 260);
     info!("sempal startup: waveform renderer initialized");
     let player: Option<std::rc::Rc<std::cell::RefCell<AudioPlayer>>> = None;
-    let bridge = match new_native_bridge(renderer, player) {
+    let mut bridge = match new_native_bridge(renderer, player) {
         Ok(bridge) => bridge,
         Err(err) => {
             error!(err = %err, "sempal startup: failed to construct native bridge");
@@ -117,6 +128,9 @@ fn run_application(
             return Err(err);
         }
     };
+    if let Some(config) = gui_test_mode {
+        bridge.install_gui_test_mode(config);
+    }
 
     info!("sempal startup: native bridge constructed");
     if let Some(contract) = contract {

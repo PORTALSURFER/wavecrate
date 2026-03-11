@@ -39,6 +39,8 @@ pub mod gui;
 /// events; it does not define UI widgets, input handling policies, or layout
 /// logic.
 pub mod gui_runtime;
+/// GUI test contracts, scenario types, and artifact helpers.
+pub mod gui_test;
 /// Shared helpers for low-overhead hot-path telemetry instrumentation.
 mod hotpath_telemetry;
 mod http_client;

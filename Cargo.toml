@@ -5,6 +5,7 @@ members = [
     "apps/updater-helper",
     "tools/analysis-admin",
     "tools/bench-cli",
+    "tools/gui-test-cli",
     "tools/similarity-prep",
 ]
 default-members = ["."]

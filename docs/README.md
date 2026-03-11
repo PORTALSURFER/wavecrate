@@ -18,6 +18,7 @@ Start here:
 - `docs/ENV_VARS.md` — environment variable reference
 - `docs/build_speed.md` — local compile-speed workflow and crate-split sketch
 - `docs/TEST.md` — test suite map and commands
+- `docs/gui_test_platform.md` — GUI action catalog, automation snapshot, runtime test mode, and AIV integration plan
 - `docs/design_principles.md` — architectural goals and constraints
 - `docs/radiant_slot_layout_spec.md` — strict hierarchical slot-based layout contract for `vendor/radiant`
 - `docs/QUALITY_SCORE.md` — coarse quality scorecard and known gaps
@@ -47,6 +48,10 @@ Use these scripts as the default entrypoints for local work (humans and agents).
 - Fast development checks:
   - macOS/Linux/WSL: `bash scripts/ci_quick.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- GUI-focused contract loop:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
+- GUI-focused broader suite:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
 - Full local validation gate:
   - macOS/Linux/WSL: `bash scripts/ci_local.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`

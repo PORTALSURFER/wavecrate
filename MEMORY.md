@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-11T19:06:53Z
+Last Updated: 2026-03-11T20:53:00Z
 Updated By: Codex
 
 ## Purpose
@@ -27,6 +27,10 @@ Updated By: Codex
 - Cleanup item 10 is complete in main repo commit `50f4da56`.
 - Cleanup item 11 is complete in main repo commit `fee4901d`.
 - Cleanup item 12 is complete in main repo commit `d1776d5e`.
+- I have implemented the first GUI test platform foundation slice on `next`.
+- The new GUI platform source docs are `docs/gui_test_platform.md` and `docs/plans/active/gui_test_platform_exec_plan.md`.
+- The new GUI platform adds a host-side action catalog, native-shell automation snapshots, deterministic GUI test-mode artifact plumbing, a `gui-test-cli`, and PowerShell GUI test loop scripts.
+- The new GUI test loop currently validates through `scripts/run_gui_contract.ps1`, `scripts/run_gui_suite.ps1`, and `scripts/ci_quick.ps1`.
 - There are 4 remaining cleanup items in strict ROI order.
 - Cleanup item 13 is next.
 - The current cleanup source of truth is `tmp/cleanup_plan.md`.
@@ -39,11 +43,14 @@ Updated By: Codex
 1. Continue cleanup at item 13 in `tmp/cleanup_plan.md`.
 2. After each completed cleanup item, rerun validation and update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md`.
 3. Commit and push each cleanup milestone after quick CI is green.
+4. Use `docs/gui_test_platform.md` and `docs/plans/active/gui_test_platform_exec_plan.md` as the source of truth for the GUI automation/test rollout.
 
 ## Work Notes
 
 - Active cleanup backlog: `tmp/cleanup_plan.md`
 - Active short queue: `docs/plans/active/todo.md`
+- GUI automation/test design: `docs/gui_test_platform.md`
+- GUI automation/test rollout plan: `docs/plans/active/gui_test_platform_exec_plan.md`
 - Perf execution record: `tmp/perf_plan.md`
 - Perf redesign source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
 

@@ -2021,6 +2021,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gui-test-cli"
+version = "0.1.0"
+dependencies = [
+ "sempal",
+ "serde_json",
+]
+
+[[package]]
 name = "guillotiere"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

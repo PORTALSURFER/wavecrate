@@ -27,6 +27,8 @@ mod projection_key_encoding;
 mod reducer;
 /// Projection-key, pull, and motion-model runtime behavior for the native bridge.
 mod runtime_projection;
+/// Live GUI test-mode artifact recorder used by app/runtime automation loops.
+mod gui_test;
 
 #[cfg(test)]
 use self::projection_cache::build_waveform_projection_key;
@@ -74,6 +76,8 @@ pub struct SempalNativeBridge {
     pending_model_pull_preparation: PendingModelPullPreparation,
     /// Number of consecutive local-only app-model pulls since the last full prep.
     consecutive_local_model_pulls: u8,
+    /// Optional live GUI test artifact recorder.
+    gui_test_recorder: Option<gui_test::BridgeGuiTestRecorder>,
 }
 
 impl SempalNativeBridge {
@@ -97,14 +101,24 @@ impl SempalNativeBridge {
             pending_waveform_actions: PendingWaveformActions::default(),
             pending_model_pull_preparation: PendingModelPullPreparation::Full,
             consecutive_local_model_pulls: 0,
+            gui_test_recorder: None,
         })
+    }
+
+    /// Enable live GUI test artifact emission for this bridge instance.
+    pub fn install_gui_test_mode(&mut self, config: crate::gui_test::GuiTestModeConfig) {
+        self.gui_test_recorder = Some(gui_test::BridgeGuiTestRecorder::new(config));
     }
 }
 
 impl NativeAppBridge for SempalNativeBridge {
     /// Project the latest app model snapshot as a shared immutable arc.
     fn project_model(&mut self) -> Arc<NativeAppModel> {
-        self.pull_model_arc_snapshot()
+        let model = self.pull_model_arc_snapshot();
+        if let Some(recorder) = self.gui_test_recorder.as_mut() {
+            recorder.record_projected_model(model.as_ref());
+        }
+        model
     }
 
     /// Project the latest app model snapshot by value.
@@ -142,20 +156,20 @@ impl NativeAppBridge for SempalNativeBridge {
 
     /// Reduce one runtime UI action into controller state.
     fn reduce_action(&mut self, action: NativeUiAction) {
-        if let NativeUiAction::MoveBrowserFocus { delta } = action {
+        if let NativeUiAction::MoveBrowserFocus { delta } = action.clone() {
             self.reduce_browser_focus_action(delta);
-            return;
-        }
-        if action_classification::is_immediate_waveform_preview_action(&action)
+        } else if action_classification::is_immediate_waveform_preview_action(&action)
             && immediate_waveform_preview_enabled()
         {
-            self.reduce_immediate_waveform_preview_action(action);
-            return;
+            self.reduce_immediate_waveform_preview_action(action.clone());
+        } else if !self.reduce_queued_waveform_action(&action) {
+            self.reduce_default_action(action.clone());
         }
-        if self.reduce_queued_waveform_action(&action) {
-            return;
+        let should_record_gui_test = self.gui_test_recorder.is_some();
+        let model = should_record_gui_test.then(|| self.pull_model_arc_snapshot());
+        if let (Some(recorder), Some(model)) = (self.gui_test_recorder.as_mut(), model) {
+            recorder.record_action(&action, model.as_ref());
         }
-        self.reduce_default_action(action);
     }
 
     /// Observe one frame-build result for optional profiling telemetry.
