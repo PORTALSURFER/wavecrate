@@ -1,4 +1,4 @@
-//! In-process GUI test runner and AIV export helpers.
+//! In-process GUI test runner helpers.
 
 use super::{
     GuiActionTraceEvent, GuiAssertion, GuiScenario, GuiScenarioStep, GuiStepTimingSample,
@@ -15,8 +15,7 @@ use crate::{
     gui_test::trace_event_for_action,
     gui_runtime::capture_gui_automation_snapshot,
 };
-use serde_json::json;
-use std::{path::Path, time::Instant};
+use std::time::Instant;
 
 /// Capture a deterministic automation bundle from the default bridge fixture.
 pub fn capture_default_bundle(config: &GuiTestModeConfig) -> Result<GuiTestArtifactBundle, String> {
@@ -78,55 +77,6 @@ pub fn run_scenario(
     bundle.scenario_name = Some(scenario.name.clone());
     bundle.fixture_tag = scenario.fixture_tag.clone();
     Ok(bundle)
-}
-
-/// Export a first-slice AIV suite template anchored to semantic GUI targets.
-pub fn export_aiv_suite(config: &GuiTestModeConfig, output_path: &Path) -> Result<(), String> {
-    let suite = json!({
-        "vars": {
-            "title": "Sempal",
-            "artifacts_dir": config.artifact_dir.to_string_lossy(),
-        },
-        "setup": [
-            { "action": "window_wait", "title": "Sempal", "timeout_ms": 10000 }
-        ],
-        "tests": [
-            {
-                "name": "startup ready",
-                "steps": [
-                    { "action": "assert_window", "title": "Sempal", "visible": true },
-                    { "action": "screenshot", "label": "startup-ready" }
-                ]
-            },
-            {
-                "name": "automation artifacts present",
-                "steps": [
-                    { "action": "observe_foreground" },
-                    { "action": "screenshot", "label": "automation-surface" }
-                ]
-            }
-        ],
-        "teardown": [
-            { "action": "screenshot", "label": "suite-finish" }
-        ],
-        "metadata": {
-            "semantic_targets": {
-                "browser_search": "browser.search_field",
-                "samples_tab": "browser.tab.samples",
-                "map_tab": "browser.tab.map",
-                "waveform_region": "waveform.region",
-                "options_button": "shell.top_bar.options_button"
-            }
-        }
-    });
-    if let Some(parent) = output_path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|err| format!("failed to create AIV suite directory {}: {err}", parent.display()))?;
-    }
-    let json = serde_json::to_string_pretty(&suite)
-        .map_err(|err| format!("failed to serialize AIV suite: {err}"))?;
-    std::fs::write(output_path, json)
-        .map_err(|err| format!("failed to write AIV suite {}: {err}", output_path.display()))
 }
 
 fn make_bridge_for_fixture(

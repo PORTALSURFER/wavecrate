@@ -1,0 +1,151 @@
+//! Desktop AIV pack selection and coverage tests.
+
+mod cases;
+
+use self::cases::{
+    browser_search_select_commit_case, browser_search_type_smoke_case,
+    browser_tabs_and_rating_filters_case, options_open_close_case, prompt_cancel_case,
+    prompt_confirm_case, startup_ready_case, update_panel_actions_case,
+    waveform_transport_cursor_selection_zoom_case,
+};
+use super::{
+    DEFAULT_GUI_AIV_PACK, GUI_AIV_SCHEMA_VERSION, GUI_TEST_WINDOW_TITLE, GuiAivSuiteManifest,
+    REGRESSION_GUI_AIV_PACK,
+};
+
+/// Resolve one named desktop AIV suite pack.
+pub fn gui_aiv_suite_manifest(pack_name: &str) -> Result<GuiAivSuiteManifest, String> {
+    match pack_name {
+        DEFAULT_GUI_AIV_PACK => Ok(desktop_smoke_pack()),
+        REGRESSION_GUI_AIV_PACK => Ok(desktop_regression_pack()),
+        other => Err(format!("unknown desktop AIV suite pack '{other}'")),
+    }
+}
+
+fn desktop_smoke_pack() -> GuiAivSuiteManifest {
+    GuiAivSuiteManifest {
+        schema_version: GUI_AIV_SCHEMA_VERSION,
+        pack_name: String::from(DEFAULT_GUI_AIV_PACK),
+        window_title: String::from(GUI_TEST_WINDOW_TITLE),
+        cases: vec![
+            startup_ready_case(),
+            options_open_close_case(),
+            browser_search_type_smoke_case(),
+        ],
+    }
+}
+
+fn desktop_regression_pack() -> GuiAivSuiteManifest {
+    GuiAivSuiteManifest {
+        schema_version: GUI_AIV_SCHEMA_VERSION,
+        pack_name: String::from(REGRESSION_GUI_AIV_PACK),
+        window_title: String::from(GUI_TEST_WINDOW_TITLE),
+        cases: vec![
+            startup_ready_case(),
+            browser_search_select_commit_case(),
+            browser_tabs_and_rating_filters_case(),
+            options_open_close_case(),
+            prompt_confirm_case(),
+            prompt_cancel_case(),
+            waveform_transport_cursor_selection_zoom_case(),
+            update_panel_actions_case(),
+        ],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn desktop_pack_names_resolve_with_expected_case_lists() {
+        let smoke = gui_aiv_suite_manifest(DEFAULT_GUI_AIV_PACK).expect("smoke pack");
+        let regression =
+            gui_aiv_suite_manifest(REGRESSION_GUI_AIV_PACK).expect("regression pack");
+        assert_eq!(
+            smoke.cases.iter().map(|case| case.name.as_str()).collect::<Vec<_>>(),
+            vec!["startup_ready", "options_open_close", "browser_search_type_smoke"]
+        );
+        assert_eq!(
+            regression
+                .cases
+                .iter()
+                .map(|case| case.name.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "startup_ready",
+                "browser_search_select_commit",
+                "browser_tabs_and_rating_filters",
+                "options_open_close",
+                "prompt_confirm",
+                "prompt_cancel",
+                "waveform_transport_cursor_selection_zoom",
+                "update_panel_actions",
+            ]
+        );
+    }
+
+    #[test]
+    fn regression_pack_covers_required_nodes_and_assertion_verbs() {
+        let regression =
+            gui_aiv_suite_manifest(REGRESSION_GUI_AIV_PACK).expect("regression pack");
+        let json = serde_json::to_value(&regression).expect("serialize manifest");
+        let json_text = serde_json::to_string(&json).expect("serialize manifest text");
+        for node_id in [
+            "browser.search_field",
+            "browser.row.0",
+            "browser.tab.samples",
+            "browser.tab.map",
+            "browser.rating_filter.3",
+            "shell.top_bar.options_button",
+            "overlay.prompt.confirm",
+            "overlay.prompt.cancel",
+            "overlay.prompt.input",
+            "waveform.region",
+            "waveform.toolbar.loop",
+            "shell.top_bar.update.open",
+            "shell.top_bar.update.dismiss",
+        ] {
+            assert!(
+                json_text.contains(node_id),
+                "manifest should include node id {node_id}"
+            );
+        }
+        let kinds = collect_kinds(&json);
+        for kind in [
+            "assert_node_present",
+            "assert_node_absent",
+            "assert_node_selected",
+            "assert_node_value_contains",
+            "assert_action_recorded",
+        ] {
+            assert!(kinds.contains(kind), "manifest should include kind {kind}");
+        }
+    }
+
+    fn collect_kinds(value: &serde_json::Value) -> BTreeSet<&str> {
+        let mut kinds = BTreeSet::new();
+        collect_kinds_recursive(value, &mut kinds);
+        kinds
+    }
+
+    fn collect_kinds_recursive<'a>(value: &'a serde_json::Value, out: &mut BTreeSet<&'a str>) {
+        match value {
+            serde_json::Value::Object(map) => {
+                if let Some(kind) = map.get("kind").and_then(serde_json::Value::as_str) {
+                    out.insert(kind);
+                }
+                for child in map.values() {
+                    collect_kinds_recursive(child, out);
+                }
+            }
+            serde_json::Value::Array(values) => {
+                for child in values {
+                    collect_kinds_recursive(child, out);
+                }
+            }
+            _ => {}
+        }
+    }
+}

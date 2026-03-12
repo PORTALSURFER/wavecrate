@@ -46,9 +46,36 @@ fn build_browser_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControl
     })?;
     let source = SampleSource::new(source_root);
     let entries = vec![
-        write_fixture_entry(&source.root, "kick_one.wav", &[0.1, 0.4, 0.2, 0.0])?,
-        write_fixture_entry(&source.root, "snare_two.wav", &[0.0, 0.8, -0.6, 0.1])?,
-        write_fixture_entry(&source.root, "hat_three.wav", &[0.2, -0.2, 0.2, -0.2])?,
+        write_fixture_entry(
+            &source.root,
+            "kick_one.wav",
+            &[0.1, 0.4, 0.2, 0.0],
+            crate::sample_sources::Rating::NEUTRAL,
+        )?,
+        write_fixture_entry(
+            &source.root,
+            "snare_two.wav",
+            &[0.0, 0.8, -0.6, 0.1],
+            crate::sample_sources::Rating::KEEP_3,
+        )?,
+        write_fixture_entry(
+            &source.root,
+            "hat_three.wav",
+            &[0.2, -0.2, 0.2, -0.2],
+            crate::sample_sources::Rating::TRASH_1,
+        )?,
+        write_fixture_entry(
+            &source.root,
+            "loop_four.wav",
+            &[0.1, 0.2, 0.1, -0.1, -0.2, -0.1],
+            crate::sample_sources::Rating::KEEP_1,
+        )?,
+        write_fixture_entry(
+            &source.root,
+            "fx_five.wav",
+            &[0.3, 0.0, -0.3, 0.0],
+            crate::sample_sources::Rating::TRASH_3,
+        )?,
     ];
     seed_source_fixture(&mut controller, &source, entries)?;
     controller.select_wav_by_path(Path::new("kick_one.wav"));
@@ -68,11 +95,11 @@ fn build_waveform_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureContro
     bundle
         .controller
         .load_waveform_for_selection(&source, Path::new("kick_one.wav"))?;
-    bundle.controller.ui.waveform.cursor = Some(0.35);
-    bundle.controller.ui.waveform.selection = Some(SelectionRange::new(0.2, 0.6));
+    bundle.controller.ui.waveform.cursor = Some(0.38);
+    bundle.controller.ui.waveform.selection = Some(SelectionRange::new(0.35, 0.45));
     bundle.controller.ui.waveform.view = WaveformView {
-        start: 0.2,
-        end: 0.6,
+        start: 0.25,
+        end: 0.75,
     };
     bundle.controller.focus_waveform();
     Ok(bundle)
@@ -160,7 +187,12 @@ fn write_entries_to_source_db(
         .map_err(|err| format!("commit GUI fixture source DB batch: {err}"))
 }
 
-fn write_fixture_entry(root: &Path, name: &str, samples: &[f32]) -> Result<WavEntry, String> {
+fn write_fixture_entry(
+    root: &Path,
+    name: &str,
+    samples: &[f32],
+    tag: crate::sample_sources::Rating,
+) -> Result<WavEntry, String> {
     let path = root.join(name);
     let spec = WavSpec {
         channels: 1,
@@ -193,7 +225,7 @@ fn write_fixture_entry(root: &Path, name: &str, samples: &[f32]) -> Result<WavEn
         file_size: metadata.len(),
         modified_ns,
         content_hash: Some(format!("fixture-{name}")),
-        tag: crate::sample_sources::Rating::NEUTRAL,
+        tag,
         looped: false,
         locked: false,
         missing: false,

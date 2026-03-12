@@ -122,6 +122,7 @@ Supported commands:
 - `run-scenario <scenario.json> <output.json>`
 - `run-scenario-pack <pack-name> <output-dir>`
 - `export-aiv-suite <output.json>`
+- `export-aiv-suite <pack-name> <output.json>`
 - `resolve-node-target <artifact.json> <node-id>`
 
 Notes:
@@ -130,7 +131,8 @@ Notes:
 - `run-scenario` uses the same bridge/action path as the catalog and artifact code.
 - `run-scenario-pack` executes named packs over deterministic fixture seeds and writes one artifact per scenario.
 - `resolve-node-target` translates one semantic node id into window-relative target geometry for AIV wrappers.
-- `export-aiv-suite` exports a suite template with semantic target metadata and observation/screenshot smoke steps.
+- `export-aiv-suite <output.json>` remains a backward-compatible alias for the `desktop-smoke` desktop-AIV pack.
+- `export-aiv-suite <pack-name> <output.json>` exports the typed desktop-AIV manifest consumed by the PowerShell desktop runner.
 
 ## Current Dev Loops
 
@@ -155,11 +157,26 @@ This runs:
 - CLI snapshot export
 - the `contract-smoke` scenario pack
 
-### AIV smoke loop
+### AIV desktop loop
 
 - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_smoke.ps1`
+- `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_suite.ps1 -PackName desktop-regression`
 
-This now launches the real app in GUI test mode with the `browser` fixture, consumes semantic node targets from `gui_test_latest.json`, and drives options/search/tab flows through AIV.
+This now launches the real app in GUI test mode per manifest case, relaunches with a fresh sandbox per fixture, consumes semantic node targets from `gui_test_latest.json`, and drives browser, options, prompt, waveform, and update flows through AIV.
+
+Desktop packs:
+
+- `desktop-smoke`: `startup_ready`, `options_open_close`, `browser_search_type_smoke`
+- `desktop-regression`: `startup_ready`, `browser_search_select_commit`, `browser_tabs_and_rating_filters`, `options_open_close`, `prompt_confirm`, `prompt_cancel`, `waveform_transport_cursor_selection_zoom`, `update_panel_actions`
+
+Desktop runner outputs:
+
+- per-case `case-manifest.json`
+- per-case `case-report.json`
+- per-case `aiv-bundle.json`
+- per-case runtime artifacts and screenshots
+- top-level `suite-report.json`
+- top-level `suite-summary.md`
 
 Known limitation:
 

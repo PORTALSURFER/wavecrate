@@ -83,6 +83,8 @@ Commands:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
 - Live semantic AIV smoke wrapper:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_smoke.ps1`
+- Live semantic AIV desktop suite:
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_suite.ps1 -PackName desktop-regression`
 - Direct CLI snapshot export:
   - `cargo run -p gui-test-cli -- snapshot artifacts/gui-test/gui-test-snapshot.json`
 - Direct CLI action dispatch:
@@ -91,6 +93,10 @@ Commands:
   - `cargo run -p gui-test-cli -- run-scenario artifacts/gui-test/scenario.json artifacts/gui-test/scenario-report.json`
 - Direct CLI scenario-pack run:
   - `cargo run -p gui-test-cli -- run-scenario-pack contract-smoke artifacts/gui-test/scenario-pack`
+- Export the desktop-AIV smoke pack manifest:
+  - `cargo run -p gui-test-cli -- export-aiv-suite artifacts/gui-aiv/suite-manifest.json`
+- Export a named desktop-AIV manifest:
+  - `cargo run -p gui-test-cli -- export-aiv-suite desktop-regression artifacts/gui-aiv/suite-manifest.json`
 - Resolve one semantic node target from a live artifact:
   - `cargo run -p gui-test-cli -- resolve-node-target artifacts/gui-test/gui-test-snapshot.json shell.top_bar.options_button`
 

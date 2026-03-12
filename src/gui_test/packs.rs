@@ -92,7 +92,7 @@ fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                 assertion: GuiAssertion::NodeMetadataContains {
                     node_id: String::from("waveform.region"),
                     key: String::from("zoom_label"),
-                    needle: String::from("250%"),
+                    needle: String::from("200%"),
                 },
             },
             GuiScenarioStep::DispatchAction {

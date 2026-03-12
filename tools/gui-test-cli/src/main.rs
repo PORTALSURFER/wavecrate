@@ -7,8 +7,9 @@ use sempal::{
     app_core::actions::NativeUiAction,
     gui_test::{
         GuiScenario, GuiTestModeConfig, capture_default_bundle, dispatch_action_bundle,
-        export_aiv_suite, gui_scenario_pack, read_automation_snapshot_from_artifact,
-        resolve_automation_target, run_scenario, write_artifact_bundle,
+        export_aiv_suite, export_aiv_suite_pack, gui_scenario_pack,
+        read_automation_snapshot_from_artifact, resolve_automation_target, run_scenario,
+        write_artifact_bundle,
     },
 };
 use std::path::PathBuf;
@@ -60,9 +61,11 @@ fn main() -> Result<(), String> {
             Ok(())
         }
         "export-aiv-suite" => {
-            let output = required_path(args.next(), "AIV suite output path")?;
-            let config = cli_config(Some(String::from("aiv-suite")), &output);
-            export_aiv_suite(&config, &output)
+            let request = resolve_export_aiv_suite_request(args.collect())?;
+            match request.pack_name.as_deref() {
+                Some(pack_name) => export_aiv_suite_pack(pack_name, &request.output_path),
+                None => export_aiv_suite(&request.output_path),
+            }
         }
         "resolve-node-target" => {
             let artifact = required_path(args.next(), "GUI artifact path")?;
@@ -98,6 +101,52 @@ fn required_path(value: Option<String>, what: &str) -> Result<PathBuf, String> {
 
 fn usage() -> String {
     String::from(
-        "usage:\n  gui-test-cli snapshot <output.json>\n  gui-test-cli dispatch-action <action-json> <output.json>\n  gui-test-cli run-scenario <scenario.json> <output.json>\n  gui-test-cli run-scenario-pack <pack-name> <output-dir>\n  gui-test-cli export-aiv-suite <output.json>\n  gui-test-cli resolve-node-target <artifact.json> <node-id>",
+        "usage:\n  gui-test-cli snapshot <output.json>\n  gui-test-cli dispatch-action <action-json> <output.json>\n  gui-test-cli run-scenario <scenario.json> <output.json>\n  gui-test-cli run-scenario-pack <pack-name> <output-dir>\n  gui-test-cli export-aiv-suite <output.json>\n  gui-test-cli export-aiv-suite <pack-name> <output.json>\n  gui-test-cli resolve-node-target <artifact.json> <node-id>",
     )
+}
+
+struct ExportAivSuiteRequest {
+    pack_name: Option<String>,
+    output_path: PathBuf,
+}
+
+fn resolve_export_aiv_suite_request(args: Vec<String>) -> Result<ExportAivSuiteRequest, String> {
+    match args.as_slice() {
+        [output_path] => Ok(ExportAivSuiteRequest {
+            pack_name: None,
+            output_path: PathBuf::from(output_path),
+        }),
+        [pack_name, output_path] => Ok(ExportAivSuiteRequest {
+            pack_name: Some(pack_name.clone()),
+            output_path: PathBuf::from(output_path),
+        }),
+        _ => Err(format!(
+            "missing export-aiv-suite arguments\n\n{}",
+            usage()
+        )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn export_aiv_suite_legacy_alias_defaults_to_smoke_pack() {
+        let request = resolve_export_aiv_suite_request(vec![String::from("out.json")])
+            .expect("legacy export request");
+        assert_eq!(request.pack_name, None);
+        assert_eq!(request.output_path, PathBuf::from("out.json"));
+    }
+
+    #[test]
+    fn export_aiv_suite_accepts_explicit_pack_name() {
+        let request = resolve_export_aiv_suite_request(vec![
+            String::from("desktop-regression"),
+            String::from("out.json"),
+        ])
+        .expect("explicit export request");
+        assert_eq!(request.pack_name.as_deref(), Some("desktop-regression"));
+        assert_eq!(request.output_path, PathBuf::from("out.json"));
+    }
 }
