@@ -1,7 +1,7 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-12T20:03:00Z`
-- Sempal branch/head: `next` / `6e0688d8` (before current bookkeeping commit)
+- Refreshed (UTC): `2026-03-12T20:18:00Z`
+- Sempal branch/head: `next` / `3ba1e49d` (before current bookkeeping commit)
 - Radiant branch/head: `next` / `711f159a`
 - Phase: `Phase 2 in progress`
 - Status: `Items 1-7 are complete; continuing strict sequential implementation at item 8`
@@ -71,7 +71,7 @@
 - Recommended change: Move each projection-key family into its own module with a tiny shared hashing/encoding helper layer and explicit docs about which controller fields participate in invalidation.
 - Risk / tradeoffs: Moderate; any missed field changes cache behavior and can create stale UI projections.
 - Suggested validation: `cargo test app_core::native_bridge::tests -- --test-threads=1`, targeted key-drift tests, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Completed: `2026-03-12` - `sempal` commit `pending` converts `projection_key.rs` into a focused `projection_key/` module tree with separate browser, status, map, waveform, non-segment, and shared helper modules while preserving the existing builder function surface and passing the full native-bridge projection suite plus quick CI.
+- Completed: `2026-03-12` - `sempal` commit `3ba1e49d` converts `projection_key.rs` into a focused `projection_key/` module tree with separate browser, status, map, waveform, non-segment, and shared helper modules while preserving the existing builder function surface and passing the full native-bridge projection suite plus quick CI.
 
 ### 8. [ ] Split `src/app/controller/ui/clipboard_paste/source_job.rs` into explicit prepare, stage, commit, and finalize phases
 - ROI / Effort: High / M
