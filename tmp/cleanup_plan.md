@@ -1,7 +1,7 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-12T20:43:00Z`
-- Sempal branch/head: `next` / `1f9193ce` (before current bookkeeping commit)
+- Refreshed (UTC): `2026-03-12T20:53:00Z`
+- Sempal branch/head: `next` / `43afec47` (before current bookkeeping commit)
 - Radiant branch/head: `next` / `711f159a`
 - Phase: `Phase 2 in progress`
 - Status: `Items 1-8 are complete; continuing strict sequential implementation at item 9`
@@ -80,7 +80,7 @@
 - Recommended change: Split the job into phase-oriented modules plus a small orchestration façade that makes compensation and error-reporting boundaries explicit.
 - Risk / tradeoffs: Moderate; rollback ordering and journal cleanup must remain correct on partial failure paths.
 - Suggested validation: Existing clipboard/source import tests, targeted failure-path coverage, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Completed: `2026-03-12` - `sempal` commit `pending` converts `source_job.rs` into a focused `source_job/` module tree with explicit prepare, stage, commit, finalize, and cleanup phases while preserving the existing clipboard-paste API and failure-path behavior under focused tests plus quick CI.
+- Completed: `2026-03-12` - `sempal` commit `43afec47` converts `source_job.rs` into a focused `source_job/` module tree with explicit prepare, stage, commit, finalize, and cleanup phases while preserving the existing clipboard-paste API and failure-path behavior under focused tests plus quick CI.
 
 ### 9. [ ] Split `src/app/controller/playback/tagging.rs` into rating mutation, focus advancement, and undo helpers
 - ROI / Effort: High / S-M

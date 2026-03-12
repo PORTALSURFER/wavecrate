@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-12T20:43:00Z
+Last Updated: 2026-03-12T20:53:00Z
 Updated By: Codex
 
 ## Purpose
@@ -11,7 +11,7 @@ Updated By: Codex
 ## Current State (Present Tense)
 
 - I am on `next` in `C:\dev\sempal`.
-- `C:\dev\sempal` is at commit `1f9193ce` and matches `origin/next` before the current superproject bookkeeping commit.
+- `C:\dev\sempal` is at commit `43afec47` and matches `origin/next` before the current superproject bookkeeping commit.
 - `C:\dev\sempal\vendor\radiant` is on `next` at commit `711f159a` and matches `origin/next`.
 - `vendor/radiant` `next` now contains the code state that previously lived on `origin/codex/browser-wheel-scrollbar`.
 - I keep the previous remote `radiant/next` state locally on `codex/radiant-next-backup-20260312`.
