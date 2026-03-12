@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-12T12:44:59.1475131Z`
-- Sempal branch/head: `next` / `688f0a68`
-- Radiant branch/head: `next` / `2cc5c0f4`
+- Refreshed (UTC): `2026-03-12T13:11:14.2240693Z`
+- Sempal branch/head: `next` / `92a64cb0`
+- Radiant branch/head: `next` / `2a819231`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-3 are complete; continuing strict sequential implementation at item 4`
+- Status: `Items 1-4 are complete; continuing strict sequential implementation at item 5`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -37,13 +37,14 @@
 - Suggested validation: Focused parsing tests for empty/invalid/fractional/valid tempo strings, pointer-selection tests for browser search and BPM fields, and `cargo test -p radiant`.
 - Completed: `2026-03-12` - `vendor/radiant` commit `2cc5c0f4` adds a shared waveform tempo parser under `src/app`, routes both toolbar/runtime BPM parsing through it, and consolidates browser-search and waveform-BPM pointer-selection handling behind one shared native-vello text-input helper path.
 
-### 4. [ ] Split `vendor/radiant/src/gui/native_shell/state/hit_testing.rs` by interaction surface
+### 4. [x] Split `vendor/radiant/src/gui/native_shell/state/hit_testing.rs` by interaction surface
 - ROI / Effort: High / M
 - Why it matters: One 1093-line file currently owns cursor hover classification, source/folder hit testing, context-menu routing, waveform interactions, geometry helpers, and test-only API, so small interaction changes pull broad unrelated churn.
 - Evidence: `vendor/radiant/src/gui/native_shell/state/hit_testing.rs:7` starts `handle_cursor_move_effect`; the same file also owns source and folder row hit testing around `:189`, context-menu routing around `:213`, browser row hit testing around `:404`, waveform/button geometry helpers, and cache-key helpers such as `browser_action_hit_test_cache_key` near `:873`.
 - Recommended change: Split into cursor-hover classification, sidebar/browser hit testing, waveform interaction routing, and shared geometry/cache-key helpers; move test-only helpers next to the tests that use them.
 - Risk / tradeoffs: Moderate; pointer semantics are fragile and regressions here can affect every primary interaction surface.
 - Suggested validation: Existing native-shell hit-test tests, targeted hover/action characterization tests, and `cargo test -p radiant native_shell`.
+- Completed: `2026-03-12` - `vendor/radiant` commit `2a819231` replaces the monolithic hit-testing file with focused hover, browser, chrome, waveform, and map modules while preserving the existing native-shell API surface through a small compatibility facade.
 
 ### 5. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/runtime_render.rs` into invalidation, scene, present, and profiling modules
 - ROI / Effort: High / L
