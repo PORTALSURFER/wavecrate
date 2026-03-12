@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-12T12:08:16Z
+Last Updated: 2026-03-12T12:26:03Z
 Updated By: Codex
 
 ## Purpose
@@ -21,7 +21,9 @@ Updated By: Codex
 - Phase 2 is active.
 - Cleanup item 1 is complete in `vendor/radiant` commit `f8063a2b`.
 - Item 1 makes `radiant` host-neutral by replacing Sempal-specific default titles, startup placeholder branding, automation root labels, and radiant-only fixture names/docs with `Radiant` defaults while still letting the host pass explicit branding.
-- Item 2 is next in `tmp/cleanup_plan.md`.
+- Cleanup item 2 is complete in `vendor/radiant` commit `f2d98345` plus the matching superproject allowlist/metadata refresh.
+- Item 2 removes stale cleanup references from crate roots and rebuilds `docs/file_size_budget_allowlist.txt` so it matches the actual current >400-line debt.
+- Item 3 is next in `tmp/cleanup_plan.md`.
 - I have implemented the first GUI test platform foundation slice on `next`.
 - The new GUI platform source docs are `docs/gui_test_platform.md` and `docs/plans/active/gui_test_platform_exec_plan.md`.
 - The new GUI platform adds a host-side action catalog, native-shell automation snapshots, deterministic GUI test-mode artifact plumbing, a `gui-test-cli`, and PowerShell GUI test loop scripts.
@@ -35,7 +37,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue cleanup at item 2 in `tmp/cleanup_plan.md`.
+1. Continue cleanup at item 3 in `tmp/cleanup_plan.md`.
 2. After each completed cleanup item, rerun validation and update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md`.
 3. Commit and push each cleanup milestone after quick CI is green.
 4. Use `docs/gui_test_platform.md` and `docs/plans/active/gui_test_platform_exec_plan.md` as the source of truth for the GUI automation/test rollout.

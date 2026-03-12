@@ -4,7 +4,7 @@
 - Sempal branch/head: `next` / `e3208ca6`
 - Radiant branch/head: `next` / `180865c8`
 - Phase: `Phase 2 in progress`
-- Status: `Item 1 is complete in vendor/radiant commit f8063a2b; continuing strict sequential implementation at item 2`
+- Status: `Items 1-2 are complete; continuing strict sequential implementation at item 3`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -19,13 +19,14 @@
 - Suggested validation: `cargo test -p radiant`, targeted startup/snapshot tests under `vendor/radiant/src/gui_runtime/native_vello/tests`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Completed: `2026-03-12` - `vendor/radiant` commit `f8063a2b` replaced Sempal-specific default titles, startup placeholder branding, automation root labeling, and radiant-only fixture names/docs with host-neutral `Radiant` defaults while leaving host-supplied branding explicit.
 
-### 2. [ ] Refresh stale cleanup metadata, transitional comments, and file-size debt tracking
+### 2. [x] Refresh stale cleanup metadata, transitional comments, and file-size debt tracking
 - ROI / Effort: High / S
 - Why it matters: Current cleanup comments and debt trackers still describe already-finished work as pending, which misleads future sessions and weakens the value of the file-size budget.
 - Evidence: `src/lib.rs:3-5` still says the map-view split is pending in old cleanup item 19; `vendor/radiant/src/lib.rs:12-16` still references old backlog items 20-23/26/30 as pending; `docs/file_size_budget_allowlist.txt` still lists paths such as `src/app_core/native_bridge.rs`, `src/audio/output.rs`, `src/waveform/render.rs`, `src/waveform/mod.rs`, and `vendor/radiant/src/app/mod.rs` even though those surfaces have already been split or moved.
 - Recommended change: Replace stale cleanup references with current ownership notes, prune obsolete allowlist entries, and keep only real remaining size-budget debt in the allowlist.
 - Risk / tradeoffs: Low; documentation-only, but drift here directly hurts wake-up clarity and makes cleanup progress hard to trust.
 - Suggested validation: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1`, any doc index/link checks if references move, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Completed: `2026-03-12` - `vendor/radiant` commit `f2d98345` refreshed stale crate-root cleanup comments, and the superproject allowlist plus crate-root metadata now match the actual current oversized-file debt and active cleanup lane.
 
 ### 3. [ ] Remove duplicated BPM/text-field parsing and pointer-selection logic in `radiant`
 - ROI / Effort: High / S-M

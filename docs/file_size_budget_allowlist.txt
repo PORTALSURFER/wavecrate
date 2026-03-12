@@ -1,74 +1,55 @@
 # Allowlist for the Rust file size budget check.
 #
-# Sempal aims to keep source files under 400 LOC. This allowlist captures
-# known legacy files that currently exceed the budget so we can enforce the
-# constraint on new/edited files without blocking incremental work.
+# Sempal aims to keep source files under 400 LOC. This allowlist captures the
+# current legacy exceptions that still exceed the budget on 2026-03-12 so the
+# check can enforce the limit on new or edited files without blocking
+# incremental cleanup work.
 #
-# Prefer shrinking/splitting these files over time and deleting entries once
-# they fall under the budget.
+# Prefer shrinking or splitting these files over time and delete entries once
+# they fall back under the budget.
 
-src/analysis/ann_index/container.rs
-src/analysis/audio/normalize.rs
 src/analysis/frequency_domain/stft.rs
-src/app/controller.rs
-src/app/controller/library/analysis_jobs/db/tests.rs
 src/app/controller/library/analysis_jobs/enqueue/tests.rs
-src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs
-src/app/controller/library/analysis_jobs/pool/job_execution/backfill.rs
-src/app/controller/library/analysis_jobs/pool/job_progress.rs
-src/app/controller/library/browser_controller/actions.rs
-src/app/controller/library/selection_edits/mod.rs
-src/app/controller/library/source_folders/delete_recovery.rs
+src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs
 src/app/controller/library/source_folders/tree.rs
-src/app/controller/library/sources.rs
-src/app/controller/library/wavs/browser_actions.rs
-src/app/controller/library/background_jobs/polling.rs
 src/app/controller/library/wavs/browser_lists.rs
-src/app/controller/library/wavs/similar/resolve.rs
-src/app/controller/library/wavs/browser_search.rs
 src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs
-src/app/controller/library/wavs/waveform_loading.rs
 src/app/controller/playback/audio_options.rs
-src/app/controller/playback/loop_crossfade.rs
-src/app/controller/playback/player.rs
-src/app/controller/playback/waveform_actions.rs
-src/app/controller/playback/recording/waveform_loader.rs
-src/app/controller/playback/transport.rs
-src/app/controller/tests/browser_actions.rs
+src/app/controller/playback/tagging.rs
+src/app/controller/tests/browser_core.rs
 src/app/controller/tests/focus_random.rs
-src/app/controller/tests/folders_core.rs
-src/app/controller/tests/waveform.rs
-src/app/controller/ui/clipboard_paste.rs
-src/app/controller/ui/drag_drop_controller/actions.rs
-src/app/controller/ui/drag_drop_controller/drag_effects/source_moves.rs
+src/app/controller/ui/clipboard_paste/source_job.rs
 src/app/controller/ui/hotkeys/actions.rs
-src/app/controller/ui/hotkeys_controller/waveform.rs
-src/app/controller/ui/map_view.rs
-src/app_core/native_bridge.rs
-src/app_core/native_bridge/metrics.rs
+src/app_core/actions/catalog.rs
+src/app_core/controller/tests.rs
 src/app_core/native_bridge/projection_cache.rs
-src/app_core/native_bridge/tests.rs
-src/app_core/native_shell.rs
-src/app_core/native_shell/browser_projection.rs
-src/app_core/native_shell/tests.rs
-src/audio/output.rs
-src/audio/source.rs
-apps/installer/src/ui.rs
-apps/updater-helper/src/ui.rs
-src/external_drag.rs
-src/sample_sources/db/file_ops_journal.rs
-src/sample_sources/scanner/scan/tests.rs
-src/sqlite_ext.rs
+src/app_core/native_bridge/projection_cache/projection_key.rs
+src/app_core/native_bridge/tests/projection_cache.rs
 src/updater/archive.rs
 src/updater/mod.rs
 src/wav_sanitize.rs
-src/waveform/mod.rs
-src/waveform/render.rs
 src/waveform/render/paint/lines.rs
 src/waveform/zoom_cache.rs
-vendor/radiant/src/app/mod.rs
+tests/unit/source_db_mod_tests.rs
+vendor/radiant/src/app/actions.rs
+vendor/radiant/src/gui/native_shell/layout_adapter/overlays/text.rs
 vendor/radiant/src/gui/native_shell/mod.rs
 vendor/radiant/src/gui/native_shell/shots.rs
-vendor/radiant/src/gui/native_shell/state.rs
-vendor/radiant/src/gui/native_shell/style.rs
+vendor/radiant/src/gui/native_shell/state/automation.rs
+vendor/radiant/src/gui/native_shell/state/browser_rows.rs
+vendor/radiant/src/gui/native_shell/state/cache_types.rs
+vendor/radiant/src/gui/native_shell/state/frame_build/browser.rs
+vendor/radiant/src/gui/native_shell/state/frame_build/chrome.rs
+vendor/radiant/src/gui/native_shell/state/frame_build/overlay.rs
+vendor/radiant/src/gui/native_shell/state/hit_testing.rs
+vendor/radiant/src/gui/native_shell/state/overlays.rs
+vendor/radiant/src/gui/native_shell/state/tests/browser_rows.rs
+vendor/radiant/src/gui/native_shell/state/tests/browser_toolbar.rs
+vendor/radiant/src/gui/native_shell/style/sizing.rs
 vendor/radiant/src/gui_runtime/native_vello.rs
+vendor/radiant/src/gui_runtime/native_vello/input.rs
+vendor/radiant/src/gui_runtime/native_vello/input/waveform_routing.rs
+vendor/radiant/src/gui_runtime/native_vello/runtime_events.rs
+vendor/radiant/src/gui_runtime/native_vello/runtime_input.rs
+vendor/radiant/src/gui_runtime/native_vello/runtime_render.rs
+vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs

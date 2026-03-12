@@ -1,8 +1,7 @@
 #![deny(missing_docs)]
 #![deny(warnings)]
-// The map-view repository split is already tracked in `tmp/cleanup_plan.md` item 19.
-// Keep this lint narrowly suppressed at the crate boundary until that extraction lands,
-// rather than touching the oversized transitional module in unrelated housekeeping work.
+// Keep this crate-boundary allowance narrow while compatibility-heavy projection
+// and runtime surfaces are still being decomposed across the active cleanup lane.
 #![allow(clippy::type_complexity)]
 
 //! Library exports for reuse in benchmarks and tests.
