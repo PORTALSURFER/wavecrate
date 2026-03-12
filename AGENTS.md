@@ -80,6 +80,7 @@ Write for future selves: be precise, kind, and clear.
 - `tmp/perf_plan.md`: current ROI-ranked runtime performance audit backlog and execution order
 
 ## Non-Negotiable Workflow Rules
+- Use `next` as the development branch for both `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` unless the user explicitly directs otherwise.
 - During the tight edit loop:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - macOS/Linux/WSL: `bash scripts/devcheck.sh`

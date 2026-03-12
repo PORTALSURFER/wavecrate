@@ -37,6 +37,7 @@ Updated By: Codex
 - The perf source of truth remains `docs/plans/active/runtime_performance_exec_plan.md` and stays dormant unless a separate perf lane is reopened.
 - Future Windows sessions must not run the Bash workflow scripts; they should use only the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
 - Rust tests must run serially in one cargo process at a time; do not run multiple Rust test processes concurrently.
+- Future development should use the `next` branch in both `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` unless the user explicitly directs otherwise.
 
 ## Immediate Next Actions
 
