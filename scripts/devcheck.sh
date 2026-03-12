@@ -37,6 +37,9 @@ while (( $# > 0 )); do
   esac
 done
 
+echo "[devcheck] branch policy"
+./scripts/check_next_branch.sh
+
 echo "[devcheck] cargo check -p sempal --tests --bins"
 cargo check -p sempal --tests --bins
 

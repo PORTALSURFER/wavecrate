@@ -81,6 +81,7 @@ Write for future selves: be precise, kind, and clear.
 
 ## Non-Negotiable Workflow Rules
 - Use `next` as the development branch for both `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` unless the user explicitly directs otherwise.
+- Keep both repos on local `next` tracking `origin/next`; the repo hook installer and `scripts/check_next_branch.*` are the enforcement path.
 - During the tight edit loop:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - macOS/Linux/WSL: `bash scripts/devcheck.sh`

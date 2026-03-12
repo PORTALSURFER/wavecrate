@@ -39,6 +39,9 @@ while (( $# > 0 )); do
   esac
 done
 
+echo "[ci_quick] branch policy"
+./scripts/check_next_branch.sh
+
 echo "[ci_quick] cargo nextest run -p sempal --profile quick --lib --tests"
 cargo nextest run -p sempal --profile quick --lib --tests
 

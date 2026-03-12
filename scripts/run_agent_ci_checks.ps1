@@ -122,6 +122,7 @@ try {
     MEMORY_MAX_AGE_HOURS = "$MemoryMaxAgeHours"
     MEMORY_REQUIRED_UPDATER = "$RequiredUpdater"
   }
+  Invoke-Check -Label "development branch policy" -ScriptPath (Join-Path $scriptsDir "check_next_branch.ps1")
   Invoke-Check -Label "migration boundary guardrails" -ScriptPath (Join-Path $scriptsDir "check_migration_boundary.ps1")
   Invoke-Check -Label "script guardrails" -ScriptPath (Join-Path $scriptsDir "check_script_guardrails.ps1")
   Invoke-Check -Label "workflow toolchain pinning" -ScriptPath (Join-Path $scriptsDir "check_workflow_toolchain_pinning.ps1")

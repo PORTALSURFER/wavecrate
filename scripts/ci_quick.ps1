@@ -45,6 +45,11 @@ function Invoke-NativeStep {
 Push-Location $rootDir
 try {
   Enable-SempalCargoCache
+  Write-Host "[ci_quick] branch policy"
+  Invoke-NativeStep -Label "branch policy" -Command {
+    & (Join-Path $PSScriptRoot "check_next_branch.ps1")
+  }
+
   Write-Host "[ci_quick] cargo nextest run -p sempal --profile quick --lib --tests"
   Invoke-NativeStep -Label "cargo nextest run -p sempal --profile quick --lib --tests" -Command {
     cargo nextest run -p sempal --profile quick --lib --tests

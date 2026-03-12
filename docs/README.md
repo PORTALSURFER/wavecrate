@@ -65,6 +65,8 @@ Use these scripts as the default entrypoints for local work (humans and agents).
   `bash scripts/install_agent_preflight_hooks.sh` is installed by
   `bash scripts/bootstrap.sh` and enforces lightweight preflight checks after
   branch/source updates.
+  - The installer also adds branch-guard hooks so sempal and `vendor/radiant`
+    must use local `next` tracking `origin/next` for development.
   - Configure via `AGENT_PREFLIGHT_UPDATER` and
     `AGENT_PREFLIGHT_MEMORY_MAX_AGE_HOURS`.
   - Skip hook execution with `SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK=1`.
@@ -92,6 +94,9 @@ Use these scripts as the default entrypoints for local work (humans and agents).
 - Bug report bundle (logs + config + versions):
   - macOS/Linux/WSL: `bash scripts/bug_bundle.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/bug_bundle.ps1`
+- Branch policy check:
+  - macOS/Linux/WSL: `bash scripts/check_next_branch.sh`
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/check_next_branch.ps1`
 
 ## Runbooks
 

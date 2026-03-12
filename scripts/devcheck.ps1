@@ -44,6 +44,11 @@ function Invoke-NativeStep {
 Push-Location $rootDir
 try {
   Enable-SempalCargoCache
+  Write-Host "[devcheck] branch policy"
+  Invoke-NativeStep -Label "branch policy" -Command {
+    & (Join-Path $PSScriptRoot "check_next_branch.ps1")
+  }
+
   Write-Host "[devcheck] cargo check -p sempal --tests --bins"
   Invoke-NativeStep -Label "cargo check -p sempal --tests --bins" -Command {
     cargo check -p sempal --tests --bins

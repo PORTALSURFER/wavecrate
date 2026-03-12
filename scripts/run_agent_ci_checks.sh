@@ -128,6 +128,7 @@ run_check "memory log must be fresh (agent mode)" \
   "$MEMORY_MAX_AGE_HOURS" \
   "$REQUIRED_UPDATER" \
   ./scripts/check_memory_log.sh
+run_check "development branch policy" "" "" ./scripts/check_next_branch.sh
 run_check "migration boundary guardrails" "" "" ./scripts/check_migration_boundary.sh
 run_check "script guardrails" "" "" ./scripts/check_script_guardrails.sh
 run_check "workflow toolchain pinning" "" "" ./scripts/check_workflow_toolchain_pinning.sh
