@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-12T20:18:00Z`
-- Sempal branch/head: `next` / `3ba1e49d` (before current bookkeeping commit)
+- Refreshed (UTC): `2026-03-12T20:43:00Z`
+- Sempal branch/head: `next` / `1f9193ce` (before current bookkeeping commit)
 - Radiant branch/head: `next` / `711f159a`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-7 are complete; continuing strict sequential implementation at item 8`
+- Status: `Items 1-8 are complete; continuing strict sequential implementation at item 9`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -73,13 +73,14 @@
 - Suggested validation: `cargo test app_core::native_bridge::tests -- --test-threads=1`, targeted key-drift tests, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Completed: `2026-03-12` - `sempal` commit `3ba1e49d` converts `projection_key.rs` into a focused `projection_key/` module tree with separate browser, status, map, waveform, non-segment, and shared helper modules while preserving the existing builder function surface and passing the full native-bridge projection suite plus quick CI.
 
-### 8. [ ] Split `src/app/controller/ui/clipboard_paste/source_job.rs` into explicit prepare, stage, commit, and finalize phases
+### 8. [x] Split `src/app/controller/ui/clipboard_paste/source_job.rs` into explicit prepare, stage, commit, and finalize phases
 - ROI / Effort: High / M
 - Why it matters: Clipboard source import is a multi-step workflow with filesystem and DB side effects, but it is still concentrated in one file, which makes failure cleanup harder to audit.
 - Evidence: `src/app/controller/ui/clipboard_paste/source_job.rs:102` runs the whole job; `:152` prepares paths; `:178` stages copies; `:238` commits DB work; `:285` finalizes; `:307-336` mixes progress reporting and cleanup helpers.
 - Recommended change: Split the job into phase-oriented modules plus a small orchestration façade that makes compensation and error-reporting boundaries explicit.
 - Risk / tradeoffs: Moderate; rollback ordering and journal cleanup must remain correct on partial failure paths.
 - Suggested validation: Existing clipboard/source import tests, targeted failure-path coverage, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Completed: `2026-03-12` - `sempal` commit `pending` converts `source_job.rs` into a focused `source_job/` module tree with explicit prepare, stage, commit, finalize, and cleanup phases while preserving the existing clipboard-paste API and failure-path behavior under focused tests plus quick CI.
 
 ### 9. [ ] Split `src/app/controller/playback/tagging.rs` into rating mutation, focus advancement, and undo helpers
 - ROI / Effort: High / S-M
