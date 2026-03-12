@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-12T19:12:00Z
+Last Updated: 2026-03-12T20:03:00Z
 Updated By: Codex
 
 ## Purpose
@@ -11,7 +11,7 @@ Updated By: Codex
 ## Current State (Present Tense)
 
 - I am on `next` in `C:\dev\sempal`.
-- `C:\dev\sempal` is at commit `c392908d` and matches `origin/next` before the current superproject bookkeeping commit.
+- `C:\dev\sempal` is at commit `6e0688d8` and matches `origin/next` before the current superproject bookkeeping commit.
 - `C:\dev\sempal\vendor\radiant` is on `next` at commit `711f159a` and matches `origin/next`.
 - `vendor/radiant` `next` now contains the code state that previously lived on `origin/codex/browser-wheel-scrollbar`.
 - I keep the previous remote `radiant/next` state locally on `codex/radiant-next-backup-20260312`.
@@ -32,7 +32,9 @@ Updated By: Codex
 - Cleanup item 6 is complete in `vendor/radiant` commit `711f159a`.
 - Item 6 centralizes native-vello pointer-session and drag/text-input ownership behind runner transition helpers so runtime events/input stop mutating drag state ad hoc across files.
 - Sempal commit `c392908d` stabilizes the quick-CI validation lane by fixing the async decode prefill completion race and tightening the decode-heartbeat timing path/test.
-- Item 7 is next in `tmp/cleanup_plan.md`.
+- Cleanup item 7 is complete in the current superproject worktree.
+- Item 7 replaces the monolithic projection-key builder file with a focused `projection_key/` module tree so browser, status, map, waveform, and non-segment invalidation keys each live in their own module while preserving the existing native-bridge builder API.
+- Item 8 is next in `tmp/cleanup_plan.md`.
 - I have implemented the first GUI test platform foundation slice on `next`.
 - The new GUI platform source docs are `docs/gui_test_platform.md` and `docs/plans/active/gui_test_platform_exec_plan.md`.
 - The new GUI platform adds a host-side action catalog, native-shell automation snapshots, deterministic GUI test-mode artifact plumbing, a `gui-test-cli`, and PowerShell GUI test loop scripts.
@@ -46,7 +48,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue cleanup at item 7 in `tmp/cleanup_plan.md`.
+1. Continue cleanup at item 8 in `tmp/cleanup_plan.md`.
 2. After each completed cleanup item, rerun validation and update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md`.
 3. Commit and push each cleanup milestone after quick CI is green.
 4. Use `docs/gui_test_platform.md` and `docs/plans/active/gui_test_platform_exec_plan.md` as the source of truth for the GUI automation/test rollout.

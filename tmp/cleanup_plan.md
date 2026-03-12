@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-12T19:12:00Z`
-- Sempal branch/head: `next` / `c392908d` (before current bookkeeping commit)
+- Refreshed (UTC): `2026-03-12T20:03:00Z`
+- Sempal branch/head: `next` / `6e0688d8` (before current bookkeeping commit)
 - Radiant branch/head: `next` / `711f159a`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-6 are complete; continuing strict sequential implementation at item 7`
+- Status: `Items 1-7 are complete; continuing strict sequential implementation at item 8`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -64,13 +64,14 @@
 - Suggested validation: Pointer press/move/release tests for all drag modes, text-input focus/commit tests, startup/input smoke coverage, and `cargo test -p radiant gui_runtime`.
 - Completed: `2026-03-12` - `vendor/radiant` commit `711f159a` centralizes active pointer-session and drag/text-input state transitions behind runner helpers in `runtime_state.rs`, routes event/input paths through those helpers, and keeps the runtime validation lane green alongside sempal quick-CI stabilization commit `c392908d`.
 
-### 7. [ ] Split `src/app_core/native_bridge/projection_cache/projection_key.rs` into segment-specific key builders
+### 7. [x] Split `src/app_core/native_bridge/projection_cache/projection_key.rs` into segment-specific key builders
 - ROI / Effort: High / M
 - Why it matters: Projection-cache invalidation is correctness-sensitive, but one file still builds every status, browser, map, waveform, and non-segment projection key alongside shared hashing/time encoding helpers.
 - Evidence: `src/app_core/native_bridge/projection_cache/projection_key.rs:16` builds the root native key; `:124` builds status keys; `:168` and `:188` build browser-frame and browser-rows keys; `:204` builds the map key; `:222` builds the waveform key; `:310` derives waveform timing; `:448` encodes waveform channel view.
 - Recommended change: Move each projection-key family into its own module with a tiny shared hashing/encoding helper layer and explicit docs about which controller fields participate in invalidation.
 - Risk / tradeoffs: Moderate; any missed field changes cache behavior and can create stale UI projections.
 - Suggested validation: `cargo test app_core::native_bridge::tests -- --test-threads=1`, targeted key-drift tests, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Completed: `2026-03-12` - `sempal` commit `pending` converts `projection_key.rs` into a focused `projection_key/` module tree with separate browser, status, map, waveform, non-segment, and shared helper modules while preserving the existing builder function surface and passing the full native-bridge projection suite plus quick CI.
 
 ### 8. [ ] Split `src/app/controller/ui/clipboard_paste/source_job.rs` into explicit prepare, stage, commit, and finalize phases
 - ROI / Effort: High / M
