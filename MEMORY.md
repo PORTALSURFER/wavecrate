@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-12T11:39:30Z
+Last Updated: 2026-03-12T12:08:16Z
 Updated By: Codex
 
 ## Purpose
@@ -12,14 +12,16 @@ Updated By: Codex
 
 - I am on `next` in `C:\dev\sempal`.
 - `C:\dev\sempal` is at commit `e3208ca6` and matches `origin/next`.
-- `C:\dev\sempal\vendor\radiant` is on `next` at commit `180865c8` and matches `origin/next`.
+- `C:\dev\sempal\vendor\radiant` is on `next` at commit `f8063a2b` and matches `origin/next`.
 - `vendor/radiant` `next` now contains the code state that previously lived on `origin/codex/browser-wheel-scrollbar`.
 - I keep the previous remote `radiant/next` state locally on `codex/radiant-next-backup-20260312`.
 - I have completed the runtime performance backlog in `tmp/perf_plan.md` through item 11.
 - I have completed the previous cleanup lanes recorded in older `tmp/cleanup_plan.md` revisions.
 - I am running a fresh cleanup audit pass and have rebuilt `tmp/cleanup_plan.md` from the current codebase.
-- This refreshed cleanup plan is still in Phase 1 state; no items from this new pass are implemented yet.
-- Phase 2 must not start until the user explicitly confirms the ordered backlog.
+- Phase 2 is active.
+- Cleanup item 1 is complete in `vendor/radiant` commit `f8063a2b`.
+- Item 1 makes `radiant` host-neutral by replacing Sempal-specific default titles, startup placeholder branding, automation root labels, and radiant-only fixture names/docs with `Radiant` defaults while still letting the host pass explicit branding.
+- Item 2 is next in `tmp/cleanup_plan.md`.
 - I have implemented the first GUI test platform foundation slice on `next`.
 - The new GUI platform source docs are `docs/gui_test_platform.md` and `docs/plans/active/gui_test_platform_exec_plan.md`.
 - The new GUI platform adds a host-side action catalog, native-shell automation snapshots, deterministic GUI test-mode artifact plumbing, a `gui-test-cli`, and PowerShell GUI test loop scripts.
@@ -33,8 +35,8 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Review the rebuilt `tmp/cleanup_plan.md` backlog with the user and wait for explicit confirmation before Phase 2.
-2. If approved, execute cleanup strictly in plan order and update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` after each completed item.
+1. Continue cleanup at item 2 in `tmp/cleanup_plan.md`.
+2. After each completed cleanup item, rerun validation and update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md`.
 3. Commit and push each cleanup milestone after quick CI is green.
 4. Use `docs/gui_test_platform.md` and `docs/plans/active/gui_test_platform_exec_plan.md` as the source of truth for the GUI automation/test rollout.
 

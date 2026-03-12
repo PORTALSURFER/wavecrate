@@ -3,20 +3,21 @@
 - Refreshed (UTC): `2026-03-12T11:39:30.8372728Z`
 - Sempal branch/head: `next` / `e3208ca6`
 - Radiant branch/head: `next` / `180865c8`
-- Phase: `Phase 1 complete; awaiting explicit user confirmation for Phase 2`
-- Status: `Backlog rebuilt from the current codebase; no cleanup items from this audit pass are implemented yet`
+- Phase: `Phase 2 in progress`
+- Status: `Item 1 is complete in vendor/radiant commit f8063a2b; continuing strict sequential implementation at item 2`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
 ## Ordered ROI backlog
 
-### 1. [ ] Decouple `radiant` crate branding and defaults from Sempal host assumptions
+### 1. [x] Decouple `radiant` crate branding and defaults from Sempal host assumptions
 - ROI / Effort: High / S
 - Why it matters: `radiant` is intended to be its own reusable GUI crate, but several defaults and fixture labels still hardcode the Sempal host identity, which blurs ownership and makes reuse harder.
 - Evidence: `vendor/radiant/src/lib.rs:1` documents `radiant` as being for Sempal; `vendor/radiant/src/gui_runtime/mod.rs:45-56` defaults the native window title to `Sempal`; `vendor/radiant/src/app/shell.rs:194`, `vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs:388`, and `vendor/radiant/src/gui/native_shell/state/automation.rs:29` also hardcode `Sempal`; test fixtures in `vendor/radiant/src/gui/native_shell/mod.rs:37` and `vendor/radiant/src/gui/native_shell/shots.rs:433,491,579` embed Sempal-specific titles.
 - Recommended change: Make crate docs, defaults, semantic labels, and fixture names host-neutral; require the host to supply product branding explicitly where needed instead of baking it into `radiant`.
 - Risk / tradeoffs: Low; expect snapshot/test churn and small host call-site adjustments where the old implicit title was relied upon.
 - Suggested validation: `cargo test -p radiant`, targeted startup/snapshot tests under `vendor/radiant/src/gui_runtime/native_vello/tests`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Completed: `2026-03-12` - `vendor/radiant` commit `f8063a2b` replaced Sempal-specific default titles, startup placeholder branding, automation root labeling, and radiant-only fixture names/docs with host-neutral `Radiant` defaults while leaving host-supplied branding explicit.
 
 ### 2. [ ] Refresh stale cleanup metadata, transitional comments, and file-size debt tracking
 - ROI / Effort: High / S
