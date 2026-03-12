@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-12T13:11:14.2240693Z`
-- Sempal branch/head: `next` / `92a64cb0`
-- Radiant branch/head: `next` / `2a819231`
+- Refreshed (UTC): `2026-03-12T13:36:24.9263265Z`
+- Sempal branch/head: `next` / `52c662d5`
+- Radiant branch/head: `next` / `d1f5ba4a`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-4 are complete; continuing strict sequential implementation at item 5`
+- Status: `Items 1-5 are complete; continuing strict sequential implementation at item 6`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -46,13 +46,14 @@
 - Suggested validation: Existing native-shell hit-test tests, targeted hover/action characterization tests, and `cargo test -p radiant native_shell`.
 - Completed: `2026-03-12` - `vendor/radiant` commit `2a819231` replaces the monolithic hit-testing file with focused hover, browser, chrome, waveform, and map modules while preserving the existing native-shell API surface through a small compatibility facade.
 
-### 5. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/runtime_render.rs` into invalidation, scene, present, and profiling modules
+### 5. [x] Split `vendor/radiant/src/gui_runtime/native_vello/runtime_render.rs` into invalidation, scene, present, and profiling modules
 - ROI / Effort: High / L
 - Why it matters: The runtime render core is still the highest-risk hotspot in `radiant` because it mixes dirty-state reconciliation, overlay fingerprinting, scene encoding, upload caching, present bookkeeping, and redraw telemetry in one 1074-line file.
 - Evidence: `vendor/radiant/src/gui_runtime/native_vello/runtime_render.rs:6` owns `rebuild_scene_if_needed`; `:44` handles invalidation scope application; `:154` emits frame results; `:207` caches image-upload blobs; `:381` calculates static segment revisions; `:485` rebuilds segment scenes; `:552` performs full scene reconciliation; `:847` finalizes redraw/present.
 - Recommended change: Keep one thin orchestration layer and extract focused modules for invalidation state, retained scene/cache management, startup reveal/present policy, and redraw profiling/result emission.
 - Risk / tradeoffs: High; mistakes here can cause subtle incremental-render or missed-present regressions that are hard to localize.
 - Suggested validation: Characterization coverage for overlay fingerprints, scene append ordering, redraw result flags, startup reveal behavior, `cargo test -p radiant`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Completed: `2026-03-12` - `vendor/radiant` commit `d1f5ba4a` converts `runtime_render.rs` into focused invalidation, scene, present, and redraw-profiling modules while preserving the existing `native_vello` runtime API surface and quick-CI behavior.
 
 ### 6. [ ] Tighten `native_vello` runtime drag/text-input ownership across `native_vello.rs`, `runtime_events.rs`, and `runtime_input.rs`
 - ROI / Effort: High / L
