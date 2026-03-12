@@ -1,10 +1,10 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-12T11:39:30.8372728Z`
-- Sempal branch/head: `next` / `e3208ca6`
-- Radiant branch/head: `next` / `180865c8`
+- Refreshed (UTC): `2026-03-12T12:44:59.1475131Z`
+- Sempal branch/head: `next` / `688f0a68`
+- Radiant branch/head: `next` / `2cc5c0f4`
 - Phase: `Phase 2 in progress`
-- Status: `Items 1-2 are complete; continuing strict sequential implementation at item 3`
+- Status: `Items 1-3 are complete; continuing strict sequential implementation at item 4`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
@@ -28,13 +28,14 @@
 - Suggested validation: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1`, any doc index/link checks if references move, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Completed: `2026-03-12` - `vendor/radiant` commit `f2d98345` refreshed stale crate-root cleanup comments, and the superproject allowlist plus crate-root metadata now match the actual current oversized-file debt and active cleanup lane.
 
-### 3. [ ] Remove duplicated BPM/text-field parsing and pointer-selection logic in `radiant`
+### 3. [x] Remove duplicated BPM/text-field parsing and pointer-selection logic in `radiant`
 - ROI / Effort: High / S-M
 - Why it matters: The same BPM parsing and text-hit-selection behavior is implemented in multiple places across shell helpers and the native runtime, which invites silent drift.
 - Evidence: Tempo parsing exists in both `vendor/radiant/src/gui/native_shell/state/toolbar_helpers/waveform_toolbar.rs:225` and `vendor/radiant/src/gui_runtime/native_vello/text_bpm.rs:3`; `vendor/radiant/src/gui_runtime/native_vello.rs:693,722,751,786` duplicates browser-search and BPM-field click/index handling in separate paths.
 - Recommended change: Extract one shared BPM parser and one shared text-field pointer/index selection helper, then route browser search and waveform BPM editing through the same implementation.
 - Risk / tradeoffs: Low-to-moderate; text-edit caret behavior is user-visible, so refactoring should be characterization-driven.
 - Suggested validation: Focused parsing tests for empty/invalid/fractional/valid tempo strings, pointer-selection tests for browser search and BPM fields, and `cargo test -p radiant`.
+- Completed: `2026-03-12` - `vendor/radiant` commit `2cc5c0f4` adds a shared waveform tempo parser under `src/app`, routes both toolbar/runtime BPM parsing through it, and consolidates browser-search and waveform-BPM pointer-selection handling behind one shared native-vello text-input helper path.
 
 ### 4. [ ] Split `vendor/radiant/src/gui/native_shell/state/hit_testing.rs` by interaction surface
 - ROI / Effort: High / M

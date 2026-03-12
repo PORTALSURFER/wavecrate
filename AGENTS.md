@@ -61,10 +61,10 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: cleanup audit refresh
 - Source of truth: `tmp/cleanup_plan.md`
-- Current status: Phase 2 is active; cleanup items 1-2 are complete, and item 3 is next.
+- Current status: Phase 2 is active; cleanup items 1-3 are complete, and item 4 is next.
 
 ## Immediate Next Actions
-1. Continue cleanup strictly in `tmp/cleanup_plan.md` order at item 3.
+1. Continue cleanup strictly in `tmp/cleanup_plan.md` order at item 4.
 2. After each cleanup item, rerun validation, update `tmp/cleanup_plan.md`, and commit/push.
 3. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` synchronized after each cleanup milestone.
 4. Keep `tmp/perf_plan.md` and `docs/plans/active/runtime_performance_exec_plan.md` dormant unless a separate perf lane is explicitly reopened.
@@ -75,7 +75,7 @@ Write for future selves: be precise, kind, and clear.
 - `docs/plans/index.md`: active/completed plan map
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
-- `tmp/cleanup_plan.md`: active strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; items 1-2 complete, item 3 next
+- `tmp/cleanup_plan.md`: active strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; items 1-3 complete, item 4 next
 - `docs/plans/active/cleanup_architecture_note.md`: cleanup boundary/ownership guidance
 - `tmp/perf_plan.md`: current ROI-ranked runtime performance audit backlog and execution order
 

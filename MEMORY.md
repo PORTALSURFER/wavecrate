@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-12T12:26:03Z
+Last Updated: 2026-03-12T12:44:59Z
 Updated By: Codex
 
 ## Purpose
@@ -11,8 +11,8 @@ Updated By: Codex
 ## Current State (Present Tense)
 
 - I am on `next` in `C:\dev\sempal`.
-- `C:\dev\sempal` is at commit `e3208ca6` and matches `origin/next`.
-- `C:\dev\sempal\vendor\radiant` is on `next` at commit `f8063a2b` and matches `origin/next`.
+- `C:\dev\sempal` is at commit `688f0a68` and matches `origin/next` before the current superproject bookkeeping commit.
+- `C:\dev\sempal\vendor\radiant` is on `next` at commit `2cc5c0f4` and matches `origin/next`.
 - `vendor/radiant` `next` now contains the code state that previously lived on `origin/codex/browser-wheel-scrollbar`.
 - I keep the previous remote `radiant/next` state locally on `codex/radiant-next-backup-20260312`.
 - I have completed the runtime performance backlog in `tmp/perf_plan.md` through item 11.
@@ -23,7 +23,9 @@ Updated By: Codex
 - Item 1 makes `radiant` host-neutral by replacing Sempal-specific default titles, startup placeholder branding, automation root labels, and radiant-only fixture names/docs with `Radiant` defaults while still letting the host pass explicit branding.
 - Cleanup item 2 is complete in `vendor/radiant` commit `f2d98345` plus the matching superproject allowlist/metadata refresh.
 - Item 2 removes stale cleanup references from crate roots and rebuilds `docs/file_size_budget_allowlist.txt` so it matches the actual current >400-line debt.
-- Item 3 is next in `tmp/cleanup_plan.md`.
+- Cleanup item 3 is complete in `vendor/radiant` commit `2cc5c0f4`.
+- Item 3 removes duplicated waveform tempo parsing and browser/BPM text-field pointer-selection helpers by routing both shell/runtime paths through one shared parser and one shared native-vello text-input helper flow.
+- Item 4 is next in `tmp/cleanup_plan.md`.
 - I have implemented the first GUI test platform foundation slice on `next`.
 - The new GUI platform source docs are `docs/gui_test_platform.md` and `docs/plans/active/gui_test_platform_exec_plan.md`.
 - The new GUI platform adds a host-side action catalog, native-shell automation snapshots, deterministic GUI test-mode artifact plumbing, a `gui-test-cli`, and PowerShell GUI test loop scripts.
@@ -37,7 +39,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue cleanup at item 3 in `tmp/cleanup_plan.md`.
+1. Continue cleanup at item 4 in `tmp/cleanup_plan.md`.
 2. After each completed cleanup item, rerun validation and update `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md`.
 3. Commit and push each cleanup milestone after quick CI is green.
 4. Use `docs/gui_test_platform.md` and `docs/plans/active/gui_test_platform_exec_plan.md` as the source of truth for the GUI automation/test rollout.
