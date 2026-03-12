@@ -171,7 +171,9 @@ pub(crate) fn spawn_decode_heartbeat(
         };
         let _ = analysis_db::touch_running_at(conn, &[job_id]);
         let mut last_touch = Instant::now() - interval;
-        let poll = Duration::from_millis(200);
+        let poll = interval
+            .min(Duration::from_millis(200))
+            .max(Duration::from_millis(10));
         loop {
             if stop_worker.load(std::sync::atomic::Ordering::Relaxed) {
                 break;

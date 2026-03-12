@@ -109,7 +109,7 @@ where
                         panic_payload_message(&payload)
                     ));
                 }
-                thread_done.store(true, Ordering::Relaxed);
+                thread_done.store(true, Ordering::Release);
             });
 
         let worker = match spawn_result {
@@ -118,7 +118,7 @@ where
                 if let Ok(mut slot) = last_error.lock() {
                     *slot = Some(format!("Async decode thread failed to start: {err}"));
                 }
-                done.store(true, Ordering::Relaxed);
+                done.store(true, Ordering::Release);
                 None
             }
         };
@@ -180,9 +180,9 @@ where
             if available >= target_samples {
                 return available;
             }
-            if self.done.load(Ordering::Relaxed) {
+            if self.done.load(Ordering::Acquire) {
                 self.join_finished_worker();
-                return available;
+                return self.consumer.occupied_len();
             }
             if Instant::now() >= deadline {
                 return available;
@@ -202,7 +202,7 @@ where
         if let Some(sample) = self.consumer.try_pop() {
             return Some(sample);
         }
-        if self.done.load(Ordering::Relaxed) {
+        if self.done.load(Ordering::Acquire) {
             self.join_finished_worker();
             return None;
         }
@@ -215,7 +215,7 @@ where
     S: Source + 'static,
 {
     fn current_frame_len(&self) -> Option<usize> {
-        if self.done.load(Ordering::Relaxed) {
+        if self.done.load(Ordering::Acquire) {
             Some(self.consumer.occupied_len())
         } else {
             None

@@ -137,8 +137,8 @@ fn decode_heartbeat_keeps_running_job_fresh() {
 
     let (stop, handle) =
         db::spawn_decode_heartbeat(dir.path().to_path_buf(), job_id, Duration::from_millis(10));
-    let deadline = Instant::now() + Duration::from_millis(500);
-    loop {
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let heartbeat_observed = loop {
         let running_at: Option<i64> = conn
             .query_row(
                 "SELECT running_at FROM analysis_jobs WHERE id = ?1",
@@ -147,18 +147,22 @@ fn decode_heartbeat_keeps_running_job_fresh() {
             )
             .unwrap_or(None);
         if running_at.is_some_and(|ts| ts >= now - 1) {
-            break;
+            break true;
         }
         if Instant::now() >= deadline {
-            break;
+            break false;
         }
         sleep(Duration::from_millis(10));
-    }
+    };
     let stale_before = now - 1;
     let changed = analysis_db::fail_stale_running_jobs(&conn, stale_before).unwrap();
     stop.store(true, std::sync::atomic::Ordering::Relaxed);
     let _ = handle.join();
 
+    assert!(
+        heartbeat_observed,
+        "heartbeat should refresh running_at before stale cleanup"
+    );
     assert_eq!(changed, 0);
 }
 
