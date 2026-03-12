@@ -1,151 +1,163 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-11T19:06:53Z`
-- Branch: `next`
-- Head: `d1776d5e`
-- Phase: `Phase 2 in progress`
-- Status: `Items 1-12 complete; continuing strict sequential implementation at item 13`
+- Refreshed (UTC): `2026-03-12T11:39:30.8372728Z`
+- Sempal branch/head: `next` / `e3208ca6`
+- Radiant branch/head: `next` / `180865c8`
+- Phase: `Phase 1 complete; awaiting explicit user confirmation for Phase 2`
+- Status: `Backlog rebuilt from the current codebase; no cleanup items from this audit pass are implemented yet`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
 ## Ordered ROI backlog
 
-### 1. [x] Split `vendor/radiant/src/gui_runtime/native_vello.rs` runner/event/render monolith
-- ROI / Effort: High / L
-- Why it matters: The native Vello runtime is the single largest live hotspot in the repo and still concentrates window lifecycle, event dispatch, scene rebuild orchestration, presentation, caches, and startup behavior in one file.
-- Evidence: `vendor/radiant/src/gui_runtime/native_vello.rs` is about 2936 LOC. `NativeVelloRunner` starts near line 140, its main impl starts near line 265, and redraw/present/event-lifecycle code is still intertwined in one façade despite recent helper extraction.
-- Recommended change: Split the file into focused modules for window lifecycle, event dispatch, frame/rebuild scheduling, render/present, and retained cache/resource management while keeping the public runtime entrypoints stable.
-- Risk / tradeoffs: High churn across lifetime-heavy types and `winit` callback wiring; careless moves could regress startup timing or pointer/keyboard behavior.
-- Suggested validation: Targeted `radiant` runtime/input tests, startup smoke tests, `cargo fmt --all`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Completed: `2026-03-11` — `vendor/radiant` commit `e0ce0710` split startup/window lifecycle, scene rebuild/present, and event-loop handling into dedicated `native_vello` modules while keeping public runtime entrypoints stable.
-
-### 2. [x] Split `vendor/radiant/src/gui/native_shell/state/toolbar_helpers.rs` by toolbar family
-- ROI / Effort: High / M
-- Why it matters: Toolbar geometry and action assembly for browser, waveform, and top-bar controls are still concentrated in one oversized helper file, making UI changes noisy and increasing coupling between unrelated chrome surfaces.
-- Evidence: `vendor/radiant/src/gui/native_shell/state/toolbar_helpers.rs` is about 1099 LOC. The file builds browser toolbar chips, waveform toolbar buttons, and top-bar/status helper geometry in one module.
-- Recommended change: Split into focused browser-toolbar, waveform-toolbar, and top-bar helper modules with shared token/geometry helpers factored into a small common layer.
-- Risk / tradeoffs: Moderate cache-key and hit-test wiring churn; keep button order, icon choice, and action payloads byte-for-byte stable.
-- Suggested validation: Targeted `radiant` toolbar hit-test/render tests plus `ci_quick.ps1`.
-- Completed: `2026-03-11` — `vendor/radiant` commit `c1d68d7a` split browser-toolbar, waveform-toolbar, waveform-visual, top-bar, browser-row, and sidebar helper families into focused `toolbar_helpers/*` modules while keeping the parent `state` call surface stable.
-
-### 3. [x] Split `vendor/radiant/src/gui/native_shell/state/frame_build.rs` into smaller paint builders
-- ROI / Effort: High / L
-- Why it matters: Static-frame assembly remains oversized even after previous splits, which keeps browser/map/waveform/chrome rendering concerns coupled and makes cache invalidation work harder to reason about.
-- Evidence: `vendor/radiant/src/gui/native_shell/state/frame_build.rs` is about 997 LOC, and its sub-builders such as `frame_build/browser.rs` and `frame_build/chrome.rs` are also still very large.
-- Recommended change: Push more work into focused browser/map/waveform/status/chrome builders and keep `frame_build.rs` as a thin orchestration façade with small context structs only.
-- Risk / tradeoffs: Paint-order regressions are easy to introduce; keep segment ordering and overlay/static composition invariant.
-- Suggested validation: Targeted `radiant` frame/segment tests, screenshot/golden coverage where available, and `ci_quick.ps1`.
-- Completed: `2026-03-11` — `vendor/radiant` commit `bcaaef6d` moved status-bar painting into `frame_build/status_bar.rs`, extracted state-overlay rendering into `frame_build/overlay.rs`, moved waveform BPM-grid painting into `frame_build/waveform.rs`, and reduced `frame_build.rs` to orchestration/context responsibilities.
-
-### 4. [x] Finish slimming `vendor/radiant/src/gui/native_shell/state.rs` root state façade
-- ROI / Effort: High / L
-- Why it matters: The root native-shell state file still mixes mutable interaction state, hit-testing, frame build entrypoints, animation bookkeeping, and cache access, so changes to one area keep pulling broad rebuilds and test churn.
-- Evidence: `vendor/radiant/src/gui/native_shell/state.rs` is about 1694 LOC and still owns `NativeShellState`, hit-test entrypoints such as `browser_row_at_point`, and frame-build entrypoints such as `build_frame_with_style`.
-- Recommended change: Keep `state.rs` as a façade plus state struct definition only, and move the remaining hit-testing, overlay assembly, and browser/waveform interaction helpers into dedicated submodules.
-- Risk / tradeoffs: Large internal API movement inside `radiant`; must preserve scene-cache fingerprints and hit-test semantics.
-- Suggested validation: Existing native-shell state tests, targeted hit-test regressions, and `ci_quick.ps1`.
-- Completed: `2026-03-11` — `vendor/radiant` commit `412426a9` moved remaining hit-testing, hover-resolution, motion-overlay, and playhead-trail logic into focused `state/*` modules so `state.rs` is reduced to the `NativeShellState` façade plus small lifecycle/build wrappers.
-
-### 5. [x] Decompose embedding backfill orchestration in `src/app/controller/library/analysis_jobs/pool/job_execution/backfill.rs`
-- ROI / Effort: High / M
-- Why it matters: Embedding backfill still combines payload parsing, cache reuse, DB lookups, filesystem path resolution, worker fan-out, retry policy, and result persistence in one module, which raises bug risk in a high-value background pipeline.
-- Evidence: `src/app/controller/library/analysis_jobs/pool/job_execution/backfill.rs` is about 525 LOC. `run_embedding_backfill_job`, `build_backfill_plan`, cache lookup helpers, and result persistence all live together.
-- Recommended change: Split into planning, cache/repository access, worker execution, and persistence/reporting modules behind a thin job façade.
-- Risk / tradeoffs: Moderate; DB/cache behavior must stay stable and duplicate-content reuse must not regress.
-- Suggested validation: Existing backfill tests, worker retry tests, ANN/update integration tests, and `ci_quick.ps1`.
-- Completed: `2026-03-11` — main repo commit `f8dbd240` replaced the single `backfill.rs` file with focused `backfill/{planning,repository,workers,persistence,model}.rs` modules while keeping `run_embedding_backfill_job` as a thin orchestration façade.
-
-### 6. [x] Split analysis job claim/worker orchestration in `src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs`
-- ROI / Effort: High / M
-- Why it matters: Decoder/compute worker setup, lease management, queue coordination, wakeups, and OS-specific thread tuning still meet in one module, obscuring failure paths and making worker-lifecycle changes risky.
-- Evidence: `src/app/controller/library/analysis_jobs/pool/job_claim/mod.rs` is about 482 LOC. `spawn_decoder_worker` and `spawn_compute_worker` each carry broad orchestration responsibilities on top of nested module helpers.
-- Recommended change: Split worker-thread loops, lifecycle/bootstrap, and OS-priority/wakeup glue into separate modules, leaving `mod.rs` as a small export surface.
-- Risk / tradeoffs: Moderate concurrency risk; preserve shutdown, cancellation, and inflight-dedupe semantics.
-- Suggested validation: Existing job-claim pool tests, decode heartbeat tests, and `ci_quick.ps1`.
-- Completed: `2026-03-11` — main repo commit `072fb0ca` moved worker contexts into `job_claim/context.rs`, split decoder and compute worker orchestration into dedicated modules, isolated OS-priority glue in `job_claim/priority.rs`, and reduced `job_claim/mod.rs` to the module/export surface.
-
-### 7. [x] Finish separating map view orchestration from repository and job flows
-- ROI / Effort: High / M
-- Why it matters: The map-view path still spreads user actions, DB connection policy, cluster/layout job submission, and legacy-named helper types across controller and repository modules, making future map work expensive.
-- Evidence: `src/app/controller/ui/map_view.rs` is about 483 LOC and `src/app/controller/ui/map_view/repository.rs` is about 443 LOC. The controller still owns tab toggles, focus/preview behavior, cluster/layout enqueues, and DB-opening helpers, while repository code still contains repeated query-shape construction and `umap` compatibility naming.
-- Recommended change: Split into controller actions, runtime jobs, source-DB access, and query/persistence modules, and continue narrowing legacy `umap` naming to explicit compatibility shims only.
-- Risk / tradeoffs: Moderate; map focus/preview and source-scoped DB fallback behavior must remain stable.
-- Suggested validation: Map-view tests, bounds/points fallback regressions, admin layout build tests, and `ci_quick.ps1`.
-- Completed: `2026-03-11` — main repo commit `17d911b2` converted `ui/map_view.rs` into a module tree with separate controller, jobs, connection-policy, model, and repository query modules, and split the repository SQL helpers into focused bounds/points/clusters loaders while preserving the public `map_view` facade.
-
-### 8. [x] Split the waveform render pipeline around cached viewport, fade preview, and line paint backends
-- ROI / Effort: High / M
-- Why it matters: The public waveform renderer still contains a long decision tree for empty/full/peaks/cached/fade cases, which makes rendering behavior and performance-sensitive code paths difficult to reason about.
-- Evidence: `src/waveform/render.rs` is about 542 LOC and `src/waveform/render/paint/lines.rs` is about 503 LOC. `render_color_image_for_view_with_size_and_fade` and `render_color_image_with_size` still branch across many concerns.
-- Recommended change: Split viewport normalization, cache selection, fade-preview application, and paint backend dispatch into focused modules with a small public façade.
-- Risk / tradeoffs: Moderate; waveform rendering is visual and performance-sensitive, so behavior drift is easy to miss without focused tests.
-- Suggested validation: Existing waveform render/cache tests, fade-tail regressions, any benchmark smoke tests, and `ci_quick.ps1`.
-- Completed: `2026-03-11` — main repo commit `ae5e1715` replaced `src/waveform/render.rs` with `render/{mod,viewport,fade_preview}.rs`, moved viewport planning and fade-preview helpers behind a smaller render façade, and removed the stale `backfill.rs` / `map_view.rs` monolith shims so the previously-split module trees are the active code paths.
-
-### 9. [x] Finish splitting `src/app/controller/playback/waveform_actions/mod.rs` into smaller adapter surfaces
-- ROI / Effort: Medium-High / M
-- Why it matters: The earlier waveform-action split helped, but the façade still carries a large number of UI milli/micro adapters plus selection/edit-selection entrypoints in one file.
-- Evidence: `src/app/controller/playback/waveform_actions/mod.rs` is about 443 LOC and still contains many `set_waveform_*` adapter methods for selection, edit selection, seek, cursor, and smart-scale behaviors.
-- Recommended change: Split the façade into selection adapters, edit-selection adapters, seek/cursor adapters, and shared unit-conversion helpers while keeping the `AppController` call surface stable.
-- Risk / tradeoffs: Low-to-moderate; mostly structural, but waveform input routing is user-visible and heavily exercised.
-- Suggested validation: Existing waveform controller tests, selection BPM/smart-scale regressions, and `ci_quick.ps1`.
-- Completed: `2026-03-11` — main repo commit `803f9d2e` split the waveform action facade into focused `selection.rs`, `edit.rs`, `view.rs`, and `state.rs` modules while preserving the existing `AppController` waveform API and conversion helpers.
-
-### 10. [x] Separate audio recording capture, writer, and live-monitor workers in `src/audio/recording.rs`
-- ROI / Effort: Medium / M
-- Why it matters: Recording still bundles CPAL stream startup, WAV writer worker management, live monitor relay, and thread teardown behavior in one file, which complicates failure-path testing and future device work.
-- Evidence: `src/audio/recording.rs` is about 351 LOC. `AudioRecorder`, `RecorderWriter`, `InputMonitor`, command enums, and the worker loops all live together.
-- Recommended change: Split capture/bootstrap, WAV writing, monitor plumbing, and shared command/state definitions into focused modules with clearer ownership boundaries.
-- Risk / tradeoffs: Moderate; thread teardown and monitor replay need to remain non-blocking and panic-safe.
-- Suggested validation: Existing recording tests, monitor attach/detach coverage, and `ci_quick.ps1`.
-- Completed: `2026-03-11` — main repo commit `50f4da56` replaced `src/audio/recording.rs` with `recording/{mod,capture,monitor,writer}.rs`, separating CPAL capture bootstrap, WAV writer threading, and live monitor plumbing while preserving the public `AudioRecorder` / `InputMonitor` surface.
-
-### 11. [x] Split ANN container format handling in `src/analysis/ann_index/container.rs`
-- ROI / Effort: Medium / M
-- Why it matters: The ANN container implementation mixes header encoding/validation, streaming copy helpers, tempfile persistence, and unpack logic in one file, which makes future format evolution and corruption handling harder.
-- Evidence: `src/analysis/ann_index/container.rs` is about 465 LOC. `AnnContainerHeader`, `write_container`, `unpack_container`, header parsing, and copy/read helpers all live together.
-- Recommended change: Split into header/codec, IO streaming, and container façade modules with clearer boundary tests.
-- Risk / tradeoffs: Moderate; any mistake can break index migration or corruption detection.
-- Suggested validation: Existing ANN container tests, ANN migration/load tests, and `ci_quick.ps1`.
-- Completed: `2026-03-11` — main repo commit `fee4901d` replaced `src/analysis/ann_index/container.rs` with `container/{mod,header,codec,stream_io}.rs`, kept the public container facade stable, added focused header/checksum corruption tests, and preserved the existing ANN migration/load paths under `ci_quick.ps1`.
-
-### 12. [x] Separate similarity-map layout/reporting façade from the t-SNE engine in `src/analysis/umap.rs`
-- ROI / Effort: Medium / M
-- Why it matters: The public layout module still uses a legacy `umap` compatibility shell around a t-SNE implementation, and it mixes report types, SQL load/write behavior, projection, and validation in one place.
-- Evidence: `src/analysis/umap.rs` is about 358 LOC. `build_map_layout`, `build_umap_layout`, report-path helpers, embedding loading, `compute_tsne`, and validation all live together.
-- Recommended change: Keep the public compatibility façade small and move projection math, DB load/write helpers, and report serialization into dedicated modules with explicit docs about the compatibility contract.
-- Risk / tradeoffs: Low-to-moderate; must preserve persisted schema names and CLI compatibility.
-- Suggested validation: Existing similarity-map tests, admin CLI tests, and `ci_quick.ps1`.
-- Completed: `2026-03-11` — main repo commit `d1776d5e` replaced `src/analysis/umap.rs` with `umap/{mod,projection,report,storage}.rs`, kept the legacy `umap`-named compatibility entrypoints and `layout_umap` persistence contract intact, and hardened flaky async decode timing assertions so `ci_quick.ps1` remained deterministic after the split.
-
-### 13. [ ] Break `src/app_core/native_bridge/tests/projection_cache.rs` into segment-focused test modules
-- ROI / Effort: Medium-High / M
-- Why it matters: Projection-cache testing is still concentrated in one very large file full of repeated key-drift cases, which makes coverage hard to navigate and encourages more accumulation in the same hub.
-- Evidence: `src/app_core/native_bridge/tests/projection_cache.rs` is about 608 LOC and contains cache-key drift, segment invalidation, and reuse tests for many unrelated surfaces in one module.
-- Recommended change: Split into key-drift, segment reuse, waveform projection, browser projection, and options/progress cache modules with shared controller fixtures.
-- Risk / tradeoffs: Low; mostly structural test work, but keep fixture setup consistent so failures remain easy to interpret.
-- Suggested validation: `cargo test app_core::native_bridge::tests -- --test-threads=1` and `ci_quick.ps1`.
-
-### 14. [ ] Break remaining controller test hubs into behavior modules
-- ROI / Effort: Medium / M
-- Why it matters: Some of the earlier test-hub cleanup landed, but controller behavior is still concentrated in a few oversized mixed-topic files.
-- Evidence: `src/app_core/controller/tests.rs` is about 459 LOC and `src/app/controller/tests/browser_core.rs` is about 410 LOC. Both files still mix unrelated behavior families in one place.
-- Recommended change: Split by behavior domain (native action routing, projection/state transitions, browser filters/focus/loading, etc.) with shared fixture helpers extracted once.
-- Risk / tradeoffs: Low; mostly structural, but preserve test naming and discovery.
-- Suggested validation: Targeted controller test modules plus `ci_quick.ps1`.
-
-### 15. [ ] Split controller audio option normalization from UI projection in `src/app/controller/playback/audio_options.rs`
-- ROI / Effort: Medium / S-M
-- Why it matters: Input/output device normalization logic is reusable and testable on its own, but the file still mixes pure normalization, probing policy, settings mutation, and UI projection in one place.
-- Evidence: `src/app/controller/playback/audio_options.rs` is about 445 LOC. `normalize_audio_options`, output refresh, input refresh, and channel-probing logic are still bundled together.
-- Recommended change: Move pure normalization/probing policy into focused helpers and keep the controller methods limited to settings/UI synchronization.
-- Risk / tradeoffs: Low; behavior should stay identical if pure helpers are extracted carefully.
-- Suggested validation: Focused normalization tests, audio option refresh tests, and `ci_quick.ps1`.
-
-### 16. [ ] Refresh stale cleanup metadata and file-size debt allowlists
+### 1. [ ] Decouple `radiant` crate branding and defaults from Sempal host assumptions
 - ROI / Effort: High / S
-- Why it matters: The current handoff and debt-tracking docs still describe the previous cleanup pass as current, and the file-size allowlist still references many files or split surfaces that no longer exist in that form.
-- Evidence: `src/lib.rs` still says the map-view split is pending in old cleanup item 19; `vendor/radiant/src/lib.rs` still references completed cleanup items 20-23/26/30 as pending; `docs/file_size_budget_allowlist.txt` still lists old paths such as `src/app_core/native_bridge.rs`, `src/audio/output.rs`, `src/waveform/mod.rs`, and `vendor/radiant/src/app/mod.rs`; `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` still frame the old cleanup lane as the current one.
-- Recommended change: Replace stale cleanup references with the new backlog, prune obsolete allowlist entries, and regenerate/refresh the cleanup hotspot snapshot as part of the next maintenance pass.
-- Risk / tradeoffs: Low; documentation-only, but drift here directly hurts wake-up clarity and future planning accuracy.
-- Suggested validation: `scripts/check_docs_index.ps1`, `scripts/check_markdown_links.ps1` if docs links move, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Why it matters: `radiant` is intended to be its own reusable GUI crate, but several defaults and fixture labels still hardcode the Sempal host identity, which blurs ownership and makes reuse harder.
+- Evidence: `vendor/radiant/src/lib.rs:1` documents `radiant` as being for Sempal; `vendor/radiant/src/gui_runtime/mod.rs:45-56` defaults the native window title to `Sempal`; `vendor/radiant/src/app/shell.rs:194`, `vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs:388`, and `vendor/radiant/src/gui/native_shell/state/automation.rs:29` also hardcode `Sempal`; test fixtures in `vendor/radiant/src/gui/native_shell/mod.rs:37` and `vendor/radiant/src/gui/native_shell/shots.rs:433,491,579` embed Sempal-specific titles.
+- Recommended change: Make crate docs, defaults, semantic labels, and fixture names host-neutral; require the host to supply product branding explicitly where needed instead of baking it into `radiant`.
+- Risk / tradeoffs: Low; expect snapshot/test churn and small host call-site adjustments where the old implicit title was relied upon.
+- Suggested validation: `cargo test -p radiant`, targeted startup/snapshot tests under `vendor/radiant/src/gui_runtime/native_vello/tests`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 2. [ ] Refresh stale cleanup metadata, transitional comments, and file-size debt tracking
+- ROI / Effort: High / S
+- Why it matters: Current cleanup comments and debt trackers still describe already-finished work as pending, which misleads future sessions and weakens the value of the file-size budget.
+- Evidence: `src/lib.rs:3-5` still says the map-view split is pending in old cleanup item 19; `vendor/radiant/src/lib.rs:12-16` still references old backlog items 20-23/26/30 as pending; `docs/file_size_budget_allowlist.txt` still lists paths such as `src/app_core/native_bridge.rs`, `src/audio/output.rs`, `src/waveform/render.rs`, `src/waveform/mod.rs`, and `vendor/radiant/src/app/mod.rs` even though those surfaces have already been split or moved.
+- Recommended change: Replace stale cleanup references with current ownership notes, prune obsolete allowlist entries, and keep only real remaining size-budget debt in the allowlist.
+- Risk / tradeoffs: Low; documentation-only, but drift here directly hurts wake-up clarity and makes cleanup progress hard to trust.
+- Suggested validation: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1`, any doc index/link checks if references move, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 3. [ ] Remove duplicated BPM/text-field parsing and pointer-selection logic in `radiant`
+- ROI / Effort: High / S-M
+- Why it matters: The same BPM parsing and text-hit-selection behavior is implemented in multiple places across shell helpers and the native runtime, which invites silent drift.
+- Evidence: Tempo parsing exists in both `vendor/radiant/src/gui/native_shell/state/toolbar_helpers/waveform_toolbar.rs:225` and `vendor/radiant/src/gui_runtime/native_vello/text_bpm.rs:3`; `vendor/radiant/src/gui_runtime/native_vello.rs:693,722,751,786` duplicates browser-search and BPM-field click/index handling in separate paths.
+- Recommended change: Extract one shared BPM parser and one shared text-field pointer/index selection helper, then route browser search and waveform BPM editing through the same implementation.
+- Risk / tradeoffs: Low-to-moderate; text-edit caret behavior is user-visible, so refactoring should be characterization-driven.
+- Suggested validation: Focused parsing tests for empty/invalid/fractional/valid tempo strings, pointer-selection tests for browser search and BPM fields, and `cargo test -p radiant`.
+
+### 4. [ ] Split `vendor/radiant/src/gui/native_shell/state/hit_testing.rs` by interaction surface
+- ROI / Effort: High / M
+- Why it matters: One 1093-line file currently owns cursor hover classification, source/folder hit testing, context-menu routing, waveform interactions, geometry helpers, and test-only API, so small interaction changes pull broad unrelated churn.
+- Evidence: `vendor/radiant/src/gui/native_shell/state/hit_testing.rs:7` starts `handle_cursor_move_effect`; the same file also owns source and folder row hit testing around `:189`, context-menu routing around `:213`, browser row hit testing around `:404`, waveform/button geometry helpers, and cache-key helpers such as `browser_action_hit_test_cache_key` near `:873`.
+- Recommended change: Split into cursor-hover classification, sidebar/browser hit testing, waveform interaction routing, and shared geometry/cache-key helpers; move test-only helpers next to the tests that use them.
+- Risk / tradeoffs: Moderate; pointer semantics are fragile and regressions here can affect every primary interaction surface.
+- Suggested validation: Existing native-shell hit-test tests, targeted hover/action characterization tests, and `cargo test -p radiant native_shell`.
+
+### 5. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/runtime_render.rs` into invalidation, scene, present, and profiling modules
+- ROI / Effort: High / L
+- Why it matters: The runtime render core is still the highest-risk hotspot in `radiant` because it mixes dirty-state reconciliation, overlay fingerprinting, scene encoding, upload caching, present bookkeeping, and redraw telemetry in one 1074-line file.
+- Evidence: `vendor/radiant/src/gui_runtime/native_vello/runtime_render.rs:6` owns `rebuild_scene_if_needed`; `:44` handles invalidation scope application; `:154` emits frame results; `:207` caches image-upload blobs; `:381` calculates static segment revisions; `:485` rebuilds segment scenes; `:552` performs full scene reconciliation; `:847` finalizes redraw/present.
+- Recommended change: Keep one thin orchestration layer and extract focused modules for invalidation state, retained scene/cache management, startup reveal/present policy, and redraw profiling/result emission.
+- Risk / tradeoffs: High; mistakes here can cause subtle incremental-render or missed-present regressions that are hard to localize.
+- Suggested validation: Characterization coverage for overlay fingerprints, scene append ordering, redraw result flags, startup reveal behavior, `cargo test -p radiant`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 6. [ ] Tighten `native_vello` runtime drag/text-input ownership across `native_vello.rs`, `runtime_events.rs`, and `runtime_input.rs`
+- ROI / Effort: High / L
+- Why it matters: Runtime state for drags, text targets, and pointer lifecycles is spread across multiple files that mutate the same flags, which makes the runtime boundary hard to reason about.
+- Evidence: `vendor/radiant/src/gui_runtime/native_vello.rs:143` defines `NativeVelloRunner`; `vendor/radiant/src/gui_runtime/native_vello/runtime_events.rs:61+` and `vendor/radiant/src/gui_runtime/native_vello/runtime_input.rs:113+` both manipulate state such as `volume_drag_active`, `selection_drag_active`, `map_focus_drag_active`, `browser_scrollbar_drag`, `waveform_scrollbar_drag`, and `text_input_target`.
+- Recommended change: Consolidate drag/text-input ownership into one explicit state machine module and make event/input modules call through narrow transition helpers rather than mutating runner fields directly.
+- Risk / tradeoffs: High; drag lifecycles are timing-sensitive and involve many user-visible edge cases.
+- Suggested validation: Pointer press/move/release tests for all drag modes, text-input focus/commit tests, startup/input smoke coverage, and `cargo test -p radiant gui_runtime`.
+
+### 7. [ ] Split `src/app_core/native_bridge/projection_cache/projection_key.rs` into segment-specific key builders
+- ROI / Effort: High / M
+- Why it matters: Projection-cache invalidation is correctness-sensitive, but one file still builds every status, browser, map, waveform, and non-segment projection key alongside shared hashing/time encoding helpers.
+- Evidence: `src/app_core/native_bridge/projection_cache/projection_key.rs:16` builds the root native key; `:124` builds status keys; `:168` and `:188` build browser-frame and browser-rows keys; `:204` builds the map key; `:222` builds the waveform key; `:310` derives waveform timing; `:448` encodes waveform channel view.
+- Recommended change: Move each projection-key family into its own module with a tiny shared hashing/encoding helper layer and explicit docs about which controller fields participate in invalidation.
+- Risk / tradeoffs: Moderate; any missed field changes cache behavior and can create stale UI projections.
+- Suggested validation: `cargo test app_core::native_bridge::tests -- --test-threads=1`, targeted key-drift tests, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 8. [ ] Split `src/app/controller/ui/clipboard_paste/source_job.rs` into explicit prepare, stage, commit, and finalize phases
+- ROI / Effort: High / M
+- Why it matters: Clipboard source import is a multi-step workflow with filesystem and DB side effects, but it is still concentrated in one file, which makes failure cleanup harder to audit.
+- Evidence: `src/app/controller/ui/clipboard_paste/source_job.rs:102` runs the whole job; `:152` prepares paths; `:178` stages copies; `:238` commits DB work; `:285` finalizes; `:307-336` mixes progress reporting and cleanup helpers.
+- Recommended change: Split the job into phase-oriented modules plus a small orchestration façade that makes compensation and error-reporting boundaries explicit.
+- Risk / tradeoffs: Moderate; rollback ordering and journal cleanup must remain correct on partial failure paths.
+- Suggested validation: Existing clipboard/source import tests, targeted failure-path coverage, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 9. [ ] Split `src/app/controller/playback/tagging.rs` into rating mutation, focus advancement, and undo helpers
+- ROI / Effort: High / S-M
+- Why it matters: Rating changes are user-facing and stateful, yet the current file bundles multi-selection resolution, mutation, filtered-list refocus rules, and undo/redo payload construction in one place.
+- Evidence: `src/app/controller/playback/tagging.rs:11` decides auto-advance policy; `:30` implements post-rating focus/commit rules; `:58` computes fallback focus after filtered removal; `:83-211` performs selection traversal, mutation, undo registration, status reporting, and refocus.
+- Recommended change: Extract pure focus-policy helpers and undo payload assembly from the imperative controller mutation path so the behavioral branches become easier to test directly.
+- Risk / tradeoffs: Low-to-moderate; behavior must remain stable for filtered lists, locked rows, and random-navigation mode.
+- Suggested validation: Tagging/filter-navigation tests, undo/redo tests, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 10. [ ] Split `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs` into batch intake, execution, and deferred-update modules
+- ROI / Effort: Medium-High / M
+- Why it matters: The compute worker still mixes thread lifecycle, queue polling, settings snapshotting, panic capture, decoded-batch grouping, immediate job execution, deferred DB updates, and queue logging in one worker file.
+- Evidence: `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs:26-116` runs the worker loop; `:134` snapshots settings; `:156` processes batches; `:187` wraps panic handling and job fan-out; later helpers finalize immediate jobs, flush deferred updates, and log queue state.
+- Recommended change: Keep a small worker loop in this file and extract batch planning, job execution, deferred persistence, and logging into dedicated helper modules.
+- Risk / tradeoffs: Moderate; concurrency and shutdown semantics must remain unchanged.
+- Suggested validation: Analysis job pool tests, worker cancellation/shutdown coverage, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 11. [ ] Split `src/waveform/render/paint/lines.rs` into raster kernels, packing, and pixel-blend helpers
+- ROI / Effort: Medium-High / M
+- Why it matters: Low-level waveform rasterization is performance-sensitive and visually critical, but one 503-line file still owns mono rendering, stereo packing, interpolation, supersampling, anti-aliased line stepping, and pixel blending without direct local tests.
+- Evidence: `src/waveform/render/paint/lines.rs:53,123,178,233,312,500` spans mono rendering, split-stereo packing, interpolation, AA line stepping, and final pixel work; the file has no local `#[cfg(test)]` coverage.
+- Recommended change: Extract the raster math and pixel blend primitives into small helpers with targeted unit tests, leaving the public paint entrypoints as thin orchestration.
+- Risk / tradeoffs: Moderate; tiny math changes can cause visible waveform regressions or performance drift.
+- Suggested validation: Targeted waveform render tests for mono/stereo/AA cases plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 12. [ ] Add focused automation snapshot characterization coverage and split `vendor/radiant/src/gui/native_shell/state/automation.rs` by shell panel family
+- ROI / Effort: Medium-High / M
+- Why it matters: The automation snapshot is a contract surface for GUI tooling, but the implementation is a 954-line manual builder with large action-ID mapping logic and little direct coverage.
+- Evidence: `vendor/radiant/src/gui/native_shell/state/automation.rs:10` builds the full shell snapshot; `:52+` through the rest of the file builds top bar, sidebar, waveform, browser, status, prompt, options, and progress nodes; `:852+` manually maps actions to slugs. Repo-wide searches did not show direct tests for `automation_snapshot`, `capture_gui_automation_snapshot`, or `action_slug`.
+- Recommended change: Split snapshot builders by panel family with shared node helpers, and add golden/contract tests for representative browser, map, prompt, progress, and options states.
+- Risk / tradeoffs: Moderate; automation IDs are a compatibility surface for tools and should not drift casually.
+- Suggested validation: New snapshot contract tests under `vendor/radiant`, targeted `cargo test -p radiant`, and GUI test CLI smoke coverage if automation artifacts are involved.
+
+### 13. [ ] Break `radiant` browser rendering/test blobs into focused list, chrome, truncation, and virtualization modules
+- ROI / Effort: Medium-High / M
+- Why it matters: Browser UI cleanup currently requires touching broad production and test files that mirror too many concerns at once.
+- Evidence: `vendor/radiant/src/gui/native_shell/state/frame_build/browser.rs` is about 686 LOC and mixes row-window rendering, tabs, toolbar/header/footer, list/map switching, metadata chips, and scrollbar paint; `vendor/radiant/src/gui/native_shell/state/browser_rows.rs` is about 781 LOC and mixes layout structs, cache keys, truncation, colors, scrollbar math, and windowing; `vendor/radiant/src/gui/native_shell/state/tests/browser_rows.rs` is about 689 LOC; `vendor/radiant/src/gui/native_shell/mod.rs` also carries an 800+ line omnibus test module after the export surface.
+- Recommended change: Separate browser list virtualization, chrome layout, truncation/cache policy, scrollbar math, and scenario-style tests into smaller modules with shared fixtures.
+- Risk / tradeoffs: Moderate; browser virtualization and hit-testing are tightly coupled, so characterization tests should move with the extracted helpers.
+- Suggested validation: Browser-row truncation/windowing tests, browser toolbar tests, screenshot/contract tests where available, and `cargo test -p radiant native_shell`.
+
+### 14. [ ] Break remaining oversized test hubs into domain-focused modules
+- ROI / Effort: Medium / M
+- Why it matters: Several large test hubs still mix unrelated behavior families, which makes coverage harder to navigate and encourages future accumulation in the same files.
+- Evidence: `src/app_core/native_bridge/tests/projection_cache.rs` is about 609 LOC and mixes key drift, waveform invariants, dirty-segment reuse, overlay refresh, env-flag parsing, and bridge metrics; `src/app_core/controller/tests.rs` is about 459 LOC; `src/app/controller/tests/browser_core.rs` is about 410 LOC; `tests/unit/source_db_mod_tests.rs` is about 496 LOC; `vendor/radiant/src/gui/native_shell/state/tests/browser_rows.rs` is about 689 LOC.
+- Recommended change: Split each hub by behavior family with shared fixtures extracted once, so failures point to one concern at a time.
+- Risk / tradeoffs: Low; mostly structural, but test names and fixture ergonomics should stay stable.
+- Suggested validation: Run the targeted test modules serially where cargo locking matters, then rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 15. [ ] Split `apps/updater-helper/src/ui.rs` into async dataflow, reducer/model, and view helpers
+- ROI / Effort: Medium / M
+- Why it matters: The updater helper UI is a user-facing workflow surface, but one 517-line file still mixes release fetching, update apply orchestration, log buffering, model projection, and action reduction with thin direct coverage.
+- Evidence: `apps/updater-helper/src/ui.rs:59,88,162,193,315,416` spans async release loading, apply orchestration, buffered logging, and reducer/view logic; only two local tests currently live near `:524` and `:543`.
+- Recommended change: Separate async release/apply tasks from the reducer/model layer and the actual egui view helpers so UI behavior can be tested without dragging the async plumbing into every edit.
+- Risk / tradeoffs: Moderate; UI status transitions and log buffering need to remain stable through async failures.
+- Suggested validation: `cargo test -p sempal-updater-helper` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 16. [ ] Document public action/scenario enums and separate catalog metadata from identifier declarations
+- ROI / Effort: Medium / S-M
+- Why it matters: The crate denies missing docs at the boundary, but some public enums still opt out, and `catalog.rs` couples stable identifiers, declaration ordering, and metadata lookup in one place.
+- Evidence: `src/app_core/actions/catalog.rs:7,232,247,259` suppresses missing docs on public enums and contains a 106-entry `GuiActionKind::ALL`; `src/gui_test/scenario.rs:18,31` suppresses docs for the public `GuiScenarioStep` and `GuiAssertion` enums.
+- Recommended change: Add real docs for public variants, separate stable action identifiers from metadata tables/lookup helpers, and keep the scenario assertion contract explicitly documented.
+- Risk / tradeoffs: Low; mostly documentation and mechanical structure, but the action ordering contract must remain stable.
+- Suggested validation: `cargo test` for any action-catalog or GUI scenario consumers, plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 17. [ ] Split `src/app/controller/playback/audio_options.rs` into pure normalization/probing helpers and controller-side mutation
+- ROI / Effort: Medium / M
+- Why it matters: The file already contains clean pure logic, but it is still mixed with device probing, config persistence, UI projection, and player rebuild side effects, which makes stateful branches harder to test directly.
+- Evidence: `src/app/controller/playback/audio_options.rs:14,94,148,243,350,439` spans normalization, device/rate probing, channel normalization, config persistence, and player rebuild side effects; direct tests currently cover only the pure helper in `src/app/controller/playback/audio_options_tests.rs:20,40,60`.
+- Recommended change: Move pure normalization and probing policy into small helpers with their own tests, and leave the controller methods responsible only for wiring settings, UI state, and player updates together.
+- Risk / tradeoffs: Low-to-moderate; device selection and fallback behavior must remain unchanged across platforms.
+- Suggested validation: Targeted audio-option tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 18. [ ] Split `src/waveform/zoom_cache.rs` into cache-core logic and telemetry instrumentation
+- ROI / Effort: Medium / M
+- Why it matters: The zoom cache mixes sharded cache storage, eviction, poison recovery, resident-byte accounting, and hot-path telemetry globals, which complicates both reasoning and targeted tests.
+- Evidence: `src/waveform/zoom_cache.rs:16-37` defines the cache plus telemetry globals; `:38-152` is telemetry accounting/log emission; `:165+` starts the cache API and lock management. The file is about 489 LOC.
+- Recommended change: Keep the cache data structure and eviction policy in one module, move telemetry counters/logging into a small instrumentation helper, and add focused tests around eviction/poison-recovery behavior.
+- Risk / tradeoffs: Moderate; concurrency and telemetry overhead should remain unchanged.
+- Suggested validation: Existing waveform cache/render tests, any hot-path telemetry smoke checks, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 19. [ ] Add direct hotkey-registry coverage and narrow the static registry surface
+- ROI / Effort: Medium / S-M
+- Why it matters: The hotkey registry is a large user-facing data table, but it has very little direct coverage, so collisions, duplicate gestures, and scope drift can slip through quietly.
+- Evidence: `src/app/controller/ui/hotkeys/actions.rs` is about 454 LOC of static registry data with key clusters around `:5`, `:175`, `:211`, and `:260`; only indirect coverage was found in controller tests such as `src/app/controller/tests/focus_random.rs:208`.
+- Recommended change: Extract smaller declarative registry chunks or helper constructors where useful, and add direct tests for duplicate gestures, scope invariants, and representative action bindings.
+- Risk / tradeoffs: Low; mostly declarative cleanup, but the registry is user-visible so accidental keymap drift must be caught.
+- Suggested validation: New hotkey-focused unit tests plus existing controller hotkey coverage and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.

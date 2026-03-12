@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-11T19:06:53Z
+Last updated (UTC): 2026-03-12T11:39:30Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -13,12 +13,12 @@ Purpose:
 
 - Cleanup audit refresh for the post-cleanup codebase.
 - Perf Phase 2 items 1-11 in `tmp/perf_plan.md` remain complete.
-- The active cleanup backlog in `tmp/cleanup_plan.md` is now in Phase 2 execution.
-- Cleanup items 1-12 are complete, 4 items remain, and item 13 is next.
+- The active cleanup backlog in `tmp/cleanup_plan.md` was rebuilt from the current codebase on `2026-03-12`.
+- Phase 1 is complete and Phase 2 must not begin until the user explicitly confirms the ordered backlog.
 
 ## Next tasks (ordered)
 
-1. Continue cleanup strictly in plan order at item 13.
-2. After each cleanup milestone, rerun validation and sync `tmp/cleanup_plan.md`, `AGENTS.md`, `MEMORY.md`, and this file.
+1. Review `tmp/cleanup_plan.md` with the user and wait for explicit Phase 2 confirmation.
+2. If approved, execute cleanup strictly in plan order and sync `tmp/cleanup_plan.md`, `AGENTS.md`, `MEMORY.md`, and this file after each item.
 3. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` synchronized after each cleanup milestone.
 4. Use `docs/plans/active/runtime_performance_exec_plan.md` only if a separate perf follow-up lane is explicitly reopened.

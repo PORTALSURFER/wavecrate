@@ -59,13 +59,13 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `C:\dev\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: post-cleanup architecture audit refresh
+- Program: cleanup audit refresh
 - Source of truth: `tmp/cleanup_plan.md`
-- Current status: the refreshed cleanup backlog is now in Phase 2 execution; items 1-12 are complete, 4 items remain, and item 13 is next.
+- Current status: a fresh ROI-ranked cleanup backlog was rebuilt on `2026-03-12`; Phase 1 is complete and Phase 2 must not start until the user explicitly confirms.
 
 ## Immediate Next Actions
-1. Continue cleanup strictly in `tmp/cleanup_plan.md` order at item 13.
-2. After each cleanup item, rerun validation, update `tmp/cleanup_plan.md`, and commit/push.
+1. Review `tmp/cleanup_plan.md` with the user and wait for explicit confirmation before Phase 2.
+2. If approved, execute cleanup strictly in `tmp/cleanup_plan.md` order, validating and commit/pushing after each item.
 3. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` synchronized after each cleanup milestone.
 4. Keep `tmp/perf_plan.md` and `docs/plans/active/runtime_performance_exec_plan.md` dormant unless a separate perf lane is explicitly reopened.
 
@@ -75,7 +75,7 @@ Write for future selves: be precise, kind, and clear.
 - `docs/plans/index.md`: active/completed plan map
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
-- `tmp/cleanup_plan.md`: active strict ROI-ranked cleanup backlog (Phase 2 active; items 1-12 complete on 2026-03-11, item 13 next)
+- `tmp/cleanup_plan.md`: active strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; currently awaiting explicit Phase 2 approval
 - `docs/plans/active/cleanup_architecture_note.md`: cleanup boundary/ownership guidance
 - `tmp/perf_plan.md`: current ROI-ranked runtime performance audit backlog and execution order
 
