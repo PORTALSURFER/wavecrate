@@ -436,11 +436,11 @@ Branch: `next`
 - Product clarification required: No
 - Completion:
   - Date: 2026-03-13
-  - Commit: pending current item commit
+  - Commit: `6f4674bd` (`refactor(analysis): split compute worker stages`)
   - Assumption used: preserving the top-level worker loop while only extracting execution and deferred-finalization helpers is enough to reduce ownership mixing without changing queue semantics.
   - Validation: `cargo test job_claim -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 11. Separate waveform zoom-cache core behavior from telemetry bookkeeping
+### [x] 11. Separate waveform zoom-cache core behavior from telemetry bookkeeping
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -469,6 +469,11 @@ Branch: `next`
   - Existing waveform cache tests and perf guardrails
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: pending current item commit
+  - Assumption used: moving only telemetry counters and emission helpers out of the zoom-cache file is sufficient to clarify cache-core ownership without changing the lock or eviction model.
+  - Validation: `cargo test waveform::zoom_cache -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 12. Separate pure audio-option normalization from controller-side probing and mutation
 
