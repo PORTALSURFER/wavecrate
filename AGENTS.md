@@ -60,11 +60,11 @@ Write for future selves: be precise, kind, and clear.
 - Product: Sempal
 - Branch: `next`
 - Program: evidence-driven improvement audit planning
-- Source of truth: `tmp/improvement_audit_plan.md` for the current ROI-ranked audit backlog; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: Phase 1 of the improvement audit is complete on disk in `tmp/improvement_audit_plan.md`; no implementation has started, and Phase 2 must not begin until the user explicitly confirms.
+- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed ROI-ranked audit backlog built from the current tree; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
+- Current status: the improvement audit Phase 1 rerun is complete on disk in `tmp/improvement_audit_plan.md`; no implementation has started, and Phase 2 must not begin until the user explicitly confirms.
 
 ## Immediate Next Actions
-1. Wait for explicit user confirmation before implementing any item from `tmp/improvement_audit_plan.md`.
+1. Wait for explicit user confirmation before implementing any item from the refreshed `tmp/improvement_audit_plan.md`.
 2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 3. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized whenever the active lane changes.
 4. If Phase 2 is approved, execute `tmp/improvement_audit_plan.md` in ROI order with the PowerShell validation wrappers on Windows.
@@ -73,7 +73,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: current evidence-driven ROI-ranked improvement backlog; Phase 1 complete, Phase 2 blocked on explicit user confirmation
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog; Phase 1 complete, Phase 2 blocked on explicit user confirmation
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation

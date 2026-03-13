@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-13T13:57:47Z
+Last Updated: 2026-03-13T15:36:00Z
 Updated By: Codex
 
 ## Purpose
@@ -11,12 +11,12 @@ Updated By: Codex
 ## Current State (Present Tense)
 
 - I am on `next` in `C:\dev\sempal`.
-- `C:\dev\sempal` is at commit `8e157a1b` on `next`; the working tree currently includes local Phase 1 audit docs that are not implemented work.
-- `C:\dev\sempal\vendor\radiant` is on `next` at commit `6452f6ed`.
+- `C:\dev\sempal` is at commit `e32e19ad` on `next`; the working tree currently includes unrelated local browser/gui-test edits plus the refreshed Phase 1 audit docs.
+- `C:\dev\sempal\vendor\radiant` is on `next` at commit `1a18f869`.
 - The active lane is an evidence-driven improvement audit of the current repository state.
-- The current source of truth for that lane is `tmp/improvement_audit_plan.md`.
-- `tmp/improvement_audit_plan.md` contains the ROI-ranked backlog, open questions, and rejected ideas for this audit.
-- Phase 1 is complete, and no Phase 2 implementation has started.
+- The current source of truth for that lane is the refreshed `tmp/improvement_audit_plan.md`.
+- `tmp/improvement_audit_plan.md` contains the current ROI-ranked backlog, open questions, and rejected ideas rebuilt from the live tree.
+- Phase 1 of the audit rerun is complete, and no Phase 2 implementation has started.
 - The user must explicitly confirm before any item from `tmp/improvement_audit_plan.md` is implemented.
 - The earlier GUI/browser interaction fixes and desktop AIV coverage remain part of the current repository state and are background context, not the active execution lane.
 - `tmp/cleanup_plan.md` remains parked after Phase 1 and still requires explicit confirmation before any cleanup implementation.
@@ -28,7 +28,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Wait for the user to confirm whether to start Phase 2 from `tmp/improvement_audit_plan.md`.
+1. Wait for the user to confirm whether to start Phase 2 from the refreshed `tmp/improvement_audit_plan.md`.
 2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
 3. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned with the active audit lane.
 4. If Phase 2 is approved, execute the backlog in ROI order and validate with `scripts/devcheck.ps1` and `scripts/ci_quick.ps1` on Windows.
