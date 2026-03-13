@@ -1,7 +1,7 @@
 # Allowlist for the Rust file size budget check.
 #
 # Sempal aims to keep source files under 400 LOC. This allowlist captures the
-# current legacy exceptions that still exceed the budget on 2026-03-12 so the
+# current legacy exceptions that still exceed the budget on 2026-03-13 so the
 # check can enforce the limit on new or edited files without blocking
 # incremental cleanup work.
 #
@@ -18,12 +18,10 @@ src/app/controller/playback/audio_options.rs
 src/app/controller/playback/tagging.rs
 src/app/controller/tests/browser_core.rs
 src/app/controller/tests/focus_random.rs
-src/app/controller/ui/clipboard_paste/source_job.rs
 src/app/controller/ui/hotkeys/actions.rs
 src/app_core/actions/catalog.rs
 src/app_core/controller/tests.rs
 src/app_core/native_bridge/projection_cache.rs
-src/app_core/native_bridge/projection_cache/projection_key.rs
 src/app_core/native_bridge/tests/projection_cache.rs
 src/updater/archive.rs
 src/updater/mod.rs
@@ -35,13 +33,10 @@ vendor/radiant/src/app/actions.rs
 vendor/radiant/src/gui/native_shell/layout_adapter/overlays/text.rs
 vendor/radiant/src/gui/native_shell/mod.rs
 vendor/radiant/src/gui/native_shell/shots.rs
-vendor/radiant/src/gui/native_shell/state/automation.rs
-vendor/radiant/src/gui/native_shell/state/browser_rows.rs
 vendor/radiant/src/gui/native_shell/state/cache_types.rs
 vendor/radiant/src/gui/native_shell/state/frame_build/browser.rs
 vendor/radiant/src/gui/native_shell/state/frame_build/chrome.rs
 vendor/radiant/src/gui/native_shell/state/frame_build/overlay.rs
-vendor/radiant/src/gui/native_shell/state/hit_testing.rs
 vendor/radiant/src/gui/native_shell/state/overlays.rs
 vendor/radiant/src/gui/native_shell/state/tests/browser_rows.rs
 vendor/radiant/src/gui/native_shell/state/tests/browser_toolbar.rs
@@ -51,5 +46,4 @@ vendor/radiant/src/gui_runtime/native_vello/input.rs
 vendor/radiant/src/gui_runtime/native_vello/input/waveform_routing.rs
 vendor/radiant/src/gui_runtime/native_vello/runtime_events.rs
 vendor/radiant/src/gui_runtime/native_vello/runtime_input.rs
-vendor/radiant/src/gui_runtime/native_vello/runtime_render.rs
 vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs

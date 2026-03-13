@@ -120,7 +120,7 @@ Branch: `next`
   - Validation: targeted `radiant` browser-row tests plus Windows `devcheck`
     and `ci_quick`
 
-### [ ] 3. Prune stale file-size-budget allowlist entries and refresh debt-tracking docs
+### [x] 3. Prune stale file-size-budget allowlist entries and refresh debt-tracking docs
 
 - Classification: Developer-experience improvement
 - Confidence: High
@@ -154,6 +154,11 @@ Branch: `next`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: pending current item commit
+  - Assumption used: removing nonexistent or now-under-budget allowlist entries does not change guardrail intent; it only realigns the debt ledger with the live tree.
+  - Validation: pending current item validation run
 
 ### [ ] 4. Remove `missing_docs` suppressions from the public GUI contract surfaces
 
