@@ -100,19 +100,7 @@ impl WaveformActions for WaveformController<'_> {
             return;
         };
         let before = Some(selection);
-        let width = selection.width();
-        let mut delta = width * steps as f32;
-        if let Some(step) = self
-            .bpm_snap_step()
-            .filter(|step| step.is_finite() && *step > 0.0)
-        {
-            let snapped = (delta / step).round() * step;
-            if snapped != 0.0 {
-                delta = snapped;
-            } else if steps != 0 {
-                delta = step * steps.signum() as f32;
-            }
-        }
+        let delta = slide_selection_delta(selection, steps, self.bpm_snap_step());
         let range = selection.shift(delta);
         self.selection_state.range.set_range(Some(range));
         self.apply_selection(Some(range));
@@ -140,5 +128,50 @@ impl WaveformActions for WaveformController<'_> {
         }
         .clamp();
         self.refresh_waveform_image();
+    }
+}
+
+/// Resolve the normalized translation delta for one selection slide request.
+fn slide_selection_delta(
+    selection: SelectionRange,
+    steps: isize,
+    bpm_snap_step: Option<f32>,
+) -> f32 {
+    let width = selection.width();
+    if steps == 0 || !width.is_finite() || width <= 0.0 {
+        return 0.0;
+    }
+    let requested_start = selection.start() + (width * steps as f32);
+    let clamped_start = requested_start.clamp(0.0, (1.0 - width).max(0.0));
+    let snapped_start = bpm_snap_step
+        .filter(|step| step.is_finite() && *step > 0.0)
+        .map(|step| ((clamped_start / step).round() * step).clamp(0.0, (1.0 - width).max(0.0)))
+        .unwrap_or(clamped_start);
+    snapped_start - selection.start()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slide_selection_delta_moves_by_full_selection_width_without_snap() {
+        let selection = SelectionRange::new(0.2, 0.35);
+
+        let delta = slide_selection_delta(selection, 1, None);
+
+        assert!((delta - selection.width()).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn slide_selection_delta_snaps_translated_start_instead_of_raw_delta() {
+        let selection = SelectionRange::new(0.2, 0.4);
+
+        let delta = slide_selection_delta(selection, 1, Some(0.125));
+
+        assert!((delta - 0.175).abs() < 1.0e-6);
+        let shifted = selection.shift(delta);
+        assert!((shifted.start() - 0.375).abs() < 1.0e-6);
+        assert!((shifted.width() - selection.width()).abs() < 1.0e-6);
     }
 }
