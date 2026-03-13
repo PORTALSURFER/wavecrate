@@ -1,171 +1,117 @@
 # Cleanup Audit Backlog
 
-- Refreshed (UTC): `2026-03-12T20:53:00Z`
-- Sempal branch/head: `next` / `43afec47` (before current bookkeeping commit)
-- Radiant branch/head: `next` / `711f159a`
-- Phase: `Phase 2 in progress`
-- Status: `Items 1-8 are complete; continuing strict sequential implementation at item 9`
+- Refreshed (UTC): `2026-03-12T16:32:35Z`
+- Sempal branch/head at audit time: `next` / `34ff29b2`
+- Radiant branch/head at audit time: `next` / `711f159a`
+- Phase: `Phase 1 complete`
+- Status: `Parked; resume only after explicit user confirmation before Phase 2 implementation`
+- Note: later GUI/browser AIV work landed on `next`; this file remains the last cleanup audit snapshot, not a refreshed post-AIV audit.
+- Canonical dev loop (Windows): `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 
 ## Ordered ROI backlog
 
-### 1. [x] Decouple `radiant` crate branding and defaults from Sempal host assumptions
-- ROI / Effort: High / S
-- Why it matters: `radiant` is intended to be its own reusable GUI crate, but several defaults and fixture labels still hardcode the Sempal host identity, which blurs ownership and makes reuse harder.
-- Evidence: `vendor/radiant/src/lib.rs:1` documents `radiant` as being for Sempal; `vendor/radiant/src/gui_runtime/mod.rs:45-56` defaults the native window title to `Sempal`; `vendor/radiant/src/app/shell.rs:194`, `vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs:388`, and `vendor/radiant/src/gui/native_shell/state/automation.rs:29` also hardcode `Sempal`; test fixtures in `vendor/radiant/src/gui/native_shell/mod.rs:37` and `vendor/radiant/src/gui/native_shell/shots.rs:433,491,579` embed Sempal-specific titles.
-- Recommended change: Make crate docs, defaults, semantic labels, and fixture names host-neutral; require the host to supply product branding explicitly where needed instead of baking it into `radiant`.
-- Risk / tradeoffs: Low; expect snapshot/test churn and small host call-site adjustments where the old implicit title was relied upon.
-- Suggested validation: `cargo test -p radiant`, targeted startup/snapshot tests under `vendor/radiant/src/gui_runtime/native_vello/tests`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Completed: `2026-03-12` - `vendor/radiant` commit `f8063a2b` replaced Sempal-specific default titles, startup placeholder branding, automation root labeling, and radiant-only fixture names/docs with host-neutral `Radiant` defaults while leaving host-supplied branding explicit.
+### 1. [ ] Split `vendor/radiant/src/gui/native_shell/state/automation.rs` by panel family and add direct contract tests
+- ROI / Effort: High / M
+- Why it matters: the GUI automation snapshot is now a contract surface for the CLI runner, scenario packs, and AIV automation, but one 1005-line builder still owns the whole shell snapshot plus the stable action-id mapping.
+- Evidence: `vendor/radiant/src/gui/native_shell/state/automation.rs` builds sources, waveform, browser, map, status, options, prompt, progress, and update nodes in one file; `action_slug` is a single large `UiAction` mapping near the end of the file; the public wrapper in `src/gui_runtime/mod.rs` exposes this contract, but current tests mainly cover root-level runner behavior rather than panel-by-panel snapshot shape.
+- Recommended change: split snapshot builders into focused panel modules with shared node helpers, isolate the action-id mapping behind one documented helper, and add characterization tests for representative browser, map, prompt, progress, and update states.
+- Risk / tradeoffs: Moderate; automation node ids and action ids are compatibility surfaces and must not drift accidentally.
+- Suggested validation: `cargo test -p radiant -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 2. [x] Refresh stale cleanup metadata, transitional comments, and file-size debt tracking
-- ROI / Effort: High / S
-- Why it matters: Current cleanup comments and debt trackers still describe already-finished work as pending, which misleads future sessions and weakens the value of the file-size budget.
-- Evidence: `src/lib.rs:3-5` still says the map-view split is pending in old cleanup item 19; `vendor/radiant/src/lib.rs:12-16` still references old backlog items 20-23/26/30 as pending; `docs/file_size_budget_allowlist.txt` still lists paths such as `src/app_core/native_bridge.rs`, `src/audio/output.rs`, `src/waveform/render.rs`, `src/waveform/mod.rs`, and `vendor/radiant/src/app/mod.rs` even though those surfaces have already been split or moved.
-- Recommended change: Replace stale cleanup references with current ownership notes, prune obsolete allowlist entries, and keep only real remaining size-budget debt in the allowlist.
-- Risk / tradeoffs: Low; documentation-only, but drift here directly hurts wake-up clarity and makes cleanup progress hard to trust.
-- Suggested validation: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1`, any doc index/link checks if references move, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Completed: `2026-03-12` - `vendor/radiant` commit `f2d98345` refreshed stale crate-root cleanup comments, and the superproject allowlist plus crate-root metadata now match the actual current oversized-file debt and active cleanup lane.
-
-### 3. [x] Remove duplicated BPM/text-field parsing and pointer-selection logic in `radiant`
+### 2. [ ] Split `src/app/controller/playback/tagging.rs` into rating mutation, focus policy, and undo helpers
 - ROI / Effort: High / S-M
-- Why it matters: The same BPM parsing and text-hit-selection behavior is implemented in multiple places across shell helpers and the native runtime, which invites silent drift.
-- Evidence: Tempo parsing exists in both `vendor/radiant/src/gui/native_shell/state/toolbar_helpers/waveform_toolbar.rs:225` and `vendor/radiant/src/gui_runtime/native_vello/text_bpm.rs:3`; `vendor/radiant/src/gui_runtime/native_vello.rs:693,722,751,786` duplicates browser-search and BPM-field click/index handling in separate paths.
-- Recommended change: Extract one shared BPM parser and one shared text-field pointer/index selection helper, then route browser search and waveform BPM editing through the same implementation.
-- Risk / tradeoffs: Low-to-moderate; text-edit caret behavior is user-visible, so refactoring should be characterization-driven.
-- Suggested validation: Focused parsing tests for empty/invalid/fractional/valid tempo strings, pointer-selection tests for browser search and BPM fields, and `cargo test -p radiant`.
-- Completed: `2026-03-12` - `vendor/radiant` commit `2cc5c0f4` adds a shared waveform tempo parser under `src/app`, routes both toolbar/runtime BPM parsing through it, and consolidates browser-search and waveform-BPM pointer-selection handling behind one shared native-vello text-input helper path.
+- Why it matters: rating changes are user-facing and stateful, but the current file interleaves selection resolution, mutation, filtered-list refocus rules, auto-trash behavior, and duplicate undo closure assembly.
+- Evidence: `src/app/controller/playback/tagging.rs` uses `should_advance_after_rating`, `advance_or_commit_after_rating`, and `next_focus_path_for_removed_rows` to feed two long imperative paths, `tag_selected` and `adjust_selected_rating`, which both rebuild row contexts and construct near-duplicate undo logic.
+- Recommended change: extract pure focus-policy helpers, row-context collection, and undo payload assembly into small helpers or modules, leaving one thin controller mutation path per command.
+- Risk / tradeoffs: Low-to-moderate; filtered removal, locked rows, random-navigation mode, and auto-trash semantics must stay stable.
+- Suggested validation: targeted tagging and refocus tests in the browser controller suite, undo/redo coverage, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 4. [x] Split `vendor/radiant/src/gui/native_shell/state/hit_testing.rs` by interaction surface
+### 3. [ ] Split `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs` into loop, execution, and deferred-finalization modules
 - ROI / Effort: High / M
-- Why it matters: One 1093-line file currently owns cursor hover classification, source/folder hit testing, context-menu routing, waveform interactions, geometry helpers, and test-only API, so small interaction changes pull broad unrelated churn.
-- Evidence: `vendor/radiant/src/gui/native_shell/state/hit_testing.rs:7` starts `handle_cursor_move_effect`; the same file also owns source and folder row hit testing around `:189`, context-menu routing around `:213`, browser row hit testing around `:404`, waveform/button geometry helpers, and cache-key helpers such as `browser_action_hit_test_cache_key` near `:873`.
-- Recommended change: Split into cursor-hover classification, sidebar/browser hit testing, waveform interaction routing, and shared geometry/cache-key helpers; move test-only helpers next to the tests that use them.
-- Risk / tradeoffs: Moderate; pointer semantics are fragile and regressions here can affect every primary interaction surface.
-- Suggested validation: Existing native-shell hit-test tests, targeted hover/action characterization tests, and `cargo test -p radiant native_shell`.
-- Completed: `2026-03-12` - `vendor/radiant` commit `2a819231` replaces the monolithic hit-testing file with focused hover, browser, chrome, waveform, and map modules while preserving the existing native-shell API surface through a small compatibility facade.
+- Why it matters: the analysis compute worker is a concurrency hotspot, and one file still owns shutdown polling, queue waits, settings snapshots, allow-list checks, panic capture, decoded-batch grouping, immediate job execution, deferred DB updates, and queue logging.
+- Evidence: `run_compute_worker` handles the main loop and repaint cadence; `process_batch`, `process_batch_work`, `run_work_item`, and `handle_analysis_work` mix intake and execution decisions; `finalize_immediate_jobs` and `flush_deferred_updates` own persistence completion.
+- Recommended change: keep a small worker loop in `compute_worker.rs`, move batch planning and execution into focused helpers, and isolate deferred-finalization/logging into dedicated modules with clearer ownership.
+- Risk / tradeoffs: Moderate; shutdown, inflight-queue cleanup, and deferred-update ordering are timing-sensitive.
+- Suggested validation: targeted analysis job pool tests, worker cancellation/shutdown coverage, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 5. [x] Split `vendor/radiant/src/gui_runtime/native_vello/runtime_render.rs` into invalidation, scene, present, and profiling modules
+### 4. [ ] Break `radiant` browser shell rendering/state/test blobs into focused list, chrome, truncation, and virtualization modules
+- ROI / Effort: High / M
+- Why it matters: browser-shell changes still require editing broad production and test blobs that each mix too many concerns, which slows down cleanup and raises regression risk around virtualization and hit-testing.
+- Evidence: `vendor/radiant/src/gui/native_shell/state/browser_rows.rs` mixes cache keys, truncation, layout, scrollbar math, and row-windowing; `vendor/radiant/src/gui/native_shell/state/frame_build/browser.rs` mixes row painting, tabs, toolbar, footer, and list/map chrome; `vendor/radiant/src/gui/native_shell/state/tests/browser_rows.rs` and `vendor/radiant/src/gui/native_shell/mod.rs` remain oversized omnibus test hubs.
+- Recommended change: separate list virtualization, truncation/cache policy, scrollbar math, toolbar/footer chrome, and scenario-style tests into smaller modules with shared fixtures.
+- Risk / tradeoffs: Moderate; browser row windowing, truncation, and hit-target geometry are tightly coupled and need characterization coverage to move safely.
+- Suggested validation: `cargo test -p radiant -- --test-threads=1`, native-shell browser-focused tests, shot tests where affected, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 5. [ ] Continue decomposing `vendor/radiant` native Vello runtime around runner state, event routing, and scene rebuild ownership
 - ROI / Effort: High / L
-- Why it matters: The runtime render core is still the highest-risk hotspot in `radiant` because it mixes dirty-state reconciliation, overlay fingerprinting, scene encoding, upload caching, present bookkeeping, and redraw telemetry in one 1074-line file.
-- Evidence: `vendor/radiant/src/gui_runtime/native_vello/runtime_render.rs:6` owns `rebuild_scene_if_needed`; `:44` handles invalidation scope application; `:154` emits frame results; `:207` caches image-upload blobs; `:381` calculates static segment revisions; `:485` rebuilds segment scenes; `:552` performs full scene reconciliation; `:847` finalizes redraw/present.
-- Recommended change: Keep one thin orchestration layer and extract focused modules for invalidation state, retained scene/cache management, startup reveal/present policy, and redraw profiling/result emission.
-- Risk / tradeoffs: High; mistakes here can cause subtle incremental-render or missed-present regressions that are hard to localize.
-- Suggested validation: Characterization coverage for overlay fingerprints, scene append ordering, redraw result flags, startup reveal behavior, `cargo test -p radiant`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Completed: `2026-03-12` - `vendor/radiant` commit `d1f5ba4a` converts `runtime_render.rs` into focused invalidation, scene, present, and redraw-profiling modules while preserving the existing `native_vello` runtime API surface and quick-CI behavior.
+- Why it matters: recent cleanup reduced some surface area, but the native Vello runtime still centers ownership on a large runner and a few broad control-flow hubs, which keeps perf and correctness changes risky.
+- Evidence: `vendor/radiant/src/gui_runtime/native_vello.rs` still holds a large runner state object; `runtime_startup.rs` builds that state in one long constructor; `runtime_events.rs` still owns a broad event-routing match; `runtime_render/scene.rs` remains a large scene-rebuild hub that mixes model pulls, dirty-segment resolution, overlay rebuilds, composition, and profiling.
+- Recommended change: keep the public runtime API stable while extracting smaller ownership modules for runner state initialization, event routing transitions, and scene rebuild orchestration.
+- Risk / tradeoffs: High; input, startup, and redraw semantics are timing-sensitive and already performance-tuned.
+- Suggested validation: targeted `radiant` runtime tests, pointer/startup coverage, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 6. [x] Tighten `native_vello` runtime drag/text-input ownership across `native_vello.rs`, `runtime_events.rs`, and `runtime_input.rs`
-- ROI / Effort: High / L
-- Why it matters: Runtime state for drags, text targets, and pointer lifecycles is spread across multiple files that mutate the same flags, which makes the runtime boundary hard to reason about.
-- Evidence: `vendor/radiant/src/gui_runtime/native_vello.rs:143` defines `NativeVelloRunner`; `vendor/radiant/src/gui_runtime/native_vello/runtime_events.rs:61+` and `vendor/radiant/src/gui_runtime/native_vello/runtime_input.rs:113+` both manipulate state such as `volume_drag_active`, `selection_drag_active`, `map_focus_drag_active`, `browser_scrollbar_drag`, `waveform_scrollbar_drag`, and `text_input_target`.
-- Recommended change: Consolidate drag/text-input ownership into one explicit state machine module and make event/input modules call through narrow transition helpers rather than mutating runner fields directly.
-- Risk / tradeoffs: High; drag lifecycles are timing-sensitive and involve many user-visible edge cases.
-- Suggested validation: Pointer press/move/release tests for all drag modes, text-input focus/commit tests, startup/input smoke coverage, and `cargo test -p radiant gui_runtime`.
-- Completed: `2026-03-12` - `vendor/radiant` commit `711f159a` centralizes active pointer-session and drag/text-input state transitions behind runner helpers in `runtime_state.rs`, routes event/input paths through those helpers, and keeps the runtime validation lane green alongside sempal quick-CI stabilization commit `c392908d`.
-
-### 7. [x] Split `src/app_core/native_bridge/projection_cache/projection_key.rs` into segment-specific key builders
-- ROI / Effort: High / M
-- Why it matters: Projection-cache invalidation is correctness-sensitive, but one file still builds every status, browser, map, waveform, and non-segment projection key alongside shared hashing/time encoding helpers.
-- Evidence: `src/app_core/native_bridge/projection_cache/projection_key.rs:16` builds the root native key; `:124` builds status keys; `:168` and `:188` build browser-frame and browser-rows keys; `:204` builds the map key; `:222` builds the waveform key; `:310` derives waveform timing; `:448` encodes waveform channel view.
-- Recommended change: Move each projection-key family into its own module with a tiny shared hashing/encoding helper layer and explicit docs about which controller fields participate in invalidation.
-- Risk / tradeoffs: Moderate; any missed field changes cache behavior and can create stale UI projections.
-- Suggested validation: `cargo test app_core::native_bridge::tests -- --test-threads=1`, targeted key-drift tests, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Completed: `2026-03-12` - `sempal` commit `3ba1e49d` converts `projection_key.rs` into a focused `projection_key/` module tree with separate browser, status, map, waveform, non-segment, and shared helper modules while preserving the existing builder function surface and passing the full native-bridge projection suite plus quick CI.
-
-### 8. [x] Split `src/app/controller/ui/clipboard_paste/source_job.rs` into explicit prepare, stage, commit, and finalize phases
-- ROI / Effort: High / M
-- Why it matters: Clipboard source import is a multi-step workflow with filesystem and DB side effects, but it is still concentrated in one file, which makes failure cleanup harder to audit.
-- Evidence: `src/app/controller/ui/clipboard_paste/source_job.rs:102` runs the whole job; `:152` prepares paths; `:178` stages copies; `:238` commits DB work; `:285` finalizes; `:307-336` mixes progress reporting and cleanup helpers.
-- Recommended change: Split the job into phase-oriented modules plus a small orchestration façade that makes compensation and error-reporting boundaries explicit.
-- Risk / tradeoffs: Moderate; rollback ordering and journal cleanup must remain correct on partial failure paths.
-- Suggested validation: Existing clipboard/source import tests, targeted failure-path coverage, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Completed: `2026-03-12` - `sempal` commit `43afec47` converts `source_job.rs` into a focused `source_job/` module tree with explicit prepare, stage, commit, finalize, and cleanup phases while preserving the existing clipboard-paste API and failure-path behavior under focused tests plus quick CI.
-
-### 9. [ ] Split `src/app/controller/playback/tagging.rs` into rating mutation, focus advancement, and undo helpers
-- ROI / Effort: High / S-M
-- Why it matters: Rating changes are user-facing and stateful, yet the current file bundles multi-selection resolution, mutation, filtered-list refocus rules, and undo/redo payload construction in one place.
-- Evidence: `src/app/controller/playback/tagging.rs:11` decides auto-advance policy; `:30` implements post-rating focus/commit rules; `:58` computes fallback focus after filtered removal; `:83-211` performs selection traversal, mutation, undo registration, status reporting, and refocus.
-- Recommended change: Extract pure focus-policy helpers and undo payload assembly from the imperative controller mutation path so the behavioral branches become easier to test directly.
-- Risk / tradeoffs: Low-to-moderate; behavior must remain stable for filtered lists, locked rows, and random-navigation mode.
-- Suggested validation: Tagging/filter-navigation tests, undo/redo tests, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-
-### 10. [ ] Split `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs` into batch intake, execution, and deferred-update modules
+### 6. [ ] Split `src/waveform/render/paint/lines.rs` into raster math, AA stepping, and pixel blend helpers with direct unit tests
 - ROI / Effort: Medium-High / M
-- Why it matters: The compute worker still mixes thread lifecycle, queue polling, settings snapshotting, panic capture, decoded-batch grouping, immediate job execution, deferred DB updates, and queue logging in one worker file.
-- Evidence: `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs:26-116` runs the worker loop; `:134` snapshots settings; `:156` processes batches; `:187` wraps panic handling and job fan-out; later helpers finalize immediate jobs, flush deferred updates, and log queue state.
-- Recommended change: Keep a small worker loop in this file and extract batch planning, job execution, deferred persistence, and logging into dedicated helper modules.
-- Risk / tradeoffs: Moderate; concurrency and shutdown semantics must remain unchanged.
-- Suggested validation: Analysis job pool tests, worker cancellation/shutdown coverage, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Why it matters: waveform line rendering is performance-sensitive and visually critical, but one file still owns interpolation, supersampling, split-stereo packing, alpha blending, and anti-aliased line stepping without local tests.
+- Evidence: `paint_line_image` and `paint_split_line_image` orchestrate rendering; `sample_at_frame`, `supersampled_frame`, and `catmull_rom` own interpolation; `blend_pixel`, `draw_line_aa`, and `plot_aa` own low-level raster math; the file currently ends without `#[cfg(test)]` coverage.
+- Recommended change: extract reusable raster kernels and blend helpers into small focused modules, keep the public paint entrypoints thin, and add deterministic tests for interpolation edges, steep and vertical lines, split-gap packing, and blend output.
+- Risk / tradeoffs: Moderate; tiny math differences can create visible waveform regressions or performance drift.
+- Suggested validation: waveform render unit tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 11. [ ] Split `src/waveform/render/paint/lines.rs` into raster kernels, packing, and pixel-blend helpers
-- ROI / Effort: Medium-High / M
-- Why it matters: Low-level waveform rasterization is performance-sensitive and visually critical, but one 503-line file still owns mono rendering, stereo packing, interpolation, supersampling, anti-aliased line stepping, and pixel blending without direct local tests.
-- Evidence: `src/waveform/render/paint/lines.rs:53,123,178,233,312,500` spans mono rendering, split-stereo packing, interpolation, AA line stepping, and final pixel work; the file has no local `#[cfg(test)]` coverage.
-- Recommended change: Extract the raster math and pixel blend primitives into small helpers with targeted unit tests, leaving the public paint entrypoints as thin orchestration.
-- Risk / tradeoffs: Moderate; tiny math changes can cause visible waveform regressions or performance drift.
-- Suggested validation: Targeted waveform render tests for mono/stereo/AA cases plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+### 7. [ ] Replace public-doc suppressions on GUI contract enums and separate catalog metadata from identifier declarations
+- ROI / Effort: Medium-High / S-M
+- Why it matters: the repository denies missing docs, but stable GUI contract surfaces still opt out right where external tools need semantics and stability expectations to be explicit.
+- Evidence: `src/app_core/actions/catalog.rs` suppresses docs on `GuiActionKind`, `GuiSurface`, `GuiEffectClass`, and `GuiCoverageLayer`; `src/gui_test/scenario.rs` suppresses docs on `GuiScenarioStep` and `GuiAssertion`; the catalog file also couples stable identifiers, metadata, and lookup behavior in one place.
+- Recommended change: add real variant-level docs, separate stable identifiers from metadata lookup tables where practical, and add table-driven tests that exercise every scenario step and assertion variant directly.
+- Risk / tradeoffs: Low; mostly documentation and structural cleanup, but stable action ordering and ids must remain unchanged.
+- Suggested validation: targeted action-catalog and GUI scenario tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 12. [ ] Add focused automation snapshot characterization coverage and split `vendor/radiant/src/gui/native_shell/state/automation.rs` by shell panel family
-- ROI / Effort: Medium-High / M
-- Why it matters: The automation snapshot is a contract surface for GUI tooling, but the implementation is a 954-line manual builder with large action-ID mapping logic and little direct coverage.
-- Evidence: `vendor/radiant/src/gui/native_shell/state/automation.rs:10` builds the full shell snapshot; `:52+` through the rest of the file builds top bar, sidebar, waveform, browser, status, prompt, options, and progress nodes; `:852+` manually maps actions to slugs. Repo-wide searches did not show direct tests for `automation_snapshot`, `capture_gui_automation_snapshot`, or `action_slug`.
-- Recommended change: Split snapshot builders by panel family with shared node helpers, and add golden/contract tests for representative browser, map, prompt, progress, and options states.
-- Risk / tradeoffs: Moderate; automation IDs are a compatibility surface for tools and should not drift casually.
-- Suggested validation: New snapshot contract tests under `vendor/radiant`, targeted `cargo test -p radiant`, and GUI test CLI smoke coverage if automation artifacts are involved.
-
-### 13. [ ] Break `radiant` browser rendering/test blobs into focused list, chrome, truncation, and virtualization modules
-- ROI / Effort: Medium-High / M
-- Why it matters: Browser UI cleanup currently requires touching broad production and test files that mirror too many concerns at once.
-- Evidence: `vendor/radiant/src/gui/native_shell/state/frame_build/browser.rs` is about 686 LOC and mixes row-window rendering, tabs, toolbar/header/footer, list/map switching, metadata chips, and scrollbar paint; `vendor/radiant/src/gui/native_shell/state/browser_rows.rs` is about 781 LOC and mixes layout structs, cache keys, truncation, colors, scrollbar math, and windowing; `vendor/radiant/src/gui/native_shell/state/tests/browser_rows.rs` is about 689 LOC; `vendor/radiant/src/gui/native_shell/mod.rs` also carries an 800+ line omnibus test module after the export surface.
-- Recommended change: Separate browser list virtualization, chrome layout, truncation/cache policy, scrollbar math, and scenario-style tests into smaller modules with shared fixtures.
-- Risk / tradeoffs: Moderate; browser virtualization and hit-testing are tightly coupled, so characterization tests should move with the extracted helpers.
-- Suggested validation: Browser-row truncation/windowing tests, browser toolbar tests, screenshot/contract tests where available, and `cargo test -p radiant native_shell`.
-
-### 14. [ ] Break remaining oversized test hubs into domain-focused modules
-- ROI / Effort: Medium / M
-- Why it matters: Several large test hubs still mix unrelated behavior families, which makes coverage harder to navigate and encourages future accumulation in the same files.
-- Evidence: `src/app_core/native_bridge/tests/projection_cache.rs` is about 609 LOC and mixes key drift, waveform invariants, dirty-segment reuse, overlay refresh, env-flag parsing, and bridge metrics; `src/app_core/controller/tests.rs` is about 459 LOC; `src/app/controller/tests/browser_core.rs` is about 410 LOC; `tests/unit/source_db_mod_tests.rs` is about 496 LOC; `vendor/radiant/src/gui/native_shell/state/tests/browser_rows.rs` is about 689 LOC.
-- Recommended change: Split each hub by behavior family with shared fixtures extracted once, so failures point to one concern at a time.
-- Risk / tradeoffs: Low; mostly structural, but test names and fixture ergonomics should stay stable.
-- Suggested validation: Run the targeted test modules serially where cargo locking matters, then rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-
-### 15. [ ] Split `apps/updater-helper/src/ui.rs` into async dataflow, reducer/model, and view helpers
-- ROI / Effort: Medium / M
-- Why it matters: The updater helper UI is a user-facing workflow surface, but one 517-line file still mixes release fetching, update apply orchestration, log buffering, model projection, and action reduction with thin direct coverage.
-- Evidence: `apps/updater-helper/src/ui.rs:59,88,162,193,315,416` spans async release loading, apply orchestration, buffered logging, and reducer/view logic; only two local tests currently live near `:524` and `:543`.
-- Recommended change: Separate async release/apply tasks from the reducer/model layer and the actual egui view helpers so UI behavior can be tested without dragging the async plumbing into every edit.
-- Risk / tradeoffs: Moderate; UI status transitions and log buffering need to remain stable through async failures.
-- Suggested validation: `cargo test -p sempal-updater-helper` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-
-### 16. [ ] Document public action/scenario enums and separate catalog metadata from identifier declarations
+### 8. [ ] Add direct hotkey-registry invariants and narrow the `HOTKEY_ACTIONS` table surface
 - ROI / Effort: Medium / S-M
-- Why it matters: The crate denies missing docs at the boundary, but some public enums still opt out, and `catalog.rs` couples stable identifiers, declaration ordering, and metadata lookup in one place.
-- Evidence: `src/app_core/actions/catalog.rs:7,232,247,259` suppresses missing docs on public enums and contains a 106-entry `GuiActionKind::ALL`; `src/gui_test/scenario.rs:18,31` suppresses docs for the public `GuiScenarioStep` and `GuiAssertion` enums.
-- Recommended change: Add real docs for public variants, separate stable action identifiers from metadata tables/lookup helpers, and keep the scenario assertion contract explicitly documented.
-- Risk / tradeoffs: Low; mostly documentation and mechanical structure, but the action ordering contract must remain stable.
-- Suggested validation: `cargo test` for any action-catalog or GUI scenario consumers, plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Why it matters: the hotkey registry is a large user-facing data table, and today it relies mostly on indirect controller tests rather than direct duplicate-id, duplicate-gesture, and scope-invariant checks.
+- Evidence: `src/app/controller/ui/hotkeys/actions.rs` is a 455-line static table covering global, browser, folder, and waveform bindings; `src/app/controller/ui/hotkeys/mod.rs` is thin; current coverage is mostly indirect through controller behavior tests.
+- Recommended change: split the registry into smaller declarative chunks if that improves readability, and add direct tests for duplicate ids, duplicate gestures within a scope, and representative lookup behavior.
+- Risk / tradeoffs: Low; the main risk is accidental keymap drift while reorganizing the table.
+- Suggested validation: hotkey-focused unit tests, existing hotkey controller coverage, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 17. [ ] Split `src/app/controller/playback/audio_options.rs` into pure normalization/probing helpers and controller-side mutation
+### 9. [ ] Split `apps/updater-helper/src/ui.rs` into async tasks, reducer/model, and view helpers
 - ROI / Effort: Medium / M
-- Why it matters: The file already contains clean pure logic, but it is still mixed with device probing, config persistence, UI projection, and player rebuild side effects, which makes stateful branches harder to test directly.
-- Evidence: `src/app/controller/playback/audio_options.rs:14,94,148,243,350,439` spans normalization, device/rate probing, channel normalization, config persistence, and player rebuild side effects; direct tests currently cover only the pure helper in `src/app/controller/playback/audio_options_tests.rs:20,40,60`.
-- Recommended change: Move pure normalization and probing policy into small helpers with their own tests, and leave the controller methods responsible only for wiring settings, UI state, and player updates together.
+- Why it matters: the updater helper is a user-facing workflow, but one file still mixes release fetching, update apply orchestration, log buffering, model projection, and action reduction with only light direct coverage.
+- Evidence: `apps/updater-helper/src/ui.rs` owns async release loading, apply orchestration, background polling, app-model projection, and reducer logic in one module, while only a small local test block exists at the end.
+- Recommended change: move background release/apply tasks out of the reducer/model layer, keep the state machine explicit, and isolate view-projection helpers so UI behavior can be tested without async plumbing in every edit.
+- Risk / tradeoffs: Moderate; status transitions and buffered logging need to remain stable through async failures.
+- Suggested validation: `cargo test -p updater-helper`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 10. [ ] Separate pure audio-option normalization/probing policy from controller-side mutation in `audio_options.rs`
+- ROI / Effort: Medium / M
+- Why it matters: the file already contains useful pure logic, but it is still mixed with device probing, config persistence, UI projection, and player rebuild side effects, which makes stateful branches harder to test directly.
+- Evidence: `src/app/controller/playback/audio_options.rs` combines `normalize_audio_options` with refresh/probe paths, persistence, player rebuilds, and fallback-message formatting; only the pure normalization helper currently has dedicated tests.
+- Recommended change: move pure normalization and probing policy into focused helpers with their own tests, leaving controller methods responsible only for wiring state, config, and player updates together.
 - Risk / tradeoffs: Low-to-moderate; device selection and fallback behavior must remain unchanged across platforms.
-- Suggested validation: Targeted audio-option tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Suggested validation: targeted audio-options tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 18. [ ] Split `src/waveform/zoom_cache.rs` into cache-core logic and telemetry instrumentation
+### 11. [ ] Refactor `vendor/radiant/src/gui/native_shell/shots.rs` into fixture I/O, canonicalization, rasterization, and model-builder helpers
 - ROI / Effort: Medium / M
-- Why it matters: The zoom cache mixes sharded cache storage, eviction, poison recovery, resident-byte accounting, and hot-path telemetry globals, which complicates both reasoning and targeted tests.
-- Evidence: `src/waveform/zoom_cache.rs:16-37` defines the cache plus telemetry globals; `:38-152` is telemetry accounting/log emission; `:165+` starts the cache API and lock management. The file is about 489 LOC.
-- Recommended change: Keep the cache data structure and eviction policy in one module, move telemetry counters/logging into a small instrumentation helper, and add focused tests around eviction/poison-recovery behavior.
-- Risk / tradeoffs: Moderate; concurrency and telemetry overhead should remain unchanged.
-- Suggested validation: Existing waveform cache/render tests, any hot-path telemetry smoke checks, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Why it matters: native-shell fixture maintenance currently lives in one large file that combines snapshot serialization, JSON canonicalization, rasterization, fixture compare/write logic, and large test-model builders, which makes visual-regression churn expensive to review.
+- Evidence: `vendor/radiant/src/gui/native_shell/shots.rs` owns snapshot canonicalization, render/fixture plumbing, and the main startup/browser/waveform fixture builders in one module.
+- Recommended change: separate fixture I/O and canonicalization from raster/render helpers and move large model builders into focused fixture-support modules.
+- Risk / tradeoffs: Moderate; fixture bytes and regeneration behavior must remain stable so reviewers can trust visual-diff output.
+- Suggested validation: targeted `radiant` shot tests, fixture regeneration where needed, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 19. [ ] Add direct hotkey-registry coverage and narrow the static registry surface
-- ROI / Effort: Medium / S-M
-- Why it matters: The hotkey registry is a large user-facing data table, but it has very little direct coverage, so collisions, duplicate gestures, and scope drift can slip through quietly.
-- Evidence: `src/app/controller/ui/hotkeys/actions.rs` is about 454 LOC of static registry data with key clusters around `:5`, `:175`, `:211`, and `:260`; only indirect coverage was found in controller tests such as `src/app/controller/tests/focus_random.rs:208`.
-- Recommended change: Extract smaller declarative registry chunks or helper constructors where useful, and add direct tests for duplicate gestures, scope invariants, and representative action bindings.
-- Risk / tradeoffs: Low; mostly declarative cleanup, but the registry is user-visible so accidental keymap drift must be caught.
-- Suggested validation: New hotkey-focused unit tests plus existing controller hotkey coverage and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+### 12. [ ] Split `src/waveform/zoom_cache.rs` into cache-core logic and telemetry instrumentation
+- ROI / Effort: Medium / M
+- Why it matters: the zoom cache mixes sharded cache storage, poison recovery, eviction, and resident-byte accounting with hot-path telemetry globals and log emission, which makes the low-level behavior harder to reason about.
+- Evidence: the top of `src/waveform/zoom_cache.rs` is mostly telemetry flags, counters, and emission helpers, while `WaveformZoomCache`, `lock_shard`, and `CacheInner` own the actual cache policy and locking behavior further down the file.
+- Recommended change: keep the cache data structure and eviction policy in one focused module, move telemetry counters/logging into a small instrumentation helper, and add a few targeted resident-byte and eviction assertions where useful.
+- Risk / tradeoffs: Moderate; concurrency behavior and telemetry overhead must remain stable.
+- Suggested validation: existing zoom-cache tests, any added resident-byte or eviction tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+
+### 13. [ ] Break remaining oversized test hubs into domain-focused modules
+- ROI / Effort: Medium / M
+- Why it matters: several large test hubs still mix unrelated behavior families, which makes failures harder to localize and encourages future accumulation in the same files.
+- Evidence: `src/app_core/native_bridge/tests/projection_cache.rs` mixes full-key drift, retained-segment dirty-mask behavior, env-flag parsing, and metrics assertions; `src/app/controller/tests/browser_core.rs` mixes source-state, browser indexing/filtering, tagging/refocus, and blur-selection behavior; `vendor/radiant/src/gui/native_shell/mod.rs` still holds a large omnibus native-shell test module.
+- Recommended change: split each test hub by behavior family, extract shared fixtures once, and keep test module names aligned with the production ownership boundaries they protect.
+- Risk / tradeoffs: Low; mostly structural, but fixture ergonomics and targeted command filters should stay easy to use.
+- Suggested validation: run the split test modules serially where cargo locking matters, then rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.

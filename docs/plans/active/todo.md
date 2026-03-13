@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-12T20:43:00Z
+Last updated (UTC): 2026-03-13T08:34:00Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -11,14 +11,14 @@ Purpose:
 
 ## Current lane
 
-- Cleanup audit refresh for the post-cleanup codebase.
+- GUI/browser interaction stability and desktop regression coverage maintenance.
+- The browser autoscroll threshold fix and its targeted desktop AIV coverage are complete on `next`.
 - Perf Phase 2 items 1-11 in `tmp/perf_plan.md` remain complete.
-- The active cleanup backlog in `tmp/cleanup_plan.md` is now in Phase 2 execution.
-- Cleanup items 1-8 are complete, and item 9 is next.
+- The cleanup backlog in `tmp/cleanup_plan.md` is parked after Phase 1 and is waiting on explicit user confirmation before any Phase 2 implementation.
 
 ## Next tasks (ordered)
 
-1. Continue cleanup strictly in plan order at item 9.
-2. After each cleanup milestone, rerun validation and sync `tmp/cleanup_plan.md`, `AGENTS.md`, `MEMORY.md`, and this file.
-3. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` synchronized after each cleanup milestone.
-4. Use `docs/plans/active/runtime_performance_exec_plan.md` only if a separate perf follow-up lane is explicitly reopened.
+1. For future browser/sample-list interaction work, rerun `scripts/run_gui_aiv_suite.ps1 -PackName desktop-regression -CaseFilter browser_interior_click_keeps_viewport`.
+2. Keep `tmp/cleanup_plan.md` dormant unless the user explicitly reopens cleanup Phase 2.
+3. After the active lane changes, sync `AGENTS.md`, `MEMORY.md`, and this file.
+4. Keep using the PowerShell wrappers (`devcheck.ps1`, `ci_quick.ps1`) as the validation gate on Windows.

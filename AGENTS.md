@@ -59,15 +59,15 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `C:\dev\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: cleanup audit refresh
-- Source of truth: `tmp/cleanup_plan.md`
-- Current status: Phase 2 is active; cleanup items 1-8 are complete, and item 9 is next.
+- Program: GUI/browser interaction stability and regression coverage maintenance
+- Source of truth: `docs/gui_test_platform.md` for GUI automation work; `tmp/cleanup_plan.md` remains the parked cleanup backlog
+- Current status: the browser autoscroll threshold fix and its desktop AIV regressions are complete on `next`; the cleanup backlog in `tmp/cleanup_plan.md` is still Phase 1 complete and awaits explicit user confirmation before any Phase 2 cleanup work starts.
 
 ## Immediate Next Actions
-1. Continue cleanup strictly in `tmp/cleanup_plan.md` order at item 9.
-2. After each cleanup item, rerun validation, update `tmp/cleanup_plan.md`, and commit/push.
-3. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `tmp/cleanup_plan.md` synchronized after each cleanup milestone.
-4. Keep `tmp/perf_plan.md` and `docs/plans/active/runtime_performance_exec_plan.md` dormant unless a separate perf lane is explicitly reopened.
+1. For browser/sample-list interaction changes, rerun the targeted desktop AIV cases and the PowerShell validation wrappers.
+2. Keep `tmp/cleanup_plan.md` parked until the user explicitly reopens cleanup Phase 2.
+3. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized whenever the active lane changes.
+4. Commit and push each coherent change once validation is green.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
@@ -75,7 +75,7 @@ Write for future selves: be precise, kind, and clear.
 - `docs/plans/index.md`: active/completed plan map
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
-- `tmp/cleanup_plan.md`: active strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; items 1-8 complete, item 9 next
+- `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation
 - `docs/plans/active/cleanup_architecture_note.md`: cleanup boundary/ownership guidance
 - `tmp/perf_plan.md`: current ROI-ranked runtime performance audit backlog and execution order
 
