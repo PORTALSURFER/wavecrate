@@ -86,6 +86,23 @@ fn search_query_actions_stay_on_full_model_pull_preparation() {
     assert!(bridge.controller.has_dirty_derived_nodes());
 }
 
+/// Manual browser viewport actions must refresh the projected row window
+/// immediately so wheel/scrollbar input updates both the semantic snapshot and
+/// the rendered browser list in the same interaction.
+#[test]
+fn set_browser_view_start_action_refreshes_projected_model_immediately() {
+    let mut bridge = test_bridge(16);
+    bridge.controller.ui.browser.visible = crate::app_core::state::VisibleRows::All { total: 40 };
+
+    let initial = bridge.project_model();
+    assert_eq!(initial.browser.view_start_row, 0);
+
+    bridge.on_action(NativeUiAction::SetBrowserViewStart { visible_row: 1 });
+
+    let updated = bridge.project_model();
+    assert_eq!(updated.browser.view_start_row, 1);
+}
+
 /// Waveform preview-class actions should bypass queueing for immediate feedback.
 #[test]
 fn on_action_applies_waveform_preview_actions_immediately() {

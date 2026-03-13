@@ -25,6 +25,11 @@ pub(crate) fn browser_viewport_max_start(visible_count: usize, max_window_len: u
 /// window before selection drifts outside the visible browser list. Manual
 /// viewport state mirrors the resolved render start so the scrollbar and the
 /// retained browser window stay synchronized.
+///
+/// The retained projection window can hold more rows than the desktop viewport
+/// can actually display. In that case manual wheel/scrollbar scrolling still
+/// needs to preserve the requested top visible row even though the controller
+/// could technically project every visible row at once.
 pub(crate) fn sync_browser_viewport_window(
     browser: &mut SampleBrowserState,
     visible_count: usize,
@@ -38,7 +43,14 @@ pub(crate) fn sync_browser_viewport_window(
     let window_len = browser_viewport_window_len(visible_count, max_window_len);
     let max_start = browser_viewport_max_start(visible_count, max_window_len);
     if window_len >= visible_count {
-        browser.render_window_start = 0;
+        if browser.autoscroll {
+            browser.render_window_start = 0;
+            browser.view_window_start = 0;
+        } else {
+            browser.render_window_start = 0;
+            browser.view_window_start = browser.view_window_start.min(visible_count - 1);
+        }
+        return;
     } else if browser.autoscroll {
         let pivot = browser
             .selected_visible
@@ -59,13 +71,11 @@ pub(crate) fn sync_browser_viewport_window(
         }
         browser.render_window_start = window_start.min(max_start);
     } else {
-        browser.render_window_start = browser
-            .render_window_start
-            .min(visible_count.saturating_sub(window_len));
+        browser.render_window_start = browser.render_window_start.min(max_start);
     }
     if browser.autoscroll {
         browser.view_window_start = browser.render_window_start;
     } else {
-        browser.view_window_start = browser.view_window_start.min(max_start);
+        browser.view_window_start = browser.view_window_start.min(visible_count - 1);
     }
 }

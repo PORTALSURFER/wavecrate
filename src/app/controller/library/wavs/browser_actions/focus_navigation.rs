@@ -53,6 +53,13 @@ impl AppController {
     }
 
     /// Scroll the browser viewport without changing the current selection.
+    ///
+    /// Native runtime inputs already clamp `visible_row` against the rows the
+    /// user can actually see on screen, so this action preserves that
+    /// requested top row in `view_window_start`. The retained browser-row
+    /// projection still tracks its own larger host slice in
+    /// `render_window_start`, which only needs to ensure the requested top row
+    /// remains reachable inside the projected slice.
     pub fn set_browser_view_start_action(&mut self, visible_row: usize) {
         let visible_count = self.ui.browser.visible.len();
         if visible_count == 0 {
@@ -61,13 +68,14 @@ impl AppController {
             self.ui.browser.autoscroll = false;
             return;
         }
-        let clamped = visible_row.min(super::super::browser_viewport::browser_viewport_max_start(
+        let clamped = visible_row.min(visible_count.saturating_sub(1));
+        let render_start = clamped.min(super::super::browser_viewport::browser_viewport_max_start(
             visible_count,
             MAX_RENDERED_BROWSER_ROWS,
         ));
         self.ui.browser.autoscroll = false;
         self.ui.browser.view_window_start = clamped;
-        self.ui.browser.render_window_start = clamped;
+        self.ui.browser.render_window_start = render_start;
         self.refresh_browser_selection_markers();
     }
 

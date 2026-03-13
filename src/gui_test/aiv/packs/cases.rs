@@ -208,6 +208,32 @@ pub(super) fn browser_refocus_after_down_scroll_keeps_single_focus_case() -> Gui
     }
 }
 
+pub(super) fn browser_wheel_scroll_uses_rendered_viewport_case() -> GuiAivCase {
+    GuiAivCase {
+        name: String::from("browser_wheel_scroll_uses_rendered_viewport"),
+        fixture_tag: String::from("browser"),
+        viewport: BROWSER_SCROLL_VIEWPORT,
+        window_title: String::from(GUI_TEST_WINDOW_TITLE),
+        steps: vec![
+            wait_for_node("browser.table"),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "0")),
+            scroll_in_node("browser.table", -120, Some(50), Some(50)),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "1")),
+            assert_step(GuiAivAssertion::AssertActionRecorded {
+                action_id: String::from("set_browser_view_start"),
+            }),
+            scroll_in_node("browser.table", 120, Some(50), Some(50)),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "0")),
+            screenshot("browser-wheel-scroll-uses-rendered-viewport"),
+        ],
+        expected_assertions: vec![assert_metadata_contains(
+            "browser.table",
+            "first_visible_row",
+            "0",
+        )],
+    }
+}
+
 pub(super) fn options_open_close_case() -> GuiAivCase {
     GuiAivCase {
         name: String::from("options_open_close"),
