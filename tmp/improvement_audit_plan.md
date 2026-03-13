@@ -365,7 +365,7 @@ Branch: `next`
   - Validation: `cargo test -p radiant runtime_core -- --nocapture`, `cargo test -p radiant key_bindings -- --nocapture --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
   - Validation note: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` reached a pre-existing guardrail failure in `src/gui_test/aiv/packs/cases.rs` exceeding the file-size budget; item 8 itself compiled and passed the runtime-focused checks.
 
-### [ ] 9. Split updater-helper UI orchestration into background tasks, state transitions, and view projection
+### [x] 9. Split updater-helper UI orchestration into background tasks, state transitions, and view projection
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -396,6 +396,11 @@ Branch: `next`
   - Updater-helper targeted tests if present or added
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: pending current item commit
+  - Assumption used: keeping the `UpdateNativeBridge` data shape stable while moving only task, state, and projection methods into submodules is the lowest-risk way to split this user-facing state machine.
+  - Validation: `cargo test -p sempal-updater-helper -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 10. Split compute-worker batch execution from queue loop and deferred-finalization policy
 
