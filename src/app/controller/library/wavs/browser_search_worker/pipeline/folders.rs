@@ -15,9 +15,10 @@ pub(super) fn filter_accepts_tag(
         TriageFlagFilter::Trash => tag.is_trash(),
         TriageFlagFilter::Untagged => tag.is_neutral(),
     };
+    let locked_keep_ok = locked && tag.is_keep() && rating_filter.contains(&4);
     let rating_ok = rating_filter.is_empty()
         || rating_filter.contains(&tag.val())
-        || (locked && rating_filter.contains(&4));
+        || locked_keep_ok;
     triage_ok && rating_ok
 }
 
@@ -152,6 +153,12 @@ mod tests {
             &rating_filter,
             Rating::KEEP_3,
             false,
+        ));
+        assert!(!filter_accepts_tag(
+            TriageFlagFilter::All,
+            &rating_filter,
+            Rating::TRASH_3,
+            true,
         ));
     }
 

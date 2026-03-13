@@ -298,7 +298,9 @@ fn replace_browser_rating_filter(
 }
 
 /// Return every valid rating-filter level except the clicked chip level.
-fn inverted_browser_rating_filter_levels(level: i8) -> Option<impl Iterator<Item = i8>> {
+fn inverted_browser_rating_filter_levels(
+    level: i8,
+) -> Option<std::collections::BTreeSet<i8>> {
     const ALL_BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
     if !ALL_BROWSER_RATING_FILTER_LEVELS.contains(&level) {
         return None;
@@ -306,7 +308,8 @@ fn inverted_browser_rating_filter_levels(level: i8) -> Option<impl Iterator<Item
     Some(
         ALL_BROWSER_RATING_FILTER_LEVELS
             .into_iter()
-            .filter(move |candidate| *candidate != level),
+            .filter(|candidate| *candidate != level)
+            .collect(),
     )
 }
 
@@ -315,7 +318,11 @@ pub(crate) fn invert_browser_rating_filter(controller: &mut AppController, level
     let Some(levels) = inverted_browser_rating_filter_levels(level) else {
         return;
     };
-    replace_browser_rating_filter(controller, levels);
+    if controller.ui.browser.rating_filter == levels {
+        clear_browser_rating_filter(controller);
+    } else {
+        replace_browser_rating_filter(controller, levels);
+    }
 }
 
 /// Clear all browser rating filters.
