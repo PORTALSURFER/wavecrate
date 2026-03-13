@@ -101,6 +101,7 @@ pub enum GuiActionKind {
     StartWaveformSelectionDrag,
     UpdateWaveformSelectionDrag,
     FinishWaveformSelectionDrag,
+    FinishWaveformSelectionSmartScaleDrag,
     BeginWaveformSelectionShift,
     BeginWaveformEditSelectionShift,
     ClearWaveformSelection,
@@ -119,7 +120,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 107] = [
+    pub const ALL: [Self; 108] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -213,6 +214,7 @@ impl GuiActionKind {
         Self::StartWaveformSelectionDrag,
         Self::UpdateWaveformSelectionDrag,
         Self::FinishWaveformSelectionDrag,
+        Self::FinishWaveformSelectionSmartScaleDrag,
         Self::BeginWaveformSelectionShift,
         Self::BeginWaveformEditSelectionShift,
         Self::ClearWaveformSelection,
@@ -426,6 +428,7 @@ gui_action_catalog!(
     StartWaveformSelectionDrag { pointer_x, pointer_y } => { id: "start_waveform_selection_drag", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::StartWaveformSelectionDrag { pointer_x: 120, pointer_y: 80 } },
     UpdateWaveformSelectionDrag { pointer_x, pointer_y, over_browser_list, shift_down, alt_down } => { id: "update_waveform_selection_drag", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::UpdateWaveformSelectionDrag { pointer_x: 180, pointer_y: 80, over_browser_list: false, shift_down: false, alt_down: false } },
     FinishWaveformSelectionDrag {} => { id: "finish_waveform_selection_drag", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::FinishWaveformSelectionDrag },
+    FinishWaveformSelectionSmartScaleDrag {} => { id: "finish_waveform_selection_smart_scale_drag", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::FinishWaveformSelectionSmartScaleDrag },
     BeginWaveformSelectionShift { pointer_micros, start_micros, end_micros } => { id: "begin_waveform_selection_shift", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::BeginWaveformSelectionShift { pointer_micros: 200_000, start_micros: 100_000, end_micros: 300_000 } },
     BeginWaveformEditSelectionShift { pointer_micros, start_micros, end_micros } => { id: "begin_waveform_edit_selection_shift", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::BeginWaveformEditSelectionShift { pointer_micros: 200_000, start_micros: 100_000, end_micros: 300_000 } },
     ClearWaveformSelection {} => { id: "clear_waveform_selection", surface: Waveform, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::ClearWaveformSelection },

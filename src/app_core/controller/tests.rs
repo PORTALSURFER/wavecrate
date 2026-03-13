@@ -333,7 +333,8 @@ fn apply_native_waveform_trim_routes_to_controller_behavior() {
 fn apply_native_waveform_smart_scale_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.set_loaded_audio_duration_for_tests(4.0);
-    controller.ui.waveform.bpm_value = Some(150.0);
+    controller.set_selection_range(crate::selection::SelectionRange::new(0.0, 0.25));
+    controller.set_bpm_value(150.0);
 
     controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRangeSmartScale {
         start_micros: 0,
@@ -345,6 +346,13 @@ fn apply_native_waveform_smart_scale_routes_to_controller_behavior() {
         Some(crate::selection::SelectionRange::new(0.0, 0.5))
     );
     assert_eq!(controller.ui.waveform.bpm_value, Some(120.0));
+    assert!((controller.settings.controls.bpm_value - 150.0).abs() < f32::EPSILON);
+    assert!(controller.is_selection_dragging());
+
+    controller.apply_native_ui_action(NativeUiAction::FinishWaveformSelectionSmartScaleDrag);
+
+    assert!(!controller.is_selection_dragging());
+    assert!((controller.settings.controls.bpm_value - 120.0).abs() < 0.1);
 }
 
 #[test]

@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::selection::SelectionRange;
+use crate::selection::SelectionEdge;
 
 impl AppController {
     /// Begin a selection drag gesture at the given position.
@@ -122,11 +123,16 @@ impl AppController {
         {
             return;
         }
-        transport::set_selection_range_with_smart_scale(
-            self,
-            next_range,
-            SMART_SCALE_SELECTION_BEATS,
-        );
+        if !self.preview_waveform_selection_range_micros_smart_scale(existing_range, start_micros)
+        {
+            transport::set_selection_range_with_smart_scale(
+                self,
+                next_range,
+                SMART_SCALE_SELECTION_BEATS,
+            );
+        } else {
+            self.update_selection_drag(micros_to_ratio(end_micros), false);
+        }
         self.focus_waveform();
     }
 
@@ -135,4 +141,43 @@ impl AppController {
         self.clear_selection();
         self.focus_waveform();
     }
+
+    fn preview_waveform_selection_range_micros_smart_scale(
+        &mut self,
+        existing_range: Option<SelectionRange>,
+        anchor_micros: u32,
+    ) -> bool {
+        if self.selection_state.bpm_scale_beats.is_some() {
+            return true;
+        }
+        let Some(edge) = smart_scale_drag_edge(existing_range, anchor_micros) else {
+            return false;
+        };
+        self.start_selection_edge_drag(edge, true)
+    }
+}
+
+fn micros_to_ratio(position_micros: u32) -> f32 {
+    (position_micros.min(1_000_000) as f32) / 1_000_000.0
+}
+
+fn smart_scale_drag_edge(
+    range: Option<SelectionRange>,
+    anchor_micros: u32,
+) -> Option<SelectionEdge> {
+    let range = range?;
+    let (start_micros, end_micros) = range_micros(range);
+    if anchor_micros == start_micros {
+        Some(SelectionEdge::End)
+    } else if anchor_micros == end_micros {
+        Some(SelectionEdge::Start)
+    } else {
+        None
+    }
+}
+
+fn range_micros(range: SelectionRange) -> (u32, u32) {
+    let start = (range.start().clamp(0.0, 1.0) * 1_000_000.0).round() as u32;
+    let end = (range.end().clamp(0.0, 1.0) * 1_000_000.0).round() as u32;
+    (start, end)
 }

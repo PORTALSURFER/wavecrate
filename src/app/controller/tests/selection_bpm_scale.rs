@@ -85,6 +85,41 @@ fn smart_scale_resize_interprets_selection_as_four_beats() {
 }
 
 #[test]
+fn native_smart_scale_preview_defers_bpm_commit_until_release() {
+    let (mut controller, source) = dummy_controller();
+    let samples = vec![0.0; 32];
+    let selection = SelectionRange::new(0.0, 0.25);
+    load_waveform_selection(
+        &mut controller,
+        &source,
+        "native_smart_scale_preview.wav",
+        &samples,
+        selection,
+    );
+
+    controller.selection_state.range.set_range(Some(selection));
+    controller.apply_selection(Some(selection));
+    controller.set_bpm_value(150.0);
+
+    controller.set_waveform_selection_range_micros_smart_scale(0, 500_000);
+
+    assert_eq!(
+        controller.ui.waveform.selection,
+        Some(SelectionRange::new(0.0, 0.5))
+    );
+    assert_eq!(controller.ui.waveform.bpm_value, Some(120.0));
+    assert!(controller.selection_state.range.is_dragging());
+    assert_eq!(controller.selection_state.bpm_scale_beats, Some(4.0));
+    assert!((controller.settings.controls.bpm_value - 150.0).abs() < f32::EPSILON);
+
+    controller.finish_selection_drag();
+
+    assert!(!controller.selection_state.range.is_dragging());
+    assert!(controller.selection_state.bpm_scale_beats.is_none());
+    assert!((controller.settings.controls.bpm_value - 120.0).abs() < 0.1);
+}
+
+#[test]
 fn alt_drag_scales_without_loop_enabled() {
     let (mut controller, source) = dummy_controller();
     let samples = vec![0.0; 32];
