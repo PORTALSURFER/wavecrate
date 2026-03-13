@@ -188,8 +188,12 @@ fn focus_browser_row_and_play_queues_latest_preview_for_unloaded_sample() {
     );
     assert_eq!(controller.ui.browser.selected_visible, Some(1));
     assert_eq!(
-        controller.sample_view.wav.loaded_wav,
-        None
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("one.wav"))
+    );
+    assert_eq!(
+        controller.ui.loaded_wav.as_deref(),
+        Some(Path::new("one.wav"))
     );
     assert_eq!(
         controller

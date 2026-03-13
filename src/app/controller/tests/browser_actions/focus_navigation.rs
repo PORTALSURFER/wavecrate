@@ -90,6 +90,12 @@ fn native_focus_browser_row_queues_async_preview_without_blocking_selection() {
     controller.focus_browser_row_only(0);
     controller.sample_view.wav.loaded_wav = Some(PathBuf::from("one.wav"));
     controller.ui.loaded_wav = Some(PathBuf::from("one.wav"));
+    controller.audio.pending_age_update = Some(PendingAgeUpdate {
+        source_id: source.id.clone(),
+        root: source.root.clone(),
+        relative_path: PathBuf::from("one.wav"),
+        played_at: 123,
+    });
     controller.runtime.jobs.pending_audio = None;
     controller.runtime.jobs.pending_playback = None;
 
@@ -101,8 +107,12 @@ fn native_focus_browser_row_queues_async_preview_without_blocking_selection() {
     );
     assert_eq!(controller.ui.browser.selected_visible, Some(1));
     assert_eq!(
-        controller.sample_view.wav.loaded_wav,
-        None
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("one.wav"))
+    );
+    assert_eq!(
+        controller.ui.loaded_wav.as_deref(),
+        Some(Path::new("one.wav"))
     );
     assert_eq!(
         controller
@@ -122,6 +132,8 @@ fn native_focus_browser_row_queues_async_preview_without_blocking_selection() {
             .map(|pending| pending.relative_path.clone()),
         Some(PathBuf::from("two.wav"))
     );
+    assert!(controller.audio.pending_age_update.is_some());
+    assert!(controller.runtime.pending_similarity_refresh.is_none());
 }
 
 #[test]
