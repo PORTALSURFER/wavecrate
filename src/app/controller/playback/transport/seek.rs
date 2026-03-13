@@ -20,6 +20,15 @@ pub(crate) fn queue_waveform_seek_milli(controller: &mut AppController, position
     let clamped = position_milli.min(1000);
     clear_selection_for_outside_waveform_seek(controller, clamped);
     controller.set_waveform_cursor_milli(clamped);
+    if should_commit_waveform_seek_immediately(controller) {
+        controller.runtime.pending_waveform_seek_milli = None;
+        controller.runtime.pending_waveform_seek_not_before = None;
+        let normalized = (f32::from(clamped) / 1000.0).clamp(0.0, 1.0);
+        seek_to(controller, normalized);
+        controller.set_waveform_cursor(normalized);
+        controller.focus_waveform();
+        return;
+    }
     controller.runtime.pending_waveform_seek_milli = Some(clamped);
     controller.runtime.pending_waveform_seek_not_before =
         Some(Instant::now() + WAVEFORM_SEEK_COMMIT_DEBOUNCE);
@@ -76,11 +85,22 @@ fn waveform_selection_contains_position(selection: SelectionRange, position: f32
     position >= selection.start() && position <= selection.end()
 }
 
+fn should_commit_waveform_seek_immediately(controller: &AppController) -> bool {
+    !controller.is_playing()
+        && controller.sample_view.wav.loaded_audio.is_some()
+        && controller.audio.player.is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::app::controller::test_support;
+    use crate::app::controller::test_support::{
+        load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry,
+    };
     use crate::waveform::DecodedWaveform;
+    use std::cell::RefCell;
+    use std::rc::Rc;
     use std::sync::Arc;
 
     /// Seed minimal waveform state so seek tests exercise cursor updates on a ready waveform.
@@ -155,5 +175,63 @@ mod tests {
         assert_eq!(controller.ui.waveform.selection, Some(selection));
         assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(300));
         assert_eq!(controller.ui.waveform.cursor, Some(0.3));
+    }
+
+    #[test]
+    fn queue_waveform_seek_milli_starts_immediately_when_stopped_with_loaded_audio() {
+        let Some(player) = crate::audio::AudioPlayer::playing_for_tests() else {
+            return;
+        };
+        let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+            "instant_seek.wav",
+            crate::sample_sources::Rating::NEUTRAL,
+        )]);
+        controller.audio.player = Some(Rc::new(RefCell::new(player)));
+        load_waveform_selection(
+            &mut controller,
+            &source,
+            "instant_seek.wav",
+            &[0.0; 64],
+            SelectionRange::new(0.25, 0.75),
+        );
+        controller.selection_state.range.set_range(None);
+        controller.ui.waveform.selection = None;
+        controller.audio.player.as_ref().expect("player").borrow_mut().stop();
+
+        queue_waveform_seek_milli(&mut controller, 500);
+
+        assert!(controller.runtime.pending_waveform_seek_milli.is_none());
+        assert!(controller.runtime.pending_waveform_seek_not_before.is_none());
+        assert!(controller.is_playing());
+        assert_eq!(controller.ui.waveform.cursor, Some(0.5));
+        assert_eq!(controller.ui.waveform.playhead.position, 0.5);
+        assert_eq!(controller.ui.waveform.last_start_marker, Some(0.5));
+    }
+
+    #[test]
+    fn queue_waveform_seek_milli_still_defers_commit_while_playing() {
+        let Some(player) = crate::audio::AudioPlayer::playing_for_tests() else {
+            return;
+        };
+        let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+            "deferred_seek.wav",
+            crate::sample_sources::Rating::NEUTRAL,
+        )]);
+        controller.audio.player = Some(Rc::new(RefCell::new(player)));
+        load_waveform_selection(
+            &mut controller,
+            &source,
+            "deferred_seek.wav",
+            &[0.0; 64],
+            SelectionRange::new(0.25, 0.75),
+        );
+        assert!(controller.play_audio(false, None).is_ok());
+        assert!(controller.is_playing());
+
+        queue_waveform_seek_milli(&mut controller, 750);
+
+        assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(750));
+        assert!(controller.runtime.pending_waveform_seek_not_before.is_some());
+        assert_eq!(controller.ui.waveform.cursor, Some(0.75));
     }
 }
