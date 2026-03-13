@@ -297,22 +297,25 @@ fn replace_browser_rating_filter(
     }
 }
 
-/// Return the inverse rating-filter bucket for one clicked chip level.
-fn inverted_browser_rating_filter_levels(level: i8) -> Option<&'static [i8]> {
-    match level {
-        -3..=-1 => Some(&[1, 2, 3, 4]),
-        0 => Some(&[-3, -2, -1, 1, 2, 3, 4]),
-        1..=4 => Some(&[-3, -2, -1]),
-        _ => None,
+/// Return every valid rating-filter level except the clicked chip level.
+fn inverted_browser_rating_filter_levels(level: i8) -> Option<impl Iterator<Item = i8>> {
+    const ALL_BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
+    if !ALL_BROWSER_RATING_FILTER_LEVELS.contains(&level) {
+        return None;
     }
+    Some(
+        ALL_BROWSER_RATING_FILTER_LEVELS
+            .into_iter()
+            .filter(move |candidate| *candidate != level),
+    )
 }
 
-/// Invert one browser rating-filter chip into the opposite rated bucket.
+/// Invert one browser rating-filter chip into every other valid filter level.
 pub(crate) fn invert_browser_rating_filter(controller: &mut AppController, level: i8) {
     let Some(levels) = inverted_browser_rating_filter_levels(level) else {
         return;
     };
-    replace_browser_rating_filter(controller, levels.iter().copied());
+    replace_browser_rating_filter(controller, levels);
 }
 
 /// Clear all browser rating filters.

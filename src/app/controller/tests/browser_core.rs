@@ -172,7 +172,7 @@ fn browser_rating_filter_limits_visible_rows() {
 }
 
 #[test]
-fn invert_browser_rating_filter_switches_to_opposite_rated_bucket() {
+fn invert_browser_rating_filter_selects_every_level_except_clicked_keep_chip() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source);
     let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
@@ -200,9 +200,77 @@ fn invert_browser_rating_filter_switches_to_opposite_rated_bucket() {
             .iter()
             .copied()
             .collect::<Vec<_>>(),
-        vec![-3, -2, -1]
+        vec![-3, -2, -1, 0, 1, 2, 3]
     );
-    assert_eq!(visible_indices(&controller), vec![0, 1, 2]);
+    assert_eq!(visible_indices(&controller), vec![0, 1, 2, 3, 4, 5, 6, 7]);
+}
+
+#[test]
+fn invert_browser_rating_filter_selects_every_level_except_clicked_trash_chip() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source);
+    let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
+    locked_keep.locked = true;
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("trash3.wav", Rating::TRASH_3),
+        sample_entry("trash2.wav", Rating::new(-2)),
+        sample_entry("trash1.wav", Rating::TRASH_1),
+        sample_entry("neutral.wav", Rating::NEUTRAL),
+        sample_entry("keep1.wav", Rating::KEEP_1),
+        sample_entry("keep2.wav", Rating::new(2)),
+        sample_entry("keep3.wav", Rating::KEEP_3),
+        locked_keep,
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+
+    controller.invert_browser_rating_filter(-2);
+
+    assert_eq!(
+        controller
+            .ui
+            .browser
+            .rating_filter
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![-3, -1, 0, 1, 2, 3, 4]
+    );
+    assert_eq!(visible_indices(&controller), vec![0, 2, 3, 4, 5, 6, 7]);
+}
+
+#[test]
+fn invert_browser_rating_filter_selects_every_level_except_clicked_neutral_chip() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source);
+    let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
+    locked_keep.locked = true;
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("trash3.wav", Rating::TRASH_3),
+        sample_entry("trash2.wav", Rating::new(-2)),
+        sample_entry("trash1.wav", Rating::TRASH_1),
+        sample_entry("neutral.wav", Rating::NEUTRAL),
+        sample_entry("keep1.wav", Rating::KEEP_1),
+        sample_entry("keep2.wav", Rating::new(2)),
+        sample_entry("keep3.wav", Rating::KEEP_3),
+        locked_keep,
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+
+    controller.invert_browser_rating_filter(0);
+
+    assert_eq!(
+        controller
+            .ui
+            .browser
+            .rating_filter
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![-3, -2, -1, 1, 2, 3, 4]
+    );
+    assert_eq!(visible_indices(&controller), vec![0, 1, 2, 4, 5, 6, 7]);
 }
 
 #[test]

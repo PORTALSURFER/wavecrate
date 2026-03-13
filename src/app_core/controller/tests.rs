@@ -85,7 +85,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                 level: 4,
                 invert: true,
             },
-            expected: Expected::BrowserRatingFilter(vec![-3, -2, -1]),
+            expected: Expected::BrowserRatingFilter(vec![-3, -2, -1, 0, 1, 2, 3]),
         },
         Case {
             label: "map group",
