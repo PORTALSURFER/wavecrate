@@ -114,6 +114,7 @@ pub(crate) fn finish_edit_selection_drag(controller: &mut AppController) {
 }
 
 pub(crate) fn set_selection_range(controller: &mut AppController, range: SelectionRange) {
+    controller.audio.pending_loop_retarget = None;
     controller.selection_state.range.set_range(Some(range));
     controller.apply_selection(Some(range));
 
@@ -160,6 +161,7 @@ pub(crate) fn is_edit_selection_dragging(controller: &AppController) -> bool {
 }
 
 pub(crate) fn clear_selection(controller: &mut AppController) {
+    controller.audio.pending_loop_retarget = None;
     let before = controller
         .selection_state
         .range

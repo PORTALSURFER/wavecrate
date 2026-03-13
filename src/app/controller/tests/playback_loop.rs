@@ -262,6 +262,33 @@ fn pending_loop_retarget_restarts_from_new_selection_start_at_cycle_boundary() {
 }
 
 #[test]
+fn mutating_selection_clears_pending_loop_retarget() {
+    let initial_selection = SelectionRange::new(0.1, 0.4);
+    let Some(mut controller) = setup_looping_controller(initial_selection) else {
+        return;
+    };
+    let updated_selection = SelectionRange::new(0.2, 0.6);
+    controller
+        .selection_state
+        .range
+        .set_range(Some(updated_selection));
+    controller.apply_selection(Some(updated_selection));
+    controller.ui.waveform.playhead.position = 0.3;
+
+    controller.finish_selection_drag();
+    assert!(controller.audio.pending_loop_retarget.is_some());
+
+    controller.set_selection_range(SelectionRange::new(0.25, 0.55));
+    assert!(controller.audio.pending_loop_retarget.is_none());
+
+    controller.finish_selection_drag();
+    assert!(controller.audio.pending_loop_retarget.is_none());
+
+    controller.clear_selection();
+    assert!(controller.audio.pending_loop_retarget.is_none());
+}
+
+#[test]
 /// Zero-width click markers should not clamp non-loop seek playback to a tiny span.
 fn zero_width_selection_does_not_truncate_seek_playback() {
     let Some(mut player) = crate::audio::AudioPlayer::playing_for_tests() else {
