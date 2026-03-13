@@ -22,7 +22,11 @@ pub(super) fn filter_accepts_tag(
 
 /// Return the effective browser rating-filter level for one worker entry.
 fn browser_rating_filter_level(tag: Rating, locked: bool) -> i8 {
-    if locked && tag.is_keep() { 4 } else { tag.val() }
+    if locked && tag.is_keep() {
+        4
+    } else {
+        tag.val()
+    }
 }
 
 /// Return whether a row index passes the cached folder-filter acceptance map.

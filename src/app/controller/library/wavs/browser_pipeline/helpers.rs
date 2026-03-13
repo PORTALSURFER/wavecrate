@@ -73,7 +73,11 @@ pub(super) fn filter_accepts(
 /// Locked keeps occupy their own filter chip (`4`) and should not also match the
 /// ordinary `KEEP_3` filter level.
 fn browser_rating_filter_level(tag: crate::sample_sources::Rating, locked: bool) -> i8 {
-    if locked && tag.is_keep() { 4 } else { tag.val() }
+    if locked && tag.is_keep() {
+        4
+    } else {
+        tag.val()
+    }
 }
 
 /// Sort visible row indices by playback age then by absolute index.

@@ -13,6 +13,8 @@
 
 /// Interaction-action classification helpers for profiling and fast paths.
 mod action_classification;
+/// Live GUI test-mode artifact recorder used by app/runtime automation loops.
+mod gui_test;
 /// Dirty-source classification and projection invalidation policy helpers.
 mod invalidation;
 /// Bridge profiling counters and tracing hooks.
@@ -27,8 +29,6 @@ mod projection_key_encoding;
 mod reducer;
 /// Projection-key, pull, and motion-model runtime behavior for the native bridge.
 mod runtime_projection;
-/// Live GUI test-mode artifact recorder used by app/runtime automation loops.
-mod gui_test;
 
 #[cfg(test)]
 use self::projection_cache::build_waveform_projection_key;
@@ -216,9 +216,7 @@ pub fn new_native_bridge(
 /// GUI test fixtures use this to bypass persisted startup config while still
 /// exercising the same bridge, projection cache, and action-reduction logic as
 /// the real runtime.
-pub(crate) fn new_native_bridge_with_controller(
-    controller: AppController,
-) -> SempalNativeBridge {
+pub(crate) fn new_native_bridge_with_controller(controller: AppController) -> SempalNativeBridge {
     SempalNativeBridge::from_fixture_controller(controller)
 }
 

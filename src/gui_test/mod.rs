@@ -1,17 +1,14 @@
 //! GUI test contracts, deterministic artifact helpers, and scenario runners.
 
-mod automation;
 mod aiv;
 mod artifacts;
+mod automation;
 mod config;
 mod fixtures;
 mod packs;
 mod runner;
 mod scenario;
 
-pub use self::automation::{
-    GuiAutomationTarget, read_automation_snapshot_from_artifact, resolve_automation_target,
-};
 pub use self::aiv::{
     GuiAivAssertion, GuiAivCase, GuiAivStep, GuiAivSuiteManifest, export_aiv_suite,
     export_aiv_suite_pack, gui_aiv_suite_manifest,
@@ -19,6 +16,9 @@ pub use self::aiv::{
 pub use self::artifacts::{
     GuiActionTraceEvent, GuiModelSummary, GuiStepTimingSample, GuiTestArtifactBundle,
     build_model_summary, write_artifact_bundle,
+};
+pub use self::automation::{
+    GuiAutomationTarget, read_automation_snapshot_from_artifact, resolve_automation_target,
 };
 pub use self::config::GuiTestModeConfig;
 pub use self::fixtures::GuiFixtureBridge;

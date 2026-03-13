@@ -8,8 +8,8 @@
 )]
 
 use sempal::app_core::ui::MIN_VIEWPORT_SIZE;
-use sempal::gui_test::{GuiFixtureBridge, GuiTestModeConfig};
 use sempal::gui_runtime::{NativeRunOptions, run_native_vello_app_declarative};
+use sempal::gui_test::{GuiFixtureBridge, GuiTestModeConfig};
 use sempal::logging;
 use std::any::Any;
 use std::panic::{self, AssertUnwindSafe};
@@ -121,7 +121,11 @@ fn run_application(
         .as_ref()
         .map(|config| config.viewport)
         .unwrap_or([680, 260]);
-    info!(fixture_tag, ?viewport, "sempal startup: preparing GUI bridge");
+    info!(
+        fixture_tag,
+        ?viewport,
+        "sempal startup: preparing GUI bridge"
+    );
     let mut bridge = match GuiFixtureBridge::new_with_viewport(fixture_tag, viewport) {
         Ok(bridge) => bridge,
         Err(err) => {

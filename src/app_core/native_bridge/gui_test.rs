@@ -1,5 +1,6 @@
 //! Live GUI test artifact emission wired into the native bridge.
 
+use crate::app_core::actions::NativeUiAction;
 use crate::{
     app_core::actions::NativeAppModel,
     gui_runtime::capture_gui_automation_snapshot,
@@ -8,7 +9,6 @@ use crate::{
         trace_event_for_action, write_artifact_bundle,
     },
 };
-use crate::app_core::actions::NativeUiAction;
 use std::path::PathBuf;
 use tracing::warn;
 

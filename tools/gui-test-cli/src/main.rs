@@ -120,10 +120,7 @@ fn resolve_export_aiv_suite_request(args: Vec<String>) -> Result<ExportAivSuiteR
             pack_name: Some(pack_name.clone()),
             output_path: PathBuf::from(output_path),
         }),
-        _ => Err(format!(
-            "missing export-aiv-suite arguments\n\n{}",
-            usage()
-        )),
+        _ => Err(format!("missing export-aiv-suite arguments\n\n{}", usage())),
     }
 }
 

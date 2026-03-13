@@ -241,8 +241,10 @@ mod tests {
     fn contract_smoke_pack_runs_cleanly() {
         let pack = gui_scenario_pack("contract-smoke").expect("pack");
         for scenario in &pack.scenarios {
-            let bundle = run_scenario(&GuiTestModeConfig::default(), scenario)
-                .unwrap_or_else(|err| panic!("scenario {} failed to execute: {err}", scenario.name));
+            let bundle =
+                run_scenario(&GuiTestModeConfig::default(), scenario).unwrap_or_else(|err| {
+                    panic!("scenario {} failed to execute: {err}", scenario.name)
+                });
             assert!(
                 bundle.failure_summary.is_none(),
                 "scenario {} failed: {:?}",

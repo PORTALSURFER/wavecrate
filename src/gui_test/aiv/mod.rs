@@ -180,10 +180,7 @@ impl GuiAutomationTarget {
         let top = self.center_y - (self.height * 0.5);
         let x_ratio = f32::from(x_percent.min(100)) / 100.0;
         let y_ratio = f32::from(y_percent.min(100)) / 100.0;
-        [
-            left + (self.width * x_ratio),
-            top + (self.height * y_ratio),
-        ]
+        [left + (self.width * x_ratio), top + (self.height * y_ratio)]
     }
 }
 

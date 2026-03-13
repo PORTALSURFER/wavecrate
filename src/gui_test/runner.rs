@@ -5,22 +5,26 @@ use super::{
     GuiTestArtifactBundle, GuiTestModeConfig, build_model_summary, find_automation_node,
 };
 use crate::{
-    app_core::{
-        actions::{
-            GUI_ACTION_CATALOG, NativeAppBridge, NativeUiAction, action_catalog_entry,
-            action_catalog_entry_by_id,
-        },
+    app_core::actions::{
+        GUI_ACTION_CATALOG, NativeAppBridge, NativeUiAction, action_catalog_entry,
+        action_catalog_entry_by_id,
     },
+    gui_runtime::capture_gui_automation_snapshot,
     gui_test::GuiFixtureBridge,
     gui_test::trace_event_for_action,
-    gui_runtime::capture_gui_automation_snapshot,
 };
 use std::time::Instant;
 
 /// Capture a deterministic automation bundle from the default bridge fixture.
 pub fn capture_default_bundle(config: &GuiTestModeConfig) -> Result<GuiTestArtifactBundle, String> {
     let mut bridge = make_bridge_for_fixture(&config.fixture_tag, config.viewport)?;
-    Ok(snapshot_bundle(config, &mut bridge, Vec::new(), None, Vec::new()))
+    Ok(snapshot_bundle(
+        config,
+        &mut bridge,
+        Vec::new(),
+        None,
+        Vec::new(),
+    ))
 }
 
 /// Dispatch one native action through the default bridge fixture and capture a bundle.
@@ -140,7 +144,10 @@ fn assert_snapshot(
             if node.selected == *selected {
                 Ok(())
             } else {
-                Err(format!("automation node {node_id} selected={} expected={selected}", node.selected))
+                Err(format!(
+                    "automation node {node_id} selected={} expected={selected}",
+                    node.selected
+                ))
             }
         }
         GuiAssertion::NodeEnabled { node_id, enabled } => {
@@ -149,7 +156,10 @@ fn assert_snapshot(
             if node.enabled == *enabled {
                 Ok(())
             } else {
-                Err(format!("automation node {node_id} enabled={} expected={enabled}", node.enabled))
+                Err(format!(
+                    "automation node {node_id} enabled={} expected={enabled}",
+                    node.enabled
+                ))
             }
         }
         GuiAssertion::NodeValueContains { node_id, needle } => {
@@ -167,12 +177,22 @@ fn assert_snapshot(
                 .iter()
                 .any(|available| available == action_id)
                 .then_some(())
-                .ok_or_else(|| format!("automation node {node_id} does not advertise action {action_id}"))
+                .ok_or_else(|| {
+                    format!("automation node {node_id} does not advertise action {action_id}")
+                })
         }
-        GuiAssertion::NodeMetadataContains { node_id, key, needle } => {
+        GuiAssertion::NodeMetadataContains {
+            node_id,
+            key,
+            needle,
+        } => {
             let node = find_automation_node(snapshot, node_id)
                 .ok_or_else(|| format!("missing automation node {node_id}"))?;
-            let actual = node.metadata.get(key).map(String::as_str).unwrap_or_default();
+            let actual = node
+                .metadata
+                .get(key)
+                .map(String::as_str)
+                .unwrap_or_default();
             actual
                 .contains(needle)
                 .then_some(())

@@ -454,14 +454,18 @@ fn toggling_random_navigation_marks_current_focus_as_visited() {
 
     controller.toggle_random_navigation_mode();
 
-    assert!(controller
-        .history
-        .random_history
-        .has_played(&source.id, Path::new("one.wav")));
-    assert!(!controller
-        .history
-        .random_history
-        .has_played(&source.id, Path::new("two.wav")));
+    assert!(
+        controller
+            .history
+            .random_history
+            .has_played(&source.id, Path::new("one.wav"))
+    );
+    assert!(
+        !controller
+            .history
+            .random_history
+            .has_played(&source.id, Path::new("two.wav"))
+    );
 }
 
 #[test]

@@ -114,8 +114,12 @@ pub fn build_model_summary(model: &NativeAppModel) -> GuiModelSummary {
 /// Write one artifact bundle as pretty JSON, creating parent directories as needed.
 pub fn write_artifact_bundle(bundle: &GuiTestArtifactBundle, path: &Path) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|err| format!("failed to create artifact directory {}: {err}", parent.display()))?;
+        fs::create_dir_all(parent).map_err(|err| {
+            format!(
+                "failed to create artifact directory {}: {err}",
+                parent.display()
+            )
+        })?;
     }
     let json = serde_json::to_string_pretty(bundle)
         .map_err(|err| format!("failed to serialize GUI test bundle: {err}"))?;
@@ -150,7 +154,10 @@ fn write_artifact_json_with_retry(path: &Path, json: String) -> Result<(), Strin
 }
 
 fn is_transient_artifact_write_error(err: &std::io::Error) -> bool {
-    matches!(err.kind(), ErrorKind::PermissionDenied | ErrorKind::WouldBlock)
+    matches!(
+        err.kind(),
+        ErrorKind::PermissionDenied | ErrorKind::WouldBlock
+    )
 }
 
 pub(crate) fn catalog_report() -> Vec<GuiActionCatalogEntry> {

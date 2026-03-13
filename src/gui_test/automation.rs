@@ -73,10 +73,12 @@ pub fn read_automation_snapshot_from_artifact(
         .map_err(|err| format!("read GUI artifact {}: {err}", artifact_path.display()))?;
     let value: serde_json::Value = serde_json::from_str(&json)
         .map_err(|err| format!("parse GUI artifact {}: {err}", artifact_path.display()))?;
-    let snapshot = value
-        .get("automation_snapshot")
-        .cloned()
-        .ok_or_else(|| format!("GUI artifact {} is missing automation_snapshot", artifact_path.display()))?;
+    let snapshot = value.get("automation_snapshot").cloned().ok_or_else(|| {
+        format!(
+            "GUI artifact {} is missing automation_snapshot",
+            artifact_path.display()
+        )
+    })?;
     serde_json::from_value(snapshot).map_err(|err| {
         format!(
             "parse automation snapshot from GUI artifact {}: {err}",

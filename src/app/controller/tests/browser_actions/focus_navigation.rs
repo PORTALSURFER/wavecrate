@@ -276,7 +276,10 @@ fn native_set_browser_view_start_preserves_requested_top_row_within_visible_boun
     controller.set_browser_view_start_action(visible_count.saturating_sub(1));
 
     assert_eq!(controller.ui.browser.view_window_start, expected_view_start);
-    assert_eq!(controller.ui.browser.render_window_start, expected_render_start);
+    assert_eq!(
+        controller.ui.browser.render_window_start,
+        expected_render_start
+    );
     assert!(!controller.ui.browser.autoscroll);
 }
 

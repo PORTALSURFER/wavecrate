@@ -196,12 +196,23 @@ mod tests {
         );
         controller.selection_state.range.set_range(None);
         controller.ui.waveform.selection = None;
-        controller.audio.player.as_ref().expect("player").borrow_mut().stop();
+        controller
+            .audio
+            .player
+            .as_ref()
+            .expect("player")
+            .borrow_mut()
+            .stop();
 
         queue_waveform_seek_milli(&mut controller, 500);
 
         assert!(controller.runtime.pending_waveform_seek_milli.is_none());
-        assert!(controller.runtime.pending_waveform_seek_not_before.is_none());
+        assert!(
+            controller
+                .runtime
+                .pending_waveform_seek_not_before
+                .is_none()
+        );
         assert!(controller.is_playing());
         assert_eq!(controller.ui.waveform.cursor, Some(0.5));
         assert_eq!(controller.ui.waveform.playhead.position, 0.5);
@@ -231,7 +242,12 @@ mod tests {
         queue_waveform_seek_milli(&mut controller, 750);
 
         assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(750));
-        assert!(controller.runtime.pending_waveform_seek_not_before.is_some());
+        assert!(
+            controller
+                .runtime
+                .pending_waveform_seek_not_before
+                .is_some()
+        );
         assert_eq!(controller.ui.waveform.cursor, Some(0.75));
     }
 }

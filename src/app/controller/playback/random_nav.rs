@@ -176,7 +176,10 @@ fn mark_current_random_navigation_focus(controller: &mut AppController) {
     let Some(path) = current_random_navigation_path(controller) else {
         return;
     };
-    controller.history.random_history.mark_played(&source_id, &path);
+    controller
+        .history
+        .random_history
+        .mark_played(&source_id, &path);
 }
 
 fn push_random_history(

@@ -59,8 +59,8 @@ impl GuiTestModeConfig {
         config.run_id = run_id.map(String::from);
         config.run_manifest_path = run_manifest_path;
         config.scenario_name = std::env::var(GUI_TEST_SCENARIO_ENV).ok();
-        config.fixture_tag = std::env::var(GUI_TEST_FIXTURE_ENV)
-            .unwrap_or_else(|_| String::from("default"));
+        config.fixture_tag =
+            std::env::var(GUI_TEST_FIXTURE_ENV).unwrap_or_else(|_| String::from("default"));
         if let Ok(value) = std::env::var(GUI_TEST_VIEWPORT_ENV)
             && let Some(viewport) = parse_viewport(&value)
         {

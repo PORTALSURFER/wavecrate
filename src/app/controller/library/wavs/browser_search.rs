@@ -298,9 +298,7 @@ fn replace_browser_rating_filter(
 }
 
 /// Return every valid rating-filter level except the clicked chip level.
-fn inverted_browser_rating_filter_levels(
-    level: i8,
-) -> Option<std::collections::BTreeSet<i8>> {
+fn inverted_browser_rating_filter_levels(level: i8) -> Option<std::collections::BTreeSet<i8>> {
     const ALL_BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
     if !ALL_BROWSER_RATING_FILTER_LEVELS.contains(&level) {
         return None;
