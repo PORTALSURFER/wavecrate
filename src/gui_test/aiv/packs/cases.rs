@@ -181,11 +181,27 @@ pub(super) fn browser_refocus_after_down_scroll_keeps_single_focus_case() -> Gui
             click_node("browser.row.18", None, None),
             assert_step(assert_metadata_contains("browser.table", "first_visible_row", "1")),
             click_node("browser.row.12", None, None),
+            assert_step(GuiAivAssertion::AssertNodeSelected {
+                node_id: String::from("browser.row.12"),
+                selected: true,
+            }),
+            assert_step(GuiAivAssertion::AssertNodeSelected {
+                node_id: String::from("browser.row.18"),
+                selected: false,
+            }),
             assert_step(assert_metadata_contains("browser.row.12", "focused", "true")),
             assert_step(assert_metadata_contains("browser.row.18", "focused", "false")),
             screenshot("browser-refocus-after-down-scroll-keeps-single-focus"),
         ],
         expected_assertions: vec![
+            GuiAivAssertion::AssertNodeSelected {
+                node_id: String::from("browser.row.12"),
+                selected: true,
+            },
+            GuiAivAssertion::AssertNodeSelected {
+                node_id: String::from("browser.row.18"),
+                selected: false,
+            },
             assert_metadata_contains("browser.row.12", "focused", "true"),
             assert_metadata_contains("browser.row.18", "focused", "false"),
         ],
