@@ -170,6 +170,28 @@ pub(super) fn browser_interior_click_keeps_viewport_after_up_scroll_case() -> Gu
     }
 }
 
+pub(super) fn browser_refocus_after_down_scroll_keeps_single_focus_case() -> GuiAivCase {
+    GuiAivCase {
+        name: String::from("browser_refocus_after_down_scroll_keeps_single_focus"),
+        fixture_tag: String::from("browser"),
+        viewport: BROWSER_SCROLL_VIEWPORT,
+        window_title: String::from(GUI_TEST_WINDOW_TITLE),
+        steps: vec![
+            wait_for_node("browser.row.18"),
+            click_node("browser.row.18", None, None),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "1")),
+            click_node("browser.row.12", None, None),
+            assert_step(assert_metadata_contains("browser.row.12", "focused", "true")),
+            assert_step(assert_metadata_contains("browser.row.18", "focused", "false")),
+            screenshot("browser-refocus-after-down-scroll-keeps-single-focus"),
+        ],
+        expected_assertions: vec![
+            assert_metadata_contains("browser.row.12", "focused", "true"),
+            assert_metadata_contains("browser.row.18", "focused", "false"),
+        ],
+    }
+}
+
 pub(super) fn options_open_close_case() -> GuiAivCase {
     GuiAivCase {
         name: String::from("options_open_close"),

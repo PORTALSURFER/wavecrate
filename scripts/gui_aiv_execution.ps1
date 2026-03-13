@@ -82,18 +82,18 @@ function Invoke-Step {
         "click_node" {
             $null = Ensure-WindowForeground -Title $WindowTitle
             $point = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -WindowTitle $WindowTitle -NodeId $Step.node_id -XPercent $Step.x_percent -YPercent $Step.y_percent
-            & aiv workflow click-window --title $WindowTitle --anchor top-left --offset-x $point.logical_x --offset-y $point.logical_y | Out-Null
+            & aiv mouse click --x $point.screen_x --y $point.screen_y | Out-Null
             if ($LASTEXITCODE -ne 0) {
-                & aiv mouse click --x $point.screen_x --y $point.screen_y | Out-Null
+                & aiv workflow click-window --title $WindowTitle --anchor top-left --offset-x $point.logical_x --offset-y $point.logical_y | Out-Null
                 if ($LASTEXITCODE -ne 0) { throw "failed to click node $($Step.node_id)" }
             }
         }
         "type_into_node" {
             $null = Ensure-WindowForeground -Title $WindowTitle
             $point = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -WindowTitle $WindowTitle -NodeId $Step.node_id -XPercent $null -YPercent $null
-            & aiv workflow click-window --title $WindowTitle --anchor top-left --offset-x $point.logical_x --offset-y $point.logical_y | Out-Null
+            & aiv mouse click --x $point.screen_x --y $point.screen_y | Out-Null
             if ($LASTEXITCODE -ne 0) {
-                & aiv mouse click --x $point.screen_x --y $point.screen_y | Out-Null
+                & aiv workflow click-window --title $WindowTitle --anchor top-left --offset-x $point.logical_x --offset-y $point.logical_y | Out-Null
                 if ($LASTEXITCODE -ne 0) { throw "failed to focus node $($Step.node_id) before typing" }
             }
             Start-Sleep -Milliseconds 150
