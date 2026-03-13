@@ -23,6 +23,18 @@ function Invoke-AssertionCheck {
             $value = if ($null -eq $node.value) { "" } else { [string]$node.value }
             return $value.Contains([string]$Assertion.needle)
         }
+        "assert_node_metadata_contains" {
+            $node = Find-ArtifactNode -ArtifactPath $ArtifactPath -NodeId $Assertion.node_id
+            if ($null -eq $node) { return $false }
+            $actual = ""
+            if ($null -ne $node.metadata) {
+                $property = $node.metadata.PSObject.Properties[$Assertion.key]
+                if ($null -ne $property) {
+                    $actual = [string]$property.Value
+                }
+            }
+            return $actual.Contains([string]$Assertion.needle)
+        }
         "assert_action_recorded" {
             return $null -ne (Test-ActionRecorded -ArtifactPath $ArtifactPath -ActionId $Assertion.action_id)
         }

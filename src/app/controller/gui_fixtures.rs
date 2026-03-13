@@ -6,6 +6,8 @@ use hound::{SampleFormat, WavSpec, WavWriter};
 use std::{fs, path::Path};
 use tempfile::TempDir;
 
+const BROWSER_FIXTURE_ENTRY_COUNT: usize = 40;
+
 /// One controller fixture and the temporary resources it must keep alive.
 pub(crate) struct GuiFixtureControllerBundle {
     /// Seeded controller ready for GUI scenario execution.
@@ -45,38 +47,7 @@ fn build_browser_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControl
         )
     })?;
     let source = SampleSource::new(source_root);
-    let entries = vec![
-        write_fixture_entry(
-            &source.root,
-            "kick_one.wav",
-            &[0.1, 0.4, 0.2, 0.0],
-            crate::sample_sources::Rating::NEUTRAL,
-        )?,
-        write_fixture_entry(
-            &source.root,
-            "snare_two.wav",
-            &[0.0, 0.8, -0.6, 0.1],
-            crate::sample_sources::Rating::KEEP_3,
-        )?,
-        write_fixture_entry(
-            &source.root,
-            "hat_three.wav",
-            &[0.2, -0.2, 0.2, -0.2],
-            crate::sample_sources::Rating::TRASH_1,
-        )?,
-        write_fixture_entry(
-            &source.root,
-            "loop_four.wav",
-            &[0.1, 0.2, 0.1, -0.1, -0.2, -0.1],
-            crate::sample_sources::Rating::KEEP_1,
-        )?,
-        write_fixture_entry(
-            &source.root,
-            "fx_five.wav",
-            &[0.3, 0.0, -0.3, 0.0],
-            crate::sample_sources::Rating::TRASH_3,
-        )?,
-    ];
+    let entries = browser_fixture_entries(&source.root)?;
     seed_source_fixture(&mut controller, &source, entries)?;
     controller.select_wav_by_path(Path::new("kick_one.wav"));
     controller.focus_browser_list();
@@ -84,6 +55,61 @@ fn build_browser_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControl
         controller,
         sandbox_guards: vec![sandbox],
     })
+}
+
+fn browser_fixture_entries(root: &Path) -> Result<Vec<WavEntry>, String> {
+    let mut entries = Vec::with_capacity(BROWSER_FIXTURE_ENTRY_COUNT);
+    for index in 0..BROWSER_FIXTURE_ENTRY_COUNT {
+        let (name, tag) = browser_fixture_entry_spec(index);
+        let samples = browser_fixture_samples(index);
+        entries.push(write_fixture_entry(root, &name, &samples, tag)?);
+    }
+    Ok(entries)
+}
+
+fn browser_fixture_entry_spec(index: usize) -> (String, crate::sample_sources::Rating) {
+    let fixed = match index {
+        0 => Some(("kick_one.wav", crate::sample_sources::Rating::NEUTRAL)),
+        1 => Some(("snare_two.wav", crate::sample_sources::Rating::KEEP_3)),
+        2 => Some(("hat_three.wav", crate::sample_sources::Rating::TRASH_1)),
+        3 => Some(("loop_four.wav", crate::sample_sources::Rating::KEEP_1)),
+        4 => Some(("fx_five.wav", crate::sample_sources::Rating::TRASH_3)),
+        _ => None,
+    };
+    if let Some((name, tag)) = fixed {
+        return (String::from(name), tag);
+    }
+    let prefix = match index % 8 {
+        0 => "kick",
+        1 => "snare",
+        2 => "hat",
+        3 => "loop",
+        4 => "fx",
+        5 => "bass",
+        6 => "perc",
+        _ => "stab",
+    };
+    let name = format!("{prefix}_{index:02}.wav");
+    let tag = match index % 5 {
+        0 => crate::sample_sources::Rating::new(-2),
+        1 => crate::sample_sources::Rating::NEUTRAL,
+        2 => crate::sample_sources::Rating::KEEP_1,
+        3 => crate::sample_sources::Rating::new(2),
+        _ => crate::sample_sources::Rating::TRASH_1,
+    };
+    (name, tag)
+}
+
+fn browser_fixture_samples(index: usize) -> Vec<f32> {
+    let seed = index as f32 + 1.0;
+    vec![
+        0.0125 * seed,
+        0.18 + ((index % 5) as f32 * 0.05),
+        -0.10 - ((index % 4) as f32 * 0.04),
+        0.06 * ((index % 3) as f32 + 1.0),
+        -0.03 * ((index % 6) as f32 + 1.0),
+        0.015 * ((index % 7) as f32 + 1.0),
+    ]
 }
 
 fn build_waveform_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {

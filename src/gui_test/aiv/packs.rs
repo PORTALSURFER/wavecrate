@@ -3,6 +3,8 @@
 mod cases;
 
 use self::cases::{
+    browser_interior_click_keeps_viewport_after_down_scroll_case,
+    browser_interior_click_keeps_viewport_after_up_scroll_case,
     browser_search_select_commit_case, browser_search_type_smoke_case,
     browser_tabs_and_rating_filters_case, options_open_close_case, prompt_cancel_case,
     prompt_confirm_case, startup_ready_case, update_panel_actions_case,
@@ -44,6 +46,8 @@ fn desktop_regression_pack() -> GuiAivSuiteManifest {
             startup_ready_case(),
             browser_search_select_commit_case(),
             browser_tabs_and_rating_filters_case(),
+            browser_interior_click_keeps_viewport_after_down_scroll_case(),
+            browser_interior_click_keeps_viewport_after_up_scroll_case(),
             options_open_close_case(),
             prompt_confirm_case(),
             prompt_cancel_case(),
@@ -77,6 +81,8 @@ mod tests {
                 "startup_ready",
                 "browser_search_select_commit",
                 "browser_tabs_and_rating_filters",
+                "browser_interior_click_keeps_viewport_after_down_scroll",
+                "browser_interior_click_keeps_viewport_after_up_scroll",
                 "options_open_close",
                 "prompt_confirm",
                 "prompt_cancel",
@@ -95,6 +101,9 @@ mod tests {
         for node_id in [
             "browser.search_field",
             "browser.row.0",
+            "browser.row.18",
+            "browser.row.19",
+            "browser.row.20",
             "browser.tab.samples",
             "browser.tab.map",
             "browser.rating_filter.3",
@@ -118,6 +127,7 @@ mod tests {
             "assert_node_absent",
             "assert_node_selected",
             "assert_node_value_contains",
+            "assert_node_metadata_contains",
             "assert_action_recorded",
         ] {
             assert!(kinds.contains(kind), "manifest should include kind {kind}");

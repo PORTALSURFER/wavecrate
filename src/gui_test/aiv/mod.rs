@@ -154,6 +154,15 @@ pub enum GuiAivAssertion {
         /// Expected text fragment.
         needle: String,
     },
+    /// Assert that one semantic automation node metadata value contains the requested text.
+    AssertNodeMetadataContains {
+        /// Stable semantic automation node identifier.
+        node_id: String,
+        /// Stable metadata key exposed by the automation snapshot.
+        key: String,
+        /// Expected text fragment inside the metadata value.
+        needle: String,
+    },
     /// Assert that the live action trace contains one stable action id.
     AssertActionRecorded {
         /// Stable action identifier from the GUI action catalog.

@@ -4,6 +4,8 @@ use crate::gui_test::{GuiAivAssertion, GuiAivCase, GuiAivStep};
 
 use super::super::{DEFAULT_VIEWPORT, GUI_TEST_WINDOW_TITLE};
 
+const BROWSER_SCROLL_VIEWPORT: [u32; 2] = [1280, 720];
+
 pub(super) fn startup_ready_case() -> GuiAivCase {
     GuiAivCase {
         name: String::from("startup_ready"),
@@ -115,6 +117,56 @@ pub(super) fn browser_tabs_and_rating_filters_case() -> GuiAivCase {
         expected_assertions: vec![GuiAivAssertion::AssertActionRecorded {
             action_id: String::from("set_browser_tab"),
         }],
+    }
+}
+
+pub(super) fn browser_interior_click_keeps_viewport_after_down_scroll_case() -> GuiAivCase {
+    GuiAivCase {
+        name: String::from("browser_interior_click_keeps_viewport_after_down_scroll"),
+        fixture_tag: String::from("browser"),
+        viewport: BROWSER_SCROLL_VIEWPORT,
+        window_title: String::from(GUI_TEST_WINDOW_TITLE),
+        steps: vec![
+            wait_for_node("browser.row.18"),
+            click_node("browser.row.18", None, None),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "1")),
+            assert_step(GuiAivAssertion::AssertNodePresent {
+                node_id: String::from("browser.row.1"),
+            }),
+            assert_step(GuiAivAssertion::AssertNodeAbsent {
+                node_id: String::from("browser.row.0"),
+            }),
+            screenshot("browser-interior-click-keeps-viewport-after-down-scroll"),
+        ],
+        expected_assertions: vec![assert_metadata_contains(
+            "browser.table",
+            "first_visible_row",
+            "1",
+        )],
+    }
+}
+
+pub(super) fn browser_interior_click_keeps_viewport_after_up_scroll_case() -> GuiAivCase {
+    GuiAivCase {
+        name: String::from("browser_interior_click_keeps_viewport_after_up_scroll"),
+        fixture_tag: String::from("browser"),
+        viewport: BROWSER_SCROLL_VIEWPORT,
+        window_title: String::from(GUI_TEST_WINDOW_TITLE),
+        steps: vec![
+            wait_for_node("browser.row.20"),
+            click_node("browser.row.18", None, None),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "1")),
+            click_node("browser.row.19", None, None),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "2")),
+            click_node("browser.row.20", None, None),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "3")),
+            screenshot("browser-interior-click-keeps-viewport-after-up-scroll"),
+        ],
+        expected_assertions: vec![assert_metadata_contains(
+            "browser.table",
+            "first_visible_row",
+            "3",
+        )],
     }
 }
 
@@ -320,4 +372,12 @@ fn screenshot(label: &str) -> GuiAivStep {
 
 fn assert_step(assertion: GuiAivAssertion) -> GuiAivStep {
     GuiAivStep::Assert { assertion }
+}
+
+fn assert_metadata_contains(node_id: &str, key: &str, needle: &str) -> GuiAivAssertion {
+    GuiAivAssertion::AssertNodeMetadataContains {
+        node_id: String::from(node_id),
+        key: String::from(key),
+        needle: String::from(needle),
+    }
 }
