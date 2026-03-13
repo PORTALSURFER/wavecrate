@@ -91,7 +91,7 @@ Branch: `next`
   - Assumption used: stable automation node ids and action ids remain unchanged while only module ownership shifts.
   - Validation: `cargo test -p radiant automation::tests -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 2. Split browser-row layout/windowing helpers out of the current multi-purpose cache file
+### [x] 2. Split browser-row layout/windowing helpers out of the current multi-purpose cache file
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -133,6 +133,11 @@ Branch: `next`
   - Browser AIV regression pack.
   - `devcheck.ps1` and `ci_quick.ps1`.
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: `vendor/radiant` `943f908b` (`refactor(gui): split browser row helpers`)
+  - Assumption used: no behavior changes are intended; the split preserves the current autoscroll, truncation, and row-hit semantics while reducing mixed-responsibility coupling.
+  - Validation: `cargo test -p radiant browser_rows -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 3. Remove `missing_docs` suppressions from the public GUI contract surfaces
 
