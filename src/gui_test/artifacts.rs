@@ -38,6 +38,10 @@ pub struct GuiModelSummary {
     pub browser_visible_count: usize,
     /// Selected browser path count.
     pub browser_selected_count: usize,
+    /// Projected browser viewport start row tracked by the controller.
+    pub browser_view_start_row: usize,
+    /// Whether browser focus currently requests guard-band autoscroll.
+    pub browser_autoscroll: bool,
     /// Loaded waveform label, when present.
     pub waveform_loaded_label: Option<String>,
     /// Whether the confirm prompt is visible.
@@ -97,6 +101,8 @@ pub fn build_model_summary(model: &NativeAppModel) -> GuiModelSummary {
         focus_context: format!("{:?}", model.focus_context),
         browser_visible_count: model.browser.visible_count,
         browser_selected_count: model.browser.selected_path_count,
+        browser_view_start_row: model.browser.view_start_row,
+        browser_autoscroll: model.browser.autoscroll,
         waveform_loaded_label: model.waveform.loaded_label.clone(),
         prompt_visible: model.confirm_prompt.visible,
         options_visible: model.options_panel.visible,

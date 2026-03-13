@@ -103,6 +103,23 @@ fn set_browser_view_start_action_refreshes_projected_model_immediately() {
     assert_eq!(updated.browser.view_start_row, 1);
 }
 
+/// Focus-only browser actions should preserve the current manual viewport start
+/// so native guard-band autoscroll can continue from the rows already on
+/// screen instead of snapping back to the retained host slice start.
+#[test]
+fn focus_browser_row_preserves_manual_viewport_start_in_projected_model() {
+    let mut bridge = test_bridge(16);
+    bridge.controller.ui.browser.visible = crate::app_core::state::VisibleRows::All { total: 40 };
+
+    bridge.on_action(NativeUiAction::SetBrowserViewStart { visible_row: 7 });
+    let scrolled = bridge.project_model();
+    assert_eq!(scrolled.browser.view_start_row, 7);
+
+    bridge.on_action(NativeUiAction::FocusBrowserRow { visible_row: 18 });
+    let refocused = bridge.project_model();
+    assert_eq!(refocused.browser.view_start_row, 7);
+}
+
 /// Waveform preview-class actions should bypass queueing for immediate feedback.
 #[test]
 fn on_action_applies_waveform_preview_actions_immediately() {

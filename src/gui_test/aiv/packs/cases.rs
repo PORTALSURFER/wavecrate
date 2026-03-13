@@ -234,6 +234,40 @@ pub(super) fn browser_wheel_scroll_uses_rendered_viewport_case() -> GuiAivCase {
     }
 }
 
+pub(super) fn browser_repeated_scroll_refocus_preserves_guard_band_case() -> GuiAivCase {
+    GuiAivCase {
+        name: String::from("browser_repeated_scroll_refocus_preserves_guard_band"),
+        fixture_tag: String::from("browser"),
+        viewport: BROWSER_SCROLL_VIEWPORT,
+        window_title: String::from(GUI_TEST_WINDOW_TITLE),
+        steps: vec![
+            wait_for_node("browser.row.20"),
+            click_node("browser.row.18", None, None),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "1")),
+            click_node("browser.row.19", None, None),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "2")),
+            click_node("browser.row.20", None, None),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "3")),
+            click_node("browser.row.15", None, None),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "3")),
+            click_node("browser.row.5", None, None),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "2")),
+            click_node("browser.row.4", None, None),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "1")),
+            click_node("browser.row.3", None, None),
+            assert_step(assert_metadata_contains("browser.table", "first_visible_row", "0")),
+            screenshot("browser-repeated-scroll-refocus-preserves-guard-band"),
+        ],
+        expected_assertions: vec![
+            assert_metadata_contains("browser.table", "first_visible_row", "0"),
+            GuiAivAssertion::AssertNodeSelected {
+                node_id: String::from("browser.row.3"),
+                selected: true,
+            },
+        ],
+    }
+}
+
 pub(super) fn options_open_close_case() -> GuiAivCase {
     GuiAivCase {
         name: String::from("options_open_close"),

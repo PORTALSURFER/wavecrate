@@ -220,6 +220,26 @@ fn native_set_browser_view_start_preserves_requested_top_row_within_visible_boun
 }
 
 #[test]
+fn focus_after_manual_scroll_preserves_requested_top_row_for_small_visible_lists() {
+    let mut entries = Vec::new();
+    for index in 0..40 {
+        entries.push(sample_entry(
+            &format!("row_{index:03}.wav"),
+            crate::sample_sources::Rating::NEUTRAL,
+        ));
+    }
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(entries);
+
+    controller.set_browser_view_start_action(7);
+    controller.focus_browser_row_only(18);
+
+    assert_eq!(controller.ui.browser.selected_visible, Some(18));
+    assert_eq!(controller.ui.browser.view_window_start, 7);
+    assert_eq!(controller.ui.browser.render_window_start, 0);
+    assert!(controller.ui.browser.autoscroll);
+}
+
+#[test]
 fn preview_focus_defers_pending_age_update_until_commit() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),

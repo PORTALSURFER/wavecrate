@@ -35,7 +35,7 @@ fn rating_auto_advance_works() {
 }
 
 #[test]
-fn keyboard_focus_near_bottom_edge_scrolls_browser_window() {
+fn keyboard_focus_near_bottom_edge_advances_render_slice_without_overwriting_viewport_start() {
     let mut entries = Vec::new();
     for index in 0..(MAX_RENDERED_BROWSER_ROWS + 8) {
         entries.push(sample_entry(
@@ -52,5 +52,5 @@ fn keyboard_focus_near_bottom_edge_scrolls_browser_window() {
         Some(MAX_RENDERED_BROWSER_ROWS.saturating_sub(3))
     );
     assert_eq!(controller.ui.browser.render_window_start, 1);
-    assert_eq!(controller.ui.browser.view_window_start, 1);
+    assert_eq!(controller.ui.browser.view_window_start, 0);
 }
