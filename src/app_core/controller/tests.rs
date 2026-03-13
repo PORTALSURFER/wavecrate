@@ -242,7 +242,11 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
             }
             Expected::BothSelectionRangesCleared => {
                 assert!(controller.ui.waveform.selection.is_none(), "{}", case.label);
-                assert!(controller.ui.waveform.edit_selection.is_none(), "{}", case.label);
+                assert!(
+                    controller.ui.waveform.edit_selection.is_none(),
+                    "{}",
+                    case.label
+                );
             }
             Expected::UpdateStatus(expected) => {
                 assert_eq!(controller.ui.update.status, expected, "{}", case.label);

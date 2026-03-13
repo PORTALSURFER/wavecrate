@@ -91,16 +91,7 @@ impl WaveformRenderer {
         let xpxl1 = xend as isize;
         let ypxl1 = yend.floor() as isize;
         Self::plot_line_endpoint(
-            image,
-            stride,
-            width,
-            height,
-            fg,
-            steep,
-            xpxl1,
-            ypxl1,
-            yend,
-            xgap,
+            image, stride, width, height, fg, steep, xpxl1, ypxl1, yend, xgap,
         );
         let mut intery = yend + gradient;
 
@@ -118,16 +109,7 @@ impl WaveformRenderer {
         }
 
         Self::plot_line_endpoint(
-            image,
-            stride,
-            width,
-            height,
-            fg,
-            steep,
-            xpxl2,
-            ypxl2,
-            yend,
-            xgap,
+            image, stride, width, height, fg, steep, xpxl2, ypxl2, yend, xgap,
         );
     }
 

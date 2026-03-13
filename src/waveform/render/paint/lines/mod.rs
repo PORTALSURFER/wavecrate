@@ -87,8 +87,14 @@ impl WaveformRenderer {
 
         let mut prev_y = None;
         for x in 0..width as usize {
-            let sample =
-                Self::supersampled_frame(samples, channels, frame_count, x, width as usize, channel_index);
+            let sample = Self::supersampled_frame(
+                samples,
+                channels,
+                frame_count,
+                x,
+                width as usize,
+                channel_index,
+            );
             let y = to_y(sample);
             if let Some(prev) = prev_y {
                 Self::draw_line_aa(RasterLineConfig {
