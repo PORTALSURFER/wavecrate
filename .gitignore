@@ -14,3 +14,8 @@ assets/ml/panns_cnn14_16k/*.onnx
 assets/ml/panns_cnn14_16k/*.onnx.data
 assets/ml/panns_cnn14_16k/*.pth
 .ssl
+
+# Generated desktop GUI test artifacts and exports.
+/artifacts/
+/desktop-smoke
+/tmp/gui_snapshot.json
