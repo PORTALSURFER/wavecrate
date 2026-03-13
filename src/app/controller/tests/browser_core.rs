@@ -164,6 +164,9 @@ fn browser_rating_filter_limits_visible_rows() {
     controller.set_browser_rating_filter(2, true);
     assert_eq!(visible_indices(&controller), vec![1, 5]);
 
+    controller.set_browser_rating_filter(3, false);
+    assert_eq!(visible_indices(&controller), vec![6]);
+
     controller.set_browser_rating_filter(4, false);
     assert_eq!(visible_indices(&controller), vec![7]);
 
@@ -202,7 +205,7 @@ fn invert_browser_rating_filter_selects_every_level_except_clicked_keep_chip() {
             .collect::<Vec<_>>(),
         vec![-3, -2, -1, 0, 1, 2, 3]
     );
-    assert_eq!(visible_indices(&controller), vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    assert_eq!(visible_indices(&controller), vec![0, 1, 2, 3, 4, 5, 6]);
 }
 
 #[test]
@@ -261,6 +264,26 @@ fn locked_keep_filter_only_matches_locked_keep_rows() {
     controller.set_browser_rating_filter(4, false);
 
     assert_eq!(visible_indices(&controller), vec![1]);
+}
+
+#[test]
+fn keep_three_filter_excludes_locked_keep_rows() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source);
+    let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
+    locked_keep.locked = true;
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("keep3.wav", Rating::KEEP_3),
+        locked_keep,
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+
+    controller.set_browser_rating_filter(3, false);
+    assert_eq!(visible_indices(&controller), vec![0]);
+
+    controller.set_browser_rating_filter(4, true);
+    assert_eq!(visible_indices(&controller), vec![0, 1]);
 }
 
 #[test]

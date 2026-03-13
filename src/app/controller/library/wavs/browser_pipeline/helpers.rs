@@ -63,11 +63,17 @@ pub(super) fn filter_accepts(
         TriageFlagFilter::Trash => tag.is_trash(),
         TriageFlagFilter::Untagged => tag.is_neutral(),
     };
-    let locked_keep_ok = locked && tag.is_keep() && rating_filter.contains(&4);
-    let rating_ok = rating_filter.is_empty()
-        || rating_filter.contains(&tag.val())
-        || locked_keep_ok;
+    let rating_level = browser_rating_filter_level(tag, locked);
+    let rating_ok = rating_filter.is_empty() || rating_filter.contains(&rating_level);
     triage_ok && rating_ok
+}
+
+/// Return the effective browser rating-filter level for one sample row.
+///
+/// Locked keeps occupy their own filter chip (`4`) and should not also match the
+/// ordinary `KEEP_3` filter level.
+fn browser_rating_filter_level(tag: crate::sample_sources::Rating, locked: bool) -> i8 {
+    if locked && tag.is_keep() { 4 } else { tag.val() }
 }
 
 /// Sort visible row indices by playback age then by absolute index.

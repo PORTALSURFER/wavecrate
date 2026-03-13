@@ -15,11 +15,14 @@ pub(super) fn filter_accepts_tag(
         TriageFlagFilter::Trash => tag.is_trash(),
         TriageFlagFilter::Untagged => tag.is_neutral(),
     };
-    let locked_keep_ok = locked && tag.is_keep() && rating_filter.contains(&4);
-    let rating_ok = rating_filter.is_empty()
-        || rating_filter.contains(&tag.val())
-        || locked_keep_ok;
+    let rating_level = browser_rating_filter_level(tag, locked);
+    let rating_ok = rating_filter.is_empty() || rating_filter.contains(&rating_level);
     triage_ok && rating_ok
+}
+
+/// Return the effective browser rating-filter level for one worker entry.
+fn browser_rating_filter_level(tag: Rating, locked: bool) -> i8 {
+    if locked && tag.is_keep() { 4 } else { tag.val() }
 }
 
 /// Return whether a row index passes the cached folder-filter acceptance map.
@@ -158,6 +161,18 @@ mod tests {
             TriageFlagFilter::All,
             &rating_filter,
             Rating::TRASH_3,
+            true,
+        ));
+        assert!(!filter_accepts_tag(
+            TriageFlagFilter::All,
+            &BTreeSet::from([3]),
+            Rating::KEEP_3,
+            true,
+        ));
+        assert!(filter_accepts_tag(
+            TriageFlagFilter::All,
+            &BTreeSet::from([3, 4]),
+            Rating::KEEP_3,
             true,
         ));
     }
