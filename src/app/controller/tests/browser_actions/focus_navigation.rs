@@ -185,6 +185,50 @@ fn native_move_browser_focus_queues_async_preview_playback() {
 }
 
 #[test]
+fn native_move_browser_focus_uses_random_mode_pool_without_repeating_current_row() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.focus_browser_row_only(0);
+    controller.toggle_random_navigation_mode();
+    controller
+        .history
+        .random_history
+        .mark_played(&source.id, Path::new("two.wav"));
+    controller.runtime.jobs.pending_audio = None;
+    controller.runtime.jobs.pending_playback = None;
+
+    controller.apply_native_ui_action(NativeUiAction::MoveBrowserFocus { delta: 1 });
+
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("three.wav"))
+    );
+    assert_eq!(controller.ui.browser.selected_visible, Some(2));
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_audio
+            .as_ref()
+            .map(|pending| pending.relative_path.clone()),
+        Some(PathBuf::from("three.wav"))
+    );
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_playback
+            .as_ref()
+            .map(|pending| pending.relative_path.clone()),
+        Some(PathBuf::from("three.wav"))
+    );
+}
+
+#[test]
 fn native_set_browser_view_start_scrolls_without_changing_selection() {
     let mut entries = Vec::new();
     for index in 0..(MAX_RENDERED_BROWSER_ROWS + 8) {

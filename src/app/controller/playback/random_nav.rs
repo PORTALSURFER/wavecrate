@@ -3,6 +3,7 @@ use rand::Rng;
 use rand::seq::IteratorRandom;
 #[cfg(test)]
 use rand::{SeedableRng, rngs::StdRng};
+use std::path::{Path, PathBuf};
 
 pub(crate) fn play_random_visible_sample(controller: &mut AppController) {
     let mut rng = rand::rng();
@@ -54,6 +55,7 @@ pub(crate) fn play_previous_random_sample(controller: &mut AppController) {
 pub(crate) fn toggle_random_navigation_mode(controller: &mut AppController) {
     controller.ui.browser.random_navigation_mode = !controller.ui.browser.random_navigation_mode;
     if controller.ui.browser.random_navigation_mode {
+        mark_current_random_navigation_focus(controller);
         controller.set_status_message(StatusMessage::custom(
             "Random navigation on: Up/Down jump to random samples",
             StatusTone::Info,
@@ -84,29 +86,17 @@ fn play_random_visible_sample_internal<R: Rng + ?Sized>(
         return;
     }
 
-    let mut available_indices: Vec<usize> = Vec::new();
-    for row in 0..total {
-        let Some(idx) = controller.visible_browser_index(row) else {
-            continue;
-        };
-        let Some(path) = controller.wav_entry(idx).map(|e| e.relative_path.clone()) else {
-            continue;
-        };
-        if !controller
-            .history
-            .random_history
-            .has_played(&source_id, &path)
-        {
-            available_indices.push(row);
-        }
-    }
+    let current_path = current_random_navigation_path(controller);
+    let mut available_indices =
+        available_random_visible_rows(controller, &source_id, current_path.as_deref());
 
     if available_indices.is_empty() {
         controller
             .history
             .random_history
             .reset_played_for_source(&source_id);
-        available_indices = (0..total).collect();
+        available_indices =
+            available_random_visible_rows(controller, &source_id, current_path.as_deref());
     }
 
     let Some(&visible_row) = available_indices.iter().choose(rng) else {
@@ -135,6 +125,58 @@ fn play_random_visible_sample_internal<R: Rng + ?Sized>(
     {
         controller.set_status(err, StatusTone::Error);
     }
+}
+
+fn available_random_visible_rows(
+    controller: &mut AppController,
+    source_id: &SourceId,
+    current_path: Option<&Path>,
+) -> Vec<usize> {
+    let total = controller.visible_browser_len();
+    let exclude_current = current_path.is_some() && total > 1;
+    let mut rows = Vec::new();
+    for row in 0..total {
+        let Some(entry_index) = controller.visible_browser_index(row) else {
+            continue;
+        };
+        let Some(path) = controller
+            .wav_entry(entry_index)
+            .map(|entry| entry.relative_path.clone())
+        else {
+            continue;
+        };
+        if controller
+            .history
+            .random_history
+            .has_played(source_id, &path)
+        {
+            continue;
+        }
+        if exclude_current && current_path.is_some_and(|selected| selected == path.as_path()) {
+            continue;
+        }
+        rows.push(row);
+    }
+    rows
+}
+
+fn current_random_navigation_path(controller: &AppController) -> Option<PathBuf> {
+    controller
+        .sample_view
+        .wav
+        .selected_wav
+        .clone()
+        .or_else(|| controller.ui.browser.last_focused_path.clone())
+}
+
+fn mark_current_random_navigation_focus(controller: &mut AppController) {
+    let Some(source_id) = controller.selection_state.ctx.selected_source.clone() else {
+        return;
+    };
+    let Some(path) = current_random_navigation_path(controller) else {
+        return;
+    };
+    controller.history.random_history.mark_played(&source_id, &path);
 }
 
 fn push_random_history(

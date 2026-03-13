@@ -243,6 +243,7 @@ pub(crate) fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel
         can_rename: has_focus,
         can_delete: has_selection,
         can_tag: has_selection,
+        random_navigation_enabled: ui.browser.random_navigation_mode,
     }
 }
 

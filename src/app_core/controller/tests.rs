@@ -43,6 +43,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
         BrowserSearch(&'static str),
         BrowserSearchFocused(bool),
         BrowserRatingFilter(Vec<i8>),
+        RandomNavigationMode(bool),
         MapTab(SampleBrowserTab),
         LoopEnabled(bool),
         OptionsPanelOpen(bool),
@@ -86,6 +87,11 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                 invert: true,
             },
             expected: Expected::BrowserRatingFilter(vec![-3, -2, -1, 0, 1, 2, 3]),
+        },
+        Case {
+            label: "browser random toggle group",
+            action: NativeUiAction::ToggleRandomNavigationMode,
+            expected: Expected::RandomNavigationMode(true),
         },
         Case {
             label: "map group",
@@ -164,6 +170,9 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                     "{}",
                     case.label
                 );
+            }
+            Expected::RandomNavigationMode(expected) => {
+                assert_eq!(controller.ui.browser.random_navigation_mode, expected, "{}", case.label);
             }
             Expected::MapTab(expected) => {
                 assert_eq!(controller.ui.browser.active_tab, expected, "{}", case.label);

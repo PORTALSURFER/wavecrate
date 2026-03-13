@@ -4,7 +4,7 @@ use super::super::super::test_support::{
 use crate::app::controller::ui::hotkeys;
 use crate::app::state::FocusContext;
 use crate::sample_sources::Rating;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[test]
 fn hotkey_tagging_applies_to_all_selected_rows() {
@@ -181,4 +181,28 @@ fn focused_row_actions_work_without_explicit_selection() {
 
     assert_eq!(controller.wav_entry(0).unwrap().tag, Rating::TRASH_3);
     assert_eq!(controller.ui.browser.selected_visible, Some(0));
+}
+
+#[test]
+fn nudge_selection_uses_random_mode_pool_without_repeating_current_row() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+        sample_entry("three.wav", Rating::NEUTRAL),
+    ]);
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.focus_browser_row_only(0);
+    controller.toggle_random_navigation_mode();
+    controller
+        .history
+        .random_history
+        .mark_played(&source.id, Path::new("two.wav"));
+
+    controller.nudge_selection(1);
+
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("three.wav"))
+    );
+    assert_eq!(controller.ui.browser.selected_visible, Some(2));
 }

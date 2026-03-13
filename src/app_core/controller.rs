@@ -306,6 +306,7 @@ fn apply_browser_native_ui_action(
                 controller.set_browser_rating_filter(level, true);
             }
         }
+        NativeUiAction::ToggleRandomNavigationMode => controller.toggle_random_navigation_mode(),
         NativeUiAction::StartBrowserRename => controller.start_browser_rename(),
         NativeUiAction::ConfirmBrowserRename => controller.apply_pending_browser_rename(),
         NativeUiAction::CancelBrowserRename => controller.cancel_browser_rename(),

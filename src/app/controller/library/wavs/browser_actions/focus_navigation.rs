@@ -47,6 +47,11 @@ impl AppController {
 
     /// Focus browser row using UI delta input and queue non-blocking preview playback.
     pub fn focus_browser_delta_action(&mut self, delta: i8) {
+        if self.random_navigation_mode_enabled() && delta != 0 {
+            self.focus_random_visible_sample();
+            self.request_async_preview_playback_for_focused_selection();
+            return;
+        }
         if self.focus_browser_delta(delta) {
             self.request_async_preview_playback_for_focused_selection();
         }

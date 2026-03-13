@@ -8,12 +8,15 @@ fn browser_actions_require_focus_or_selection() {
     assert!(!projected.can_rename);
     assert!(!projected.can_delete);
     assert!(!projected.can_tag);
+    assert!(!projected.random_navigation_enabled);
 
     ui.browser.selected_visible = Some(0);
+    ui.browser.random_navigation_mode = true;
     let projected = project_browser_actions_model(&ui);
     assert!(projected.can_rename);
     assert!(projected.can_delete);
     assert!(projected.can_tag);
+    assert!(projected.random_navigation_enabled);
 }
 
 /// Browser rename prompts should win over destructive waveform prompts when both are present.

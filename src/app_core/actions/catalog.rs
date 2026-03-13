@@ -54,6 +54,7 @@ pub enum GuiActionKind {
     SelectAllBrowserRows,
     SetBrowserSearch,
     ToggleBrowserRatingFilter,
+    ToggleRandomNavigationMode,
     SetBrowserTab,
     FocusMapSample,
     SetPromptInput,
@@ -118,7 +119,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 106] = [
+    pub const ALL: [Self; 107] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -165,6 +166,7 @@ impl GuiActionKind {
         Self::SelectAllBrowserRows,
         Self::SetBrowserSearch,
         Self::ToggleBrowserRatingFilter,
+        Self::ToggleRandomNavigationMode,
         Self::SetBrowserTab,
         Self::FocusMapSample,
         Self::SetPromptInput,
@@ -377,6 +379,7 @@ gui_action_catalog!(
     SelectAllBrowserRows {} => { id: "select_all_browser_rows", surface: Browser, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["browser"], sample: NativeUiAction::SelectAllBrowserRows },
     SetBrowserSearch { query } => { id: "set_browser_search", surface: Browser, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot, DesktopAiv], fixtures: ["browser", "search"], sample: NativeUiAction::SetBrowserSearch { query: String::from("kick") } },
     ToggleBrowserRatingFilter { level, invert } => { id: "toggle_browser_rating_filter", surface: Browser, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["browser"], sample: NativeUiAction::ToggleBrowserRatingFilter { level: 3, invert: false } },
+    ToggleRandomNavigationMode {} => { id: "toggle_random_navigation_mode", surface: Browser, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["browser"], sample: NativeUiAction::ToggleRandomNavigationMode },
     SetBrowserTab { map } => { id: "set_browser_tab", surface: Map, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot, DesktopAiv], fixtures: ["browser", "map"], sample: NativeUiAction::SetBrowserTab { map: true } },
     FocusMapSample { sample_id } => { id: "focus_map_sample", surface: Map, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot, DesktopAiv], fixtures: ["map"], sample: NativeUiAction::FocusMapSample { sample_id: String::from("sample-1") } },
     SetPromptInput { value } => { id: "set_prompt_input", surface: Prompt, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["prompt"], sample: NativeUiAction::SetPromptInput { value: String::from("renamed") } },

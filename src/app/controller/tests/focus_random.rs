@@ -440,6 +440,31 @@ fn random_navigation_mode_toggles_state_and_status() {
 }
 
 #[test]
+fn toggling_random_navigation_marks_current_focus_as_visited() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.focus_browser_row_only(0);
+
+    controller.toggle_random_navigation_mode();
+
+    assert!(controller
+        .history
+        .random_history
+        .has_played(&source.id, Path::new("one.wav")));
+    assert!(!controller
+        .history
+        .random_history
+        .has_played(&source.id, Path::new("two.wav")));
+}
+
+#[test]
 fn random_sample_navigation_avoids_repeats() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
