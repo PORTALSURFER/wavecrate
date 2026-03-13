@@ -58,6 +58,16 @@ fn waveform_projection_passes_raster_image_payload() {
 }
 
 #[test]
+fn waveform_projection_marks_loading_state_for_native_shell() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.loading = Some(std::path::PathBuf::from("pending.wav"));
+
+    let projected = project_waveform_model(&mut controller);
+
+    assert!(projected.loading);
+}
+
+#[test]
 /// Waveform projection should expose edit fade handle positions when fades are configured.
 fn waveform_projection_includes_edit_fade_handles() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);

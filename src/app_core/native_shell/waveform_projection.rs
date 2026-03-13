@@ -41,6 +41,7 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
             .loaded_wav
             .as_deref()
             .map(view_model::sample_display_label),
+        loading: ui.waveform.loading.is_some(),
         cursor_milli: ui.waveform.cursor.map(normalized_to_milli),
         playhead_milli: projected_playhead.map(normalized_to_milli),
         playhead_micros: projected_playhead.map(normalized_to_micros),

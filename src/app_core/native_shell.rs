@@ -218,6 +218,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
             .loaded_wav
             .as_deref()
             .map(view_model::sample_display_label),
+        waveform_loading: controller.ui.waveform.loading.is_some(),
         waveform_transport_hint: if controller.ui.waveform.loop_enabled {
             String::from("Loop enabled")
         } else {
