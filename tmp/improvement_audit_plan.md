@@ -471,11 +471,11 @@ Branch: `next`
 - Product clarification required: No
 - Completion:
   - Date: 2026-03-13
-  - Commit: pending current item commit
+  - Commit: `13c1744b` (`refactor(waveform): split zoom cache telemetry`)
   - Assumption used: moving only telemetry counters and emission helpers out of the zoom-cache file is sufficient to clarify cache-core ownership without changing the lock or eviction model.
   - Validation: `cargo test waveform::zoom_cache -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 12. Separate pure audio-option normalization from controller-side probing and mutation
+### [x] 12. Separate pure audio-option normalization from controller-side probing and mutation
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -507,6 +507,11 @@ Branch: `next`
   - Existing audio-option tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: pending current item commit
+  - Assumption used: keeping the public controller methods and normalization behavior unchanged while moving pure helpers into their own module is enough to reduce coupling here without risking audio-device regressions.
+  - Validation: `cargo test audio_options -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 13. Split oversized test and fixture catalogs into domain-focused modules
 
