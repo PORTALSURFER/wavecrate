@@ -321,7 +321,7 @@ Branch: `next`
   - Assumption used: keeping the public routing surface in `input.rs` unchanged while splitting only the internal helper families is the lowest-risk way to improve readability in this precedence-sensitive path.
   - Validation: `cargo test -p radiant waveform_pointer -- --nocapture`, `cargo test -p radiant waveform_drag -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 8. Continue decomposing the native Vello runtime around lifecycle, input, and render ownership
+### [x] 8. Continue decomposing the native Vello runtime around lifecycle, input, and render ownership
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -358,6 +358,12 @@ Branch: `next`
   - GUI contract/AIV suites
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: `vendor/radiant` `f09f20d1` (`refactor(runtime): split native vello action and text helpers`)
+  - Assumption used: extracting action-classification and text/clipboard runtime helpers first is the safest runtime split because these seams already behave like shared service surfaces across the event, input, and text modules.
+  - Validation: `cargo test -p radiant runtime_core -- --nocapture`, `cargo test -p radiant key_bindings -- --nocapture --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+  - Validation note: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` reached a pre-existing guardrail failure in `src/gui_test/aiv/packs/cases.rs` exceeding the file-size budget; item 8 itself compiled and passed the runtime-focused checks.
 
 ### [ ] 9. Split updater-helper UI orchestration into background tasks, state transitions, and view projection
 
