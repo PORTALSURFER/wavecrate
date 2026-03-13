@@ -584,7 +584,7 @@ Branch: `next`
 - Product clarification required: No
 - Completion:
   - Date: 2026-03-13
-  - Commit: pending current item commit
+  - Commit: `18dc6d62` (`feat(scripts): add powershell cleanup audit helper`)
   - Assumption used: adding a native PowerShell implementation is the better parity move than documenting a Bash-only exception because the repo already treats PowerShell as the canonical Windows workflow surface.
   - Validation: `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1 -Output tmp/cleanup_audit_hotspots_test.md`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
