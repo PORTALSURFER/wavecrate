@@ -277,7 +277,7 @@ Branch: `next`
 - Product clarification required: No
 - Completion:
   - Date: 2026-03-13
-  - Commit: pending current item commit
+  - Commit: `a4c7f571` (`test(waveform): split line raster helpers`)
   - Assumption used: splitting interpolation and raster helpers behind the existing `WaveformRenderer` entrypoints is the safest seam because it improves direct coverage without changing the external render API.
   - Validation: `cargo test waveform::render::paint::lines -- --nocapture`, `cargo test waveform::render:: -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
