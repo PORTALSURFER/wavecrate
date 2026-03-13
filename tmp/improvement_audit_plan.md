@@ -1,0 +1,403 @@
+# Improvement Audit Plan
+
+Generated (UTC): 2026-03-13T13:57:47Z
+Status: Phase 1 audit complete; awaiting explicit approval before any sequential implementation.
+
+## Repository Understanding
+
+### Explicitly documented
+
+- Sempal is a Rust desktop application for sample browsing, triage, waveform editing, and related audio workflows. Evidence: `README.md`, `docs/ARCHITECTURE.md`.
+- The actively maintained GUI stack is `src/app_core` plus `vendor/radiant`, with `app_core` acting as the backend-neutral projection/action boundary. Evidence: `docs/ARCHITECTURE.md`, `docs/gui_migration_parity.md`, `docs/gui_test_platform.md`.
+- The repository prefers small, reviewable changes with strong local/CI guardrails, including public-doc checks, file-size budgets, docs-index checks, and dependency-boundary checks. Evidence: `AGENTS.md`, `docs/INDEX.md`, `.github/workflows/ci.yml`, `scripts/ci_quick.ps1`.
+- On Windows, the canonical local validation flow is the PowerShell wrapper chain: `scripts/devcheck.ps1`, `scripts/ci_quick.ps1`, and `scripts/ci_local.ps1`. Evidence: `AGENTS.md`, `docs/README.md`.
+- Existing parked planning lanes already exist for cleanup and runtime performance; they are not authorized for execution without explicit user approval. Evidence: `tmp/cleanup_plan.md`, `tmp/perf_plan.md`, `AGENTS.md`.
+
+### Strongly implied by code/docs
+
+- GUI/browser interaction stability and regression coverage are the current active maintenance lane. Evidence: `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, `docs/gui_test_platform.md`.
+- The project treats deterministic test infrastructure and stable GUI automation identifiers as first-class maintainability concerns. Evidence: `docs/gui_test_platform.md`, `src/gui_test/**`, `vendor/radiant/src/gui/native_shell/state/automation.rs`.
+- Large-file debt is tolerated only as transitional debt and is expected to be burned down over time. Evidence: `docs/QUALITY_SCORE.md`, `docs/file_size_budget_allowlist.txt`, `scripts/check_file_size_budget.ps1`.
+
+### Weakly implied / uncertain
+
+- Some handoff and roadmap documents appear to lag behind the most recent feature work, so plan priority should be inferred conservatively from both docs and code rather than from one document alone. Evidence: `MEMORY.md`, `docs/plans/active/todo.md`, current browser/AIV work in code.
+- Some migration-era terminology may now be historical rather than operational, but the repository does not fully distinguish intentional compatibility surfaces from stale wording. Evidence: `docs/gui_migration_parity.md`, `docs/INDEX.md`, `docs/QUALITY_SCORE.md`.
+
+## Canonical Validation Commands
+
+- Tight loop on Windows: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+- Quick gate on Windows: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Full parity on Windows: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+
+## ROI-Ranked Backlog
+
+- [ ] 1. Split native-shell automation construction by panel family and isolate action-id helpers
+  - Classification: Architecture improvement
+  - Confidence: High
+  - ROI: High
+  - Effort: M
+  - Why it matters:
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs` is the main semantic contract between the desktop GUI and the automation/test stack.
+    - The file is already 1040 lines, exceeds the repo file-size budget, and mixes unrelated panel builders with shared identifier formatting logic, making future GUI test changes risky.
+  - Evidence:
+    - `tmp/cleanup_audit_hotspots.md` lists `vendor/radiant/src/gui/native_shell/state/automation.rs` as the largest Rust hotspot in the repo.
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs:56` `top_bar_automation`
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs:119` `sidebar_automation`
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs:223` `waveform_automation`
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs:322` `browser_automation`
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs:444` `browser_table_automation`
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs:590` `options_panel_automation`
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs:625` `prompt_automation`
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs:747` `map_canvas_automation`
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs:862` `update_button_specs`
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs:917` `action_slug`
+  - Recommended change:
+    - Split the module into focused submodules per automation surface (`top_bar`, `browser`, `waveform`, `options`, `prompt`, `map`, `update`, shared ids/spec helpers).
+    - Keep the public automation snapshot shape stable while extracting pure helper functions for repeated node/action-id construction.
+    - Add direct, low-level tests around stable action-slug and node-id generation where the behavior is contract-like.
+  - Expected impact:
+    - Lower regression risk for future AIV/automation changes.
+    - Easier review of GUI contract updates and more localized tests.
+  - Risks / tradeoffs:
+    - Medium risk of accidentally changing serialized node ids or action names if extraction is not guarded by tests.
+  - Dependencies:
+    - None.
+  - Suggested validation:
+    - Existing native-shell automation tests.
+    - `scripts/run_gui_contract.ps1`
+    - `scripts/run_gui_suite.ps1`
+    - `scripts/ci_quick.ps1`
+  - Product clarification required: No
+
+- [ ] 2. Split browser rating/tagging flow into focused mutation, refocus, and undo helpers
+  - Classification: Refactor / cleanup
+  - Confidence: High
+  - ROI: High
+  - Effort: M
+  - Why it matters:
+    - The current browser tagging flow is a high-churn area that already carries recent random-navigation, autoscroll, focus, and rating behavior.
+    - The main functions mix rating mutation, navigation policy, playback-related follow-up, and undo assembly, which makes future behavior fixes harder to isolate safely.
+  - Evidence:
+    - `src/app/controller/playback/tagging.rs` is 424 lines and over the file-size budget.
+    - `tmp/cleanup_audit_hotspots.md` flags `adjust_selected_rating` as a large function span.
+    - `src/app/controller/playback/tagging.rs:11` `should_advance_after_rating`
+    - `src/app/controller/playback/tagging.rs:30` `advance_or_commit_after_rating`
+    - `src/app/controller/playback/tagging.rs:58` `next_focus_path_for_removed_rows`
+    - `src/app/controller/playback/tagging.rs:83` `tag_selected`
+    - `src/app/controller/playback/tagging.rs:231` `adjust_selected_rating`
+  - Recommended change:
+    - Extract pure helpers for rating-target resolution and next-focus calculation.
+    - Isolate undo-payload construction from controller mutation.
+    - Keep controller-facing entrypoints thin and explicit about side effects.
+  - Expected impact:
+    - Faster, safer behavior fixes in one of the most user-visible controller paths.
+    - Better direct unit-test coverage of rating/refocus edge cases.
+  - Risks / tradeoffs:
+    - Medium risk of subtle behavior drift around selection anchors and random-navigation follow-up if refactor boundaries are poorly chosen.
+  - Dependencies:
+    - None.
+  - Suggested validation:
+    - Existing browser action, rating, and random-navigation tests under `src/app/controller/tests/**`
+    - `scripts/devcheck.ps1`
+    - `scripts/ci_quick.ps1`
+  - Product clarification required: No
+
+- [ ] 3. Remove public-doc suppressions from GUI action and scenario contract surfaces
+  - Classification: Documentation gap
+  - Confidence: High
+  - ROI: High
+  - Effort: S
+  - Why it matters:
+    - The repo globally denies missing docs, but some of the most externally meaningful GUI contract enums still bypass that rule.
+    - These types define the vocabulary for automation, scenario steps, and GUI coverage metadata; leaving them undocumented increases drift risk between code, tests, and docs.
+  - Evidence:
+    - `src/app_core/actions/catalog.rs` is 463 lines and contains multiple public enums with `#[allow(missing_docs)]`.
+    - `src/gui_test/scenario.rs` exports public scenario/ assertion enums with `#[allow(missing_docs)]`.
+    - `src/app_core/actions/catalog.rs:7` `#[allow(missing_docs)]`
+    - `src/app_core/actions/catalog.rs:10` `pub enum GuiActionKind`
+    - `src/app_core/actions/catalog.rs:234` `#[allow(missing_docs)]`
+    - `src/app_core/actions/catalog.rs:237` `pub enum GuiSurface`
+    - `src/app_core/actions/catalog.rs:249` `#[allow(missing_docs)]`
+    - `src/app_core/actions/catalog.rs:252` `pub enum GuiEffectClass`
+    - `src/app_core/actions/catalog.rs:261` `#[allow(missing_docs)]`
+    - `src/app_core/actions/catalog.rs:264` `pub enum GuiCoverageLayer`
+    - `src/gui_test/scenario.rs:18` `#[allow(missing_docs)]`
+    - `src/gui_test/scenario.rs:21` `pub enum GuiScenarioStep`
+    - `src/gui_test/scenario.rs:31` `#[allow(missing_docs)]`
+    - `src/gui_test/scenario.rs:34` `pub enum GuiAssertion`
+  - Recommended change:
+    - Replace the suppressions with real doc comments on each public enum and variant.
+    - Add direct tests or fixture checks that assert the documented contract surfaces remain stable where appropriate.
+  - Expected impact:
+    - Better discoverability for the GUI automation/test contract.
+    - Reduced need for maintainers to reverse-engineer intent from enum names.
+  - Risks / tradeoffs:
+    - Low risk; the main cost is the time required to write accurate docs rather than placeholder prose.
+  - Dependencies:
+    - None.
+  - Suggested validation:
+    - `scripts/check_rust_public_docs.ps1`
+    - Existing GUI test/catalog unit tests
+    - `scripts/ci_quick.ps1`
+  - Product clarification required: No
+
+- [ ] 4. Add direct raster helper coverage for waveform line painting and split the anti-aliased renderer
+  - Classification: Test gap
+  - Confidence: High
+  - ROI: High
+  - Effort: M
+  - Why it matters:
+    - The waveform line renderer contains dense raster math and anti-alias logic in a single file with no local test module, which makes correctness regressions easy to miss.
+    - This is visually sensitive code where edge-case failures can look like rendering glitches rather than obvious crashes.
+  - Evidence:
+    - `src/waveform/render/paint/lines.rs` is 524 lines and over the file-size budget.
+    - `tmp/cleanup_audit_hotspots.md` flags `draw_line_aa` as a large function span.
+    - `src/waveform/render/paint/lines.rs:269` `blend_pixel`
+    - `src/waveform/render/paint/lines.rs:312` `draw_line_aa`
+    - `src/waveform/render/paint/lines.rs:500` `plot_aa`
+    - No `mod tests` is present in `src/waveform/render/paint/lines.rs`.
+  - Recommended change:
+    - Extract pure raster helpers for coordinate stepping, coverage, and blend math.
+    - Add direct unit tests for boundary conditions (vertical lines, single-pixel lines, clamping, coverage edges, and degenerate segments).
+  - Expected impact:
+    - Better confidence when changing waveform rendering behavior.
+    - Easier debugging of visual regressions without relying only on end-to-end rendering tests.
+  - Risks / tradeoffs:
+    - Medium risk of test brittleness if the extracted helpers are too implementation-shaped instead of behavior-shaped.
+  - Dependencies:
+    - None.
+  - Suggested validation:
+    - New unit tests in `src/waveform/render/paint/**`
+    - Existing waveform render tests
+    - `scripts/devcheck.ps1`
+    - `scripts/ci_quick.ps1`
+  - Product clarification required: No
+
+- [ ] 5. Split updater-helper UI orchestration into async tasks, state transitions, and view projection
+  - Classification: Architecture improvement
+  - Confidence: High
+  - ROI: Medium
+  - Effort: M
+  - Why it matters:
+    - The updater helper currently mixes background work polling, state-machine logic, log buffering, view-model shaping, and native bridge integration in one oversized file.
+    - That makes the update flow harder to reason about and harder to test without end-to-end setup.
+  - Evidence:
+    - `apps/updater-helper/src/ui.rs` is 550 lines and over the file-size budget.
+    - `apps/updater-helper/src/ui.rs:44` `enum ReleaseState`
+    - `apps/updater-helper/src/ui.rs:52` `enum UiStatus`
+    - `apps/updater-helper/src/ui.rs:88` `refresh_release_list`
+    - `apps/updater-helper/src/ui.rs:193` `poll_background_updates`
+    - `apps/updater-helper/src/ui.rs:252` `update_panel_model`
+    - `apps/updater-helper/src/ui.rs:416` `impl NativeAppBridge for UpdateNativeBridge`
+  - Recommended change:
+    - Move async/background task handling, reducer/state transitions, and view-model projection into separate modules.
+    - Add focused tests around state transitions without going through the full bridge path.
+  - Expected impact:
+    - Safer future changes to update/install flows.
+    - Better testability for error and retry states.
+  - Risks / tradeoffs:
+    - Medium risk of rearrangement churn because this app is smaller and the current file is locally understandable to maintainers familiar with it.
+  - Dependencies:
+    - None.
+  - Suggested validation:
+    - `cargo test -p updater-helper`
+    - `scripts/devcheck.ps1`
+    - `scripts/ci_quick.ps1`
+  - Product clarification required: No
+
+- [ ] 6. Separate waveform zoom-cache core behavior from telemetry bookkeeping
+  - Classification: Architecture improvement
+  - Confidence: High
+  - ROI: Medium
+  - Effort: M
+  - Why it matters:
+    - The zoom-cache file currently combines cache semantics, lock/poison handling, eviction policy, and a large block of telemetry globals/counters.
+    - That coupling makes the performance-sensitive cache logic harder to read and change independently from instrumentation.
+  - Evidence:
+    - `src/waveform/zoom_cache.rs` is 541 lines and over the file-size budget.
+    - `src/waveform/zoom_cache.rs:26-36` define telemetry globals.
+    - `src/waveform/zoom_cache.rs:114` `maybe_emit_zoom_cache_telemetry`
+    - `src/waveform/zoom_cache.rs:165` `impl WaveformZoomCache`
+    - `src/waveform/zoom_cache.rs:213` `lock_shard`
+    - `src/waveform/zoom_cache.rs:303` `CacheInner`
+    - `src/waveform/zoom_cache.rs:433` `mod tests`
+  - Recommended change:
+    - Extract telemetry collection/emission into a dedicated sibling module with a narrow interface.
+    - Keep cache mutation and eviction logic in the core module with behavior-first tests.
+  - Expected impact:
+    - Easier reasoning about cache invariants and future perf tuning.
+    - Reduced cognitive overhead in a performance-sensitive path.
+  - Risks / tradeoffs:
+    - Low-to-medium risk of accidentally changing telemetry semantics if the interface is too lossy.
+  - Dependencies:
+    - None.
+  - Suggested validation:
+    - Existing `zoom_cache` tests
+    - Perf-related guardrails if cache behavior changes materially
+    - `scripts/ci_quick.ps1`
+  - Product clarification required: No
+
+- [ ] 7. Separate pure audio-option normalization from controller-side probing and UI mutation
+  - Classification: Refactor / cleanup
+  - Confidence: High
+  - ROI: Medium
+  - Effort: M
+  - Why it matters:
+    - The file already contains one useful pure helper (`normalize_audio_options`) but then layers several stateful controller refresh flows and input/output-specific branches into the same unit.
+    - That makes it harder to add direct behavior tests for normalization and probing decisions independently from controller state mutation.
+  - Evidence:
+    - `src/app/controller/playback/audio_options.rs` is 473 lines and over the file-size budget.
+    - `src/app/controller/playback/audio_options.rs:14` `normalize_audio_options`
+    - `src/app/controller/playback/audio_options.rs:94` `refresh_audio_options`
+    - The same file also contains input refresh behavior, channel-count probing, and UI model projection for both input and output devices.
+  - Recommended change:
+    - Keep normalization/probing-policy helpers in a pure module.
+    - Move controller mutation and UI state application into thinner adapter functions.
+    - Add focused tests for normalization fallbacks, warning precedence, and probe/no-probe mode behavior.
+  - Expected impact:
+    - Better local reasoning in audio settings code.
+    - Lower risk when changing device refresh behavior or warning text.
+  - Risks / tradeoffs:
+    - Medium risk of unintentionally changing current warning precedence or preserving/clearing probed values.
+  - Dependencies:
+    - None.
+  - Suggested validation:
+    - Existing audio-options tests
+    - `scripts/devcheck.ps1`
+    - `scripts/ci_quick.ps1`
+  - Product clarification required: No
+
+- [ ] 8. Add Windows-friendly parity for the cleanup-hotspot audit helper or document its Bash-only status explicitly
+  - Classification: Developer-experience improvement
+  - Confidence: High
+  - ROI: Medium
+  - Effort: S
+  - Why it matters:
+    - The docs present Windows PowerShell wrappers as the default on this repo, but the cleanup-hotspot audit helper only exists as a Bash script.
+    - On this Windows setup, running the helper through Bash produced repeated `rg: command not found` errors even though PowerShell-side tooling is available, which makes ROI planning less reproducible.
+  - Evidence:
+    - `docs/INDEX.md:26` lists `bash scripts/audit_cleanup_hotspots.sh`.
+    - `docs/INDEX.md:119` documents only `scripts/audit_cleanup_hotspots.sh`.
+    - `AGENTS.md` says Windows sessions should use PowerShell wrappers instead of Bash workflow scripts.
+    - `scripts/audit_cleanup_hotspots.sh` exists, but no matching `scripts/audit_cleanup_hotspots.ps1` wrapper exists in the repository.
+    - A live run on this workstation generated `tmp/cleanup_audit_hotspots.md` but emitted repeated `rg: command not found` errors from the Bash environment.
+  - Recommended change:
+    - Prefer adding a PowerShell wrapper or native implementation that reuses the same report format.
+    - If Bash-only support is intentional, document that constraint clearly in `docs/INDEX.md` and `docs/README.md` so Windows users do not assume parity.
+  - Expected impact:
+    - More reliable audit/planning workflows for Windows-based contributors and agent sessions.
+    - Lower friction when repeating cleanup/perf audits.
+  - Risks / tradeoffs:
+    - Low risk; the main tradeoff is whether to maintain two wrappers or one explicitly Bash-only tool.
+  - Dependencies:
+    - None.
+  - Suggested validation:
+    - Run the audit helper from the documented Windows path and verify it produces the expected Markdown snapshot without shell-environment failures.
+    - `scripts/check_script_guardrails.ps1`
+  - Product clarification required: Yes, if maintainers intentionally want this helper to remain Bash-only
+
+- [ ] 9. Split oversized test hubs into domain-focused modules to improve discoverability and reviewability
+  - Classification: Refactor / cleanup
+  - Confidence: Medium
+  - ROI: Medium
+  - Effort: M
+  - Why it matters:
+    - Several high-value test files have become large enough that finding the right regression or extending the right fixture is slower than it should be.
+    - This is mostly a maintainability/readability cost rather than a correctness problem, so it ranks after the production hotspots above.
+  - Evidence:
+    - `src/app_core/native_bridge/tests/projection_cache.rs` is 671 lines with dozens of tests spanning cache keys, dirty-segment behavior, env parsing, and metrics.
+    - `src/app/controller/tests/browser_core.rs` is 532 lines.
+    - `src/app/controller/tests/focus_random.rs` is 516 lines.
+    - `src/app_core/native_bridge/tests/projection_cache.rs` mixes unrelated concerns in one file, for example cache-key tests at the top and metrics/env-flag tests near the end.
+  - Recommended change:
+    - Split these files by domain (`cache_key`, `dirty_segments`, `metrics`, `browser_focus`, `random_nav`, etc.) while preserving existing test semantics.
+    - Use module names that match the production responsibilities already used elsewhere in the repo.
+  - Expected impact:
+    - Faster navigation and lower review friction for future regression additions.
+    - Clearer ownership boundaries in test code.
+  - Risks / tradeoffs:
+    - Low risk to behavior, but medium review churn because file moves can obscure semantic deltas.
+  - Dependencies:
+    - None.
+  - Suggested validation:
+    - Existing affected test suites
+    - `scripts/devcheck.ps1`
+    - `scripts/ci_quick.ps1`
+  - Product clarification required: No
+
+## Open Questions / Missing Definitions
+
+- [!] 1. Is desktop GUI automation still intended to remain opt-in/nightly, or is promotion into faster CI lanes now a near-term goal once window-focus reliability stabilizes?
+  - Evidence:
+    - `docs/gui_test_platform.md` describes the desktop AIV lane as opt-in and documents current Windows foreground limitations.
+    - `AGENTS.md` and `docs/plans/active/todo.md` still treat GUI/browser stability as the active maintenance lane.
+  - Why this matters:
+    - It changes the ROI of investments in automation ergonomics, runtime stability checks, and contract hardening.
+  - Affected files/modules:
+    - `docs/gui_test_platform.md`
+    - `src/gui_test/**`
+    - `scripts/run_gui_aiv_suite.ps1`
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs`
+  - Risk if guessed incorrectly:
+    - The audit could over-prioritize or under-prioritize GUI test-platform work relative to core cleanup.
+  - Most conservative provisional assumption:
+    - Treat desktop AIV as important but still opt-in until the repo documents a promotion decision explicitly.
+
+- [!] 2. Which remaining migration-era boundaries are intentional compatibility surfaces, and which are simply stale terminology?
+  - Evidence:
+    - `docs/gui_migration_parity.md` says there are no remaining migration blockers.
+    - Several docs and checks still foreground migration/legacy boundary language (`docs/INDEX.md`, `docs/QUALITY_SCORE.md`, `scripts/check_migration_boundary.*`).
+  - Why this matters:
+    - It affects whether cleanup work should target code removal, doc clarification, or leave the compatibility boundary intact.
+  - Affected files/modules:
+    - `docs/gui_migration_parity.md`
+    - `docs/INDEX.md`
+    - `docs/QUALITY_SCORE.md`
+    - `scripts/check_migration_boundary.*`
+    - `src/app_core/**`
+  - Risk if guessed incorrectly:
+    - Cleanup work could remove or weaken boundaries that are still intentionally guarding future changes.
+  - Most conservative provisional assumption:
+    - Treat the boundaries as intentional until a maintainer explicitly declares a narrower scope.
+
+- [!] 3. Is the cleanup-hotspot audit helper expected to support Windows as a first-class workflow?
+  - Evidence:
+    - The repo strongly recommends PowerShell wrappers on Windows, but the audit helper currently exists only as `scripts/audit_cleanup_hotspots.sh`.
+    - A live run on this machine hit Bash-path tooling failures (`rg` unavailable in that environment).
+  - Why this matters:
+    - It determines whether item 8 is a real tooling gap or just a documentation gap.
+  - Affected files/modules:
+    - `docs/INDEX.md`
+    - `docs/README.md`
+    - `scripts/audit_cleanup_hotspots.sh`
+  - Risk if guessed incorrectly:
+    - The plan could introduce duplicate tooling where maintainers want a single supported path, or leave Windows contributors on an undocumented unsupported workflow.
+  - Most conservative provisional assumption:
+    - Prefer documenting the current Bash-only reality unless maintainers want explicit Windows parity.
+
+## Rejected Ideas
+
+- [-] Remove all `#[allow(dead_code)]` suppressions from `vendor/radiant/src/gui/layout_core/model.rs`
+  - Why it was considered:
+    - `docs/QUALITY_SCORE.md` explicitly calls out suppression debt.
+  - Why it was rejected:
+    - The file itself documents a broader enum/config surface that is intentionally exercised by adapters and tests; the evidence does not show that removal is safe right now.
+  - What evidence was missing:
+    - Concrete proof that the currently “dead” variants are truly unused debt rather than intentionally preserved surface area.
+
+- [-] Plan a broad legacy-runtime deletion sweep
+  - Why it was considered:
+    - Migration/parity documents suggest the main GUI migration has already landed.
+  - Why it was rejected:
+    - The repository still maintains explicit boundary checks and compatibility-oriented docs; there is not enough evidence from this audit slice to justify a sweeping deletion program.
+  - What evidence was missing:
+    - A current, explicit repo statement that the remaining compatibility layers are obsolete and removable.
+
+- [-] Recommend promoting desktop AIV into `ci_quick` immediately
+  - Why it was considered:
+    - GUI automation is prominent in current docs and recent work.
+  - Why it was rejected:
+    - `docs/gui_test_platform.md` still documents live Windows focus/foreground limitations, so immediate promotion would overstate current reliability.
+  - What evidence was missing:
+    - A current repo signal that the AIV lane is stable enough for fast-lane CI.

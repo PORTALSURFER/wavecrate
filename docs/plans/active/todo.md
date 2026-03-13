@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-13T08:34:00Z
+Last updated (UTC): 2026-03-13T13:57:47Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -11,14 +11,14 @@ Purpose:
 
 ## Current lane
 
-- GUI/browser interaction stability and desktop regression coverage maintenance.
-- The browser autoscroll threshold fix and its targeted desktop AIV coverage are complete on `next`.
-- Perf Phase 2 items 1-11 in `tmp/perf_plan.md` remain complete.
-- The cleanup backlog in `tmp/cleanup_plan.md` is parked after Phase 1 and is waiting on explicit user confirmation before any Phase 2 implementation.
+- Evidence-driven improvement audit planning.
+- Phase 1 is complete on disk in `tmp/improvement_audit_plan.md`.
+- No improvement-audit implementation work has started; explicit user confirmation is required before Phase 2 begins.
+- The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. For future browser/sample-list interaction work, rerun `scripts/run_gui_aiv_suite.ps1 -PackName desktop-regression -CaseFilter browser_interior_click_keeps_viewport`.
-2. Keep `tmp/cleanup_plan.md` dormant unless the user explicitly reopens cleanup Phase 2.
-3. After the active lane changes, sync `AGENTS.md`, `MEMORY.md`, and this file.
-4. Keep using the PowerShell wrappers (`devcheck.ps1`, `ci_quick.ps1`) as the validation gate on Windows.
+1. Wait for explicit user confirmation before implementing anything from `tmp/improvement_audit_plan.md`.
+2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
+3. If Phase 2 is approved, execute `tmp/improvement_audit_plan.md` in ROI order and use `devcheck.ps1` plus `ci_quick.ps1` as the Windows validation gate.
+4. After the active lane changes again, sync `AGENTS.md`, `MEMORY.md`, and this file.
