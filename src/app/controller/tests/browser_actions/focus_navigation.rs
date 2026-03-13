@@ -78,7 +78,7 @@ fn moving_browser_focus_queues_async_preview_playback() {
 }
 
 #[test]
-fn native_focus_browser_row_commits_selection_load() {
+fn native_focus_browser_row_queues_async_preview_without_blocking_selection() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
         sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
@@ -99,15 +99,20 @@ fn native_focus_browser_row_commits_selection_load() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("two.wav"))
     );
-    let queued_or_loaded_two = controller
-        .runtime
-        .jobs
-        .pending_audio
-        .as_ref()
-        .is_some_and(|pending| pending.relative_path == PathBuf::from("two.wav"))
-        || controller.ui.waveform.loading.as_deref() == Some(Path::new("two.wav"))
-        || controller.sample_view.wav.loaded_wav.as_deref() == Some(Path::new("two.wav"));
-    assert!(queued_or_loaded_two);
+    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav,
+        None
+    );
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_audio
+            .as_ref()
+            .map(|pending| pending.relative_path.clone()),
+        Some(PathBuf::from("two.wav"))
+    );
     assert_eq!(
         controller
             .runtime

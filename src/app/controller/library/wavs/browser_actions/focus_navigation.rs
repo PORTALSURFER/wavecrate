@@ -94,13 +94,15 @@ impl AppController {
         self.focus_browser_row_with_intent(visible_row, BrowserFocusIntent::Commit);
     }
 
-    /// Focus and commit a browser row, then request immediate playback.
+    /// Focus and commit a browser row, then queue non-blocking preview playback.
     ///
-    /// Used by native pointer row selection so click-focus behavior matches
-    /// keyboard focus progression expectations.
+    /// Pointer row selection should update browser focus immediately, even when
+    /// the newly focused sample still needs to load. Playback therefore follows
+    /// the latest-only async preview path used by keyboard navigation instead of
+    /// the synchronous transport entrypoint.
     pub fn focus_browser_row_and_play_action(&mut self, visible_row: usize) {
         self.focus_browser_row_with_intent(visible_row, BrowserFocusIntent::Commit);
-        self.request_playback_for_focused_selection();
+        self.request_async_preview_playback_for_focused_selection();
     }
 
     /// Focus a browser row with explicit preview-vs-commit semantics.

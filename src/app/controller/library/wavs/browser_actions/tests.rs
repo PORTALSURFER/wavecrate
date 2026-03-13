@@ -161,3 +161,52 @@ fn focus_browser_row_and_play_uses_active_loop_state() {
     }
     assert!(player_ref.is_looping());
 }
+
+#[test]
+/// Direct browser click playback should keep selection responsive while loading catches up.
+fn focus_browser_row_and_play_queues_latest_preview_for_unloaded_sample() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+    ]);
+    controller.settings.feature_flags.autoplay_selection = false;
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+
+    controller.focus_browser_row_only(0);
+    controller.sample_view.wav.loaded_wav = Some(PathBuf::from("one.wav"));
+    controller.ui.loaded_wav = Some(PathBuf::from("one.wav"));
+    controller.runtime.jobs.pending_audio = None;
+    controller.runtime.jobs.pending_playback = None;
+    controller.ui.waveform.loading = None;
+
+    controller.focus_browser_row_and_play_action(1);
+
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav,
+        None
+    );
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_audio
+            .as_ref()
+            .map(|pending| pending.relative_path.clone()),
+        Some(PathBuf::from("two.wav"))
+    );
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_playback
+            .as_ref()
+            .map(|pending| pending.relative_path.clone()),
+        Some(PathBuf::from("two.wav"))
+    );
+}
