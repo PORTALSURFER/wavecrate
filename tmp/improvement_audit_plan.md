@@ -194,11 +194,11 @@ Branch: `next`
 - Product clarification required: No
 - Completion:
   - Date: 2026-03-13
-  - Commit: pending current item commit
+  - Commit: `8aa2a333` (`docs(gui): document public test contracts`)
   - Assumption used: concise one-line variant docs are sufficient here because the surrounding module docs and catalog metadata already carry the deeper semantics for each action family.
   - Validation: `cargo doc -p sempal --no-deps`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 5. Split native-shell frame-build browser, chrome, and overlay builders by responsibility
+### [x] 5. Split native-shell frame-build browser, chrome, and overlay builders by responsibility
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -236,6 +236,11 @@ Branch: `next`
   - GUI contract/AIV runs for browser and waveform flows
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: `vendor/radiant` `8b94b016` (`refactor(gui): split frame build surfaces`)
+  - Assumption used: a mechanical module split is the safe first step here; preserving existing function names and call sites reduces render-path regression risk while still shrinking the responsibility surface.
+  - Validation: `cargo test -p radiant frame_build -- --nocapture`, `cargo test -p radiant overlay -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 6. Add direct helper coverage and smaller internal seams for waveform line rasterization
 
