@@ -242,7 +242,7 @@ Branch: `next`
   - Assumption used: a mechanical module split is the safe first step here; preserving existing function names and call sites reduces render-path regression risk while still shrinking the responsibility surface.
   - Validation: `cargo test -p radiant frame_build -- --nocapture`, `cargo test -p radiant overlay -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 6. Add direct helper coverage and smaller internal seams for waveform line rasterization
+### [x] 6. Add direct helper coverage and smaller internal seams for waveform line rasterization
 
 - Classification: Test gap
 - Confidence: High
@@ -275,6 +275,11 @@ Branch: `next`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: pending current item commit
+  - Assumption used: splitting interpolation and raster helpers behind the existing `WaveformRenderer` entrypoints is the safest seam because it improves direct coverage without changing the external render API.
+  - Validation: `cargo test waveform::render::paint::lines -- --nocapture`, `cargo test waveform::render:: -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 7. Split waveform pointer routing into hit-resolution, deselection, and drag-mode helpers
 
