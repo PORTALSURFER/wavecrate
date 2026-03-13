@@ -49,6 +49,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
         OptionsPanelOpen(bool),
         InputMonitoring(bool),
         PendingSeek(Option<u16>),
+        SelectionRange(Option<(u16, u16)>),
         EditSelectionRange(Option<(u16, u16)>),
         BothSelectionRangesCleared,
         UpdateStatus(UpdateStatus),
@@ -120,6 +121,13 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                 position_milli: 333,
             },
             expected: Expected::PendingSeek(Some(333)),
+        },
+        Case {
+            label: "waveform begin selection group",
+            action: NativeUiAction::BeginWaveformSelectionAt {
+                anchor_micros: 125_000,
+            },
+            expected: Expected::SelectionRange(Some((125, 125))),
         },
         Case {
             label: "waveform edit group",
@@ -214,6 +222,15 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                     case.label
                 );
             }
+            Expected::SelectionRange(expected) => {
+                let actual = controller.ui.waveform.selection.map(|range| {
+                    (
+                        (range.start() * 1000.0).round() as u16,
+                        (range.end() * 1000.0).round() as u16,
+                    )
+                });
+                assert_eq!(actual, expected, "{}", case.label);
+            }
             Expected::EditSelectionRange(expected) => {
                 let actual = controller.ui.waveform.edit_selection.map(|range| {
                     (
@@ -232,6 +249,23 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
             }
         }
     }
+}
+
+#[test]
+fn apply_native_begin_waveform_selection_at_preserves_exact_anchor_with_bpm_snap() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.set_bpm_snap_enabled(true);
+    controller.set_bpm_value(120.0);
+
+    controller.apply_native_ui_action(NativeUiAction::BeginWaveformSelectionAt {
+        anchor_micros: 5_000,
+    });
+
+    assert_eq!(
+        controller.ui.waveform.selection,
+        Some(crate::selection::SelectionRange::new(0.005, 0.005))
+    );
+    assert!(controller.is_selection_dragging());
 }
 
 #[test]

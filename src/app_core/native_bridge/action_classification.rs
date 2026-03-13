@@ -27,6 +27,7 @@ pub(super) fn classify_action_interaction(
         NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::SetWaveformViewCenter { .. }
+        | NativeUiAction::BeginWaveformSelectionAt { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
         | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
         | NativeUiAction::SetWaveformEditSelectionRange { .. }
@@ -67,6 +68,7 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
     matches!(
         action,
         NativeUiAction::SetWaveformCursor { .. }
+            | NativeUiAction::BeginWaveformSelectionAt { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
             | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
             | NativeUiAction::SetWaveformEditSelectionRange { .. }

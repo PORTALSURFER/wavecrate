@@ -88,6 +88,7 @@ pub enum GuiActionKind {
     CommitVolumeSetting,
     SeekWaveform,
     SetWaveformCursor,
+    BeginWaveformSelectionAt,
     SetWaveformSelectionRange,
     SetWaveformSelectionRangeSmartScale,
     SetWaveformEditSelectionRange,
@@ -121,7 +122,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 109] = [
+    pub const ALL: [Self; 110] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -202,6 +203,7 @@ impl GuiActionKind {
         Self::CommitVolumeSetting,
         Self::SeekWaveform,
         Self::SetWaveformCursor,
+        Self::BeginWaveformSelectionAt,
         Self::SetWaveformSelectionRange,
         Self::SetWaveformSelectionRangeSmartScale,
         Self::SetWaveformEditSelectionRange,
@@ -417,6 +419,7 @@ gui_action_catalog!(
     CommitVolumeSetting {} => { id: "commit_volume_setting", surface: Transport, effect: StateOnly, coverage: [SemanticContract, RuntimeInput], fixtures: ["transport"], sample: NativeUiAction::CommitVolumeSetting },
     SeekWaveform { position_milli } => { id: "seek_waveform", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot, DesktopAiv], fixtures: ["waveform"], sample: NativeUiAction::SeekWaveform { position_milli: 450 } },
     SetWaveformCursor { position_milli } => { id: "set_waveform_cursor", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot, DesktopAiv], fixtures: ["waveform"], sample: NativeUiAction::SetWaveformCursor { position_milli: 450 } },
+    BeginWaveformSelectionAt { anchor_micros } => { id: "begin_waveform_selection_at", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::BeginWaveformSelectionAt { anchor_micros: 125_000 } },
     SetWaveformSelectionRange { start_micros, end_micros, preserve_view_edge } => { id: "set_waveform_selection_range", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot, DesktopAiv], fixtures: ["waveform"], sample: NativeUiAction::SetWaveformSelectionRange { start_micros: 100_000, end_micros: 300_000, preserve_view_edge: false } },
     SetWaveformSelectionRangeSmartScale { start_micros, end_micros } => { id: "set_waveform_selection_range_smart_scale", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::SetWaveformSelectionRangeSmartScale { start_micros: 100_000, end_micros: 300_000 } },
     SetWaveformEditSelectionRange { start_micros, end_micros, preserve_view_edge } => { id: "set_waveform_edit_selection_range", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::SetWaveformEditSelectionRange { start_micros: 100_000, end_micros: 300_000, preserve_view_edge: false } },
