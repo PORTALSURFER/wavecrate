@@ -156,11 +156,11 @@ Branch: `next`
 - Product clarification required: No
 - Completion:
   - Date: 2026-03-13
-  - Commit: pending current item commit
+  - Commit: `f15ba421` (`docs(quality): prune stale file size debt entries`)
   - Assumption used: removing nonexistent or now-under-budget allowlist entries does not change guardrail intent; it only realigns the debt ledger with the live tree.
-  - Validation: pending current item validation run
+  - Validation: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 4. Remove `missing_docs` suppressions from the public GUI contract surfaces
+### [x] 4. Remove `missing_docs` suppressions from the public GUI contract surfaces
 
 - Classification: Documentation gap
 - Confidence: High
@@ -192,6 +192,11 @@ Branch: `next`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: pending current item commit
+  - Assumption used: concise one-line variant docs are sufficient here because the surrounding module docs and catalog metadata already carry the deeper semantics for each action family.
+  - Validation: `cargo doc -p sempal --no-deps`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 5. Split native-shell frame-build browser, chrome, and overlay builders by responsibility
 

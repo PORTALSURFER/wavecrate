@@ -15,41 +15,80 @@ pub struct GuiScenario {
 }
 
 /// One executable step in a declarative GUI scenario.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum GuiScenarioStep {
     /// Capture the latest automation snapshot without mutating state.
-    CaptureSnapshot { label: String },
+    CaptureSnapshot {
+        /// Stable artifact label used to name the captured snapshot output.
+        label: String,
+    },
     /// Dispatch a concrete native UI action.
-    DispatchAction { action: NativeUiAction },
+    DispatchAction {
+        /// Concrete native UI action to apply to the in-process GUI harness.
+        action: NativeUiAction,
+    },
     /// Evaluate a deterministic semantic assertion.
-    Assert { assertion: GuiAssertion },
+    Assert {
+        /// Semantic assertion to evaluate against the latest automation snapshot.
+        assertion: GuiAssertion,
+    },
 }
 
 /// Deterministic assertion supported by the in-process GUI scenario runner.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum GuiAssertion {
     /// Assert that a semantic automation node exists.
-    NodePresent { node_id: String },
+    NodePresent {
+        /// Stable automation node identifier expected to exist.
+        node_id: String,
+    },
     /// Assert that a semantic automation node does not exist.
-    NodeAbsent { node_id: String },
+    NodeAbsent {
+        /// Stable automation node identifier expected to be absent.
+        node_id: String,
+    },
     /// Assert that a semantic automation node has the requested selected state.
-    NodeSelected { node_id: String, selected: bool },
+    NodeSelected {
+        /// Stable automation node identifier to inspect.
+        node_id: String,
+        /// Expected selected state for the targeted node.
+        selected: bool,
+    },
     /// Assert that a semantic automation node has the requested enabled state.
-    NodeEnabled { node_id: String, enabled: bool },
+    NodeEnabled {
+        /// Stable automation node identifier to inspect.
+        node_id: String,
+        /// Expected enabled state for the targeted node.
+        enabled: bool,
+    },
     /// Assert that a semantic automation node value contains the requested text.
-    NodeValueContains { node_id: String, needle: String },
+    NodeValueContains {
+        /// Stable automation node identifier to inspect.
+        node_id: String,
+        /// Text fragment expected within the node value.
+        needle: String,
+    },
     /// Assert that a semantic automation node advertises one stable action id.
-    NodeActionAvailable { node_id: String, action_id: String },
+    NodeActionAvailable {
+        /// Stable automation node identifier to inspect.
+        node_id: String,
+        /// Stable action identifier expected on the node.
+        action_id: String,
+    },
     /// Assert that a semantic automation node metadata value contains the requested text.
     NodeMetadataContains {
+        /// Stable automation node identifier to inspect.
         node_id: String,
+        /// Metadata key expected on the node.
         key: String,
+        /// Text fragment expected within the metadata value.
         needle: String,
     },
     /// Assert that the stable action id is present in the host action catalog.
-    ActionCataloged { action_id: String },
+    ActionCataloged {
+        /// Stable action identifier expected in the GUI action catalog.
+        action_id: String,
+    },
 }
