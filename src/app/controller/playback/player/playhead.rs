@@ -89,13 +89,12 @@ fn take_due_loop_retarget(
     controller: &mut AppController,
     player: &Rc<RefCell<AudioPlayer>>,
 ) -> Option<f32> {
-    let pending = controller.audio.pending_loop_retarget?;
     let player_ref = player.borrow();
-    if !player_ref.is_playing() || !player_ref.is_looping() {
-        controller.audio.pending_loop_retarget = None;
-        return None;
-    }
-    (Instant::now() >= pending.deadline).then_some(pending.start_override)
+    controller.audio.take_due_loop_retarget(
+        Instant::now(),
+        player_ref.is_playing(),
+        player_ref.is_looping(),
+    )
 }
 
 fn playhead_completed_span(controller: &AppController, progress: f32, is_looping: bool) -> bool {

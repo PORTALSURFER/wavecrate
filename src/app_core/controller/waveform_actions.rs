@@ -118,9 +118,7 @@ pub(super) fn apply_waveform_native_ui_action(
             alt_down,
         ),
         NativeUiAction::FinishWaveformSelectionDrag => controller.finish_active_drag(),
-        NativeUiAction::FinishWaveformSelectionSmartScaleDrag => {
-            controller.finish_selection_drag()
-        }
+        NativeUiAction::FinishWaveformSelectionSmartScaleDrag => controller.finish_selection_drag(),
         NativeUiAction::SaveWaveformSelectionToBrowser => {
             controller.save_waveform_selection_or_slices_to_browser_action(true)
         }
@@ -128,6 +126,7 @@ pub(super) fn apply_waveform_native_ui_action(
         NativeUiAction::ClearWaveformEditSelection => {
             controller.clear_waveform_edit_selection_with_focus()
         }
+        NativeUiAction::ClearWaveformSelections => controller.clear_waveform_marks_with_focus(),
         NativeUiAction::SetWaveformViewCenter { center_micros } => {
             controller.scroll_waveform_view_with_focus(center_micros)
         }

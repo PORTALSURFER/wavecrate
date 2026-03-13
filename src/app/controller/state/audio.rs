@@ -38,6 +38,41 @@ impl ControllerAudioState {
             pending_age_update: None,
         }
     }
+
+    /// Clear any deferred loop retarget scheduled for the active player.
+    pub(crate) fn clear_pending_loop_retarget(&mut self) {
+        self.pending_loop_retarget = None;
+    }
+
+    /// Schedule one loop retarget to apply at the provided cycle boundary.
+    pub(crate) fn schedule_loop_retarget(&mut self, deadline: Instant, start_override: f32) {
+        self.pending_loop_retarget = Some(PendingLoopRetarget {
+            deadline,
+            start_override: start_override.clamp(0.0, 1.0),
+        });
+    }
+
+    /// Consume one deferred loop retarget once it becomes due.
+    ///
+    /// The retarget is cleared eagerly when playback or loop mode is no longer
+    /// active so later selection edits cannot accidentally revive stale state.
+    pub(crate) fn take_due_loop_retarget(
+        &mut self,
+        now: Instant,
+        is_playing: bool,
+        is_looping: bool,
+    ) -> Option<f32> {
+        let pending = self.pending_loop_retarget?;
+        if !is_playing || !is_looping {
+            self.pending_loop_retarget = None;
+            return None;
+        }
+        if now < pending.deadline {
+            return None;
+        }
+        self.pending_loop_retarget = None;
+        Some(pending.start_override)
+    }
 }
 
 #[derive(Clone)]

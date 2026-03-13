@@ -114,7 +114,7 @@ pub(crate) fn finish_edit_selection_drag(controller: &mut AppController) {
 }
 
 pub(crate) fn set_selection_range(controller: &mut AppController, range: SelectionRange) {
-    controller.audio.pending_loop_retarget = None;
+    controller.audio.clear_pending_loop_retarget();
     controller.selection_state.range.set_range(Some(range));
     controller.apply_selection(Some(range));
 
@@ -161,7 +161,7 @@ pub(crate) fn is_edit_selection_dragging(controller: &AppController) -> bool {
 }
 
 pub(crate) fn clear_selection(controller: &mut AppController) {
-    controller.audio.pending_loop_retarget = None;
+    controller.audio.clear_pending_loop_retarget();
     let before = controller
         .selection_state
         .range
@@ -190,7 +190,7 @@ fn adjust_playback_after_finished_selection_drag(controller: &mut AppController)
         .map(|p| p.borrow().is_playing())
         .unwrap_or(false);
     if !is_playing {
-        controller.audio.pending_loop_retarget = None;
+        controller.audio.clear_pending_loop_retarget();
         return;
     }
     let Some(selection) = controller
@@ -200,14 +200,14 @@ fn adjust_playback_after_finished_selection_drag(controller: &mut AppController)
         .or(controller.ui.waveform.selection)
         .filter(|range| super::super::selection_meets_bpm_min_for_playback(controller, *range))
     else {
-        controller.audio.pending_loop_retarget = None;
+        controller.audio.clear_pending_loop_retarget();
         return;
     };
     let playhead = controller.ui.waveform.playhead.position.clamp(0.0, 1.0);
     let playhead_inside = playhead >= selection.start() && playhead <= selection.end();
 
     if !controller.ui.waveform.loop_enabled {
-        controller.audio.pending_loop_retarget = None;
+        controller.audio.clear_pending_loop_retarget();
         let start_override = Some(if playhead_inside {
             playhead
         } else {
@@ -220,7 +220,7 @@ fn adjust_playback_after_finished_selection_drag(controller: &mut AppController)
     }
 
     if !playhead_inside {
-        controller.audio.pending_loop_retarget = None;
+        controller.audio.clear_pending_loop_retarget();
         if let Err(err) = controller.play_audio(true, Some(selection.start())) {
             controller.set_status(err, StatusTone::Error);
         }

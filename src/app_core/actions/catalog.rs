@@ -106,6 +106,7 @@ pub enum GuiActionKind {
     BeginWaveformEditSelectionShift,
     ClearWaveformSelection,
     ClearWaveformEditSelection,
+    ClearWaveformSelections,
     SetWaveformViewCenter,
     ZoomWaveform,
     ZoomWaveformToSelection,
@@ -120,7 +121,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 108] = [
+    pub const ALL: [Self; 109] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -219,6 +220,7 @@ impl GuiActionKind {
         Self::BeginWaveformEditSelectionShift,
         Self::ClearWaveformSelection,
         Self::ClearWaveformEditSelection,
+        Self::ClearWaveformSelections,
         Self::SetWaveformViewCenter,
         Self::ZoomWaveform,
         Self::ZoomWaveformToSelection,
@@ -433,6 +435,7 @@ gui_action_catalog!(
     BeginWaveformEditSelectionShift { pointer_micros, start_micros, end_micros } => { id: "begin_waveform_edit_selection_shift", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::BeginWaveformEditSelectionShift { pointer_micros: 200_000, start_micros: 100_000, end_micros: 300_000 } },
     ClearWaveformSelection {} => { id: "clear_waveform_selection", surface: Waveform, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::ClearWaveformSelection },
     ClearWaveformEditSelection {} => { id: "clear_waveform_edit_selection", surface: Waveform, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::ClearWaveformEditSelection },
+    ClearWaveformSelections {} => { id: "clear_waveform_selections", surface: Waveform, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot, DesktopAiv], fixtures: ["waveform"], sample: NativeUiAction::ClearWaveformSelections },
     SetWaveformViewCenter { center_micros } => { id: "set_waveform_view_center", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot, DesktopAiv], fixtures: ["waveform"], sample: NativeUiAction::SetWaveformViewCenter { center_micros: 500_000 } },
     ZoomWaveform { zoom_in, steps, anchor_ratio_micros } => { id: "zoom_waveform", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot, DesktopAiv], fixtures: ["waveform"], sample: NativeUiAction::ZoomWaveform { zoom_in: true, steps: 1, anchor_ratio_micros: Some(500_000) } },
     ZoomWaveformToSelection {} => { id: "zoom_waveform_to_selection", surface: Waveform, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::ZoomWaveformToSelection },

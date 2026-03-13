@@ -20,6 +20,7 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
             | NativeUiAction::FinishWaveformEditFadeDrag
             | NativeUiAction::ClearWaveformSelection
             | NativeUiAction::ClearWaveformEditSelection
+            | NativeUiAction::ClearWaveformSelections
             | NativeUiAction::SetWaveformBpmValue { .. }
             | NativeUiAction::AdjustWaveformBpm { .. }
             | NativeUiAction::ZoomWaveform { .. }
@@ -83,6 +84,10 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::FinishWaveformEditFadeDrag
         | NativeUiAction::ClearWaveformSelection
         | NativeUiAction::ClearWaveformEditSelection => Some((
+            DerivedNodeId::WaveformState,
+            DirtyReason::WaveformOverlayAction,
+        )),
+        NativeUiAction::ClearWaveformSelections => Some((
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformOverlayAction,
         )),

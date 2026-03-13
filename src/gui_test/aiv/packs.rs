@@ -5,12 +5,12 @@ mod cases;
 use self::cases::{
     browser_interior_click_keeps_viewport_after_down_scroll_case,
     browser_interior_click_keeps_viewport_after_up_scroll_case,
-    browser_repeated_scroll_refocus_preserves_guard_band_case,
     browser_refocus_after_down_scroll_keeps_single_focus_case,
-    browser_wheel_scroll_uses_rendered_viewport_case,
-    browser_search_select_commit_case, browser_search_type_smoke_case,
-    browser_tabs_and_rating_filters_case, options_open_close_case, prompt_cancel_case,
+    browser_repeated_scroll_refocus_preserves_guard_band_case, browser_search_select_commit_case,
+    browser_search_type_smoke_case, browser_tabs_and_rating_filters_case,
+    browser_wheel_scroll_uses_rendered_viewport_case, options_open_close_case, prompt_cancel_case,
     prompt_confirm_case, startup_ready_case, update_panel_actions_case,
+    waveform_outside_click_clears_both_marks_case,
     waveform_transport_cursor_selection_zoom_case,
 };
 use super::{
@@ -58,6 +58,7 @@ fn desktop_regression_pack() -> GuiAivSuiteManifest {
             prompt_confirm_case(),
             prompt_cancel_case(),
             waveform_transport_cursor_selection_zoom_case(),
+            waveform_outside_click_clears_both_marks_case(),
             update_panel_actions_case(),
         ],
     }
@@ -71,11 +72,18 @@ mod tests {
     #[test]
     fn desktop_pack_names_resolve_with_expected_case_lists() {
         let smoke = gui_aiv_suite_manifest(DEFAULT_GUI_AIV_PACK).expect("smoke pack");
-        let regression =
-            gui_aiv_suite_manifest(REGRESSION_GUI_AIV_PACK).expect("regression pack");
+        let regression = gui_aiv_suite_manifest(REGRESSION_GUI_AIV_PACK).expect("regression pack");
         assert_eq!(
-            smoke.cases.iter().map(|case| case.name.as_str()).collect::<Vec<_>>(),
-            vec!["startup_ready", "options_open_close", "browser_search_type_smoke"]
+            smoke
+                .cases
+                .iter()
+                .map(|case| case.name.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "startup_ready",
+                "options_open_close",
+                "browser_search_type_smoke"
+            ]
         );
         assert_eq!(
             regression
@@ -96,6 +104,7 @@ mod tests {
                 "prompt_confirm",
                 "prompt_cancel",
                 "waveform_transport_cursor_selection_zoom",
+                "waveform_outside_click_clears_both_marks",
                 "update_panel_actions",
             ]
         );
@@ -103,8 +112,7 @@ mod tests {
 
     #[test]
     fn regression_pack_covers_required_nodes_and_assertion_verbs() {
-        let regression =
-            gui_aiv_suite_manifest(REGRESSION_GUI_AIV_PACK).expect("regression pack");
+        let regression = gui_aiv_suite_manifest(REGRESSION_GUI_AIV_PACK).expect("regression pack");
         let json = serde_json::to_value(&regression).expect("serialize manifest");
         let json_text = serde_json::to_string(&json).expect("serialize manifest text");
         for node_id in [
@@ -126,6 +134,8 @@ mod tests {
             "overlay.prompt.cancel",
             "overlay.prompt.input",
             "waveform.region",
+            "waveform.selection",
+            "waveform.edit_selection",
             "waveform.toolbar.loop",
             "shell.top_bar.update.open",
             "shell.top_bar.update.dismiss",

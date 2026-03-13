@@ -1,5 +1,4 @@
 use super::*;
-use crate::app::controller::state::audio::PendingLoopRetarget;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -25,7 +24,7 @@ pub(crate) fn ensure_player(
 /// Queue loop disable after the current cycle boundary to avoid mid-cycle discontinuities.
 pub(crate) fn defer_loop_disable_after_cycle(controller: &mut AppController) -> Result<(), String> {
     controller.audio.pending_loop_disable_at = None;
-    controller.audio.pending_loop_retarget = None;
+    controller.audio.clear_pending_loop_retarget();
     let Some(player_rc) = ensure_player(controller)? else {
         return Ok(());
     };
@@ -57,7 +56,7 @@ pub(crate) fn defer_loop_retarget_after_cycle(
     controller: &mut AppController,
     start_override: f32,
 ) -> Result<bool, String> {
-    controller.audio.pending_loop_retarget = None;
+    controller.audio.clear_pending_loop_retarget();
     let Some(player_rc) = ensure_player(controller)? else {
         return Ok(false);
     };
@@ -78,9 +77,8 @@ pub(crate) fn defer_loop_retarget_after_cycle(
         return Ok(false);
     }
 
-    controller.audio.pending_loop_retarget = Some(PendingLoopRetarget {
-        deadline: Instant::now() + remaining,
-        start_override: start_override.clamp(0.0, 1.0),
-    });
+    controller
+        .audio
+        .schedule_loop_retarget(Instant::now() + remaining, start_override);
     Ok(true)
 }

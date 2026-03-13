@@ -50,6 +50,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
         InputMonitoring(bool),
         PendingSeek(Option<u16>),
         EditSelectionRange(Option<(u16, u16)>),
+        BothSelectionRangesCleared,
         UpdateStatus(UpdateStatus),
     }
 
@@ -130,6 +131,11 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
             expected: Expected::EditSelectionRange(Some((125, 625))),
         },
         Case {
+            label: "waveform clear both group",
+            action: NativeUiAction::ClearWaveformSelections,
+            expected: Expected::BothSelectionRangesCleared,
+        },
+        Case {
             label: "prompt/update group",
             action: NativeUiAction::CheckForUpdates,
             expected: Expected::UpdateStatus(UpdateStatus::Checking),
@@ -141,6 +147,8 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
         controller.ui.browser.search_focus_requested = true;
         controller.ui.focus.context = FocusContext::Waveform;
         controller.ui.waveform.selection = Some(crate::selection::SelectionRange::new(0.2, 0.8));
+        controller.ui.waveform.edit_selection =
+            Some(crate::selection::SelectionRange::new(0.3, 0.7));
         controller.apply_native_ui_action(case.action);
         match case.expected {
             Expected::BrowserSearch(expected) => {
@@ -172,7 +180,11 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                 );
             }
             Expected::RandomNavigationMode(expected) => {
-                assert_eq!(controller.ui.browser.random_navigation_mode, expected, "{}", case.label);
+                assert_eq!(
+                    controller.ui.browser.random_navigation_mode, expected,
+                    "{}",
+                    case.label
+                );
             }
             Expected::MapTab(expected) => {
                 assert_eq!(controller.ui.browser.active_tab, expected, "{}", case.label);
@@ -210,6 +222,10 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                     )
                 });
                 assert_eq!(actual, expected, "{}", case.label);
+            }
+            Expected::BothSelectionRangesCleared => {
+                assert!(controller.ui.waveform.selection.is_none(), "{}", case.label);
+                assert!(controller.ui.waveform.edit_selection.is_none(), "{}", case.label);
             }
             Expected::UpdateStatus(expected) => {
                 assert_eq!(controller.ui.update.status, expected, "{}", case.label);

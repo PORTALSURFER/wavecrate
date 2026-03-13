@@ -1,8 +1,8 @@
 //! Waveform playback-selection action adapters.
 
 use super::*;
-use crate::selection::SelectionRange;
 use crate::selection::SelectionEdge;
+use crate::selection::SelectionRange;
 
 impl AppController {
     /// Begin a selection drag gesture at the given position.
@@ -123,8 +123,7 @@ impl AppController {
         {
             return;
         }
-        if !self.preview_waveform_selection_range_micros_smart_scale(existing_range, start_micros)
-        {
+        if !self.preview_waveform_selection_range_micros_smart_scale(existing_range, start_micros) {
             transport::set_selection_range_with_smart_scale(
                 self,
                 next_range,
@@ -139,6 +138,13 @@ impl AppController {
     /// Clear waveform selection and keep waveform focus active.
     pub fn clear_waveform_selection_with_focus(&mut self) {
         self.clear_selection();
+        self.focus_waveform();
+    }
+
+    /// Clear both waveform playback and edit selections while keeping waveform focus active.
+    pub fn clear_waveform_marks_with_focus(&mut self) {
+        self.clear_selection();
+        self.clear_edit_selection();
         self.focus_waveform();
     }
 

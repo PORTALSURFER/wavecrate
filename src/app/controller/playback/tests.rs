@@ -337,6 +337,25 @@ fn clear_waveform_edit_selection_with_focus_clears_edit_selection() {
     assert!(controller.ui.waveform.edit_selection.is_none());
 }
 
+/// Clearing both waveform mark types should leave the waveform panel focused and empty.
+#[test]
+fn clear_waveform_marks_with_focus_clears_playback_and_edit_selection() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let playback = SelectionRange::new(0.2, 0.6);
+    let edit = SelectionRange::new(0.3, 0.5);
+    controller.selection_state.range.set_range(Some(playback));
+    controller.ui.waveform.selection = Some(playback);
+    controller.selection_state.edit_range.set_range(Some(edit));
+    controller.ui.waveform.edit_selection = Some(edit);
+
+    controller.clear_waveform_marks_with_focus();
+
+    assert!(controller.selection_state.range.range().is_none());
+    assert!(controller.ui.waveform.selection.is_none());
+    assert!(controller.selection_state.edit_range.range().is_none());
+    assert!(controller.ui.waveform.edit_selection.is_none());
+}
+
 /// Deferred playback-age writes should remain queued until debounce expires.
 #[test]
 fn deferred_pending_age_update_commit_waits_for_deadline() {

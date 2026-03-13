@@ -27,6 +27,7 @@ pub(crate) fn build_named_gui_fixture_controller(
     match fixture_tag {
         "browser" => build_browser_fixture(renderer),
         "waveform" => build_waveform_fixture(renderer),
+        "waveform_mixed" => build_waveform_mixed_fixture(renderer),
         "options" => build_options_fixture(renderer),
         "prompt" => build_prompt_fixture(renderer),
         "update" => build_update_fixture(renderer),
@@ -112,7 +113,9 @@ fn browser_fixture_samples(index: usize) -> Vec<f32> {
     ]
 }
 
-fn build_waveform_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
+fn build_waveform_fixture(
+    renderer: WaveformRenderer,
+) -> Result<GuiFixtureControllerBundle, String> {
     let mut bundle = build_browser_fixture(renderer)?;
     let source = bundle
         .controller
@@ -128,6 +131,19 @@ fn build_waveform_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureContro
         end: 0.75,
     };
     bundle.controller.focus_waveform();
+    Ok(bundle)
+}
+
+fn build_waveform_mixed_fixture(
+    renderer: WaveformRenderer,
+) -> Result<GuiFixtureControllerBundle, String> {
+    let mut bundle = build_waveform_fixture(renderer)?;
+    bundle.controller.ui.waveform.edit_selection = Some(SelectionRange::new(0.55, 0.65));
+    bundle
+        .controller
+        .selection_state
+        .edit_range
+        .set_range(bundle.controller.ui.waveform.edit_selection);
     Ok(bundle)
 }
 
@@ -153,8 +169,7 @@ fn build_update_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControll
     bundle.controller.ui.update.available_tag = Some(String::from("v20.1.0"));
     bundle.controller.ui.update.available_url =
         Some(String::from("https://example.invalid/releases/v20.1.0"));
-    bundle.controller.ui.update.available_published_at =
-        Some(String::from("2026-03-11T12:00:00Z"));
+    bundle.controller.ui.update.available_published_at = Some(String::from("2026-03-11T12:00:00Z"));
     bundle.controller.ui.update.last_error = None;
     Ok(bundle)
 }
@@ -243,7 +258,12 @@ fn write_fixture_entry(
         .map_err(|err| format!("read fixture wav modified time {}: {err}", path.display()))?;
     let modified_ns = modified
         .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|err| format!("fixture wav modified time before epoch {}: {err}", path.display()))?
+        .map_err(|err| {
+            format!(
+                "fixture wav modified time before epoch {}: {err}",
+                path.display()
+            )
+        })?
         .as_nanos()
         .min(i64::MAX as u128) as i64;
     Ok(WavEntry {

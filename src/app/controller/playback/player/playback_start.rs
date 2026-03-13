@@ -12,7 +12,7 @@ pub(crate) fn play_audio(
         return Err("Stop recording before playback".into());
     }
     controller.audio.pending_loop_disable_at = None;
-    controller.audio.pending_loop_retarget = None;
+    controller.audio.clear_pending_loop_retarget();
     if controller.sample_view.wav.loaded_audio.is_none() {
         return queue_or_load_pending_playback(controller, looped, start_override);
     }

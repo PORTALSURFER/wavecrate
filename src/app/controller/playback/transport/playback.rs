@@ -71,7 +71,7 @@ pub(crate) fn toggle_play_pause(controller: &mut AppController) {
 
 pub(crate) fn stop_playback_if_active(controller: &mut AppController) -> bool {
     controller.audio.pending_loop_disable_at = None;
-    controller.audio.pending_loop_retarget = None;
+    controller.audio.clear_pending_loop_retarget();
     let Some(player_rc) = controller.audio.player.as_ref() else {
         return false;
     };

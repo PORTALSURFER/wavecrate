@@ -42,6 +42,7 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::FinishWaveformSelectionDrag
         | NativeUiAction::FinishWaveformSelectionSmartScaleDrag
         | NativeUiAction::ClearWaveformEditSelection
+        | NativeUiAction::ClearWaveformSelections
         | NativeUiAction::SetWaveformBpmValue { .. }
         | NativeUiAction::AdjustWaveformBpm { .. }
         | NativeUiAction::ClearWaveformSelection
@@ -82,6 +83,7 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
             | NativeUiAction::FinishWaveformSelectionSmartScaleDrag
             | NativeUiAction::ClearWaveformSelection
             | NativeUiAction::ClearWaveformEditSelection
+            | NativeUiAction::ClearWaveformSelections
     )
 }
 
