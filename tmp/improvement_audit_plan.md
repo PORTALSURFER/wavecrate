@@ -281,7 +281,7 @@ Branch: `next`
   - Assumption used: splitting interpolation and raster helpers behind the existing `WaveformRenderer` entrypoints is the safest seam because it improves direct coverage without changing the external render API.
   - Validation: `cargo test waveform::render::paint::lines -- --nocapture`, `cargo test waveform::render:: -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 7. Split waveform pointer routing into hit-resolution, deselection, and drag-mode helpers
+### [x] 7. Split waveform pointer routing into hit-resolution, deselection, and drag-mode helpers
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -315,6 +315,11 @@ Branch: `next`
   - AIV waveform interaction pack
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: `vendor/radiant` `1fbf6361` (`refactor(waveform): split pointer routing helpers`)
+  - Assumption used: keeping the public routing surface in `input.rs` unchanged while splitting only the internal helper families is the lowest-risk way to improve readability in this precedence-sensitive path.
+  - Validation: `cargo test -p radiant waveform_pointer -- --nocapture`, `cargo test -p radiant waveform_drag -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 8. Continue decomposing the native Vello runtime around lifecycle, input, and render ownership
 
