@@ -509,11 +509,11 @@ Branch: `next`
 - Product clarification required: No
 - Completion:
   - Date: 2026-03-13
-  - Commit: pending current item commit
+  - Commit: `d1530f8c` (`refactor(audio): split audio option normalization`)
   - Assumption used: keeping the public controller methods and normalization behavior unchanged while moving pure helpers into their own module is enough to reduce coupling here without risking audio-device regressions.
   - Validation: `cargo test audio_options -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 13. Split oversized test and fixture catalogs into domain-focused modules
+### [x] 13. Split oversized test and fixture catalogs into domain-focused modules
 
 - Classification: Refactor / cleanup
 - Confidence: Medium
@@ -541,6 +541,12 @@ Branch: `next`
 - Suggested validation:
   - Existing targeted test suites plus `ci_quick.ps1`
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: pending item 13 root/vendor commits
+  - Assumption used: splitting the highest-churn test hubs by behavior family is worthwhile once the new file boundaries preserve existing test names and helper semantics, because it lowers review friction without changing product behavior.
+  - Validation: `cargo test gui_test::aiv::packs::tests -- --nocapture`, `cargo test app_core::controller::tests -- --nocapture`, `cargo test projection_cache -- --nocapture`, `cargo test -p radiant browser_rows -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+  - Validation note: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` moved past the earlier file-size-budget failure and is now blocked by the pre-existing `scripts/check_migration_boundary.ps1` termination behavior, which aborts before listing allowed transitional matches.
 
 ### [ ] 14. Add Windows parity for the cleanup-hotspot audit helper or document its Bash-only status precisely
 
