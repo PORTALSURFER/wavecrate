@@ -47,7 +47,7 @@ Branch: `next`
 
 ## ROI-Ranked Backlog
 
-### [ ] 1. Split native-shell automation snapshot building by surface and shared helper layer
+### [x] 1. Split native-shell automation snapshot building by surface and shared helper layer
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -85,6 +85,11 @@ Branch: `next`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: `vendor/radiant` `ee5b868e` (`refactor(gui): split automation snapshot surfaces`)
+  - Assumption used: stable automation node ids and action ids remain unchanged while only module ownership shifts.
+  - Validation: `cargo test -p radiant automation::tests -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 2. Split browser-row layout/windowing helpers out of the current multi-purpose cache file
 
