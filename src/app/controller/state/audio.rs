@@ -14,6 +14,7 @@ pub(crate) struct ControllerAudioState {
     pub(crate) player: Option<Rc<RefCell<AudioPlayer>>>,
     pub(crate) cache: AudioCache,
     pub(crate) pending_loop_disable_at: Option<Instant>,
+    pub(crate) pending_loop_retarget: Option<PendingLoopRetarget>,
     pub(crate) recorder: Option<AudioRecorder>,
     pub(crate) recording_target: Option<RecordingTarget>,
     pub(crate) input_monitor: Option<InputMonitor>,
@@ -30,6 +31,7 @@ impl ControllerAudioState {
             player,
             cache: AudioCache::new(cache_capacity, history_limit),
             pending_loop_disable_at: None,
+            pending_loop_retarget: None,
             recorder: None,
             recording_target: None,
             input_monitor: None,
@@ -80,6 +82,13 @@ pub(crate) struct PendingPlayback {
     pub(crate) relative_path: PathBuf,
     pub(crate) looped: bool,
     pub(crate) start_override: Option<f32>,
+}
+
+/// Deferred loop-span retarget applied once the current loop cycle completes.
+#[derive(Clone, Copy)]
+pub(crate) struct PendingLoopRetarget {
+    pub(crate) deadline: Instant,
+    pub(crate) start_override: f32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

@@ -40,6 +40,7 @@ enum LoopPlaybackPolicy {
 /// Flip waveform loop state and return the before/after transition snapshot.
 fn flip_loop_toggle_state(controller: &mut AppController) -> LoopToggleState {
     let was_looping = controller.ui.waveform.loop_enabled;
+    controller.audio.pending_loop_retarget = None;
     controller.ui.waveform.loop_enabled = !was_looping;
     LoopToggleState {
         was_looping,

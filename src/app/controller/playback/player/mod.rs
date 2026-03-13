@@ -15,7 +15,9 @@ mod waveform_ui;
 /// `start == end`; those should not clamp non-loop playback to an instant blip.
 const PLAYBACK_SELECTION_MIN_WIDTH: f32 = 1.0e-6;
 
-pub(crate) use lifecycle::{defer_loop_disable_after_cycle, ensure_player};
+pub(crate) use lifecycle::{
+    defer_loop_disable_after_cycle, defer_loop_retarget_after_cycle, ensure_player,
+};
 pub(crate) use playback_start::{is_playing, live_progress, play_audio};
 #[cfg(test)]
 pub(crate) use playhead::update_playhead_from_progress;

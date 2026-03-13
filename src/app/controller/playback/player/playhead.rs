@@ -13,6 +13,12 @@ pub(crate) fn tick_playhead(controller: &mut AppController) {
     if let Some(err) = player.borrow_mut().take_error() {
         controller.set_status(format!("Playback error: {}", err), StatusTone::Error);
     }
+    if let Some(start_override) = take_due_loop_retarget(controller, &player) {
+        controller.audio.pending_loop_retarget = None;
+        if let Err(err) = controller.play_audio(true, Some(start_override)) {
+            controller.set_status(err, StatusTone::Error);
+        }
+    }
     let should_resume = should_resume_after_loop_disable(controller, &player);
     if should_resume {
         controller.audio.pending_loop_disable_at = None;
@@ -77,6 +83,19 @@ fn should_resume_after_loop_disable(
         Some(deadline) => Instant::now() >= deadline,
         None => false,
     }
+}
+
+fn take_due_loop_retarget(
+    controller: &mut AppController,
+    player: &Rc<RefCell<AudioPlayer>>,
+) -> Option<f32> {
+    let pending = controller.audio.pending_loop_retarget?;
+    let player_ref = player.borrow();
+    if !player_ref.is_playing() || !player_ref.is_looping() {
+        controller.audio.pending_loop_retarget = None;
+        return None;
+    }
+    (Instant::now() >= pending.deadline).then_some(pending.start_override)
 }
 
 fn playhead_completed_span(controller: &AppController, progress: f32, is_looping: bool) -> bool {

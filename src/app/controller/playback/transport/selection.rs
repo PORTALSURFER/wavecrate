@@ -106,33 +106,7 @@ pub(crate) fn finish_selection_drag(controller: &mut AppController) {
         }
     }
     controller.commit_selection_undo();
-    let is_playing = controller
-        .audio
-        .player
-        .as_ref()
-        .map(|p| p.borrow().is_playing())
-        .unwrap_or(false);
-    if !is_playing || !controller.ui.waveform.loop_enabled {
-        return;
-    }
-    let Some(selection) = controller
-        .selection_state
-        .range
-        .range()
-        .or(controller.ui.waveform.selection)
-        .filter(|range| super::super::selection_meets_bpm_min_for_playback(controller, *range))
-    else {
-        return;
-    };
-    let playhead = controller.ui.waveform.playhead.position;
-    let start_override = if playhead >= selection.start() && playhead <= selection.end() {
-        Some(playhead)
-    } else {
-        Some(selection.start())
-    };
-    if let Err(err) = controller.play_audio(true, start_override) {
-        controller.set_status(err, StatusTone::Error);
-    }
+    adjust_playback_after_finished_selection_drag(controller);
 }
 
 pub(crate) fn finish_edit_selection_drag(controller: &mut AppController) {
@@ -149,6 +123,10 @@ pub(crate) fn set_selection_range(controller: &mut AppController, range: Selecti
         .as_ref()
         .map(|p| p.borrow().is_playing())
         .unwrap_or(false);
+
+    if is_playing && controller.selection_state.range.is_dragging() {
+        return;
+    }
 
     if is_playing
         && !controller.ui.waveform.loop_enabled
@@ -199,6 +177,62 @@ pub(crate) fn clear_edit_selection(controller: &mut AppController) {
     let cleared = controller.selection_state.edit_range.clear();
     if cleared || controller.ui.waveform.edit_selection.is_some() {
         controller.apply_edit_selection(None);
+    }
+}
+
+fn adjust_playback_after_finished_selection_drag(controller: &mut AppController) {
+    let is_playing = controller
+        .audio
+        .player
+        .as_ref()
+        .map(|p| p.borrow().is_playing())
+        .unwrap_or(false);
+    if !is_playing {
+        controller.audio.pending_loop_retarget = None;
+        return;
+    }
+    let Some(selection) = controller
+        .selection_state
+        .range
+        .range()
+        .or(controller.ui.waveform.selection)
+        .filter(|range| super::super::selection_meets_bpm_min_for_playback(controller, *range))
+    else {
+        controller.audio.pending_loop_retarget = None;
+        return;
+    };
+    let playhead = controller.ui.waveform.playhead.position.clamp(0.0, 1.0);
+    let playhead_inside = playhead >= selection.start() && playhead <= selection.end();
+
+    if !controller.ui.waveform.loop_enabled {
+        controller.audio.pending_loop_retarget = None;
+        let start_override = Some(if playhead_inside {
+            playhead
+        } else {
+            selection.start()
+        });
+        if let Err(err) = controller.play_audio(false, start_override) {
+            controller.set_status(err, StatusTone::Error);
+        }
+        return;
+    }
+
+    if !playhead_inside {
+        controller.audio.pending_loop_retarget = None;
+        if let Err(err) = controller.play_audio(true, Some(selection.start())) {
+            controller.set_status(err, StatusTone::Error);
+        }
+        return;
+    }
+
+    match controller.defer_loop_retarget_after_cycle(selection.start()) {
+        Ok(true) => {}
+        Ok(false) => {
+            if let Err(err) = controller.play_audio(true, Some(selection.start())) {
+                controller.set_status(err, StatusTone::Error);
+            }
+        }
+        Err(err) => controller.set_status(err, StatusTone::Error),
     }
 }
 

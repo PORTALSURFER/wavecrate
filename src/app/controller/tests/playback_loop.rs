@@ -1,6 +1,7 @@
 use super::super::test_support::{dummy_controller, write_test_wav};
 use super::super::*;
 use crate::app::controller::library::analysis_jobs;
+use crate::selection::SelectionEdge;
 use crate::selection::SelectionRange;
 use rusqlite::params;
 use std::path::{Path, PathBuf};
@@ -169,6 +170,7 @@ fn finish_selection_drag_keeps_playing_when_playhead_inside_loop() {
     controller.finish_selection_drag();
 
     assert!((controller.ui.waveform.playhead.position - 0.3).abs() < 1e-6);
+    assert!(controller.audio.pending_loop_retarget.is_some());
 }
 
 #[test]
@@ -188,6 +190,75 @@ fn finish_selection_drag_restarts_when_playhead_outside_loop() {
     controller.finish_selection_drag();
 
     assert!((controller.ui.waveform.playhead.position - updated_selection.start()).abs() < 1e-6);
+    assert!(controller.audio.pending_loop_retarget.is_none());
+}
+
+#[test]
+fn selection_resize_while_playing_does_not_restart_each_drag_update() {
+    let Some(mut controller) = setup_looping_controller(SelectionRange::new(0.1, 0.4)) else {
+        return;
+    };
+    controller.ui.waveform.loop_enabled = false;
+    assert!(controller.play_audio(false, Some(0.25)).is_ok());
+    controller.ui.waveform.playhead.position = 0.25;
+
+    assert!(controller.start_selection_edge_drag(SelectionEdge::End, false));
+    controller.update_selection_drag(0.6, false);
+
+    assert!((controller.ui.waveform.playhead.position - 0.25).abs() < 1e-6);
+}
+
+#[test]
+fn finish_selection_drag_restarts_once_from_current_playhead_when_non_looped() {
+    let Some(mut controller) = setup_looping_controller(SelectionRange::new(0.1, 0.4)) else {
+        return;
+    };
+    controller.ui.waveform.loop_enabled = false;
+    assert!(controller.play_audio(false, Some(0.25)).is_ok());
+    controller.ui.waveform.playhead.position = 0.25;
+    let updated_selection = SelectionRange::new(0.2, 0.6);
+    controller
+        .selection_state
+        .range
+        .set_range(Some(updated_selection));
+    controller.apply_selection(Some(updated_selection));
+
+    controller.finish_selection_drag();
+
+    assert!((controller.ui.waveform.playhead.position - 0.25).abs() < 1e-6);
+    assert_eq!(
+        controller.ui.waveform.playhead.active_span_end,
+        Some(updated_selection.end())
+    );
+    assert!(controller.audio.pending_loop_retarget.is_none());
+}
+
+#[test]
+fn pending_loop_retarget_restarts_from_new_selection_start_at_cycle_boundary() {
+    let initial_selection = SelectionRange::new(0.1, 0.4);
+    let Some(mut controller) = setup_looping_controller(initial_selection) else {
+        return;
+    };
+    let updated_selection = SelectionRange::new(0.2, 0.6);
+    controller
+        .selection_state
+        .range
+        .set_range(Some(updated_selection));
+    controller.apply_selection(Some(updated_selection));
+    controller.ui.waveform.playhead.position = 0.3;
+
+    controller.finish_selection_drag();
+    controller
+        .audio
+        .pending_loop_retarget
+        .as_mut()
+        .expect("loop retarget scheduled")
+        .deadline = Instant::now() - Duration::from_millis(1);
+
+    controller.tick_playhead();
+
+    assert!((controller.ui.waveform.playhead.position - updated_selection.start()).abs() < 1e-6);
+    assert!(controller.audio.pending_loop_retarget.is_none());
 }
 
 #[test]

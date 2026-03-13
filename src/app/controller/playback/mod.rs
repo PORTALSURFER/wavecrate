@@ -384,6 +384,14 @@ impl AppController {
         player::defer_loop_disable_after_cycle(self)
     }
 
+    /// Queue one loop restart at the current cycle boundary using a new start position.
+    pub(crate) fn defer_loop_retarget_after_cycle(
+        &mut self,
+        start_override: f32,
+    ) -> Result<bool, String> {
+        player::defer_loop_retarget_after_cycle(self, start_override)
+    }
+
     /// Tag the focused/selected wavs and keep the current focus.
     pub fn tag_selected(&mut self, target: crate::sample_sources::Rating) {
         tagging::tag_selected(self, target);

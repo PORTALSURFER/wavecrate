@@ -12,6 +12,7 @@ pub(crate) fn play_audio(
         return Err("Stop recording before playback".into());
     }
     controller.audio.pending_loop_disable_at = None;
+    controller.audio.pending_loop_retarget = None;
     if controller.sample_view.wav.loaded_audio.is_none() {
         return queue_or_load_pending_playback(controller, looped, start_override);
     }
@@ -243,7 +244,12 @@ fn normalized_audition_peak(controller: &AppController, start: f32, end: f32) ->
     }
     let loaded = controller.sample_view.wav.loaded_audio.as_ref()?;
     let decoded = decode_samples_from_bytes(&loaded.bytes).ok()?;
-    max_abs_from_samples_span(&decoded.samples, decoded.channels.max(1) as usize, start, end)
+    max_abs_from_samples_span(
+        &decoded.samples,
+        decoded.channels.max(1) as usize,
+        start,
+        end,
+    )
 }
 
 /// Compute the largest absolute sample amplitude inside one normalized span.
