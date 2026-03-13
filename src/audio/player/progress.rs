@@ -78,6 +78,11 @@ impl AudioPlayer {
         self.track_duration
     }
 
+    #[cfg(test)]
+    pub(crate) fn playback_gain_for_tests(&self) -> f32 {
+        self.playback_gain
+    }
+
     /// Remaining wall-clock time until the current loop iteration finishes.
     pub fn remaining_loop_duration(&self) -> Option<Duration> {
         if !self.looping {
