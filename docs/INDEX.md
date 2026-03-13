@@ -24,6 +24,7 @@ These are the default “don’t guess, don’t grep” entrypoints for most wor
    - `bash scripts/install_agent_preflight_hooks.sh` (optional auto-hook install)
 4. Generate cleanup hotspot snapshot (for ROI planning):
    - `bash scripts/audit_cleanup_hotspots.sh`
+   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
 5. Safe local run (isolated config/logs):
    - `bash scripts/run_sandbox.sh --`
    - `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --`
@@ -117,6 +118,7 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
 ## Audit/report helpers
 
 - `scripts/audit_cleanup_hotspots.sh` writes a deterministic cleanup-hotspot snapshot (largest files, suppression density, likely test-gap heuristics) to `tmp/cleanup_audit_hotspots.md` by default.
+- `scripts/audit_cleanup_hotspots.ps1` is the PowerShell equivalent for Windows-first audit planning flows.
 - `scripts/report_file_size_budget_allowlist.sh` prints a Markdown report for current allowlisted file-size debt.
 
 ## Allowlists (docs/*allowlist*.txt)

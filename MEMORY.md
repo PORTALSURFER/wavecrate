@@ -12,12 +12,12 @@ Updated By: Codex
 
 - I am on `next` in `C:\dev\sempal`.
 - `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` are both on local `next`.
-- The working tree is clean except for ignored local artifact paths.
-- The active lane is an evidence-driven improvement audit of the current repository state.
-- The current source of truth for that lane is the refreshed `tmp/improvement_audit_plan.md`.
-- `tmp/improvement_audit_plan.md` contains the current ROI-ranked backlog, open questions, and rejected ideas rebuilt from the live tree.
-- Phase 1 of the audit rerun is complete, and no Phase 2 implementation has started.
-- The user must explicitly confirm before any item from `tmp/improvement_audit_plan.md` is implemented.
+- The working tree is clean except for ignored local artifact paths and temporary audit output files.
+- The improvement audit lane is complete.
+- The current source of truth for that completed lane is `tmp/improvement_audit_plan.md`.
+- `tmp/improvement_audit_plan.md` now serves as both the ROI-ranked backlog record and the execution log for items 1 through 14 completed on `2026-03-13`.
+- The file-size-budget hotspot that previously blocked `ci_local.ps1` has been cleared by splitting the oversized test/catalog files.
+- `scripts/ci_local.ps1` is still blocked by the pre-existing `scripts/check_migration_boundary.ps1` termination behavior after it reaches the migration-boundary guardrail step.
 - The earlier GUI/browser interaction fixes and desktop AIV coverage remain part of the current repository state and are background context, not the active execution lane.
 - `tmp/cleanup_plan.md` remains parked after Phase 1 and still requires explicit confirmation before any cleanup implementation.
 - `tmp/perf_plan.md` remains parked after its earlier performance work and should stay dormant unless the user reopens that lane.
@@ -28,10 +28,10 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Wait for the user to confirm whether to start Phase 2 from the refreshed `tmp/improvement_audit_plan.md`.
+1. Wait for the user to choose the next lane.
 2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
-3. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned with the active audit lane.
-4. If Phase 2 is approved, execute the backlog in ROI order and validate with `scripts/devcheck.ps1` and `scripts/ci_quick.ps1` on Windows.
+3. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned with the active lane summary.
+4. If the user wants full CI parity, investigate or fix `scripts/check_migration_boundary.ps1` separately from the now-completed improvement-audit execution record.
 
 ## Work Notes
 
