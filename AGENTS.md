@@ -61,7 +61,7 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: evidence-driven improvement audit planning
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed ROI-ranked audit backlog built from the current tree; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: the improvement audit Phase 1 rerun is complete on disk in `tmp/improvement_audit_plan.md`; no implementation has started, and Phase 2 must not begin until the user explicitly confirms.
+- Current status: the improvement audit Phase 1 rerun is complete on disk in `tmp/improvement_audit_plan.md`; Phase 2 remains blocked until the user explicitly confirms.
 
 ## Immediate Next Actions
 1. Wait for explicit user confirmation before implementing any item from the refreshed `tmp/improvement_audit_plan.md`.
