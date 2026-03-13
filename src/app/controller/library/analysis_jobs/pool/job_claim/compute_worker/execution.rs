@@ -1,129 +1,17 @@
-use crate::app::controller::library::analysis_jobs::db as analysis_db;
-use crate::app::controller::library::analysis_jobs::pool::progress_cache::ProgressCache;
-use rusqlite::Connection;
-use std::collections::HashMap;
+use super::*;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
-use tracing::{info, warn};
+use tracing::warn;
 
-use super::super::job_execution::{AnalysisContext, run_analysis_jobs_with_decoded_batch, run_job};
-use super::db;
-use super::lease;
-use super::logging;
-use super::priority::lower_worker_priority;
-use super::queue::DecodedWork;
-use super::{ComputeWorkerContext, DecodeOutcome};
+use crate::app::controller::library::analysis_jobs::pool::job_claim::lease;
 
-/// Spawns one compute worker that finalizes decoded analysis work and runs non-decode jobs.
-pub(crate) fn spawn_compute_worker(
-    _worker_index: usize,
-    context: ComputeWorkerContext,
-) -> JoinHandle<()> {
-    std::thread::spawn(move || run_compute_worker(context))
+pub(super) struct BatchSettings {
+    pub(super) use_cache: bool,
+    pub(super) max_analysis_duration_seconds: f32,
+    pub(super) analysis_sample_rate: u32,
+    pub(super) analysis_version: String,
 }
 
-fn run_compute_worker(context: ComputeWorkerContext) {
-    let ComputeWorkerContext {
-        tx,
-        signal,
-        decode_queue,
-        cancel,
-        shutdown,
-        use_cache,
-        allowed_source_ids,
-        max_duration_bits,
-        analysis_sample_rate,
-        analysis_version_override,
-        progress_cache,
-        progress_wakeup,
-    } = context;
-    lower_worker_priority();
-    let log_jobs = logging::analysis_log_enabled();
-    let log_queue = logging::analysis_log_queue_enabled();
-    let mut last_queue_log = Instant::now();
-    let mut connections: HashMap<std::path::PathBuf, Connection> = HashMap::new();
-    let mut deferred_updates: Vec<db::DeferredJobUpdate> = Vec::new();
-    let embedding_batch_max = crate::analysis::similarity::SIMILARITY_BATCH_MAX;
-    loop {
-        if shutdown.load(std::sync::atomic::Ordering::Relaxed) {
-            break;
-        }
-        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-            std::thread::sleep(Duration::from_millis(50));
-            continue;
-        }
-        let (batch, wait_ms) = decode_queue.pop_batch(&shutdown, embedding_batch_max);
-        if batch.is_empty() {
-            flush_deferred_updates(
-                &mut connections,
-                &decode_queue,
-                &tx,
-                &progress_cache,
-                &progress_wakeup,
-                log_jobs,
-                &mut deferred_updates,
-            );
-            signal.request_repaint();
-            continue;
-        }
-        log_queue_state(
-            log_queue,
-            &mut last_queue_log,
-            &decode_queue,
-            batch.len(),
-            wait_ms,
-        );
-        let settings = current_batch_settings(
-            use_cache.as_ref(),
-            max_duration_bits.as_ref(),
-            analysis_sample_rate.as_ref(),
-            &analysis_version_override,
-        );
-        let (decoded_batches, mut immediate_jobs) = process_batch(
-            batch,
-            &mut connections,
-            &allowed_source_ids,
-            log_jobs,
-            &settings,
-            &decode_queue,
-        );
-        immediate_jobs.extend(immediate_jobs_with_decoded_batches(
-            decoded_batches,
-            &mut connections,
-            &settings,
-        ));
-        finalize_immediate_jobs(
-            &mut connections,
-            &decode_queue,
-            &tx,
-            &progress_cache,
-            &progress_wakeup,
-            log_jobs,
-            &mut deferred_updates,
-            &mut immediate_jobs,
-        );
-        flush_deferred_updates(
-            &mut connections,
-            &decode_queue,
-            &tx,
-            &progress_cache,
-            &progress_wakeup,
-            log_jobs,
-            &mut deferred_updates,
-        );
-        signal.request_repaint();
-    }
-}
-
-struct BatchSettings {
-    use_cache: bool,
-    max_analysis_duration_seconds: f32,
-    analysis_sample_rate: u32,
-    analysis_version: String,
-}
-
-type DecodedBatchMap = HashMap<
+pub(super) type DecodedBatchMap = HashMap<
     std::path::PathBuf,
     Vec<(
         analysis_db::ClaimedJob,
@@ -131,7 +19,7 @@ type DecodedBatchMap = HashMap<
     )>,
 >;
 
-fn current_batch_settings(
+pub(super) fn current_batch_settings(
     use_cache: &std::sync::atomic::AtomicBool,
     max_duration_bits: &std::sync::atomic::AtomicU32,
     analysis_sample_rate: &std::sync::atomic::AtomicU32,
@@ -153,7 +41,7 @@ fn current_batch_settings(
     }
 }
 
-fn process_batch(
+pub(super) fn process_batch(
     batch: Vec<DecodedWork>,
     connections: &mut HashMap<std::path::PathBuf, Connection>,
     allowed_source_ids: &std::sync::Arc<
@@ -161,7 +49,7 @@ fn process_batch(
     >,
     log_jobs: bool,
     settings: &BatchSettings,
-    decode_queue: &super::DecodedQueue,
+    decode_queue: &super::super::DecodedQueue,
 ) -> (
     DecodedBatchMap,
     Vec<(analysis_db::ClaimedJob, Result<(), String>)>,
@@ -192,7 +80,7 @@ fn process_batch_work(
     >,
     log_jobs: bool,
     settings: &BatchSettings,
-    decode_queue: &super::DecodedQueue,
+    decode_queue: &super::super::DecodedQueue,
     decoded_batches: &mut DecodedBatchMap,
     immediate_jobs: &mut Vec<(analysis_db::ClaimedJob, Result<(), String>)>,
 ) {
@@ -201,10 +89,10 @@ fn process_batch_work(
         .ok()
         .and_then(|guard| guard.clone());
     if !lease::job_allowed(&work.job, allowed.as_ref()) {
-        release_disallowed_work(connections, &work, log_jobs, decode_queue);
+        super::finalization::release_disallowed_work(connections, &work, log_jobs, decode_queue);
         return;
     }
-    log_run_start(log_jobs, &work.job);
+    super::finalization::log_run_start(log_jobs, &work.job);
     let mut batch_job = None;
     let mut immediate_job = None;
     let job_fallback = work.job.clone();
@@ -259,7 +147,7 @@ fn run_work_item(
             immediate_job,
         ),
         _ => {
-            let result = run_job(
+            let result = super::super::super::job_execution::run_job(
                 conn,
                 &work.job,
                 settings.use_cache,
@@ -316,28 +204,7 @@ fn handle_analysis_work(
     }
 }
 
-fn release_disallowed_work(
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
-    work: &DecodedWork,
-    log_jobs: bool,
-    decode_queue: &super::DecodedQueue,
-) {
-    match db::open_connection_with_retry(connections, &work.job.source_root) {
-        Ok(conn) => lease::release_claim(conn, work.job.id),
-        Err(err) => {
-            if log_jobs {
-                warn!(
-                    sample_id = %work.job.sample_id,
-                    error = %err,
-                    "analysis release failed"
-                );
-            }
-        }
-    }
-    decode_queue.clear_inflight(work.job.id);
-}
-
-fn immediate_jobs_with_decoded_batches(
+pub(super) fn immediate_jobs_with_decoded_batches(
     decoded_batches: DecodedBatchMap,
     connections: &mut HashMap<std::path::PathBuf, Connection>,
     settings: &BatchSettings,
@@ -383,7 +250,11 @@ fn run_decoded_batch(
         analysis_version: settings.analysis_version.as_str(),
     };
     let batch_outcomes = catch_unwind(AssertUnwindSafe(|| {
-        run_analysis_jobs_with_decoded_batch(conn, jobs, &analysis_context)
+        super::super::super::job_execution::run_analysis_jobs_with_decoded_batch(
+            conn,
+            jobs,
+            &analysis_context,
+        )
     }))
     .unwrap_or_else(|payload| {
         let err = logging::panic_to_string(payload);
@@ -394,78 +265,4 @@ fn run_decoded_batch(
             .collect()
     });
     immediate_jobs.extend(batch_outcomes);
-}
-
-fn finalize_immediate_jobs(
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
-    decode_queue: &super::DecodedQueue,
-    tx: &crate::app::controller::jobs::JobMessageSender,
-    progress_cache: &std::sync::Arc<std::sync::RwLock<ProgressCache>>,
-    progress_wakeup: &std::sync::Arc<super::super::job_progress::ProgressPollerWakeup>,
-    log_jobs: bool,
-    deferred_updates: &mut Vec<db::DeferredJobUpdate>,
-    immediate_jobs: &mut Vec<(analysis_db::ClaimedJob, Result<(), String>)>,
-) {
-    for (job, outcome) in immediate_jobs.drain(..) {
-        let mut finalize = db::FinalizeJobContext {
-            connections,
-            decode_queue,
-            tx,
-            progress_cache,
-            progress_wakeup,
-            log_jobs,
-        };
-        if let Some(deferred) = db::finalize_immediate_job(&mut finalize, job, outcome) {
-            deferred_updates.push(deferred);
-        }
-    }
-}
-
-fn flush_deferred_updates(
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
-    decode_queue: &super::DecodedQueue,
-    tx: &crate::app::controller::jobs::JobMessageSender,
-    progress_cache: &std::sync::Arc<std::sync::RwLock<ProgressCache>>,
-    progress_wakeup: &std::sync::Arc<super::super::job_progress::ProgressPollerWakeup>,
-    log_jobs: bool,
-    deferred_updates: &mut Vec<db::DeferredJobUpdate>,
-) {
-    let mut finalize = db::FinalizeJobContext {
-        connections,
-        decode_queue,
-        tx,
-        progress_cache,
-        progress_wakeup,
-        log_jobs,
-    };
-    db::flush_deferred_updates(&mut finalize, deferred_updates);
-}
-
-fn log_queue_state(
-    log_queue: bool,
-    last_queue_log: &mut Instant,
-    decode_queue: &super::DecodedQueue,
-    batch_len: usize,
-    wait_ms: u64,
-) {
-    if log_queue && last_queue_log.elapsed() >= Duration::from_secs(2) {
-        *last_queue_log = Instant::now();
-        info!(
-            decoded = decode_queue.len(),
-            max = decode_queue.max_size(),
-            batch = batch_len,
-            wait_ms,
-            "analysis queue"
-        );
-    }
-}
-
-fn log_run_start(log_jobs: bool, job: &analysis_db::ClaimedJob) {
-    if log_jobs {
-        info!(
-            sample_id = %job.sample_id,
-            job_type = %job.job_type,
-            "analysis run start"
-        );
-    }
 }

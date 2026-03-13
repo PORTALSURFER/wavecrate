@@ -398,11 +398,11 @@ Branch: `next`
 - Product clarification required: No
 - Completion:
   - Date: 2026-03-13
-  - Commit: pending current item commit
+  - Commit: `420eef61` (`refactor(updater): split updater helper ui flow`)
   - Assumption used: keeping the `UpdateNativeBridge` data shape stable while moving only task, state, and projection methods into submodules is the lowest-risk way to split this user-facing state machine.
   - Validation: `cargo test -p sempal-updater-helper -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 10. Split compute-worker batch execution from queue loop and deferred-finalization policy
+### [x] 10. Split compute-worker batch execution from queue loop and deferred-finalization policy
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -434,6 +434,11 @@ Branch: `next`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completion:
+  - Date: 2026-03-13
+  - Commit: pending current item commit
+  - Assumption used: preserving the top-level worker loop while only extracting execution and deferred-finalization helpers is enough to reduce ownership mixing without changing queue semantics.
+  - Validation: `cargo test job_claim -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 11. Separate waveform zoom-cache core behavior from telemetry bookkeeping
 
