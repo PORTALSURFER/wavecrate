@@ -4,7 +4,7 @@ Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
 Phase: 2 in progress
-Implementation status: items 1-5 are complete; items 6-8 remain pending.
+Implementation status: items 1-6 are complete; items 7-8 remain pending.
 
 ## Repository Context
 
@@ -215,7 +215,7 @@ Implementation status: items 1-5 are complete; items 6-8 remain pending.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: 2026-03-14
-- Commit: pending
+- Commit: `c50940a9` (`refactor(updater): split archive and path guards`)
 - Validation outcome:
   - `cargo test updater --lib` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
@@ -223,7 +223,7 @@ Implementation status: items 1-5 are complete; items 6-8 remain pending.
 - Assumptions:
   - Splitting updater path validation, asset-name derivation, and archive handling into crate-local helper modules is behavior-preserving because all external entrypoints remain in `src/updater/mod.rs`.
 
-### [ ] 6. Decompose `app_core` projection-cache state and probe logic into narrower ownership layers
+### [x] 6. Decompose `app_core` projection-cache state and probe logic into narrower ownership layers
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -251,6 +251,14 @@ Implementation status: items 1-5 are complete; items 6-8 remain pending.
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: 2026-03-14
+- Commit: pending
+- Validation outcome:
+  - `cargo test projection_cache --lib` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - Splitting projection-cache key types, lookup counters, and retained cache state into sibling modules is behavior-preserving because the existing key builders, materializers, and tests stay unchanged.
 
 ### [ ] 7. Clarify and reduce the dual source-of-truth risk in browser search construction
 
