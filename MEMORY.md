@@ -1,6 +1,6 @@
 ﻿# Agent Memory
 
-Last Updated: 2026-03-14T10:45:00Z
+Last Updated: 2026-03-14T11:03:00Z
 Updated By: Codex
 
 ## Purpose
@@ -12,7 +12,7 @@ Updated By: Codex
 
 - I am on `next` in `C:\dev\sempal`.
 - `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` are both on local `next`.
-- The working tree contains the current improvement-audit execution changes for backlog item 7 plus synchronized plan docs.
+- The working tree contains the current improvement-audit execution changes for backlog item 8 plus synchronized plan docs.
 - The improvement audit lane is active in Phase 2.
 - The current source of truth is `tmp/improvement_audit_plan.md`.
 - `tmp/improvement_audit_plan.md` was rebuilt on `2026-03-14` as a fresh evidence-driven ROI-ranked backlog for the current codebase and now serves as the execution record.
@@ -22,7 +22,8 @@ Updated By: Codex
 - Backlog item 4 is complete and pushed as `b232cfec`: `app_core::controller` and `app_core::controller::waveform_actions` no longer import `crate::app::` directly, and the migration-boundary scripts now enforce `app_core::app_api` as the only non-test crossing.
 - Backlog item 5 is complete and pushed as `fe44b501`: the file-size debt ledger and quality docs now reflect the live guardrail scope and the current cleanup hotspot snapshot.
 - Backlog item 6 is complete and pushed as `4e5d82e7`: the GUI action catalog is now split into focused modules without changing the public `app_core::actions` contract surface.
-- Backlog item 7 is complete in the working tree and ready to commit: the installer UI bridge now separates workflow state, UI projection, and runtime wrapper code, with direct tests for retry recovery and location-step projection.
+- Backlog item 7 is complete and pushed as `905919e1`: the installer UI bridge now separates workflow state, UI projection, and runtime wrapper code, with direct tests for retry recovery and location-step projection.
+- Backlog item 8 is complete in the working tree and ready to commit: playback tagging now shares one selection/undo helper path across `tag_selected` and `adjust_selected_rating`, with an added regression test for undo refocus under filtered rating changes.
 - `scripts/ci_quick.ps1` is green after the item-1 change.
 - `scripts/ci_local.ps1` now gets past the migration-boundary gate and currently fails later on the pre-existing unrelated `vendor/radiant` test `gui::native_shell::layout_adapter::controls::controls_tests::toolbar_search_field_uses_ratio_width_inside_full_host`.
 - The earlier GUI/browser interaction fixes and desktop AIV coverage remain part of the current repository state and are background context, not the active execution lane.
@@ -35,7 +36,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Commit and push backlog item 7 from `tmp/improvement_audit_plan.md`, then start item 8.
+1. Commit and push backlog item 8 from `tmp/improvement_audit_plan.md`, then start item 9.
 2. Keep `tmp/improvement_audit_plan.md` updated after each completed item with date, commit hash, assumptions, and validation results.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
 4. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned with the active lane summary.

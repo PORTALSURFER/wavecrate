@@ -308,12 +308,13 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
   - Avoid over-engineering; this should stay a small, explicit state machine.
 - Dependencies:
   - None.
+- Commit: `905919e1`
 - Suggested validation:
   - `cargo test -p sempal-installer -- --nocapture`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 8. Deduplicate the rating/tagging mutation and undo/refocus logic in playback tagging
+### [x] 8. Deduplicate the rating/tagging mutation and undo/refocus logic in playback tagging
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -324,6 +325,14 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
 - Evidence:
   - `src/app/controller/playback/tagging.rs:83-210` implements `tag_selected(...)`.
   - `src/app/controller/playback/tagging.rs:231-420` implements `adjust_selected_rating(...)`.
+- Completed on: `2026-03-14`
+- Validation:
+  - `cargo test rating_logic -- --nocapture` passed.
+  - `cargo test browser_actions::rating_scroll -- --nocapture` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - The existing tagging and rating behaviors are already covered by the current browser/rating test suite, so the safe change is to share the setup and undo/refocus plumbing without changing rating policy or auto-trash semantics.
   - Both functions resolve browser contexts, dedupe paths, apply source mutations, build undo payloads, restore focus, and call `advance_or_commit_after_rating(...)`.
   - `tmp/cleanup_audit_hotspots.md` reports `src/app/controller/playback/tagging.rs` at 424 lines and flags `adjust_selected_rating` as a 194-line function span.
 - Recommended change:
