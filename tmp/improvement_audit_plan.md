@@ -4,7 +4,7 @@ Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
 Phase: 2 in progress
-Implementation status: items 1-2 are complete; items 3-8 remain pending.
+Implementation status: items 1-3 are complete; items 4-8 remain pending.
 
 ## Repository Context
 
@@ -105,7 +105,7 @@ Implementation status: items 1-2 are complete; items 3-8 remain pending.
   - If documenting an exception, verify all handoff/docs reference the same expected outcome.
 - Product clarification required: Yes
 - Completed: 2026-03-14
-- Commit: pending
+- Commit: `2250d6fd` in `vendor/radiant` (`fix(layout): square browser toolbar action slot`), `1550b6eb` in `sempal` (`fix(ci): restore windows local parity`)
 - Validation outcome:
   - `cargo test -p radiant toolbar_search_field_uses_ratio_width_inside_full_host -- --nocapture` passed.
   - `cargo test -p radiant toolbar_hit_test_ignores_empty_right_host_area -- --nocapture` passed.
@@ -116,7 +116,7 @@ Implementation status: items 1-2 are complete; items 3-8 remain pending.
 - Assumptions:
   - The documented expectation for Windows full local parity is that `scripts/ci_local.ps1` should be green, so the highest-value resolution is to fix the exposed `vendor/radiant` baseline defect rather than institutionalize a known failure.
 
-### [ ] 3. Repair stale docs and handoff references left behind by recent module splits
+### [x] 3. Repair stale docs and handoff references left behind by recent module splits
 
 - Classification: Documentation gap
 - Confidence: High
@@ -143,6 +143,13 @@ Implementation status: items 1-2 are complete; items 3-8 remain pending.
   - Open each referenced path after updating.
   - `rg -n "catalog\\.rs|external_drag\\.rs|items 1-14|2026-03-13|Phase 1 complete" docs`
 - Product clarification required: No
+- Completed: 2026-03-14
+- Commit: pending
+- Validation outcome:
+  - `rg -n "catalog\\.rs|external_drag\\.rs|items 1-14|2026-03-13|Phase 1 complete" docs` only found the intentionally still-pending file-size planning references and the unchanged cleanup-plan Phase 1 note.
+  - Verified live path targets exist for `src/app_core/actions/catalog/` and `src/external_drag/`.
+- Assumptions:
+  - The recent action-catalog and external-drag splits are complete enough that docs should point at the module directories instead of reintroducing single-file references.
 
 ### [ ] 4. Refresh or retire stale file-size debt planning documents so they match the live hotspot scan
 

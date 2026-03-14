@@ -35,7 +35,7 @@ use `docs/FEATURE_CHECKLIST.md` as the default safe path.
 - HTTP request helpers: `src/http_client.rs`
 - Issue reporting and GitHub issue flow: `src/issue_gateway`
 - Optional SQLite extension loading: `src/sqlite_ext.rs`
-- Platform clipboard/drag-and-drop integrations: `src/external_clipboard.rs`, `src/external_drag.rs`
+- Platform clipboard/drag-and-drop integrations: `src/external_clipboard.rs`, `src/external_drag/`
 
 ## Ownership and CODEOWNERS
 
@@ -70,7 +70,7 @@ When changing ownership boundaries:
   - `app_dirs` — filesystem paths for app data, caches, and settings.
   - `audio` — playback, I/O, recording, decoding, and processing.
   - `external_clipboard.rs` — platform clipboard integrations.
-  - `external_drag.rs` — platform drag-and-drop integrations.
+  - `external_drag/` — platform drag-and-drop integrations.
   - `gui` — new/active GUI abstraction layer for widgets and views.
   - `gui_app` — app-level GUI wiring used by the native runtime.
   - `gui_runtime` — runtime bridge glue for native rendering/input.

@@ -17,7 +17,7 @@ This document describes the layered GUI test platform used to make Sempal's nati
 
 ### 1. Host action catalog
 
-The canonical host catalog lives in [src/app_core/actions/mod.rs](/C:/dev/sempal/src/app_core/actions/mod.rs) and [src/app_core/actions/catalog.rs](/C:/dev/sempal/src/app_core/actions/catalog.rs).
+The canonical host catalog lives in [src/app_core/actions/mod.rs](/C:/dev/sempal/src/app_core/actions/mod.rs) and the [src/app_core/actions/catalog/](/C:/dev/sempal/src/app_core/actions/catalog) module tree.
 
 What it provides:
 
