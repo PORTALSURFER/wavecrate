@@ -290,7 +290,7 @@ Implementation status: items 1-8 are complete.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: Yes
 - Completed: 2026-03-14
-- Commit: pending
+- Commit: `80194298` (`refactor(browser): make async worker authoritative`)
 - Validation outcome:
   - `cargo test browser_async --lib` passed.
   - `cargo test background_jobs::polling --lib` passed.
