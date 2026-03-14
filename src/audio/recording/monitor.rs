@@ -13,13 +13,11 @@ pub(super) type MonitorSenderSlot = Arc<Mutex<Option<Sender<MonitorCommand>>>>;
 pub(crate) enum MonitorCommand {
     /// Forward live samples to the monitor sink.
     Samples(Vec<f32>),
-    /// Stop the monitor worker.
-    Stop,
 }
 
 /// Optional live monitor that replays captured samples.
 pub struct InputMonitor {
-    sender: Sender<MonitorCommand>,
+    sender: Option<Sender<MonitorCommand>>,
     join: Option<JoinHandle<()>>,
 }
 
@@ -29,19 +27,22 @@ impl InputMonitor {
         let (sender, receiver) = std::sync::mpsc::channel();
         let join = thread::spawn(move || monitor_loop(sink, channels, sample_rate, receiver));
         Self {
-            sender,
+            sender: Some(sender),
             join: Some(join),
         }
     }
 
     /// Return a sender for pushing monitor commands.
     pub(crate) fn sender(&self) -> Sender<MonitorCommand> {
-        self.sender.clone()
+        self.sender
+            .as_ref()
+            .cloned()
+            .expect("input monitor sender should exist while monitor is active")
     }
 
     /// Stop the monitor worker and wait for the thread to exit.
     pub fn stop(mut self) {
-        let _ = self.sender.send(MonitorCommand::Stop);
+        let _ = self.sender.take();
         if let Some(join) = self.join.take() {
             let _ = join.join();
         }
@@ -87,8 +88,48 @@ fn monitor_loop(
                 let source = SamplesBuffer::new(channels, sample_rate, samples);
                 sink.append(source);
             }
-            MonitorCommand::Stop => break,
         }
     }
     sink.stop();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::audio::output::{StreamCommand, monitor_sink_for_tests};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicU64};
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    #[test]
+    fn stop_drains_queued_samples_before_clearing_sink() {
+        let (command_sender, command_receiver) = mpsc::sync_channel(8);
+        let sink = monitor_sink_for_tests(
+            command_sender,
+            Arc::new(AtomicBool::new(false)),
+            Arc::new(AtomicU64::new(1)),
+        );
+        let monitor = InputMonitor::start(sink, 1, 48_000);
+        let sender = monitor.sender();
+        sender.send(MonitorCommand::Samples(vec![0.5])).unwrap();
+        drop(sender);
+
+        monitor.stop();
+
+        match command_receiver
+            .recv_timeout(Duration::from_millis(100))
+            .expect("monitor should append queued samples before stopping")
+        {
+            StreamCommand::Append { generation, .. } => assert_eq!(generation, 1),
+            _ => panic!("expected monitor append command"),
+        }
+        match command_receiver
+            .recv_timeout(Duration::from_millis(100))
+            .expect("monitor stop should clear the sink after draining")
+        {
+            StreamCommand::Clear { generation } => assert_eq!(generation, 2),
+            _ => panic!("expected monitor clear command"),
+        }
+    }
 }

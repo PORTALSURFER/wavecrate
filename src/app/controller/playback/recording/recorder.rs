@@ -163,7 +163,7 @@ pub(crate) fn refresh_recording_waveform(controller: &mut AppController) {
         last_file_len,
         loaded_once,
         sample_rate: recorder.resolved().sample_rate,
-        channels: recorder.resolved().channel_count,
+        channels: recorder.resolved().recorded_channel_count,
     };
     controller
         .runtime
@@ -197,7 +197,7 @@ pub(crate) fn start_input_monitor(controller: &mut AppController, recorder: &Aud
     let sink = player_rc.borrow().create_monitor_sink(controller.ui.volume);
     let monitor = InputMonitor::start(
         sink,
-        recorder.resolved().channel_count,
+        recorder.resolved().recorded_channel_count,
         recorder.resolved().sample_rate,
     );
     recorder.attach_monitor(&monitor);

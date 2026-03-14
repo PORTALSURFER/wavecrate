@@ -131,7 +131,8 @@ mod tests {
             device_name: "test device".to_string(),
             sample_rate: 48_000,
             buffer_size_frames: Some(128),
-            channel_count: 2,
+            stream_channel_count: 2,
+            recorded_channel_count: 2,
             selected_channels: vec![1, 2],
             used_fallback: false,
         };

@@ -31,6 +31,7 @@ pub fn resolve_input_stream_config(
         used_fallback = true;
     }
     let sample_rate = stream_config.sample_rate;
+    let stream_channel_count = stream_config.channels;
     Ok(ResolvedInputConfig {
         device,
         stream_config,
@@ -41,7 +42,8 @@ pub fn resolve_input_stream_config(
             device_name,
             sample_rate,
             buffer_size_frames: applied_buffer,
-            channel_count: selection.output_channels,
+            stream_channel_count,
+            recorded_channel_count: selection.output_channels,
             selected_channels: selection.selected_channels,
             used_fallback,
         },

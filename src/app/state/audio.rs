@@ -93,8 +93,10 @@ pub struct ActiveAudioInput {
     pub sample_rate: u32,
     /// Buffer size in frames, if configured.
     pub buffer_size_frames: Option<u32>,
-    /// Channel count for the input stream.
-    pub channel_count: u16,
+    /// Channel count for the opened input stream.
+    pub stream_channel_count: u16,
+    /// Channel count written after channel selection/downmixing.
+    pub recorded_channel_count: u16,
 }
 
 impl From<&ResolvedInput> for ActiveAudioInput {
@@ -104,7 +106,32 @@ impl From<&ResolvedInput> for ActiveAudioInput {
             device_name: input.device_name.clone(),
             sample_rate: input.sample_rate,
             buffer_size_frames: input.buffer_size_frames,
-            channel_count: input.channel_count,
+            stream_channel_count: input.stream_channel_count,
+            recorded_channel_count: input.recorded_channel_count,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn active_audio_input_preserves_stream_and_recorded_channel_counts() {
+        let resolved = ResolvedInput {
+            host_id: "test-host".to_string(),
+            device_name: "test-device".to_string(),
+            sample_rate: 48_000,
+            buffer_size_frames: Some(256),
+            stream_channel_count: 4,
+            recorded_channel_count: 2,
+            selected_channels: vec![1, 3],
+            used_fallback: false,
+        };
+
+        let active = ActiveAudioInput::from(&resolved);
+
+        assert_eq!(active.stream_channel_count, 4);
+        assert_eq!(active.recorded_channel_count, 2);
     }
 }

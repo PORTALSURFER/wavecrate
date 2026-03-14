@@ -33,7 +33,7 @@ pub(super) fn start_recording_runtime(
     let writer = RecorderWriter::spawn(
         path.to_path_buf(),
         resolved.resolved.sample_rate,
-        resolved.resolved.channel_count,
+        resolved.resolved.recorded_channel_count,
         receiver,
         sender.clone(),
     )?;

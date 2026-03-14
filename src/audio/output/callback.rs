@@ -1,14 +1,17 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
 /// Commands sent to the audio callback for non-blocking control.
-pub(super) enum StreamCommand {
+pub(crate) enum StreamCommand {
     Append {
+        generation: u64,
         source: Box<dyn crate::audio::Source + Send>,
         volume: f32,
     },
-    Clear,
+    Clear {
+        generation: u64,
+    },
 }
 
 /// Callback-owned mixing state that avoids blocking the audio thread.
@@ -19,6 +22,8 @@ pub(super) struct CallbackState {
     volume_bits: Arc<AtomicU32>,
     active_sources: Arc<AtomicUsize>,
     clear_pending: Arc<AtomicBool>,
+    command_generation: Arc<AtomicU64>,
+    current_generation: u64,
 }
 
 impl CallbackState {
@@ -28,7 +33,9 @@ impl CallbackState {
         volume_bits: Arc<AtomicU32>,
         active_sources: Arc<AtomicUsize>,
         clear_pending: Arc<AtomicBool>,
+        command_generation: Arc<AtomicU64>,
     ) -> Self {
+        let current_generation = command_generation.load(Ordering::Acquire);
         Self {
             sources: Vec::new(),
             command_receiver,
@@ -36,26 +43,46 @@ impl CallbackState {
             volume_bits,
             active_sources,
             clear_pending,
+            command_generation,
+            current_generation,
         }
     }
 
     fn apply_commands(&mut self) {
         const MAX_COMMANDS_PER_CALLBACK: usize = 64;
-        if self.clear_pending.swap(false, Ordering::Relaxed) {
-            self.sources.clear();
+        if self.clear_pending.swap(false, Ordering::AcqRel) {
+            let generation = self.command_generation.load(Ordering::Acquire);
+            self.apply_clear_generation(generation);
         }
         for _ in 0..MAX_COMMANDS_PER_CALLBACK {
             match self.command_receiver.try_recv() {
-                Ok(StreamCommand::Append { source, volume }) => {
+                Ok(StreamCommand::Append {
+                    generation,
+                    source,
+                    volume,
+                }) => {
+                    if generation < self.current_generation {
+                        continue;
+                    }
+                    if generation > self.current_generation {
+                        self.apply_clear_generation(generation);
+                    }
                     self.sources.push((source, sanitize_gain(volume)));
                 }
-                Ok(StreamCommand::Clear) => {
-                    self.sources.clear();
+                Ok(StreamCommand::Clear { generation }) => {
+                    if generation >= self.current_generation {
+                        self.apply_clear_generation(generation);
+                    }
                 }
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => break,
             }
         }
+    }
+
+    fn apply_clear_generation(&mut self, generation: u64) {
+        self.sources.clear();
+        self.current_generation = generation;
     }
 }
 

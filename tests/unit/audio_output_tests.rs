@@ -1,4 +1,12 @@
 use super::*;
+use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
+
+const INITIAL_COMMAND_GENERATION: u64 = 1;
+
+fn initial_command_generation() -> Arc<AtomicU64> {
+    Arc::new(AtomicU64::new(INITIAL_COMMAND_GENERATION))
+}
 
 #[test]
 fn default_config_has_no_preferences() {
@@ -18,7 +26,6 @@ fn sample_rate_filter_returns_common_values() {
 #[test]
 fn callback_propagates_error() {
     use crate::audio::Source;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize};
     use std::sync::mpsc;
     use std::time::Duration;
@@ -57,15 +64,18 @@ fn callback_propagates_error() {
     let volume_bits = Arc::new(AtomicU32::new(1.0_f32.to_bits()));
     let active_sources = Arc::new(AtomicUsize::new(0));
     let clear_pending = Arc::new(AtomicBool::new(false));
+    let command_generation = initial_command_generation();
     let mut state = CallbackState::new(
         command_receiver,
         error_sender,
         volume_bits,
         active_sources,
         clear_pending,
+        command_generation,
     );
     command_sender
         .send(StreamCommand::Append {
+            generation: INITIAL_COMMAND_GENERATION,
             source: Box::new(MockSource {
                 error: Some("failure".into()),
             }),
@@ -83,7 +93,6 @@ fn callback_propagates_error() {
 #[test]
 fn callback_clears_sources_with_command() {
     use crate::audio::Source;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
     use std::sync::mpsc;
     use std::time::Duration;
@@ -117,20 +126,27 @@ fn callback_clears_sources_with_command() {
     let volume_bits = Arc::new(AtomicU32::new(1.0_f32.to_bits()));
     let active_sources = Arc::new(AtomicUsize::new(0));
     let clear_pending = Arc::new(AtomicBool::new(false));
+    let command_generation = initial_command_generation();
     let mut state = CallbackState::new(
         command_receiver,
         error_sender,
         volume_bits,
         active_sources.clone(),
         clear_pending,
+        command_generation,
     );
     command_sender
         .send(StreamCommand::Append {
+            generation: INITIAL_COMMAND_GENERATION,
             source: Box::new(ConstantSource),
             volume: 1.0,
         })
         .unwrap();
-    command_sender.send(StreamCommand::Clear).unwrap();
+    command_sender
+        .send(StreamCommand::Clear {
+            generation: INITIAL_COMMAND_GENERATION + 1,
+        })
+        .unwrap();
 
     let mut data = vec![1.0; 4];
     process_audio_callback(&mut state, &mut data);
@@ -144,7 +160,7 @@ fn callback_stays_non_blocking_under_command_contention() {
     use crate::audio::Source;
     use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize};
     use std::sync::mpsc;
-    use std::sync::{Arc, Barrier, Mutex};
+    use std::sync::{Barrier, Mutex};
     use std::thread;
     use std::time::Duration;
 
@@ -177,6 +193,7 @@ fn callback_stays_non_blocking_under_command_contention() {
     let volume_bits = Arc::new(AtomicU32::new(1.0_f32.to_bits()));
     let active_sources = Arc::new(AtomicUsize::new(0));
     let clear_pending = Arc::new(AtomicBool::new(false));
+    let command_generation = initial_command_generation();
     let ui_lock = Arc::new(Mutex::new(()));
     let barrier = Arc::new(Barrier::new(2));
     let (done_sender, done_receiver) = mpsc::channel();
@@ -188,6 +205,7 @@ fn callback_stays_non_blocking_under_command_contention() {
         let _guard = sender_lock.lock().unwrap();
         for _ in 0..256 {
             let _ = command_sender.send(StreamCommand::Append {
+                generation: INITIAL_COMMAND_GENERATION,
                 source: Box::new(ConstantSource),
                 volume: 1.0,
             });
@@ -201,6 +219,7 @@ fn callback_stays_non_blocking_under_command_contention() {
             volume_bits,
             active_sources,
             clear_pending,
+            command_generation,
         );
         let mut data = vec![0.0; 64];
         for _ in 0..256 {
@@ -245,7 +264,6 @@ fn resolved_output_uses_fallback_stream_config() {
 #[test]
 fn callback_clears_sources_with_pending_flag() {
     use crate::audio::Source;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
     use std::sync::mpsc;
     use std::time::Duration;
@@ -279,12 +297,14 @@ fn callback_clears_sources_with_pending_flag() {
     let volume_bits = Arc::new(AtomicU32::new(1.0_f32.to_bits()));
     let active_sources = Arc::new(AtomicUsize::new(0));
     let clear_pending = Arc::new(AtomicBool::new(true));
+    let command_generation = initial_command_generation();
     let mut state = CallbackState::new(
         command_receiver,
         error_sender,
         volume_bits,
         active_sources.clone(),
         clear_pending,
+        command_generation,
     );
     state.sources.push((Box::new(ConstantSource), 1.0));
 
@@ -293,4 +313,87 @@ fn callback_clears_sources_with_pending_flag() {
 
     assert_eq!(active_sources.load(Ordering::Relaxed), 0);
     assert!(data.iter().all(|sample| *sample == 0.0));
+}
+
+#[test]
+fn callback_drops_stale_queue_entries_after_pending_clear() {
+    use crate::audio::Source;
+    use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    struct ConstantSource {
+        value: f32,
+    }
+
+    impl Iterator for ConstantSource {
+        type Item = f32;
+        fn next(&mut self) -> Option<Self::Item> {
+            Some(self.value)
+        }
+    }
+
+    impl Source for ConstantSource {
+        fn current_frame_len(&self) -> Option<usize> {
+            None
+        }
+        fn channels(&self) -> u16 {
+            1
+        }
+        fn sample_rate(&self) -> u32 {
+            44_100
+        }
+        fn total_duration(&self) -> Option<Duration> {
+            None
+        }
+    }
+
+    let (command_sender, command_receiver) = mpsc::sync_channel(8);
+    let (error_sender, _error_receiver) = mpsc::channel();
+    let volume_bits = Arc::new(AtomicU32::new(1.0_f32.to_bits()));
+    let active_sources = Arc::new(AtomicUsize::new(0));
+    let clear_pending = Arc::new(AtomicBool::new(false));
+    let command_generation = initial_command_generation();
+    let mut state = CallbackState::new(
+        command_receiver,
+        error_sender,
+        volume_bits,
+        active_sources.clone(),
+        clear_pending.clone(),
+        command_generation.clone(),
+    );
+    state
+        .sources
+        .push((Box::new(ConstantSource { value: 0.75 }), 1.0));
+    command_sender
+        .send(StreamCommand::Append {
+            generation: INITIAL_COMMAND_GENERATION,
+            source: Box::new(ConstantSource { value: 0.25 }),
+            volume: 1.0,
+        })
+        .unwrap();
+
+    command_generation.store(INITIAL_COMMAND_GENERATION + 1, Ordering::Release);
+    clear_pending.store(true, Ordering::Release);
+
+    let mut data = vec![0.0; 8];
+    process_audio_callback(&mut state, &mut data);
+
+    assert!(data.iter().all(|sample| *sample == 0.0));
+    assert_eq!(active_sources.load(Ordering::Relaxed), 0);
+
+    command_sender
+        .send(StreamCommand::Append {
+            generation: INITIAL_COMMAND_GENERATION + 1,
+            source: Box::new(ConstantSource { value: 0.5 }),
+            volume: 1.0,
+        })
+        .unwrap();
+    process_audio_callback(&mut state, &mut data);
+
+    assert!(
+        data.iter()
+            .all(|sample| (*sample - 0.5).abs() < f32::EPSILON)
+    );
+    assert_eq!(active_sources.load(Ordering::Relaxed), 1);
 }

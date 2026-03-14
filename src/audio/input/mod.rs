@@ -91,8 +91,10 @@ pub struct ResolvedInput {
     pub sample_rate: u32,
     /// Buffer size in frames, if configurable.
     pub buffer_size_frames: Option<u32>,
-    /// Total channel count provided by the device.
-    pub channel_count: u16,
+    /// Total channel count opened on the input stream.
+    pub stream_channel_count: u16,
+    /// Channel count recorded after selection/downmixing.
+    pub recorded_channel_count: u16,
     /// Selected channel indices (1-based).
     pub selected_channels: Vec<u16>,
     /// Whether a fallback device/config was chosen.

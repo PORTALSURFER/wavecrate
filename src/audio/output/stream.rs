@@ -1,6 +1,6 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, SyncSender, TrySendError};
 use tracing::{info, warn};
 
@@ -19,6 +19,7 @@ pub struct CpalAudioStream {
     volume_bits: Arc<AtomicU32>,
     error_receiver: Receiver<String>,
     clear_pending: Arc<AtomicBool>,
+    command_generation: Arc<AtomicU64>,
 }
 
 impl CpalAudioStream {
@@ -30,6 +31,7 @@ impl CpalAudioStream {
         volume_bits: Arc<AtomicU32>,
         error_receiver: Receiver<String>,
         clear_pending: Arc<AtomicBool>,
+        command_generation: Arc<AtomicU64>,
     ) -> Self {
         Self {
             _stream: stream,
@@ -38,6 +40,7 @@ impl CpalAudioStream {
             volume_bits,
             error_receiver,
             clear_pending,
+            command_generation,
         }
     }
 
@@ -50,8 +53,10 @@ impl CpalAudioStream {
         source: S,
         volume: f32,
     ) -> Result<(), String> {
+        let generation = self.command_generation.load(Ordering::Acquire);
         self.command_sender
             .try_send(StreamCommand::Append {
+                generation,
                 source: Box::new(source),
                 volume,
             })
@@ -66,13 +71,15 @@ impl CpalAudioStream {
     /// If the command queue is full, a pending clear is still recorded so the
     /// callback can apply it without blocking.
     pub fn clear_sources(&self) -> Result<(), String> {
-        self.clear_pending.store(true, Ordering::Relaxed);
-        self.command_sender
-            .try_send(StreamCommand::Clear)
-            .map_err(|err| match err {
-                TrySendError::Full(_) => "Audio command queue full; clear pending".to_string(),
-                TrySendError::Disconnected(_) => "Audio output stream is unavailable".to_string(),
-            })
+        request_clear(
+            &self.command_sender,
+            &self.clear_pending,
+            &self.command_generation,
+        )
+        .map_err(|err| match err {
+            TrySendError::Full(_) => "Audio command queue full; clear pending".to_string(),
+            TrySendError::Disconnected(_) => "Audio output stream is unavailable".to_string(),
+        })
     }
 
     /// Update the master output volume used by the audio callback.
@@ -95,6 +102,7 @@ impl CpalAudioStream {
         MonitorSink {
             command_sender: self.command_sender.clone(),
             clear_pending: self.clear_pending.clone(),
+            command_generation: self.command_generation.clone(),
             volume,
         }
     }
@@ -104,6 +112,7 @@ impl CpalAudioStream {
 pub struct MonitorSink {
     command_sender: SyncSender<StreamCommand>,
     clear_pending: Arc<AtomicBool>,
+    command_generation: Arc<AtomicU64>,
     /// Gain applied to appended sources.
     pub volume: f32,
 }
@@ -113,7 +122,9 @@ impl MonitorSink {
     ///
     /// Dropped commands are logged when the bounded queue is full.
     pub fn append<S: crate::audio::Source + Send + 'static>(&self, source: S) {
+        let generation = self.command_generation.load(Ordering::Acquire);
         if let Err(err) = self.command_sender.try_send(StreamCommand::Append {
+            generation,
             source: Box::new(source),
             volume: self.volume,
         }) {
@@ -133,8 +144,11 @@ impl MonitorSink {
 
     /// Stop playback by clearing queued sources.
     pub fn stop(&self) {
-        self.clear_pending.store(true, Ordering::Relaxed);
-        if let Err(err) = self.command_sender.try_send(StreamCommand::Clear) {
+        if let Err(err) = request_clear(
+            &self.command_sender,
+            &self.clear_pending,
+            &self.command_generation,
+        ) {
             match err {
                 TrySendError::Full(_) => {
                     warn!("Failed to stop monitor sink: command queue full");
@@ -161,6 +175,7 @@ struct BuiltStreamState {
     command_sender: SyncSender<StreamCommand>,
     error_receiver: Receiver<String>,
     clear_pending: Arc<AtomicBool>,
+    command_generation: Arc<AtomicU64>,
 }
 
 /// Open an audio stream honoring user preferences with safe fallbacks.
@@ -205,6 +220,7 @@ pub fn open_output_stream(
     let active_sources = Arc::new(AtomicUsize::new(0));
     let volume_bits = Arc::new(AtomicU32::new(1.0_f32.to_bits()));
     let clear_pending = Arc::new(AtomicBool::new(false));
+    let command_generation = Arc::new(AtomicU64::new(1));
 
     let mut resolved_stream_config = stream_config.clone();
     let BuiltStreamState {
@@ -212,12 +228,14 @@ pub fn open_output_stream(
         command_sender,
         error_receiver,
         clear_pending,
+        command_generation,
     } = match build_stream_with_state(
         &device,
         &stream_config,
         volume_bits.clone(),
         active_sources.clone(),
         clear_pending.clone(),
+        command_generation.clone(),
     ) {
         Ok(stream) => stream,
         Err(err) => {
@@ -248,6 +266,7 @@ pub fn open_output_stream(
                 volume_bits.clone(),
                 active_sources.clone(),
                 clear_pending.clone(),
+                command_generation.clone(),
             )
             .map_err(|source| AudioOutputError::BuildDefaultStream { source })?
         }
@@ -280,6 +299,7 @@ pub fn open_output_stream(
             volume_bits,
             error_receiver,
             clear_pending,
+            command_generation,
         ),
         resolved,
     })
@@ -311,6 +331,7 @@ fn build_stream_with_state(
     volume_bits: Arc<AtomicU32>,
     active_sources: Arc<AtomicUsize>,
     clear_pending: Arc<AtomicBool>,
+    command_generation: Arc<AtomicU64>,
 ) -> Result<BuiltStreamState, cpal::BuildStreamError> {
     const COMMAND_QUEUE_CAPACITY: usize = 512;
     let (command_sender, command_receiver) = mpsc::sync_channel(COMMAND_QUEUE_CAPACITY);
@@ -321,6 +342,7 @@ fn build_stream_with_state(
         volume_bits,
         active_sources,
         clear_pending.clone(),
+        command_generation.clone(),
     );
     let callback = move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
         process_audio_callback(&mut callback_state, data);
@@ -336,5 +358,30 @@ fn build_stream_with_state(
         command_sender,
         error_receiver,
         clear_pending,
+        command_generation,
     })
+}
+
+fn request_clear(
+    command_sender: &SyncSender<StreamCommand>,
+    clear_pending: &AtomicBool,
+    command_generation: &AtomicU64,
+) -> Result<(), TrySendError<StreamCommand>> {
+    let generation = command_generation.fetch_add(1, Ordering::AcqRel) + 1;
+    clear_pending.store(true, Ordering::Release);
+    command_sender.try_send(StreamCommand::Clear { generation })
+}
+
+#[cfg(test)]
+pub(crate) fn monitor_sink_for_tests(
+    command_sender: SyncSender<StreamCommand>,
+    clear_pending: Arc<AtomicBool>,
+    command_generation: Arc<AtomicU64>,
+) -> MonitorSink {
+    MonitorSink {
+        command_sender,
+        clear_pending,
+        command_generation,
+        volume: 1.0,
+    }
 }

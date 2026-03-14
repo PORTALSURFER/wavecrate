@@ -9,9 +9,13 @@ pub use discovery::{available_devices, available_hosts, supported_sample_rates};
 pub use stream::{CpalAudioStream, MonitorSink, OpenStreamOutcome, open_output_stream};
 
 #[cfg(test)]
-use self::callback::{CallbackState, StreamCommand, process_audio_callback};
+pub(crate) use self::callback::StreamCommand;
+#[cfg(test)]
+use self::callback::{CallbackState, process_audio_callback};
 #[cfg(test)]
 use self::discovery::sample_rates_in_range;
+#[cfg(test)]
+pub(crate) use self::stream::monitor_sink_for_tests;
 #[cfg(test)]
 use self::stream::resolved_output_from_stream_config;
 
