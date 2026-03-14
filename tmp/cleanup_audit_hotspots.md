@@ -1,31 +1,25 @@
 # Cleanup Hotspot Audit Snapshot
 
-- Generated (UTC): `2026-03-14T09:52:02Z`
+- Generated (UTC): `2026-03-14T10:44:01Z`
 - Branch: `next`
-- Commit: `b232cfec`
-- Rust files scanned: 758
+- Commit: `fe13990d`
+- Rust files scanned: 780
 - File-size budget limit: `400`
 
 ## Summary
 
-- Over file-size budget: 34
-- Function spans captured: 5354
+- Over file-size budget: 26
+- Function spans captured: 5370
 - Files with `dead_code` suppressions: 1
 - Files with `clippy::too_many_arguments` suppressions: 1
-- Likely large-file test-gap hotspots (heuristic): 83
+- Likely large-file test-gap hotspots (heuristic): 84
 
 ## Largest Rust files
 
 | Lines | File |
 | --- | --- |
-| 611 | `src/app/controller/tests/browser_core.rs` |
-| 595 | `src/app_core/actions/catalog.rs` |
-| 561 | `tests/unit/source_db_mod_tests.rs` |
-| 543 | `src/app/controller/library/analysis_jobs/enqueue/tests.rs` |
-| 520 | `src/app/controller/tests/focus_random.rs` |
 | 479 | `src/updater/mod.rs` |
 | 474 | `src/app_core/native_bridge/projection_cache.rs` |
-| 470 | `apps/installer/src/ui.rs` |
 | 469 | `src/updater/archive.rs` |
 | 468 | `src/app/controller/tests/playback_loop.rs` |
 | 467 | `src/wav_sanitize.rs` |
@@ -37,7 +31,13 @@
 | 442 | `src/app/controller/library/source_folders/tree.rs` |
 | 433 | `src/app/controller/library/wavs/browser_lists.rs` |
 | 432 | `src/waveform/model.rs` |
-| 432 | `src/external_drag.rs` |
+| 428 | `src/app/controller/ui/interaction_options.rs` |
+| 426 | `src/app/state/browser.rs` |
+| 423 | `tools/analysis-admin/src/bin/sempal-hdbscan.rs` |
+| 422 | `src/app/controller/library/sources.rs` |
+| 422 | `src/analysis/ann_index_tests.rs` |
+| 418 | `src/sample_sources/db/write.rs` |
+| 418 | `src/app/controller/tests/waveform_nav_cursor.rs` |
 
 ## Largest function spans (heuristic)
 
@@ -49,7 +49,6 @@
 | 219 | `settings_round_trip_preserves_fields` (`src/sample_sources/config_io/tests/save.rs:124`) |
 | 218 | `apply_native_ui_action_routes_grouped_dispatch_cases` (`src/app_core/controller/tests/dispatch.rs:31`) |
 | 212 | `project_map_model` (`src/app_core/native_shell/map_projection.rs:11`) |
-| 194 | `adjust_selected_rating` (`src/app/controller/playback/tagging.rs:231`) |
 | 186 | `build_visible_rows` (`src/app/controller/library/wavs/browser_pipeline.rs:67`) |
 | 179 | `handle_analysis_message` (`src/app/controller/library/background_jobs/analysis.rs:8`) |
 | 165 | `matches` (`src/app/controller/ui/hotkeys/types.rs:12`) |
@@ -63,19 +62,14 @@
 | 137 | `ensure_feature_cache` (`src/app/controller/library/wavs/feature_cache.rs:73`) |
 | 134 | `next` (`src/audio/decoder.rs:118`) |
 | 132 | `run_undo_file_job` (`src/app/controller/undo_jobs.rs:13`) |
+| 131 | `apply_configuration` (`src/app/controller/config.rs:14`) |
 
 ## Over file-size budget
 
 | Lines | File |
 | --- | --- |
-| 611 | `src/app/controller/tests/browser_core.rs` |
-| 595 | `src/app_core/actions/catalog.rs` |
-| 561 | `tests/unit/source_db_mod_tests.rs` |
-| 543 | `src/app/controller/library/analysis_jobs/enqueue/tests.rs` |
-| 520 | `src/app/controller/tests/focus_random.rs` |
 | 479 | `src/updater/mod.rs` |
 | 474 | `src/app_core/native_bridge/projection_cache.rs` |
-| 470 | `apps/installer/src/ui.rs` |
 | 469 | `src/updater/archive.rs` |
 | 468 | `src/app/controller/tests/playback_loop.rs` |
 | 467 | `src/wav_sanitize.rs` |
@@ -87,10 +81,8 @@
 | 442 | `src/app/controller/library/source_folders/tree.rs` |
 | 433 | `src/app/controller/library/wavs/browser_lists.rs` |
 | 432 | `src/waveform/model.rs` |
-| 432 | `src/external_drag.rs` |
 | 428 | `src/app/controller/ui/interaction_options.rs` |
 | 426 | `src/app/state/browser.rs` |
-| 424 | `src/app/controller/playback/tagging.rs` |
 | 423 | `tools/analysis-admin/src/bin/sempal-hdbscan.rs` |
 | 422 | `src/app/controller/library/sources.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
@@ -122,11 +114,8 @@ Skips dedicated test modules/paths (`tests/**`, `tests.rs`, `*_test.rs`).
 
 | Lines | File |
 | --- | --- |
-| 595 | `src/app_core/actions/catalog.rs` |
 | 456 | `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` |
 | 455 | `src/app/controller/ui/hotkeys/actions.rs` |
-| 432 | `src/external_drag.rs` |
-| 424 | `src/app/controller/playback/tagging.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
 | 418 | `src/sample_sources/db/write.rs` |
 | 402 | `src/app/controller/library/browser_controller/actions.rs` |
@@ -140,8 +129,11 @@ Skips dedicated test modules/paths (`tests/**`, `tests.rs`, `*_test.rs`).
 | 354 | `src/app/controller/playback/recording/waveform_loader/aggregation.rs` |
 | 351 | `src/app/controller/playback/audio_options/controller.rs` |
 | 348 | `src/app_core/native_bridge/metrics.rs` |
+| 345 | `src/app_core/actions/catalog/kinds.rs` |
+| 343 | `src/external_drag/platform.rs` |
 | 339 | `src/app/controller/library/wavs/audio_loading.rs` |
 | 331 | `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs` |
+| 326 | `tools/bench-cli/src/bench/gui/rebuild_probe.rs` |
 
 ## Suggested follow-up
 

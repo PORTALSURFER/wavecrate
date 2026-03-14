@@ -3,8 +3,8 @@
 Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
-Phase: 2 in progress
-Implementation status: items 1-4 are complete; remaining backlog items are pending sequential execution.
+Phase: 2 complete
+Implementation status: items 1-10 are complete and pushed on `next`.
 
 ## Repository Context
 
@@ -132,7 +132,7 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
 - Evidence:
   - `src/app/controller/library/wavs/browser_search.rs:69-70` routes browser interactions through `browser_async_pipeline_enabled()`.
   - `src/app/controller/library/wavs/browser_search.rs:407-420` defaults async search to `true` outside tests and `false` under `#[cfg(test)]`.
-  - `src/app/controller/tests/browser_core.rs` exercises browser search/filter behavior through the controller-facing sync rebuild path.
+  - `src/app/controller/tests/browser_core/filters.rs` exercises browser search/filter behavior through the controller-facing sync rebuild path.
   - `src/app/controller/library/wavs/browser_search_worker.rs` has worker-unit coverage, but not end-to-end controller/runtime parity coverage for the default async interaction mode.
 - Recommended change:
   - Add a deterministic test harness that forces the async path under test and verifies visible rows, busy-state, request-id, and result-application semantics.
@@ -212,7 +212,7 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
   - `docs/file_size_budget_allowlist.txt:13` still lists `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs`, which no longer exists in the tree.
   - `docs/file_size_budget_allowlist.txt:17` still lists `src/app/controller/playback/audio_options.rs`, which no longer exists in the tree.
   - `docs/file_size_budget_allowlist.txt:25`, `:30`, and `:46` still list legacy split paths that no longer exist (`src/app_core/native_bridge/tests/projection_cache.rs`, `src/waveform/zoom_cache.rs`, `vendor/radiant/src/gui_runtime/native_vello/input/waveform_routing.rs`).
-  - `tmp/cleanup_audit_hotspots.md` reports a different current over-budget set headed by `src/app/controller/tests/browser_core.rs`, `src/app_core/actions/catalog.rs`, `tests/unit/source_db_mod_tests.rs`, and `apps/installer/src/ui.rs`.
+  - `tmp/cleanup_audit_hotspots.md` reported a different current over-budget set headed by `src/app/controller/tests/browser_core.rs`, `src/app_core/actions/catalog.rs`, `tests/unit/source_db_mod_tests.rs`, and `apps/installer/src/ui.rs` before the current execution lane split those catalogs.
 - Recommended change:
   - Prune nonexistent allowlist entries.
   - Refresh any linked audit/quality docs that still describe the old debt set.
@@ -346,11 +346,11 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
 - Dependencies:
   - None.
 - Suggested validation:
-  - Existing browser/tagging controller tests in `src/app/controller/tests/browser_core.rs`
+  - Existing browser/tagging controller tests in `src/app/controller/tests/browser_core/tagging.rs`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 9. Add direct tests and smaller pure seams for the Windows external drag-out implementation
+### [x] 9. Add direct tests and smaller pure seams for the Windows external drag-out implementation
 
 - Classification: Test gap
 - Confidence: Medium
@@ -379,8 +379,19 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed on: `2026-03-14`
+- Commits:
+  - `bf0abada` (`test(windows): cover external drag payload helpers`)
+  - `6c70247d` (`refactor(windows): split external drag helpers`)
+  - `fe13990d` (`fix(windows): remove legacy external drag module file`)
+- Validation:
+  - `cargo test external_drag -- --nocapture` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - The stable contract worth testing is the serialized `CF_HDROP` payload and Windows-path normalization, while live COM drag-target interoperability remains the OS-owned behavior boundary.
 
-### [ ] 10. Split the remaining monolithic regression catalogs by behavior family
+### [x] 10. Split the remaining monolithic regression catalogs by behavior family
 
 - Classification: Refactor / cleanup
 - Confidence: Medium
@@ -409,6 +420,18 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
   - Existing targeted cargo test filters for the affected modules.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed on: `2026-03-14`
+- Commit: `07639512` (`refactor(tests): split regression catalogs`)
+- Validation:
+  - `cargo test browser_core -- --nocapture` passed.
+  - `cargo test focus_random -- --nocapture` passed.
+  - `cargo test source_db_mod_tests -- --nocapture` passed.
+  - `cargo test analysis_jobs::enqueue -- --nocapture` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - The existing test names and helper semantics were already the stable contract, so moving them into behavior-focused module trees is safe as long as targeted cargo filters and quick CI stay green.
 
 ## Open Questions / Missing Definitions
 
