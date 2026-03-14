@@ -17,12 +17,11 @@ pub(super) struct RecordingStats {
 /// Commands sent from the capture callback into the WAV writer worker.
 pub(super) enum RecorderCommand {
     Samples(Vec<f32>),
-    Stop,
 }
 
 /// Joinable WAV writer worker bound to one active recording session.
 pub(super) struct RecorderWriter {
-    sender: Sender<RecorderCommand>,
+    sender: Option<Sender<RecorderCommand>>,
     join: Option<JoinHandle<Result<RecordingStats, AudioInputError>>>,
 }
 
@@ -37,17 +36,15 @@ impl RecorderWriter {
         let writer = WavSampleWriter::new(&path, sample_rate, channels)?;
         let join = thread::spawn(move || writer_loop(writer, receiver));
         Ok(Self {
-            sender,
+            sender: Some(sender),
             join: Some(join),
         })
     }
 
-    pub(super) fn stop(&self) -> Result<(), AudioInputError> {
-        self.sender
-            .send(RecorderCommand::Stop)
-            .map_err(|err| AudioInputError::RecordingFailed {
-                detail: format!("Failed to stop recorder: {err}"),
-            })
+    /// Close the writer-owned sender so the worker can drain any in-flight
+    /// callback samples before finalizing the WAV file.
+    pub(super) fn stop(&mut self) {
+        let _ = self.sender.take();
     }
 
     pub(super) fn join(&mut self) -> Result<RecordingStats, AudioInputError> {
@@ -72,7 +69,6 @@ fn writer_loop(
     while let Ok(command) = receiver.recv() {
         match command {
             RecorderCommand::Samples(samples) => writer.write_samples(&samples)?,
-            RecorderCommand::Stop => break,
         }
     }
     writer.finalize()
@@ -152,5 +148,33 @@ mod tests {
         assert_eq!(spec.sample_rate, 48_000);
         assert_eq!(spec.sample_format, hound::SampleFormat::Float);
         assert_eq!(reader.samples::<f32>().count(), 4);
+    }
+
+    #[test]
+    fn recorder_stop_drains_in_flight_callback_samples() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("recording.wav");
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let callback_sender = sender.clone();
+        let mut writer = RecorderWriter::spawn(path.clone(), 48_000, 2, receiver, sender).unwrap();
+
+        callback_sender
+            .send(RecorderCommand::Samples(vec![0.0, 0.25]))
+            .unwrap();
+        writer.stop();
+        callback_sender
+            .send(RecorderCommand::Samples(vec![-0.25, 0.5]))
+            .unwrap();
+        drop(callback_sender);
+
+        let stats = writer.join().unwrap();
+        assert_eq!(stats.frames, 2);
+
+        let reader = hound::WavReader::open(&path).unwrap();
+        let samples = reader
+            .into_samples::<f32>()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(samples, vec![0.0, 0.25, -0.25, 0.5]);
     }
 }

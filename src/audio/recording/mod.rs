@@ -68,7 +68,7 @@ impl AudioRecorder {
             .ok_or_else(|| AudioInputError::RecordingFailed {
                 detail: "Recorder writer unavailable".into(),
             })?;
-        let _ = writer.stop();
+        writer.stop();
         let stats = writer.join()?;
         let duration_seconds = if stats.frames == 0 {
             0.0
