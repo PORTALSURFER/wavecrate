@@ -227,10 +227,10 @@ try {
       "pub(crate) use crate::app::state::*;"
     )
     Set-Content -Path (Join-Path $repoDir "src/app_core/controller.rs") -Value @(
-      "pub(crate) use crate::app::controller::AppController;"
+      "pub(crate) use crate::app_core::app_api::controller::AppController;"
     )
     Set-Content -Path (Join-Path $repoDir "src/app_core/controller/waveform_actions.rs") -Value @(
-      "use crate::app::state::Thing;"
+      "use crate::app_core::state::DestructiveSelectionEdit;"
     )
     Set-Content -Path (Join-Path $repoDir "src/app_core/tests/sample.rs") -Value @(
       "use crate::app::state::FocusContext;"

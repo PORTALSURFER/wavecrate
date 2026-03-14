@@ -4,9 +4,9 @@
 //! higher-churn waveform action surface stays isolated in a smaller module.
 
 use super::AppController;
-use crate::app::state::DestructiveSelectionEdit;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::state::{DragSource, DragTarget, UiPoint};
+use crate::app_core::state::{DestructiveSelectionEdit, StatusTone};
 
 /// Try to dispatch waveform, zoom, and waveform-selection drag actions.
 pub(super) fn apply_waveform_native_ui_action(
@@ -154,7 +154,7 @@ pub(super) fn apply_waveform_native_ui_action(
         }
         NativeUiAction::CropWaveformSelectionToNewSample => {
             if let Err(err) = controller.crop_waveform_selection_to_new_sample() {
-                controller.set_status(err, crate::app::controller::StatusTone::Error);
+                controller.set_status(err, StatusTone::Error);
             }
         }
         NativeUiAction::TrimWaveformSelection => {

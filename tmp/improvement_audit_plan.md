@@ -4,7 +4,7 @@ Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
 Phase: 2 in progress
-Implementation status: items 1-3 are complete; remaining backlog items are pending sequential execution.
+Implementation status: items 1-4 are complete; remaining backlog items are pending sequential execution.
 
 ## Repository Context
 
@@ -150,7 +150,7 @@ Implementation status: items 1-3 are complete; remaining backlog items are pendi
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: 2026-03-14
-- Commit: pending
+- Commit: `888b47a2` (`test(browser): cover async search controller flow`)
 - Validation outcome:
   - `cargo test browser_async -- --nocapture` passed.
   - `cargo test browser_search -- --nocapture` passed.
@@ -159,7 +159,7 @@ Implementation status: items 1-3 are complete; remaining backlog items are pendi
 - Assumptions:
   - A deterministic test-only async-dispatch override and direct background-message injection are acceptable seams because they exercise the real controller request-id and busy-state logic without introducing timing-fragile worker waits into the test suite.
 
-### [ ] 4. Finish the remaining `app_core` migration-boundary cleanup in controller shims
+### [x] 4. Finish the remaining `app_core` migration-boundary cleanup in controller shims
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -189,6 +189,16 @@ Implementation status: items 1-3 are complete; remaining backlog items are pendi
   - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 - Product clarification required: No
+- Completed: 2026-03-14
+- Commit: pending
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1` passed.
+  - `cargo test app_core::controller -- --nocapture` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - The remaining migration-facing controller shims are intended to consume legacy controller/state aliases through `app_core::app_api` rather than through direct `crate::app::` imports, because the guardrail and migration docs already describe `app_api` as the explicit legacy boundary.
 
 ### [ ] 5. Refresh the stale file-size debt ledger and dependent audit docs
 

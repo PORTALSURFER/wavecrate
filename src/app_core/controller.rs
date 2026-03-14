@@ -7,8 +7,9 @@
 /// Focused waveform-native action dispatch extracted from the main controller shim.
 mod waveform_actions;
 
-pub(crate) use crate::app::controller::build_named_gui_fixture_controller;
+pub(crate) use crate::app_core::app_api::controller::build_named_gui_fixture_controller;
 use crate::app_core::app_api::controller::AppController as LegacyAppController;
+use crate::app_core::state::StatusTone;
 
 /// Runtime-facing app controller type used by migration hosts.
 pub type AppController = LegacyAppController;
@@ -319,7 +320,7 @@ fn apply_browser_native_ui_action(
             } else {
                 controller.set_status(
                     "Focus a sample to normalize it",
-                    crate::app::controller::StatusTone::Info,
+                    StatusTone::Info,
                 );
             }
         }

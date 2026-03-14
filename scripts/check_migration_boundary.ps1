@@ -18,10 +18,7 @@ Push-Location $rootDir
 try {
   $appCoreDir = Join-Path $rootDir "src/app_core"
   $allowedFile = Join-Path $appCoreDir "app_api.rs"
-  $allowedTransitionalFiles = @(
-    (Join-Path $appCoreDir "controller.rs"),
-    (Join-Path $appCoreDir "controller/waveform_actions.rs")
-  )
+  $allowedTransitionalFiles = @()
 
   if (-not (Test-Path -LiteralPath $appCoreDir)) {
     throw "Expected app_core directory not found: $appCoreDir"

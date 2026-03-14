@@ -78,15 +78,12 @@ to `radiant` (`native_vello`) as the only runtime path.
   with explicit tests for tail clamping, focus preservation, and deterministic large-dataset frames.
 - Installer/updater binaries now run on the native radiant host path (`run_native_vello_app`).
 - Remaining legacy `app` module dependencies in migration-facing runtime glue now flow
-  through direct internal aliases in `app_core::{controller,state,view_model}`.
-- New `app_core::legacy_bridge` namespace now centralizes migration-facing aliases for
-  legacy controller/state/view-model modules.
-- `app_core::{controller,state,view_model}` now resolve through a dedicated
-  internal `app_core::legacy_bridge` boundary while continuing to consume internal
-  `app` controller/state/view-model modules.
+  through `app_core::{app_api,controller,state,view_model}` aliases.
+- `app_core::app_api` now centralizes the direct legacy `crate::app::` crossings used by
+  migration-facing controller/state/view-model aliases.
 - Migration-boundary enforcement is now centralized in
   `scripts/check_migration_boundary.sh`, and CI fails if `app_core` imports
-  direct legacy `crate::app::` paths outside `app_core::legacy_bridge`.
+  direct legacy `crate::app::` paths outside `app_core::app_api`.
 - App-core native-shell projection and native bridge prompt/tab routing now consume
   migration-facing `app_core::{controller,state}` aliases instead of direct
   `app::state` paths in host integration code.
@@ -184,7 +181,8 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
 - [x] Remove migration-facing legacy boundary module after all migration-facing callers
   stopped importing `crate::app` directly and no host/runtime entrypoint uses
   legacy module paths (migration now routes through
-  `app_core::legacy_bridge::{controller,state,view_model}`).
+  `app_core::app_api::{controller,state,view_model}` plus
+  migration-facing `app_core::{controller,state,view_model}` aliases).
 
 ## Source Management Polish Checklist
 

@@ -5,6 +5,8 @@
 pub(crate) mod controller {
     /// Legacy application controller implementation.
     pub(crate) use crate::app::controller::AppController;
+    /// Legacy GUI fixture builder used by migration-facing controller tests.
+    pub(crate) use crate::app::controller::build_named_gui_fixture_controller;
     /// Legacy retained browser preload-window cache type.
     pub(crate) use crate::app::controller::ProjectedBrowserPreloadWindow;
     /// Legacy retained browser-row projection cache entry type.
