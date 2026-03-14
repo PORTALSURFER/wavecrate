@@ -59,13 +59,13 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `C:\dev\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: evidence-driven improvement audit execution
+- Program: evidence-driven improvement audit execution follow-through and handoff
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed ROI-ranked backlog and execution record for the current codebase; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: Phase 2 is in progress. Items 1-6 are complete on `2026-03-14`; item 7 is next.
+- Current status: the active improvement-audit lane is complete for all safe items on `2026-03-14`; items 1-6 and 8 are done, and item 7 is blocked on browser-search ownership clarification.
 
 ## Immediate Next Actions
-1. Continue executing `tmp/improvement_audit_plan.md` in order, starting with item 7.
-2. Resolve the browser-search ownership/authority question before attempting deeper sync-vs-async consolidation.
+1. Wait for user direction before reopening the blocked browser-search ownership item.
+2. Keep `tmp/improvement_audit_plan.md` as the source of truth if the audit lane is resumed.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized when the active lane changes.
 
@@ -73,7 +73,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog and execution record for the current codebase; items 1-6 are complete and item 7 is next
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog and execution record for the current codebase; items 1-6 and 8 are complete, and item 7 is blocked on clarification
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation

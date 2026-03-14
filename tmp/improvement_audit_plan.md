@@ -4,7 +4,7 @@ Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
 Phase: 2 in progress
-Implementation status: items 1-6 are complete; items 7-8 remain pending.
+Implementation status: items 1-6 and 8 are complete; item 7 is blocked on clarification.
 
 ## Repository Context
 
@@ -252,7 +252,7 @@ Implementation status: items 1-6 are complete; items 7-8 remain pending.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: 2026-03-14
-- Commit: pending
+- Commit: `279b7d6c` (`refactor(native-bridge): split projection cache state`)
 - Validation outcome:
   - `cargo test projection_cache --lib` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
@@ -260,7 +260,7 @@ Implementation status: items 1-6 are complete; items 7-8 remain pending.
 - Assumptions:
   - Splitting projection-cache key types, lookup counters, and retained cache state into sibling modules is behavior-preserving because the existing key builders, materializers, and tests stay unchanged.
 
-### [ ] 7. Clarify and reduce the dual source-of-truth risk in browser search construction
+### [~] 7. Clarify and reduce the dual source-of-truth risk in browser search construction
 
 - Classification: Architecture improvement
 - Confidence: Medium
@@ -288,8 +288,14 @@ Implementation status: items 1-6 are complete; items 7-8 remain pending.
   - Existing parity tests plus targeted controller async-path tests.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: Yes
+- Blocked: 2026-03-14
+- Why blocked:
+  - The repository proves that sync and async browser-search paths must remain behaviorally aligned, but it still does not define which layer is authoritative beyond parity itself.
+  - A safe architectural change here would require choosing between shared semantics, explicit duplication with parity enforcement, or an async-first contract, and the current docs/tests do not settle that choice.
+- Conservative action taken:
+  - Left the two-path structure unchanged and moved on to the next safe backlog item.
 
-### [ ] 8. Split the remaining large controller regression catalogs by behavior family
+### [x] 8. Split the remaining large controller regression catalogs by behavior family
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -314,7 +320,17 @@ Implementation status: items 1-6 are complete; items 7-8 remain pending.
 - Suggested validation:
   - Targeted controller test runs for the moved modules.
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: 2026-03-14
+- Commit: pending
+- Validation outcome:
+  - `cargo test playback_loop --lib` passed.
+  - `cargo test waveform_nav_cursor --lib` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - Keeping the existing helper setup local to each new module tree is preferable to introducing a shared test utility layer that would obscure behavior-specific fixtures.
 
 ## Open Questions / Missing Definitions
 

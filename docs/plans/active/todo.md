@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-14T15:02:00Z
+Last updated (UTC): 2026-03-14T16:24:20Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -11,14 +11,14 @@ Purpose:
 
 ## Current lane
 
-- Improvement audit Phase 2 execution is active.
+- Improvement audit Phase 2 safe work is complete.
 - `tmp/improvement_audit_plan.md` is the source of truth for the refreshed backlog and execution record.
-- Backlog items 1-6 are complete; item 7 is next.
+- Backlog items 1-6 and 8 are complete; item 7 is blocked on clarification.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Continue executing `tmp/improvement_audit_plan.md` from item 7.
-2. Resolve the browser-search ownership/authority question before deeper sync-vs-async cleanup.
+1. Wait for user direction on the blocked browser-search ownership/authority question before reopening item 7.
+2. Keep `tmp/improvement_audit_plan.md` synchronized if the audit lane is resumed.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
 4. Keep `AGENTS.md`, `MEMORY.md`, this file, and `tmp/improvement_audit_plan.md` synchronized when the active lane changes.

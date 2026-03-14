@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-14T15:02:00Z
+Last Updated: 2026-03-14T16:24:20Z
 Updated By: Codex
 
 ## Purpose
@@ -21,11 +21,12 @@ Updated By: Codex
 - Backlog item 4 is complete: the file-size debt allowlist now matches the live scoped exceptions, and the obsolete top-5 split plan is retired in favor of `tmp/cleanup_audit_hotspots.md`.
 - Backlog item 5 is complete: the updater facade now delegates asset naming, install-path validation, and archive download/checksum/unzip work to focused helper modules while keeping the updater API stable.
 - Backlog item 6 is complete: the native-bridge projection cache now splits key types, segment lookup counters, and retained cache state into focused modules while preserving the existing projection/materialization behavior.
-- The next active item is backlog item 7: resolve the browser-search ownership contract before making deeper sync-vs-async cleanup changes.
+- Backlog item 7 is blocked: the browser-search ownership contract is still unclear, so deeper sync-vs-async consolidation remains unsafe without user direction.
+- Backlog item 8 is complete: the remaining oversized controller regression catalogs are now split into behavior-grouped `playback_loop/` and `waveform_nav_cursor/` module trees.
 - The highest-leverage current findings are:
   - The browser sync/async search split still needs an explicit ownership contract before deeper cleanup.
-  - The remaining high-ROI refactors are now primarily code-structure work rather than baseline/doc repair.
-  - The last clearly safe structural cleanup in the current backlog is the remaining oversized controller regression catalogs.
+  - The currently safe improvement-audit backlog is otherwise complete.
+  - The validation baseline is green through the completed audit items.
 - The browser sync/async search split remains a clarification-sensitive area and is called out explicitly in `tmp/improvement_audit_plan.md`.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
@@ -34,8 +35,8 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue executing `tmp/improvement_audit_plan.md` in order, starting with item 7.
-2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned while the audit lane is active.
+1. Wait for user direction before reopening the blocked browser-search ownership item.
+2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned if the audit lane is resumed.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Treat `scripts/ci_local.ps1` green as the current expected Windows local parity baseline unless a future doc update says otherwise.
 
