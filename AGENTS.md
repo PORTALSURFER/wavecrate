@@ -59,21 +59,21 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `C:\dev\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: improvement audit execution handoff
-- Source of truth: `tmp/improvement_audit_plan.md` for the completed ROI-ranked improvement backlog and execution record; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: the improvement audit backlog in `tmp/improvement_audit_plan.md` is complete through item 10 on `2026-03-14`; the lane is complete and waiting for the next user-directed priority.
+- Program: evidence-driven improvement audit execution
+- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed ROI-ranked backlog and execution record for the current codebase; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
+- Current status: Phase 2 is in progress. Item 1 is complete on `2026-03-14`; item 2 is next.
 
 ## Immediate Next Actions
-1. Wait for the next user-directed lane; do not reopen `tmp/improvement_audit_plan.md` unless follow-up audit work is explicitly requested.
-2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
-3. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized when the active lane changes.
-4. If the user asks for broader CI parity again, note that `scripts/ci_local.ps1` is still blocked after the migration-boundary gate by the pre-existing `vendor/radiant` test `gui::native_shell::layout_adapter::controls::controls_tests::toolbar_search_field_uses_ratio_width_inside_full_host`.
+1. Continue executing `tmp/improvement_audit_plan.md` in order, starting with item 2.
+2. Resolve the `vendor/radiant` CI baseline ambiguity after the rustfmt blocker cleared; the current observed failure is `gui::native_shell::layout_adapter::controls::controls_tests::toolbar_search_field_uses_ratio_width_inside_full_host`.
+3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
+4. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized when the active lane changes.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog and execution record; items 1-10 are complete as of `2026-03-14`
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog and execution record for the current codebase; item 1 is complete and item 2 is next
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation

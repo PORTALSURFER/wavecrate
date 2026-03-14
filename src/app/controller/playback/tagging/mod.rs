@@ -3,8 +3,8 @@ use super::*;
 mod shared;
 
 use self::shared::{
-    prepare_tagging_selection, push_rating_undo_entry, record_applied_update, RatingUndoState,
-    TaggingSelection,
+    RatingUndoState, TaggingSelection, prepare_tagging_selection, push_rating_undo_entry,
+    record_applied_update,
 };
 
 fn should_advance_after_rating(

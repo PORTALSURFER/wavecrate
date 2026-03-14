@@ -7,8 +7,8 @@
 /// Focused waveform-native action dispatch extracted from the main controller shim.
 mod waveform_actions;
 
-pub(crate) use crate::app_core::app_api::controller::build_named_gui_fixture_controller;
 use crate::app_core::app_api::controller::AppController as LegacyAppController;
+pub(crate) use crate::app_core::app_api::controller::build_named_gui_fixture_controller;
 use crate::app_core::state::StatusTone;
 
 /// Runtime-facing app controller type used by migration hosts.
@@ -318,10 +318,7 @@ fn apply_browser_native_ui_action(
             if let Some(row) = controller.focused_browser_row() {
                 let _ = controller.normalize_browser_sample(row);
             } else {
-                controller.set_status(
-                    "Focus a sample to normalize it",
-                    StatusTone::Info,
-                );
+                controller.set_status("Focus a sample to normalize it", StatusTone::Info);
             }
         }
         NativeUiAction::DeleteBrowserSelection => {

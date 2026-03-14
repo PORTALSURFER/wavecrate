@@ -3,515 +3,353 @@
 Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
-Phase: 2 complete
-Implementation status: items 1-10 are complete and pushed on `next`.
+Phase: 2 in progress
+Implementation status: item 1 is complete; items 2-8 remain pending.
 
 ## Repository Context
 
-- Project purpose: Rust desktop audio sample triage and curation tool with native GUI, playback/editing, source management, updater flows, and semantic GUI automation.
+- Project purpose: Rust desktop sample-triage and sample-editing application with a native GUI, playback/editing flows, sample-source scanning/database state, updater support, and semantic GUI automation.
   - Confidence: Explicitly documented
   - Evidence: `README.md`, `docs/design_principles.md`, `docs/ARCHITECTURE.md`
-- Maturity level: actively developed application with strong local/CI guardrails, but still carrying meaningful migration debt, large-file debt, and some duplicated behavior paths.
+- Maturity level: active application with strong local guardrails and growing subsystem decomposition, but still carrying visible file-size debt, doc drift, and a few unresolved boundary questions.
   - Confidence: Strongly implied by code/docs
-  - Evidence: `.github/workflows/ci.yml`, `docs/QUALITY_SCORE.md`, `docs/gui_migration_parity.md`, `tmp/cleanup_audit_hotspots.md`
-- Primary languages/tooling: Rust 2024 workspace, Cargo, PowerShell-first Windows workflow wrappers, `vendor/radiant` native GUI/runtime, semantic GUI test tooling plus AIV desktop automation.
+  - Evidence: `.github/workflows/ci.yml`, `docs/QUALITY_SCORE.md`, `tmp/cleanup_audit_hotspots.md`, `docs/plans/index.md`
+- Primary languages/frameworks/tooling: Rust 2024 workspace, Cargo, PowerShell-first workflow wrappers on Windows, `vendor/radiant` for native GUI/runtime integration, and AIV-backed desktop automation support.
   - Confidence: Explicitly documented
-  - Evidence: `Cargo.toml`, `README.md`, `AGENTS.md`, `docs/TEST.md`, `docs/gui_test_platform.md`
-- Repository shape: root app crate plus companion apps under `apps/`, support tools under `tools/`, and the `vendor/radiant` submodule.
+  - Evidence: `Cargo.toml`, `AGENTS.md`, `docs/README.md`, `docs/TEST.md`, `docs/gui_test_platform.md`
+- Repository shape: main app in `src/`, companion tools/apps in `apps/` and `tools/`, documentation under `docs/`, temporary working plans under `tmp/`, and the `vendor/radiant` submodule.
   - Confidence: Explicitly documented
-  - Evidence: `Cargo.toml`, `docs/ARCHITECTURE.md`
-- Architectural boundaries: `src/**` owns domain logic, `src/app_core/**` owns backend-neutral projection/action contracts, and `vendor/radiant/**` owns GUI behavior/runtime concerns.
+  - Evidence: `Cargo.toml`, `docs/ARCHITECTURE.md`, repository tree
+- Architectural boundaries: application/domain logic lives in `src/**`, backend-neutral UI/action contracts live in `src/app_core/**`, and native-shell/runtime behavior lives in `vendor/radiant/**`.
   - Confidence: Explicitly documented
-  - Evidence: `README.md`, `docs/ARCHITECTURE.md`
-- Test strategy: unit and integration tests first, then GUI contract/snapshot coverage, with AIV desktop automation as a broader live loop.
+  - Evidence: `README.md`, `docs/ARCHITECTURE.md`, `docs/gui_migration_parity.md`
+- Test strategy: fast Rust tests first, then broader validation through PowerShell CI wrappers; GUI semantics are treated as contract surfaces and complemented by desktop automation.
   - Confidence: Explicitly documented
-  - Evidence: `docs/TEST.md`, `docs/gui_test_platform.md`
+  - Evidence: `docs/TEST.md`, `AGENTS.md`, `docs/gui_test_platform.md`
 - Canonical local validation commands on Windows:
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
   - Confidence: Explicitly documented
   - Evidence: `README.md`, `AGENTS.md`, `docs/README.md`, `docs/TEST.md`
-- Documented priorities: responsiveness, non-blocking behavior, deterministic interaction, semantic GUI automation, explicit docs, and safe/reversible change paths.
+- Documented priorities: responsiveness, non-blocking workflows, deterministic interaction, explicit documentation, and reversible/safe changes.
   - Confidence: Explicitly documented
-  - Evidence: `docs/design_principles.md`, `docs/gui_test_platform.md`, `AGENTS.md`
-- Explicit non-goals: DAW replacement, cloud/social platform behavior, framework rewrite-by-default, or ornamental UX at the expense of responsiveness.
+  - Evidence: `docs/design_principles.md`, `AGENTS.md`
+- Explicit non-goals: DAW replacement, social/cloud platform scope, and speculative framework rewrites.
   - Confidence: Explicitly documented
   - Evidence: `docs/design_principles.md`
-- Current uncertainty that materially affects safe planning:
-  - The browser has both sync and async search/filter pipelines with different test/runtime defaults.
-  - The migration docs describe a strict `app_core` boundary, but the Windows enforcement path is still not reliable enough to use as a parity gate.
-  - Confidence: Strongly implied by code/docs
-  - Evidence: `src/app/controller/library/wavs/browser_pipeline.rs`, `src/app/controller/library/wavs/browser_search.rs`, `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs`, `scripts/check_migration_boundary.ps1`, `docs/gui_migration_parity.md`
 
 ## ROI-Ranked Backlog
 
-### [x] 1. Restore usable Windows CI parity for the migration-boundary gate
+### [x] 1. Restore a rustfmt-clean baseline so `scripts/ci_local.ps1` can reach deeper validation
 
 - Classification: Developer-experience improvement
 - Confidence: High
 - ROI: High
 - Effort: S
 - Why it matters:
-  - The repo documents `scripts/ci_local.ps1` as the canonical local CI path, but the current Windows migration-boundary check is not usable as a debugging tool. That blocks the highest-signal validation path and slows every follow-up migration cleanup.
+  - The documented full local CI path currently stops at formatting drift, so it cannot exercise the deeper lint/test gates it is supposed to represent.
 - Evidence:
-  - `README.md` and `docs/TEST.md` define `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` as the canonical parity command.
-  - `scripts/ci_local.ps1` invokes `scripts/run_agent_ci_checks.ps1`, which in turn relies on the migration-boundary guard.
-  - `scripts/check_migration_boundary.ps1:47-58` calls `Write-Error` before printing collected violations, so the actionable list is skipped under `ErrorActionPreference = "Stop"`.
-  - Observed during this audit on 2026-03-14: `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` exits with `Migration boundary check failed...` but does not print the offending matches.
+  - Observed during this audit on 2026-03-14: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` failed at `cargo fmt --all -- --check`.
+  - The failure reported formatting drift in `src/app/controller/library/wavs/browser_search_worker/pipeline.rs`, `src/app/controller/playback/tagging/mod.rs`, `src/app_core/app_api.rs`, and `src/app_core/controller.rs`.
+  - `README.md`, `docs/README.md`, `docs/TEST.md`, and `AGENTS.md` all describe `scripts/ci_local.ps1` as the canonical local parity command.
 - Recommended change:
-  - Make `scripts/check_migration_boundary.ps1` print all collected violations before exiting non-zero.
-  - Keep its behavior aligned with the documented allowlist/transitional boundary so the failure is actionable instead of opaque.
+  - Normalize the current formatting drift and keep the repo at a rustfmt-clean baseline.
+  - Treat this as a baseline repair, not a semantic change.
 - Expected impact:
-  - Restores an actionable full local parity gate on Windows.
-  - Reduces time spent guessing whether the blocker is a real boundary violation or a script/reporting bug.
+  - Restores access to deeper local CI signal.
+  - Removes a low-value blocker from every future validation pass.
 - Risks / tradeoffs:
-  - Low implementation risk if limited to output/flow control.
-  - May expose real remaining boundary debt that still needs follow-up work.
+  - Low.
+  - May reveal the next real baseline blocker immediately after fmt is fixed.
 - Dependencies:
   - None.
 - Suggested validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1`
+  - `cargo fmt --all -- --check`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 - Product clarification required: No
 - Completed: 2026-03-14
-- Commit: `a1bdd698` (`fix(scripts): make migration boundary failures actionable`)
+- Commit: pending
 - Validation outcome:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1` passed with the new migration-boundary fixture coverage.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` advanced past the migration-boundary gate and failed later in the unrelated pre-existing `vendor/radiant` test `gui::native_shell::layout_adapter::controls::controls_tests::toolbar_search_field_uses_ratio_width_inside_full_host`.
-- Assumptions:
-  - The `vendor/radiant` layout test failure is outside this item's change surface because item 1 only changed migration-boundary reporting and its script guardrails.
-
-### [x] 2. Eliminate search-behavior drift between the sync browser pipeline and the async worker pipeline
-
-- Classification: Architecture improvement
-- Confidence: High
-- ROI: High
-- Effort: M
-- Why it matters:
-  - Browser filtering/search/sort behavior exists in two separate implementations. That creates a correctness risk where small libraries and large libraries can produce different visible rows, sort order, or folder-filter semantics.
-- Evidence:
-  - `src/app/controller/library/wavs/browser_pipeline.rs:67-339` implements retained sync visible-row construction, folder acceptance, scoring, and sorting in-process.
-  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs:10-398` independently implements worker-side cache setup, query scoring, folder acceptance, visible-row construction, and sorting.
-  - `src/app/controller/library/wavs/browser_search.rs:198-205` dispatches the async job path, while the sync path still rebuilds lists locally.
-- Recommended change:
-  - Extract the shared query/filter/sort semantics into shared helpers, or add an explicit parity layer that both paths consume.
-  - If full helper sharing is too invasive, start with a common fixture-driven parity harness and then collapse the duplicated logic incrementally.
-- Expected impact:
-  - Lowers the risk of runtime-only browser mismatches.
-  - Makes future browser search fixes safer because there is one source of behavior truth or one parity contract.
-- Risks / tradeoffs:
-  - Medium refactor risk in a central browsing path.
-  - Over-abstraction would be a mistake here; the safe version is shared semantics, not a forced giant common framework.
-- Dependencies:
-  - Item 3 benefits this work but is not required.
-- Suggested validation:
-  - Deterministic parity tests for query, rating filter, folder filter, similar-query, and playback-age sort combinations.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completed: 2026-03-14
-- Commit: `7a362804` (`fix(browser): align async search ordering`)
-- Validation outcome:
-  - `cargo test browser_search_worker -- --nocapture` passed.
-  - `cargo test browser_core -- --nocapture` passed.
+  - `cargo fmt --all -- --check` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` advanced past rustfmt, guardrails, clippy, and rustdoc, then failed later on `vendor/radiant` test `gui::native_shell::layout_adapter::controls::controls_tests::toolbar_search_field_uses_ratio_width_inside_full_host`.
 - Assumptions:
-  - Matching the sync pipeline's existing score-ranked query order for `ListOrder` search results is the safest parity target because the controller tests and retained pipeline already treat fuzzy-score order as the contract.
+  - Reformatting these four files is behavior-preserving because the changes are limited to rustfmt ordering and line-wrapping.
 
-### [x] 3. Add direct coverage for the runtime-default async browser search path
+### [ ] 2. Define the expected Windows full-CI baseline after the formatting gate
 
-- Classification: Test gap
-- Confidence: High
+- Classification: Product-definition gap
+- Confidence: Medium
 - ROI: High
-- Effort: M
+- Effort: S
 - Why it matters:
-  - The runtime-default browser search path is explicitly different from the test-default path. Current controller tests mostly validate the synchronous path, so regressions in the actual runtime behavior can slip through.
+  - The repository documents `scripts/ci_local.ps1` as the canonical local parity command, but current handoff docs also describe a known later failure in `vendor/radiant`. Without an explicit baseline, maintainers cannot tell whether full local CI is expected to be green or merely informative.
 - Evidence:
-  - `src/app/controller/library/wavs/browser_search.rs:69-70` routes browser interactions through `browser_async_pipeline_enabled()`.
-  - `src/app/controller/library/wavs/browser_search.rs:407-420` defaults async search to `true` outside tests and `false` under `#[cfg(test)]`.
-  - `src/app/controller/tests/browser_core/filters.rs` exercises browser search/filter behavior through the controller-facing sync rebuild path.
-  - `src/app/controller/library/wavs/browser_search_worker.rs` has worker-unit coverage, but not end-to-end controller/runtime parity coverage for the default async interaction mode.
+  - `AGENTS.md` currently says broader CI parity is still blocked after the migration-boundary gate by `vendor/radiant` test `gui::native_shell::layout_adapter::controls::controls_tests::toolbar_search_field_uses_ratio_width_inside_full_host`.
+  - `MEMORY.md` currently repeats the same known-failure note.
+  - `README.md`, `docs/README.md`, and `docs/TEST.md` still present `scripts/ci_local.ps1` as the canonical validation flow without documenting that exception.
 - Recommended change:
-  - Add a deterministic test harness that forces the async path under test and verifies visible rows, busy-state, request-id, and result-application semantics.
-  - Include at least one parity check against the sync path for the same fixture.
+  - Either fix the known failing `vendor/radiant` test so the documented parity path is actually green, or explicitly document that `ci_local.ps1` is currently expected to fail on that named test and explain the gating rule.
 - Expected impact:
-  - Better confidence in the default runtime browser-search behavior.
-  - Faster diagnosis of regressions that only show up with background search jobs enabled.
+  - Removes ambiguity about what “full local parity” means on Windows.
+  - Prevents agents and maintainers from treating a known baseline failure as a regression or, worse, ignoring a real new failure.
 - Risks / tradeoffs:
-  - Test harness work is moderately involved because the worker path is asynchronous.
-  - Avoid timing-fragile tests; prefer explicit queue/result injection.
+  - If the test is flaky or environment-specific, a fix may be more involved than documentation.
+  - If only documentation is updated, the repo still carries the actual failing baseline.
 - Dependencies:
-  - None.
+  - Item 1 should land first so `ci_local.ps1` reliably reaches the later failure.
 - Suggested validation:
-  - Targeted browser-search tests covering async dispatch and application.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completed: 2026-03-14
-- Commit: `888b47a2` (`test(browser): cover async search controller flow`)
-- Validation outcome:
-  - `cargo test browser_async -- --nocapture` passed.
-  - `cargo test browser_search -- --nocapture` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
-- Assumptions:
-  - A deterministic test-only async-dispatch override and direct background-message injection are acceptable seams because they exercise the real controller request-id and busy-state logic without introducing timing-fragile worker waits into the test suite.
-
-### [x] 4. Finish the remaining `app_core` migration-boundary cleanup in controller shims
-
-- Classification: Architecture improvement
-- Confidence: High
-- ROI: High
-- Effort: M
-- Why it matters:
-  - `app_core` is documented as the backend-neutral migration-facing layer, but the current controller shims still depend directly on legacy `crate::app` types and helpers outside the documented bridge surface. That keeps the boundary porous and harder to reason about.
-- Evidence:
-  - `docs/gui_migration_parity.md:88-89` states CI should fail if `app_core` imports direct legacy `crate::app::` paths outside the bridge boundary.
-  - `src/app_core/controller.rs:10` re-exports `crate::app::controller::build_named_gui_fixture_controller`.
-  - `src/app_core/controller.rs:322` uses `crate::app::controller::StatusTone::Info`.
-  - `src/app_core/controller/waveform_actions.rs:7` imports `crate::app::state::DestructiveSelectionEdit`.
-  - `src/app_core/controller/waveform_actions.rs:157` uses `crate::app::controller::StatusTone::Error`.
-- Recommended change:
-  - Route these remaining legacy types through `app_api`/`legacy_bridge` aliases or a narrower migration-owned shim module.
-  - After that cleanup, simplify the transitional exceptions in the migration-boundary check.
-- Expected impact:
-  - Makes the documented boundary real instead of aspirational.
-  - Reduces migration confusion for future `app_core` work.
-- Risks / tradeoffs:
-  - Moderate churn in migration-facing glue.
-  - Must preserve native runtime wiring and tests.
-- Dependencies:
-  - Item 1 makes this easier to validate locally.
-- Suggested validation:
-  - `rg -n "crate::app::" src/app_core`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
-- Product clarification required: No
-- Completed: 2026-03-14
-- Commit: `b232cfec` (`refactor(app_core): enforce migration boundary`)
-- Validation outcome:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1` passed.
-  - `cargo test app_core::controller -- --nocapture` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
-- Assumptions:
-  - The remaining migration-facing controller shims are intended to consume legacy controller/state aliases through `app_core::app_api` rather than through direct `crate::app::` imports, because the guardrail and migration docs already describe `app_api` as the explicit legacy boundary.
+  - If documenting an exception, verify all handoff/docs reference the same expected outcome.
+- Product clarification required: Yes
 
-### [x] 5. Refresh the stale file-size debt ledger and dependent audit docs
+### [ ] 3. Repair stale docs and handoff references left behind by recent module splits
 
 - Classification: Documentation gap
 - Confidence: High
 - ROI: High
 - Effort: S
 - Why it matters:
-  - The allowlist is one of the repo’s planning inputs. Right now it still names files that no longer exist, so it no longer accurately reflects the live debt and can misdirect cleanup work.
+  - The repo’s orientation docs currently point readers to deleted files and stale audit states. That makes onboarding and follow-up work materially less reliable.
 - Evidence:
-  - `docs/file_size_budget_allowlist.txt:13` still lists `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs`, which no longer exists in the tree.
-  - `docs/file_size_budget_allowlist.txt:17` still lists `src/app/controller/playback/audio_options.rs`, which no longer exists in the tree.
-  - `docs/file_size_budget_allowlist.txt:25`, `:30`, and `:46` still list legacy split paths that no longer exist (`src/app_core/native_bridge/tests/projection_cache.rs`, `src/waveform/zoom_cache.rs`, `vendor/radiant/src/gui_runtime/native_vello/input/waveform_routing.rs`).
-  - `tmp/cleanup_audit_hotspots.md` reported a different current over-budget set headed by `src/app/controller/tests/browser_core.rs`, `src/app_core/actions/catalog.rs`, `tests/unit/source_db_mod_tests.rs`, and `apps/installer/src/ui.rs` before the current execution lane split those catalogs.
+  - `docs/README.md:27-30` still says `tmp/improvement_audit_plan.md` is Phase 1-only from 2026-03-13.
+  - `docs/plans/index.md:15-19` still says the improvement audit execution record has “items 1-14 completed on 2026-03-13”.
+  - `docs/gui_test_platform.md:20` still points to nonexistent `src/app_core/actions/catalog.rs`.
+  - `docs/ARCHITECTURE.md:38` and `docs/ARCHITECTURE.md:73` still point to nonexistent `src/external_drag.rs`.
 - Recommended change:
-  - Prune nonexistent allowlist entries.
-  - Refresh any linked audit/quality docs that still describe the old debt set.
+  - Refresh the stale cross-links and status text so docs point at the live module tree and current audit state.
+  - Keep the edits narrowly factual; do not expand scope into new architecture guidance.
 - Expected impact:
-  - Makes the cleanup ledger trustworthy again.
-  - Prevents future audit work from targeting already-split or removed files.
+  - Improves discoverability and reduces false starts for future contributors and agent sessions.
 - Risks / tradeoffs:
-  - Low technical risk.
-  - The main risk is forgetting to refresh related docs in the same pass.
+  - Low.
+  - Must avoid quietly changing meaning instead of just correcting references.
 - Dependencies:
   - None.
 - Suggested validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+  - Open each referenced path after updating.
+  - `rg -n "catalog\\.rs|external_drag\\.rs|items 1-14|2026-03-13|Phase 1 complete" docs`
 - Product clarification required: No
-- Completed on: `2026-03-14`
-- Commit: `fe44b501`
-- Validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
-- Assumptions:
-  - `docs/file_size_budget_allowlist.txt` is intended to track only the guardrail scope enforced by `scripts/check_file_size_budget.*` (`src/`, `tests/`, and `vendor/radiant/src`), while `tmp/cleanup_audit_hotspots.md` remains the broader multi-tree hotspot snapshot for `apps/` and `tools/` debt.
 
-### [x] 6. Split the canonical GUI action catalog into smaller contract-focused modules
+### [ ] 4. Refresh or retire stale file-size debt planning documents so they match the live hotspot scan
+
+- Classification: Documentation gap
+- Confidence: High
+- ROI: High
+- Effort: S
+- Why it matters:
+  - The repo uses file-size debt documents as planning inputs, but the current debt ledger and active split plan still describe old files that have already been split or deleted.
+- Evidence:
+  - `docs/file_size_budget_allowlist.txt:23` still lists deleted `src/app_core/actions/catalog.rs`.
+  - `docs/file_size_budget_allowlist.txt` also still contains other deleted legacy entries from the recent catalog/test splits.
+  - `docs/plans/active/file_size_debt_top5_split_plan.md:11-18` still describes a 2026-02-27 top-5 led by `src/app_core/native_shell.rs`, `src/app/controller/jobs.rs`, and `src/app/controller/library/wavs/browser_search_worker.rs`, all of which have already been split.
+  - `tmp/cleanup_audit_hotspots.md` now shows a different live top set led by `src/updater/mod.rs`, `src/app_core/native_bridge/projection_cache.rs`, `src/updater/archive.rs`, and `src/app/controller/tests/playback_loop.rs`.
+- Recommended change:
+  - Bring `docs/file_size_budget_allowlist.txt` back in sync with the current tree.
+  - Either refresh `docs/plans/active/file_size_debt_top5_split_plan.md` to the current hotspots or explicitly retire it in favor of `tmp/cleanup_audit_hotspots.md`.
+- Expected impact:
+  - Makes cleanup planning trustworthy again.
+  - Prevents future work from targeting already-completed splits.
+- Risks / tradeoffs:
+  - Low.
+  - Retiring the old plan without naming a replacement would create another discoverability gap.
+- Dependencies:
+  - None.
+- Suggested validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
+- Product clarification required: No
+
+### [ ] 5. Split the updater runtime boundary into smaller focused modules before the next updater change
 
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: Medium
 - Effort: M
 - Why it matters:
-  - The GUI action catalog is a central semantic contract for tooling, automation, and tests. It currently concentrates action identity, coverage metadata, sample payload factories, and exhaustive matching in one large file, which increases review risk whenever the catalog evolves.
+  - The updater path is security-sensitive and currently concentrates public API, path/symlink validation, release selection, test hooks, archive download, checksum verification, and extraction behavior across two still-large files.
 - Evidence:
-  - `docs/gui_test_platform.md` names `src/app_core/actions/catalog.rs` as the canonical host action catalog.
-  - `tmp/cleanup_audit_hotspots.md` lists `src/app_core/actions/catalog.rs` at 595 lines, currently one of the largest production files.
-  - `src/app_core/actions/catalog.rs:9-232` defines the large `GuiActionKind` surface.
-  - `src/app_core/actions/catalog.rs:429-452` generates both the catalog and representative action payload mapping in one macro block.
-  - `src/app_core/actions/tests.rs` verifies exhaustiveness, so this surface is already treated as contract-critical.
+  - `tmp/cleanup_audit_hotspots.md` lists `src/updater/mod.rs` at 479 lines and `src/updater/archive.rs` at 469 lines.
+  - `src/updater/mod.rs:122-153` exposes the main updater entrypoints, while `src/updater/mod.rs:221-362` also owns path/symlink sanitization and test-only environment hooks.
+  - `src/updater/archive.rs:45-282` mixes download, checksum parsing, signature verification, retry logic, and zip extraction limits in one file.
 - Recommended change:
-  - Split action identity, coverage metadata, and representative sample payloads into focused modules while preserving the exhaustive compile-time match path.
+  - Separate the updater facade, path-validation helpers, release-asset verification, and archive extraction into focused modules with stable entrypoints.
+  - Keep behavior identical and preserve the existing verification tests.
 - Expected impact:
-  - Lower maintenance risk in a repo-wide contract surface.
-  - Easier review of future GUI action additions.
+  - Lowers review risk in a sensitive code path.
+  - Makes future updater/security fixes more local and easier to validate.
 - Risks / tradeoffs:
-  - Moderate mechanical churn.
-  - Preserve the current exhaustiveness guarantees; do not replace them with dynamic lookup magic.
+  - Moderate refactor risk if module boundaries are over-designed.
+  - Avoid changing updater behavior while splitting.
 - Dependencies:
   - None.
-- Completed on: `2026-03-14`
-- Commit: `4e5d82e7`
-- Validation:
-  - `cargo test app_core::actions -- --nocapture` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
-- Assumptions:
-  - The stable public surface should remain the `app_core::actions` re-exports, so splitting the implementation under `src/app_core/actions/catalog/` is preferable to renaming public symbols or changing lookup semantics.
 - Suggested validation:
-  - `cargo test app_core::actions -- --nocapture`
-  - GUI contract loop from `docs/gui_test_platform.md`
+  - Targeted updater tests.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [x] 7. Split the installer native bridge into explicit state, task, and projection layers
+### [ ] 6. Decompose `app_core` projection-cache state and probe logic into narrower ownership layers
 
 - Classification: Architecture improvement
-- Confidence: Medium
-- ROI: Medium
-- Effort: M
-- Why it matters:
-  - The installer is a user-visible state machine that currently mixes background task startup, event polling, step transitions, projection building, and action reduction in one file. That shape is harder to extend safely than the already-split updater-helper flow.
-- Evidence:
-  - `tmp/cleanup_audit_hotspots.md` lists `apps/installer/src/ui.rs` at 470 lines.
-  - `apps/installer/src/ui.rs:50-394` keeps `InstallerNativeBridge`, `start_install`, `poll_installer`, `app_model`, and `reduce_action` together in one file.
-  - `apps/installer/src/ui.rs:459-467` currently has only a minimal step-order test.
-  - `apps/updater-helper/src/ui/{tasks,state,projection}.rs` already shows the repo’s preferred decomposition for a similar native companion UI.
-- Recommended change:
-  - Mirror the updater-helper split: isolate worker-task plumbing, reducer-like state transitions, and view projection.
-  - Add targeted tests for failure recovery, finish actions, and per-step model projection.
-- Completed on: `2026-03-14`
-- Validation:
-  - `cargo test -p sempal-installer -- --nocapture` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
-- Assumptions:
-  - The installer’s public/runtime-facing surface should remain `ui::run_installer_app` plus the existing sender/event helpers consumed by `install.rs` and `download.rs`, so the split stays internal under `apps/installer/src/ui/`.
-- Expected impact:
-  - Safer maintenance of the installer flow.
-  - Better local reasoning about state transitions and background event handling.
-- Risks / tradeoffs:
-  - Moderate churn in a smaller app path.
-  - Avoid over-engineering; this should stay a small, explicit state machine.
-- Dependencies:
-  - None.
-- Commit: `905919e1`
-- Suggested validation:
-  - `cargo test -p sempal-installer -- --nocapture`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-
-### [x] 8. Deduplicate the rating/tagging mutation and undo/refocus logic in playback tagging
-
-- Classification: Refactor / cleanup
 - Confidence: High
 - ROI: Medium
 - Effort: M
 - Why it matters:
-  - Tagging and rating changes are core curation flows, and the current implementation duplicates a large amount of context gathering, mutation, undo wiring, and refocus logic across two long functions. That makes future behavior fixes easy to land in one path but miss in the other.
+  - The projection cache is a core bridge between controller state and native projections. It still mixes probe metrics, cache keys, derived-state assembly, and retained cache state in one file, which increases regression risk in a migration-critical boundary.
 - Evidence:
-  - `src/app/controller/playback/tagging.rs:83-210` implements `tag_selected(...)`.
-  - `src/app/controller/playback/tagging.rs:231-420` implements `adjust_selected_rating(...)`.
-- Completed on: `2026-03-14`
-- Validation:
-  - `cargo test rating_logic -- --nocapture` passed.
-  - `cargo test browser_actions::rating_scroll -- --nocapture` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
-- Assumptions:
-  - The existing tagging and rating behaviors are already covered by the current browser/rating test suite, so the safe change is to share the setup and undo/refocus plumbing without changing rating policy or auto-trash semantics.
-  - Both functions resolve browser contexts, dedupe paths, apply source mutations, build undo payloads, restore focus, and call `advance_or_commit_after_rating(...)`.
-  - `tmp/cleanup_audit_hotspots.md` reports `src/app/controller/playback/tagging.rs` at 424 lines and flags `adjust_selected_rating` as a 194-line function span.
+  - `tmp/cleanup_audit_hotspots.md` lists `src/app_core/native_bridge/projection_cache.rs` at 474 lines.
+  - `tmp/cleanup_audit_hotspots.md` identifies `record_lookup` in that file as a 255-line hotspot.
+  - `src/app_core/native_bridge/projection_cache.rs:32-290` combines lookup metrics, probe measurements, multiple cache-key structs, and derived-state assembly before the retained cache type itself.
 - Recommended change:
-  - Extract shared batch-mutation and undo/refocus helpers, keeping rating-specific auto-trash and auto-advance rules as narrow policy layers.
+  - Split probe/metrics types, projection-key building, and retained cache state into focused modules under `src/app_core/native_bridge/projection_cache/`.
+  - Keep the public/native-bridge contract unchanged.
 - Expected impact:
-  - Lower drift risk in one of the app’s highest-churn user workflows.
-  - Smaller diffs when rating/tagging behavior needs adjustment.
+  - Makes a migration-critical boundary easier to reason about.
+  - Reduces blast radius when projection invalidation or cache-key logic changes.
 - Risks / tradeoffs:
-  - Moderate refactor risk in behavior-sensitive controller code.
-  - Preserve current user-visible semantics and regression tests.
+  - Moderate, because this code sits on hot UI projection paths.
+  - Must avoid adding abstraction layers that hide cache invalidation rules.
 - Dependencies:
   - None.
 - Suggested validation:
-  - Existing browser/tagging controller tests in `src/app/controller/tests/browser_core/tagging.rs`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-
-### [x] 9. Add direct tests and smaller pure seams for the Windows external drag-out implementation
-
-- Classification: Test gap
-- Confidence: Medium
-- ROI: Medium
-- Effort: M
-- Why it matters:
-  - The Windows drag-out path is unsafe host-integration code built on COM, OLE, and `CF_HDROP`. The controller has dwell/launch tests, but the lower-level payload construction and data-object behavior currently have no direct coverage.
-- Evidence:
-  - `src/external_drag.rs:79-364` implements `FileDropDataObject`, COM interfaces, and `create_hglobal_for_paths(...)`.
-  - `src/external_drag.rs:415-426` normalizes Windows paths, including verbatim-path trimming.
-  - `tmp/cleanup_audit_hotspots.md` lists `src/external_drag.rs` at 432 lines and flags it as a likely test-gap hotspot.
-  - Existing tests in `src/app/controller/ui/drag_drop_controller/actions/external_drag.rs` cover launch heuristics, not the platform payload format itself.
-- Recommended change:
-  - Split pure path/payload formatting from COM object plumbing so the payload contract can be unit-tested.
-  - Add platform-gated tests for path normalization and `DROPFILES` payload construction.
-- Expected impact:
-  - Better confidence in a brittle OS integration boundary.
-  - Easier diagnosis if drag-out breaks on Windows.
-- Risks / tradeoffs:
-  - Medium effort because some logic is necessarily Windows-specific.
-  - Keep the COM layer thin; the testable seam should stay data-oriented.
-- Dependencies:
-  - None.
-- Suggested validation:
-  - Targeted Windows unit tests for drag payload helpers.
+  - Targeted `app_core::native_bridge` tests.
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completed on: `2026-03-14`
-- Commits:
-  - `bf0abada` (`test(windows): cover external drag payload helpers`)
-  - `6c70247d` (`refactor(windows): split external drag helpers`)
-  - `fe13990d` (`fix(windows): remove legacy external drag module file`)
-- Validation:
-  - `cargo test external_drag -- --nocapture` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
-- Assumptions:
-  - The stable contract worth testing is the serialized `CF_HDROP` payload and Windows-path normalization, while live COM drag-target interoperability remains the OS-owned behavior boundary.
 
-### [x] 10. Split the remaining monolithic regression catalogs by behavior family
+### [ ] 7. Clarify and reduce the dual source-of-truth risk in browser search construction
 
-- Classification: Refactor / cleanup
+- Classification: Architecture improvement
 - Confidence: Medium
 - ROI: Medium
 - Effort: M
 - Why it matters:
-  - Several test files remain large enough that adding or reviewing regressions requires touching unrelated behaviors. That slows auditing and raises merge-noise in areas that are already behavior-dense.
+  - The browser still has separate sync and async visible-row builders, and the runtime default differs from the test default. Recent parity work reduced one ordering mismatch, but the codebase still has two behavior-owning paths with unclear long-term ownership.
 - Evidence:
-  - `tmp/cleanup_audit_hotspots.md` lists:
-    - `src/app/controller/tests/browser_core.rs` at 611 lines
-    - `tests/unit/source_db_mod_tests.rs` at 561 lines
-    - `src/app/controller/library/analysis_jobs/enqueue/tests.rs` at 543 lines
-    - `src/app/controller/tests/focus_random.rs` at 520 lines
-  - These files each cover multiple distinct behavior families in one place.
+  - `src/app/controller/library/wavs/browser_pipeline.rs:67-381` still owns retained sync visible-row construction.
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs:258-398` still owns a separate worker-side visible-row builder.
+  - `src/app/controller/library/wavs/browser_search.rs:409-441` still defaults async search to `true` at runtime and `false` under test unless explicitly overridden.
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/parity_tests.rs` shows parity is now tested, which confirms the repo already treats these paths as susceptible to drift.
 - Recommended change:
-  - Split each file by domain slice while preserving existing helper semantics and stable test names where that matters for grep history.
+  - First document the intended long-term source of truth for query/filter/sort semantics.
+  - Then either keep parity enforcement explicit and local, or extract a smaller shared semantics layer that both paths consume.
 - Expected impact:
-  - Easier test discoverability and smaller review surfaces.
-  - Lower friction when adding focused regressions during future bug work.
+  - Reduces future behavior drift in a central browsing path.
+  - Makes later browser changes safer because maintainers know which layer is authoritative.
 - Risks / tradeoffs:
-  - Medium confidence because this is maintainability work, not an immediate correctness fix.
-  - Avoid churn for its own sake; only split the clear multi-family catalogs.
+  - Clarification is required before larger refactoring.
+  - Forcing a single abstraction too early could hurt clarity or performance.
 - Dependencies:
   - None.
 - Suggested validation:
-  - Existing targeted cargo test filters for the affected modules.
+  - Existing parity tests plus targeted controller async-path tests.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Product clarification required: Yes
+
+### [ ] 8. Split the remaining large controller regression catalogs by behavior family
+
+- Classification: Refactor / cleanup
+- Confidence: High
+- ROI: Medium
+- Effort: S
+- Why it matters:
+  - The repo has already been splitting oversized regression catalogs into behavior-focused module trees. Two large controller test files still combine multiple distinct behaviors, which makes review and navigation harder than it needs to be.
+- Evidence:
+  - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/tests/playback_loop.rs` at 468 lines and `src/app/controller/tests/waveform_nav_cursor.rs` at 418 lines.
+  - `src/app/controller/tests/playback_loop.rs` combines loop enablement, drag retargeting, BPM stretch, autoplay, and loop-lock behavior.
+  - `src/app/controller/tests/waveform_nav_cursor.rs` combines zoom batching, playhead completion, replay-from-start, and cursor marker behavior.
+- Recommended change:
+  - Split each file into small behavior-grouped submodules while preserving existing assertions and fixture helpers.
+- Expected impact:
+  - Improves discoverability and lowers review friction in high-value regression coverage.
+  - Aligns the remaining test layout with the repo’s already-adopted test-module pattern.
+- Risks / tradeoffs:
+  - Low.
+  - Avoid renaming tests unnecessarily or moving shared fixture helpers into unclear locations.
+- Dependencies:
+  - None.
+- Suggested validation:
+  - Targeted controller test runs for the moved modules.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Product clarification required: No
-- Completed on: `2026-03-14`
-- Commit: `07639512` (`refactor(tests): split regression catalogs`)
-- Validation:
-  - `cargo test browser_core -- --nocapture` passed.
-  - `cargo test focus_random -- --nocapture` passed.
-  - `cargo test source_db_mod_tests -- --nocapture` passed.
-  - `cargo test analysis_jobs::enqueue -- --nocapture` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
-- Assumptions:
-  - The existing test names and helper semantics were already the stable contract, so moving them into behavior-focused module trees is safe as long as targeted cargo filters and quick CI stay green.
 
 ## Open Questions / Missing Definitions
 
-### [!] What is the intended long-term source of truth for browser search semantics?
+### [!] What does “Windows full CI parity” currently mean in practice?
 
 - Evidence:
-  - `src/app/controller/library/wavs/browser_pipeline.rs` and `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` both implement visible-row semantics.
-  - `src/app/controller/library/wavs/browser_search.rs:407-420` makes tests default to sync behavior while runtime defaults to async behavior.
+  - `README.md`, `docs/README.md`, and `docs/TEST.md` present `scripts/ci_local.ps1` as the canonical local parity flow.
+  - `AGENTS.md` and `MEMORY.md` both record a known later failure in `vendor/radiant`.
 - Why this matters:
-  - If the repo intends to keep both paths permanently, then parity must be an explicit invariant.
-  - If one path is transitional, the safer recommendation is consolidation rather than long-term dual maintenance.
+  - The answer changes whether a red `ci_local.ps1` run is treated as a regression, an accepted exception, or a required fix before other work.
+- Affected files/modules:
+  - `scripts/ci_local.ps1`, `vendor/radiant`, `README.md`, `docs/README.md`, `docs/TEST.md`, `AGENTS.md`, `MEMORY.md`
+- Risk if guessed incorrectly:
+  - Agents may either waste time fixing an accepted baseline issue or ignore a real parity regression.
+- Most conservative provisional assumption:
+  - Treat `ci_local.ps1` as intended to be green, but do not silently assume the known `vendor/radiant` failure is acceptable without an explicit doc note.
+
+### [!] Which browser-search layer is intended to own canonical query/filter/sort semantics?
+
+- Evidence:
+  - `src/app/controller/library/wavs/browser_pipeline.rs`
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs`
+  - `src/app/controller/library/wavs/browser_search.rs`
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/parity_tests.rs`
+- Why this matters:
+  - The right fix differs depending on whether the repo wants shared semantics, explicit parity-only duplication, or a future async-first source of truth.
 - Affected files/modules:
   - `src/app/controller/library/wavs/browser_pipeline.rs`
   - `src/app/controller/library/wavs/browser_search.rs`
-  - `src/app/controller/library/wavs/browser_search_worker/**`
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/**`
 - Risk if guessed incorrectly:
-  - Either duplicated semantics keep drifting, or a premature consolidation removes a deliberate fast path.
+  - A cleanup could add abstraction or remove separation that the runtime architecture actually depends on.
 - Most conservative provisional assumption:
-  - Treat parity as mandatory now; do not remove either path without explicit direction.
+  - Preserve the two-path structure for now and only make the authoritative behavior contract explicit before further consolidation.
 
-### [!] What is the intended end-state of the `app_core` migration boundary exceptions?
+### [!] Should the old top-5 file-size split plan stay active, or should the hotspot snapshot replace it?
 
 - Evidence:
-  - `docs/gui_migration_parity.md` describes a strict `app_core` boundary through bridge aliases.
-  - `src/app_core/controller.rs` and `src/app_core/controller/waveform_actions.rs` still import `crate::app::` directly.
-  - `scripts/check_migration_boundary.ps1` contains transitional exceptions outside the documented `app_api` note.
+  - `docs/plans/active/file_size_debt_top5_split_plan.md` still reflects a 2026-02-27 top-5 list that no longer matches the current tree.
+  - `tmp/cleanup_audit_hotspots.md` is the newer live snapshot and now points at different hotspots.
 - Why this matters:
-  - The safest cleanup differs depending on whether these direct legacy imports are temporary stragglers or an intentional permanent seam.
+  - Future cleanup work needs one current, discoverable planning artifact instead of two contradictory ones.
 - Affected files/modules:
-  - `src/app_core/controller.rs`
-  - `src/app_core/controller/waveform_actions.rs`
-  - `scripts/check_migration_boundary.ps1`
-  - `docs/gui_migration_parity.md`
+  - `docs/plans/active/file_size_debt_top5_split_plan.md`
+  - `tmp/cleanup_audit_hotspots.md`
+  - `docs/plans/index.md`
 - Risk if guessed incorrectly:
-  - Either the code keeps a misleading boundary forever, or a cleanup pass removes a seam that the migration still intentionally depends on.
+  - Maintainers may resume from a stale split queue and duplicate already-completed work.
 - Most conservative provisional assumption:
-  - Keep the migration seam explicit, but route it through one documented alias boundary rather than scattered direct imports.
-
-### [!] What is the intended division of responsibility between in-process GUI scenarios and desktop AIV packs?
-
-- Evidence:
-  - `src/gui_test/scenario.rs` defines in-process declarative scenarios and assertions.
-  - `src/gui_test/aiv/mod.rs` defines typed desktop AIV suite manifests.
-  - `docs/gui_test_platform.md` lists both as active layers and still calls out desktop AIV stability gaps plus future work.
-- Why this matters:
-  - Without a documented boundary, new GUI coverage can be added in whichever layer feels convenient, which makes long-term coverage planning harder.
-- Affected files/modules:
-  - `src/gui_test/scenario.rs`
-  - `src/gui_test/aiv/mod.rs`
-  - `docs/gui_test_platform.md`
-- Risk if guessed incorrectly:
-  - Coverage duplication, missing assertions in the right layer, or premature attempts to unify two intentionally different loops.
-- Most conservative provisional assumption:
-  - Keep semantic in-process scenarios as the deterministic contract layer and desktop AIV as the live-environment validation layer until the boundary is documented more explicitly.
+  - Keep the old plan only if it is explicitly refreshed; otherwise retire it in favor of the live hotspot snapshot.
 
 ## Rejected Ideas
 
-### [-] Convert browser search to async-only immediately
+### [-] Rewrite browser search around one async-only pipeline
 
 - Why it was considered:
-  - Two search pipelines currently exist.
+  - The sync/async browser duplication is visible in the current codebase.
 - Why it was rejected:
-  - The repository clearly still supports both paths, and there is not enough evidence that removing the sync path is currently desired.
+  - The repo clearly values responsiveness and retained state, but it does not currently document an async-only destination architecture.
 - Missing evidence:
-  - No documented plan to deprecate the in-process path outright.
+  - No ADR, roadmap note, or code comment says the retained sync pipeline should be removed outright.
 
-### [-] Reopen a broad legacy `src/app` cleanup sweep
+### [-] Add configurable user keybindings
 
 - Why it was considered:
-  - Many large files still live in legacy controller paths.
+  - `src/app/controller/ui/hotkeys/actions.rs` is a large catalog.
 - Why it was rejected:
-  - The repo documents focused migration boundaries and discourages broad speculative rewrites. The evidence supports targeted seams, not a blanket legacy rewrite.
+  - The large file alone is not evidence that user-configurable hotkeys are an intended product direction.
 - Missing evidence:
-  - No current plan or doc asking for a wide legacy-controller migration sweep.
+  - No docs, TODOs, or tests suggest customizable keymaps are planned.
 
-### [-] Promote desktop AIV into mandatory CI immediately
+### [-] Propose a broad dependency/toolchain upgrade lane
 
 - Why it was considered:
-  - The GUI platform is a major documented investment.
+  - CI and docs drift often correlate with outdated tooling.
 - Why it was rejected:
-  - `docs/gui_test_platform.md` explicitly says the current Windows setup still has foreground/focus stability issues and no CI gate yet enforces desktop AIV smoke stability.
+  - This audit found concrete repository-specific issues that are higher leverage, while no current doc/config evidence points to a dependency-upgrade priority.
 - Missing evidence:
-  - No repository evidence that the desktop loop is stable enough today to become a required gate.
+  - No in-repo roadmap, TODO cluster, or failing compatibility note justifies a broad upgrade initiative right now.

@@ -2,6 +2,9 @@
 
 /// Folder/tag filtering cache helpers and key hashing.
 mod folders;
+#[cfg(test)]
+/// Sync/async search semantics parity regression tests.
+mod parity_tests;
 /// Result shaping helpers for empty states, triage partitions, and sorting.
 mod results;
 /// Staged cache/score/visible-row helpers used by `process_search_job`.
@@ -9,9 +12,6 @@ mod stages;
 #[cfg(test)]
 /// Stage-specific search pipeline tests.
 mod stages_tests;
-#[cfg(test)]
-/// Sync/async search semantics parity regression tests.
-mod parity_tests;
 
 use self::results::empty_search_result_for;
 use self::stages::{

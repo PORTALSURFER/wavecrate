@@ -5,8 +5,6 @@
 pub(crate) mod controller {
     /// Legacy application controller implementation.
     pub(crate) use crate::app::controller::AppController;
-    /// Legacy GUI fixture builder used by migration-facing controller tests.
-    pub(crate) use crate::app::controller::build_named_gui_fixture_controller;
     /// Legacy retained browser preload-window cache type.
     pub(crate) use crate::app::controller::ProjectedBrowserPreloadWindow;
     /// Legacy retained browser-row projection cache entry type.
@@ -19,6 +17,8 @@ pub(crate) mod controller {
     pub(crate) use crate::app::controller::ProjectedSelectedPathsLookup;
     /// Legacy map-point query payload used by map projection loading.
     pub(crate) use crate::app::controller::UmapPointQuery;
+    /// Legacy GUI fixture builder used by migration-facing controller tests.
+    pub(crate) use crate::app::controller::build_named_gui_fixture_controller;
 }
 
 /// Legacy controller-internal state types needed by migration glue.
