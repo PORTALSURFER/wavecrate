@@ -98,6 +98,65 @@ function Invoke-ExpectExitCode {
   }
 }
 
+function Invoke-ExpectOutput {
+  param(
+    [string]$Label,
+    [int]$ExpectedCode = 0,
+    [string]$WorkDir,
+    [string]$ScriptPath,
+    [string[]]$Arguments = @(),
+    [string[]]$ExpectedSubstrings = @(),
+    [hashtable]$EnvVars = @{}
+  )
+
+  $previous = @{}
+  foreach ($key in $EnvVars.Keys) {
+    $previous[$key] = [Environment]::GetEnvironmentVariable($key)
+    [Environment]::SetEnvironmentVariable($key, [string]$EnvVars[$key])
+  }
+
+  try {
+    Push-Location $WorkDir
+    try {
+      $prevEap = $ErrorActionPreference
+      $ErrorActionPreference = "Continue"
+      try {
+        $output = & $psExe -NoProfile -File $ScriptPath @Arguments 2>&1
+      } finally {
+        $ErrorActionPreference = $prevEap
+      }
+      $exitCode = $LASTEXITCODE
+    } finally {
+      Pop-Location
+    }
+  } finally {
+    foreach ($key in $EnvVars.Keys) {
+      [Environment]::SetEnvironmentVariable($key, $previous[$key])
+    }
+  }
+
+  $text = if ($null -eq $output) { "" } else { ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine }
+  $missing = @($ExpectedSubstrings | Where-Object { $text -notlike "*$_*" })
+  if ($exitCode -eq $ExpectedCode -and $missing.Count -eq 0) {
+    Write-Pass $Label
+    return
+  }
+
+  if ($exitCode -ne $ExpectedCode) {
+    Add-Failure "$Label (expected exit code $ExpectedCode, got $exitCode)"
+  } else {
+    Add-Failure "$Label (missing expected output fragments)"
+  }
+  if ($text.Length -gt 0) {
+    foreach ($line in ($text -split [Environment]::NewLine)) {
+      Write-Host ("  {0}" -f $line)
+    }
+  }
+  foreach ($fragment in $missing) {
+    Write-Host ("  missing: {0}" -f $fragment)
+  }
+}
+
 function New-TempDir {
   $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("sempal-guardrails-" + [System.Guid]::NewGuid().ToString("N"))
   New-Item -ItemType Directory -Path $tempPath | Out-Null
@@ -152,6 +211,44 @@ try {
     Invoke-ExpectExitCode -Label "file size budget passes under limit" -ExpectedCode 0 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_file_size_budget.ps1") -Arguments @("-All", "-Limit", "10")
   } finally {
     Remove-Item -Recurse -Force $fixtureDir -ErrorAction SilentlyContinue
+  }
+
+  $migrationFixtureDir = New-TempDir
+  try {
+    $repoDir = Join-Path $migrationFixtureDir "repo"
+    New-Item -ItemType Directory -Path $repoDir | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "src/app_core/tests") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "src/app_core/controller") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "scripts") | Out-Null
+
+    Copy-Item (Join-Path $scriptsDir "check_migration_boundary.ps1") (Join-Path $repoDir "scripts/check_migration_boundary.ps1")
+
+    Set-Content -Path (Join-Path $repoDir "src/app_core/app_api.rs") -Value @(
+      "pub(crate) use crate::app::state::*;"
+    )
+    Set-Content -Path (Join-Path $repoDir "src/app_core/controller.rs") -Value @(
+      "pub(crate) use crate::app::controller::AppController;"
+    )
+    Set-Content -Path (Join-Path $repoDir "src/app_core/controller/waveform_actions.rs") -Value @(
+      "use crate::app::state::Thing;"
+    )
+    Set-Content -Path (Join-Path $repoDir "src/app_core/tests/sample.rs") -Value @(
+      "use crate::app::state::FocusContext;"
+    )
+
+    Invoke-ExpectExitCode -Label "migration boundary skips allowed and test paths" -ExpectedCode 0 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_migration_boundary.ps1")
+
+    Set-Content -Path (Join-Path $repoDir "src/app_core/violation.rs") -Value @(
+      "use crate::app::controller::StatusTone;"
+    )
+    Invoke-ExpectExitCode -Label "migration boundary fails on direct non-test path" -ExpectedCode 1 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_migration_boundary.ps1")
+    Invoke-ExpectOutput -Label "migration boundary prints actionable violation lines" -ExpectedCode 1 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_migration_boundary.ps1") -ExpectedSubstrings @(
+      "Migration boundary check failed",
+      "violation.rs:1:use crate::app::controller::StatusTone;",
+      "Allowed app_core migration boundary location:"
+    )
+  } finally {
+    Remove-Item -Recurse -Force $migrationFixtureDir -ErrorAction SilentlyContinue
   }
 
   $memoryFixtureDir = New-TempDir

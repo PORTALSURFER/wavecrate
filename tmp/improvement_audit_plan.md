@@ -1,684 +1,432 @@
 # Evidence-Driven Improvement Audit Plan
 
-Generated: 2026-03-13
+Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
+Phase: 2 in progress
+Implementation status: item 1 is complete; remaining backlog items are pending sequential execution.
 
 ## Repository Context
 
-- Project purpose: Rust desktop audio sample triage tool with native GUI,
-  waveform playback/editing, source management, updater flows, and semantic GUI
-  automation.
-  - Basis: Explicitly documented in `README.md`, `docs/ARCHITECTURE.md`,
-    `docs/TEST.md`.
-- Maturity level: actively iterated application with strong CI/test guardrails,
-  but still carrying several oversized native GUI, runtime, and helper modules.
-  - Basis: Strongly implied by `.github/workflows/ci.yml`,
-    `docs/QUALITY_SCORE.md`, the active performance plan, and the current
-    file-size debt allowlist.
-- Primary languages/tooling: Rust 2024 workspace with Cargo, PowerShell-first
-  Windows wrappers, native GUI/runtime work in `vendor/radiant`, and semantic
-  GUI automation plus AIV desktop runs.
-  - Basis: Explicitly documented in `AGENTS.md`, `Cargo.toml`,
-    `docs/TEST.md`, `docs/gui_test_platform.md`.
-- Repository shape: root app crate plus companion apps in `apps/`, support
-  tools in `tools/`, and the `vendor/radiant` GUI framework submodule.
-  - Basis: Explicitly documented in `Cargo.toml`, `docs/ARCHITECTURE.md`.
-- Architectural boundaries: domain/controller logic lives in `src/**`,
-  backend-neutral projection/action contracts in `src/app_core/**`, and native
-  GUI behavior plus runtime ownership in `vendor/radiant/**`.
-  - Basis: Explicitly documented in `README.md`, `docs/ARCHITECTURE.md`.
-- Test strategy: deterministic Rust unit/integration coverage first, then GUI
-  contract tests and AIV desktop coverage for native flows.
-  - Basis: Explicitly documented in `docs/TEST.md`,
-    `docs/gui_test_platform.md`.
-- Canonical Windows validation commands:
+- Project purpose: Rust desktop audio sample triage and curation tool with native GUI, playback/editing, source management, updater flows, and semantic GUI automation.
+  - Confidence: Explicitly documented
+  - Evidence: `README.md`, `docs/design_principles.md`, `docs/ARCHITECTURE.md`
+- Maturity level: actively developed application with strong local/CI guardrails, but still carrying meaningful migration debt, large-file debt, and some duplicated behavior paths.
+  - Confidence: Strongly implied by code/docs
+  - Evidence: `.github/workflows/ci.yml`, `docs/QUALITY_SCORE.md`, `docs/gui_migration_parity.md`, `tmp/cleanup_audit_hotspots.md`
+- Primary languages/tooling: Rust 2024 workspace, Cargo, PowerShell-first Windows workflow wrappers, `vendor/radiant` native GUI/runtime, semantic GUI test tooling plus AIV desktop automation.
+  - Confidence: Explicitly documented
+  - Evidence: `Cargo.toml`, `README.md`, `AGENTS.md`, `docs/TEST.md`, `docs/gui_test_platform.md`
+- Repository shape: root app crate plus companion apps under `apps/`, support tools under `tools/`, and the `vendor/radiant` submodule.
+  - Confidence: Explicitly documented
+  - Evidence: `Cargo.toml`, `docs/ARCHITECTURE.md`
+- Architectural boundaries: `src/**` owns domain logic, `src/app_core/**` owns backend-neutral projection/action contracts, and `vendor/radiant/**` owns GUI behavior/runtime concerns.
+  - Confidence: Explicitly documented
+  - Evidence: `README.md`, `docs/ARCHITECTURE.md`
+- Test strategy: unit and integration tests first, then GUI contract/snapshot coverage, with AIV desktop automation as a broader live loop.
+  - Confidence: Explicitly documented
+  - Evidence: `docs/TEST.md`, `docs/gui_test_platform.md`
+- Canonical local validation commands on Windows:
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
-  - Basis: Explicitly documented in `AGENTS.md`, `README.md`, `docs/TEST.md`.
-- Documented priorities: correctness, maintainability, deterministic tests,
-  semantic-first GUI automation, PowerShell-first Windows workflows, and
-  explicit documentation on public-facing surfaces.
-  - Basis: Explicitly documented in `AGENTS.md`, `docs/TEST.md`,
-    `docs/gui_test_platform.md`.
-- Explicit non-goals supported by repo evidence:
-  - No evidence for large product-direction changes or workflow redesigns.
-  - No evidence for replacing semantic GUI testing with screenshot-first
-    assertions.
-  - No evidence for framework swaps away from the current Rust + `radiant`
-    native stack.
+  - Confidence: Explicitly documented
+  - Evidence: `README.md`, `AGENTS.md`, `docs/README.md`, `docs/TEST.md`
+- Documented priorities: responsiveness, non-blocking behavior, deterministic interaction, semantic GUI automation, explicit docs, and safe/reversible change paths.
+  - Confidence: Explicitly documented
+  - Evidence: `docs/design_principles.md`, `docs/gui_test_platform.md`, `AGENTS.md`
+- Explicit non-goals: DAW replacement, cloud/social platform behavior, framework rewrite-by-default, or ornamental UX at the expense of responsiveness.
+  - Confidence: Explicitly documented
+  - Evidence: `docs/design_principles.md`
+- Current uncertainty that materially affects safe planning:
+  - The browser has both sync and async search/filter pipelines with different test/runtime defaults.
+  - The migration docs describe a strict `app_core` boundary, but the Windows enforcement path is still not reliable enough to use as a parity gate.
+  - Confidence: Strongly implied by code/docs
+  - Evidence: `src/app/controller/library/wavs/browser_pipeline.rs`, `src/app/controller/library/wavs/browser_search.rs`, `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs`, `scripts/check_migration_boundary.ps1`, `docs/gui_migration_parity.md`
 
 ## ROI-Ranked Backlog
 
-### [x] 1. Split native-shell automation snapshot building by surface and shared helper layer
-
-- Classification: Architecture improvement
-- Confidence: High
-- ROI: High
-- Effort: M
-- Why it matters:
-  - The automation snapshot is the semantic contract for GUI tooling, CLI
-    runners, and AIV. Splitting it reduced review risk in the highest-value GUI
-    contract surface.
-- Evidence:
-  - The old `vendor/radiant/src/gui/native_shell/state/automation.rs` mixed all
-    panel families and exceeded the file-size budget.
-  - `docs/gui_test_platform.md` and `src/gui_test/aiv/**` rely on stable node
-    ids and action metadata from this path.
-- Recommended change:
-  - Completed: split by panel family and helper layer while preserving stable
-    automation ids.
-- Expected impact:
-  - Lower GUI automation regression risk and better locality for future surface
-    changes.
-- Risks / tradeoffs:
-  - Completed with moderate refactor churn in a high-touch file.
-- Dependencies:
-  - None.
-- Suggested validation:
-  - `cargo test -p radiant automation::tests -- --nocapture`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `vendor/radiant` `ee5b868e`
-  - Validation: targeted `radiant` automation tests plus Windows `devcheck` and
-    `ci_quick`
-
-### [x] 2. Split browser-row layout/windowing helpers out of the current multi-purpose helper file
-
-- Classification: Architecture improvement
-- Confidence: High
-- ROI: High
-- Effort: M
-- Why it matters:
-  - Browser autoscroll/focus work had concentrated in one mixed-responsibility
-    helper file; the split reduced churn coupling around row-window math.
-- Evidence:
-  - The old `vendor/radiant/src/gui/native_shell/state/browser_rows.rs` mixed
-    viewport math, truncation, toolbar/scrollbar geometry, and row styling.
-  - Browser interaction regressions repeatedly landed in this area.
-- Recommended change:
-  - Completed: split viewport/windowing math, truncation, geometry, and visual
-    helpers into focused modules.
-- Expected impact:
-  - Lower chance of reintroducing browser scroll/focus regressions.
-- Risks / tradeoffs:
-  - Completed with moderate refactor churn in native GUI layout helpers.
-- Dependencies:
-  - None.
-- Suggested validation:
-  - `cargo test -p radiant browser_rows -- --nocapture`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `vendor/radiant` `943f908b`
-  - Validation: targeted `radiant` browser-row tests plus Windows `devcheck`
-    and `ci_quick`
-
-### [x] 3. Prune stale file-size-budget allowlist entries and refresh debt-tracking docs
+### [x] 1. Restore usable Windows CI parity for the migration-boundary gate
 
 - Classification: Developer-experience improvement
 - Confidence: High
 - ROI: High
 - Effort: S
 - Why it matters:
-  - The repo uses the file-size allowlist and scorecard as planning sources of
-    truth. Stale entries overstate current debt and can misdirect future audit
-    work.
+  - The repo documents `scripts/ci_local.ps1` as the canonical local CI path, but the current Windows migration-boundary check is not usable as a debugging tool. That blocks the highest-signal validation path and slows every follow-up migration cleanup.
 - Evidence:
-  - `docs/file_size_budget_allowlist.txt` still references paths that no longer
-    exist:
-    - `src/app/controller/ui/clipboard_paste/source_job.rs`
-    - `src/app_core/native_bridge/projection_cache/projection_key.rs`
-    - `vendor/radiant/src/gui/native_shell/state/hit_testing.rs`
-    - `vendor/radiant/src/gui_runtime/native_vello/runtime_render.rs`
-  - The allowlist also still lists already-split historical files such as the
-    old automation/browser-row hotspots that no longer exist in their former
-    paths.
+  - `README.md` and `docs/TEST.md` define `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` as the canonical parity command.
+  - `scripts/ci_local.ps1` invokes `scripts/run_agent_ci_checks.ps1`, which in turn relies on the migration-boundary guard.
+  - `scripts/check_migration_boundary.ps1:47-58` calls `Write-Error` before printing collected violations, so the actionable list is skipped under `ErrorActionPreference = "Stop"`.
+  - Observed during this audit on 2026-03-14: `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` exits with `Migration boundary check failed...` but does not print the offending matches.
 - Recommended change:
-  - Remove nonexistent entries from `docs/file_size_budget_allowlist.txt`.
-  - Refresh related debt-tracking references in `docs/QUALITY_SCORE.md` and any
-    audit docs that still describe the older hotspot set.
+  - Make `scripts/check_migration_boundary.ps1` print all collected violations before exiting non-zero.
+  - Keep its behavior aligned with the documented allowlist/transitional boundary so the failure is actionable instead of opaque.
 - Expected impact:
-  - More trustworthy cleanup planning and less audit drift.
+  - Restores an actionable full local parity gate on Windows.
+  - Reduces time spent guessing whether the blocker is a real boundary violation or a script/reporting bug.
 - Risks / tradeoffs:
-  - Low technical risk; only small documentation/guardrail configuration churn.
+  - Low implementation risk if limited to output/flow control.
+  - May expose real remaining boundary debt that still needs follow-up work.
 - Dependencies:
   - None.
 - Suggested validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 - Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `f15ba421` (`docs(quality): prune stale file size debt entries`)
-  - Assumption used: removing nonexistent or now-under-budget allowlist entries does not change guardrail intent; it only realigns the debt ledger with the live tree.
-  - Validation: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Completed: 2026-03-14
+- Commit: pending
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1` passed with the new migration-boundary fixture coverage.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` advanced past the migration-boundary gate and failed later in the unrelated pre-existing `vendor/radiant` test `gui::native_shell::layout_adapter::controls::controls_tests::toolbar_search_field_uses_ratio_width_inside_full_host`.
+- Assumptions:
+  - The `vendor/radiant` layout test failure is outside this item's change surface because item 1 only changed migration-boundary reporting and its script guardrails.
 
-### [x] 4. Remove `missing_docs` suppressions from the public GUI contract surfaces
-
-- Classification: Documentation gap
-- Confidence: High
-- ROI: High
-- Effort: S
-- Why it matters:
-  - These enums and assertion types are public contract surfaces for host tests,
-    GUI tooling, and automation. Undocumented variants slow safe extension and
-    directly contradict the repo’s documentation rules.
-- Evidence:
-  - `src/app_core/actions/catalog.rs` still has `#[allow(missing_docs)]` on
-    `GuiActionKind`, `GuiSurface`, `GuiEffectClass`, and `GuiCoverageLayer`.
-  - `src/gui_test/scenario.rs` still has `#[allow(missing_docs)]` on
-    `GuiScenarioStep` and `GuiAssertion`.
-  - `Cargo.toml` enables `missing_docs = "deny"` at the workspace lint level,
-    and `AGENTS.md` explicitly requires clear docs for public-facing objects.
-- Recommended change:
-  - Replace the suppressions with concise docs for each enum and non-obvious
-    variant, including constraints where behavior is subtle.
-- Expected impact:
-  - Better discoverability for GUI action/test contracts.
-  - Less ambiguity when extending automation or AIV packs.
-- Risks / tradeoffs:
-  - Low technical risk; may expose minor naming issues while documenting.
-- Dependencies:
-  - None.
-- Suggested validation:
-  - `cargo doc -p sempal --no-deps`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `8aa2a333` (`docs(gui): document public test contracts`)
-  - Assumption used: concise one-line variant docs are sufficient here because the surrounding module docs and catalog metadata already carry the deeper semantics for each action family.
-  - Validation: `cargo doc -p sempal --no-deps`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-
-### [x] 5. Split native-shell frame-build browser, chrome, and overlay builders by responsibility
+### [ ] 2. Eliminate search-behavior drift between the sync browser pipeline and the async worker pipeline
 
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
 - Why it matters:
-  - Recent browser/focus/render fixes have concentrated in the retained
-    frame-build layer. The three biggest builder files still mix layout
-    geometry, style decisions, borders, hover/focus overlays, and per-surface
-    rendering details in ways that make visual regressions hard to isolate.
+  - Browser filtering/search/sort behavior exists in two separate implementations. That creates a correctness risk where small libraries and large libraries can produce different visible rows, sort order, or folder-filter semantics.
 - Evidence:
-  - `vendor/radiant/src/gui/native_shell/state/frame_build/browser.rs` is 683
-    lines and mixes row drawing, rating indicators, inline tag chips,
-    scrollbar rendering, and browser frame composition.
-  - `vendor/radiant/src/gui/native_shell/state/frame_build/chrome.rs` is 608
-    lines and mixes shell surfaces, borders, top bar controls, sidebar
-    rendering, and chrome text/layout work.
-  - `vendor/radiant/src/gui/native_shell/state/frame_build/overlay.rs` is 673
-    lines and mixes search editor overlays, row hover fills, focus overlays,
-    prompt/options/progress overlays, and drag overlay rendering.
+  - `src/app/controller/library/wavs/browser_pipeline.rs:67-339` implements retained sync visible-row construction, folder acceptance, scoring, and sorting in-process.
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs:10-398` independently implements worker-side cache setup, query scoring, folder acceptance, visible-row construction, and sorting.
+  - `src/app/controller/library/wavs/browser_search.rs:198-205` dispatches the async job path, while the sync path still rebuilds lists locally.
 - Recommended change:
-  - Extract focused modules for browser rows/indicators/scrollbars, shell
-    surfaces/borders/top-bar/sidebar chrome, and overlay families
-    (hover/focus/dialogs).
-  - Keep each file aligned to one visual responsibility.
+  - Extract the shared query/filter/sort semantics into shared helpers, or add an explicit parity layer that both paths consume.
+  - If full helper sharing is too invasive, start with a common fixture-driven parity harness and then collapse the duplicated logic incrementally.
 - Expected impact:
-  - Lower risk when fixing browser and overlay rendering issues.
-  - Easier targeted testing and review of native-shell visual changes.
+  - Lowers the risk of runtime-only browser mismatches.
+  - Makes future browser search fixes safer because there is one source of behavior truth or one parity contract.
 - Risks / tradeoffs:
-  - Moderate refactor risk in a sensitive render path.
+  - Medium refactor risk in a central browsing path.
+  - Over-abstraction would be a mistake here; the safe version is shared semantics, not a forced giant common framework.
 - Dependencies:
-  - None.
+  - Item 3 benefits this work but is not required.
 - Suggested validation:
-  - Existing `radiant` native-shell tests
-  - GUI contract/AIV runs for browser and waveform flows
+  - Deterministic parity tests for query, rating filter, folder filter, similar-query, and playback-age sort combinations.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `vendor/radiant` `8b94b016` (`refactor(gui): split frame build surfaces`)
-  - Assumption used: a mechanical module split is the safe first step here; preserving existing function names and call sites reduces render-path regression risk while still shrinking the responsibility surface.
-  - Validation: `cargo test -p radiant frame_build -- --nocapture`, `cargo test -p radiant overlay -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [x] 6. Add direct helper coverage and smaller internal seams for waveform line rasterization
+### [ ] 3. Add direct coverage for the runtime-default async browser search path
 
 - Classification: Test gap
 - Confidence: High
 - ROI: High
 - Effort: M
 - Why it matters:
-  - The waveform line renderer is dense, math-heavy, and performance-sensitive.
-    Subtle interpolation or blending regressions are expensive to diagnose when
-    the logic lives in one large raster file.
+  - The runtime-default browser search path is explicitly different from the test-default path. Current controller tests mostly validate the synchronous path, so regressions in the actual runtime behavior can slip through.
 - Evidence:
-  - `src/waveform/render/paint/lines.rs` is 503 lines.
-  - It currently owns sample interpolation, supersampling, Catmull-Rom
-    interpolation, anti-aliased line stepping, pixel blending, and final image
-    styling in one unit.
+  - `src/app/controller/library/wavs/browser_search.rs:69-70` routes browser interactions through `browser_async_pipeline_enabled()`.
+  - `src/app/controller/library/wavs/browser_search.rs:407-420` defaults async search to `true` outside tests and `false` under `#[cfg(test)]`.
+  - `src/app/controller/tests/browser_core.rs` exercises browser search/filter behavior through the controller-facing sync rebuild path.
+  - `src/app/controller/library/wavs/browser_search_worker.rs` has worker-unit coverage, but not end-to-end controller/runtime parity coverage for the default async interaction mode.
 - Recommended change:
-  - Split interpolation, supersampling, line stepping, and blend helpers into
-    smaller internal modules or helper functions with direct deterministic
-    tests.
-  - Add boundary tests for zero-sized rasters, end-of-buffer interpolation,
-    vertical/steep lines, and alpha/coverage edge cases.
+  - Add a deterministic test harness that forces the async path under test and verifies visible rows, busy-state, request-id, and result-application semantics.
+  - Include at least one parity check against the sync path for the same fixture.
 - Expected impact:
-  - Better confidence in a hot render path.
-  - Faster diagnosis when waveform visuals regress.
+  - Better confidence in the default runtime browser-search behavior.
+  - Faster diagnosis of regressions that only show up with background search jobs enabled.
 - Risks / tradeoffs:
-  - Moderate refactor effort in performance-sensitive code.
+  - Test harness work is moderately involved because the worker path is asynchronous.
+  - Avoid timing-fragile tests; prefer explicit queue/result injection.
 - Dependencies:
   - None.
 - Suggested validation:
-  - Targeted waveform render tests
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - Targeted browser-search tests covering async dispatch and application.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `a4c7f571` (`test(waveform): split line raster helpers`)
-  - Assumption used: splitting interpolation and raster helpers behind the existing `WaveformRenderer` entrypoints is the safest seam because it improves direct coverage without changing the external render API.
-  - Validation: `cargo test waveform::render::paint::lines -- --nocapture`, `cargo test waveform::render:: -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [x] 7. Split waveform pointer routing into hit-resolution, deselection, and drag-mode helpers
+### [ ] 4. Finish the remaining `app_core` migration-boundary cleanup in controller shims
 
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
 - Why it matters:
-  - Waveform pointer behavior is a repeated correctness hotspot. The current
-    router is an ordered chain of gesture precedence rules, deselection logic,
-    drag-mode mapping, and immediate/deferred emission policy in one file.
+  - `app_core` is documented as the backend-neutral migration-facing layer, but the current controller shims still depend directly on legacy `crate::app` types and helpers outside the documented bridge surface. That keeps the boundary porous and harder to reason about.
 - Evidence:
-  - `vendor/radiant/src/gui_runtime/native_vello/input/waveform_routing.rs` is
-    544 lines.
-  - `waveform_action_from_pointer` delegates through a long ordered sequence of
-    early-return helpers for primary actions, new-selection actions, and clear
-    actions before defaulting to cursor/seek/selection behavior.
-  - The same file also owns resize-handle hover checks, selection/edit drag
-    routing, drag-mode mapping, click-slop behavior, and press-emission policy.
+  - `docs/gui_migration_parity.md:88-89` states CI should fail if `app_core` imports direct legacy `crate::app::` paths outside the bridge boundary.
+  - `src/app_core/controller.rs:10` re-exports `crate::app::controller::build_named_gui_fixture_controller`.
+  - `src/app_core/controller.rs:322` uses `crate::app::controller::StatusTone::Info`.
+  - `src/app_core/controller/waveform_actions.rs:7` imports `crate::app::state::DestructiveSelectionEdit`.
+  - `src/app_core/controller/waveform_actions.rs:157` uses `crate::app::controller::StatusTone::Error`.
 - Recommended change:
-  - Separate gesture hit-resolution from action emission and drag-mode policy.
-  - Keep deselection/new-selection behavior in focused helpers with
-    table-driven tests for precedence and overlap cases.
+  - Route these remaining legacy types through `app_api`/`legacy_bridge` aliases or a narrower migration-owned shim module.
+  - After that cleanup, simplify the transitional exceptions in the migration-boundary check.
 - Expected impact:
-  - Lower regression risk in zoomed waveform interactions and mixed mark flows.
-  - Clearer reasoning about gesture precedence.
+  - Makes the documented boundary real instead of aspirational.
+  - Reduces migration confusion for future `app_core` work.
 - Risks / tradeoffs:
-  - Moderate refactor risk because gesture ordering must remain stable.
+  - Moderate churn in migration-facing glue.
+  - Must preserve native runtime wiring and tests.
 - Dependencies:
-  - None.
+  - Item 1 makes this easier to validate locally.
 - Suggested validation:
-  - Existing `radiant` waveform pointer/drag tests
-  - AIV waveform interaction pack
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `vendor/radiant` `1fbf6361` (`refactor(waveform): split pointer routing helpers`)
-  - Assumption used: keeping the public routing surface in `input.rs` unchanged while splitting only the internal helper families is the lowest-risk way to improve readability in this precedence-sensitive path.
-  - Validation: `cargo test -p radiant waveform_pointer -- --nocapture`, `cargo test -p radiant waveform_drag -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-
-### [x] 8. Continue decomposing the native Vello runtime around lifecycle, input, and render ownership
-
-- Classification: Architecture improvement
-- Confidence: High
-- ROI: High
-- Effort: L
-- Why it matters:
-  - The root runtime still holds a very large runner struct with startup,
-    pointer/input state, retained scenes, text input, clipboard, and render
-    ownership in one orchestration file. That keeps lifecycle and input/render
-    interactions expensive to audit.
-- Evidence:
-  - `vendor/radiant/src/gui_runtime/native_vello.rs` is 756 lines.
-  - `NativeVelloRunner` still stores window/surface/render objects, retained
-    segment scene caches, motion fingerprints, layout/shell state, pointer drag
-    state, text input/editor state, clipboard state, and repaint flags together
-    in one top-level struct.
-  - The active performance plan in
-    `docs/plans/active/runtime_performance_exec_plan.md` identifies this runtime
-    path as a long-running responsiveness hotspot.
-- Recommended change:
-  - Extract cohesive ownership modules for startup/window reveal sequencing,
-    transient input/drag state, retained render state, and text/clipboard state.
-  - Keep the root runner focused on orchestration.
-- Expected impact:
-  - Better auditability for lifecycle bugs and input/render races.
-  - Lower maintenance cost for future runtime changes.
-- Risks / tradeoffs:
-  - Highest refactor risk in this backlog.
-  - Must preserve current performance and event-ordering wins.
-- Dependencies:
-  - None, but should follow smaller high-confidence items first.
-- Suggested validation:
-  - Existing `radiant` runtime tests
-  - GUI contract/AIV suites
+  - `rg -n "crate::app::" src/app_core`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 - Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `vendor/radiant` `f09f20d1` (`refactor(runtime): split native vello action and text helpers`)
-  - Assumption used: extracting action-classification and text/clipboard runtime helpers first is the safest runtime split because these seams already behave like shared service surfaces across the event, input, and text modules.
-  - Validation: `cargo test -p radiant runtime_core -- --nocapture`, `cargo test -p radiant key_bindings -- --nocapture --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-  - Validation note: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` reached a pre-existing guardrail failure in `src/gui_test/aiv/packs/cases.rs` exceeding the file-size budget; item 8 itself compiled and passed the runtime-focused checks.
 
-### [x] 9. Split updater-helper UI orchestration into background tasks, state transitions, and view projection
+### [ ] 5. Refresh the stale file-size debt ledger and dependent audit docs
+
+- Classification: Documentation gap
+- Confidence: High
+- ROI: High
+- Effort: S
+- Why it matters:
+  - The allowlist is one of the repo’s planning inputs. Right now it still names files that no longer exist, so it no longer accurately reflects the live debt and can misdirect cleanup work.
+- Evidence:
+  - `docs/file_size_budget_allowlist.txt:13` still lists `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs`, which no longer exists in the tree.
+  - `docs/file_size_budget_allowlist.txt:17` still lists `src/app/controller/playback/audio_options.rs`, which no longer exists in the tree.
+  - `docs/file_size_budget_allowlist.txt:25`, `:30`, and `:46` still list legacy split paths that no longer exist (`src/app_core/native_bridge/tests/projection_cache.rs`, `src/waveform/zoom_cache.rs`, `vendor/radiant/src/gui_runtime/native_vello/input/waveform_routing.rs`).
+  - `tmp/cleanup_audit_hotspots.md` reports a different current over-budget set headed by `src/app/controller/tests/browser_core.rs`, `src/app_core/actions/catalog.rs`, `tests/unit/source_db_mod_tests.rs`, and `apps/installer/src/ui.rs`.
+- Recommended change:
+  - Prune nonexistent allowlist entries.
+  - Refresh any linked audit/quality docs that still describe the old debt set.
+- Expected impact:
+  - Makes the cleanup ledger trustworthy again.
+  - Prevents future audit work from targeting already-split or removed files.
+- Risks / tradeoffs:
+  - Low technical risk.
+  - The main risk is forgetting to refresh related docs in the same pass.
+- Dependencies:
+  - None.
+- Suggested validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Product clarification required: No
+
+### [ ] 6. Split the canonical GUI action catalog into smaller contract-focused modules
 
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: Medium
 - Effort: M
 - Why it matters:
-  - The updater companion UI mixes release loading, update execution, log
-    buffering, background receivers, selection movement, and panel-model
-    projection in one file. That is a user-facing state machine with more
-    mixed responsibilities than the repo’s structure guidelines allow.
+  - The GUI action catalog is a central semantic contract for tooling, automation, and tests. It currently concentrates action identity, coverage metadata, sample payload factories, and exhaustive matching in one large file, which increases review risk whenever the catalog evolves.
 - Evidence:
-  - `apps/updater-helper/src/ui.rs` is 517 lines.
-  - `UpdateNativeBridge` owns release polling, release selection, update start,
-    log buffering, background progress/result consumption, and app-model
-    projection helpers in one unit.
+  - `docs/gui_test_platform.md` names `src/app_core/actions/catalog.rs` as the canonical host action catalog.
+  - `tmp/cleanup_audit_hotspots.md` lists `src/app_core/actions/catalog.rs` at 595 lines, currently one of the largest production files.
+  - `src/app_core/actions/catalog.rs:9-232` defines the large `GuiActionKind` surface.
+  - `src/app_core/actions/catalog.rs:429-452` generates both the catalog and representative action payload mapping in one macro block.
+  - `src/app_core/actions/tests.rs` verifies exhaustiveness, so this surface is already treated as contract-critical.
 - Recommended change:
-  - Split background task management, reducer-like UI state transitions, and
-    view-model projection into focused modules.
-  - Add targeted tests for state transitions where practical.
+  - Split action identity, coverage metadata, and representative sample payloads into focused modules while preserving the exhaustive compile-time match path.
 - Expected impact:
-  - Safer maintenance of the update/install companion flow.
-  - Better readability around background state changes.
+  - Lower maintenance risk in a repo-wide contract surface.
+  - Easier review of future GUI action additions.
 - Risks / tradeoffs:
-  - Moderate refactor effort in a smaller but user-visible app path.
+  - Moderate mechanical churn.
+  - Preserve the current exhaustiveness guarantees; do not replace them with dynamic lookup magic.
 - Dependencies:
   - None.
 - Suggested validation:
-  - Updater-helper targeted tests if present or added
+  - `cargo test app_core::actions -- --nocapture`
+  - GUI contract loop from `docs/gui_test_platform.md`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `420eef61` (`refactor(updater): split updater helper ui flow`)
-  - Assumption used: keeping the `UpdateNativeBridge` data shape stable while moving only task, state, and projection methods into submodules is the lowest-risk way to split this user-facing state machine.
-  - Validation: `cargo test -p sempal-updater-helper -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [x] 10. Split compute-worker batch execution from queue loop and deferred-finalization policy
+### [ ] 7. Split the installer native bridge into explicit state, task, and projection layers
 
 - Classification: Architecture improvement
-- Confidence: High
+- Confidence: Medium
 - ROI: Medium
 - Effort: M
 - Why it matters:
-  - The compute worker manages shutdown/cancel polling, batch pop timing,
-    settings capture, connection maps, panic recovery, decoded-batch grouping,
-    immediate finalization, and deferred update flushing in one threaded path.
+  - The installer is a user-visible state machine that currently mixes background task startup, event polling, step transitions, projection building, and action reduction in one file. That shape is harder to extend safely than the already-split updater-helper flow.
 - Evidence:
-  - `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs`
-    is 453 lines.
-  - `run_compute_worker`, `process_batch`, `process_batch_work`, and
-    `run_work_item` share queue orchestration, DB connection management, and
-    finalization concerns in one file.
+  - `tmp/cleanup_audit_hotspots.md` lists `apps/installer/src/ui.rs` at 470 lines.
+  - `apps/installer/src/ui.rs:50-394` keeps `InstallerNativeBridge`, `start_install`, `poll_installer`, `app_model`, and `reduce_action` together in one file.
+  - `apps/installer/src/ui.rs:459-467` currently has only a minimal step-order test.
+  - `apps/updater-helper/src/ui/{tasks,state,projection}.rs` already shows the repo’s preferred decomposition for a similar native companion UI.
 - Recommended change:
-  - Separate worker-loop orchestration, work-item execution, and deferred update
-    flushing/finalization helpers.
-  - Add focused tests for panic recovery and deferred flush behavior if missing.
+  - Mirror the updater-helper split: isolate worker-task plumbing, reducer-like state transitions, and view projection.
+  - Add targeted tests for failure recovery, finish actions, and per-step model projection.
 - Expected impact:
-  - Easier reasoning about threaded job execution and cancellation behavior.
-  - Lower regression risk when changing analysis job execution.
+  - Safer maintenance of the installer flow.
+  - Better local reasoning about state transitions and background event handling.
 - Risks / tradeoffs:
-  - Moderate refactor risk in threaded code.
+  - Moderate churn in a smaller app path.
+  - Avoid over-engineering; this should stay a small, explicit state machine.
 - Dependencies:
   - None.
 - Suggested validation:
-  - Existing analysis-job tests
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `cargo test -p sempal-installer -- --nocapture`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `6f4674bd` (`refactor(analysis): split compute worker stages`)
-  - Assumption used: preserving the top-level worker loop while only extracting execution and deferred-finalization helpers is enough to reduce ownership mixing without changing queue semantics.
-  - Validation: `cargo test job_claim -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [x] 11. Separate waveform zoom-cache core behavior from telemetry bookkeeping
-
-- Classification: Architecture improvement
-- Confidence: High
-- ROI: Medium
-- Effort: M
-- Why it matters:
-  - Core cache behavior is currently interleaved with global telemetry counters
-    and emission helpers, which makes eviction/locking behavior harder to read
-    and change safely.
-- Evidence:
-  - `src/waveform/zoom_cache.rs` is 489 lines.
-  - The file mixes `WaveformZoomCache` and `CacheInner` behavior with many
-    global telemetry `AtomicU64`s, `OnceLock` state, and emission helpers.
-- Recommended change:
-  - Move telemetry counters/emission into a dedicated helper module or type.
-  - Keep the cache file focused on keying, lookup, insertion, eviction, and
-    poison recovery.
-- Expected impact:
-  - Clearer ownership between cache semantics and observability.
-  - Easier future cache changes.
-- Risks / tradeoffs:
-  - Moderate churn in a performance-sensitive path.
-- Dependencies:
-  - None.
-- Suggested validation:
-  - Existing waveform cache tests and perf guardrails
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `13c1744b` (`refactor(waveform): split zoom cache telemetry`)
-  - Assumption used: moving only telemetry counters and emission helpers out of the zoom-cache file is sufficient to clarify cache-core ownership without changing the lock or eviction model.
-  - Validation: `cargo test waveform::zoom_cache -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-
-### [x] 12. Separate pure audio-option normalization from controller-side probing and mutation
+### [ ] 8. Deduplicate the rating/tagging mutation and undo/refocus logic in playback tagging
 
 - Classification: Refactor / cleanup
 - Confidence: High
 - ROI: Medium
 - Effort: M
 - Why it matters:
-  - The file already has a clean pure normalization seam, but it still mixes
-    probe policy, warning construction, settings mutation, UI projection,
-    persistence-related state updates, and player-facing refresh behavior in one
-    controller unit.
+  - Tagging and rating changes are core curation flows, and the current implementation duplicates a large amount of context gathering, mutation, undo wiring, and refocus logic across two long functions. That makes future behavior fixes easy to land in one path but miss in the other.
 - Evidence:
-  - `src/app/controller/playback/audio_options.rs` is 445 lines.
-  - It combines `normalize_audio_options`, output/input refresh paths, channel
-    normalization, warning construction, and selection/apply helpers in one
-    file.
+  - `src/app/controller/playback/tagging.rs:83-210` implements `tag_selected(...)`.
+  - `src/app/controller/playback/tagging.rs:231-420` implements `adjust_selected_rating(...)`.
+  - Both functions resolve browser contexts, dedupe paths, apply source mutations, build undo payloads, restore focus, and call `advance_or_commit_after_rating(...)`.
+  - `tmp/cleanup_audit_hotspots.md` reports `src/app/controller/playback/tagging.rs` at 424 lines and flags `adjust_selected_rating` as a 194-line function span.
 - Recommended change:
-  - Keep pure normalization/probe helpers separate from controller mutation and
-    UI projection helpers.
-  - Introduce small shared helpers for output/input view projection and warning
-    handling.
+  - Extract shared batch-mutation and undo/refocus helpers, keeping rating-specific auto-trash and auto-advance rules as narrow policy layers.
 - Expected impact:
-  - Easier targeted testing of audio settings behavior.
-  - Lower coupling between probing policy and controller mutation.
+  - Lower drift risk in one of the app’s highest-churn user workflows.
+  - Smaller diffs when rating/tagging behavior needs adjustment.
 - Risks / tradeoffs:
-  - Moderate refactor touching settings and player rebuild flows.
+  - Moderate refactor risk in behavior-sensitive controller code.
+  - Preserve current user-visible semantics and regression tests.
 - Dependencies:
   - None.
 - Suggested validation:
-  - Existing audio-option tests
+  - Existing browser/tagging controller tests in `src/app/controller/tests/browser_core.rs`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `d1530f8c` (`refactor(audio): split audio option normalization`)
-  - Assumption used: keeping the public controller methods and normalization behavior unchanged while moving pure helpers into their own module is enough to reduce coupling here without risking audio-device regressions.
-  - Validation: `cargo test audio_options -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [x] 13. Split oversized test and fixture catalogs into domain-focused modules
+### [ ] 9. Add direct tests and smaller pure seams for the Windows external drag-out implementation
+
+- Classification: Test gap
+- Confidence: Medium
+- ROI: Medium
+- Effort: M
+- Why it matters:
+  - The Windows drag-out path is unsafe host-integration code built on COM, OLE, and `CF_HDROP`. The controller has dwell/launch tests, but the lower-level payload construction and data-object behavior currently have no direct coverage.
+- Evidence:
+  - `src/external_drag.rs:79-364` implements `FileDropDataObject`, COM interfaces, and `create_hglobal_for_paths(...)`.
+  - `src/external_drag.rs:415-426` normalizes Windows paths, including verbatim-path trimming.
+  - `tmp/cleanup_audit_hotspots.md` lists `src/external_drag.rs` at 432 lines and flags it as a likely test-gap hotspot.
+  - Existing tests in `src/app/controller/ui/drag_drop_controller/actions/external_drag.rs` cover launch heuristics, not the platform payload format itself.
+- Recommended change:
+  - Split pure path/payload formatting from COM object plumbing so the payload contract can be unit-tested.
+  - Add platform-gated tests for path normalization and `DROPFILES` payload construction.
+- Expected impact:
+  - Better confidence in a brittle OS integration boundary.
+  - Easier diagnosis if drag-out breaks on Windows.
+- Risks / tradeoffs:
+  - Medium effort because some logic is necessarily Windows-specific.
+  - Keep the COM layer thin; the testable seam should stay data-oriented.
+- Dependencies:
+  - None.
+- Suggested validation:
+  - Targeted Windows unit tests for drag payload helpers.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Product clarification required: No
+
+### [ ] 10. Split the remaining monolithic regression catalogs by behavior family
 
 - Classification: Refactor / cleanup
 - Confidence: Medium
 - ROI: Medium
 - Effort: M
 - Why it matters:
-  - Large test hubs and case catalogs reduce discoverability and make it harder
-    to add or review regressions without touching unrelated behaviors.
+  - Several test files remain large enough that adding or reviewing regressions requires touching unrelated behaviors. That slows auditing and raises merge-noise in areas that are already behavior-dense.
 - Evidence:
-  - `src/gui_test/aiv/packs/cases.rs` is 555 lines.
-  - `src/app_core/controller/tests.rs` is 562 lines.
-  - `src/app_core/native_bridge/tests/projection_cache.rs` is 609 lines.
-  - `vendor/radiant/src/gui/native_shell/state/tests/browser_rows.rs` is 860
-    lines.
+  - `tmp/cleanup_audit_hotspots.md` lists:
+    - `src/app/controller/tests/browser_core.rs` at 611 lines
+    - `tests/unit/source_db_mod_tests.rs` at 561 lines
+    - `src/app/controller/library/analysis_jobs/enqueue/tests.rs` at 543 lines
+    - `src/app/controller/tests/focus_random.rs` at 520 lines
+  - These files each cover multiple distinct behavior families in one place.
 - Recommended change:
-  - Split these files by domain or behavior family instead of continuing to grow
-    them as omnibus catalogs.
+  - Split each file by domain slice while preserving existing helper semantics and stable test names where that matters for grep history.
 - Expected impact:
-  - Easier navigation and lower review friction for regression additions.
+  - Easier test discoverability and smaller review surfaces.
+  - Lower friction when adding focused regressions during future bug work.
 - Risks / tradeoffs:
-  - Medium confidence because this is maintainability debt, not an immediate
-    correctness bug.
+  - Medium confidence because this is maintainability work, not an immediate correctness fix.
+  - Avoid churn for its own sake; only split the clear multi-family catalogs.
 - Dependencies:
   - None.
 - Suggested validation:
-  - Existing targeted test suites plus `ci_quick.ps1`
-- Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `vendor/radiant` `27c732ac` (`refactor(tests): split browser rows coverage`), `vendor/radiant` `b1a1addf` (`refactor(tests): remove legacy browser rows test file`); parent `2fd15dbc` (`refactor(tests): split gui and bridge catalogs`), parent `159e213f` (`refactor(tests): remove legacy monolithic catalogs`)
-  - Assumption used: splitting the highest-churn test hubs by behavior family is worthwhile once the new file boundaries preserve existing test names and helper semantics, because it lowers review friction without changing product behavior.
-  - Validation: `cargo test gui_test::aiv::packs::tests -- --nocapture`, `cargo test app_core::controller::tests -- --nocapture`, `cargo test projection_cache -- --nocapture`, `cargo test -p radiant browser_rows -- --nocapture`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-  - Validation note: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` moved past the earlier file-size-budget failure and is now blocked by the pre-existing `scripts/check_migration_boundary.ps1` termination behavior, which aborts before listing allowed transitional matches.
-
-### [x] 14. Add Windows parity for the cleanup-hotspot audit helper or document its Bash-only status precisely
-
-- Classification: Developer-experience improvement
-- Confidence: High
-- ROI: Medium
-- Effort: S
-- Why it matters:
-  - The repo tells Windows agents to use PowerShell wrappers, but the cleanup
-    hotspot helper used for ROI planning still exists only as Bash and is
-    documented as a generic workflow tool.
-- Evidence:
-  - `scripts/audit_cleanup_hotspots.sh` exists.
-  - No matching `scripts/audit_cleanup_hotspots.ps1` exists.
-  - `docs/INDEX.md` documents only the Bash invocation.
-  - `AGENTS.md` explicitly says Windows sessions should use PowerShell wrappers
-    rather than Bash workflow scripts.
-- Recommended change:
-  - Prefer adding a PowerShell wrapper with matching output semantics.
-  - If parity is intentionally out of scope, document the Bash-only limitation
-    explicitly in `docs/INDEX.md` and related workflow docs.
-- Expected impact:
-  - Lower audit friction for Windows maintainers and agents.
-  - Fewer workflow contradictions in repo guidance.
-- Risks / tradeoffs:
-  - Low technical risk.
-  - If parity is implemented, the wrapper must stay behaviorally aligned with
-    the Bash version.
-- Dependencies:
-  - None.
-- Suggested validation:
-  - Compare generated hotspot snapshots across wrapper paths
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - Existing targeted cargo test filters for the affected modules.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completion:
-  - Date: 2026-03-13
-  - Commit: `18dc6d62` (`feat(scripts): add powershell cleanup audit helper`)
-  - Assumption used: adding a native PowerShell implementation is the better parity move than documenting a Bash-only exception because the repo already treats PowerShell as the canonical Windows workflow surface.
-  - Validation: `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1 -Output tmp/cleanup_audit_hotspots_test.md`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ## Open Questions / Missing Definitions
 
-### [!] What is the intended long-term boundary between in-process GUI scenarios and desktop AIV manifests?
+### [!] What is the intended long-term source of truth for browser search semantics?
 
 - Evidence:
-  - `src/gui_test/scenario.rs` defines in-process `GuiScenarioStep` and
-    `GuiAssertion`.
-  - `src/gui_test/aiv/mod.rs` defines a second semantic step/assertion contract
-    for desktop AIV.
-  - Both systems operate on similar semantic node/action concepts.
+  - `src/app/controller/library/wavs/browser_pipeline.rs` and `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` both implement visible-row semantics.
+  - `src/app/controller/library/wavs/browser_search.rs:407-420` makes tests default to sync behavior while runtime defaults to async behavior.
 - Why this matters:
-  - Without a documented boundary, future test additions may duplicate behavior
-    or drift in supported assertion vocabulary.
+  - If the repo intends to keep both paths permanently, then parity must be an explicit invariant.
+  - If one path is transitional, the safer recommendation is consolidation rather than long-term dual maintenance.
+- Affected files/modules:
+  - `src/app/controller/library/wavs/browser_pipeline.rs`
+  - `src/app/controller/library/wavs/browser_search.rs`
+  - `src/app/controller/library/wavs/browser_search_worker/**`
+- Risk if guessed incorrectly:
+  - Either duplicated semantics keep drifting, or a premature consolidation removes a deliberate fast path.
+- Most conservative provisional assumption:
+  - Treat parity as mandatory now; do not remove either path without explicit direction.
+
+### [!] What is the intended end-state of the `app_core` migration boundary exceptions?
+
+- Evidence:
+  - `docs/gui_migration_parity.md` describes a strict `app_core` boundary through bridge aliases.
+  - `src/app_core/controller.rs` and `src/app_core/controller/waveform_actions.rs` still import `crate::app::` directly.
+  - `scripts/check_migration_boundary.ps1` contains transitional exceptions outside the documented `app_api` note.
+- Why this matters:
+  - The safest cleanup differs depending on whether these direct legacy imports are temporary stragglers or an intentional permanent seam.
+- Affected files/modules:
+  - `src/app_core/controller.rs`
+  - `src/app_core/controller/waveform_actions.rs`
+  - `scripts/check_migration_boundary.ps1`
+  - `docs/gui_migration_parity.md`
+- Risk if guessed incorrectly:
+  - Either the code keeps a misleading boundary forever, or a cleanup pass removes a seam that the migration still intentionally depends on.
+- Most conservative provisional assumption:
+  - Keep the migration seam explicit, but route it through one documented alias boundary rather than scattered direct imports.
+
+### [!] What is the intended division of responsibility between in-process GUI scenarios and desktop AIV packs?
+
+- Evidence:
+  - `src/gui_test/scenario.rs` defines in-process declarative scenarios and assertions.
+  - `src/gui_test/aiv/mod.rs` defines typed desktop AIV suite manifests.
+  - `docs/gui_test_platform.md` lists both as active layers and still calls out desktop AIV stability gaps plus future work.
+- Why this matters:
+  - Without a documented boundary, new GUI coverage can be added in whichever layer feels convenient, which makes long-term coverage planning harder.
 - Affected files/modules:
   - `src/gui_test/scenario.rs`
   - `src/gui_test/aiv/mod.rs`
-  - `src/gui_test/aiv/packs/**`
+  - `docs/gui_test_platform.md`
 - Risk if guessed incorrectly:
-  - Duplicate maintenance and diverging semantic test contracts.
+  - Coverage duplication, missing assertions in the right layer, or premature attempts to unify two intentionally different loops.
 - Most conservative provisional assumption:
-  - Keep both systems for now and avoid unifying them until the intended
-    ownership boundary is documented.
-
-### [!] What is the intended end-state boundary for the native runtime after the performance redesign?
-
-- Evidence:
-  - `vendor/radiant/src/gui_runtime/native_vello.rs` already delegates to many
-    submodules but still retains a very large top-level runner and state set.
-  - `docs/plans/active/runtime_performance_exec_plan.md` focuses on performance
-    milestones, not the desired final module ownership shape.
-- Why this matters:
-  - Some decompositions are clearly useful, but a larger runtime refactor could
-    drift into architecture-by-preference without a documented target.
-- Affected files/modules:
-  - `vendor/radiant/src/gui_runtime/native_vello.rs`
-  - `vendor/radiant/src/gui_runtime/native_vello/**`
-- Risk if guessed incorrectly:
-  - High-cost churn without improving the real maintenance pain.
-- Most conservative provisional assumption:
-  - Prefer incremental extractions around state ownership and lifecycle seams
-    instead of a top-down runtime redesign.
-
-### [!] Is the cleanup-hotspot audit helper meant to be a general workflow tool or an optional Bash-only maintainer utility?
-
-- Evidence:
-  - `docs/INDEX.md` presents the helper as part of the cleanup planning flow.
-  - `AGENTS.md` tells Windows sessions not to use Bash workflow scripts.
-  - Only `scripts/audit_cleanup_hotspots.sh` exists.
-- Why this matters:
-  - The safe recommendation differs depending on whether Windows parity is
-    expected or whether the docs should explicitly mark the helper as Bash-only.
-- Affected files/modules:
-  - `scripts/audit_cleanup_hotspots.sh`
-  - `docs/INDEX.md`
-  - `AGENTS.md`
-- Risk if guessed incorrectly:
-  - Either unnecessary wrapper maintenance or continued workflow confusion.
-- Most conservative provisional assumption:
-  - Treat the current state as a documentation mismatch that should be resolved
-    one way or the other.
+  - Keep semantic in-process scenarios as the deterministic contract layer and desktop AIV as the live-environment validation layer until the boundary is documented more explicitly.
 
 ## Rejected Ideas
 
-### [-] Replace semantic GUI automation with screenshot-first desktop testing
+### [-] Convert browser search to async-only immediately
 
 - Why it was considered:
-  - The repo has AIV support and screenshot artifacts.
+  - Two search pipelines currently exist.
 - Why it was rejected:
-  - The repository explicitly documents semantic-first GUI automation, and the
-    current test platform is built around stable node ids and action metadata.
+  - The repository clearly still supports both paths, and there is not enough evidence that removing the sync path is currently desired.
 - Missing evidence:
-  - No repo evidence that a screenshot-first oracle is desired.
+  - No documented plan to deprecate the in-process path outright.
 
-### [-] Rewrite the native runtime around a new framework or async architecture
+### [-] Reopen a broad legacy `src/app` cleanup sweep
 
 - Why it was considered:
-  - The runtime is large and performance-sensitive.
+  - Many large files still live in legacy controller paths.
 - Why it was rejected:
-  - The repo already has an active incremental performance plan and recent work
-    in the current architecture. A framework rewrite would be speculative.
+  - The repo documents focused migration boundaries and discourages broad speculative rewrites. The evidence supports targeted seams, not a blanket legacy rewrite.
 - Missing evidence:
-  - No documented migration plan or dissatisfaction with the existing stack as a
-    whole.
+  - No current plan or doc asking for a wide legacy-controller migration sweep.
 
-### [-] Treat every oversized test file as an immediate correctness problem
+### [-] Promote desktop AIV into mandatory CI immediately
 
 - Why it was considered:
-  - Several test hubs exceed the file-size budget.
+  - The GUI platform is a major documented investment.
 - Why it was rejected:
-  - The repo evidence supports splitting them for maintainability, but not every
-    large test file clearly blocks current correctness work.
+  - `docs/gui_test_platform.md` explicitly says the current Windows setup still has foreground/focus stability issues and no CI gate yet enforces desktop AIV smoke stability.
 - Missing evidence:
-  - No evidence that a broad test-only churn pass is currently more valuable
-    than the targeted runtime/native-shell items above.
+  - No repository evidence that the desktop loop is stable enough today to become a required gate.

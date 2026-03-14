@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-13T19:10:00Z
+Last updated (UTC): 2026-03-14T10:15:00Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -11,13 +11,14 @@ Purpose:
 
 ## Current lane
 
-- Improvement audit execution handoff.
-- `tmp/improvement_audit_plan.md` is complete through item 14 and now records the finished execution lane from `2026-03-13`.
+- Improvement audit execution, Phase 2 active.
+- `tmp/improvement_audit_plan.md` remains the source of truth for ordered execution and status tracking.
+- Backlog item 1 is complete; the lane should proceed to item 2 next.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Wait for the user to choose the next lane.
-2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
-3. If the user asks for full CI parity, note that the previous file-size-budget blocker is gone and the remaining blocker is the pre-existing `scripts/check_migration_boundary.ps1` termination behavior.
-4. After the active lane changes again, sync `AGENTS.md`, `MEMORY.md`, and this file.
+1. Commit and push improvement audit backlog item 1.
+2. Continue with item 2 from `tmp/improvement_audit_plan.md` in strict ROI order.
+3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
+4. After each completed audit item, sync `AGENTS.md`, `MEMORY.md`, this file, and `tmp/improvement_audit_plan.md`.

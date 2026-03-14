@@ -1,6 +1,6 @@
-# Agent Memory
+﻿# Agent Memory
 
-Last Updated: 2026-03-13T19:10:00Z
+Last Updated: 2026-03-14T09:28:59Z
 Updated By: Codex
 
 ## Purpose
@@ -12,12 +12,13 @@ Updated By: Codex
 
 - I am on `next` in `C:\dev\sempal`.
 - `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` are both on local `next`.
-- The working tree is clean except for ignored local artifact paths and temporary audit output files.
-- The improvement audit lane is complete.
-- The current source of truth for that completed lane is `tmp/improvement_audit_plan.md`.
-- `tmp/improvement_audit_plan.md` now serves as both the ROI-ranked backlog record and the execution log for items 1 through 14 completed on `2026-03-13`.
-- The file-size-budget hotspot that previously blocked `ci_local.ps1` has been cleared by splitting the oversized test/catalog files.
-- `scripts/ci_local.ps1` is still blocked by the pre-existing `scripts/check_migration_boundary.ps1` termination behavior after it reaches the migration-boundary guardrail step.
+- The working tree contains the current improvement-audit execution changes for backlog item 1 plus synchronized plan docs.
+- The improvement audit lane is active in Phase 2.
+- The current source of truth is `tmp/improvement_audit_plan.md`.
+- `tmp/improvement_audit_plan.md` was rebuilt on `2026-03-14` as a fresh evidence-driven ROI-ranked backlog for the current codebase and now serves as the execution record.
+- Backlog item 1 is complete: the Windows migration-boundary guard now prints actionable violations, correctly skips test-only paths on Windows-style separators, and is covered by script guardrail fixtures.
+- `scripts/ci_quick.ps1` is green after the item-1 change.
+- `scripts/ci_local.ps1` now gets past the migration-boundary gate and currently fails later on the pre-existing unrelated `vendor/radiant` test `gui::native_shell::layout_adapter::controls::controls_tests::toolbar_search_field_uses_ratio_width_inside_full_host`.
 - The earlier GUI/browser interaction fixes and desktop AIV coverage remain part of the current repository state and are background context, not the active execution lane.
 - `tmp/cleanup_plan.md` remains parked after Phase 1 and still requires explicit confirmation before any cleanup implementation.
 - `tmp/perf_plan.md` remains parked after its earlier performance work and should stay dormant unless the user reopens that lane.
@@ -28,10 +29,10 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Wait for the user to choose the next lane.
-2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
-3. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned with the active lane summary.
-4. If the user wants full CI parity, investigate or fix `scripts/check_migration_boundary.ps1` separately from the now-completed improvement-audit execution record.
+1. Commit and push backlog item 1, then continue with item 2 from `tmp/improvement_audit_plan.md`.
+2. Keep `tmp/improvement_audit_plan.md` updated after each completed item with date, commit hash, assumptions, and validation results.
+3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
+4. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned with the active lane summary.
 
 ## Work Notes
 
@@ -42,3 +43,5 @@ Updated By: Codex
 - GUI automation/test rollout plan: `docs/plans/active/gui_test_platform_exec_plan.md`
 - Perf execution record: `tmp/perf_plan.md`
 - Perf redesign source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
+
+

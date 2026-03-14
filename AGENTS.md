@@ -59,21 +59,21 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `C:\dev\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: improvement audit execution follow-through and handoff
-- Source of truth: `tmp/improvement_audit_plan.md` for the completed ROI-ranked audit backlog and execution record; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: the improvement audit backlog in `tmp/improvement_audit_plan.md` has been executed through item 14 on `2026-03-13`; the lane is complete and waiting for the next user-directed priority.
+- Program: evidence-driven improvement audit execution
+- Source of truth: `tmp/improvement_audit_plan.md` for the current ROI-ranked improvement backlog and execution record; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
+- Current status: Phase 2 is active on `2026-03-14`; backlog item 1 is complete and the lane is progressing through the remaining items in strict ROI order.
 
 ## Immediate Next Actions
-1. Wait for the next user-directed lane; do not reopen `tmp/improvement_audit_plan.md` unless follow-up audit work is explicitly requested.
-2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
-3. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized when the active lane changes.
-4. If the user asks for broader CI parity again, note that `scripts/ci_local.ps1` is currently blocked by the pre-existing `scripts/check_migration_boundary.ps1` termination behavior after the file-size guardrail issue was cleared.
+1. Continue executing `tmp/improvement_audit_plan.md` in strict plan order, starting from item 2.
+2. Update `tmp/improvement_audit_plan.md` after each completed item with date, commit hash, assumptions, and validation results.
+3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
+4. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized when the active lane changes.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog and execution record; items 1-14 are complete as of `2026-03-13`
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog rebuilt on `2026-03-14`; Phase 2 execution is active and item 1 is complete
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation

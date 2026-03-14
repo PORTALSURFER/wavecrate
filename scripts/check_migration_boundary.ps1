@@ -27,11 +27,24 @@ try {
     throw "Expected app_core directory not found: $appCoreDir"
   }
 
+  function Normalize-RepoPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    return $Path.Replace('\', '/')
+  }
+
+  function Test-IsTestPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $normalized = Normalize-RepoPath -Path $Path
+    return $normalized -like "*/tests/*" -or
+      $normalized -like "*/tests.rs" -or
+      $normalized -like "*_tests.rs"
+  }
+
   $violations = New-Object System.Collections.Generic.List[string]
 
   $files = Get-ChildItem -LiteralPath $appCoreDir -Recurse -File -Filter "*.rs"
   foreach ($file in $files) {
-    if ($file.FullName -like "*/tests/*" -or $file.Name -like "*_tests.rs" -or $file.Name -eq "tests.rs") {
+    if (Test-IsTestPath -Path $file.FullName) {
       continue
     }
     $matches = Select-String -LiteralPath $file.FullName -SimpleMatch -Pattern "crate::app::" -ErrorAction SilentlyContinue
@@ -51,7 +64,7 @@ try {
     exit 0
   }
 
-  Write-Error "Migration boundary check failed: direct crate::app references were found outside app_core::app_api."
+  Write-Host "Migration boundary check failed: direct crate::app references were found outside app_core::app_api."
   foreach ($v in ($violations | Sort-Object)) {
     Write-Host (" - {0}" -f $v)
   }
