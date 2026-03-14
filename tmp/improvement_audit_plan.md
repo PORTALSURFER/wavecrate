@@ -229,6 +229,7 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed on: `2026-03-14`
+- Commit: `fe44b501`
 - Validation:
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` passed.
@@ -238,7 +239,7 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
 - Assumptions:
   - `docs/file_size_budget_allowlist.txt` is intended to track only the guardrail scope enforced by `scripts/check_file_size_budget.*` (`src/`, `tests/`, and `vendor/radiant/src`), while `tmp/cleanup_audit_hotspots.md` remains the broader multi-tree hotspot snapshot for `apps/` and `tools/` debt.
 
-### [ ] 6. Split the canonical GUI action catalog into smaller contract-focused modules
+### [x] 6. Split the canonical GUI action catalog into smaller contract-focused modules
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -262,6 +263,13 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
   - Preserve the current exhaustiveness guarantees; do not replace them with dynamic lookup magic.
 - Dependencies:
   - None.
+- Completed on: `2026-03-14`
+- Validation:
+  - `cargo test app_core::actions -- --nocapture` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - The stable public surface should remain the `app_core::actions` re-exports, so splitting the implementation under `src/app_core/actions/catalog/` is preferable to renaming public symbols or changing lookup semantics.
 - Suggested validation:
   - `cargo test app_core::actions -- --nocapture`
   - GUI contract loop from `docs/gui_test_platform.md`
