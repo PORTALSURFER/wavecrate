@@ -4,7 +4,7 @@ Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
 Phase: 2 in progress
-Implementation status: items 1-6 and 8 are complete; item 7 is blocked on clarification.
+Implementation status: items 1-8 are complete.
 
 ## Repository Context
 
@@ -260,7 +260,7 @@ Implementation status: items 1-6 and 8 are complete; item 7 is blocked on clarif
 - Assumptions:
   - Splitting projection-cache key types, lookup counters, and retained cache state into sibling modules is behavior-preserving because the existing key builders, materializers, and tests stay unchanged.
 
-### [~] 7. Clarify and reduce the dual source-of-truth risk in browser search construction
+### [x] 7. Clarify and reduce the dual source-of-truth risk in browser search construction
 
 - Classification: Architecture improvement
 - Confidence: Medium
@@ -274,26 +274,32 @@ Implementation status: items 1-6 and 8 are complete; item 7 is blocked on clarif
   - `src/app/controller/library/wavs/browser_search.rs:409-441` still defaults async search to `true` at runtime and `false` under test unless explicitly overridden.
   - `src/app/controller/library/wavs/browser_search_worker/pipeline/parity_tests.rs` shows parity is now tested, which confirms the repo already treats these paths as susceptible to drift.
 - Recommended change:
-  - First document the intended long-term source of truth for query/filter/sort semantics.
-  - Then either keep parity enforcement explicit and local, or extract a smaller shared semantics layer that both paths consume.
+  - Make the worker-owned async pipeline the authoritative runtime browser-search path.
+  - Route runtime `rebuild_browser_lists()` calls through the worker path when async browser search is enabled, and keep the retained sync pipeline as a deterministic fallback for tests.
+  - Reuse one browser-projection application path so async results refresh the same visible-row, selection, loaded-row, anchor, and viewport state that sync rebuilds update.
 - Expected impact:
   - Reduces future behavior drift in a central browsing path.
   - Makes later browser changes safer because maintainers know which layer is authoritative.
 - Risks / tradeoffs:
-  - Clarification is required before larger refactoring.
-  - Forcing a single abstraction too early could hurt clarity or performance.
+  - Runtime browser mutations now rely more consistently on eventual worker results instead of immediate in-thread rebuilds.
+  - The retained sync pipeline still exists for tests and fallback behavior, so parity coverage remains necessary.
 - Dependencies:
   - None.
 - Suggested validation:
   - Existing parity tests plus targeted controller async-path tests.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: Yes
-- Blocked: 2026-03-14
-- Why blocked:
-  - The repository proves that sync and async browser-search paths must remain behaviorally aligned, but it still does not define which layer is authoritative beyond parity itself.
-  - A safe architectural change here would require choosing between shared semantics, explicit duplication with parity enforcement, or an async-first contract, and the current docs/tests do not settle that choice.
-- Conservative action taken:
-  - Left the two-path structure unchanged and moved on to the next safe backlog item.
+- Completed: 2026-03-14
+- Commit: pending
+- Validation outcome:
+  - `cargo test browser_async --lib` passed.
+  - `cargo test background_jobs::polling --lib` passed.
+  - `cargo test --test controller_browser_integration browser_tagging_via_controller_updates_rows` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - The explicit user choice is that the worker-owned async pipeline is authoritative at runtime.
+  - Keeping the retained sync pipeline as a deterministic test fallback is lower risk than forcing a full async-only rewrite in one pass.
 
 ### [x] 8. Split the remaining large controller regression catalogs by behavior family
 
@@ -331,26 +337,6 @@ Implementation status: items 1-6 and 8 are complete; item 7 is blocked on clarif
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
 - Assumptions:
   - Keeping the existing helper setup local to each new module tree is preferable to introducing a shared test utility layer that would obscure behavior-specific fixtures.
-
-## Open Questions / Missing Definitions
-
-### [!] Which browser-search layer is intended to own canonical query/filter/sort semantics?
-
-- Evidence:
-  - `src/app/controller/library/wavs/browser_pipeline.rs`
-  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs`
-  - `src/app/controller/library/wavs/browser_search.rs`
-  - `src/app/controller/library/wavs/browser_search_worker/pipeline/parity_tests.rs`
-- Why this matters:
-  - The right fix differs depending on whether the repo wants shared semantics, explicit parity-only duplication, or a future async-first source of truth.
-- Affected files/modules:
-  - `src/app/controller/library/wavs/browser_pipeline.rs`
-  - `src/app/controller/library/wavs/browser_search.rs`
-  - `src/app/controller/library/wavs/browser_search_worker/pipeline/**`
-- Risk if guessed incorrectly:
-  - A cleanup could add abstraction or remove separation that the runtime architecture actually depends on.
-- Most conservative provisional assumption:
-  - Preserve the two-path structure for now and only make the authoritative behavior contract explicit before further consolidation.
 
 ## Rejected Ideas
 

@@ -67,9 +67,19 @@ impl AppController {
         self.wav_entries_len() > browser_search_offload_threshold()
     }
 
-    /// Return `true` when browser interactions should dispatch async search jobs.
+    /// Return `true` when runtime browser interactions should use the async worker pipeline.
     pub(crate) fn should_dispatch_browser_search_async(&self) -> bool {
         browser_async_pipeline_enabled()
+    }
+
+    /// Return `true` when browser list rebuilds should defer to the async worker pipeline.
+    ///
+    /// Runtime builds treat the worker pipeline as authoritative. Tests can still
+    /// force the synchronous retained pipeline off for deterministic immediate
+    /// assertions, while oversized lists continue to offload through jobs even
+    /// when the explicit async toggle is disabled.
+    pub(crate) fn should_rebuild_browser_lists_async(&self) -> bool {
+        self.should_dispatch_browser_search_async() || self.should_offload_search()
     }
 
     /// Return the active trimmed browser query, when non-empty.
@@ -402,10 +412,10 @@ fn browser_search_offload_threshold() -> usize {
     })
 }
 
-/// Resolve whether browser interaction paths should always use async search.
+/// Resolve whether browser interaction paths should use the async worker pipeline.
 ///
 /// This defaults to `true` for runtime builds and `false` under libtest so
-/// tests keep deterministic immediate list updates.
+/// tests keep deterministic immediate list updates unless they explicitly opt in.
 fn browser_async_pipeline_enabled() -> bool {
     #[cfg(test)]
     {

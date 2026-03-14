@@ -2,7 +2,7 @@ use super::super::jobs::{JobMessage, SearchResult};
 use super::super::library::wavs::with_browser_async_pipeline_enabled_for_tests;
 use super::super::test_support::{prepare_with_source_and_wav_entries, sample_entry};
 use super::common::visible_indices;
-use crate::app::state::VisibleRows;
+use crate::app::state::{TriageFlagFilter, VisibleRows};
 use crate::sample_sources::Rating;
 use std::sync::Arc;
 
@@ -110,5 +110,52 @@ fn stale_async_browser_search_result_is_ignored_until_latest_request_arrives() {
 
     assert_eq!(visible_indices(&controller), expected_visible);
     assert_eq!(controller.ui.browser.latest_applied_search_request_id, 2);
+    assert!(!controller.ui.browser.search_busy);
+}
+
+#[test]
+fn rebuild_browser_lists_dispatches_async_pipeline_when_enabled() {
+    let entries = vec![
+        sample_entry("trash.wav", Rating::TRASH_1),
+        sample_entry("neutral.wav", Rating::NEUTRAL),
+        sample_entry("keep.wav", Rating::KEEP_1),
+    ];
+    let (mut sync_controller, _sync_source) = prepare_with_source_and_wav_entries(entries.clone());
+    sync_controller.ui.browser.filter = TriageFlagFilter::Keep;
+    sync_controller.rebuild_browser_lists();
+    let expected_visible = visible_indices(&sync_controller);
+    let expected_trash = Arc::clone(&sync_controller.ui.browser.trash);
+    let expected_neutral = Arc::clone(&sync_controller.ui.browser.neutral);
+    let expected_keep = Arc::clone(&sync_controller.ui.browser.keep);
+
+    let (mut controller, source) = prepare_with_source_and_wav_entries(entries);
+    let starting_visible = visible_indices(&controller);
+
+    with_browser_async_pipeline_enabled_for_tests(true, || {
+        controller.ui.browser.filter = TriageFlagFilter::Keep;
+        controller.rebuild_browser_lists();
+
+        let request_id = controller.ui.browser.latest_search_request_id;
+        assert_eq!(request_id, 1);
+        assert!(controller.ui.browser.search_busy);
+        assert_eq!(controller.ui.browser.latest_applied_search_request_id, 0);
+        assert_eq!(visible_indices(&controller), starting_visible);
+
+        controller.apply_background_job_message_for_tests(JobMessage::BrowserSearchFinished(
+            SearchResult {
+                request_id,
+                source_id: source.id.clone(),
+                query: String::new(),
+                visible: VisibleRows::List(expected_visible.clone().into()),
+                trash: expected_trash,
+                neutral: expected_neutral,
+                keep: expected_keep,
+                scores: Arc::from([]),
+            },
+        ));
+    });
+
+    assert_eq!(visible_indices(&controller), expected_visible);
+    assert_eq!(controller.ui.browser.latest_applied_search_request_id, 1);
     assert!(!controller.ui.browser.search_busy);
 }

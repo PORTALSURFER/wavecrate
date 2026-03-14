@@ -6,10 +6,10 @@ use crate::app::controller::jobs::{
 use crate::app::controller::test_support::{
     dummy_controller, prepare_with_source_and_wav_entries, sample_entry,
 };
-use crate::app::state::{ProgressTaskKind, VisibleRows};
+use crate::app::state::{ProgressTaskKind, TriageFlagColumn, VisibleRows};
 use crate::sample_sources::Rating;
 use std::collections::BTreeSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, atomic::AtomicBool, mpsc::channel};
 
 #[test]
@@ -55,12 +55,20 @@ fn matching_browser_search_message_refreshes_visible_rows_and_clears_busy_state(
         sample_entry("snare.wav", Rating::TRASH_1),
         sample_entry("hat.wav", Rating::KEEP_1),
     ]);
+    controller.sample_view.wav.selected_wav = Some(PathBuf::from("hat.wav"));
+    controller.sample_view.wav.loaded_wav = Some(PathBuf::from("snare.wav"));
     controller.ui.browser.search_query = "hat".into();
     controller.ui.browser.search_busy = true;
     controller.ui.browser.latest_search_request_id = 9;
     controller.ui.browser.latest_applied_search_request_id = 3;
     controller.ui.browser.visible_rows_revision = 14;
     controller.ui.browser.marker_cache = Some(Default::default());
+    controller.ui.browser.selection_anchor_visible = Some(7);
+    controller.ui.browser.selected = None;
+    controller.ui.browser.loaded = None;
+    controller.ui.browser.selected_visible = None;
+    controller.ui.browser.loaded_visible = None;
+    controller.set_ui_loaded_wav(None);
 
     controller.handle_background_job_message(JobMessage::BrowserSearchFinished(SearchResult {
         request_id: 9,
@@ -78,6 +86,19 @@ fn matching_browser_search_message_refreshes_visible_rows_and_clears_busy_state(
     assert_eq!(controller.ui.browser.latest_applied_search_request_id, 9);
     assert!(!controller.ui.browser.search_busy);
     assert!(controller.ui.browser.marker_cache.is_none());
+    assert_eq!(controller.ui.browser.selected_visible, Some(0));
+    assert_eq!(controller.ui.browser.loaded_visible, None);
+    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
+    let selected = controller.ui.browser.selected.expect("selected browser index");
+    assert_eq!(selected.column, TriageFlagColumn::Keep);
+    assert_eq!(selected.row, 0);
+    let loaded = controller.ui.browser.loaded.expect("loaded browser index");
+    assert_eq!(loaded.column, TriageFlagColumn::Trash);
+    assert_eq!(loaded.row, 0);
+    assert_eq!(
+        controller.ui.loaded_wav.as_deref(),
+        Some(Path::new("snare.wav"))
+    );
     let browser_search_revision = controller.ui.projection_revisions.browser_search;
     assert!(controller.refresh_projection_revision_bus());
     assert_ne!(

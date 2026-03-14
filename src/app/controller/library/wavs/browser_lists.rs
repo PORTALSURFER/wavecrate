@@ -1,10 +1,16 @@
 use super::*;
-use crate::app::state::{BrowserMarkerCacheState, FocusContext};
+use crate::app::state::{BrowserMarkerCacheState, FocusContext, VisibleRows};
 use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
+use std::sync::Arc;
 
 impl AppController {
     pub(crate) fn rebuild_browser_lists(&mut self) {
         self.prune_browser_selection();
+        if self.should_rebuild_browser_lists_async() {
+            self.dispatch_search_job();
+            return;
+        }
+
         let allow_highlight = matches!(
             self.ui.focus.context,
             FocusContext::SampleBrowser | FocusContext::Waveform | FocusContext::None
@@ -16,22 +22,44 @@ impl AppController {
         let loaded_index = highlight_selection
             .then_some(self.loaded_row_index())
             .flatten();
-
-        if self.should_offload_search() {
-            self.dispatch_search_job();
-            return;
-        }
-
         self.reset_browser_ui();
-        let (visible, selected_visible, loaded_visible) =
+        let (visible, _selected_visible, _loaded_visible) =
             super::browser_pipeline::build_visible_rows(self, focused_index, loaded_index);
-        self.ui.browser.trash = self.ui_cache.browser.pipeline.trash_rows.clone().into();
-        self.ui.browser.neutral = self.ui_cache.browser.pipeline.neutral_rows.clone().into();
-        self.ui.browser.keep = self.ui_cache.browser.pipeline.keep_rows.clone().into();
+        self.apply_browser_projection(
+            visible,
+            self.ui_cache.browser.pipeline.trash_rows.clone().into(),
+            self.ui_cache.browser.pipeline.neutral_rows.clone().into(),
+            self.ui_cache.browser.pipeline.keep_rows.clone().into(),
+        );
+        self.ui.browser.search_busy = false;
+    }
+
+    /// Apply one browser visible-row projection and refresh all derived UI state.
+    pub(crate) fn apply_browser_projection(
+        &mut self,
+        visible: VisibleRows,
+        trash: Arc<[usize]>,
+        neutral: Arc<[usize]>,
+        keep: Arc<[usize]>,
+    ) {
+        self.ui.browser.trash = trash;
+        self.ui.browser.neutral = neutral;
+        self.ui.browser.keep = keep;
         self.ui.browser.visible = visible;
         self.ui.browser.visible_rows_revision =
             self.ui.browser.visible_rows_revision.wrapping_add(1);
         self.invalidate_browser_lookup_maps();
+        let allow_highlight = matches!(
+            self.ui.focus.context,
+            FocusContext::SampleBrowser | FocusContext::Waveform | FocusContext::None
+        );
+        let highlight_selection = allow_highlight;
+        let focused_index = highlight_selection
+            .then_some(self.selected_row_index())
+            .flatten();
+        let loaded_index = highlight_selection
+            .then_some(self.loaded_row_index())
+            .flatten();
         self.ui.browser.selected =
             focused_index.and_then(|index| self.browser_index_for_entry(index));
         self.ui.browser.loaded = loaded_index.and_then(|index| self.browser_index_for_entry(index));
@@ -40,10 +68,10 @@ impl AppController {
                 .map(|entry| entry.relative_path.clone())
         });
         self.set_ui_loaded_wav(loaded_wav);
-        self.ui.browser.selected_visible = selected_visible
-            .or_else(|| focused_index.and_then(|index| self.browser_visible_row_for_entry(index)));
-        self.ui.browser.loaded_visible = loaded_visible
-            .or_else(|| loaded_index.and_then(|index| self.browser_visible_row_for_entry(index)));
+        self.ui.browser.selected_visible =
+            focused_index.and_then(|index| self.browser_visible_row_for_entry(index));
+        self.ui.browser.loaded_visible =
+            loaded_index.and_then(|index| self.browser_visible_row_for_entry(index));
         self.ui.browser.marker_cache = None;
         let visible_len = self.ui.browser.visible.len();
         super::browser_viewport::sync_browser_viewport_window(

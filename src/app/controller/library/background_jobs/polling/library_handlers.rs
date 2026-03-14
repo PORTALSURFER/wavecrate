@@ -116,24 +116,15 @@ impl AppController {
             && message.request_id == self.ui.browser.latest_search_request_id
         {
             self.mark_browser_search_projection_revision_dirty();
-            self.ui.browser.visible = message.visible;
-            self.ui.browser.visible_rows_revision =
-                self.ui.browser.visible_rows_revision.wrapping_add(1);
-            self.ui.browser.trash = message.trash;
-            self.ui.browser.neutral = message.neutral;
-            self.ui.browser.keep = message.keep;
-            self.invalidate_browser_lookup_maps();
+            self.apply_browser_projection(
+                message.visible,
+                message.trash,
+                message.neutral,
+                message.keep,
+            );
             self.ui_cache.browser.search.scores = message.scores;
             self.ui.browser.latest_applied_search_request_id = message.request_id;
             self.ui.browser.search_busy = false;
-
-            let focused_index = self.selected_row_index();
-            let loaded_index = self.loaded_row_index();
-            self.ui.browser.selected_visible =
-                focused_index.and_then(|idx| self.browser_visible_row_for_entry(idx));
-            self.ui.browser.loaded_visible =
-                loaded_index.and_then(|idx| self.browser_visible_row_for_entry(idx));
-            self.ui.browser.marker_cache = None;
         }
     }
 

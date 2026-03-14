@@ -167,5 +167,13 @@ fn browser_tagging_via_controller_updates_rows() {
         .tag_browser_samples(&[0, 1], Rating::TRASH_3, 0)
         .expect("tag browser samples");
 
+    for _ in 0..200 {
+        controller.tick_playhead();
+        if controller.ui.browser.trash.len() == 2 {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+
     assert_eq!(controller.ui.browser.trash.len(), 2);
 }
