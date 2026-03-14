@@ -4,7 +4,7 @@ Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
 Phase: 2 in progress
-Implementation status: items 1-4 are complete; items 5-8 remain pending.
+Implementation status: items 1-5 are complete; items 6-8 remain pending.
 
 ## Repository Context
 
@@ -180,14 +180,14 @@ Implementation status: items 1-4 are complete; items 5-8 remain pending.
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
 - Product clarification required: No
 - Completed: 2026-03-14
-- Commit: pending
+- Commit: `9a29dd26` (`docs(cleanup): refresh file-size planning baseline`)
 - Validation outcome:
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` passed and rewrote `tmp/cleanup_audit_hotspots.md`.
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` passed.
 - Assumptions:
   - The safest interpretation of the stale top-5 split plan is retirement, not refresh, because the live hotspot snapshot already exists and the old queue would otherwise duplicate completed work.
 
-### [ ] 5. Split the updater runtime boundary into smaller focused modules before the next updater change
+### [x] 5. Split the updater runtime boundary into smaller focused modules before the next updater change
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -214,6 +214,14 @@ Implementation status: items 1-4 are complete; items 5-8 remain pending.
   - Targeted updater tests.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: 2026-03-14
+- Commit: pending
+- Validation outcome:
+  - `cargo test updater --lib` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - Splitting updater path validation, asset-name derivation, and archive handling into crate-local helper modules is behavior-preserving because all external entrypoints remain in `src/updater/mod.rs`.
 
 ### [ ] 6. Decompose `app_core` projection-cache state and probe logic into narrower ownership layers
 

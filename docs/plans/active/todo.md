@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-14T13:12:00Z
+Last updated (UTC): 2026-03-14T14:08:00Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -13,12 +13,12 @@ Purpose:
 
 - Improvement audit Phase 2 execution is active.
 - `tmp/improvement_audit_plan.md` is the source of truth for the refreshed backlog and execution record.
-- Backlog items 1-4 are complete; item 5 is next.
+- Backlog items 1-5 are complete; item 6 is next.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Continue executing `tmp/improvement_audit_plan.md` from item 5.
-2. Split the updater runtime boundary into smaller focused modules before the next updater change.
+1. Continue executing `tmp/improvement_audit_plan.md` from item 6.
+2. Decompose `app_core` projection-cache state and probe logic into narrower ownership layers.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
 4. Keep `AGENTS.md`, `MEMORY.md`, this file, and `tmp/improvement_audit_plan.md` synchronized when the active lane changes.
