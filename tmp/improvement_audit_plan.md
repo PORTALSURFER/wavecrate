@@ -264,6 +264,7 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
 - Dependencies:
   - None.
 - Completed on: `2026-03-14`
+- Commit: `4e5d82e7`
 - Validation:
   - `cargo test app_core::actions -- --nocapture` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
@@ -276,7 +277,7 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 7. Split the installer native bridge into explicit state, task, and projection layers
+### [x] 7. Split the installer native bridge into explicit state, task, and projection layers
 
 - Classification: Architecture improvement
 - Confidence: Medium
@@ -292,6 +293,13 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
 - Recommended change:
   - Mirror the updater-helper split: isolate worker-task plumbing, reducer-like state transitions, and view projection.
   - Add targeted tests for failure recovery, finish actions, and per-step model projection.
+- Completed on: `2026-03-14`
+- Validation:
+  - `cargo test -p sempal-installer -- --nocapture` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - The installer’s public/runtime-facing surface should remain `ui::run_installer_app` plus the existing sender/event helpers consumed by `install.rs` and `download.rs`, so the split stays internal under `apps/installer/src/ui/`.
 - Expected impact:
   - Safer maintenance of the installer flow.
   - Better local reasoning about state transitions and background event handling.
