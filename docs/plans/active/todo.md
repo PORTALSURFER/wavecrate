@@ -13,12 +13,12 @@ Purpose:
 
 - Improvement audit Phase 2 execution is active.
 - `tmp/improvement_audit_plan.md` is the source of truth for the refreshed backlog and execution record.
-- Backlog item 1 is complete; item 2 is next.
+- Backlog items 1-2 are complete; item 3 is next.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Continue executing `tmp/improvement_audit_plan.md` from item 2.
-2. Resolve or document the `vendor/radiant` baseline failure exposed by `scripts/ci_local.ps1`.
+1. Continue executing `tmp/improvement_audit_plan.md` from item 3.
+2. Repair stale docs and handoff references left behind by recent module splits.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
 4. Keep `AGENTS.md`, `MEMORY.md`, this file, and `tmp/improvement_audit_plan.md` synchronized when the active lane changes.

@@ -4,7 +4,7 @@ Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
 Phase: 2 in progress
-Implementation status: item 1 is complete; items 2-8 remain pending.
+Implementation status: items 1-2 are complete; items 3-8 remain pending.
 
 ## Repository Context
 
@@ -69,7 +69,7 @@ Implementation status: item 1 is complete; items 2-8 remain pending.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 - Product clarification required: No
 - Completed: 2026-03-14
-- Commit: pending
+- Commit: `075e3a5f` (`fix(ci): restore rustfmt baseline`)
 - Validation outcome:
   - `cargo fmt --all -- --check` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
@@ -78,7 +78,7 @@ Implementation status: item 1 is complete; items 2-8 remain pending.
 - Assumptions:
   - Reformatting these four files is behavior-preserving because the changes are limited to rustfmt ordering and line-wrapping.
 
-### [ ] 2. Define the expected Windows full-CI baseline after the formatting gate
+### [x] 2. Define the expected Windows full-CI baseline after the formatting gate
 
 - Classification: Product-definition gap
 - Confidence: Medium
@@ -104,6 +104,17 @@ Implementation status: item 1 is complete; items 2-8 remain pending.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
   - If documenting an exception, verify all handoff/docs reference the same expected outcome.
 - Product clarification required: Yes
+- Completed: 2026-03-14
+- Commit: pending
+- Validation outcome:
+  - `cargo test -p radiant toolbar_search_field_uses_ratio_width_inside_full_host -- --nocapture` passed.
+  - `cargo test -p radiant toolbar_hit_test_ignores_empty_right_host_area -- --nocapture` passed.
+  - `cargo nextest run --workspace --all-targets --no-fail-fast --failure-output immediate-final --status-level fail` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1` passed end-to-end.
+- Assumptions:
+  - The documented expectation for Windows full local parity is that `scripts/ci_local.ps1` should be green, so the highest-value resolution is to fix the exposed `vendor/radiant` baseline defect rather than institutionalize a known failure.
 
 ### [ ] 3. Repair stale docs and handoff references left behind by recent module splits
 
