@@ -4,7 +4,7 @@ Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
 Phase: 2 in progress
-Implementation status: item 1 is complete; remaining backlog items are pending sequential execution.
+Implementation status: items 1-2 are complete; remaining backlog items are pending sequential execution.
 
 ## Repository Context
 
@@ -75,7 +75,7 @@ Implementation status: item 1 is complete; remaining backlog items are pending s
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 - Product clarification required: No
 - Completed: 2026-03-14
-- Commit: pending
+- Commit: `a1bdd698` (`fix(scripts): make migration boundary failures actionable`)
 - Validation outcome:
   - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1` passed with the new migration-boundary fixture coverage.
@@ -84,7 +84,7 @@ Implementation status: item 1 is complete; remaining backlog items are pending s
 - Assumptions:
   - The `vendor/radiant` layout test failure is outside this item's change surface because item 1 only changed migration-boundary reporting and its script guardrails.
 
-### [ ] 2. Eliminate search-behavior drift between the sync browser pipeline and the async worker pipeline
+### [x] 2. Eliminate search-behavior drift between the sync browser pipeline and the async worker pipeline
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -111,6 +111,15 @@ Implementation status: item 1 is complete; remaining backlog items are pending s
   - Deterministic parity tests for query, rating filter, folder filter, similar-query, and playback-age sort combinations.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: 2026-03-14
+- Commit: pending
+- Validation outcome:
+  - `cargo test browser_search_worker -- --nocapture` passed.
+  - `cargo test browser_core -- --nocapture` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - Matching the sync pipeline's existing score-ranked query order for `ListOrder` search results is the safest parity target because the controller tests and retained pipeline already treat fuzzy-score order as the contract.
 
 ### [ ] 3. Add direct coverage for the runtime-default async browser search path
 

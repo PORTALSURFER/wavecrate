@@ -1,6 +1,6 @@
 ﻿# Agent Memory
 
-Last Updated: 2026-03-14T09:28:59Z
+Last Updated: 2026-03-14T09:35:53Z
 Updated By: Codex
 
 ## Purpose
@@ -12,11 +12,12 @@ Updated By: Codex
 
 - I am on `next` in `C:\dev\sempal`.
 - `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` are both on local `next`.
-- The working tree contains the current improvement-audit execution changes for backlog item 1 plus synchronized plan docs.
+- The working tree contains the current improvement-audit execution changes for backlog item 2 plus synchronized plan docs.
 - The improvement audit lane is active in Phase 2.
 - The current source of truth is `tmp/improvement_audit_plan.md`.
 - `tmp/improvement_audit_plan.md` was rebuilt on `2026-03-14` as a fresh evidence-driven ROI-ranked backlog for the current codebase and now serves as the execution record.
-- Backlog item 1 is complete: the Windows migration-boundary guard now prints actionable violations, correctly skips test-only paths on Windows-style separators, and is covered by script guardrail fixtures.
+- Backlog item 1 is complete and pushed as `a1bdd698`: the Windows migration-boundary guard now prints actionable violations, correctly skips test-only paths on Windows-style separators, and is covered by script guardrail fixtures.
+- Backlog item 2 is ready to commit: the async browser search worker now matches the sync pipeline's fuzzy-score ordering for query results, and a dedicated parity test compares worker output against the controller's sync visible rows.
 - `scripts/ci_quick.ps1` is green after the item-1 change.
 - `scripts/ci_local.ps1` now gets past the migration-boundary gate and currently fails later on the pre-existing unrelated `vendor/radiant` test `gui::native_shell::layout_adapter::controls::controls_tests::toolbar_search_field_uses_ratio_width_inside_full_host`.
 - The earlier GUI/browser interaction fixes and desktop AIV coverage remain part of the current repository state and are background context, not the active execution lane.
@@ -29,7 +30,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Commit and push backlog item 1, then continue with item 2 from `tmp/improvement_audit_plan.md`.
+1. Commit and push backlog item 2, then continue with item 3 from `tmp/improvement_audit_plan.md`.
 2. Keep `tmp/improvement_audit_plan.md` updated after each completed item with date, commit hash, assumptions, and validation results.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
 4. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned with the active lane summary.
@@ -43,5 +44,6 @@ Updated By: Codex
 - GUI automation/test rollout plan: `docs/plans/active/gui_test_platform_exec_plan.md`
 - Perf execution record: `tmp/perf_plan.md`
 - Perf redesign source of truth: `docs/plans/active/runtime_performance_exec_plan.md`
+
 
 

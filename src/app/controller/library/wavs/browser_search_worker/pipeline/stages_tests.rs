@@ -115,7 +115,7 @@ fn sort_visible_indices_respects_playback_age_and_list_order() {
 }
 
 #[test]
-fn list_order_query_keeps_source_order_without_score_sort_scratch() {
+fn list_order_query_orders_results_by_score() {
     let entries = vec![
         CompactSearchEntry {
             display_label: "kick".into(),
@@ -167,8 +167,8 @@ fn list_order_query_keeps_source_order_without_score_sort_scratch() {
     )
     .expect("expected visible rows");
 
-    assert_eq!(visible, vec![0, 1, 2]);
-    assert!(cache.scored_index_scratch.is_empty());
+    assert_eq!(visible, vec![1, 2, 0]);
+    assert_eq!(cache.scored_index_scratch, vec![(1, 100), (2, 2), (0, 1)]);
 }
 
 fn make_search_job(query: &str) -> SearchJob {

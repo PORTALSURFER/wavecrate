@@ -294,7 +294,7 @@ pub(super) fn build_visible_rows_for_job(
         );
     }
 
-    let query_needs_score_sort = has_query && job.sort != SampleBrowserSort::ListOrder;
+    let query_needs_score_sort = has_query;
     if query_needs_score_sort {
         let scratch_capacity = entries_len.min(1024);
         let added_scratch_capacity = cache.prepare_scored_index_scratch(scratch_capacity);

@@ -18,7 +18,7 @@ Purpose:
 
 ## Next tasks (ordered)
 
-1. Commit and push improvement audit backlog item 1.
-2. Continue with item 2 from `tmp/improvement_audit_plan.md` in strict ROI order.
+1. Commit and push improvement audit backlog item 2.
+2. Continue with item 3 from `tmp/improvement_audit_plan.md` in strict ROI order.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
 4. After each completed audit item, sync `AGENTS.md`, `MEMORY.md`, this file, and `tmp/improvement_audit_plan.md`.

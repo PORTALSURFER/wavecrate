@@ -9,6 +9,9 @@ mod stages;
 #[cfg(test)]
 /// Stage-specific search pipeline tests.
 mod stages_tests;
+#[cfg(test)]
+/// Sync/async search semantics parity regression tests.
+mod parity_tests;
 
 use self::results::empty_search_result_for;
 use self::stages::{
