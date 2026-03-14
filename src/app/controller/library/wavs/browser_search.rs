@@ -8,6 +8,8 @@ use crate::app::view_model;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use std::sync::{Arc, OnceLock};
+#[cfg(test)]
+use std::{cell::Cell, thread_local};
 
 /// Environment override for the browser-search offload threshold.
 const SEARCH_OFFLOAD_THRESHOLD_ENV: &str = "SEMPAL_BROWSER_SEARCH_OFFLOAD_THRESHOLD";
@@ -407,7 +409,7 @@ fn browser_search_offload_threshold() -> usize {
 fn browser_async_pipeline_enabled() -> bool {
     #[cfg(test)]
     {
-        false
+        browser_async_pipeline_override_for_tests().unwrap_or(false)
     }
     #[cfg(not(test))]
     {
@@ -421,4 +423,42 @@ fn browser_async_pipeline_enabled() -> bool {
                 .unwrap_or(true)
         })
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Per-test-thread override for forcing the browser async dispatch path.
+    static BROWSER_ASYNC_PIPELINE_OVERRIDE: Cell<Option<bool>> = const { Cell::new(None) };
+}
+
+#[cfg(test)]
+fn browser_async_pipeline_override_for_tests() -> Option<bool> {
+    BROWSER_ASYNC_PIPELINE_OVERRIDE.with(|value| value.get())
+}
+
+#[cfg(test)]
+/// Run one test closure with the browser async pipeline forced on or off.
+pub(crate) fn with_browser_async_pipeline_enabled_for_tests<T>(
+    enabled: bool,
+    run: impl FnOnce() -> T,
+) -> T {
+    struct Reset<'a> {
+        cell: &'a Cell<Option<bool>>,
+        previous: Option<bool>,
+    }
+
+    impl Drop for Reset<'_> {
+        fn drop(&mut self) {
+            self.cell.set(self.previous);
+        }
+    }
+
+    BROWSER_ASYNC_PIPELINE_OVERRIDE.with(|value| {
+        let previous = value.replace(Some(enabled));
+        let _reset = Reset {
+            cell: value,
+            previous,
+        };
+        run()
+    })
 }

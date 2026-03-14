@@ -63,4 +63,10 @@ impl AppController {
             JobMessage::Normalized(message) => self.handle_normalized_message(message),
         }
     }
+
+    #[cfg(test)]
+    /// Apply one queued background job message directly from deterministic tests.
+    pub(crate) fn apply_background_job_message_for_tests(&mut self, message: JobMessage) {
+        self.handle_background_job_message(message);
+    }
 }

@@ -4,7 +4,7 @@ Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
 Phase: 2 in progress
-Implementation status: items 1-2 are complete; remaining backlog items are pending sequential execution.
+Implementation status: items 1-3 are complete; remaining backlog items are pending sequential execution.
 
 ## Repository Context
 
@@ -112,7 +112,7 @@ Implementation status: items 1-2 are complete; remaining backlog items are pendi
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: 2026-03-14
-- Commit: pending
+- Commit: `7a362804` (`fix(browser): align async search ordering`)
 - Validation outcome:
   - `cargo test browser_search_worker -- --nocapture` passed.
   - `cargo test browser_core -- --nocapture` passed.
@@ -121,7 +121,7 @@ Implementation status: items 1-2 are complete; remaining backlog items are pendi
 - Assumptions:
   - Matching the sync pipeline's existing score-ranked query order for `ListOrder` search results is the safest parity target because the controller tests and retained pipeline already treat fuzzy-score order as the contract.
 
-### [ ] 3. Add direct coverage for the runtime-default async browser search path
+### [x] 3. Add direct coverage for the runtime-default async browser search path
 
 - Classification: Test gap
 - Confidence: High
@@ -149,6 +149,15 @@ Implementation status: items 1-2 are complete; remaining backlog items are pendi
   - Targeted browser-search tests covering async dispatch and application.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: 2026-03-14
+- Commit: pending
+- Validation outcome:
+  - `cargo test browser_async -- --nocapture` passed.
+  - `cargo test browser_search -- --nocapture` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - A deterministic test-only async-dispatch override and direct background-message injection are acceptable seams because they exercise the real controller request-id and busy-state logic without introducing timing-fragile worker waits into the test suite.
 
 ### [ ] 4. Finish the remaining `app_core` migration-boundary cleanup in controller shims
 

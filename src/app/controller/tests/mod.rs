@@ -2,6 +2,8 @@
 
 mod audio_action_playback;
 mod browser_actions;
+/// Runtime-default async browser-search controller coverage.
+mod browser_async;
 mod browser_core;
 /// Browser-row inline metadata regression tests.
 mod browser_inline_tags;

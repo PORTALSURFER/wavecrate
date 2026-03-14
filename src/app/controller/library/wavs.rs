@@ -36,6 +36,8 @@ mod waveform_view;
 
 pub(crate) use browser_pipeline::BrowserPipelineCache;
 pub(crate) use browser_search::BrowserSearchCache;
+#[cfg(test)]
+pub(crate) use browser_search::with_browser_async_pipeline_enabled_for_tests;
 pub(crate) use waveform_loading::FinishWaveformLoadShared;
 pub(crate) use waveform_rendering::WaveformRenderMeta;
 
