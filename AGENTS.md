@@ -61,10 +61,10 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: evidence-driven improvement audit execution
 - Source of truth: `tmp/improvement_audit_plan.md` for the current ROI-ranked improvement backlog and execution record; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: Phase 2 is active on `2026-03-14`; backlog item 1 is complete and the lane is progressing through the remaining items in strict ROI order.
+- Current status: Phase 2 is active on `2026-03-14`; backlog items 1-5 are complete in the working tree and item 5 is awaiting its focused commit/push before the lane advances to item 6.
 
 ## Immediate Next Actions
-1. Continue executing `tmp/improvement_audit_plan.md` in strict plan order, starting from item 2.
+1. Commit and push backlog item 5 from `tmp/improvement_audit_plan.md`, then continue in strict plan order from item 6.
 2. Update `tmp/improvement_audit_plan.md` after each completed item with date, commit hash, assumptions, and validation results.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized when the active lane changes.

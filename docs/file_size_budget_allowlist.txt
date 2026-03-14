@@ -1,7 +1,8 @@
 # Allowlist for the Rust file size budget check.
 #
 # Sempal aims to keep source files under 400 LOC. This allowlist captures the
-# current legacy exceptions that still exceed the budget on 2026-03-13 so the
+# current legacy exceptions within the guardrail scope (`src/`, `tests/`, and
+# `vendor/radiant/src`) that still exceed the budget on 2026-03-14 so the
 # check can enforce the limit on new or edited files without blocking
 # incremental cleanup work.
 #
@@ -10,40 +11,18 @@
 
 src/analysis/frequency_domain/stft.rs
 src/app/controller/library/analysis_jobs/enqueue/tests.rs
-src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs
 src/app/controller/library/source_folders/tree.rs
 src/app/controller/library/wavs/browser_lists.rs
+src/app/controller/library/wavs/browser_search.rs
 src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs
-src/app/controller/playback/audio_options.rs
 src/app/controller/playback/tagging.rs
 src/app/controller/tests/browser_core.rs
 src/app/controller/tests/focus_random.rs
+src/app/controller/tests/playback_loop.rs
 src/app/controller/ui/hotkeys/actions.rs
 src/app_core/actions/catalog.rs
-src/app_core/controller/tests.rs
 src/app_core/native_bridge/projection_cache.rs
-src/app_core/native_bridge/tests/projection_cache.rs
 src/updater/archive.rs
 src/updater/mod.rs
 src/wav_sanitize.rs
-src/waveform/render/paint/lines.rs
-src/waveform/zoom_cache.rs
 tests/unit/source_db_mod_tests.rs
-vendor/radiant/src/app/actions.rs
-vendor/radiant/src/gui/native_shell/layout_adapter/overlays/text.rs
-vendor/radiant/src/gui/native_shell/mod.rs
-vendor/radiant/src/gui/native_shell/shots.rs
-vendor/radiant/src/gui/native_shell/state/cache_types.rs
-vendor/radiant/src/gui/native_shell/state/frame_build/browser.rs
-vendor/radiant/src/gui/native_shell/state/frame_build/chrome.rs
-vendor/radiant/src/gui/native_shell/state/frame_build/overlay.rs
-vendor/radiant/src/gui/native_shell/state/overlays.rs
-vendor/radiant/src/gui/native_shell/state/tests/browser_rows.rs
-vendor/radiant/src/gui/native_shell/state/tests/browser_toolbar.rs
-vendor/radiant/src/gui/native_shell/style/sizing.rs
-vendor/radiant/src/gui_runtime/native_vello.rs
-vendor/radiant/src/gui_runtime/native_vello/input.rs
-vendor/radiant/src/gui_runtime/native_vello/input/waveform_routing.rs
-vendor/radiant/src/gui_runtime/native_vello/runtime_events.rs
-vendor/radiant/src/gui_runtime/native_vello/runtime_input.rs
-vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs

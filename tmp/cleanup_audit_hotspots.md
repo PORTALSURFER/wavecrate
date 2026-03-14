@@ -1,15 +1,15 @@
 # Cleanup Hotspot Audit Snapshot
 
-- Generated (UTC): `2026-03-14T09:05:17Z`
+- Generated (UTC): `2026-03-14T09:52:02Z`
 - Branch: `next`
-- Commit: `cce59e07`
-- Rust files scanned: 756
+- Commit: `b232cfec`
+- Rust files scanned: 758
 - File-size budget limit: `400`
 
 ## Summary
 
 - Over file-size budget: 34
-- Function spans captured: 5343
+- Function spans captured: 5354
 - Files with `dead_code` suppressions: 1
 - Files with `clippy::too_many_arguments` suppressions: 1
 - Likely large-file test-gap hotspots (heuristic): 83
@@ -29,6 +29,7 @@
 | 469 | `src/updater/archive.rs` |
 | 468 | `src/app/controller/tests/playback_loop.rs` |
 | 467 | `src/wav_sanitize.rs` |
+| 464 | `src/app/controller/library/wavs/browser_search.rs` |
 | 462 | `src/analysis/frequency_domain/stft.rs` |
 | 456 | `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` |
 | 455 | `src/app/controller/ui/hotkeys/actions.rs` |
@@ -37,7 +38,6 @@
 | 433 | `src/app/controller/library/wavs/browser_lists.rs` |
 | 432 | `src/waveform/model.rs` |
 | 432 | `src/external_drag.rs` |
-| 428 | `src/app/controller/ui/interaction_options.rs` |
 
 ## Largest function spans (heuristic)
 
@@ -79,6 +79,7 @@
 | 469 | `src/updater/archive.rs` |
 | 468 | `src/app/controller/tests/playback_loop.rs` |
 | 467 | `src/wav_sanitize.rs` |
+| 464 | `src/app/controller/library/wavs/browser_search.rs` |
 | 462 | `src/analysis/frequency_domain/stft.rs` |
 | 456 | `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` |
 | 455 | `src/app/controller/ui/hotkeys/actions.rs` |
@@ -90,7 +91,6 @@
 | 428 | `src/app/controller/ui/interaction_options.rs` |
 | 426 | `src/app/state/browser.rs` |
 | 424 | `src/app/controller/playback/tagging.rs` |
-| 424 | `src/app/controller/library/wavs/browser_search.rs` |
 | 423 | `tools/analysis-admin/src/bin/sempal-hdbscan.rs` |
 | 422 | `src/app/controller/library/sources.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |

@@ -190,7 +190,7 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
 - Product clarification required: No
 - Completed: 2026-03-14
-- Commit: pending
+- Commit: `b232cfec` (`refactor(app_core): enforce migration boundary`)
 - Validation outcome:
   - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1` passed.
@@ -200,7 +200,7 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
 - Assumptions:
   - The remaining migration-facing controller shims are intended to consume legacy controller/state aliases through `app_core::app_api` rather than through direct `crate::app::` imports, because the guardrail and migration docs already describe `app_api` as the explicit legacy boundary.
 
-### [ ] 5. Refresh the stale file-size debt ledger and dependent audit docs
+### [x] 5. Refresh the stale file-size debt ledger and dependent audit docs
 
 - Classification: Documentation gap
 - Confidence: High
@@ -228,6 +228,15 @@ Implementation status: items 1-4 are complete; remaining backlog items are pendi
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed on: `2026-03-14`
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+- Assumptions:
+  - `docs/file_size_budget_allowlist.txt` is intended to track only the guardrail scope enforced by `scripts/check_file_size_budget.*` (`src/`, `tests/`, and `vendor/radiant/src`), while `tmp/cleanup_audit_hotspots.md` remains the broader multi-tree hotspot snapshot for `apps/` and `tools/` debt.
 
 ### [ ] 6. Split the canonical GUI action catalog into smaller contract-focused modules
 
