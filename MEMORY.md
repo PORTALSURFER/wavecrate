@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-14T13:02:00Z
+Last Updated: 2026-03-14T13:12:00Z
 Updated By: Codex
 
 ## Purpose
@@ -18,11 +18,12 @@ Updated By: Codex
 - Backlog item 1 is complete: the repository is rustfmt-clean again, and `scripts/ci_local.ps1` no longer stops at `cargo fmt --all -- --check`.
 - Backlog item 2 is complete: the `vendor/radiant` toolbar layout regression is fixed, the affected snapshots/tests were refreshed, and `scripts/ci_local.ps1` is green end-to-end again.
 - Backlog item 3 is complete: the stale doc links now point at the live `app_core/actions/catalog/` and `external_drag/` module trees, and the improvement-audit status references are current again.
-- The next active item is backlog item 4: refresh or retire the stale file-size debt planning docs.
+- Backlog item 4 is complete: the file-size debt allowlist now matches the live scoped exceptions, and the obsolete top-5 split plan is retired in favor of `tmp/cleanup_audit_hotspots.md`.
+- The next active item is backlog item 5: split the updater runtime boundary into smaller focused modules.
 - The highest-leverage current findings are:
-  - The live file-size hotspot scan no longer matches the old top-5 split plan.
   - The browser sync/async search split still needs an explicit ownership contract before deeper cleanup.
   - Large runtime boundaries remain concentrated in `src/updater/**` and `src/app_core/native_bridge/projection_cache.rs`.
+  - The remaining high-ROI refactors are now primarily code-structure work rather than baseline/doc repair.
 - The browser sync/async search split remains a clarification-sensitive area and is called out explicitly in `tmp/improvement_audit_plan.md`.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
@@ -31,7 +32,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue executing `tmp/improvement_audit_plan.md` in order, starting with item 4.
+1. Continue executing `tmp/improvement_audit_plan.md` in order, starting with item 5.
 2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned while the audit lane is active.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Treat `scripts/ci_local.ps1` green as the current expected Windows local parity baseline unless a future doc update says otherwise.

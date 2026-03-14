@@ -4,7 +4,7 @@ Generated: 2026-03-14
 Repository: `C:\dev\sempal`
 Branch: `next`
 Phase: 2 in progress
-Implementation status: items 1-3 are complete; items 4-8 remain pending.
+Implementation status: items 1-4 are complete; items 5-8 remain pending.
 
 ## Repository Context
 
@@ -144,14 +144,14 @@ Implementation status: items 1-3 are complete; items 4-8 remain pending.
   - `rg -n "catalog\\.rs|external_drag\\.rs|items 1-14|2026-03-13|Phase 1 complete" docs`
 - Product clarification required: No
 - Completed: 2026-03-14
-- Commit: pending
+- Commit: `3ca6e903` (`docs(audit): repair stale module references`)
 - Validation outcome:
   - `rg -n "catalog\\.rs|external_drag\\.rs|items 1-14|2026-03-13|Phase 1 complete" docs` only found the intentionally still-pending file-size planning references and the unchanged cleanup-plan Phase 1 note.
   - Verified live path targets exist for `src/app_core/actions/catalog/` and `src/external_drag/`.
 - Assumptions:
   - The recent action-catalog and external-drag splits are complete enough that docs should point at the module directories instead of reintroducing single-file references.
 
-### [ ] 4. Refresh or retire stale file-size debt planning documents so they match the live hotspot scan
+### [x] 4. Refresh or retire stale file-size debt planning documents so they match the live hotspot scan
 
 - Classification: Documentation gap
 - Confidence: High
@@ -179,6 +179,13 @@ Implementation status: items 1-3 are complete; items 4-8 remain pending.
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
 - Product clarification required: No
+- Completed: 2026-03-14
+- Commit: pending
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` passed and rewrote `tmp/cleanup_audit_hotspots.md`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` passed.
+- Assumptions:
+  - The safest interpretation of the stale top-5 split plan is retirement, not refresh, because the live hotspot snapshot already exists and the old queue would otherwise duplicate completed work.
 
 ### [ ] 5. Split the updater runtime boundary into smaller focused modules before the next updater change
 
@@ -295,20 +302,6 @@ Implementation status: items 1-3 are complete; items 4-8 remain pending.
 
 ## Open Questions / Missing Definitions
 
-### [!] What does “Windows full CI parity” currently mean in practice?
-
-- Evidence:
-  - `README.md`, `docs/README.md`, and `docs/TEST.md` present `scripts/ci_local.ps1` as the canonical local parity flow.
-  - `AGENTS.md` and `MEMORY.md` both record a known later failure in `vendor/radiant`.
-- Why this matters:
-  - The answer changes whether a red `ci_local.ps1` run is treated as a regression, an accepted exception, or a required fix before other work.
-- Affected files/modules:
-  - `scripts/ci_local.ps1`, `vendor/radiant`, `README.md`, `docs/README.md`, `docs/TEST.md`, `AGENTS.md`, `MEMORY.md`
-- Risk if guessed incorrectly:
-  - Agents may either waste time fixing an accepted baseline issue or ignore a real parity regression.
-- Most conservative provisional assumption:
-  - Treat `ci_local.ps1` as intended to be green, but do not silently assume the known `vendor/radiant` failure is acceptable without an explicit doc note.
-
 ### [!] Which browser-search layer is intended to own canonical query/filter/sort semantics?
 
 - Evidence:
@@ -326,22 +319,6 @@ Implementation status: items 1-3 are complete; items 4-8 remain pending.
   - A cleanup could add abstraction or remove separation that the runtime architecture actually depends on.
 - Most conservative provisional assumption:
   - Preserve the two-path structure for now and only make the authoritative behavior contract explicit before further consolidation.
-
-### [!] Should the old top-5 file-size split plan stay active, or should the hotspot snapshot replace it?
-
-- Evidence:
-  - `docs/plans/active/file_size_debt_top5_split_plan.md` still reflects a 2026-02-27 top-5 list that no longer matches the current tree.
-  - `tmp/cleanup_audit_hotspots.md` is the newer live snapshot and now points at different hotspots.
-- Why this matters:
-  - Future cleanup work needs one current, discoverable planning artifact instead of two contradictory ones.
-- Affected files/modules:
-  - `docs/plans/active/file_size_debt_top5_split_plan.md`
-  - `tmp/cleanup_audit_hotspots.md`
-  - `docs/plans/index.md`
-- Risk if guessed incorrectly:
-  - Maintainers may resume from a stale split queue and duplicate already-completed work.
-- Most conservative provisional assumption:
-  - Keep the old plan only if it is explicitly refreshed; otherwise retire it in favor of the live hotspot snapshot.
 
 ## Rejected Ideas
 

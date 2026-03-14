@@ -8,8 +8,8 @@ This directory keeps agent handoff planning state out of the way of other docs.
   current multi-day responsiveness/performance redesign (source of truth)
 - `active/gui_test_platform_exec_plan.md` — phased rollout plan for the GUI
   action catalog, automation snapshot, runtime test mode, CLI, and AIV loops
-- `active/file_size_debt_top5_split_plan.md` — incremental no-behavior split
-  queue for the 5 largest Rust hotspots
+- `active/file_size_debt_top5_split_plan.md` — retired historical top-5 split
+  plan; superseded by `../../tmp/cleanup_audit_hotspots.md`
 - `active/cleanup_architecture_note.md` — boundary/ownership guardrails for
   cleanup refactors across controller, native bridge, DB, and vendor layers
 - `../../tmp/improvement_audit_plan.md` — refreshed evidence-driven ROI-ranked
