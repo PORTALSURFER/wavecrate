@@ -29,7 +29,7 @@ pub(super) fn compute_tsne(
 }
 
 fn sample_count(vectors: &[f64], dim: usize) -> Result<usize, String> {
-    if dim == 0 || vectors.len() % dim != 0 {
+    if dim == 0 || !vectors.len().is_multiple_of(dim) {
         return Err("Similarity map embedding matrix shape mismatch".to_string());
     }
     let n_samples = vectors.len() / dim;

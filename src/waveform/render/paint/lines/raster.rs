@@ -90,8 +90,24 @@ impl WaveformRenderer {
         let xgap = 1.0 - ((x0 + 0.5).fract());
         let xpxl1 = xend as isize;
         let ypxl1 = yend.floor() as isize;
+        let axis = RasterAxisConfig {
+            stride,
+            width,
+            height,
+            fg,
+            steep,
+        };
         Self::plot_line_endpoint(
-            image, stride, width, height, fg, steep, xpxl1, ypxl1, yend, xgap,
+            image,
+            RasterEndpointConfig {
+                axis,
+                step: RasterEndpointStep {
+                    x: xpxl1,
+                    y: ypxl1,
+                    frac: yend.fract(),
+                },
+                xgap,
+            },
         );
         let mut intery = yend + gradient;
 
@@ -103,127 +119,128 @@ impl WaveformRenderer {
 
         for x in (xpxl1 + 1)..xpxl2 {
             let y = intery.floor() as isize;
-            let frac = intery.fract();
-            Self::plot_line_step(image, stride, width, height, fg, steep, x, y, frac);
+            Self::plot_line_step(
+                image,
+                axis,
+                RasterEndpointStep {
+                    x,
+                    y,
+                    frac: intery.fract(),
+                },
+            );
             intery += gradient;
         }
 
         Self::plot_line_endpoint(
-            image, stride, width, height, fg, steep, xpxl2, ypxl2, yend, xgap,
+            image,
+            RasterEndpointConfig {
+                axis,
+                step: RasterEndpointStep {
+                    x: xpxl2,
+                    y: ypxl2,
+                    frac: yend.fract(),
+                },
+                xgap,
+            },
         );
     }
 
-    fn plot_line_endpoint(
-        image: &mut WaveformImage,
-        stride: usize,
-        width: usize,
-        height: usize,
-        fg: (u8, u8, u8, u8),
-        steep: bool,
-        x: isize,
-        y: isize,
-        yend: f32,
-        xgap: f32,
-    ) {
-        let lower = (1.0 - yend.fract()) * xgap;
-        let upper = yend.fract() * xgap;
-        if steep {
+    fn plot_line_endpoint(image: &mut WaveformImage, config: RasterEndpointConfig) {
+        let RasterEndpointConfig {
+            axis,
+            step: RasterEndpointStep { x, y, frac },
+            xgap,
+        } = config;
+        let lower = (1.0 - frac) * xgap;
+        let upper = frac * xgap;
+        if axis.steep {
             Self::plot_aa(RasterPlotConfig {
                 image,
-                stride,
-                width,
-                height,
+                stride: axis.stride,
+                width: axis.width,
+                height: axis.height,
                 x: y,
                 y: x,
-                fg,
+                fg: axis.fg,
                 coverage: lower,
             });
             Self::plot_aa(RasterPlotConfig {
                 image,
-                stride,
-                width,
-                height,
+                stride: axis.stride,
+                width: axis.width,
+                height: axis.height,
                 x: y + 1,
                 y: x,
-                fg,
+                fg: axis.fg,
                 coverage: upper,
             });
         } else {
             Self::plot_aa(RasterPlotConfig {
                 image,
-                stride,
-                width,
-                height,
+                stride: axis.stride,
+                width: axis.width,
+                height: axis.height,
                 x,
                 y,
-                fg,
+                fg: axis.fg,
                 coverage: lower,
             });
             Self::plot_aa(RasterPlotConfig {
                 image,
-                stride,
-                width,
-                height,
+                stride: axis.stride,
+                width: axis.width,
+                height: axis.height,
                 x,
                 y: y + 1,
-                fg,
+                fg: axis.fg,
                 coverage: upper,
             });
         }
     }
 
-    fn plot_line_step(
-        image: &mut WaveformImage,
-        stride: usize,
-        width: usize,
-        height: usize,
-        fg: (u8, u8, u8, u8),
-        steep: bool,
-        x: isize,
-        y: isize,
-        frac: f32,
-    ) {
+    fn plot_line_step(image: &mut WaveformImage, axis: RasterAxisConfig, step: RasterEndpointStep) {
+        let RasterEndpointStep { x, y, frac } = step;
         let lower = 1.0 - frac;
-        if steep {
+        if axis.steep {
             Self::plot_aa(RasterPlotConfig {
                 image,
-                stride,
-                width,
-                height,
+                stride: axis.stride,
+                width: axis.width,
+                height: axis.height,
                 x: y,
                 y: x,
-                fg,
+                fg: axis.fg,
                 coverage: lower,
             });
             Self::plot_aa(RasterPlotConfig {
                 image,
-                stride,
-                width,
-                height,
+                stride: axis.stride,
+                width: axis.width,
+                height: axis.height,
                 x: y + 1,
                 y: x,
-                fg,
+                fg: axis.fg,
                 coverage: frac,
             });
         } else {
             Self::plot_aa(RasterPlotConfig {
                 image,
-                stride,
-                width,
-                height,
+                stride: axis.stride,
+                width: axis.width,
+                height: axis.height,
                 x,
                 y,
-                fg,
+                fg: axis.fg,
                 coverage: lower,
             });
             Self::plot_aa(RasterPlotConfig {
                 image,
-                stride,
-                width,
-                height,
+                stride: axis.stride,
+                width: axis.width,
+                height: axis.height,
                 x,
                 y: y + 1,
-                fg,
+                fg: axis.fg,
                 coverage: frac,
             });
         }

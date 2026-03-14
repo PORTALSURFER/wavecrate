@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn load_recording_waveform(job: RecordingWaveformJob) -> RecordingWaveformLoadResult {
     let metadata = match read_recording_metadata(&job) {
         Ok(metadata) => metadata,
-        Err(result) => return result,
+        Err(result) => return *result,
     };
     let file_len = metadata.len();
     if file_len == job.last_file_len {
@@ -35,11 +35,11 @@ fn load_full_recording_waveform(
 ) -> RecordingWaveformLoadResult {
     let bytes = match read_recording_bytes(&job) {
         Ok(bytes) => bytes,
-        Err(result) => return result,
+        Err(result) => return *result,
     };
     let data_offset = match find_wav_data_chunk(&bytes) {
         Some(offset) => offset,
-        None => return load_result_error(&job, RecordingWaveformError::DecodeFailed),
+        None => return *load_result_error(&job, RecordingWaveformError::DecodeFailed),
     };
     let data_len = bytes.len().saturating_sub(data_offset) as u64;
     let total_frames = total_frames_for_data(data_len, job.channels);
@@ -60,11 +60,11 @@ fn load_incremental_recording_waveform(
 ) -> RecordingWaveformLoadResult {
     let mut file = match open_recording_file(&job) {
         Ok(file) => file,
-        Err(result) => return result,
+        Err(result) => return *result,
     };
     let data_offset = match resolve_data_offset(&mut file, file_len, state.as_ref()) {
         Ok(offset) => offset,
-        Err(error) => return load_result_error(&job, error),
+        Err(error) => return *load_result_error(&job, error),
     };
     let data_len = file_len.saturating_sub(data_offset as u64);
     let total_frames = total_frames_for_data(data_len, job.channels);
@@ -81,10 +81,10 @@ fn load_incremental_recording_waveform(
     let mut next_state =
         match prepare_next_state(&mut file, data_offset, data_len, total_frames, &job, state) {
             Ok(state) => state,
-            Err(error) => return load_result_error(&job, error),
+            Err(error) => return *load_result_error(&job, error),
         };
     if let Err(error) = append_remaining_bytes(&mut file, &mut next_state, data_offset, data_len) {
-        return load_result_error(&job, error);
+        return *load_result_error(&job, error);
     }
     convert_state_to_peaks_if_needed(&mut next_state);
     let decoded = next_state.to_decoded();

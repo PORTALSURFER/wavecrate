@@ -5,13 +5,13 @@ use super::*;
 pub(super) fn load_result_error(
     job: &RecordingWaveformJob,
     error: RecordingWaveformError,
-) -> RecordingWaveformLoadResult {
-    RecordingWaveformLoadResult {
+) -> Box<RecordingWaveformLoadResult> {
+    Box::new(RecordingWaveformLoadResult {
         request_id: job.request_id,
         source_id: job.source_id.clone(),
         relative_path: job.relative_path.clone(),
         result: Err(error),
-    }
+    })
 }
 
 pub(super) fn load_result_no_change(
@@ -54,19 +54,19 @@ pub(super) fn map_file_error(err: std::io::Error) -> RecordingWaveformError {
 
 pub(super) fn read_recording_metadata(
     job: &RecordingWaveformJob,
-) -> Result<std::fs::Metadata, RecordingWaveformLoadResult> {
+) -> Result<std::fs::Metadata, Box<RecordingWaveformLoadResult>> {
     fs::metadata(&job.absolute_path).map_err(|err| load_result_error(job, map_file_error(err)))
 }
 
 pub(super) fn read_recording_bytes(
     job: &RecordingWaveformJob,
-) -> Result<Vec<u8>, RecordingWaveformLoadResult> {
+) -> Result<Vec<u8>, Box<RecordingWaveformLoadResult>> {
     fs::read(&job.absolute_path).map_err(|err| load_result_error(job, map_file_error(err)))
 }
 
 pub(super) fn open_recording_file(
     job: &RecordingWaveformJob,
-) -> Result<File, RecordingWaveformLoadResult> {
+) -> Result<File, Box<RecordingWaveformLoadResult>> {
     File::open(&job.absolute_path).map_err(|err| load_result_error(job, map_file_error(err)))
 }
 

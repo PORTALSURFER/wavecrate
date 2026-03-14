@@ -127,12 +127,12 @@ fn resolve_expected_dim(
     dim: usize,
     sample_id: &str,
 ) -> Result<usize, String> {
-    if let Some(expected) = expected_dim {
-        if dim != expected {
-            return Err(format!(
-                "Embedding dim mismatch: expected {expected}, got {dim} for {sample_id}"
-            ));
-        }
+    if let Some(expected) = expected_dim
+        && dim != expected
+    {
+        return Err(format!(
+            "Embedding dim mismatch: expected {expected}, got {dim} for {sample_id}"
+        ));
     }
     Ok(expected_dim.unwrap_or(dim))
 }

@@ -4,48 +4,22 @@ use tracing::{info, warn};
 use crate::app::controller::library::analysis_jobs::pool::job_claim::lease;
 
 pub(super) fn finalize_immediate_jobs(
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
-    decode_queue: &super::super::DecodedQueue,
-    tx: &crate::app::controller::jobs::JobMessageSender,
-    progress_cache: &std::sync::Arc<std::sync::RwLock<ProgressCache>>,
-    progress_wakeup: &std::sync::Arc<super::super::super::job_progress::ProgressPollerWakeup>,
-    log_jobs: bool,
+    finalize: &mut db::FinalizeJobContext<'_>,
     deferred_updates: &mut Vec<db::DeferredJobUpdate>,
     immediate_jobs: &mut Vec<(analysis_db::ClaimedJob, Result<(), String>)>,
 ) {
     for (job, outcome) in immediate_jobs.drain(..) {
-        let mut finalize = db::FinalizeJobContext {
-            connections,
-            decode_queue,
-            tx,
-            progress_cache,
-            progress_wakeup,
-            log_jobs,
-        };
-        if let Some(deferred) = db::finalize_immediate_job(&mut finalize, job, outcome) {
+        if let Some(deferred) = db::finalize_immediate_job(finalize, job, outcome) {
             deferred_updates.push(deferred);
         }
     }
 }
 
 pub(super) fn flush_deferred_updates(
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
-    decode_queue: &super::super::DecodedQueue,
-    tx: &crate::app::controller::jobs::JobMessageSender,
-    progress_cache: &std::sync::Arc<std::sync::RwLock<ProgressCache>>,
-    progress_wakeup: &std::sync::Arc<super::super::super::job_progress::ProgressPollerWakeup>,
-    log_jobs: bool,
+    finalize: &mut db::FinalizeJobContext<'_>,
     deferred_updates: &mut Vec<db::DeferredJobUpdate>,
 ) {
-    let mut finalize = db::FinalizeJobContext {
-        connections,
-        decode_queue,
-        tx,
-        progress_cache,
-        progress_wakeup,
-        log_jobs,
-    };
-    db::flush_deferred_updates(&mut finalize, deferred_updates);
+    db::flush_deferred_updates(finalize, deferred_updates);
 }
 
 pub(super) fn release_disallowed_work(

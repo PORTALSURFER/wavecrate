@@ -49,6 +49,27 @@ struct RasterPlotConfig<'a> {
     coverage: f32,
 }
 
+#[derive(Clone, Copy)]
+struct RasterAxisConfig {
+    stride: usize,
+    width: usize,
+    height: usize,
+    fg: (u8, u8, u8, u8),
+    steep: bool,
+}
+
+struct RasterEndpointStep {
+    x: isize,
+    y: isize,
+    frac: f32,
+}
+
+struct RasterEndpointConfig {
+    axis: RasterAxisConfig,
+    step: RasterEndpointStep,
+    xgap: f32,
+}
+
 impl WaveformRenderer {
     /// Render a waveform line image for a single drawing pass.
     ///

@@ -55,12 +55,14 @@ impl GuiTestModeConfig {
         if !env_var_truthy(GUI_TEST_MODE_ENV) {
             return None;
         }
-        let mut config = Self::default();
-        config.run_id = run_id.map(String::from);
-        config.run_manifest_path = run_manifest_path;
-        config.scenario_name = std::env::var(GUI_TEST_SCENARIO_ENV).ok();
-        config.fixture_tag =
-            std::env::var(GUI_TEST_FIXTURE_ENV).unwrap_or_else(|_| String::from("default"));
+        let mut config = Self {
+            run_id: run_id.map(String::from),
+            run_manifest_path,
+            scenario_name: std::env::var(GUI_TEST_SCENARIO_ENV).ok(),
+            fixture_tag: std::env::var(GUI_TEST_FIXTURE_ENV)
+                .unwrap_or_else(|_| String::from("default")),
+            ..Self::default()
+        };
         if let Ok(value) = std::env::var(GUI_TEST_VIEWPORT_ENV)
             && let Some(viewport) = parse_viewport(&value)
         {

@@ -28,9 +28,13 @@ pub(super) fn build_backfill_plan(
     use_cache: bool,
     analysis_version: &str,
 ) -> Result<BackfillPlan, String> {
-    let mut ready = Vec::new();
-    let mut work_by_hash: HashMap<String, WorkEntry> = HashMap::new();
-    let mut embedding_cache: HashMap<String, EmbeddingData> = HashMap::new();
+    let mut state = BackfillPlanState {
+        use_cache,
+        analysis_version,
+        ready: Vec::new(),
+        work_by_hash: HashMap::new(),
+        embedding_cache: HashMap::new(),
+    };
 
     for sample_id in sample_ids {
         if load_embedding_vec_optional(
@@ -43,19 +47,11 @@ pub(super) fn build_backfill_plan(
         {
             continue;
         }
-        plan_sample(
-            conn,
-            job,
-            sample_id,
-            use_cache,
-            analysis_version,
-            &mut ready,
-            &mut work_by_hash,
-            &mut embedding_cache,
-        )?;
+        plan_sample(conn, job, sample_id, &mut state)?;
     }
 
-    let work = work_by_hash
+    let work = state
+        .work_by_hash
         .into_iter()
         .map(|(content_hash, entry)| EmbeddingWork {
             content_hash,
@@ -64,18 +60,25 @@ pub(super) fn build_backfill_plan(
         })
         .collect();
 
-    Ok(BackfillPlan { ready, work })
+    Ok(BackfillPlan {
+        ready: state.ready,
+        work,
+    })
+}
+
+struct BackfillPlanState<'a> {
+    use_cache: bool,
+    analysis_version: &'a str,
+    ready: Vec<EmbeddingResult>,
+    work_by_hash: HashMap<String, WorkEntry>,
+    embedding_cache: HashMap<String, EmbeddingData>,
 }
 
 fn plan_sample(
     conn: &rusqlite::Connection,
     job: &db::ClaimedJob,
     sample_id: &str,
-    use_cache: bool,
-    analysis_version: &str,
-    ready: &mut Vec<EmbeddingResult>,
-    work_by_hash: &mut HashMap<String, WorkEntry>,
-    embedding_cache: &mut HashMap<String, EmbeddingData>,
+    state: &mut BackfillPlanState<'_>,
 ) -> Result<(), String> {
     let Some(content_hash) = db::sample_content_hash(conn, sample_id)? else {
         return Ok(());
@@ -84,14 +87,16 @@ fn plan_sample(
         conn,
         sample_id,
         &content_hash,
-        use_cache,
-        analysis_version,
-        embedding_cache,
+        state.use_cache,
+        state.analysis_version,
+        &mut state.embedding_cache,
     )? {
-        ready.push(materialize_result(sample_id, &content_hash, &data));
+        state
+            .ready
+            .push(materialize_result(sample_id, &content_hash, &data));
         return Ok(());
     }
-    queue_sample_work(job, sample_id, content_hash, work_by_hash);
+    queue_sample_work(job, sample_id, content_hash, &mut state.work_by_hash);
     Ok(())
 }
 

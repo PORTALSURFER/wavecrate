@@ -1,5 +1,4 @@
 use crate::app::controller::library::analysis_jobs::db as analysis_db;
-use crate::app::controller::library::analysis_jobs::pool::progress_cache::ProgressCache;
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::thread::JoinHandle;
@@ -55,15 +54,15 @@ fn run_compute_worker(context: ComputeWorkerContext) {
         }
         let (batch, wait_ms) = decode_queue.pop_batch(&shutdown, embedding_batch_max);
         if batch.is_empty() {
-            finalization::flush_deferred_updates(
-                &mut connections,
-                &decode_queue,
-                &tx,
-                &progress_cache,
-                &progress_wakeup,
+            let mut finalize = db::FinalizeJobContext {
+                connections: &mut connections,
+                decode_queue: &decode_queue,
+                tx: &tx,
+                progress_cache: &progress_cache,
+                progress_wakeup: &progress_wakeup,
                 log_jobs,
-                &mut deferred_updates,
-            );
+            };
+            finalization::flush_deferred_updates(&mut finalize, &mut deferred_updates);
             signal.request_repaint();
             continue;
         }
@@ -93,25 +92,20 @@ fn run_compute_worker(context: ComputeWorkerContext) {
             &mut connections,
             &settings,
         ));
-        finalization::finalize_immediate_jobs(
-            &mut connections,
-            &decode_queue,
-            &tx,
-            &progress_cache,
-            &progress_wakeup,
+        let mut finalize = db::FinalizeJobContext {
+            connections: &mut connections,
+            decode_queue: &decode_queue,
+            tx: &tx,
+            progress_cache: &progress_cache,
+            progress_wakeup: &progress_wakeup,
             log_jobs,
+        };
+        finalization::finalize_immediate_jobs(
+            &mut finalize,
             &mut deferred_updates,
             &mut immediate_jobs,
         );
-        finalization::flush_deferred_updates(
-            &mut connections,
-            &decode_queue,
-            &tx,
-            &progress_cache,
-            &progress_wakeup,
-            log_jobs,
-            &mut deferred_updates,
-        );
+        finalization::flush_deferred_updates(&mut finalize, &mut deferred_updates);
         signal.request_repaint();
     }
 }
