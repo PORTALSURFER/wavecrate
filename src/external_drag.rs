@@ -34,7 +34,6 @@ mod platform {
     use std::cell::Cell;
     use std::mem::ManuallyDrop;
     use std::os::windows::ffi::OsStrExt;
-    use std::ptr::copy_nonoverlapping;
     use std::sync::OnceLock;
     use windows::Win32::Foundation::{
         DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, DRAGDROP_S_USEDEFAULTCURSORS, DV_E_FORMATETC,
@@ -363,18 +362,8 @@ mod platform {
     }
 
     fn create_hglobal_for_paths(paths: &[PathBuf]) -> Result<HGLOBAL, std::io::Error> {
-        let mut utf16_paths = Vec::new();
-        for path in paths {
-            let wide: Vec<u16> = path
-                .as_os_str()
-                .encode_wide()
-                .chain(std::iter::once(0))
-                .collect();
-            utf16_paths.extend_from_slice(&wide);
-        }
-        utf16_paths.push(0); // Double null-terminator.
-        let bytes_needed =
-            std::mem::size_of::<DROPFILES>() + utf16_paths.len() * std::mem::size_of::<u16>();
+        let payload = build_dropfiles_payload(paths);
+        let bytes_needed = payload.len();
         // SAFETY: allocating movable global memory for shell drag.
         let handle = unsafe { GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, bytes_needed) }
             .map_err(last_error_from_win32)?;
@@ -387,22 +376,50 @@ mod platform {
             return Err(std::io::Error::last_os_error());
         }
         unsafe {
-            let header = ptr as *mut DROPFILES;
-            *header = DROPFILES {
-                pFiles: std::mem::size_of::<DROPFILES>() as u32,
-                pt: POINT { x: 0, y: 0 },
-                fNC: false.into(),
-                fWide: true.into(),
-            };
-            let data_ptr = (ptr as *mut u8).add(std::mem::size_of::<DROPFILES>());
-            copy_nonoverlapping(
-                utf16_paths.as_ptr() as *const u8,
-                data_ptr,
-                utf16_paths.len() * std::mem::size_of::<u16>(),
-            );
+            std::ptr::copy_nonoverlapping(payload.as_ptr(), ptr.cast::<u8>(), payload.len());
             let _ = GlobalUnlock(handle);
         }
         Ok(handle)
+    }
+
+    pub(super) fn build_dropfiles_payload(paths: &[PathBuf]) -> Vec<u8> {
+        let path_bytes = encode_drag_paths(paths);
+        let mut payload = Vec::with_capacity(std::mem::size_of::<DROPFILES>() + path_bytes.len());
+        payload.extend_from_slice(&dropfiles_header_bytes());
+        payload.extend_from_slice(&path_bytes);
+        payload
+    }
+
+    fn dropfiles_header_bytes() -> [u8; std::mem::size_of::<DROPFILES>()] {
+        let header = DROPFILES {
+            pFiles: std::mem::size_of::<DROPFILES>() as u32,
+            pt: POINT { x: 0, y: 0 },
+            fNC: false.into(),
+            fWide: true.into(),
+        };
+        let mut bytes = [0u8; std::mem::size_of::<DROPFILES>()];
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                (&header as *const DROPFILES).cast::<u8>(),
+                bytes.as_mut_ptr(),
+                bytes.len(),
+            );
+        }
+        bytes
+    }
+
+    pub(super) fn encode_drag_paths(paths: &[PathBuf]) -> Vec<u8> {
+        let mut utf16_paths = Vec::new();
+        for path in paths {
+            utf16_paths.extend(
+                path.as_os_str()
+                    .encode_wide()
+                    .chain(std::iter::once(0))
+                    .flat_map(u16::to_le_bytes),
+            );
+        }
+        utf16_paths.extend_from_slice(&0u16.to_le_bytes());
+        utf16_paths
     }
 
     fn last_error_from_win32(err: windows::core::Error) -> std::io::Error {
@@ -428,5 +445,74 @@ fn normalize_path(path: &std::path::Path) -> PathBuf {
         )
     } else {
         absolute
+    }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod tests {
+    use super::*;
+    use std::os::windows::ffi::OsStringExt;
+    use windows::Win32::UI::Shell::DROPFILES;
+
+    fn decode_drag_paths(bytes: &[u8]) -> Vec<String> {
+        let utf16 = bytes
+            .chunks_exact(std::mem::size_of::<u16>())
+            .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+            .collect::<Vec<_>>();
+        let mut paths = Vec::new();
+        let mut start = 0usize;
+        while start < utf16.len() {
+            let Some(end) = utf16[start..].iter().position(|value| *value == 0) else {
+                panic!("drag path payload must be null terminated");
+            };
+            if end == 0 {
+                break;
+            }
+            paths.push(
+                std::ffi::OsString::from_wide(&utf16[start..start + end])
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+            start += end + 1;
+        }
+        paths
+    }
+
+    #[test]
+    fn normalize_path_strips_windows_verbatim_prefix() {
+        let normalized = normalize_path(std::path::Path::new(r"\\?\C:\samples\kick.wav"));
+        assert_eq!(normalized, PathBuf::from(r"C:\samples\kick.wav"));
+    }
+
+    #[test]
+    fn encode_drag_paths_double_null_terminates_multi_path_payload() {
+        let encoded = platform::encode_drag_paths(&[
+            PathBuf::from(r"C:\samples\kick.wav"),
+            PathBuf::from(r"D:\packs\snare.wav"),
+        ]);
+
+        assert!(encoded.ends_with(&[0, 0, 0, 0]));
+        assert_eq!(
+            decode_drag_paths(&encoded),
+            vec![
+                String::from(r"C:\samples\kick.wav"),
+                String::from(r"D:\packs\snare.wav"),
+            ]
+        );
+    }
+
+    #[test]
+    fn build_dropfiles_payload_prepends_wide_dropfiles_header() {
+        let payload = platform::build_dropfiles_payload(&[PathBuf::from(r"C:\samples\hat.wav")]);
+        let header_len = std::mem::size_of::<DROPFILES>();
+        let header = unsafe { std::ptr::read_unaligned(payload.as_ptr().cast::<DROPFILES>()) };
+
+        assert_eq!(header.pFiles as usize, header_len);
+        assert!(header.fWide.as_bool());
+        assert!(!header.fNC.as_bool());
+        assert_eq!(
+            decode_drag_paths(&payload[header_len..]),
+            vec![String::from(r"C:\samples\hat.wav")]
+        );
     }
 }
