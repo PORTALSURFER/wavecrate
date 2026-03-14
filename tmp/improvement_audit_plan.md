@@ -323,7 +323,7 @@ Implementation status: items 1-6 and 8 are complete; item 7 is blocked on clarif
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: 2026-03-14
-- Commit: pending
+- Commit: `5d831d58` (`refactor(tests): split playback and waveform regression catalogs`)
 - Validation outcome:
   - `cargo test playback_loop --lib` passed.
   - `cargo test waveform_nav_cursor --lib` passed.
