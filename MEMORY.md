@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-15T18:22:00Z
+Last Updated: 2026-03-15T11:04:37Z
 Updated By: Codex
 
 ## Purpose
@@ -26,9 +26,11 @@ Updated By: Codex
 - Item 4 implementation commit is `ba52b318`.
 - Item 5 is complete: the folder-browser tree module is now split across retained model, scan orchestration, and projection/filter helpers.
 - Item 5 implementation commit is `cb561557`.
+- Item 6 is complete: the hotkey registry now has direct invariant tests for unique ids, same-scope gesture conflicts, and global-vs-focus lookup separation.
+- Item 6 implementation commit is `3dfca2e0`.
 - The highest-leverage current findings are:
-  - The hotkey registry still lacks direct invariant tests across the full action catalog.
-  - `wav_sanitize.rs` and deferred undo/file-op flows remain under-defined relative to their public/runtime importance.
+  - `wav_sanitize.rs` still has an under-documented `Read + Seek` contract relative to its runtime importance.
+  - Deferred undo/file-op flows remain under-defined relative to the trust they carry.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -36,7 +38,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Implement item 6 from `tmp/improvement_audit_plan.md`: add direct hotkey-registry invariant tests around `src/app/controller/ui/hotkeys/actions.rs`.
+1. Implement item 7 from `tmp/improvement_audit_plan.md`: clarify and harden the `wav_sanitize` public `Read + Seek` contract in `src/wav_sanitize.rs`.
 2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned while Phase 2 advances.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Treat `scripts/ci_local.ps1` green as the current expected Windows local parity baseline.

@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `6c9dc2d8`
 - Phase: `Phase 2 in progress`
-- Status: `Implementing the ROI-ranked backlog in plan order; items 1-5 are complete.`
+- Status: `Implementing the ROI-ranked backlog in plan order; items 1-6 are complete.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed on this branch.
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md`.
@@ -241,7 +241,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
 - Plan-order deviation: None
 
-### 6. [ ] Add direct hotkey-registry invariants and reduce reliance on ad hoc registration tests
+### 6. [x] Add direct hotkey-registry invariants and reduce reliance on ad hoc registration tests
 
 - Classification: Test gap
 - Confidence: High
@@ -268,6 +268,16 @@
   - Existing waveform/browser hotkey controller tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Implementation commit: `3dfca2e0`
+- Assumptions used:
+  - Cross-scope gesture reuse remains valid; the new invariant coverage should only reject duplicate gestures within the same hotkey scope and keep global-vs-focus lookups explicitly characterized.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
+  - `cargo test hotkey_registry -- --test-threads=1` passed on `2026-03-15`.
+  - `cargo test hotkey_helper_views -- --test-threads=1` passed on `2026-03-15`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
+- Plan-order deviation: None
 
 ### 7. [ ] Clarify and harden the `wav_sanitize` public `Read + Seek` contract
 
