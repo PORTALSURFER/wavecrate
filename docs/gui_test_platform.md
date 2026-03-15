@@ -168,6 +168,8 @@ This runs:
 
 This now launches the real app in GUI test mode per manifest case, relaunches with a fresh sandbox per fixture, consumes semantic node targets from `gui_test_latest.json`, and drives browser, options, prompt, waveform, and update flows through AIV.
 
+The wrapper now retries foreground recovery before focus-sensitive desktop steps and records failure categories (`focus_recovery`, `window_lifecycle`, `app_assertion`, `step_execution`) in the suite report so local failures are easier to triage.
+
 Desktop packs:
 
 - `desktop-smoke`: `startup_ready`, `options_open_close`, `browser_search_type_smoke`
@@ -184,7 +186,7 @@ Desktop runner outputs:
 
 Known limitation:
 
-- on the current Windows setup, `aiv` can fail foreground activation with `SetForegroundWindow`, so the wrapper is implemented and useful locally but not yet stable enough to promote into CI.
+- on the current Windows setup, `aiv` can still fail foreground activation with `SetForegroundWindow`; the wrapper now retries and categorizes those failures, but the loop is still local-only and not yet stable enough to promote into CI.
 
 ## Current Gaps
 
@@ -192,10 +194,10 @@ The platform is intentionally first-slice, not final:
 
 - automation coverage is broad but not yet exhaustive for every micro-control
 - screenshot capture is still owned by AIV, not the app runtime
-- desktop AIV stability still depends on Windows foreground/focus behavior
+- desktop AIV stability still depends on Windows foreground/focus behavior even after wrapper-level retries
 - no CI gate yet enforces desktop AIV smoke stability
 
 ## Immediate Next Steps
 
-1. Harden the AIV smoke wrapper around Windows foreground/focus failure modes.
-2. Keep the semantic GUI contract loop healthy inside `ci_quick` without pulling unstable desktop AIV coverage into the default gate.
+1. Keep the semantic GUI contract loop healthy inside `ci_quick` without pulling unstable desktop AIV coverage into the default gate.
+2. Collect repeated local evidence from the categorized desktop-AIV reports before considering any stronger promotion.

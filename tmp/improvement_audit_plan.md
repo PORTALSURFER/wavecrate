@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `20f83666`
 - Phase: `Phase 2 in progress`
-- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-8 are complete and item 9 remains pending.`
+- Status: `Sequential backlog implementation is complete on 2026-03-15; all 9 backlog items are complete.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md` from the current branch head.
 
@@ -359,7 +359,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: `2026-03-15`
-- Commit: `pending`
+- Commit: `ccbcd3fd`
 - Assumptions used:
   - The existing semantic node ids for `waveform.toolbar.play`, `shell.top_bar.volume_slider`, `browser.map_canvas`, and `browser.map.point.<sample_id>` remain the preferred compatibility surface instead of adding screenshot-only assertions.
   - A deterministic map fixture can safely reuse cached bounds/points without running similarity prep, as long as the fixture uses a stable source id and valid sample id format.
@@ -374,7 +374,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Plan-order deviation: None
 
-### 9. [ ] Harden the desktop-AIV smoke wrapper around foreground/focus failures before considering broader promotion
+### 9. [x] Harden the desktop-AIV smoke wrapper around foreground/focus failures before considering broader promotion
 
 - Classification: Developer-experience improvement
 - Confidence: Medium
@@ -401,6 +401,18 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_smoke.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_suite.ps1 -PackName desktop-regression`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Commit: `pending`
+- Assumptions used:
+  - The safest hardening scope stays in the PowerShell wrapper layer: recover foreground more aggressively, retry focus-sensitive input steps, and categorize failures without changing the app/runtime contract.
+  - A desktop-AIV failure categorized as `app_assertion` remains distinct from the Windows focus/window problems this item is meant to harden, so the wrapper can improve even if a specific regression case still fails for semantic reasons.
+  - Restoring `ci_local` after this wrapper change is required because validation/tooling edits are not complete until the broader Windows parity gate is green.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_smoke.ps1 -SkipBuild`
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_suite.ps1 -PackName desktop-regression -CaseFilter browser_search_select_commit -SkipBuild` failed as `app_assertion`, while the hardened wrapper preserved the failure category instead of collapsing it into a generic focus/window failure.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+- Plan-order deviation: None
 
 ## Open Questions / Missing Definitions
 

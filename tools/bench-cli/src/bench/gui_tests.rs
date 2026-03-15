@@ -93,15 +93,15 @@ fn interaction_step_cycles_search_filter_and_sort() {
     for step in 0..6usize {
         execute_interaction_step(&mut workspace.controller, step);
         assert_eq!(
-            workspace.controller.ui.browser.search_query,
+            workspace.controller.ui.browser.search.search_query,
             interaction_query_for_step(step)
         );
         assert_eq!(
-            workspace.controller.ui.browser.filter,
+            workspace.controller.ui.browser.search.filter,
             interaction_filter_for_step(step)
         );
         assert_eq!(
-            workspace.controller.ui.browser.sort,
+            workspace.controller.ui.browser.search.sort,
             interaction_sort_for_step(step)
         );
     }

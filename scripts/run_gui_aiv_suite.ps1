@@ -84,8 +84,7 @@ foreach ($case in $cases) {
         if ($null -eq $process) {
             throw "failed to start sempal process for case $($case.name)"
         }
-        Wait-ForWindow -Title $case.window_title -TimeoutMs 30000
-        $null = Ensure-WindowForeground -Title $case.window_title
+        Ensure-WindowForegroundOrThrow -Title $case.window_title -Context "case-start:$($case.name)" -WaitTimeoutMs 30000
         Wait-ForFile -Path $guiArtifactPath -TimeoutMs 30000
         foreach ($step in $case.steps) {
             $currentStepKind = [string]$step.kind
@@ -116,6 +115,7 @@ foreach ($case in $cases) {
             failure_after_screenshot = $null
         }
     } catch {
+        $failureCategory = Get-DesktopAivFailureCategory -Message $_.Exception.Message
         $failureBefore = $null
         $failureAfter = $null
         try {
@@ -124,7 +124,7 @@ foreach ($case in $cases) {
         } catch {
         }
         try {
-            $null = Ensure-WindowForeground -Title $case.window_title
+            Ensure-WindowForegroundOrThrow -Title $case.window_title -Context "failure-capture:$($case.name)" -WaitTimeoutMs 5000
             $failureAfter = Join-Path $screenshotsDir "failure-after-focus.png"
             Capture-Screenshot -OutputPath $failureAfter
         } catch {
@@ -136,12 +136,13 @@ foreach ($case in $cases) {
             fixture_tag = [string]$case.fixture_tag
             runtime_artifact = $guiArtifactPath
             aiv_bundle = $bundlePath
+            failure_category = $failureCategory
             failure_message = $_.Exception.Message
             failure_step_kind = $currentStepKind
             failure_before_screenshot = $failureBefore
             failure_after_screenshot = $failureAfter
         }
-        Write-Host "[gui-aiv] case failed $($case.name): $($_.Exception.Message)"
+        Write-Host "[gui-aiv] case failed $($case.name) [$failureCategory]: $($_.Exception.Message)"
     } finally {
         Stop-CaseProcess -Process $process
     }

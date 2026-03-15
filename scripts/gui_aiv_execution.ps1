@@ -65,6 +65,29 @@ function Wait-ForAssertion {
     throw "semantic assertion failed: $($Assertion.kind)"
 }
 
+function Invoke-FocusSensitiveStep {
+    param(
+        [string]$WindowTitle,
+        [string]$Context,
+        [scriptblock]$Action,
+        [int]$Attempts = 2
+    )
+    $lastMessage = $null
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        Ensure-WindowForegroundOrThrow -Title $WindowTitle -Context "$Context/attempt-$attempt"
+        try {
+            & $Action
+            return
+        } catch {
+            $lastMessage = $_.Exception.Message
+            if ($attempt -ge $Attempts) {
+                throw "focus-sensitive step failed ($Context): $lastMessage"
+            }
+            Start-Sleep -Milliseconds 250
+        }
+    }
+}
+
 function Invoke-Step {
     param(
         $Step,
@@ -80,53 +103,58 @@ function Invoke-Step {
             } -TimeoutMs ([int]$Step.timeout_ms)
         }
         "click_node" {
-            $null = Ensure-WindowForeground -Title $WindowTitle
-            $point = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -WindowTitle $WindowTitle -NodeId $Step.node_id -XPercent $Step.x_percent -YPercent $Step.y_percent
-            & aiv mouse click --x $point.screen_x --y $point.screen_y | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                & aiv workflow click-window --title $WindowTitle --anchor top-left --offset-x $point.logical_x --offset-y $point.logical_y | Out-Null
-                if ($LASTEXITCODE -ne 0) { throw "failed to click node $($Step.node_id)" }
+            Invoke-FocusSensitiveStep -WindowTitle $WindowTitle -Context "click_node:$($Step.node_id)" -Action {
+                $point = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -WindowTitle $WindowTitle -NodeId $Step.node_id -XPercent $Step.x_percent -YPercent $Step.y_percent
+                & aiv mouse click --x $point.screen_x --y $point.screen_y | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    & aiv workflow click-window --title $WindowTitle --anchor top-left --offset-x $point.logical_x --offset-y $point.logical_y | Out-Null
+                    if ($LASTEXITCODE -ne 0) { throw "failed to click node $($Step.node_id)" }
+                }
             }
         }
         "type_into_node" {
-            $null = Ensure-WindowForeground -Title $WindowTitle
-            $point = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -WindowTitle $WindowTitle -NodeId $Step.node_id -XPercent $null -YPercent $null
-            & aiv mouse click --x $point.screen_x --y $point.screen_y | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                & aiv workflow click-window --title $WindowTitle --anchor top-left --offset-x $point.logical_x --offset-y $point.logical_y | Out-Null
-                if ($LASTEXITCODE -ne 0) { throw "failed to focus node $($Step.node_id) before typing" }
+            Invoke-FocusSensitiveStep -WindowTitle $WindowTitle -Context "type_into_node:$($Step.node_id)" -Action {
+                $point = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -WindowTitle $WindowTitle -NodeId $Step.node_id -XPercent $null -YPercent $null
+                & aiv mouse click --x $point.screen_x --y $point.screen_y | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    & aiv workflow click-window --title $WindowTitle --anchor top-left --offset-x $point.logical_x --offset-y $point.logical_y | Out-Null
+                    if ($LASTEXITCODE -ne 0) { throw "failed to focus node $($Step.node_id) before typing" }
+                }
+                Start-Sleep -Milliseconds 150
+                if ([bool]$Step.clear_existing) {
+                    & aiv keyboard key --ctrl --key a | Out-Null
+                    if ($LASTEXITCODE -ne 0) { throw "failed to select existing text in $($Step.node_id)" }
+                    & aiv keyboard key --key backspace | Out-Null
+                    if ($LASTEXITCODE -ne 0) { throw "failed to clear existing text in $($Step.node_id)" }
+                }
+                & aiv keyboard type --text ([string]$Step.text) | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "failed to type into node $($Step.node_id)" }
             }
-            Start-Sleep -Milliseconds 150
-            if ([bool]$Step.clear_existing) {
-                & aiv keyboard key --ctrl --key a | Out-Null
-                if ($LASTEXITCODE -ne 0) { throw "failed to select existing text in $($Step.node_id)" }
-                & aiv keyboard key --key backspace | Out-Null
-                if ($LASTEXITCODE -ne 0) { throw "failed to clear existing text in $($Step.node_id)" }
-            }
-            & aiv keyboard type --text ([string]$Step.text) | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "failed to type into node $($Step.node_id)" }
         }
         "press_key" {
-            $null = Ensure-WindowForeground -Title $WindowTitle
-            $arguments = @("keyboard", "key", "--key", [string]$Step.key)
-            if ([bool]$Step.ctrl) { $arguments += "--ctrl" }
-            if ([bool]$Step.alt) { $arguments += "--alt" }
-            if ([bool]$Step.shift) { $arguments += "--shift" }
-            & aiv @arguments | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "failed to press key $($Step.key)" }
+            Invoke-FocusSensitiveStep -WindowTitle $WindowTitle -Context "press_key:$($Step.key)" -Action {
+                $arguments = @("keyboard", "key", "--key", [string]$Step.key)
+                if ([bool]$Step.ctrl) { $arguments += "--ctrl" }
+                if ([bool]$Step.alt) { $arguments += "--alt" }
+                if ([bool]$Step.shift) { $arguments += "--shift" }
+                & aiv @arguments | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "failed to press key $($Step.key)" }
+            }
         }
         "drag_in_node" {
-            $null = Ensure-WindowForeground -Title $WindowTitle
-            $start = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -WindowTitle $WindowTitle -NodeId $Step.node_id -XPercent $Step.start_x_percent -YPercent $Step.start_y_percent
-            $end = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -WindowTitle $WindowTitle -NodeId $Step.node_id -XPercent $Step.end_x_percent -YPercent $Step.end_y_percent
-            & aiv mouse drag --start-x $start.screen_x --start-y $start.screen_y --end-x $end.screen_x --end-y $end.screen_y --steps 14 --step-delay-ms 4 | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "failed to drag in node $($Step.node_id)" }
+            Invoke-FocusSensitiveStep -WindowTitle $WindowTitle -Context "drag_in_node:$($Step.node_id)" -Action {
+                $start = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -WindowTitle $WindowTitle -NodeId $Step.node_id -XPercent $Step.start_x_percent -YPercent $Step.start_y_percent
+                $end = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -WindowTitle $WindowTitle -NodeId $Step.node_id -XPercent $Step.end_x_percent -YPercent $Step.end_y_percent
+                & aiv mouse drag --start-x $start.screen_x --start-y $start.screen_y --end-x $end.screen_x --end-y $end.screen_y --steps 14 --step-delay-ms 4 | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "failed to drag in node $($Step.node_id)" }
+            }
         }
         "scroll_in_node" {
-            $null = Ensure-WindowForeground -Title $WindowTitle
-            $point = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -WindowTitle $WindowTitle -NodeId $Step.node_id -XPercent $Step.x_percent -YPercent $Step.y_percent
-            & aiv mouse scroll --delta ([int]$Step.delta) --x $point.screen_x --y $point.screen_y | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "failed to scroll in node $($Step.node_id)" }
+            Invoke-FocusSensitiveStep -WindowTitle $WindowTitle -Context "scroll_in_node:$($Step.node_id)" -Action {
+                $point = Get-NodeScreenPoint -ArtifactPath $ArtifactPath -WindowTitle $WindowTitle -NodeId $Step.node_id -XPercent $Step.x_percent -YPercent $Step.y_percent
+                & aiv mouse scroll --delta ([int]$Step.delta) --x $point.screen_x --y $point.screen_y | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "failed to scroll in node $($Step.node_id)" }
+            }
         }
         "capture_screenshot" {
             Capture-Screenshot -OutputPath (Join-Path $ScreenshotsDir "$($Step.label).png")
@@ -158,7 +186,8 @@ function Write-SuiteSummary {
     foreach ($result in $CaseResults) {
         $lines += "- [$($result.status)] $($result.name) ($($result.duration_ms) ms)"
         if ($result.failure_message) {
-            $lines += "  failure: $($result.failure_message)"
+            $category = if ($result.failure_category) { " [$($result.failure_category)]" } else { "" }
+            $lines += "  failure${category}: $($result.failure_message)"
         }
     }
     Set-Content -LiteralPath $Path -Value $lines

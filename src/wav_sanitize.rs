@@ -9,7 +9,7 @@ const SANITIZE_PROBE_BYTES: u64 = 4096;
 
 /// A WAV reader that exposes a logically repaired byte stream.
 ///
-/// The reader inspects only the first [`SANITIZE_PROBE_BYTES`] bytes and repairs
+/// The reader inspects only the first `SANITIZE_PROBE_BYTES` bytes and repairs
 /// one narrow class of malformed headers: PCM or IEEE-float `fmt ` chunks whose
 /// declared size is larger than 18 bytes but whose extra bytes are all zero
 /// padding after a zero `cbSize` field. Unsupported malformed inputs are passed
@@ -117,7 +117,7 @@ impl Seek for SanitizedWavReader {
 /// Open a WAV file for streaming reads while repairing the supported malformed
 /// `fmt ` header variants.
 ///
-/// The reader probes only the first [`SANITIZE_PROBE_BYTES`] bytes. If repair is
+/// The reader probes only the first `SANITIZE_PROBE_BYTES` bytes. If repair is
 /// possible, the returned stream exposes the repaired logical bytes and keeps
 /// `Seek` relative to that repaired stream. If no supported repair applies, the
 /// original file is returned unchanged.
@@ -216,7 +216,7 @@ fn sanitize_wav_header(bytes: &mut Vec<u8>, total_file_len: u64) -> bool {
 /// used by [`open_sanitized_wav`].
 ///
 /// This helper is intended for small files and tests. It rejects files larger
-/// than [`MAX_SANITIZED_WAV_BYTES`] instead of streaming them.
+/// than `MAX_SANITIZED_WAV_BYTES` instead of streaming them.
 pub fn read_sanitized_wav_bytes(path: &Path) -> Result<Vec<u8>, String> {
     let file_len = std::fs::metadata(path)
         .map(|meta| meta.len())

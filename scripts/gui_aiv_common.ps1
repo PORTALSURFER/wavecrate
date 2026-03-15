@@ -118,6 +118,34 @@ function Ensure-WindowForeground {
     return $false
 }
 
+function Ensure-WindowForegroundOrThrow {
+    param(
+        [string]$Title,
+        [string]$Context = "desktop-aiv",
+        [int]$WaitTimeoutMs = 5000,
+        [int]$Attempts = 4
+    )
+    Wait-ForWindow -Title $Title -TimeoutMs $WaitTimeoutMs
+    if (Ensure-WindowForeground -Title $Title -Attempts $Attempts) {
+        return
+    }
+    throw "focus recovery failed ($Context): unable to activate window $Title"
+}
+
+function Get-DesktopAivFailureCategory {
+    param([string]$Message)
+    if ($Message -like "focus recovery failed*") {
+        return "focus_recovery"
+    }
+    if ($Message -like "*failed waiting for window*" -or $Message -like "*window*not found*") {
+        return "window_lifecycle"
+    }
+    if ($Message -like "semantic assertion failed*") {
+        return "app_assertion"
+    }
+    return "step_execution"
+}
+
 function Find-ArtifactNode {
     param([string]$ArtifactPath, [string]$NodeId)
     $artifact = Read-JsonFile -Path $ArtifactPath
