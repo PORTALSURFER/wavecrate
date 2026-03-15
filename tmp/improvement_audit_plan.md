@@ -150,11 +150,18 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 5. Decompose `src/app/controller/library/wavs/browser_pipeline.rs` into explicit sync stages with direct local stage tests
+### [x] 5. Decompose `src/app/controller/library/wavs/browser_pipeline.rs` into explicit sync stages with direct local stage tests
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
+- Completed: `2026-03-15`
+- Assumption used: the sync browser pipeline should stay execution-model-specific while exposing explicit base, folder-acceptance, and visible-row stage helpers that match the existing worker semantics only where those semantics are already shared.
+- Validation:
+  - `cargo test browser_pipeline -- --test-threads=1`
+  - `cargo test folder_filter_visible_rows_match_sync_pipeline -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: the synchronous browser visible-row pipeline still owns base-stage refresh, folder acceptance, filtering, scoring, sorting, and final visible-row materialization in one file. That is a direct maintainability risk on one of the app’s most central interaction paths.
 - Evidence:
   - `tmp/cleanup_audit_hotspots.md` lists `build_visible_rows` in `src/app/controller/library/wavs/browser_pipeline.rs:67` as a large function hotspot and lists the file itself among oversized modules.
