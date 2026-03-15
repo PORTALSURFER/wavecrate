@@ -216,7 +216,7 @@
 - ROI: Medium
 - Effort: M
 - Completed: `2026-03-15`
-- Commit: `PENDING`
+- Commit: `940a3d4e` (`refactor(waveform): split refresh policy`)
 - Assumption used: waveform refresh policy can move into a dedicated coalescing module while keeping render-meta reuse and immediate image application in the existing controller layer.
 - Validation:
   - `cargo test waveform_nav_render -- --test-threads=1`
@@ -240,11 +240,19 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 8. Split `src/sample_sources/db/read.rs` into row-decoding, list/query families, and BPM lookup helpers with direct contract coverage
+### [x] 8. Split `src/sample_sources/db/read.rs` into row-decoding, list/query families, and BPM lookup helpers with direct contract coverage
 - Classification: Refactor / cleanup
 - Confidence: Medium
 - ROI: Medium
 - Effort: M
+- Completed: `2026-03-15`
+- Commit: `PENDING`
+- Assumption used: the read-side cleanup should stay inside the existing `SourceDatabase` surface, with pure row decoding, wav/path query families, and BPM lookups separated without changing the public query contract.
+- Validation:
+  - `cargo test sample_sources::db::read::tests -- --test-threads=1`
+  - `cargo test sample_sources::db::source_db_mod_tests::metadata -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: the read side of the source DB is smaller than the write side, but it still mixes path decoding, row decoding, several list/query shapes, and BPM lookup batching in one file. That makes it harder to reason about parity with the write surface and to add direct contract tests.
 - Evidence:
   - `src/sample_sources/db/read.rs:11`, `:39`, `:179`, and `:221` show `decode_relative_path`, the main `impl SourceDatabase`, `list_files_page`, and `bpms_for_sample_ids` in one file.
