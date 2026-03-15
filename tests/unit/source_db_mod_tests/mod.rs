@@ -6,7 +6,6 @@ use tempfile::tempdir;
 
 mod metadata;
 mod opening;
-mod writes;
 
 fn with_home_env_override<T>(home: &Path, test: impl FnOnce() -> T) -> T {
     static HOME_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -59,16 +58,4 @@ fn with_home_env_override<T>(home: &Path, test: impl FnOnce() -> T) -> T {
     };
 
     test()
-}
-
-fn revision_value(db: &SourceDatabase) -> i64 {
-    db.connection
-        .query_row(
-            "SELECT value FROM metadata WHERE key = 'revision'",
-            [],
-            |row| row.get::<_, String>(0),
-        )
-        .unwrap()
-        .parse::<i64>()
-        .unwrap()
 }

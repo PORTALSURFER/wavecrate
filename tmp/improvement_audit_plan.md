@@ -38,11 +38,19 @@
 
 ## Ordered ROI Backlog
 
-### [ ] 1. Add direct `SourceDatabase` write-contract coverage and narrow `db/write.rs` around batch mutation helpers
+### [x] 1. Add direct `SourceDatabase` write-contract coverage and narrow `db/write.rs` around batch mutation helpers
 - Classification: Test gap
 - Confidence: High
 - ROI: High
 - Effort: M
+- Completed: `2026-03-15`
+- Commit: `pending item-1 commit`
+- Assumption used: the safest scope is to keep the public `SourceDatabase`/`SourceWriteBatch` API stable, move write-contract tests next to the implementation, and split only the internal upsert/mutation helpers.
+- Validation:
+  - `cargo test sample_sources::db::write::tests -- --test-threads=1`
+  - `cargo test sample_sources::db::source_db_mod_tests -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: this repository explicitly warns that bugs can rename, modify, or delete sample-library state. `db/write.rs` is the central mutation surface for the per-source SQLite catalog, yet its behavior is mostly exercised indirectly through other workflows.
 - Evidence:
   - `README.md` warns that the app can modify, rename, or delete files and advises backups.

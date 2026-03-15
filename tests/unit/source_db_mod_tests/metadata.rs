@@ -117,35 +117,6 @@ fn list_and_count_only_show_supported_audio() {
 }
 
 #[test]
-fn wav_upsert_variants_preserve_hash_tag_and_missing_contracts() {
-    let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
-
-    let mut batch = db.write_batch().unwrap();
-    batch
-        .upsert_file_with_hash_and_tag(Path::new("one.wav"), 10, 5, "hash-a", Rating::KEEP_1, true)
-        .unwrap();
-    batch.commit().unwrap();
-
-    let first = db.list_files().unwrap();
-    assert_eq!(first.len(), 1);
-    assert_eq!(first[0].content_hash.as_deref(), Some("hash-a"));
-    assert_eq!(first[0].tag, Rating::KEEP_1);
-    assert!(first[0].missing);
-
-    let mut batch = db.write_batch().unwrap();
-    batch
-        .upsert_file_without_hash(Path::new("one.wav"), 12, 6)
-        .unwrap();
-    batch.commit().unwrap();
-
-    let second = db.list_files().unwrap();
-    assert_eq!(second[0].content_hash, None);
-    assert_eq!(second[0].tag, Rating::KEEP_1);
-    assert!(!second[0].missing);
-}
-
-#[test]
 fn batch_bpm_lookup_returns_requested_sample_rows() {
     let dir = tempdir().unwrap();
     let db = SourceDatabase::open(dir.path()).unwrap();

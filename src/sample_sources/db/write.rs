@@ -1,185 +1,24 @@
 use std::path::{Path, PathBuf};
 
-use rusqlite::{CachedStatement, Transaction, params};
+use rusqlite::params;
 
-use super::util::{map_sql_error, normalize_relative_path};
+use super::util::map_sql_error;
 use super::{Rating, SourceDatabase, SourceDbError, SourceWriteBatch};
 
-const UPSERT_WAV_FILE_SQL: &str =
-    "INSERT INTO wav_files (path, file_size, modified_ns, content_hash, tag, looped, locked, missing, extension)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-     ON CONFLICT(path) DO UPDATE SET file_size = excluded.file_size,
-                                    modified_ns = excluded.modified_ns,
-                                    content_hash = CASE ?10
-                                        WHEN 0 THEN wav_files.content_hash
-                                        WHEN 1 THEN NULL
-                                        ELSE excluded.content_hash
-                                    END,
-                                    tag = CASE ?11
-                                        WHEN 0 THEN wav_files.tag
-                                        ELSE excluded.tag
-                                    END,
-                                    missing = excluded.missing,
-                                    extension = excluded.extension";
+mod mutation;
+mod upsert;
+
+#[cfg(test)]
+mod tests;
+
+use mutation::{delete_path_statement, update_flag_statement, update_path_i64_statement};
+use upsert::{ContentHashPolicy, TagPolicy, WavFileWriteSpec, execute_wav_upsert};
+
 const UPDATE_TAG_SQL: &str = "UPDATE wav_files SET tag = ?1 WHERE path = ?2";
 const UPDATE_LOOPED_SQL: &str = "UPDATE wav_files SET looped = ?1 WHERE path = ?2";
 const UPDATE_LOCKED_SQL: &str = "UPDATE wav_files SET locked = ?1 WHERE path = ?2";
 const UPDATE_MISSING_SQL: &str = "UPDATE wav_files SET missing = ?1 WHERE path = ?2";
 const UPDATE_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = ?1 WHERE path = ?2";
-const DELETE_WAV_FILE_SQL: &str = "DELETE FROM wav_files WHERE path = ?1";
-
-struct WavFileUpsertInput {
-    path: String,
-    file_size: i64,
-    modified_ns: i64,
-    extension: String,
-}
-
-#[derive(Clone, Copy)]
-enum ContentHashPolicy<'a> {
-    Preserve,
-    Clear,
-    Set(&'a str),
-}
-
-impl ContentHashPolicy<'_> {
-    fn code(self) -> i64 {
-        match self {
-            Self::Preserve => 0,
-            Self::Clear => 1,
-            Self::Set(_) => 2,
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-enum TagPolicy {
-    Preserve,
-    Set(Rating),
-}
-
-impl TagPolicy {
-    fn code(self) -> i64 {
-        match self {
-            Self::Preserve => 0,
-            Self::Set(_) => 1,
-        }
-    }
-
-    fn inserted_tag(self) -> Rating {
-        match self {
-            Self::Preserve => Rating::NEUTRAL,
-            Self::Set(tag) => tag,
-        }
-    }
-}
-
-struct WavFileWriteSpec<'a> {
-    relative_path: &'a Path,
-    file_size: u64,
-    modified_ns: i64,
-    content_hash: ContentHashPolicy<'a>,
-    tag: TagPolicy,
-    missing: bool,
-}
-
-fn wav_file_upsert_input(
-    relative_path: &Path,
-    file_size: u64,
-    modified_ns: i64,
-) -> Result<WavFileUpsertInput, SourceDbError> {
-    Ok(WavFileUpsertInput {
-        path: normalize_relative_path(relative_path)?,
-        file_size: file_size as i64,
-        modified_ns,
-        extension: relative_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase(),
-    })
-}
-
-fn execute_cached_statement(
-    mut statement: CachedStatement<'_>,
-    params: impl rusqlite::Params,
-) -> Result<(), SourceDbError> {
-    statement.execute(params).map_err(map_sql_error)?;
-    Ok(())
-}
-
-fn execute_transaction_cached(
-    tx: &Transaction<'_>,
-    sql: &str,
-    params: impl rusqlite::Params,
-) -> Result<(), SourceDbError> {
-    execute_cached_statement(tx.prepare_cached(sql).map_err(map_sql_error)?, params)
-}
-
-fn missing_flag(missing: bool) -> i64 {
-    if missing { 1i64 } else { 0i64 }
-}
-
-fn update_flag_statement(
-    tx: &Transaction<'_>,
-    sql: &str,
-    relative_path: &Path,
-    value: bool,
-) -> Result<(), SourceDbError> {
-    update_path_i64_statement(tx, sql, relative_path, value as i64)
-}
-
-fn update_path_i64_statement(
-    tx: &Transaction<'_>,
-    sql: &str,
-    relative_path: &Path,
-    value: i64,
-) -> Result<(), SourceDbError> {
-    let path = normalize_relative_path(relative_path)?;
-    tx.prepare_cached(sql)
-        .map_err(map_sql_error)?
-        .execute(params![value, path])
-        .map_err(map_sql_error)?;
-    Ok(())
-}
-
-fn delete_path_statement(tx: &Transaction<'_>, relative_path: &Path) -> Result<(), SourceDbError> {
-    let path = normalize_relative_path(relative_path)?;
-    tx.prepare_cached(DELETE_WAV_FILE_SQL)
-        .map_err(map_sql_error)?
-        .execute(params![path])
-        .map_err(map_sql_error)?;
-    Ok(())
-}
-
-fn execute_wav_upsert(
-    tx: &Transaction<'_>,
-    spec: WavFileWriteSpec<'_>,
-) -> Result<(), SourceDbError> {
-    let input = wav_file_upsert_input(spec.relative_path, spec.file_size, spec.modified_ns)?;
-    let content_hash = match spec.content_hash {
-        ContentHashPolicy::Preserve | ContentHashPolicy::Clear => None,
-        ContentHashPolicy::Set(value) => Some(value),
-    };
-    let tag = spec.tag.inserted_tag();
-    execute_transaction_cached(
-        tx,
-        UPSERT_WAV_FILE_SQL,
-        params![
-            input.path,
-            input.file_size,
-            input.modified_ns,
-            content_hash,
-            tag.as_i64(),
-            0i64,
-            0i64,
-            missing_flag(spec.missing),
-            input.extension,
-            spec.content_hash.code(),
-            spec.tag.code()
-        ],
-    )
-}
 
 impl SourceDatabase {
     /// Upsert a wav file row using the path relative to the source root.
@@ -260,7 +99,7 @@ impl SourceDatabase {
         Ok(())
     }
 
-    fn bump_revision(conn: &rusqlite::Connection) -> Result<(), SourceDbError> {
+    pub(super) fn bump_revision(conn: &rusqlite::Connection) -> Result<(), SourceDbError> {
         conn.execute(
             "INSERT INTO metadata (key, value)
              VALUES ('revision', '1')

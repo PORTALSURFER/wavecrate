@@ -1,4 +1,39 @@
+use std::path::Path;
+
+use tempfile::tempdir;
+
 use super::*;
+
+fn revision_value(db: &SourceDatabase) -> i64 {
+    db.connection
+        .query_row(
+            "SELECT value FROM metadata WHERE key = 'revision'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap()
+        .parse::<i64>()
+        .unwrap()
+}
+
+fn row_snapshot(
+    db: &SourceDatabase,
+) -> Vec<(std::path::PathBuf, Rating, bool, bool, bool, Option<i64>)> {
+    db.list_files()
+        .unwrap()
+        .into_iter()
+        .map(|row| {
+            (
+                row.relative_path,
+                row.tag,
+                row.looped,
+                row.locked,
+                row.missing,
+                row.last_played_at,
+            )
+        })
+        .collect()
+}
 
 #[test]
 fn upsert_wrapper_matches_batch_insert_contract() {
@@ -87,15 +122,73 @@ fn failed_write_wrappers_leave_rows_and_revision_unchanged() {
     let dir = tempdir().unwrap();
     let db = SourceDatabase::open(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
-    let before_rows = db.list_files().unwrap();
+    let before_rows = row_snapshot(&db);
     let before_revision = revision_value(&db);
 
     let err = db.set_looped(Path::new("../escape.wav"), true).unwrap_err();
     assert!(matches!(err, SourceDbError::InvalidRelativePath(_)));
-    let after_rows = db.list_files().unwrap();
+
     let after_revision = revision_value(&db);
-    assert_eq!(before_rows.len(), after_rows.len());
-    assert_eq!(before_rows[0].relative_path, after_rows[0].relative_path);
-    assert_eq!(before_rows[0].looped, after_rows[0].looped);
+    assert_eq!(row_snapshot(&db), before_rows);
     assert_eq!(before_revision, after_revision);
+}
+
+#[test]
+fn wav_upsert_variants_preserve_hash_tag_and_missing_contracts() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .upsert_file_with_hash_and_tag(Path::new("one.wav"), 10, 5, "hash-a", Rating::KEEP_1, true)
+        .unwrap();
+    batch.commit().unwrap();
+
+    let first = db.list_files().unwrap();
+    assert_eq!(first.len(), 1);
+    assert_eq!(first[0].content_hash.as_deref(), Some("hash-a"));
+    assert_eq!(first[0].tag, Rating::KEEP_1);
+    assert!(first[0].missing);
+
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .upsert_file_without_hash(Path::new("one.wav"), 12, 6)
+        .unwrap();
+    batch.commit().unwrap();
+
+    let second = db.list_files().unwrap();
+    assert_eq!(second[0].content_hash, None);
+    assert_eq!(second[0].tag, Rating::KEEP_1);
+    assert!(!second[0].missing);
+}
+
+#[test]
+fn empty_tag_batch_is_a_noop() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+
+    db.set_tags_batch(&[]).unwrap();
+
+    assert_eq!(db.get_revision().unwrap(), 0);
+    assert!(db.list_files().unwrap().is_empty());
+}
+
+#[test]
+fn batch_errors_roll_back_prior_mutations() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
+    let before = row_snapshot(&db);
+    let before_revision = revision_value(&db);
+
+    let mut batch = db.write_batch().unwrap();
+    batch.set_tag(Path::new("one.wav"), Rating::KEEP_1).unwrap();
+    let err = batch
+        .set_missing(Path::new("../escape.wav"), true)
+        .unwrap_err();
+    assert!(matches!(err, SourceDbError::InvalidRelativePath(_)));
+    drop(batch);
+
+    assert_eq!(row_snapshot(&db), before);
+    assert_eq!(revision_value(&db), before_revision);
 }
