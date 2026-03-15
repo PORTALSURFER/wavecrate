@@ -156,6 +156,7 @@
 - ROI: High
 - Effort: M
 - Completed: `2026-03-15`
+- Commit: `833ed2ef` (`refactor(browser): split sync pipeline stages`)
 - Assumption used: the sync browser pipeline should stay execution-model-specific while exposing explicit base, folder-acceptance, and visible-row stage helpers that match the existing worker semantics only where those semantics are already shared.
 - Validation:
   - `cargo test browser_pipeline -- --test-threads=1`
@@ -185,6 +186,7 @@
 - ROI: Medium-High
 - Effort: M
 - Completed: `2026-03-15`
+- Commit: `a608141d` (`refactor(map): split projection helpers`)
 - Assumption used: the safe cut is to keep map projection policy in `app_core` and only split cache refresh, retained-point normalization, and label assembly inside that layer.
 - Validation:
   - `cargo test app_core::native_shell::tests::map -- --test-threads=1`
@@ -208,11 +210,20 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 7. Separate waveform refresh scheduling/coalescing from actual render/apply logic in `src/app/controller/library/wavs/waveform_rendering.rs`
+### [x] 7. Separate waveform refresh scheduling/coalescing from actual render/apply logic in `src/app/controller/library/wavs/waveform_rendering.rs`
 - Classification: Refactor / cleanup
 - Confidence: High
 - ROI: Medium
 - Effort: M
+- Completed: `2026-03-15`
+- Commit: `PENDING`
+- Assumption used: waveform refresh policy can move into a dedicated coalescing module while keeping render-meta reuse and immediate image application in the existing controller layer.
+- Validation:
+  - `cargo test waveform_nav_render -- --test-threads=1`
+  - `cargo test waveform_refresh_batch_keeps_highest_priority_reason -- --test-threads=1`
+  - `cargo test flush_pending_waveform_refresh_renders_after_batch_finishes -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: waveform rendering has to stay responsive, but the current file still mixes refresh-reason coalescing, batch scheduling, render-meta reuse, decoded-image application, and immediate rerender behavior in one controller surface.
 - Evidence:
   - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/library/wavs/waveform_rendering.rs` among the larger remaining controller hotspots.
