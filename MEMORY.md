@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-15T17:40:00Z
+Last Updated: 2026-03-15T18:22:00Z
 Updated By: Codex
 
 ## Purpose
@@ -24,8 +24,10 @@ Updated By: Codex
 - Item 3 implementation commit is `cddf369d`.
 - Item 4 is complete: `browser_lists` is now split so rebuild/prune orchestration, projection application, and lookup-map maintenance live in separate modules.
 - Item 4 implementation commit is `ba52b318`.
+- Item 5 is complete: the folder-browser tree module is now split across retained model, scan orchestration, and projection/filter helpers.
+- Item 5 implementation commit is `cb561557`.
 - The highest-leverage current findings are:
-  - Folder-browser tree orchestration still mixes scan/cache coordination with tree projection and fuzzy filtering in one module.
+  - The hotkey registry still lacks direct invariant tests across the full action catalog.
   - `wav_sanitize.rs` and deferred undo/file-op flows remain under-defined relative to their public/runtime importance.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
@@ -34,7 +36,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Implement item 5 from `tmp/improvement_audit_plan.md`: separate folder-browser scan/cache orchestration from tree projection and fuzzy filtering in `src/app/controller/library/source_folders/tree.rs`.
+1. Implement item 6 from `tmp/improvement_audit_plan.md`: add direct hotkey-registry invariant tests around `src/app/controller/ui/hotkeys/actions.rs`.
 2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned while Phase 2 advances.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Treat `scripts/ci_local.ps1` green as the current expected Windows local parity baseline.

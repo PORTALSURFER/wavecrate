@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `6c9dc2d8`
 - Phase: `Phase 2 in progress`
-- Status: `Implementing the ROI-ranked backlog in plan order; items 1-4 are complete.`
+- Status: `Implementing the ROI-ranked backlog in plan order; items 1-5 are complete.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed on this branch.
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md`.
@@ -202,7 +202,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
 - Plan-order deviation: None
 
-### 5. [ ] Separate folder-browser scan/cache orchestration from tree projection and fuzzy filtering
+### 5. [x] Separate folder-browser scan/cache orchestration from tree projection and fuzzy filtering
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -231,6 +231,15 @@
   - `src/app/controller/tests/folders_search.rs`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Implementation commit: `cb561557`
+- Assumptions used:
+  - This item should preserve the existing `refresh_folder_browser_for_tests()` seam and folder-selection behavior while only changing module ownership boundaries.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
+  - `cargo test folders_core -- --test-threads=1` passed on `2026-03-15`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
+- Plan-order deviation: None
 
 ### 6. [ ] Add direct hotkey-registry invariants and reduce reliance on ad hoc registration tests
 
