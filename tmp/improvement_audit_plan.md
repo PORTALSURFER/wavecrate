@@ -74,7 +74,7 @@
 - ROI: High
 - Effort: M
 - Completed: `2026-03-15`
-- Commit: `daa8eb46` in `vendor/radiant` (`refactor(runtime): split startup helpers`); root pointer/update commit pending
+- Commit: `daa8eb46` in `vendor/radiant` (`refactor(runtime): split startup helpers`), recorded in root at `b2f93e98` (`refactor(runtime): record startup helper split`)
 - Assumption used: startup policy, layout/first-frame sequencing, and the broader bring-up structure can be separated safely, but the render-surface fallback lifetime path should remain inline inside `initialize_runtime`.
 - Validation:
   - `cargo test --manifest-path vendor/radiant/Cargo.toml startup -- --test-threads=1`
@@ -95,11 +95,18 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 3. Split browser row windowing into hit-testing, viewport bounds, row projection, and scrollbar helpers
+### [x] 3. Split browser row windowing into hit-testing, viewport bounds, row projection, and scrollbar helpers
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
+- Completed: `2026-03-15`
+- Commit: `4cc6cde9` in `vendor/radiant` (`refactor(browser): split row windowing helpers`)
+- Assumption used: the safest split is local helper extraction that preserves the existing `windowing::*` export surface, because other native-shell modules already depend on these helpers by name.
+- Validation:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_scrollbars -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_rows -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: browser row windowing is a correctness-sensitive surface for virtualization, pointer targeting, and scroll behavior. The current file mixes those concerns in one allowlisted module, which makes subtle browser regressions harder to reason about.
 - Evidence:
   - `vendor/radiant/src/gui/native_shell/state/browser_rows/windowing.rs` is allowlisted in `docs/file_size_budget_allowlist.txt`.
