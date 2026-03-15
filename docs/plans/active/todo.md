@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-15T11:30:21Z
+Last updated (UTC): 2026-03-15T11:51:34Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -11,14 +11,13 @@ Purpose:
 
 ## Current lane
 
-- Improvement audit Phase 2 execution is in progress.
-- `tmp/improvement_audit_plan.md` is the source of truth for the backlog and execution record.
-- Items 1-8 are complete; item 9 is next in strict ROI order.
+- The improvement audit Phase 2 lane is complete.
+- `tmp/improvement_audit_plan.md` is the source of truth and finished execution record for that lane.
+- Items 1-9 are complete.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Implement item 9 from `tmp/improvement_audit_plan.md`: expand the semantic automation tree to cover the remaining browser action-strip buttons and similar micro-controls.
-2. Continue executing items strictly in plan order unless a documented blocker forces a deviation.
-3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
-4. Keep `AGENTS.md`, `MEMORY.md`, this file, and `tmp/improvement_audit_plan.md` synchronized when the active lane changes.
+1. Wait for the next user-directed lane; keep `tmp/improvement_audit_plan.md` as the completed execution record.
+2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
+3. Keep `AGENTS.md`, `MEMORY.md`, this file, and `tmp/improvement_audit_plan.md` synchronized when the active lane changes.

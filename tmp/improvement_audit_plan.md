@@ -3,8 +3,8 @@
 - Generated (UTC): `2026-03-15T09:37:47Z`
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `6c9dc2d8`
-- Phase: `Phase 2 in progress`
-- Status: `Implementing the ROI-ranked backlog in plan order; items 1-8 are complete.`
+- Phase: `Phase 2 complete`
+- Status: `All ROI-ranked backlog items are complete; this file is now the execution record for the finished improvement-audit lane.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed on this branch.
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md`.
@@ -358,7 +358,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
 - Plan-order deviation: None
 
-### 9. [ ] Expand the semantic automation tree to cover the remaining browser action-strip buttons and other micro-controls
+### 9. [x] Expand the semantic automation tree to cover the remaining browser action-strip buttons and other micro-controls
 
 - Classification: Feature opportunity
 - Confidence: Medium
@@ -386,6 +386,17 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Implementation commits:
+  - `vendor/radiant`: `8e26cfda`
+  - `sempal`: `e137ea3b`
+- Assumptions used:
+  - The browser action-strip controls were already represented in the semantic automation tree; in the current codebase, the remaining uncovered browser micro-control surface was the table scrollbar track/thumb pair.
+- Validation outcome:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml automation -- --test-threads=1` passed on `2026-03-15`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1` passed on `2026-03-15`.
+- Plan-order deviation: None
 
 ## Open Questions / Missing Definitions
 
