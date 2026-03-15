@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `6c9dc2d8`
 - Phase: `Phase 2 in progress`
-- Status: `Implementing the ROI-ranked backlog in plan order; items 1-6 are complete.`
+- Status: `Implementing the ROI-ranked backlog in plan order; items 1-7 are complete.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed on this branch.
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md`.
@@ -279,7 +279,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
 - Plan-order deviation: None
 
-### 7. [ ] Clarify and harden the `wav_sanitize` public `Read + Seek` contract
+### 7. [x] Clarify and harden the `wav_sanitize` public `Read + Seek` contract
 
 - Classification: Documentation gap
 - Confidence: High
@@ -308,6 +308,15 @@
   - Targeted audio/waveform loading tests that exercise sanitized inputs
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Implementation commit: `06d94dc6`
+- Assumptions used:
+  - The repair scope should remain limited to the existing padded-`fmt ` cases; hardening this item means documenting and enforcing the current `Read + Seek` behavior, not broadening the sanitizer to new malformed WAV variants.
+- Validation outcome:
+  - `cargo test wav_sanitize -- --test-threads=1` passed on `2026-03-15`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
+- Plan-order deviation: None
 
 ### 8. [ ] Add targeted coverage for deferred undo/redo file flows and separate generic undo primitives from controller/file glue
 
