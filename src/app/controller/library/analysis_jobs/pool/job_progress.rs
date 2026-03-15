@@ -1,16 +1,11 @@
-use crate::app::controller::jobs::{JobMessage, JobMessageSender};
-use crate::app::controller::library::analysis_jobs::db;
-use crate::app::controller::library::analysis_jobs::types::{AnalysisJobMessage, AnalysisProgress};
-use crate::gui::repaint::SharedRepaintSignal;
-use rusqlite::Connection;
+mod aggregate;
+mod cleanup;
 #[cfg(not(test))]
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex, RwLock};
-#[cfg(not(test))]
-use std::thread::JoinHandle;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+mod poller;
+mod source_discovery;
+mod wakeup;
 
-use super::progress_cache::ProgressCache;
+use std::time::Duration;
 
 const POLL_INTERVAL_ACTIVE: Duration = Duration::from_millis(500);
 const POLL_INTERVAL_IDLE: Duration = Duration::from_millis(1500);
@@ -19,284 +14,29 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(2);
 const STALE_CLEANUP_INTERVAL: Duration = Duration::from_secs(10);
 const DB_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
 
-struct ProgressPollerWakeupState {
-    counter: u64,
-}
-
-/// Condvar-backed wakeup used to nudge the progress poller on job updates.
-pub(crate) struct ProgressPollerWakeup {
-    state: Mutex<ProgressPollerWakeupState>,
-    ready: Condvar,
-}
-
-impl ProgressPollerWakeup {
-    /// Create a new progress poller wakeup handle.
-    pub(crate) fn new() -> Self {
-        Self {
-            state: Mutex::new(ProgressPollerWakeupState { counter: 0 }),
-            ready: Condvar::new(),
-        }
-    }
-
-    /// Notify the poller that progress state has changed.
-    pub(crate) fn notify(&self) {
-        let mut state = self.state.lock().expect("progress poller wakeup poisoned");
-        state.counter = state.counter.wrapping_add(1);
-        self.ready.notify_one();
-    }
-
-    /// Wait until notified or until the timeout elapses.
-    pub(crate) fn wait_for(&self, seen: &mut u64, timeout: Duration) -> bool {
-        let state = self.state.lock().expect("progress poller wakeup poisoned");
-        if state.counter != *seen {
-            *seen = state.counter;
-            return true;
-        }
-        let (state, _timeout) = self
-            .ready
-            .wait_timeout(state, timeout)
-            .expect("progress poller wakeup poisoned");
-        if state.counter != *seen {
-            *seen = state.counter;
-            return true;
-        }
-        false
-    }
-}
-
-struct ProgressSourceDb {
-    source_id: crate::sample_sources::SourceId,
-    conn: Connection,
-}
-
-fn refresh_sources(
-    sources: &mut Vec<ProgressSourceDb>,
-    last_refresh: &mut Instant,
-    allowed_source_ids: Option<&std::collections::HashSet<crate::sample_sources::SourceId>>,
-) {
-    if last_refresh.elapsed() < SOURCE_REFRESH_INTERVAL {
-        return;
-    }
-    *last_refresh = Instant::now();
-    let Ok(state) = crate::sample_sources::library::load() else {
-        return;
-    };
-    let mut next = Vec::new();
-    for source in state.sources {
-        if !source.root.is_dir() {
-            continue;
-        }
-        if let Some(allowed) = allowed_source_ids
-            && !allowed.contains(&source.id)
-        {
-            continue;
-        }
-        let conn = match db::open_source_db(&source.root) {
-            Ok(conn) => conn,
-            Err(_) => continue,
-        };
-        next.push(ProgressSourceDb {
-            source_id: source.id.clone(),
-            conn,
-        });
-    }
-    *sources = next;
-}
-
-fn current_progress_all(
-    sources: &mut [ProgressSourceDb],
-    progress_cache: &Arc<RwLock<ProgressCache>>,
-    refresh_cache: bool,
-) -> AnalysisProgress {
-    if refresh_cache
-        || progress_cache
-            .read()
-            .map(|cache| cache.is_empty())
-            .unwrap_or(true)
-    {
-        let mut total = AnalysisProgress::default();
-        let mut updates = Vec::new();
-        for source in sources {
-            if let Ok(progress) = db::current_progress(&source.conn) {
-                total.pending += progress.pending;
-                total.running += progress.running;
-                total.done += progress.done;
-                total.failed += progress.failed;
-                total.samples_total += progress.samples_total;
-                total.samples_pending_or_running += progress.samples_pending_or_running;
-                updates.push((source.source_id.clone(), progress));
-            }
-        }
-        if let Ok(mut cache) = progress_cache.write() {
-            cache.update_many(updates);
-        }
-        return total;
-    }
-    if let Ok(cache) = progress_cache.read() {
-        return cache.total_for_sources(sources.iter().map(|source| &source.source_id));
-    }
-    AnalysisProgress::default()
-}
-
-fn cleanup_stale_jobs(
-    sources: &mut [ProgressSourceDb],
-    stale_before: i64,
-    progress_cache: &Arc<RwLock<ProgressCache>>,
-    tx: &JobMessageSender,
-    signal: &Arc<SharedRepaintSignal>,
-) -> usize {
-    let mut changed = 0;
-    let mut touched_sources = std::collections::HashSet::new();
-    for source in &mut *sources {
-        if let Ok((updated, source_ids)) =
-            db::fail_stale_running_jobs_with_sources(&source.conn, stale_before)
-            && updated > 0
-        {
-            changed += updated;
-            for source_id in source_ids {
-                touched_sources.insert(source_id);
-            }
-        }
-    }
-    if touched_sources.is_empty() {
-        return changed;
-    }
-    let mut updates = Vec::new();
-    for source in &mut *sources {
-        if !touched_sources.contains(&source.source_id) {
-            continue;
-        }
-        if let Ok(progress) = db::current_progress(&source.conn) {
-            updates.push((source.source_id.clone(), progress));
-        }
-    }
-    if let Ok(mut cache) = progress_cache.write() {
-        cache.update_many(updates);
-    }
-    if let Ok(cache) = progress_cache.read() {
-        let total = cache.total_for_sources(sources.iter().map(|source| &source.source_id));
-        let _ = tx.send(JobMessage::Analysis(AnalysisJobMessage::Progress {
-            source_id: None,
-            progress: total,
-        }));
-        signal.request_repaint();
-    }
-    changed
-}
-
-fn now_epoch_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_else(|_| Duration::from_secs(0))
-        .as_secs() as i64
-}
+pub(crate) use wakeup::ProgressPollerWakeup;
 
 #[cfg(not(test))]
-pub(crate) fn spawn_progress_poller(
-    tx: JobMessageSender,
-    signal: Arc<SharedRepaintSignal>,
-    cancel: Arc<AtomicBool>,
-    shutdown: Arc<AtomicBool>,
-    allowed_source_ids: Arc<
-        RwLock<Option<std::collections::HashSet<crate::sample_sources::SourceId>>>,
-    >,
-    progress_cache: Arc<RwLock<ProgressCache>>,
-    progress_wakeup: Arc<ProgressPollerWakeup>,
-) -> JoinHandle<()> {
-    std::thread::spawn(move || {
-        let mut sources = Vec::new();
-        let mut last_refresh = Instant::now() - SOURCE_REFRESH_INTERVAL;
-        let mut last: Option<AnalysisProgress> = None;
-        let mut last_heartbeat = Instant::now() - HEARTBEAT_INTERVAL;
-        let mut last_db_refresh = Instant::now() - DB_REFRESH_INTERVAL;
-        let mut last_cleanup = Instant::now() - STALE_CLEANUP_INTERVAL;
-        let mut idle_polls = 0u32;
-        let mut last_sources_empty = None;
-        let mut wake_counter = 0u64;
-        loop {
-            if shutdown.load(Ordering::Relaxed) {
-                break;
-            }
-            let allowed = allowed_source_ids
-                .read()
-                .ok()
-                .and_then(|guard| guard.clone());
-            refresh_sources(&mut sources, &mut last_refresh, allowed.as_ref());
-            if last_cleanup.elapsed() >= STALE_CLEANUP_INTERVAL {
-                last_cleanup = Instant::now();
-                let stale_before = now_epoch_seconds().saturating_sub(
-                    crate::app::controller::library::analysis_jobs::stale_running_job_seconds(),
-                );
-                let _ =
-                    cleanup_stale_jobs(&mut sources, stale_before, &progress_cache, &tx, &signal);
-            }
-            if cancel.load(Ordering::Relaxed) {
-                let _ = progress_wakeup.wait_for(&mut wake_counter, POLL_INTERVAL_IDLE);
-                continue;
-            }
-            let sources_empty = sources.is_empty();
-            if last_sources_empty != Some(sources_empty) {
-                last_sources_empty = Some(sources_empty);
-                if sources_empty {
-                    tracing::info!("Analysis progress poller has no sources to inspect");
-                } else {
-                    tracing::debug!(
-                        "Analysis progress poller inspecting {} source(s)",
-                        sources.len()
-                    );
-                }
-            }
-            let refresh_cache = should_refresh_db(last_db_refresh, &progress_cache);
-            if refresh_cache {
-                last_db_refresh = Instant::now();
-            }
-            let progress = current_progress_all(&mut sources, &progress_cache, refresh_cache);
-            let unchanged = last == Some(progress);
-            let should_heartbeat = unchanged
-                && (progress.pending > 0 || progress.running > 0)
-                && last_heartbeat.elapsed() >= HEARTBEAT_INTERVAL;
-            if !unchanged || should_heartbeat {
-                last = Some(progress);
-                idle_polls = 0;
-                last_heartbeat = Instant::now();
-                let _ = tx.send(JobMessage::Analysis(AnalysisJobMessage::Progress {
-                    source_id: None,
-                    progress,
-                }));
-                signal.request_repaint();
-            }
-            if progress.pending == 0 && progress.running == 0 {
-                idle_polls = idle_polls.saturating_add(1);
-            } else {
-                idle_polls = 0;
-            }
-            let interval = if idle_polls > 2 {
-                POLL_INTERVAL_IDLE
-            } else {
-                POLL_INTERVAL_ACTIVE
-            };
-            let _ = progress_wakeup.wait_for(&mut wake_counter, interval);
-        }
-    })
-}
-
-fn should_refresh_db(
-    last_db_refresh: Instant,
-    progress_cache: &Arc<RwLock<ProgressCache>>,
-) -> bool {
-    if last_db_refresh.elapsed() >= DB_REFRESH_INTERVAL {
-        return true;
-    }
-    progress_cache
-        .read()
-        .map(|cache| cache.is_empty())
-        .unwrap_or(true)
-}
+pub(crate) use poller::spawn_progress_poller;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::aggregate::{current_progress_all, should_refresh_db};
+    use super::cleanup::{cleanup_stale_jobs, now_epoch_seconds};
+    use super::source_discovery::ProgressSourceDb;
+    use crate::app::controller::jobs::{JobMessage, JobMessageSender};
+    use crate::app::controller::library::analysis_jobs::db;
+    use crate::app::controller::library::analysis_jobs::types::{
+        AnalysisJobMessage, AnalysisProgress,
+    };
+    use crate::gui::repaint::SharedRepaintSignal;
+    use std::sync::{Arc, RwLock};
+    use std::time::{Duration, Instant};
     use tempfile::TempDir;
+
+    use super::super::progress_cache::ProgressCache;
+    use super::DB_REFRESH_INTERVAL;
+    use super::wakeup::ProgressPollerWakeup;
 
     #[test]
     fn cleanup_runs_without_workers() {
@@ -384,6 +124,38 @@ mod tests {
             panic!("unexpected message");
         };
         assert_eq!(progress.failed, 1);
+    }
+
+    #[test]
+    fn current_progress_all_reuses_cache_without_db_refresh() {
+        let dir = TempDir::new().unwrap();
+        let conn = db::open_source_db(dir.path()).unwrap();
+        let source_id = crate::sample_sources::SourceId::from_string("source".to_string());
+        let mut sources = vec![ProgressSourceDb {
+            source_id: source_id.clone(),
+            conn,
+        }];
+        let cache = Arc::new(RwLock::new(ProgressCache::default()));
+        cache.write().unwrap().update(
+            source_id,
+            AnalysisProgress {
+                pending: 3,
+                running: 1,
+                done: 5,
+                failed: 2,
+                samples_total: 11,
+                samples_pending_or_running: 4,
+            },
+        );
+
+        let progress = current_progress_all(&mut sources, &cache, false);
+
+        assert_eq!(progress.pending, 3);
+        assert_eq!(progress.running, 1);
+        assert_eq!(progress.done, 5);
+        assert_eq!(progress.failed, 2);
+        assert_eq!(progress.samples_total, 11);
+        assert_eq!(progress.samples_pending_or_running, 4);
     }
 
     #[test]

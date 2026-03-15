@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `20f83666`
 - Phase: `Phase 2 in progress`
-- Status: `Sequential backlog implementation is in progress on 2026-03-15; item 1 is complete and items 2-9 remain pending.`
+- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-2 are complete and items 3-9 remain pending.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md` from the current branch head.
 
@@ -72,7 +72,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: `2026-03-15`
-- Commit: `pending`
+- Commit: `01fc050b`
 - Assumptions used:
   - The split remains a file-boundary change only; worker ordering, cancellation, and score-cache semantics stay unchanged.
   - `pipeline.rs` and existing worker tests should continue to rely on the `stages` facade instead of importing child modules directly.
@@ -83,7 +83,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Plan-order deviation: None
 
-### 2. [ ] Split the analysis-job progress poller into source discovery, aggregation, stale cleanup, and loop orchestration
+### 2. [x] Split the analysis-job progress poller into source discovery, aggregation, stale cleanup, and loop orchestration
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -113,6 +113,18 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Commit: `pending`
+- Assumptions used:
+  - The split preserves the existing wakeup, repaint, and message-emission behavior of the progress poller loop.
+  - The cached aggregate remains the only reusable source of truth between DB refreshes; no new durable state is introduced.
+- Validation outcome:
+  - `cargo fmt --all`
+  - `cargo test job_progress -- --test-threads=1`
+  - `cargo test analysis_jobs::pool -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Plan-order deviation: None
 
 ### 3. [ ] Break the hotkey registry into scope-focused tables and keep one explicit export surface
 
