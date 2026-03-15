@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `20f83666`
 - Phase: `Phase 2 in progress`
-- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-5 are complete and items 6-9 remain pending.`
+- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-6 are complete and items 7-9 remain pending.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md` from the current branch head.
 
@@ -238,7 +238,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: `2026-03-15`
-- Commit: `pending`
+- Commit: `a8ef54d2`
 - Assumptions used:
   - The existing source-row and waveform reset tests are the best regression net for the current source-id preservation and selected-source clearing behavior.
   - `sources.rs` can lose its file-size allowlist entry once selection, lifecycle, and missing/watcher duties move into focused modules without changing the public controller entrypoints.
@@ -249,7 +249,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Plan-order deviation: None
 
-### 6. [ ] Separate pure option-setting policy from live playback/waveform side effects in `interaction_options.rs`
+### 6. [x] Separate pure option-setting policy from live playback/waveform side effects in `interaction_options.rs`
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -277,6 +277,17 @@
   - Playback option/reload tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Commit: `pending`
+- Assumptions used:
+  - Keeping the public setter names and signatures unchanged is sufficient to preserve the external controller contract while moving internal side-effect code.
+  - The option-sync tests plus BPM-scale tests are the most direct regression net for the preview-vs-persist BPM behavior in this file.
+- Validation outcome:
+  - `cargo fmt --all`
+  - `cargo test interaction_options -- --test-threads=1`
+  - `cargo test selection_bpm_scale -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Plan-order deviation: None
 
 ### 7. [ ] Break `SampleBrowserState` into focused selection, viewport, and search/similarity state slices
 
