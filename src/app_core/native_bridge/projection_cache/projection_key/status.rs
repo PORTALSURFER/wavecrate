@@ -11,7 +11,7 @@ pub(super) fn build_status_projection_key(
     StatusProjectionCacheKey {
         status_revision: controller.ui.projection_revisions.status,
         browser_visible_len: controller.ui.browser.visible.len(),
-        browser_selected_paths_len: controller.ui.browser.selected_indices.len(),
+        browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
         browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
         browser_search_revision: controller.ui.projection_revisions.browser_search,
         browser_search_busy: controller.ui.browser.search_busy,

@@ -167,9 +167,7 @@ impl AppController {
         }
         self.focus_browser_context();
         self.ui.browser.autoscroll = true;
-        if !self.ui.browser.selected_indices.is_empty()
-            || !self.ui.browser.selected_paths.is_empty()
-        {
+        if !self.ui.browser.selected_paths.is_empty() {
             self.clear_browser_selected_indices();
         }
         self.ui.browser.selection_anchor_visible = None;

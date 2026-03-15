@@ -12,7 +12,7 @@ pub(super) fn build_browser_frame_projection_key(
         browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
         browser_autoscroll: controller.ui.browser.autoscroll,
         browser_view_window_start: controller.ui.browser.view_window_start,
-        browser_selected_paths_len: controller.ui.browser.selected_indices.len(),
+        browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
         browser_search_revision: controller.ui.projection_revisions.browser_search,
         browser_search_busy: controller.ui.browser.search_busy,
         browser_sort: encode_browser_sort(controller.ui.browser.sort),
@@ -34,7 +34,7 @@ pub(super) fn build_browser_rows_projection_key(
         browser_autoscroll: controller.ui.browser.autoscroll,
         browser_view_window_start: controller.ui.browser.view_window_start,
         browser_render_window_start: controller.ui.browser.render_window_start,
-        browser_selected_paths_len: controller.ui.browser.selected_indices.len(),
+        browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
         browser_selected_paths_revision: controller.ui.browser.selected_paths_revision,
         browser_tab: encode_browser_tab(controller.ui.browser.active_tab),
     }

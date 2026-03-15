@@ -69,10 +69,7 @@ impl AppController {
     /// Delete the focused browser row or active multi-selection, if any.
     pub(crate) fn delete_active_browser_selection(&mut self) -> bool {
         let mut rows: Vec<usize> = self
-            .ui
-            .browser
-            .selected_indices
-            .clone()
+            .browser_selected_indices_snapshot()
             .iter()
             .filter_map(|entry_index| self.browser_visible_row_for_entry(*entry_index))
             .collect();

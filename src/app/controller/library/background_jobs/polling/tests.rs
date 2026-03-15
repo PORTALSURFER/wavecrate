@@ -89,7 +89,11 @@ fn matching_browser_search_message_refreshes_visible_rows_and_clears_busy_state(
     assert_eq!(controller.ui.browser.selected_visible, Some(0));
     assert_eq!(controller.ui.browser.loaded_visible, None);
     assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
-    let selected = controller.ui.browser.selected.expect("selected browser index");
+    let selected = controller
+        .ui
+        .browser
+        .selected
+        .expect("selected browser index");
     assert_eq!(selected.column, TriageFlagColumn::Keep);
     assert_eq!(selected.row, 0);
     let loaded = controller.ui.browser.loaded.expect("loaded browser index");

@@ -233,7 +233,6 @@ impl AppController {
         if self.ui.browser.selected.is_none()
             && self.ui.browser.selected_visible.is_none()
             && self.ui.browser.selection_anchor_visible.is_none()
-            && self.ui.browser.selected_indices.is_empty()
             && self.ui.browser.selected_paths.is_empty()
         {
             return;
@@ -242,9 +241,7 @@ impl AppController {
         self.ui.browser.selected = None;
         self.ui.browser.selected_visible = None;
         self.ui.browser.selection_anchor_visible = None;
-        if !self.ui.browser.selected_indices.is_empty()
-            || !self.ui.browser.selected_paths.is_empty()
-        {
+        if !self.ui.browser.selected_paths.is_empty() {
             self.clear_browser_selected_indices();
         }
         self.rebuild_browser_lists();

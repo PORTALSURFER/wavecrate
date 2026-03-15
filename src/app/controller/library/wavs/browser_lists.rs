@@ -125,15 +125,26 @@ impl AppController {
 
     fn prune_browser_selection(&mut self) {
         let previous_paths = self.ui.browser.selected_paths.clone();
-        let previous_indices = self.ui.browser.selected_indices.clone();
-        self.sync_browser_selected_indices_from_paths();
-        self.sync_browser_selected_paths_from_indices();
-        if self.ui.browser.selected_indices != previous_indices
-            || self.ui.browser.selected_paths != previous_paths
-        {
-            self.ui.browser.selected_paths_revision =
-                self.ui.browser.selected_paths_revision.wrapping_add(1);
-            self.ui.browser.marker_cache = None;
+        let mut selected_paths = Vec::with_capacity(previous_paths.len());
+        for path in previous_paths.iter() {
+            let Some(entry_index) = self.wav_index_for_path(path) else {
+                continue;
+            };
+            let Some(current_path) = self
+                .wav_entry(entry_index)
+                .map(|entry| entry.relative_path.clone())
+            else {
+                continue;
+            };
+            if !selected_paths
+                .iter()
+                .any(|candidate| candidate == &current_path)
+            {
+                selected_paths.push(current_path);
+            }
+        }
+        if selected_paths != previous_paths {
+            self.set_browser_selected_paths(selected_paths);
         }
 
         let previous_last_focused_index = self.ui.browser.last_focused_index;

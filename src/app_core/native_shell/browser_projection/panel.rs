@@ -34,7 +34,7 @@ pub(crate) fn project_browser_rows_projection_inputs(
 /// metadata and row payloads independently when only one segment is dirty.
 pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> BrowserPanelModel {
     let row_inputs = project_browser_rows_projection_inputs(controller);
-    let selected_path_count = controller.ui.browser.selected_indices.len();
+    let selected_path_count = controller.ui.browser.selected_paths.len();
     let search_query = controller.ui.browser.search_query.clone();
     let active_rating_filters = browser_rating_filter_flags(&controller.ui.browser.rating_filter);
     let search_placeholder = Some(super::browser_search_placeholder(
