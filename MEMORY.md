@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-15T11:17:19Z
+Last Updated: 2026-03-15T11:30:21Z
 Updated By: Codex
 
 ## Purpose
@@ -30,9 +30,11 @@ Updated By: Codex
 - Item 6 implementation commit is `3dfca2e0`.
 - Item 7 is complete: `wav_sanitize` now documents its narrow repair scope, enforces logical `Read + Seek` behavior after rewinding into the sanitized header, and keeps direct seek coverage in `src/wav_sanitize/tests.rs`.
 - Item 7 implementation commit is `06d94dc6`.
+- Item 8 is complete: the generic undo stack now lives in `src/app/controller/undo/stack.rs`, and controller tests directly cover deferred undo success, cancellation, and redo-failure restoration.
+- Item 8 implementation commit is `f2e8bf72`.
 - The highest-leverage current findings are:
-  - Deferred undo/file-op flows remain under-defined relative to the trust they carry.
   - The semantic automation tree still does not cover the remaining browser action-strip buttons and similar micro-controls.
+  - The main remaining work in this audit lane is now concentrated in GUI semantic-node coverage rather than controller/backend structure.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -40,7 +42,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Implement item 8 from `tmp/improvement_audit_plan.md`: add targeted deferred undo/redo file-flow coverage and separate generic undo primitives from controller/file glue where that reduces coupling.
+1. Implement item 9 from `tmp/improvement_audit_plan.md`: expand the semantic automation tree to cover the remaining browser action-strip buttons and similar micro-controls.
 2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned while Phase 2 advances.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Treat `scripts/ci_local.ps1` green as the current expected Windows local parity baseline.

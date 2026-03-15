@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `6c9dc2d8`
 - Phase: `Phase 2 in progress`
-- Status: `Implementing the ROI-ranked backlog in plan order; items 1-7 are complete.`
+- Status: `Implementing the ROI-ranked backlog in plan order; items 1-8 are complete.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed on this branch.
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md`.
@@ -318,7 +318,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
 - Plan-order deviation: None
 
-### 8. [ ] Add targeted coverage for deferred undo/redo file flows and separate generic undo primitives from controller/file glue
+### 8. [x] Add targeted coverage for deferred undo/redo file flows and separate generic undo primitives from controller/file glue
 
 - Classification: Test gap
 - Confidence: Medium
@@ -348,6 +348,15 @@
   - Existing selection/tagging undo coverage
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Implementation commit: `f2e8bf72`
+- Assumptions used:
+  - The safest separation boundary is the one already implicit in the code: keep reusable stack mechanics in a generic module and leave controller/file-operation orchestration in the controller-facing module.
+- Validation outcome:
+  - `cargo test undo -- --test-threads=1` passed on `2026-03-15`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
+- Plan-order deviation: None
 
 ### 9. [ ] Expand the semantic automation tree to cover the remaining browser action-strip buttons and other micro-controls
 
