@@ -61,11 +61,11 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: evidence-driven improvement audit execution
 - Source of truth: `tmp/improvement_audit_plan.md` for the current ROI-ranked backlog and execution record; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: Phase 2 is in progress on `2026-03-15`; items 1-3 are complete and the next planned task is splitting `browser_lists.rs`.
+- Current status: Phase 2 is in progress on `2026-03-15`; items 1-4 are complete and the next planned task is splitting the folder-browser tree/cache module.
 
 ## Immediate Next Actions
 1. Continue implementing `tmp/improvement_audit_plan.md` strictly in plan order unless a documented blocker forces a deviation.
-2. Next up: item 4, split `src/app/controller/library/wavs/browser_lists.rs` so projection refresh and lookup-map maintenance stop living in one file.
+2. Next up: item 5, separate folder-browser scan/cache orchestration from tree projection and fuzzy filtering in `src/app/controller/library/source_folders/tree.rs`.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized when the active lane changes.
 
@@ -73,7 +73,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog and execution record; items 1-3 are complete as of `2026-03-15`
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog and execution record; items 1-4 are complete as of `2026-03-15`
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation

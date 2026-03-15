@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-15T17:05:00Z
+Last Updated: 2026-03-15T17:40:00Z
 Updated By: Codex
 
 ## Purpose
@@ -22,8 +22,10 @@ Updated By: Codex
 - Item 2 implementation commit is `7338908a`.
 - Item 3 is complete: `browser_search` is now split into focused `cache`, `dispatch_policy`, and `mutations` modules behind the existing browser facade.
 - Item 3 implementation commit is `cddf369d`.
+- Item 4 is complete: `browser_lists` is now split so rebuild/prune orchestration, projection application, and lookup-map maintenance live in separate modules.
+- Item 4 implementation commit is `ba52b318`.
 - The highest-leverage current findings are:
-  - Browser controller state still carries duplicated projection/lookup responsibilities in `browser_lists.rs`.
+  - Folder-browser tree orchestration still mixes scan/cache coordination with tree projection and fuzzy filtering in one module.
   - `wav_sanitize.rs` and deferred undo/file-op flows remain under-defined relative to their public/runtime importance.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
@@ -32,7 +34,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Implement item 4 from `tmp/improvement_audit_plan.md`: split `src/app/controller/library/wavs/browser_lists.rs` so browser projection refresh and lookup-map maintenance stop sharing one file.
+1. Implement item 5 from `tmp/improvement_audit_plan.md`: separate folder-browser scan/cache orchestration from tree projection and fuzzy filtering in `src/app/controller/library/source_folders/tree.rs`.
 2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned while Phase 2 advances.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Treat `scripts/ci_local.ps1` green as the current expected Windows local parity baseline.

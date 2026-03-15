@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `6c9dc2d8`
 - Phase: `Phase 2 in progress`
-- Status: `Implementing the ROI-ranked backlog in plan order; items 1-3 are complete.`
+- Status: `Implementing the ROI-ranked backlog in plan order; items 1-4 are complete.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed on this branch.
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md`.
@@ -163,7 +163,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
 - Plan-order deviation: None
 
-### 4. [ ] Split browser projection refresh and lookup-map maintenance out of `browser_lists.rs`
+### 4. [x] Split browser projection refresh and lookup-map maintenance out of `browser_lists.rs`
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -191,6 +191,16 @@
   - Browser selection/focus tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Implementation commit: `ba52b318`
+- Assumptions used:
+  - This item is a file-boundary refactor only; rebuild/prune orchestration should stay behaviorally identical while projection and lookup helpers move behind module boundaries.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
+  - `cargo test browser_visible_lookup -- --test-threads=1` passed on `2026-03-15`.
+  - `cargo test browser_triage_lookup -- --test-threads=1` passed on `2026-03-15`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
+- Plan-order deviation: None
 
 ### 5. [ ] Separate folder-browser scan/cache orchestration from tree projection and fuzzy filtering
 
