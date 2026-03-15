@@ -62,7 +62,7 @@ pub fn run_scenario(
             }
             GuiScenarioStep::Assert { assertion } => {
                 let snapshot = current_snapshot(config, &mut bridge);
-                if let Err(err) = assert_snapshot(&snapshot, assertion) {
+                if let Err(err) = assert_scenario_state(&snapshot, &trace, assertion) {
                     failure = Some(err);
                     timings.push(GuiStepTimingSample {
                         label: step_label(step),
@@ -126,8 +126,9 @@ fn current_snapshot(
     capture_gui_automation_snapshot(config.viewport_f32(), model.as_ref())
 }
 
-fn assert_snapshot(
+fn assert_scenario_state(
     snapshot: &crate::app_core::actions::NativeGuiAutomationSnapshot,
+    trace: &[GuiActionTraceEvent],
     assertion: &GuiAssertion,
 ) -> Result<(), String> {
     match assertion {
@@ -205,6 +206,11 @@ fn assert_snapshot(
         GuiAssertion::ActionCataloged { action_id } => action_catalog_entry_by_id(action_id)
             .map(|_| ())
             .ok_or_else(|| format!("missing catalog action {action_id}")),
+        GuiAssertion::ActionRecorded { action_id } => trace
+            .iter()
+            .any(|event| event.action_id == *action_id)
+            .then_some(())
+            .ok_or_else(|| format!("action trace does not contain {action_id}")),
     }
 }
 

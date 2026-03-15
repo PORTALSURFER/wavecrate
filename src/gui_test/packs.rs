@@ -25,11 +25,105 @@ fn contract_smoke_pack() -> GuiScenarioPack {
         name: "contract-smoke",
         scenarios: vec![
             browser_search_and_commit_scenario(),
+            transport_play_from_selection_start_scenario(),
+            transport_volume_slider_scenario(),
             waveform_seek_zoom_selection_scenario(),
+            map_point_focus_scenario(),
             options_open_close_scenario(),
             prompt_confirm_scenario(),
             prompt_cancel_scenario(),
             update_panel_smoke_scenario(),
+        ],
+    }
+}
+
+fn transport_play_from_selection_start_scenario() -> GuiScenario {
+    GuiScenario {
+        name: String::from("transport_play_from_selection_start"),
+        fixture_tag: String::from("transport"),
+        steps: vec![
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodePresent {
+                    node_id: String::from("waveform.toolbar.play"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeActionAvailable {
+                    node_id: String::from("waveform.toolbar.play"),
+                    action_id: String::from("toggle_transport"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeMetadataContains {
+                    node_id: String::from("waveform.region"),
+                    key: String::from("cursor_milli"),
+                    needle: String::from("380"),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::PlayFromStart,
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::ActionRecorded {
+                    action_id: String::from("play_from_start"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::ActionCataloged {
+                    action_id: String::from("play_from_start"),
+                },
+            },
+        ],
+    }
+}
+
+fn transport_volume_slider_scenario() -> GuiScenario {
+    GuiScenario {
+        name: String::from("transport_volume_slider"),
+        fixture_tag: String::from("transport"),
+        steps: vec![
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodePresent {
+                    node_id: String::from("shell.top_bar.volume_slider"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeActionAvailable {
+                    node_id: String::from("shell.top_bar.volume_slider"),
+                    action_id: String::from("set_volume"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeActionAvailable {
+                    node_id: String::from("shell.top_bar.volume_slider"),
+                    action_id: String::from("commit_volume_setting"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeValueContains {
+                    node_id: String::from("shell.top_bar.volume_slider"),
+                    needle: String::from("0.420"),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::SetVolume { value_milli: 750 },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::ActionRecorded {
+                    action_id: String::from("set_volume"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeValueContains {
+                    node_id: String::from("shell.top_bar.volume_slider"),
+                    needle: String::from("0.750"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::ActionCataloged {
+                    action_id: String::from("commit_volume_setting"),
+                },
+            },
         ],
     }
 }
@@ -114,6 +208,53 @@ fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                     node_id: String::from("waveform.region"),
                     key: String::from("zoom_label"),
                     needle: String::from("100%"),
+                },
+            },
+        ],
+    }
+}
+
+fn map_point_focus_scenario() -> GuiScenario {
+    GuiScenario {
+        name: String::from("map_point_focus"),
+        fixture_tag: String::from("map"),
+        steps: vec![
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeSelected {
+                    node_id: String::from("browser.tab.map"),
+                    selected: true,
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodePresent {
+                    node_id: String::from("browser.map_canvas"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodePresent {
+                    node_id: String::from("browser.map.point.gui-map-source::kick_one.wav"),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::FocusMapSample {
+                    sample_id: String::from("gui-map-source::kick_one.wav"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::ActionRecorded {
+                    action_id: String::from("focus_map_sample"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeSelected {
+                    node_id: String::from("browser.map.point.gui-map-source::kick_one.wav"),
+                    selected: true,
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeValueContains {
+                    node_id: String::from("waveform.region"),
+                    needle: String::from("kick"),
                 },
             },
         ],

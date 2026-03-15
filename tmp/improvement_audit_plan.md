@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `20f83666`
 - Phase: `Phase 2 in progress`
-- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-7 are complete and items 8-9 remain pending.`
+- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-8 are complete and item 9 remains pending.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md` from the current branch head.
 
@@ -318,7 +318,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: `2026-03-15`
-- Commit: `pending`
+- Commit: `13bb8ac9`
 - Assumptions used:
   - The nested `selection`, `viewport`, and `search` slices preserve the existing durable browser contract while clarifying ownership of derived caches and busy/request bookkeeping.
   - Path-authoritative multi-selection remains the only canonical selection identity, and index/view caches remain explicitly derivable state under the new slice boundaries.
@@ -330,7 +330,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Plan-order deviation: None
 
-### 8. [ ] Expand GUI scenario and desktop-AIV packs for transport, volume drag, and map-point interaction
+### 8. [x] Expand GUI scenario and desktop-AIV packs for transport, volume drag, and map-point interaction
 
 - Classification: Test gap
 - Confidence: High
@@ -358,6 +358,21 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Commit: `pending`
+- Assumptions used:
+  - The existing semantic node ids for `waveform.toolbar.play`, `shell.top_bar.volume_slider`, `browser.map_canvas`, and `browser.map.point.<sample_id>` remain the preferred compatibility surface instead of adding screenshot-only assertions.
+  - A deterministic map fixture can safely reuse cached bounds/points without running similarity prep, as long as the fixture uses a stable source id and valid sample id format.
+  - In-process GUI scenarios can rely on action-trace assertions for transport/volume interactions when live runtime side effects are intentionally environment-sensitive.
+- Validation outcome:
+  - `cargo fmt --all`
+  - `cargo test contract_smoke_pack_runs_cleanly -- --test-threads=1`
+  - `cargo test desktop_pack_names_resolve_with_expected_case_lists -- --test-threads=1`
+  - `cargo test regression_pack_covers_required_nodes_and_assertion_verbs -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Plan-order deviation: None
 
 ### 9. [ ] Harden the desktop-AIV smoke wrapper around foreground/focus failures before considering broader promotion
 

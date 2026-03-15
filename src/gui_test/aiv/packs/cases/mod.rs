@@ -10,7 +10,7 @@ mod waveform;
 
 pub(super) use browser::{
     browser_interior_click_keeps_viewport_after_down_scroll_case,
-    browser_interior_click_keeps_viewport_after_up_scroll_case,
+    browser_interior_click_keeps_viewport_after_up_scroll_case, browser_map_point_focus_case,
     browser_refocus_after_down_scroll_keeps_single_focus_case,
     browser_repeated_scroll_refocus_preserves_guard_band_case, browser_search_select_commit_case,
     browser_search_type_smoke_case, browser_tabs_and_rating_filters_case,
@@ -20,7 +20,8 @@ pub(super) use options_prompt::{options_open_close_case, prompt_cancel_case, pro
 pub(super) use startup::startup_ready_case;
 pub(super) use update::update_panel_actions_case;
 pub(super) use waveform::{
-    waveform_outside_click_clears_both_marks_case, waveform_transport_cursor_selection_zoom_case,
+    transport_volume_slider_drag_case, waveform_outside_click_clears_both_marks_case,
+    waveform_transport_button_case, waveform_transport_cursor_selection_zoom_case,
 };
 
 const BROWSER_SCROLL_VIEWPORT: [u32; 2] = [1280, 720];

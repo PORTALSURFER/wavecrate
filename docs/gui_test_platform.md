@@ -159,7 +159,7 @@ This runs:
 - the contract loop
 - a native-shell snapshot fixture smoke
 - CLI snapshot export
-- the `contract-smoke` scenario pack
+- the `contract-smoke` scenario pack, including transport play/volume and map-point focus slices
 
 ### AIV desktop loop
 
@@ -171,7 +171,7 @@ This now launches the real app in GUI test mode per manifest case, relaunches wi
 Desktop packs:
 
 - `desktop-smoke`: `startup_ready`, `options_open_close`, `browser_search_type_smoke`
-- `desktop-regression`: `startup_ready`, `browser_search_select_commit`, `browser_tabs_and_rating_filters`, `options_open_close`, `prompt_confirm`, `prompt_cancel`, `waveform_transport_cursor_selection_zoom`, `update_panel_actions`
+- `desktop-regression`: `startup_ready`, `browser_search_select_commit`, `browser_tabs_and_rating_filters`, browser scroll/refocus cases, `browser_map_point_focus`, `options_open_close`, `prompt_confirm`, `prompt_cancel`, `waveform_transport_button`, `transport_volume_slider_drag`, `waveform_transport_cursor_selection_zoom`, `waveform_outside_click_clears_both_marks`, `update_panel_actions`
 
 Desktop runner outputs:
 
@@ -197,6 +197,5 @@ The platform is intentionally first-slice, not final:
 
 ## Immediate Next Steps
 
-1. Add more seeded fixtures and scenario assertions for transport, volume drag, and map-point interaction.
-2. Harden the AIV smoke wrapper around Windows foreground/focus failure modes.
-3. Keep the semantic GUI contract loop healthy inside `ci_quick` without pulling unstable desktop AIV coverage into the default gate.
+1. Harden the AIV smoke wrapper around Windows foreground/focus failure modes.
+2. Keep the semantic GUI contract loop healthy inside `ci_quick` without pulling unstable desktop AIV coverage into the default gate.

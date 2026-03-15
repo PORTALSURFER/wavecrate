@@ -1,12 +1,17 @@
 //! Deterministic controller fixtures used by GUI test scenarios and tools.
 
 use super::*;
-use crate::app::state::{SampleBrowserActionPrompt, UpdateStatus, WaveformView};
+use crate::app::controller::library::analysis_jobs;
+use crate::app::state::{
+    MapBounds, MapPoint, MapQueryBounds, SampleBrowserActionPrompt, UpdateStatus, WaveformView,
+};
 use hound::{SampleFormat, WavSpec, WavWriter};
-use std::{fs, path::Path};
+use std::{fs, path::Path, sync::Arc};
 use tempfile::TempDir;
 
 const BROWSER_FIXTURE_ENTRY_COUNT: usize = 40;
+const GUI_TEST_MAP_SOURCE_ID: &str = "gui-map-source";
+const GUI_TEST_MAP_SAMPLE_ID: &str = "gui-map-source::kick_one.wav";
 
 /// One controller fixture and the temporary resources it must keep alive.
 pub(crate) struct GuiFixtureControllerBundle {
@@ -26,6 +31,8 @@ pub(crate) fn build_named_gui_fixture_controller(
 ) -> Result<GuiFixtureControllerBundle, String> {
     match fixture_tag {
         "browser" => build_browser_fixture(renderer),
+        "transport" => build_transport_fixture(renderer),
+        "map" => build_map_fixture(renderer),
         "waveform" => build_waveform_fixture(renderer),
         "waveform_mixed" => build_waveform_mixed_fixture(renderer),
         "options" => build_options_fixture(renderer),
@@ -36,6 +43,13 @@ pub(crate) fn build_named_gui_fixture_controller(
 }
 
 fn build_browser_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
+    build_browser_fixture_with_source_id(renderer, None)
+}
+
+fn build_browser_fixture_with_source_id(
+    renderer: WaveformRenderer,
+    source_id: Option<SourceId>,
+) -> Result<GuiFixtureControllerBundle, String> {
     let mut controller = AppController::new(renderer, None);
     controller.settings.controls.advance_after_rating = false;
     let sandbox =
@@ -47,7 +61,10 @@ fn build_browser_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControl
             source_root.display()
         )
     })?;
-    let source = SampleSource::new(source_root);
+    let source = match source_id {
+        Some(source_id) => SampleSource::new_with_id(source_id, source_root),
+        None => SampleSource::new(source_root),
+    };
     let entries = browser_fixture_entries(&source.root)?;
     seed_source_fixture(&mut controller, &source, entries)?;
     controller.select_wav_by_path(Path::new("kick_one.wav"));
@@ -56,6 +73,14 @@ fn build_browser_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControl
         controller,
         sandbox_guards: vec![sandbox],
     })
+}
+
+fn build_transport_fixture(
+    renderer: WaveformRenderer,
+) -> Result<GuiFixtureControllerBundle, String> {
+    let mut bundle = build_waveform_fixture(renderer)?;
+    bundle.controller.apply_volume(0.42);
+    Ok(bundle)
 }
 
 fn browser_fixture_entries(root: &Path) -> Result<Vec<WavEntry>, String> {
@@ -144,6 +169,49 @@ fn build_waveform_mixed_fixture(
         .selection_state
         .edit_range
         .set_range(bundle.controller.ui.waveform.edit_selection);
+    Ok(bundle)
+}
+
+fn build_map_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
+    let mut bundle = build_browser_fixture_with_source_id(
+        renderer,
+        Some(SourceId::from_string(GUI_TEST_MAP_SOURCE_ID)),
+    )?;
+    let source_id = bundle
+        .controller
+        .current_source()
+        .map(|source| source.id.as_str().to_string())
+        .ok_or_else(|| String::from("map fixture missing current source"))?;
+    let sample_id = analysis_jobs::build_sample_id(source_id.as_str(), Path::new("kick_one.wav"));
+    debug_assert_eq!(sample_id, GUI_TEST_MAP_SAMPLE_ID);
+    bundle.controller.set_browser_tab(true);
+    bundle.controller.ui.map.bounds = Some(MapBounds {
+        min_x: -1.0,
+        max_x: 1.0,
+        min_y: -1.0,
+        max_y: 1.0,
+    });
+    bundle.controller.ui.map.cached_bounds_source_id = Some(source_id.clone());
+    bundle.controller.ui.map.cached_bounds_umap_version = Some(String::from("v1"));
+    bundle.controller.ui.map.last_query = Some(MapQueryBounds {
+        min_x: -1.0,
+        max_x: 1.0,
+        min_y: -1.0,
+        max_y: 1.0,
+    });
+    bundle.controller.ui.map.cached_points = vec![MapPoint {
+        sample_id: Arc::<str>::from(sample_id),
+        x: 0.0,
+        y: 0.0,
+        cluster_id: Some(1),
+    }];
+    bundle.controller.ui.map.cached_points_source_id = Some(source_id);
+    bundle.controller.ui.map.cached_points_umap_version = Some(String::from("v1"));
+    bundle.controller.ui.map.cached_points_revision = 1;
+    bundle.controller.ui.map.selected_sample_id = None;
+    bundle.controller.ui.map.hovered_sample_id = None;
+    bundle.controller.ui.map.paint_hover_active_id = None;
+    bundle.controller.focus_browser_list();
     Ok(bundle)
 }
 

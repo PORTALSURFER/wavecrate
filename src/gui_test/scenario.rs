@@ -91,4 +91,9 @@ pub enum GuiAssertion {
         /// Stable action identifier expected in the GUI action catalog.
         action_id: String,
     },
+    /// Assert that the scenario action trace already contains one stable action id.
+    ActionRecorded {
+        /// Stable action identifier expected in the in-process scenario trace.
+        action_id: String,
+    },
 }
