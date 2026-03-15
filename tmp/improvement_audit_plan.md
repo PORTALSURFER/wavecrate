@@ -44,7 +44,7 @@
 - ROI: High
 - Effort: M
 - Completed: `2026-03-15`
-- Commit: `pending item-1 commit`
+- Commit: `f0ddc97d` (`test(db): localize source write contracts`)
 - Assumption used: the safest scope is to keep the public `SourceDatabase`/`SourceWriteBatch` API stable, move write-contract tests next to the implementation, and split only the internal upsert/mutation helpers.
 - Validation:
   - `cargo test sample_sources::db::write::tests -- --test-threads=1`
@@ -68,11 +68,18 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 2. Decompose `vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs` into startup policy, window/surface bring-up, and first-frame sequencing helpers
+### [x] 2. Decompose `vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs` into startup policy, window/surface bring-up, and first-frame sequencing helpers
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
+- Completed: `2026-03-15`
+- Commit: `daa8eb46` in `vendor/radiant` (`refactor(runtime): split startup helpers`); root pointer/update commit pending
+- Assumption used: startup policy, layout/first-frame sequencing, and the broader bring-up structure can be separated safely, but the render-surface fallback lifetime path should remain inline inside `initialize_runtime`.
+- Validation:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml startup -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: this is a hot native-runtime entrypoint that currently couples runner construction, window attributes, GPU surface fallback behavior, startup reveal timing, layout prep, and placeholder-scene logic. That mix increases regression risk in the first-frame path.
 - Evidence:
   - `vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs` is allowlisted in `docs/file_size_budget_allowlist.txt`.
