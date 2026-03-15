@@ -3,8 +3,8 @@
 - Generated (UTC): `2026-03-15T12:42:32Z`
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `20f83666`
-- Phase: `Phase 1 complete`
-- Status: `Fresh ROI-ranked backlog rebuilt from the current tree; awaiting explicit implementation approval.`
+- Phase: `Phase 2 in progress`
+- Status: `Sequential backlog implementation is in progress on 2026-03-15; item 1 is complete and items 2-9 remain pending.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md` from the current branch head.
 
@@ -43,7 +43,7 @@
 
 ## ROI-Ranked Backlog
 
-### 1. [ ] Decompose the browser search-worker stage hub into cache refresh, scoring, and visible-row builders
+### 1. [x] Decompose the browser search-worker stage hub into cache refresh, scoring, and visible-row builders
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -71,6 +71,17 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Commit: `pending`
+- Assumptions used:
+  - The split remains a file-boundary change only; worker ordering, cancellation, and score-cache semantics stay unchanged.
+  - `pipeline.rs` and existing worker tests should continue to rely on the `stages` facade instead of importing child modules directly.
+- Validation outcome:
+  - `cargo fmt --all`
+  - `cargo test browser_search_worker -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Plan-order deviation: None
 
 ### 2. [ ] Split the analysis-job progress poller into source discovery, aggregation, stale cleanup, and loop orchestration
 
