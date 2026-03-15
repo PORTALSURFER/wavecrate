@@ -1,9 +1,10 @@
 # Improvement Audit Plan
 
 - Generated: `2026-03-15`
-- Status: `Phase 1 audit complete; awaiting explicit user confirmation before any implementation`
+- Status: `Phase 2 complete`
 - Branch: `next`
 - Audit baseline commit: `2b2054a5`
+- Execution completion date: `2026-03-15`
 - Canonical Windows validation commands:
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
@@ -38,11 +39,17 @@
 
 ## Ordered ROI Backlog
 
-### [ ] 1. Decompose `vendor/radiant/src/gui_runtime/native_vello/runtime_events.rs` by event family
+### [x] 1. Decompose `vendor/radiant/src/gui_runtime/native_vello/runtime_events.rs` by event family
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
+- Completed: `2026-03-15`
+- Commit: `dbdb2944` (`refactor(runtime): split native vello event families`)
+- Assumption used: local module extraction around the existing runtime runner is the conservative boundary, not a runner-state redesign.
+- Validation:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: this is a timing-sensitive native runtime entrypoint, and one broad event hub currently owns window lifecycle, pointer routing, keyboard/text-input behavior, redraw triggers, and idle scheduling. That makes hot-path changes riskier than they need to be.
 - Evidence:
   - `vendor/radiant/src/gui_runtime/native_vello/runtime_events.rs` is `543` lines in the current tree.
@@ -59,11 +66,17 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 2. Split `vendor/radiant/src/gui_runtime/native_vello/runtime_input.rs` into cursor pacing, viewport sync, waveform drag, and pointer-finish modules
+### [x] 2. Split `vendor/radiant/src/gui_runtime/native_vello/runtime_input.rs` into cursor pacing, viewport sync, waveform drag, and pointer-finish modules
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
+- Completed: `2026-03-15`
+- Commit: `7646feac` (`refactor(runtime): split native vello input stages`)
+- Assumption used: cursor pacing, viewport sync, drag-session mutation, and flush/finalization behavior can be separated without changing event ordering.
+- Validation:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: this file is the immediate-input hot path for the native runtime and currently mixes browser viewport sync, cursor state, redraw pacing, browser and waveform scrollbar drags, waveform drag modes, map drag focus, volume drag flushing, and pending-input drain logic.
 - Evidence:
   - `vendor/radiant/src/gui_runtime/native_vello/runtime_input.rs` is `557` lines.
@@ -79,11 +92,18 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 3. Separate model-pull/dirty-resolution from encode/composition in `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene.rs`
+### [x] 3. Separate model-pull/dirty-resolution from encode/composition in `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene.rs`
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: L
+- Completed: `2026-03-15`
+- Commit: `ba3ad7ee` (`refactor(runtime): split native vello scene rebuild stages`)
+- Assumption used: bridge refresh resolution, fingerprint maintenance, and final composition are separable as long as the retained-scene contract and runner API stay unchanged.
+- Validation:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::runtime_core -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: `rebuild_scene` is the core retained-render rebuild path. It currently mixes bridge pulls, dirty-segment interpretation, fingerprint maintenance, static segment rebuilds, overlay rebuilds, and final scene composition in one large control-flow hub.
 - Evidence:
   - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene.rs` is `562` lines.
@@ -100,11 +120,18 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 4. Consolidate waveform RGBA conversion ownership across the legacy controller and `app_core` native projection path
+### [x] 4. Consolidate waveform RGBA conversion ownership across the legacy controller and `app_core` native projection path
 - Classification: Refactor / cleanup
 - Confidence: High
 - ROI: High
 - Effort: S
+- Completed: `2026-03-15`
+- Commit: `909a4893` (`refactor(waveform): centralize native rgba translation`)
+- Assumption used: only the pure RGBA translation contract should be centralized now, without moving broader waveform-render ownership across layers.
+- Validation:
+  - `cargo test waveform_image_to_native_rgba -- --test-threads=1`
+  - `cargo test app_core::native_shell::tests::waveform -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Why it matters: the same low-level waveform-image-to-native-RGBA translation exists in two places that straddle the legacy controller and native projection boundary. That is small code, but it is exactly the kind of duplicated contract logic that drifts quietly.
 - Evidence:
   - `src/app_core/native_shell/waveform_projection.rs` defines a private `waveform_image_to_native_rgba(...)` helper used by `project_waveform_image(...)`.
@@ -120,11 +147,17 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 5. Add end-to-end controller coverage for loop-crossfade prompt/apply/register/undo flows
+### [x] 5. Add end-to-end controller coverage for loop-crossfade prompt/apply/register/undo flows
 - Classification: Test gap
 - Confidence: High
 - ROI: Medium-High
 - Effort: M
+- Completed: `2026-03-15`
+- Commit: `c39f4352` (`test(playback): cover loop crossfade controller flow`)
+- Assumption used: the safe gap to close is controller-side prompt/apply/register/undo coverage, not a change to the existing DSP routine.
+- Validation:
+  - `cargo test loop_crossfade -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Why it matters: loop crossfade is a user-facing file-producing workflow that touches prompt state, file writes, DB registration, browser refresh, pending playback, and undo. The current tests only cover the low-level DSP helpers.
 - Evidence:
   - `src/app/controller/playback/loop_crossfade.rs` is `403` lines.
@@ -140,11 +173,17 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 6. Thin `src/app/controller/playback/mod.rs` into ownership-based façade modules instead of one mixed gateway
+### [x] 6. Thin `src/app/controller/playback/mod.rs` into ownership-based façade modules instead of one mixed gateway
 - Classification: Refactor / cleanup
 - Confidence: Medium
 - ROI: Medium
 - Effort: M
+- Completed: `2026-03-15`
+- Commit: `6a5ddf54` (`refactor(playback): split bpm and age helpers`)
+- Assumption used: `mod.rs` should remain a façade, but non-façade BPM and playback-age helpers can move beside their owning responsibilities.
+- Validation:
+  - `cargo test app::controller::playback::tests -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Why it matters: a large amount of playback behavior has already been split into submodules, but the remaining top-level playback gateway still mixes selection/BPM guard helpers, deferred age-update persistence, playhead helper exposure, and thin browser/tagging/random-navigation façades. That weakens discoverability and keeps the file at the size budget ceiling.
 - Evidence:
   - `src/app/controller/playback/mod.rs` is `400` lines.
@@ -160,11 +199,17 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 7. Separate pure folder-selection set logic from controller/UI side effects in `src/app/controller/library/source_folders/selection/ops.rs`
+### [x] 7. Separate pure folder-selection set logic from controller/UI side effects in `src/app/controller/library/source_folders/selection/ops.rs`
 - Classification: Refactor / cleanup
 - Confidence: High
 - ROI: Medium
 - Effort: M
+- Completed: `2026-03-15`
+- Commit: `106649d6` (`refactor(folders): extract selection set logic`)
+- Assumption used: the existing folder-selection contract is the authority; the refactor should extract pure set/anchor/root-mode rules without broadening or narrowing sibling-selection behavior.
+- Validation:
+  - `cargo test folders_core -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: folder selection is stateful and affects browser filtering, but the current implementation interleaves path-set algebra, root-mode toggling, focus/anchor updates, row rebuilding, and browser rebuild triggers in one file with repeated controller-side glue.
 - Evidence:
   - `src/app/controller/library/source_folders/selection/ops.rs` is `378` lines.
@@ -181,11 +226,19 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 8. Unify browser folder-filter acceptance semantics across the sync browser pipeline and async search worker
+### [x] 8. Unify browser folder-filter acceptance semantics across the sync browser pipeline and async search worker
 - Classification: Architecture improvement
 - Confidence: Medium
 - ROI: Medium
 - Effort: S-M
+- Completed: `2026-03-15`
+- Commit: `2a229c86` (`refactor(browser): share folder filter semantics`)
+- Assumption used: sync and async browser paths should share pure folder-filter hashing and acceptance semantics, but keep separate cache and cancellation models.
+- Validation:
+  - `cargo test folder_filter -- --test-threads=1`
+  - `cargo test browser_search_worker -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: the repository now has both a synchronous browser visible-row pipeline and an async search-worker pipeline. Both compute cached folder-filter acceptance maps and their associated cache keys. The duplication is local and reversible, but it is exactly the kind of parity seam that can drift.
 - Evidence:
   - `src/app/controller/library/wavs/browser_pipeline.rs` owns `ensure_folder_acceptance_stage(...)`, `folder_accepts(...)`, and filter/hash logic for sync visible-row construction.
@@ -271,3 +324,12 @@
   - Why it was considered: `native_vello` still has several large runtime files.
   - Why it was rejected: the repository provides strong evidence for local decomposition needs, but not for a cross-crate split being the highest-value next step.
   - Missing evidence: no active architecture note, roadmap, or validation bottleneck pointing to crate boundaries as the present constraint.
+
+## Execution Notes
+
+- Blocked items: none
+- Clarification-needed items during execution: none
+- Rejected items added during execution: none
+- Broadest validation status:
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed
