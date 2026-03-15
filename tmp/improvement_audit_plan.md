@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `20f83666`
 - Phase: `Phase 2 in progress`
-- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-3 are complete and items 4-9 remain pending.`
+- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-4 are complete and items 5-9 remain pending.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md` from the current branch head.
 
@@ -157,7 +157,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: `2026-03-15`
-- Commit: `pending`
+- Commit: `37e69684`
 - Assumptions used:
   - Registry export order remains the compatibility surface, even while the actual action definitions move into scope-owned files.
   - The file-size budget allowlist should drop `src/app/controller/ui/hotkeys/actions.rs` once the registry hub is split below the limit.
@@ -168,7 +168,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Plan-order deviation: None
 
-### 4. [ ] Split browser-controller row actions by mutation family instead of keeping one omnibus action hub
+### 4. [x] Split browser-controller row actions by mutation family instead of keeping one omnibus action hub
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -197,6 +197,16 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Commit: `pending`
+- Assumptions used:
+  - The existing browser-action regression tests adequately cover the current focus-recovery and multi-row mutation contracts for this file-boundary split.
+  - The shared row-resolution and post-delete focus logic remain internal helpers, not separate public APIs.
+- Validation outcome:
+  - `cargo fmt --all`
+  - `cargo test browser_actions -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Plan-order deviation: None
 
 ### 5. [ ] Separate source selection, source lifecycle/remap, and missing/watcher maintenance in `sources.rs`
 

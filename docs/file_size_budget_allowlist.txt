@@ -12,7 +12,6 @@
 src/analysis/ann_index_tests.rs
 src/analysis/frequency_domain/stft.rs
 src/app/controller/library/analysis_jobs/pool/job_progress.rs
-src/app/controller/library/browser_controller/actions.rs
 src/app/controller/library/source_folders/tree.rs
 src/app/controller/library/sources.rs
 src/app/controller/library/wavs/browser_lists.rs
