@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `20f83666`
 - Phase: `Phase 2 in progress`
-- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-4 are complete and items 5-9 remain pending.`
+- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-5 are complete and items 6-9 remain pending.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md` from the current branch head.
 
@@ -198,7 +198,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: `2026-03-15`
-- Commit: `pending`
+- Commit: `83cf7215`
 - Assumptions used:
   - The existing browser-action regression tests adequately cover the current focus-recovery and multi-row mutation contracts for this file-boundary split.
   - The shared row-resolution and post-delete focus logic remain internal helpers, not separate public APIs.
@@ -208,7 +208,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Plan-order deviation: None
 
-### 5. [ ] Separate source selection, source lifecycle/remap, and missing/watcher maintenance in `sources.rs`
+### 5. [x] Separate source selection, source lifecycle/remap, and missing/watcher maintenance in `sources.rs`
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -237,6 +237,17 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Commit: `pending`
+- Assumptions used:
+  - The existing source-row and waveform reset tests are the best regression net for the current source-id preservation and selected-source clearing behavior.
+  - `sources.rs` can lose its file-size allowlist entry once selection, lifecycle, and missing/watcher duties move into focused modules without changing the public controller entrypoints.
+- Validation outcome:
+  - `cargo fmt --all`
+  - `cargo test browser_sources -- --test-threads=1`
+  - `cargo test loading_reset -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Plan-order deviation: None
 
 ### 6. [ ] Separate pure option-setting policy from live playback/waveform side effects in `interaction_options.rs`
 
