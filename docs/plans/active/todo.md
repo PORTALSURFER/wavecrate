@@ -11,14 +11,14 @@ Purpose:
 
 ## Current lane
 
-- Improvement audit Phase 2 safe work is complete.
-- `tmp/improvement_audit_plan.md` is the source of truth for the refreshed backlog and execution record.
-- Backlog items 1-8 are complete.
+- Improvement audit Phase 1 refresh is complete.
+- `tmp/improvement_audit_plan.md` is the source of truth for the refreshed backlog.
+- No implementation has started yet; the lane is waiting for explicit user confirmation.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Wait for the next user-directed lane; do not reopen the completed improvement-audit plan unless follow-up audit work is explicitly requested.
-2. Keep `tmp/improvement_audit_plan.md` as the completed execution record for the latest audit lane.
+1. Wait for explicit user confirmation before implementing any item from `tmp/improvement_audit_plan.md`.
+2. If the user approves implementation, execute items strictly in plan order unless a documented blocker forces a deviation.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
 4. Keep `AGENTS.md`, `MEMORY.md`, this file, and `tmp/improvement_audit_plan.md` synchronized when the active lane changes.

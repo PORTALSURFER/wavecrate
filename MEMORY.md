@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-14T18:03:00Z
+Last Updated: 2026-03-15T10:50:55Z
 Updated By: Codex
 
 ## Purpose
@@ -12,21 +12,14 @@ Updated By: Codex
 
 - I am on `next` in `C:\dev\sempal`.
 - `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The active lane is the evidence-driven improvement audit execution.
+- The active lane is a refreshed evidence-driven improvement audit.
 - `tmp/improvement_audit_plan.md` is the current source of truth.
-- `tmp/improvement_audit_plan.md` was rebuilt on `2026-03-14` from current repository evidence and now serves as the execution record for the refreshed ROI-ranked backlog.
-- Backlog item 1 is complete: the repository is rustfmt-clean again, and `scripts/ci_local.ps1` no longer stops at `cargo fmt --all -- --check`.
-- Backlog item 2 is complete: the `vendor/radiant` toolbar layout regression is fixed, the affected snapshots/tests were refreshed, and `scripts/ci_local.ps1` is green end-to-end again.
-- Backlog item 3 is complete: the stale doc links now point at the live `app_core/actions/catalog/` and `external_drag/` module trees, and the improvement-audit status references are current again.
-- Backlog item 4 is complete: the file-size debt allowlist now matches the live scoped exceptions, and the obsolete top-5 split plan is retired in favor of `tmp/cleanup_audit_hotspots.md`.
-- Backlog item 5 is complete: the updater facade now delegates asset naming, install-path validation, and archive download/checksum/unzip work to focused helper modules while keeping the updater API stable.
-- Backlog item 6 is complete: the native-bridge projection cache now splits key types, segment lookup counters, and retained cache state into focused modules while preserving the existing projection/materialization behavior.
-- Backlog item 7 is complete: the user chose the worker-owned async browser-search pipeline as authoritative, runtime `rebuild_browser_lists()` now routes through the worker path when async search is enabled, and sync/async projection application now shares one browser-state refresh path.
-- Backlog item 8 is complete: the remaining oversized controller regression catalogs are now split into behavior-grouped `playback_loop/` and `waveform_nav_cursor/` module trees.
+- `tmp/improvement_audit_plan.md` was rebuilt on `2026-03-15` from the live `6c9dc2d8` tree and now contains a new Phase 1 ROI-ranked backlog.
+- Phase 1 is complete and no implementation has started yet.
 - The highest-leverage current findings are:
-  - The improvement-audit backlog is fully complete.
-  - Browser search now treats the worker-owned async pipeline as the authoritative runtime path while keeping the retained sync path as a deterministic fallback for tests.
-  - The validation baseline is green through the completed audit items.
+  - The quick validation path still omits the semantic GUI contract lane even though the GUI test platform docs say it should be promoted into `ci_quick`.
+  - Browser controller state still carries duplicated selection/search projection responsibilities across `browser_search.rs`, `browser_lists.rs`, and `src/app/state/browser.rs`.
+  - `wav_sanitize.rs` and deferred undo/file-op flows remain under-defined relative to their public/runtime importance.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -34,10 +27,10 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Wait for the next user-directed lane before reopening `tmp/improvement_audit_plan.md`.
-2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned if a new lane becomes active.
+1. Wait for explicit user confirmation before implementing any item from `tmp/improvement_audit_plan.md`.
+2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned while the audit lane is awaiting approval.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
-4. Treat `scripts/ci_local.ps1` green as the current expected Windows local parity baseline unless a future doc update says otherwise.
+4. Treat `scripts/ci_local.ps1` green as the current expected Windows local parity baseline.
 
 ## Work Notes
 
@@ -47,3 +40,4 @@ Updated By: Codex
 - Parked perf backlog: `tmp/perf_plan.md`
 - GUI automation/test design: `docs/gui_test_platform.md`
 - GUI automation/test rollout plan: `docs/plans/active/gui_test_platform_exec_plan.md`
+
