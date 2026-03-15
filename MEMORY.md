@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-15T21:52:00Z
+Last Updated: 2026-03-15T23:05:00Z
 Updated By: Codex
 
 ## Purpose
@@ -12,10 +12,10 @@ Updated By: Codex
 
 - I am on `next` in `C:\dev\sempal`.
 - `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The active lane is the completed refreshed evidence-driven improvement audit handoff.
+- The active lane is the refreshed evidence-driven improvement audit handoff.
 - `tmp/improvement_audit_plan.md` is the current source of truth.
-- `tmp/improvement_audit_plan.md` now records the refreshed ROI-ranked backlog plus the completed execution record for items 1-8.
-- The refreshed audit lane is complete on `2026-03-15` and should remain closed unless the user explicitly asks for follow-up audit work.
+- `tmp/improvement_audit_plan.md` now records the refreshed Phase 1 ROI-ranked backlog for the current codebase, including evidence, open questions, and rejected ideas.
+- The refreshed audit backlog is not implemented yet and the lane is waiting for explicit user confirmation before Phase 2 begins.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -23,8 +23,8 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Wait for the next user-directed lane; do not reopen `tmp/improvement_audit_plan.md` unless the user explicitly requests more audit work.
-2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned around the completed audit execution record.
+1. Wait for the user's explicit confirmation before implementing any item from `tmp/improvement_audit_plan.md`.
+2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned around the active Phase 1 audit backlog.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Treat `scripts/ci_quick.ps1` as the default pre-push validation gate on Windows and `scripts/ci_local.ps1` as the broader parity baseline for validation/tooling changes.
 

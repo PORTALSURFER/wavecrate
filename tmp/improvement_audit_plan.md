@@ -1,9 +1,9 @@
 # Improvement Audit Plan
 
 - Generated: `2026-03-15`
-- Status: `Phase 2 complete`
+- Status: `Phase 1 complete - awaiting explicit implementation confirmation`
 - Branch: `next`
-- Audit baseline commit: `74e6f51b`
+- Audit baseline commit: `57b06720`
 - Canonical Windows validation commands:
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
@@ -11,330 +11,253 @@
 
 ## Repository Context
 
-- Project purpose: `sempal` is an audio sample triage tool centered on exploration, auditioning, curation, and responsive interaction.
+- Project purpose: `sempal` is a realtime-oriented sample triage and curation tool centered on exploration, auditioning, and trustworthy library maintenance.
   - Intent label: Explicitly documented
   - Evidence: `README.md`, `docs/design_principles.md`
-- Maturity level: a mature Rust workspace with strong local/CI guardrails, an actively owned vendor UI framework, and multiple completed execution-plan lanes.
+- Maturity level: a mature Rust workspace with enforced docs/lint/test guardrails, a vendor-owned native GUI framework, and multiple completed execution-plan lanes.
   - Intent label: Strongly implied by code/docs
   - Evidence: `Cargo.toml`, `.github/workflows/ci.yml`, `docs/TEST.md`, `docs/plans/index.md`
-- Primary languages / frameworks / tooling: Rust 2024 workspace, `vendor/radiant` native GUI framework, Vello/Winit runtime, rusqlite-backed sample DBs, nextest, and PowerShell/Bash validation wrappers.
+- Primary languages / frameworks / tooling: Rust 2024 workspace, `vendor/radiant` native GUI/runtime, Vello/Winit rendering, rusqlite-backed source DBs, nextest, and PowerShell/Bash wrapper scripts.
   - Intent label: Explicitly documented
   - Evidence: `Cargo.toml`, `README.md`, `docs/ARCHITECTURE.md`, `docs/TEST.md`
-- Repository shape: core app/domain code in `src/`, app-core/native projection in `src/app_core`, vendor GUI/runtime code in `vendor/radiant/`, plus layered docs and active/parked plans under `docs/plans` and `tmp/`.
+- Repository shape: domain/controller logic in `src/`, app-core/native projection in `src/app_core`, GUI/runtime framework code in `vendor/radiant`, workspace tools under `tools/` and `apps/`, and planning/docs state under `docs/plans` plus `tmp/`.
   - Intent label: Explicitly documented
   - Evidence: `docs/ARCHITECTURE.md`, `docs/README.md`, `Cargo.toml`
-- Architectural boundaries: `src/` owns domain logic and app behavior, `src/app_core` owns the stable projection/action bridge, and `vendor/radiant` owns widget behavior, layout, input routing, diff/update logic, and native runtime orchestration.
+- Architectural boundaries: `src/` owns domain behavior and legacy controller flows, `src/app_core` owns stable action/projection bridging, and `vendor/radiant` owns layout, hit testing, retained shell state, and native runtime orchestration.
   - Intent label: Explicitly documented
   - Evidence: `README.md`, `docs/ARCHITECTURE.md`
-- Test strategy: tight local compile loops (`devcheck`), pre-commit quick validation (`ci_quick`), broader parity validation (`ci_local`), direct `vendor/radiant` tests, and a GUI contract stack that is intentionally broader than default CI.
+- Test strategy: fast compile loops via `devcheck`, pre-push quick validation via `ci_quick`, broader parity via `ci_local`, direct `vendor/radiant` suites, and a GUI contract stack that is broader than default CI but still intentionally layered.
   - Intent label: Explicitly documented
   - Evidence: `docs/TEST.md`, `.github/workflows/ci.yml`, `docs/gui_test_platform.md`
-- Documented priorities: responsiveness, non-blocking behavior, deterministic interaction, explicit ownership boundaries, and incremental reduction of oversized responsibility hubs.
+- Documented priorities: responsiveness, non-blocking execution, deterministic interaction, explicit ownership, and gradual burn-down of oversized file/test hubs.
   - Intent label: Explicitly documented
-  - Evidence: `docs/design_principles.md`, `docs/QUALITY_SCORE.md`, `docs/file_size_budget_allowlist.txt`, `tmp/cleanup_audit_hotspots.md`
-- Explicit non-goals: not a DAW replacement, not a cloud/social platform, and not a visually ornamental app at the expense of responsiveness.
+  - Evidence: `docs/design_principles.md`, `docs/QUALITY_SCORE.md`, `docs/file_size_budget_allowlist.txt`
+- Explicit non-goals: not a DAW replacement, not a platform/ecosystem, and not a visually ornamental app at the expense of responsiveness.
   - Intent label: Explicitly documented
   - Evidence: `docs/design_principles.md`
 
 ## Ordered ROI Backlog
 
-### [x] 1. Add direct `SourceDatabase` write-contract coverage and narrow `db/write.rs` around batch mutation helpers
-- Classification: Test gap
+### [ ] 1. Refresh the stale cleanup-debt tracking artifacts before relying on them for further prioritization
+- Classification: Developer-experience improvement
 - Confidence: High
 - ROI: High
-- Effort: M
-- Completed: `2026-03-15`
-- Commit: `f0ddc97d` (`test(db): localize source write contracts`)
-- Assumption used: the safest scope is to keep the public `SourceDatabase`/`SourceWriteBatch` API stable, move write-contract tests next to the implementation, and split only the internal upsert/mutation helpers.
-- Validation:
-  - `cargo test sample_sources::db::write::tests -- --test-threads=1`
-  - `cargo test sample_sources::db::source_db_mod_tests -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Why it matters: this repository explicitly warns that bugs can rename, modify, or delete sample-library state. `db/write.rs` is the central mutation surface for the per-source SQLite catalog, yet its behavior is mostly exercised indirectly through other workflows.
+- Effort: S
+- Why it matters: the repo’s debt-tracking docs now materially disagree with the current tree, which makes future prioritization and guardrail reasoning less trustworthy.
 - Evidence:
-  - `README.md` warns that the app can modify, rename, or delete files and advises backups.
-  - `src/sample_sources/db/write.rs` is allowlisted in `docs/file_size_budget_allowlist.txt` and appears as a hotspot in `tmp/cleanup_audit_hotspots.md`.
-  - `src/sample_sources/db/write.rs:39`, `:56`, `:77`, `:155`, `:184`, and `:242` show `ContentHashPolicy`, `TagPolicy`, `WavFileWriteSpec`, `execute_wav_upsert`, `impl SourceDatabase`, and `write_batch` living in one file.
-  - `rg` finds no local `#[cfg(test)]` block in `src/sample_sources/db/write.rs`.
-  - Existing direct references are mostly indirect through `src/sample_sources/db/file_ops_journal/tests.rs`, which exercises journal flows rather than the full write-contract matrix for overwrite, remove, tag/lock/missing toggles, and batched commit boundaries.
-- Recommended change: add focused direct tests around `SourceWriteBatch` and `SourceDatabase` mutation invariants, then split the file into smaller internal helpers for write specs, statement execution, and batch mutation orchestration while keeping the public API stable.
-- Expected impact: tighter protection around a destructive-adjacent persistence surface and smaller review scope for future DB mutation changes.
-- Risks / tradeoffs: test fixtures will need temp DB setup and clear assertions around transaction boundaries; the refactor should not broaden the current API.
+  - `docs/QUALITY_SCORE.md` says the live allowlist matches the current oversized scope.
+  - `docs/file_size_budget_allowlist.txt:18`, `:24`, `:52`, and `:54` still list `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs`, `src/app/state/browser.rs`, `vendor/radiant/src/gui_runtime/native_vello/runtime_input.rs`, and `vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs`.
+  - The current tree no longer matches those entries: `browser_search_worker/pipeline/stages.rs` is 15 lines, `src/app/state/browser.rs` is 71 lines, `runtime_input.rs` is 5 lines, and `runtime_startup.rs` is 5 lines.
+  - `tmp/cleanup_plan.md:23`, `:31`, and `:79` still point at `src/app/controller/playback/tagging.rs`, `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs`, and `apps/updater-helper/src/ui.rs`, which no longer exist in the current tree.
+- Recommended change: refresh `docs/file_size_budget_allowlist.txt`, regenerate the hotspot snapshot, and update the parked cleanup-plan references or label them more explicitly as historical so they are not mistaken for live debt.
+- Expected impact: more trustworthy planning inputs, less audit drift, and fewer false positives when choosing the next cleanup lane.
+- Risks / tradeoffs: low; the main risk is spending too much time rewriting historical notes instead of updating only the high-signal stale entries.
 - Dependencies: none
 - Suggested validation:
-  - targeted `sample_sources::db` tests covering batch commit, overwrite, remove, and tag/missing/lock mutations
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - confirm current line counts for the refreshed allowlist entries
+  - rerun the file-size/hotspot scan used to regenerate the snapshot
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [x] 2. Decompose `vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs` into startup policy, window/surface bring-up, and first-frame sequencing helpers
+### [ ] 2. Split `vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar.rs` by sidebar rendering family
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
-- Completed: `2026-03-15`
-- Commit: `daa8eb46` in `vendor/radiant` (`refactor(runtime): split startup helpers`), recorded in root at `b2f93e98` (`refactor(runtime): record startup helper split`)
-- Assumption used: startup policy, layout/first-frame sequencing, and the broader bring-up structure can be separated safely, but the render-surface fallback lifetime path should remain inline inside `initialize_runtime`.
-- Validation:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml startup -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Why it matters: this is a hot native-runtime entrypoint that currently couples runner construction, window attributes, GPU surface fallback behavior, startup reveal timing, layout prep, and placeholder-scene logic. That mix increases regression risk in the first-frame path.
+- Why it matters: sidebar rendering is a user-visible shell path, but one 427-line `render_sidebar` function still owns source header text, add-button chrome, source rows, folder header/recovery badge, folder rows, and footer rendering in one place.
 - Evidence:
-  - `vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs` is allowlisted in `docs/file_size_budget_allowlist.txt`.
-  - `vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs:22`, `:158`, `:181`, `:305`, `:363`, and `:370` show `new`, `build_window_attributes`, `initialize_runtime`, `prepare_startup_first_frame_scene`, `arm_startup_reveal_deadline`, and `build_startup_placeholder_scene` in one file.
-  - The file is 400+ lines and has no local `#[cfg(test)]` block.
-  - `README.md` and `docs/design_principles.md` emphasize responsiveness and non-blocking startup behavior, which makes this first-frame sequencing path especially sensitive.
-- Recommended change: preserve the existing runner API and startup behavior, but split startup policy, window/surface initialization, and first-frame sequencing into focused helpers/modules with clearer ownership and direct characterization coverage where practical.
-- Expected impact: safer changes in the startup path, better separation between startup policy and GPU/window fallback code, and smaller diffs for future runtime work.
-- Risks / tradeoffs: startup timing and surface fallback order are delicate; the refactor needs to stay behavior-preserving.
+  - `vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar.rs` is 427 lines and exposes only `render_sidebar` at line 3.
+  - `vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar.rs:18`, `:172`, and `:385` show the same function coordinating `source_add_button_rect`, `compute_sidebar_folder_header_layout`, and `compute_sidebar_footer_text_layout`.
+  - `vendor/radiant/src/gui/native_shell/state/tests/sidebar.rs` and `vendor/radiant/src/gui/native_shell/state/tests/browser_toolbar.rs` provide surrounding behavior coverage, but the production ownership surface is still one large render hub with no local tests beside it.
+- Recommended change: extract focused source-header/source-row/folder-header/folder-row/footer render helpers or modules, preserve the existing visual contract, and add targeted sidebar render assertions around recovery-badge and row-selection behavior.
+- Expected impact: smaller blast radius for sidebar changes and clearer separation between header chrome, row rendering, and footer/status copy.
+- Risks / tradeoffs: moderate; row colors, badge placement, and truncation behavior are visually subtle and need characterization coverage.
 - Dependencies: none
 - Suggested validation:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml sidebar -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_toolbar -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [x] 3. Split browser row windowing into hit-testing, viewport bounds, row projection, and scrollbar helpers
+### [ ] 3. Decompose `vendor/radiant/src/gui_runtime/native_vello/input.rs` into clearer keyboard, shell-hit-test, waveform, and wheel route layers
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
-- Completed: `2026-03-15`
-- Commit: `4cc6cde9` in `vendor/radiant` (`refactor(browser): split row windowing helpers`)
-- Assumption used: the safest split is local helper extraction that preserves the existing `windowing::*` export surface, because other native-shell modules already depend on these helpers by name.
-- Validation:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_scrollbars -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_rows -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Why it matters: browser row windowing is a correctness-sensitive surface for virtualization, pointer targeting, and scroll behavior. The current file mixes those concerns in one allowlisted module, which makes subtle browser regressions harder to reason about.
+- Why it matters: native input routing is latency-sensitive and central to deterministic interaction, but one 489-line module still mixes keyboard gating, shell-node pointer dispatch, waveform drag-mode glue, geometry helpers, and wheel translation.
 - Evidence:
-  - `vendor/radiant/src/gui/native_shell/state/browser_rows/windowing.rs` is allowlisted in `docs/file_size_budget_allowlist.txt`.
-  - `vendor/radiant/src/gui/native_shell/state/browser_rows/windowing.rs:5`, `:50`, `:163`, `:290`, and `:368` show `row_index_for_visible_rows`, `browser_rows_cache_key`, `rendered_browser_rows_cached_with_window_start_and_previous`, `browser_scrollbar_layout`, and `browser_rows_window_bounds_with_previous` in one file.
-  - Existing tests are spread across `vendor/radiant/src/gui/native_shell/state/tests/browser_rows/hit_testing.rs` and `vendor/radiant/src/gui/native_shell/state/tests/browser_scrollbars.rs`, which confirms the behavior is important but leaves the production ownership surface broad.
-  - `docs/design_principles.md` and `README.md` emphasize deterministic input behavior, which directly applies to row hit-testing and scrollbar mapping.
-- Recommended change: separate pure row-window math, hit-testing, rendered-row projection, and scrollbar layout/drag helpers into smaller modules and add focused viewport-preservation tests around the extracted boundaries.
-- Expected impact: lower regression risk in browser virtualization and clearer ownership between cached row projection and pointer/scrollbar behavior.
-- Risks / tradeoffs: row-window preservation and scrollbar clamping are visually subtle; tests need to lock in current semantics before extraction.
+  - `vendor/radiant/src/gui_runtime/native_vello/input.rs` is 489 lines.
+  - `vendor/radiant/src/gui_runtime/native_vello/input.rs:88`, `:232`, `:320`, `:501`, and `:520` show `action_from_key`, `action_from_pointer_with_motion`, `waveform_action_from_pointer`, `browser_wheel_row_delta`, and `waveform_wheel_zoom_action` still concentrated in one file.
+  - The repo already split deeper waveform helpers into `input/waveform_geometry.rs`, `input/waveform_handles.rs`, `input/waveform_routing/`, and `input/wheel.rs`, which strongly implies the remaining top-level dispatch hub is the next ownership seam.
+  - Existing coverage is spread across `vendor/radiant/src/gui_runtime/native_vello/tests/key_bindings.rs`, `tests/browser_pointer.rs`, `tests/waveform_pointer.rs`, and `tests/waveform_fades.rs`, not directly around the route-family boundaries in the production module.
+- Recommended change: keep the runtime API stable while separating keyboard dispatch, shell-node pointer dispatch, waveform-route glue, and wheel helpers into focused modules with direct route-level tests or tighter test ownership.
+- Expected impact: safer edits in the hot input path and clearer responsibility boundaries between shell hit-testing and waveform/browser action translation.
+- Risks / tradeoffs: moderate; modifier handling and pointer-route precedence are correctness-sensitive.
 - Dependencies: none
 - Suggested validation:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_rows -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_scrollbars -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::key_bindings -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::browser_pointer -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::waveform_pointer -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [x] 4. Separate overlay geometry accessors from overlay-family rendering in `vendor/radiant/src/gui/native_shell/state/overlays.rs`
+### [ ] 4. Separate browser-truncation caches, overlay fingerprints, and segmented emit plumbing in `vendor/radiant/src/gui/native_shell/state/cache_types.rs`
 - Classification: Architecture improvement
 - Confidence: High
-- ROI: High
-- Effort: M
-- Completed: `2026-03-15`
-- Commit: `e017b9d7` in `vendor/radiant` (`refactor(overlays): split geometry and render helpers`)
-- Assumption used: shared geometry and border helpers should remain the common native-shell access surface, while prompt/progress/drag paint paths can move into family-specific modules without changing overlay call sites.
-- Validation:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml overlays -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml overlay_controls -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Why it matters: progress, prompt, and drag overlays are user-visible interruption states. The current file combines layout rect accessors and three distinct overlay render flows, which makes overlay-specific behavior harder to discover and change safely.
-- Evidence:
-  - `vendor/radiant/src/gui/native_shell/state/overlays.rs` is allowlisted in `docs/file_size_budget_allowlist.txt`.
-  - `vendor/radiant/src/gui/native_shell/state/overlays.rs:5`, `:21`, `:33`, `:52`, `:56`, `:217`, and `:451` show shared geometry helpers plus `render_progress_overlay`, `render_confirm_prompt`, and `render_drag_overlay` in one file.
-  - Existing tests in `vendor/radiant/src/gui/native_shell/state/tests/overlays.rs` cover some overlay behavior, but they are broad UI assertions rather than ownership-focused tests around prompt/progress/drag geometry seams.
-  - The file is one of the largest remaining `vendor/radiant` state modules with no local tests alongside the implementation.
-- Recommended change: keep behavior stable while extracting overlay-family-specific rendering helpers and shared geometry/layout accessors into smaller modules with clearer doc comments and targeted tests.
-- Expected impact: easier maintenance of prompt/progress/drag behavior and smaller blast radius for overlay changes.
-- Risks / tradeoffs: overlay visuals are easy to change accidentally; test coverage should stay behavior-oriented rather than snapshotting implementation detail.
-- Dependencies: none
-- Suggested validation:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml overlays -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-
-### [x] 5. Decompose `src/app/controller/library/wavs/browser_pipeline.rs` into explicit sync stages with direct local stage tests
-- Classification: Architecture improvement
-- Confidence: High
-- ROI: High
-- Effort: M
-- Completed: `2026-03-15`
-- Commit: `833ed2ef` (`refactor(browser): split sync pipeline stages`)
-- Assumption used: the sync browser pipeline should stay execution-model-specific while exposing explicit base, folder-acceptance, and visible-row stage helpers that match the existing worker semantics only where those semantics are already shared.
-- Validation:
-  - `cargo test browser_pipeline -- --test-threads=1`
-  - `cargo test folder_filter_visible_rows_match_sync_pipeline -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Why it matters: the synchronous browser visible-row pipeline still owns base-stage refresh, folder acceptance, filtering, scoring, sorting, and final visible-row materialization in one file. That is a direct maintainability risk on one of the app’s most central interaction paths.
-- Evidence:
-  - `tmp/cleanup_audit_hotspots.md` lists `build_visible_rows` in `src/app/controller/library/wavs/browser_pipeline.rs:67` as a large function hotspot and lists the file itself among oversized modules.
-  - `src/app/controller/library/wavs/browser_pipeline.rs:67`, `:253`, `:311`, and `:379` show `build_visible_rows`, `ensure_base_stage`, `ensure_folder_acceptance_stage`, and `visible_result_from_sorted` still concentrated in one file.
-  - `src/app/controller/library/wavs/browser_search_worker/pipeline.rs` already has `parity_tests`, which implies sync/async semantic parity matters; the sync file itself has no local `#[cfg(test)]` block.
-  - `docs/design_principles.md` explicitly prioritizes responsiveness and predictable interaction, both of which depend on stable browser-stage behavior.
-- Recommended change: split the sync pipeline into explicit stage helpers for base refresh, folder-acceptance preparation, filtering/scoring, and final visible-row assembly, then add direct local tests around the sync stage boundaries rather than relying only on worker-side parity coverage.
-- Expected impact: clearer browser-stage ownership and less risk that sync behavior drifts behind worker-side tests.
-- Risks / tradeoffs: sync and async pipelines intentionally have different execution models; the refactor should share semantics where justified without forcing a broad merge.
-- Dependencies: none
-- Suggested validation:
-  - targeted browser pipeline tests
-  - targeted browser search-worker parity tests
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-
-### [x] 6. Split `src/app_core/native_shell/map_projection.rs` into cache/query refresh, retained-point projection, and label assembly helpers
-- Classification: Architecture improvement
-- Confidence: Medium
 - ROI: Medium-High
 - Effort: M
-- Completed: `2026-03-15`
-- Commit: `a608141d` (`refactor(map): split projection helpers`)
-- Assumption used: the safe cut is to keep map projection policy in `app_core` and only split cache refresh, retained-point normalization, and label assembly inside that layer.
-- Validation:
-  - `cargo test app_core::native_shell::tests::map -- --test-threads=1`
-  - `cargo test short_sample_label_prefers_filename_and_truncates_long_values -- --test-threads=1`
-  - `cargo test projected_map_points_normalize_into_milli_space_and_count_clusters -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Why it matters: `project_map_model` is the main projection bridge for the map panel, but it currently mixes active-state gating, cache-key checks, DB/query refresh behavior, retained normalized-point caching, and user-facing label formatting in one long function.
+- Why it matters: retained shell state depends on these cache/fingerprint types, but one file still mixes browser truncation keys, waveform/browser hit-test keys, overlay fingerprints, segmented-frame emit sinks, and LRU-style truncation cache behavior.
 - Evidence:
-  - `tmp/cleanup_audit_hotspots.md` lists `project_map_model` (`src/app_core/native_shell/map_projection.rs:11`) at 212 lines.
-  - `src/app_core/native_shell/map_projection.rs:11`, `:223`, `:241`, `:259`, and `:283` show `project_map_model`, `map_projection_cache_key`, `refresh_projected_map_points_cache`, `build_projected_map_points_cache`, and `short_sample_label` in one file.
-  - Tests exist in `src/app_core/native_shell/tests/map.rs`, but they validate higher-level map behavior rather than making the cache/query/label seams locally obvious.
-  - `README.md` describes `src/app_core` as a stable projection/action bridge, which argues for keeping projection code explicit and easier to audit.
-- Recommended change: extract focused helpers for inactive/early-return policy, retained-point cache refresh, DB/query fallback, and label assembly while preserving the projection surface and existing tests.
-- Expected impact: better readability at the app-core/native-shell boundary and safer future work on map caching or labeling without broad function churn.
-- Risks / tradeoffs: medium confidence because some projection coupling may be intentional for performance; the safest cut is helper extraction, not a layer move.
+  - `vendor/radiant/src/gui/native_shell/state/cache_types.rs` is 487 lines.
+  - `vendor/radiant/src/gui/native_shell/state/cache_types.rs:40`, `:78`, `:200`, `:337`, `:413`, and `:473` show `BrowserRowTruncationCacheKey`, `WaveformToolbarHitTestCacheKey`, `StateOverlayFingerprint`, `StaticFrameSegments`, `SegmentedStaticEmitContext`, and `impl BrowserRowTruncationCache` in one file.
+  - `vendor/radiant/src/gui/native_shell/state.rs` and `model_sync.rs` consume overlay fingerprints, while `browser_rows/truncation.rs` and `hit_testing/waveform.rs` consume cache keys, which points to multiple ownership families sharing one module.
+  - The file has a `#[cfg(test)]`-gated struct field surface, but no local `mod tests` block covering the cache or segmented-emitter behavior directly.
+- Recommended change: split the file into focused modules for browser truncation caches, overlay fingerprints, and segmented frame-emitter plumbing, then add direct tests for truncation-cache eviction/touch and segmented sink routing where behavior is non-obvious.
+- Expected impact: clearer cache ownership, smaller review surfaces, and easier targeted testing around retained-shell invalidation behavior.
+- Risks / tradeoffs: moderate; cache-key drift or segmented-emitter mistakes could cause stale or missing shell segments.
 - Dependencies: none
 - Suggested validation:
-  - targeted `app_core::native_shell::tests::map`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - targeted `vendor/radiant` tests for browser truncation and shell frame segmentation
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [x] 7. Separate waveform refresh scheduling/coalescing from actual render/apply logic in `src/app/controller/library/wavs/waveform_rendering.rs`
-- Classification: Refactor / cleanup
+### [ ] 5. Split `src/app/controller/playback/loop_crossfade.rs` into controller orchestration, file-output helpers, and undo registration
+- Classification: Architecture improvement
 - Confidence: High
-- ROI: Medium
+- ROI: Medium-High
 - Effort: M
-- Completed: `2026-03-15`
-- Commit: `940a3d4e` (`refactor(waveform): split refresh policy`)
-- Assumption used: waveform refresh policy can move into a dedicated coalescing module while keeping render-meta reuse and immediate image application in the existing controller layer.
-- Validation:
-  - `cargo test waveform_nav_render -- --test-threads=1`
-  - `cargo test waveform_refresh_batch_keeps_highest_priority_reason -- --test-threads=1`
-  - `cargo test flush_pending_waveform_refresh_renders_after_batch_finishes -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Why it matters: waveform rendering has to stay responsive, but the current file still mixes refresh-reason coalescing, batch scheduling, render-meta reuse, decoded-image application, and immediate rerender behavior in one controller surface.
+- Why it matters: loop-crossfade is a file-writing user flow, but one 470-line module still combines prompt setup, sample decoding, cut-frame selection, output naming, WAV writing, DB/browser registration, and deferred undo job assembly.
 - Evidence:
-  - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/library/wavs/waveform_rendering.rs` among the larger remaining controller hotspots.
-  - `src/app/controller/library/wavs/waveform_rendering.rs:31`, `:70`, `:116`, `:201`, `:216`, and `:233` show reason merging, render-meta matching, batch begin/flush, and immediate refresh logic in one file.
-  - Tests in `src/app/controller/tests/waveform_nav_render.rs` cover visible behavior and reuse thresholds, which indicates the behavior matters, but the scheduling/coalescing ownership boundary remains broad.
-  - `docs/design_principles.md` emphasizes responsiveness and explicit ownership, both of which argue for a clearer split between “when to refresh” and “how to render/apply”.
-- Recommended change: keep the current behavior but split the file into smaller helpers/modules for refresh scheduling/coalescing, render-meta reuse policy, and actual image generation/application.
-- Expected impact: clearer ownership on a performance-sensitive controller path and easier targeted edits when waveform refresh rules change.
-- Risks / tradeoffs: waveform reuse behavior is easy to perturb accidentally; validation needs to keep render-equivalence and loading-path tests in place.
+  - `src/app/controller/playback/loop_crossfade.rs` is 470 lines.
+  - `src/app/controller/playback/loop_crossfade.rs:11` and `:25` expose `request_loop_crossfade_prompt_for_browser_row` and `apply_loop_crossfade_prompt`.
+  - The same file also owns `write_loop_crossfade_wav` at `:269` and `maybe_capture_loop_crossfade_undo` at `:319`.
+  - Local tests exist at `:384`, but they currently cover the DSP helper path plus the happy-path prompt/apply flow; the ownership boundary between file output, registration, and undo remains broad.
+- Recommended change: keep the user-facing behavior stable while separating prompt/apply orchestration from pure crossfade math, file-output naming/writing, and undo payload assembly; add a few focused controller-flow edge tests where the split exposes them naturally.
+- Expected impact: safer future edits to a destructive-adjacent flow and clearer reasoning about which layer owns audio rewriting versus undo registration.
+- Risks / tradeoffs: moderate; filename collision, tag preservation, and deferred undo semantics must stay exact.
 - Dependencies: none
 - Suggested validation:
-  - targeted waveform render/reuse tests
+  - `cargo test loop_crossfade -- --test-threads=1`
+  - `cargo test app::controller::playback::tests -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [x] 8. Split `src/sample_sources/db/read.rs` into row-decoding, list/query families, and BPM lookup helpers with direct contract coverage
+### [ ] 6. Split `vendor/radiant/src/gui/native_shell/style/sizing.rs` into base tokens, tier deltas, and sizing invariants
 - Classification: Refactor / cleanup
 - Confidence: Medium
 - ROI: Medium
 - Effort: M
-- Completed: `2026-03-15`
-- Commit: `b56216e6` (`refactor(db): split source read helpers`)
-- Assumption used: the read-side cleanup should stay inside the existing `SourceDatabase` surface, with pure row decoding, wav/path query families, and BPM lookups separated without changing the public query contract.
-- Validation:
-  - `cargo test sample_sources::db::read::tests -- --test-threads=1`
-  - `cargo test sample_sources::db::source_db_mod_tests::metadata -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Why it matters: the read side of the source DB is smaller than the write side, but it still mixes path decoding, row decoding, several list/query shapes, and BPM lookup batching in one file. That makes it harder to reason about parity with the write surface and to add direct contract tests.
+- Why it matters: layout sizing is a compatibility surface used across most native-shell layout/state helpers, but one 580-line file still combines the huge `SizingTokens` schema, base values, compact/wide mutations, and helper methods.
 - Evidence:
-  - `src/sample_sources/db/read.rs:11`, `:39`, `:179`, and `:221` show `decode_relative_path`, the main `impl SourceDatabase`, `list_files_page`, and `bpms_for_sample_ids` in one file.
-  - `rg` finds no local `#[cfg(test)]` block in `src/sample_sources/db/read.rs`.
-  - `README.md` documents per-source `.sempal_samples.db` files as a core persistence mechanism, which raises the value of explicit read/write contract clarity.
-  - Existing tests are mostly higher-level call-site tests rather than direct read-surface contract tests for pagination, missing-path decoding, and batch BPM lookup behavior.
-- Recommended change: extract row/path decoding helpers and query-family helpers into smaller modules, then add direct tests around pagination, missing-entry decoding, and batched BPM lookups.
-- Expected impact: better discoverability of the read surface and stronger direct coverage of the source DB contract.
-- Risks / tradeoffs: medium confidence because the current file is not the most urgent persistence hotspot; this should stay a focused cleanup after the write-surface work.
-- Dependencies: item 1 should land first so read/write contract coverage evolves coherently
+  - `vendor/radiant/src/gui/native_shell/style/sizing.rs` is 580 lines.
+  - `vendor/radiant/src/gui/native_shell/style/sizing.rs:7` defines the large `SizingTokens` contract, while `:207`, `:217`, `:320`, `:403`, and `:486` hold `sizing_for_tier`, `base_sizing`, `apply_compact_sizing`, `apply_wide_sizing`, and `impl SizingTokens`.
+  - The token pack is consumed broadly across `layout_adapter/`, `state/`, and `layout_runtime.rs`, which means small edits have a wide blast radius.
+  - Current tests live in `vendor/radiant/src/gui/native_shell/style/mod.rs`, not next to the token pack or its tier-delta logic.
+- Recommended change: separate the base token schema from compact/wide overrides and add a small local invariant suite for non-negative sizes, tier monotonicity where intended, and minimum-width/height assumptions that layout code relies on.
+- Expected impact: easier review of layout-token changes and less accidental churn in the central shell sizing contract.
+- Risks / tradeoffs: medium; some token relationships may be intentionally asymmetric across tiers, so invariants should stay minimal and evidence-based.
+- Dependencies: none
 - Suggested validation:
-  - targeted `sample_sources::db` read tests
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::style -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::tests::chrome_layout -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Product clarification required: No
+
+### [ ] 7. Break the remaining oversized native-shell test hubs into ownership-aligned modules
+- Classification: Refactor / cleanup
+- Confidence: High
+- ROI: Medium
+- Effort: M
+- Why it matters: several of the largest remaining files are regression hubs rather than production code, and they currently mix unrelated layout, toolbar, prompt, sidebar, and canonical-frame assertions in ways that make failures harder to localize.
+- Evidence:
+  - `vendor/radiant/src/gui/native_shell/mod.rs` is 900 lines and mixes `canonical_shell_model` at `:35` with toolbar hit tests at `:379`, prompt hit tests at `:541`, source-action tests at `:694`, and canonical-frame assertions at `:913`.
+  - `vendor/radiant/src/gui/native_shell/state/tests/browser_toolbar.rs` is 528 lines and mixes source-header, browser search, rating-filter, action-strip, and top-bar coverage.
+  - `vendor/radiant/src/gui/native_shell/state/tests/overlays.rs` is 468 lines and mixes waveform hover, toolbar overlays, browser-row stale-state checks, and generic hover cleanup.
+- Recommended change: split these hubs by behavior family, keep a shared canonical-shell fixture helper where necessary, and align each test module with the production ownership boundary it protects.
+- Expected impact: more discoverable failures, smaller diffs for regression additions, and less accumulation pressure in omnibus test files.
+- Risks / tradeoffs: low; mostly structural, but shared fixtures should stay simple so targeted test commands remain obvious.
+- Dependencies: none
+- Suggested validation:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Product clarification required: No
+
+### [ ] 8. Split `vendor/radiant/src/gui/native_shell/shots.rs` into fixture I/O, snapshot canonicalization, rasterization, and model builders
+- Classification: Refactor / cleanup
+- Confidence: Medium
+- ROI: Low-Medium
+- Effort: M
+- Why it matters: visual-regression maintenance still flows through one 642-line file that mixes snapshot serialization, JSON canonicalization, software rasterization, fixture compare/write logic, and scenario model builders.
+- Evidence:
+  - `vendor/radiant/src/gui/native_shell/shots.rs` is 642 lines.
+  - `vendor/radiant/src/gui/native_shell/shots.rs:135`, `:193`, `:237`, `:349`, `:431`, `:489`, and `:579` show `build_snapshot`, `canonicalize_json`, `rasterize_shot`, `write_or_compare_shot`, and the startup/browser/waveform fixture builders in one module.
+  - This file sits on the critical path for trusted shot-fixture updates, but the ownership boundary between fixture plumbing and model construction is still broad.
+- Recommended change: separate snapshot/fixture mechanics from scenario model builders, and keep the canonicalization/rasterization helpers reusable without pulling all model fixtures into the same file.
+- Expected impact: easier maintenance of visual-regression fixtures and smaller diffs when only one fixture family changes.
+- Risks / tradeoffs: medium; fixture bytes and update semantics must stay stable so reviewers can trust shot diffs.
+- Dependencies: none
+- Suggested validation:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml startup_shot_matches_fixture -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_dense_shot_matches_fixture -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml waveform_selection_shot_matches_fixture -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
 ## Open Questions / Missing Definitions
 
-### [!] 1. How far should `vendor/radiant` native-shell/runtime decomposition go before it becomes speculative?
-- Question: is the intended direction a few more focused helper/module splits, or a broader runtime/native-shell state redesign?
+### [!] 1. Should the parked cleanup backlog be kept continuously current, or intentionally remain a historical snapshot?
+- Question: should `tmp/cleanup_plan.md` be refreshed whenever major cleanup items land, or is it intentionally a dated archive that should not be reused directly?
 - Evidence:
-  - `vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs`, `vendor/radiant/src/gui/native_shell/state/overlays.rs`, and `vendor/radiant/src/gui/native_shell/state/browser_rows/windowing.rs` are all still allowlisted oversized modules.
-  - `vendor/radiant/src/gui/native_shell/mod.rs` remains very large, which suggests more structural debt exists but not necessarily the right next boundary.
-- Why this matters: the right decomposition size changes depending on whether the repo wants local ownership splits or larger runtime/native-shell shape changes.
+  - `tmp/cleanup_plan.md` explicitly says it is parked, but it still contains active-looking `[ ]` items with paths that no longer exist, including `src/app/controller/playback/tagging.rs`, `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs`, and `apps/updater-helper/src/ui.rs`.
+  - `AGENTS.md`, `MEMORY.md`, and `docs/plans/index.md` currently point readers at `tmp/improvement_audit_plan.md` as the live source of truth, not `tmp/cleanup_plan.md`.
+- Why this matters: the safest remediation differs depending on whether the parked cleanup plan should be corrected or simply relabeled as historical-only.
 - Affected files/modules:
-  - `vendor/radiant/src/gui_runtime/native_vello/*`
-  - `vendor/radiant/src/gui/native_shell/*`
-- Risk if guessed incorrectly: unnecessary churn in latency-sensitive GUI/runtime code.
-- Most conservative provisional assumption: prefer local helper/module extraction that preserves current public runner/native-shell shapes.
+  - `tmp/cleanup_plan.md`
+  - `docs/QUALITY_SCORE.md`
+  - `docs/file_size_budget_allowlist.txt`
+- Risk if guessed incorrectly: either wasted cleanup of a historical archive or continued drift in a document that maintainers may still treat as live debt.
+- Most conservative provisional assumption: keep the parked plan historical, but refresh the live allowlist/hotspot artifacts and make the historical status unmistakable.
 
-### [!] 2. Should sync browser visible-row computation and async worker computation eventually converge further?
-- Question: are the sync browser pipeline and async search-worker pipeline meant to stay separate long-term, or are they transitional implementations expected to share more pure logic?
+### [!] 2. Is `vendor/radiant/src/app/actions.rs` intentionally meant to stay centralized as one schema file?
+- Question: should the native `UiAction` catalog remain a single compatibility surface, or is there an intended direction toward family-specific action declarations plus a shared export layer?
 - Evidence:
-  - `src/app/controller/library/wavs/browser_pipeline.rs` still owns sync visible-row staging.
-  - `src/app/controller/library/wavs/browser_search_worker/pipeline.rs` already carries parity tests, which implies semantic equivalence matters.
-- Why this matters: the safe cleanup boundary is different if the long-term plan is “shared semantics only” versus “eventual consolidation.”
+  - `vendor/radiant/src/app/actions.rs` is still 450 lines and contains the whole serialized `UiAction` surface.
+  - Earlier audit work explicitly rejected splitting it because the repo evidence favored centralization.
+- Why this matters: action-schema centralization affects whether later runtime/native-shell cleanup should keep routing logic consolidated around one giant action enum or prepare for family-based modules.
 - Affected files/modules:
-  - `src/app/controller/library/wavs/browser_pipeline.rs`
-  - `src/app/controller/library/wavs/browser_search_worker/pipeline.rs`
-  - `src/app/controller/library/wavs/browser_search_worker/pipeline/*`
-- Risk if guessed incorrectly: either recurring parity drift or an over-ambitious merge that harms responsiveness/cancellation behavior.
-- Most conservative provisional assumption: share only clearly duplicated pure stage semantics first; keep execution model, caching, and cancellation boundaries separate.
+  - `vendor/radiant/src/app/actions.rs`
+  - `src/app_core/actions/catalog/`
+  - `docs/gui_test_platform.md`
+- Risk if guessed incorrectly: unnecessary churn in a compatibility surface used by runtime code, GUI tooling, and action catalogs.
+- Most conservative provisional assumption: treat `UiAction` as intentionally centralized unless a narrower evidence trail emerges.
 
-### [!] 3. What is the intended ownership boundary for source-DB contract helpers?
-- Question: should `src/sample_sources/db/read.rs` and `write.rs` continue to be thin siblings under one `SourceDatabase` surface, or is there a longer-term push toward more explicit repository/transaction helper modules?
+### [!] 3. Should native-shell regression tests stay organized around one canonical-shell fixture, or follow production ownership boundaries more strictly?
+- Question: is the current large `vendor/radiant/src/gui/native_shell/mod.rs` test hub deliberate because the shell contract is inherently cross-cutting, or is it just accumulated debt?
 - Evidence:
-  - `src/sample_sources/db/write.rs` and `src/sample_sources/db/read.rs` both mix helper types/functions with the main `impl SourceDatabase`.
-  - The repo documents the per-source DB format and recovery behavior, but not the preferred internal organization of the `SourceDatabase` surface.
-- Why this matters: the best refactor could be either targeted internal helper extraction or a more explicit internal repository split.
+  - `vendor/radiant/src/gui/native_shell/mod.rs` mixes layout, toolbar, prompt, source action, and canonical-frame assertions around one `canonical_shell_model` helper.
+  - Separate focused suites already exist under `state/tests/`, which suggests at least partial appetite for more ownership-aligned test modules.
+- Why this matters: the safest cleanup is different if the big module is intended to preserve one top-level shell contract view.
 - Affected files/modules:
-  - `src/sample_sources/db/read.rs`
-  - `src/sample_sources/db/write.rs`
-  - `src/sample_sources/db/mod.rs`
-- Risk if guessed incorrectly: introducing structure that does not match the intended DB ownership model.
-- Most conservative provisional assumption: keep the public `SourceDatabase` surface stable and improve internal helper boundaries plus direct tests first.
-
-### [!] 4. How much map-panel policy should stay inside projection code versus controller/query code?
-- Question: is `project_map_model` intentionally the place where cache/query policy and label assembly meet, or is that only an incidental concentration?
-- Evidence:
-  - `src/app_core/native_shell/map_projection.rs` currently owns both retained-point cache logic and user-facing summary/label assembly.
-  - `README.md` and `docs/ARCHITECTURE.md` describe `src/app_core` as a projection bridge but do not define the preferred internal shape for map policy.
-- Why this matters: helper extraction is safe either way, but moving behavior across layers would not be.
-- Affected files/modules:
-  - `src/app_core/native_shell/map_projection.rs`
-  - `src/app_core/native_shell/tests/map.rs`
-  - related map controller/query code under `src/app`
-- Risk if guessed incorrectly: a cleanup could harden the wrong boundary and make later map work harder.
-- Most conservative provisional assumption: keep map behavior in the same layer and only split helper responsibilities within the projection file.
+  - `vendor/radiant/src/gui/native_shell/mod.rs`
+  - `vendor/radiant/src/gui/native_shell/state/tests/*`
+- Risk if guessed incorrectly: over-splitting tests could make cross-shell regressions harder to detect or duplicate fixture setup unnecessarily.
+- Most conservative provisional assumption: keep one shared canonical-shell fixture helper, but move behavior families into smaller modules around it.
 
 ## Rejected Ideas
 
-### [-] 1. Split `vendor/radiant/src/app/actions.rs` by action family right now
-- Why it was considered: it is still a large file and a discoverability hotspot.
-- Why it was rejected: the file appears to act as an intentionally centralized action schema, and I did not find repository evidence that its current size is causing more immediate pain than the runtime/native-shell/browser/DB hubs above.
-- What evidence was missing: no active plan note, test gap, or contradictory implementation showing that action-schema centralization is currently the highest-value problem.
+### [-] 1. Reopen the previously completed browser-search/browser-state/runtime-startup audit items
+- Why it was considered: older audit artifacts and the stale allowlist still mention those files prominently.
+- Why it was rejected: the current tree shows those paths have already been split down substantially (`browser_search_worker/pipeline/stages.rs` is 15 lines, `src/app/state/browser.rs` is 71 lines, `runtime_input.rs` is 5 lines, `runtime_startup.rs` is 5 lines).
+- What evidence was missing: no current oversized ownership surface or fresh contradictory behavior evidence remained in those specific wrapper files.
 
-### [-] 2. Reopen loop-crossfade flow work immediately
-- Why it was considered: `src/app/controller/playback/loop_crossfade.rs` remains large and sits near file-modifying behavior.
-- Why it was rejected: the current tree already contains direct controller tests at `src/app/controller/playback/loop_crossfade.rs:430` and `:451`, reducing its urgency relative to the source-DB surfaces that still lack local tests.
-- What evidence was missing: no fresh failing coverage, TODO cluster, or repo note showing that loop-crossfade is still a top-priority gap after the recent coverage landed.
+### [-] 2. Prioritize `src/analysis/frequency_domain/stft.rs` immediately
+- Why it was considered: it is still 431 lines and over the nominal 400-line budget.
+- Why it was rejected: the file has a clear single responsibility, local tests in the file itself, and no adjacent docs/tests indicating the same level of ownership ambiguity as the GUI/runtime/sidebar candidates above.
+- What evidence was missing: no repo note, stale contract, or nearby mixed-responsibility symptoms suggested it is a top-leverage split right now.
 
-### [-] 3. Promote desktop AIV automation into default CI now
-- Why it was considered: GUI automation remains an active repository direction.
-- Why it was rejected: `docs/gui_test_platform.md` still treats the desktop AIV layer as stability-sensitive and broader than the normal quick loop.
-- What evidence was missing: no current repository evidence that focus/foreground instability is solved well enough for default CI promotion.
+### [-] 3. Promote desktop AIV automation into default CI
+- Why it was considered: GUI automation is an active, documented repository direction.
+- Why it was rejected: `docs/gui_test_platform.md` still calls out Windows foreground/focus instability and explicitly keeps the desktop-AIV loop local-only.
+- What evidence was missing: no current repository evidence that the desktop AIV layer is stable enough for default CI promotion.
