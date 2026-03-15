@@ -116,7 +116,7 @@ impl DragDropController<'_> {
         ) {
             Ok(entry) => {
                 if !keep_source_focused {
-                    self.ui.browser.autoscroll = true;
+                    self.ui.browser.selection.autoscroll = true;
                     self.selection_state.suppress_autoplay_once = true;
                     self.select_from_browser(&entry.relative_path);
                 }
@@ -180,7 +180,7 @@ impl DragDropController<'_> {
         match export {
             Ok(entry) => {
                 if !keep_source_focused {
-                    self.ui.browser.autoscroll = true;
+                    self.ui.browser.selection.autoscroll = true;
                     self.selection_state.suppress_autoplay_once = true;
                     self.select_from_browser(&entry.relative_path);
                 }

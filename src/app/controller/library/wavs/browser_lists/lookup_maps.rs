@@ -5,17 +5,29 @@ use super::*;
 impl AppController {
     /// Invalidate retained browser reverse lookups after visible rows change.
     pub(crate) fn invalidate_browser_lookup_maps(&mut self) {
-        let stale_revision = self.ui.browser.visible_rows_revision.wrapping_sub(1);
-        self.ui.browser.visible_row_lookup_revision = stale_revision;
-        self.ui.browser.triage_index_lookup_revision = stale_revision;
+        let stale_revision = self
+            .ui
+            .browser
+            .viewport
+            .visible_rows_revision
+            .wrapping_sub(1);
+        self.ui.browser.viewport.visible_row_lookup_revision = stale_revision;
+        self.ui.browser.viewport.triage_index_lookup_revision = stale_revision;
     }
 
     /// Ensure the visible-row reverse lookup matches the current browser projection revision.
     fn ensure_browser_visible_row_lookup_current(&mut self) {
         let entries_len = self.wav_entries_len();
-        if self.ui.browser.visible_row_lookup_revision == self.ui.browser.visible_rows_revision
-            && self.ui.browser.visible_row_by_absolute.len() >= entries_len
-            && self.ui.browser.visible_row_by_absolute_generation.len() >= entries_len
+        if self.ui.browser.viewport.visible_row_lookup_revision
+            == self.ui.browser.viewport.visible_rows_revision
+            && self.ui.browser.viewport.visible_row_by_absolute.len() >= entries_len
+            && self
+                .ui
+                .browser
+                .viewport
+                .visible_row_by_absolute_generation
+                .len()
+                >= entries_len
         {
             return;
         }
@@ -25,9 +37,16 @@ impl AppController {
     /// Ensure the triage-column reverse lookup matches the current browser projection revision.
     fn ensure_browser_triage_lookup_current(&mut self) {
         let entries_len = self.wav_entries_len();
-        if self.ui.browser.triage_index_lookup_revision == self.ui.browser.visible_rows_revision
-            && self.ui.browser.triage_index_by_absolute.len() >= entries_len
-            && self.ui.browser.triage_index_by_absolute_generation.len() >= entries_len
+        if self.ui.browser.viewport.triage_index_lookup_revision
+            == self.ui.browser.viewport.visible_rows_revision
+            && self.ui.browser.viewport.triage_index_by_absolute.len() >= entries_len
+            && self
+                .ui
+                .browser
+                .viewport
+                .triage_index_by_absolute_generation
+                .len()
+                >= entries_len
         {
             return;
         }
@@ -36,15 +55,24 @@ impl AppController {
 
     /// Grow retained visible-row lookup storage to cover the current entry count.
     fn ensure_browser_visible_row_lookup_capacity(&mut self, entries_len: usize) {
-        if self.ui.browser.visible_row_by_absolute.len() < entries_len {
+        if self.ui.browser.viewport.visible_row_by_absolute.len() < entries_len {
             self.ui
                 .browser
+                .viewport
                 .visible_row_by_absolute
                 .resize(entries_len, None);
         }
-        if self.ui.browser.visible_row_by_absolute_generation.len() < entries_len {
+        if self
+            .ui
+            .browser
+            .viewport
+            .visible_row_by_absolute_generation
+            .len()
+            < entries_len
+        {
             self.ui
                 .browser
+                .viewport
                 .visible_row_by_absolute_generation
                 .resize(entries_len, 0);
         }
@@ -52,15 +80,24 @@ impl AppController {
 
     /// Grow retained triage-column lookup storage to cover the current entry count.
     fn ensure_browser_triage_lookup_capacity(&mut self, entries_len: usize) {
-        if self.ui.browser.triage_index_by_absolute.len() < entries_len {
+        if self.ui.browser.viewport.triage_index_by_absolute.len() < entries_len {
             self.ui
                 .browser
+                .viewport
                 .triage_index_by_absolute
                 .resize(entries_len, None);
         }
-        if self.ui.browser.triage_index_by_absolute_generation.len() < entries_len {
+        if self
+            .ui
+            .browser
+            .viewport
+            .triage_index_by_absolute_generation
+            .len()
+            < entries_len
+        {
             self.ui
                 .browser
+                .viewport
                 .triage_index_by_absolute_generation
                 .resize(entries_len, 0);
         }
@@ -69,61 +106,69 @@ impl AppController {
     /// Rebuild the visible-row reverse lookup for the current browser projection.
     fn rebuild_browser_visible_row_lookup(&mut self) {
         let entries_len = self.wav_entries_len();
-        let lookup_revision = self.ui.browser.visible_rows_revision;
+        let lookup_revision = self.ui.browser.viewport.visible_rows_revision;
         self.ensure_browser_visible_row_lookup_capacity(entries_len);
-        match &self.ui.browser.visible {
+        match &self.ui.browser.viewport.visible {
             crate::app::state::VisibleRows::All { total } => {
                 let limit = (*total).min(entries_len);
                 for index in 0..limit {
-                    self.ui.browser.visible_row_by_absolute[index] = Some(index);
-                    self.ui.browser.visible_row_by_absolute_generation[index] = lookup_revision;
+                    self.ui.browser.viewport.visible_row_by_absolute[index] = Some(index);
+                    self.ui.browser.viewport.visible_row_by_absolute_generation[index] =
+                        lookup_revision;
                 }
             }
             crate::app::state::VisibleRows::List(rows) => {
                 for (row, index) in rows.iter().copied().enumerate() {
                     if index < entries_len {
-                        self.ui.browser.visible_row_by_absolute[index] = Some(row);
-                        self.ui.browser.visible_row_by_absolute_generation[index] = lookup_revision;
+                        self.ui.browser.viewport.visible_row_by_absolute[index] = Some(row);
+                        self.ui.browser.viewport.visible_row_by_absolute_generation[index] =
+                            lookup_revision;
                     }
                 }
             }
         }
-        self.ui.browser.visible_row_lookup_revision = lookup_revision;
+        self.ui.browser.viewport.visible_row_lookup_revision = lookup_revision;
     }
 
     /// Rebuild the triage-column reverse lookup for the current browser projection.
     fn rebuild_browser_triage_lookup(&mut self) {
         let entries_len = self.wav_entries_len();
-        let lookup_revision = self.ui.browser.visible_rows_revision;
+        let lookup_revision = self.ui.browser.viewport.visible_rows_revision;
         self.ensure_browser_triage_lookup_capacity(entries_len);
         for (row, index) in self.ui.browser.trash.iter().copied().enumerate() {
             if index < entries_len {
-                self.ui.browser.triage_index_by_absolute[index] = Some(SampleBrowserIndex {
-                    column: crate::app::state::TriageFlagColumn::Trash,
-                    row,
-                });
-                self.ui.browser.triage_index_by_absolute_generation[index] = lookup_revision;
+                self.ui.browser.viewport.triage_index_by_absolute[index] =
+                    Some(SampleBrowserIndex {
+                        column: crate::app::state::TriageFlagColumn::Trash,
+                        row,
+                    });
+                self.ui.browser.viewport.triage_index_by_absolute_generation[index] =
+                    lookup_revision;
             }
         }
         for (row, index) in self.ui.browser.neutral.iter().copied().enumerate() {
             if index < entries_len {
-                self.ui.browser.triage_index_by_absolute[index] = Some(SampleBrowserIndex {
-                    column: crate::app::state::TriageFlagColumn::Neutral,
-                    row,
-                });
-                self.ui.browser.triage_index_by_absolute_generation[index] = lookup_revision;
+                self.ui.browser.viewport.triage_index_by_absolute[index] =
+                    Some(SampleBrowserIndex {
+                        column: crate::app::state::TriageFlagColumn::Neutral,
+                        row,
+                    });
+                self.ui.browser.viewport.triage_index_by_absolute_generation[index] =
+                    lookup_revision;
             }
         }
         for (row, index) in self.ui.browser.keep.iter().copied().enumerate() {
             if index < entries_len {
-                self.ui.browser.triage_index_by_absolute[index] = Some(SampleBrowserIndex {
-                    column: crate::app::state::TriageFlagColumn::Keep,
-                    row,
-                });
-                self.ui.browser.triage_index_by_absolute_generation[index] = lookup_revision;
+                self.ui.browser.viewport.triage_index_by_absolute[index] =
+                    Some(SampleBrowserIndex {
+                        column: crate::app::state::TriageFlagColumn::Keep,
+                        row,
+                    });
+                self.ui.browser.viewport.triage_index_by_absolute_generation[index] =
+                    lookup_revision;
             }
         }
-        self.ui.browser.triage_index_lookup_revision = lookup_revision;
+        self.ui.browser.viewport.triage_index_lookup_revision = lookup_revision;
     }
 
     /// Resolve the visible-row index for an absolute wav-entry index.
@@ -135,15 +180,17 @@ impl AppController {
         if self
             .ui
             .browser
+            .viewport
             .visible_row_by_absolute_generation
             .get(entry_index)
             .copied()
-            != Some(self.ui.browser.visible_rows_revision)
+            != Some(self.ui.browser.viewport.visible_rows_revision)
         {
             return None;
         }
         self.ui
             .browser
+            .viewport
             .visible_row_by_absolute
             .get(entry_index)
             .copied()
@@ -162,15 +209,17 @@ impl AppController {
         if self
             .ui
             .browser
+            .viewport
             .triage_index_by_absolute_generation
             .get(entry_index)
             .copied()
-            != Some(self.ui.browser.visible_rows_revision)
+            != Some(self.ui.browser.viewport.visible_rows_revision)
         {
             return None;
         }
         self.ui
             .browser
+            .viewport
             .triage_index_by_absolute
             .get(entry_index)
             .copied()
@@ -190,23 +239,28 @@ mod tests {
             sample_entry("one.wav", Rating::TRASH_1),
             sample_entry("two.wav", Rating::NEUTRAL),
         ]);
-        let stale_revision = controller.ui.browser.visible_rows_revision.wrapping_sub(1);
+        let stale_revision = controller
+            .ui
+            .browser
+            .viewport
+            .visible_rows_revision
+            .wrapping_sub(1);
         assert_eq!(
-            controller.ui.browser.visible_row_lookup_revision,
+            controller.ui.browser.viewport.visible_row_lookup_revision,
             stale_revision
         );
         assert_eq!(
-            controller.ui.browser.triage_index_lookup_revision,
+            controller.ui.browser.viewport.triage_index_lookup_revision,
             stale_revision
         );
 
         assert_eq!(controller.browser_visible_row_for_entry(1), Some(1));
         assert_eq!(
-            controller.ui.browser.visible_row_lookup_revision,
-            controller.ui.browser.visible_rows_revision
+            controller.ui.browser.viewport.visible_row_lookup_revision,
+            controller.ui.browser.viewport.visible_rows_revision
         );
         assert_eq!(
-            controller.ui.browser.triage_index_lookup_revision,
+            controller.ui.browser.viewport.triage_index_lookup_revision,
             stale_revision
         );
     }
@@ -217,7 +271,12 @@ mod tests {
             sample_entry("one.wav", Rating::TRASH_1),
             sample_entry("two.wav", Rating::NEUTRAL),
         ]);
-        let stale_revision = controller.ui.browser.visible_rows_revision.wrapping_sub(1);
+        let stale_revision = controller
+            .ui
+            .browser
+            .viewport
+            .visible_rows_revision
+            .wrapping_sub(1);
 
         assert_eq!(
             controller.browser_index_for_entry(0),
@@ -227,11 +286,11 @@ mod tests {
             })
         );
         assert_eq!(
-            controller.ui.browser.triage_index_lookup_revision,
-            controller.ui.browser.visible_rows_revision
+            controller.ui.browser.viewport.triage_index_lookup_revision,
+            controller.ui.browser.viewport.visible_rows_revision
         );
         assert_eq!(
-            controller.ui.browser.visible_row_lookup_revision,
+            controller.ui.browser.viewport.visible_row_lookup_revision,
             stale_revision
         );
     }

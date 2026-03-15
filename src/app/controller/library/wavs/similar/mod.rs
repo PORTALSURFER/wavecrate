@@ -111,7 +111,7 @@ pub(crate) fn find_similar_for_audio_path(
 pub(crate) fn enable_loaded_similarity_sort(controller: &mut AppController) -> Result<(), String> {
     let query = query::build_similarity_query_for_loaded_sample(controller)?;
     apply::apply_similarity_query(controller, query);
-    controller.ui.browser.similarity_sort_follow_loaded = true;
+    controller.ui.browser.search.similarity_sort_follow_loaded = true;
     Ok(())
 }
 
@@ -150,17 +150,17 @@ fn focused_similarity_from_resolved(
 pub(crate) fn refresh_similarity_sort_for_loaded(
     controller: &mut AppController,
 ) -> Result<(), String> {
-    if !controller.ui.browser.similarity_sort_follow_loaded {
+    if !controller.ui.browser.search.similarity_sort_follow_loaded {
         return Ok(());
     }
-    if controller.ui.browser.sort != SampleBrowserSort::Similarity {
+    if controller.ui.browser.search.sort != SampleBrowserSort::Similarity {
         return Ok(());
     }
-    if controller.ui.browser.similar_query.is_some() {
+    if controller.ui.browser.search.similar_query.is_some() {
         return Ok(());
     }
     let query = query::build_similarity_query_for_loaded_sample(controller)?;
-    controller.ui.browser.similar_query = Some(query);
+    controller.ui.browser.search.similar_query = Some(query);
     controller.rebuild_browser_lists();
     Ok(())
 }

@@ -46,7 +46,7 @@ fn exporting_selection_updates_entries_and_db() {
     assert_eq!(entry.tag, crate::sample_sources::Rating::KEEP_1);
     assert_eq!(entry.relative_path, PathBuf::from("orig_selection_001.wav"));
     assert_eq!(controller.wav_entries_len(), 1);
-    assert_eq!(controller.ui.browser.visible.len(), 1);
+    assert_eq!(controller.ui.browser.viewport.visible.len(), 1);
     let exported_path = root.join(&entry.relative_path);
     assert!(exported_path.exists());
     let exported: Vec<f32> = WavReader::open(&exported_path)
@@ -202,7 +202,7 @@ fn deleting_browser_sample_moves_focus_forward() -> Result<(), String> {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("c.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
 
     controller.delete_browser_sample(1)?;
 
@@ -210,6 +210,6 @@ fn deleting_browser_sample_moves_focus_forward() -> Result<(), String> {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("a.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
     Ok(())
 }

@@ -52,17 +52,17 @@ pub(crate) fn project_browser_rows_model_into(
         visible_count,
         selected_visible_row,
         anchor_visible_row,
-        controller.ui.browser.autoscroll,
-        controller.ui.browser.render_window_start,
+        controller.ui.browser.selection.autoscroll,
+        controller.ui.browser.viewport.render_window_start,
     );
-    controller.ui.browser.render_window_start = window_start;
+    controller.ui.browser.viewport.render_window_start = window_start;
     super::preload_browser_window_bpms(controller, window_start, window_len);
     if rows.capacity() < window_len {
         rows.reserve(window_len.saturating_sub(rows.len()));
     }
     for offset in 0..window_len {
         let visible_row = window_start + offset;
-        let Some(absolute_index) = controller.ui.browser.visible.get(visible_row) else {
+        let Some(absolute_index) = controller.ui.browser.viewport.visible.get(visible_row) else {
             continue;
         };
         let Some((cached_row, selected)) =

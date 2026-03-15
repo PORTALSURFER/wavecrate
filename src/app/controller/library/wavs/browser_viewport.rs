@@ -39,24 +39,26 @@ pub(crate) fn sync_browser_viewport_window(
     max_window_len: usize,
 ) {
     if visible_count == 0 {
-        browser.render_window_start = 0;
-        browser.view_window_start = 0;
+        browser.viewport.render_window_start = 0;
+        browser.viewport.view_window_start = 0;
         return;
     }
     let window_len = browser_viewport_window_len(visible_count, max_window_len);
     let max_start = browser_viewport_max_start(visible_count, max_window_len);
     if window_len >= visible_count {
-        browser.render_window_start = 0;
-        browser.view_window_start = browser.view_window_start.min(visible_count - 1);
+        browser.viewport.render_window_start = 0;
+        browser.viewport.view_window_start =
+            browser.viewport.view_window_start.min(visible_count - 1);
         return;
-    } else if browser.autoscroll {
+    } else if browser.selection.autoscroll {
         let pivot = browser
+            .selection
             .selected_visible
-            .or(browser.selection_anchor_visible)
+            .or(browser.selection.selection_anchor_visible)
             .unwrap_or(0)
             .min(visible_count - 1);
         let edge_margin = BROWSER_VIEW_EDGE_MARGIN_ROWS.min(window_len.saturating_sub(1) / 2);
-        let mut window_start = browser.render_window_start.min(max_start);
+        let mut window_start = browser.viewport.render_window_start.min(max_start);
         let window_end = window_start + window_len;
         let top_guard = window_start + edge_margin;
         let bottom_guard = window_end.saturating_sub(edge_margin);
@@ -67,9 +69,9 @@ pub(crate) fn sync_browser_viewport_window(
                 .saturating_add(edge_margin + 1)
                 .saturating_sub(window_len);
         }
-        browser.render_window_start = window_start.min(max_start);
+        browser.viewport.render_window_start = window_start.min(max_start);
     } else {
-        browser.render_window_start = browser.render_window_start.min(max_start);
+        browser.viewport.render_window_start = browser.viewport.render_window_start.min(max_start);
     }
-    browser.view_window_start = browser.view_window_start.min(visible_count - 1);
+    browser.viewport.view_window_start = browser.viewport.view_window_start.min(visible_count - 1);
 }

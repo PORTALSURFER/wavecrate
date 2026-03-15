@@ -27,10 +27,17 @@ fn async_browser_search_dispatches_then_applies_matching_result() {
     with_browser_async_pipeline_enabled_for_tests(true, || {
         controller.set_browser_search("abc");
 
-        let request_id = controller.ui.browser.latest_search_request_id;
+        let request_id = controller.ui.browser.search.latest_search_request_id;
         assert_eq!(request_id, 1);
-        assert!(controller.ui.browser.search_busy);
-        assert_eq!(controller.ui.browser.latest_applied_search_request_id, 0);
+        assert!(controller.ui.browser.search.search_busy);
+        assert_eq!(
+            controller
+                .ui
+                .browser
+                .search
+                .latest_applied_search_request_id,
+            0
+        );
         assert_eq!(visible_indices(&controller), starting_visible);
 
         controller.apply_background_job_message_for_tests(JobMessage::BrowserSearchFinished(
@@ -48,8 +55,15 @@ fn async_browser_search_dispatches_then_applies_matching_result() {
     });
 
     assert_eq!(visible_indices(&controller), expected_visible);
-    assert_eq!(controller.ui.browser.latest_applied_search_request_id, 1);
-    assert!(!controller.ui.browser.search_busy);
+    assert_eq!(
+        controller
+            .ui
+            .browser
+            .search
+            .latest_applied_search_request_id,
+        1
+    );
+    assert!(!controller.ui.browser.search.search_busy);
 }
 
 #[test]
@@ -69,13 +83,13 @@ fn stale_async_browser_search_result_is_ignored_until_latest_request_arrives() {
 
     with_browser_async_pipeline_enabled_for_tests(true, || {
         controller.set_browser_search("kick");
-        let first_request_id = controller.ui.browser.latest_search_request_id;
+        let first_request_id = controller.ui.browser.search.latest_search_request_id;
         controller.set_browser_search("snr");
-        let second_request_id = controller.ui.browser.latest_search_request_id;
+        let second_request_id = controller.ui.browser.search.latest_search_request_id;
 
         assert_eq!(first_request_id, 1);
         assert_eq!(second_request_id, 2);
-        assert!(controller.ui.browser.search_busy);
+        assert!(controller.ui.browser.search.search_busy);
 
         controller.apply_background_job_message_for_tests(JobMessage::BrowserSearchFinished(
             SearchResult {
@@ -91,8 +105,15 @@ fn stale_async_browser_search_result_is_ignored_until_latest_request_arrives() {
         ));
 
         assert_eq!(visible_indices(&controller), starting_visible);
-        assert_eq!(controller.ui.browser.latest_applied_search_request_id, 0);
-        assert!(controller.ui.browser.search_busy);
+        assert_eq!(
+            controller
+                .ui
+                .browser
+                .search
+                .latest_applied_search_request_id,
+            0
+        );
+        assert!(controller.ui.browser.search.search_busy);
 
         controller.apply_background_job_message_for_tests(JobMessage::BrowserSearchFinished(
             SearchResult {
@@ -109,8 +130,15 @@ fn stale_async_browser_search_result_is_ignored_until_latest_request_arrives() {
     });
 
     assert_eq!(visible_indices(&controller), expected_visible);
-    assert_eq!(controller.ui.browser.latest_applied_search_request_id, 2);
-    assert!(!controller.ui.browser.search_busy);
+    assert_eq!(
+        controller
+            .ui
+            .browser
+            .search
+            .latest_applied_search_request_id,
+        2
+    );
+    assert!(!controller.ui.browser.search.search_busy);
 }
 
 #[test]
@@ -121,7 +149,7 @@ fn rebuild_browser_lists_dispatches_async_pipeline_when_enabled() {
         sample_entry("keep.wav", Rating::KEEP_1),
     ];
     let (mut sync_controller, _sync_source) = prepare_with_source_and_wav_entries(entries.clone());
-    sync_controller.ui.browser.filter = TriageFlagFilter::Keep;
+    sync_controller.ui.browser.search.filter = TriageFlagFilter::Keep;
     sync_controller.rebuild_browser_lists();
     let expected_visible = visible_indices(&sync_controller);
     let expected_trash = Arc::clone(&sync_controller.ui.browser.trash);
@@ -132,13 +160,20 @@ fn rebuild_browser_lists_dispatches_async_pipeline_when_enabled() {
     let starting_visible = visible_indices(&controller);
 
     with_browser_async_pipeline_enabled_for_tests(true, || {
-        controller.ui.browser.filter = TriageFlagFilter::Keep;
+        controller.ui.browser.search.filter = TriageFlagFilter::Keep;
         controller.rebuild_browser_lists();
 
-        let request_id = controller.ui.browser.latest_search_request_id;
+        let request_id = controller.ui.browser.search.latest_search_request_id;
         assert_eq!(request_id, 1);
-        assert!(controller.ui.browser.search_busy);
-        assert_eq!(controller.ui.browser.latest_applied_search_request_id, 0);
+        assert!(controller.ui.browser.search.search_busy);
+        assert_eq!(
+            controller
+                .ui
+                .browser
+                .search
+                .latest_applied_search_request_id,
+            0
+        );
         assert_eq!(visible_indices(&controller), starting_visible);
 
         controller.apply_background_job_message_for_tests(JobMessage::BrowserSearchFinished(
@@ -156,6 +191,13 @@ fn rebuild_browser_lists_dispatches_async_pipeline_when_enabled() {
     });
 
     assert_eq!(visible_indices(&controller), expected_visible);
-    assert_eq!(controller.ui.browser.latest_applied_search_request_id, 1);
-    assert!(!controller.ui.browser.search_busy);
+    assert_eq!(
+        controller
+            .ui
+            .browser
+            .search
+            .latest_applied_search_request_id,
+        1
+    );
+    assert!(!controller.ui.browser.search.search_busy);
 }

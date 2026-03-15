@@ -20,11 +20,11 @@ pub(crate) fn project_browser_rows_projection_inputs(
     controller: &AppController,
 ) -> BrowserRowsProjectionInputs {
     BrowserRowsProjectionInputs {
-        visible_count: controller.ui.browser.visible.len(),
-        selected_visible_row: controller.ui.browser.selected_visible,
-        anchor_visible_row: controller.ui.browser.selection_anchor_visible,
-        autoscroll: controller.ui.browser.autoscroll,
-        view_start_row: controller.ui.browser.view_window_start,
+        visible_count: controller.ui.browser.viewport.visible.len(),
+        selected_visible_row: controller.ui.browser.selection.selected_visible,
+        anchor_visible_row: controller.ui.browser.selection.selection_anchor_visible,
+        autoscroll: controller.ui.browser.selection.autoscroll,
+        view_start_row: controller.ui.browser.viewport.view_window_start,
     }
 }
 
@@ -34,15 +34,17 @@ pub(crate) fn project_browser_rows_projection_inputs(
 /// metadata and row payloads independently when only one segment is dirty.
 pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> BrowserPanelModel {
     let row_inputs = project_browser_rows_projection_inputs(controller);
-    let selected_path_count = controller.ui.browser.selected_paths.len();
-    let search_query = controller.ui.browser.search_query.clone();
-    let active_rating_filters = browser_rating_filter_flags(&controller.ui.browser.rating_filter);
+    let selected_path_count = controller.ui.browser.selection.selected_paths.len();
+    let search_query = controller.ui.browser.search.search_query.clone();
+    let active_rating_filters =
+        browser_rating_filter_flags(&controller.ui.browser.search.rating_filter);
     let search_placeholder = Some(super::browser_search_placeholder(
-        controller.ui.browser.search_focus_requested,
+        controller.ui.browser.search.search_focus_requested,
     ));
-    let busy = controller.ui.browser.search_busy;
+    let busy = controller.ui.browser.search.search_busy;
     let sort_label = Some(
-        super::browser_sort_label(SampleBrowserSort::from(controller.ui.browser.sort)).to_owned(),
+        super::browser_sort_label(SampleBrowserSort::from(controller.ui.browser.search.sort))
+            .to_owned(),
     );
     let active_tab_label =
         Some(super::browser_tab_label(controller.ui.browser.active_tab).to_owned());

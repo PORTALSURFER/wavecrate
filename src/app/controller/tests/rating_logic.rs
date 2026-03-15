@@ -101,7 +101,7 @@ fn advance_after_rating_respects_random_navigation() {
     controller.rebuild_browser_lists();
 
     // Enable random nav
-    controller.ui.browser.random_navigation_mode = true;
+    controller.ui.browser.search.random_navigation_mode = true;
     controller.settings.controls.advance_after_rating = true;
 
     // Mark a.wav and b.wav as played so random choices are forced to c.wav
@@ -271,5 +271,5 @@ fn undo_adjust_rating_refocuses_original_sample_under_filter() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(std::path::Path::new("two.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
 }

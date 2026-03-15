@@ -53,8 +53,9 @@ pub(crate) fn play_previous_random_sample(controller: &mut AppController) {
 }
 
 pub(crate) fn toggle_random_navigation_mode(controller: &mut AppController) {
-    controller.ui.browser.random_navigation_mode = !controller.ui.browser.random_navigation_mode;
-    if controller.ui.browser.random_navigation_mode {
+    controller.ui.browser.search.random_navigation_mode =
+        !controller.ui.browser.search.random_navigation_mode;
+    if controller.ui.browser.search.random_navigation_mode {
         mark_current_random_navigation_focus(controller);
         controller.set_status_message(StatusMessage::custom(
             "Random navigation on: Up/Down jump to random samples",
@@ -66,7 +67,7 @@ pub(crate) fn toggle_random_navigation_mode(controller: &mut AppController) {
 }
 
 pub(crate) fn random_navigation_mode_enabled(controller: &AppController) -> bool {
-    controller.ui.browser.random_navigation_mode
+    controller.ui.browser.search.random_navigation_mode
 }
 
 fn play_random_visible_sample_internal<R: Rng + ?Sized>(
@@ -166,7 +167,7 @@ fn current_random_navigation_path(controller: &AppController) -> Option<PathBuf>
         .wav
         .selected_wav
         .clone()
-        .or_else(|| controller.ui.browser.last_focused_path.clone())
+        .or_else(|| controller.ui.browser.selection.last_focused_path.clone())
 }
 
 fn mark_current_random_navigation_focus(controller: &mut AppController) {

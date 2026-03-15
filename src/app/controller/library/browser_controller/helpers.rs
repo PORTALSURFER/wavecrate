@@ -132,7 +132,7 @@ impl BrowserController<'_> {
         Ok(())
     }
     pub(crate) fn next_browser_focus_after_delete(&mut self, rows: &[usize]) -> Option<PathBuf> {
-        if rows.is_empty() || self.ui.browser.visible.len() == 0 {
+        if rows.is_empty() || self.ui.browser.viewport.visible.len() == 0 {
             return None;
         }
         let mut sorted = rows.to_vec();
@@ -141,7 +141,7 @@ impl BrowserController<'_> {
         let first = sorted.first().copied().unwrap_or(highest);
         let after = highest
             .checked_add(1)
-            .and_then(|idx| self.ui.browser.visible.get(idx))
+            .and_then(|idx| self.ui.browser.viewport.visible.get(idx))
             .and_then(|entry_idx| self.wav_entry(entry_idx))
             .map(|entry| entry.relative_path.clone());
         if after.is_some() {
@@ -149,7 +149,7 @@ impl BrowserController<'_> {
         }
         first
             .checked_sub(1)
-            .and_then(|idx| self.ui.browser.visible.get(idx))
+            .and_then(|idx| self.ui.browser.viewport.visible.get(idx))
             .and_then(|entry_idx| self.wav_entry(entry_idx))
             .map(|entry| entry.relative_path.clone())
     }

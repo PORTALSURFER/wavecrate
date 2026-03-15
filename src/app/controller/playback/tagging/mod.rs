@@ -15,7 +15,7 @@ fn should_advance_after_rating(
 ) -> bool {
     changed
         && controller.settings.controls.advance_after_rating
-        && controller.ui.browser.selected_visible == Some(primary_row)
+        && controller.ui.browser.selection.selected_visible == Some(primary_row)
         && refocus_path.and_then(|path| controller.visible_row_for_path(path)) == Some(primary_row)
 }
 
@@ -40,7 +40,7 @@ fn advance_or_commit_after_rating(
             controller.focus_random_visible_sample();
         } else {
             let next_row = primary_row + 1;
-            if next_row < controller.ui.browser.visible.len() {
+            if next_row < controller.ui.browser.viewport.visible.len() {
                 controller.focus_browser_row(next_row);
             }
         }
@@ -65,8 +65,8 @@ fn next_focus_path_for_removed_rows(
     let last = *sorted_rows.last()?;
     let after = last
         .checked_add(1)
-        .filter(|idx| *idx < controller.ui.browser.visible.len())
-        .and_then(|idx| controller.ui.browser.visible.get(idx))
+        .filter(|idx| *idx < controller.ui.browser.viewport.visible.len())
+        .and_then(|idx| controller.ui.browser.viewport.visible.get(idx))
         .and_then(|entry_idx| controller.wav_entry(entry_idx))
         .map(|entry| entry.relative_path.clone());
     if after.is_some() {
@@ -74,7 +74,7 @@ fn next_focus_path_for_removed_rows(
     }
     first
         .checked_sub(1)
-        .and_then(|idx| controller.ui.browser.visible.get(idx))
+        .and_then(|idx| controller.ui.browser.viewport.visible.get(idx))
         .and_then(|entry_idx| controller.wav_entry(entry_idx))
         .map(|entry| entry.relative_path.clone())
 }
@@ -152,7 +152,7 @@ pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample
 pub(crate) fn move_selection_column(controller: &mut AppController, delta: isize) {
     use crate::app::state::TriageFlagFilter::*;
     let filters = [All, Keep, Trash, Untagged];
-    let current = controller.ui.browser.filter;
+    let current = controller.ui.browser.search.filter;
     let current_idx = filters.iter().position(|f| f == &current).unwrap_or(0) as isize;
     let target_idx = (current_idx + delta).clamp(0, (filters.len() as isize) - 1) as usize;
     let target = filters[target_idx];

@@ -157,7 +157,7 @@ fn over_trashing_sample_moves_it_to_configured_trash_folder() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("keep.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
     let rows = controller
         .database_for(&source)
         .unwrap()

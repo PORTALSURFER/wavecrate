@@ -90,9 +90,10 @@ impl AppController {
         let Some(source) = self.current_source() else {
             return Err("Select a source first".into());
         };
-        let mut paths: Vec<PathBuf> = if !self.ui.browser.selected_paths.is_empty() {
+        let mut paths: Vec<PathBuf> = if !self.ui.browser.selection.selected_paths.is_empty() {
             self.ui
                 .browser
+                .selection
                 .selected_paths
                 .iter()
                 .map(|p| source.root.join(p))
@@ -120,8 +121,8 @@ impl AppController {
     }
 
     fn copy_flash_paths(&self) -> Vec<PathBuf> {
-        if !self.ui.browser.selected_paths.is_empty() {
-            return self.ui.browser.selected_paths.clone();
+        if !self.ui.browser.selection.selected_paths.is_empty() {
+            return self.ui.browser.selection.selected_paths.clone();
         }
         if let Some(selected) = self.sample_view.wav.selected_wav.as_ref() {
             return vec![selected.clone()];
@@ -197,7 +198,7 @@ mod tests {
     fn copy_flash_paths_prefers_browser_selection() {
         let renderer = crate::waveform::WaveformRenderer::new(8, 8);
         let mut controller = AppController::new(renderer, None);
-        controller.ui.browser.selected_paths =
+        controller.ui.browser.selection.selected_paths =
             vec![PathBuf::from("alpha.wav"), PathBuf::from("beta.wav")];
         controller.sample_view.wav.selected_wav = Some(PathBuf::from("fallback.wav"));
 

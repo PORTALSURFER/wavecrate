@@ -36,7 +36,7 @@ impl AppController {
             self.ui_cache.browser.pipeline.neutral_rows.clone().into(),
             self.ui_cache.browser.pipeline.keep_rows.clone().into(),
         );
-        self.ui.browser.search_busy = false;
+        self.ui.browser.search.search_busy = false;
     }
 
     pub(crate) fn selected_row_index(&mut self) -> Option<usize> {
@@ -54,7 +54,7 @@ impl AppController {
     }
 
     fn prune_browser_selection(&mut self) {
-        let previous_paths = self.ui.browser.selected_paths.clone();
+        let previous_paths = self.ui.browser.selection.selected_paths.clone();
         let mut selected_paths = Vec::with_capacity(previous_paths.len());
         for path in previous_paths.iter() {
             let Some(entry_index) = self.wav_index_for_path(path) else {
@@ -77,27 +77,29 @@ impl AppController {
             self.set_browser_selected_paths(selected_paths);
         }
 
-        let previous_last_focused_index = self.ui.browser.last_focused_index;
-        let previous_last_focused_path = self.ui.browser.last_focused_path.clone();
-        let last_focused_path = self.ui.browser.last_focused_path.clone();
+        let previous_last_focused_index = self.ui.browser.selection.last_focused_index;
+        let previous_last_focused_path = self.ui.browser.selection.last_focused_path.clone();
+        let last_focused_path = self.ui.browser.selection.last_focused_path.clone();
         let remapped_last_focused_index = last_focused_path
             .as_deref()
             .and_then(|path| self.wav_index_for_path(path))
             .or_else(|| {
                 self.ui
                     .browser
+                    .selection
                     .last_focused_index
                     .filter(|entry_index| self.wav_entry(*entry_index).is_some())
             });
-        self.ui.browser.last_focused_index = remapped_last_focused_index;
-        self.ui.browser.last_focused_path = remapped_last_focused_index.and_then(|entry_index| {
-            self.wav_entry(entry_index)
-                .map(|entry| entry.relative_path.clone())
-        });
-        if self.ui.browser.last_focused_index != previous_last_focused_index
-            || self.ui.browser.last_focused_path != previous_last_focused_path
+        self.ui.browser.selection.last_focused_index = remapped_last_focused_index;
+        self.ui.browser.selection.last_focused_path =
+            remapped_last_focused_index.and_then(|entry_index| {
+                self.wav_entry(entry_index)
+                    .map(|entry| entry.relative_path.clone())
+            });
+        if self.ui.browser.selection.last_focused_index != previous_last_focused_index
+            || self.ui.browser.selection.last_focused_path != previous_last_focused_path
         {
-            self.ui.browser.marker_cache = None;
+            self.ui.browser.selection.marker_cache = None;
         }
 
         let selected_wav = self.sample_view.wav.selected_wav.clone();
@@ -109,15 +111,15 @@ impl AppController {
             }
             self.sample_view.wav.selected_wav = None;
             self.clear_focused_similarity_highlight();
-            self.ui.browser.selected = None;
-            self.ui.browser.selected_visible = None;
-            self.ui.browser.marker_cache = None;
+            self.ui.browser.selection.selected = None;
+            self.ui.browser.selection.selected_visible = None;
+            self.ui.browser.selection.marker_cache = None;
             self.clear_waveform_view();
         }
     }
 
     pub(crate) fn focused_browser_row(&self) -> Option<usize> {
-        self.ui.browser.selected_visible
+        self.ui.browser.selection.selected_visible
     }
 
     pub(crate) fn focused_browser_path(&mut self) -> Option<PathBuf> {
@@ -130,35 +132,39 @@ impl AppController {
     /// This is used for focus-only interactions (for example wheel navigation)
     /// where triage buckets and visible ordering are unchanged.
     pub(crate) fn refresh_browser_selection_markers(&mut self) {
-        if self.ui.browser.marker_cache.as_ref() == Some(&self.browser_marker_cache_state()) {
+        if self.ui.browser.selection.marker_cache.as_ref()
+            == Some(&self.browser_marker_cache_state())
+        {
             return;
         }
         self.prune_browser_selection();
         let selected_index = self.selected_row_index();
         let loaded_index = self.loaded_row_index();
-        self.ui.browser.selected =
+        self.ui.browser.selection.selected =
             selected_index.and_then(|index| self.browser_index_for_entry(index));
-        self.ui.browser.loaded = loaded_index.and_then(|index| self.browser_index_for_entry(index));
-        self.ui.browser.selected_visible =
+        self.ui.browser.selection.loaded =
+            loaded_index.and_then(|index| self.browser_index_for_entry(index));
+        self.ui.browser.selection.selected_visible =
             selected_index.and_then(|index| self.browser_visible_row_for_entry(index));
-        self.ui.browser.loaded_visible =
+        self.ui.browser.selection.loaded_visible =
             loaded_index.and_then(|index| self.browser_visible_row_for_entry(index));
         let loaded_wav = loaded_index.and_then(|index| {
             self.wav_entry(index)
                 .map(|entry| entry.relative_path.clone())
         });
         self.set_ui_loaded_wav(loaded_wav);
-        let visible_len = self.ui.browser.visible.len();
+        let visible_len = self.ui.browser.viewport.visible.len();
         super::browser_viewport::sync_browser_viewport_window(
             &mut self.ui.browser,
             visible_len,
             MAX_RENDERED_BROWSER_ROWS,
         );
-        if let Some(anchor) = self.ui.browser.selection_anchor_visible
+        if let Some(anchor) = self.ui.browser.selection.selection_anchor_visible
             && anchor >= visible_len
         {
-            self.ui.browser.selection_anchor_visible = self.ui.browser.selected_visible;
+            self.ui.browser.selection.selection_anchor_visible =
+                self.ui.browser.selection.selected_visible;
         }
-        self.ui.browser.marker_cache = Some(self.browser_marker_cache_state());
+        self.ui.browser.selection.marker_cache = Some(self.browser_marker_cache_state());
     }
 }

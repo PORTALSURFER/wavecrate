@@ -34,6 +34,7 @@ fn resolve_visible_row_index(
     controller
         .ui
         .browser
+        .viewport
         .visible
         .get(visible_row)
         .ok_or_else(|| "Selected row is out of range".to_string())
@@ -139,7 +140,7 @@ mod tests {
     #[test]
     fn resolve_sample_id_for_visible_row_errors_on_empty_visible_rows() {
         let (mut controller, _source) = dummy_controller();
-        controller.ui.browser.visible = VisibleRows::List(Vec::new().into());
+        controller.ui.browser.viewport.visible = VisibleRows::List(Vec::new().into());
         let err = resolve_sample_id_for_visible_row(&mut controller, 0).unwrap_err();
         assert_eq!(err, "Selected row is out of range");
     }
@@ -147,7 +148,7 @@ mod tests {
     #[test]
     fn resolve_sample_id_for_visible_row_errors_on_missing_entry() {
         let (mut controller, _source) = dummy_controller();
-        controller.ui.browser.visible = VisibleRows::List(vec![0].into());
+        controller.ui.browser.viewport.visible = VisibleRows::List(vec![0].into());
         let err = resolve_sample_id_for_visible_row(&mut controller, 0).unwrap_err();
         assert_eq!(err, "Sample entry missing");
     }

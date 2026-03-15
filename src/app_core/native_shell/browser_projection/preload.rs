@@ -7,7 +7,7 @@ pub(super) fn preload_browser_window_bpms(
     window_len: usize,
 ) {
     let source_id = controller.selected_source_id();
-    let visible_rows_revision = controller.ui.browser.visible_rows_revision;
+    let visible_rows_revision = controller.ui.browser.viewport.visible_rows_revision;
     if window_len == 0 || source_id.is_none() {
         controller.projected_browser_preload_window = Some(ProjectedBrowserPreloadWindow {
             source_id,
@@ -115,7 +115,7 @@ fn append_browser_window_preload_paths(
 ) {
     for offset in 0..window_len {
         let visible_row = window_start + offset;
-        let Some(absolute_index) = controller.ui.browser.visible.get(visible_row) else {
+        let Some(absolute_index) = controller.ui.browser.viewport.visible.get(visible_row) else {
             continue;
         };
         if let Some(relative_path) = controller

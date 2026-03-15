@@ -4,9 +4,9 @@ use super::*;
 fn projection_cache_key_changes_when_browser_view_window_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
     let first = build_projection_cache_key(&controller);
-    controller.ui.browser.autoscroll = false;
-    controller.ui.browser.view_window_start = 7;
-    controller.ui.browser.render_window_start = 7;
+    controller.ui.browser.selection.autoscroll = false;
+    controller.ui.browser.viewport.view_window_start = 7;
+    controller.ui.browser.viewport.render_window_start = 7;
     let second = build_projection_cache_key(&controller);
     assert_ne!(first, second);
 }
@@ -145,10 +145,10 @@ fn waveform_option_toggles_change_projection_and_waveform_keys() {
 /// Projection cache keys must change when selected-path revisions change.
 fn projection_cache_key_changes_when_selected_path_revision_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
-    controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("first.wav")];
+    controller.ui.browser.selection.selected_paths = vec![std::path::PathBuf::from("first.wav")];
     controller.mark_browser_selected_paths_changed();
     let first = build_projection_cache_key(&controller);
-    controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("second.wav")];
+    controller.ui.browser.selection.selected_paths = vec![std::path::PathBuf::from("second.wav")];
     controller.mark_browser_selected_paths_changed();
     let second = build_projection_cache_key(&controller);
     assert_ne!(first, second);

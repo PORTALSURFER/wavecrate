@@ -10,20 +10,21 @@ pub(crate) fn project_status_model(
     let left = controller.ui.status.text.clone();
     let center = format!(
         "rows: {} | selected: {} | anchor: {} | search: {}{}",
-        controller.ui.browser.visible.len(),
-        controller.ui.browser.selected_paths.len(),
+        controller.ui.browser.viewport.visible.len(),
+        controller.ui.browser.selection.selected_paths.len(),
         controller
             .ui
             .browser
+            .selection
             .selection_anchor_visible
             .map(|row: usize| row.to_string())
             .unwrap_or_else(|| String::from("—")),
-        if controller.ui.browser.search_query.is_empty() {
+        if controller.ui.browser.search.search_query.is_empty() {
             "—"
         } else {
-            controller.ui.browser.search_query.as_str()
+            controller.ui.browser.search.search_query.as_str()
         },
-        if controller.ui.browser.search_busy {
+        if controller.ui.browser.search.search_busy {
             " | filtering…"
         } else {
             ""
@@ -45,6 +46,7 @@ pub(super) fn status_bar_right_text(selected_column: usize) -> String {
 /// Resolve the currently selected browser column index for shell projection.
 pub(crate) fn selected_column_index(ui: &UiState) -> usize {
     ui.browser
+        .selection
         .selected
         .map(|selected| match TriageFlagColumn::from(selected.column) {
             TriageFlagColumn::Trash => 0,

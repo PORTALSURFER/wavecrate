@@ -37,17 +37,21 @@ impl AppController {
     pub(crate) fn dispatch_search_job(&mut self) {
         let Some(source) = self.current_source() else {
             self.mark_browser_search_projection_revision_dirty();
-            self.ui.browser.search_busy = false;
+            self.ui.browser.search.search_busy = false;
             return;
         };
-        self.ui.browser.latest_search_request_id =
-            self.ui.browser.latest_search_request_id.wrapping_add(1);
-        let request_id = self.ui.browser.latest_search_request_id;
-        let query = self.ui.browser.search_query.clone();
-        let filter = self.ui.browser.filter;
-        let rating_filter = self.ui.browser.rating_filter.clone();
-        let sort = self.ui.browser.sort;
-        let similar_query = self.ui.browser.similar_query.clone();
+        self.ui.browser.search.latest_search_request_id = self
+            .ui
+            .browser
+            .search
+            .latest_search_request_id
+            .wrapping_add(1);
+        let request_id = self.ui.browser.search.latest_search_request_id;
+        let query = self.ui.browser.search.search_query.clone();
+        let filter = self.ui.browser.search.filter;
+        let rating_filter = self.ui.browser.search.rating_filter.clone();
+        let sort = self.ui.browser.search.sort;
+        let similar_query = self.ui.browser.search.similar_query.clone();
         let folder_selection = self.folder_selection_for_filter().cloned();
         let folder_negated = self.folder_negation_for_filter().cloned();
         let root_mode = self
@@ -55,7 +59,7 @@ impl AppController {
             .unwrap_or_default();
 
         self.mark_browser_search_projection_revision_dirty();
-        self.ui.browser.search_busy = true;
+        self.ui.browser.search.search_busy = true;
         self.runtime
             .jobs
             .send_search_job(crate::app::controller::jobs::SearchJob {

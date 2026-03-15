@@ -7,9 +7,9 @@ fn projection_segment_browser_frame_copies_manual_viewport_state() {
     let mut cache = NativeProjectionCache::default();
     let _ = cache.resolve_or_project(&mut controller);
 
-    controller.ui.browser.autoscroll = false;
-    controller.ui.browser.view_window_start = 37;
-    controller.ui.browser.render_window_start = 37;
+    controller.ui.browser.selection.autoscroll = false;
+    controller.ui.browser.viewport.view_window_start = 37;
+    controller.ui.browser.viewport.render_window_start = 37;
 
     let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
     assert_eq!(
@@ -210,7 +210,7 @@ fn projection_status_miss_updates_selected_column_without_static_dirty() {
     let (first_model, _) = cache.resolve_or_project(&mut controller);
     assert_eq!(first_model.selected_column, 1);
 
-    controller.ui.browser.selected = Some(SampleBrowserIndex {
+    controller.ui.browser.selection.selected = Some(SampleBrowserIndex {
         column: TriageFlagColumn::Trash,
         row: 0,
     });

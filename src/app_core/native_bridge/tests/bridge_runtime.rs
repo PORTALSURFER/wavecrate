@@ -92,7 +92,8 @@ fn search_query_actions_stay_on_full_model_pull_preparation() {
 #[test]
 fn set_browser_view_start_action_refreshes_projected_model_immediately() {
     let mut bridge = test_bridge(16);
-    bridge.controller.ui.browser.visible = crate::app_core::state::VisibleRows::All { total: 40 };
+    bridge.controller.ui.browser.viewport.visible =
+        crate::app_core::state::VisibleRows::All { total: 40 };
 
     let initial = bridge.project_model();
     assert_eq!(initial.browser.view_start_row, 0);
@@ -109,7 +110,8 @@ fn set_browser_view_start_action_refreshes_projected_model_immediately() {
 #[test]
 fn focus_browser_row_preserves_manual_viewport_start_in_projected_model() {
     let mut bridge = test_bridge(16);
-    bridge.controller.ui.browser.visible = crate::app_core::state::VisibleRows::All { total: 40 };
+    bridge.controller.ui.browser.viewport.visible =
+        crate::app_core::state::VisibleRows::All { total: 40 };
 
     bridge.on_action(NativeUiAction::SetBrowserViewStart { visible_row: 7 });
     let scrolled = bridge.project_model();

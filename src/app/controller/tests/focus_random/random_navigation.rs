@@ -21,10 +21,13 @@ fn random_sample_selection_uses_seeded_rng() {
 
     controller.play_random_visible_sample_with_seed(99);
 
-    assert_eq!(controller.ui.browser.selected_visible, expected);
-    assert_eq!(controller.ui.browser.selection_anchor_visible, expected);
+    assert_eq!(controller.ui.browser.selection.selected_visible, expected);
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        expected
+    );
     assert_eq!(controller.ui.focus.context, FocusContext::SampleBrowser);
-    assert!(controller.ui.browser.autoscroll);
+    assert!(controller.ui.browser.selection.autoscroll);
 }
 
 #[test]
@@ -94,13 +97,19 @@ fn random_history_steps_backward() {
         .map(|(row, _)| row);
     controller.play_random_visible_sample_with_seed(9);
 
-    assert_eq!(controller.ui.browser.selected_visible, second_expected);
+    assert_eq!(
+        controller.ui.browser.selection.selected_visible,
+        second_expected
+    );
     assert_eq!(controller.history.random_history.cursor, Some(1));
 
     controller.play_previous_random_sample();
 
     assert_eq!(controller.history.random_history.cursor, Some(0));
-    assert_eq!(controller.ui.browser.selected_visible, first_expected);
+    assert_eq!(
+        controller.ui.browser.selection.selected_visible,
+        first_expected
+    );
 }
 
 #[test]
@@ -147,7 +156,7 @@ fn random_sample_handles_empty_lists() {
         controller.ui.status.text,
         "No samples available to randomize"
     );
-    assert_eq!(controller.ui.browser.selected_visible, None);
+    assert_eq!(controller.ui.browser.selection.selected_visible, None);
 }
 
 #[test]
@@ -219,6 +228,7 @@ fn random_sample_navigation_avoids_repeats() {
         let selected = controller
             .ui
             .browser
+            .selection
             .selected_visible
             .expect("sample selected");
         let path = controller
@@ -235,6 +245,7 @@ fn random_sample_navigation_avoids_repeats() {
     let selected = controller
         .ui
         .browser
+        .selection
         .selected_visible
         .expect("sample selected");
     let path = controller

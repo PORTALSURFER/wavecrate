@@ -254,11 +254,11 @@ mod tests {
         let action = action_for(HotkeyCommand::FocusBrowserSearch);
 
         controller.handle_hotkey(action, FocusContext::SampleBrowser);
-        assert!(controller.ui.browser.search_focus_requested);
+        assert!(controller.ui.browser.search.search_focus_requested);
 
-        controller.ui.browser.search_focus_requested = false;
+        controller.ui.browser.search.search_focus_requested = false;
         controller.handle_hotkey(action, FocusContext::Waveform);
-        assert!(controller.ui.browser.search_focus_requested);
+        assert!(controller.ui.browser.search.search_focus_requested);
     }
 
     #[test]

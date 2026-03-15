@@ -17,7 +17,7 @@ fn status_bar_right_text_is_stable_across_input() {
 fn motion_projection_sets_status_right_from_selected_column() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
     controller.ui.status.text = "x".repeat(8_192);
-    controller.ui.browser.selected = Some(SampleBrowserIndex {
+    controller.ui.browser.selection.selected = Some(SampleBrowserIndex {
         column: TriageFlagColumn::Keep,
         row: 0,
     });

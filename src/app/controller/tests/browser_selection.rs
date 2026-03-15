@@ -83,25 +83,32 @@ fn escape_clears_selection() {
 
     controller.focus_browser_row_only(0);
     controller.toggle_browser_row_selection(1);
-    assert_eq!(controller.ui.browser.selected_paths.len(), 2);
+    assert_eq!(controller.ui.browser.selection.selected_paths.len(), 2);
 
     controller.clear_browser_selection();
 
-    assert!(controller.ui.browser.selected_paths.is_empty());
-    assert!(controller.ui.browser.selection_anchor_visible.is_none());
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
+    assert!(
+        controller
+            .ui
+            .browser
+            .selection
+            .selection_anchor_visible
+            .is_none()
+    );
 }
 
 #[test]
 fn update_selection_paths_rewrites_browser_selected_paths() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
-    controller.ui.browser.selected_paths =
+    controller.ui.browser.selection.selected_paths =
         vec![PathBuf::from("old.wav"), PathBuf::from("keep.wav")];
 
     controller.update_selection_paths(&source, Path::new("old.wav"), Path::new("new.wav"));
 
     assert_eq!(
-        controller.ui.browser.selected_paths,
+        controller.ui.browser.selection.selected_paths,
         vec![PathBuf::from("new.wav"), PathBuf::from("keep.wav")]
     );
 }
@@ -116,7 +123,7 @@ fn update_cached_entry_replaces_old_path_in_lookup() {
     )]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
-    controller.ui.browser.selected_paths = vec![PathBuf::from("old.wav")];
+    controller.ui.browser.selection.selected_paths = vec![PathBuf::from("old.wav")];
 
     let mut updated = sample_entry("new.wav", crate::sample_sources::Rating::NEUTRAL);
     updated.file_size = 10;
@@ -134,7 +141,7 @@ fn update_cached_entry_replaces_old_path_in_lookup() {
             .is_some()
     );
     assert_eq!(
-        controller.ui.browser.selected_paths,
+        controller.ui.browser.selection.selected_paths,
         vec![PathBuf::from("new.wav")]
     );
 }
@@ -153,8 +160,11 @@ fn select_all_populates_visible_browser_paths() {
 
     controller.select_all_browser_rows();
 
-    assert_eq!(controller.ui.browser.selected_paths.len(), 3);
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.selected_paths.len(), 3);
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
 }
 
 #[test]
@@ -177,16 +187,24 @@ fn escape_handler_clears_waveform_and_browser_state() {
     controller
         .ui
         .browser
+        .selection
         .selected_paths
         .push(PathBuf::from("one.wav"));
-    controller.ui.browser.selection_anchor_visible = Some(0);
+    controller.ui.browser.selection.selection_anchor_visible = Some(0);
 
     controller.handle_escape();
 
     assert!(controller.selection_state.range.range().is_none());
     assert!(controller.ui.waveform.selection.is_none());
-    assert!(controller.ui.browser.selected_paths.is_empty());
-    assert!(controller.ui.browser.selection_anchor_visible.is_none());
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
+    assert!(
+        controller
+            .ui
+            .browser
+            .selection
+            .selection_anchor_visible
+            .is_none()
+    );
 }
 
 #[test]
@@ -249,14 +267,17 @@ fn click_clears_selection_and_focuses_row() {
 
     controller.focus_browser_row(0);
     controller.toggle_browser_row_selection(1);
-    assert_eq!(controller.ui.browser.selected_paths.len(), 2);
+    assert_eq!(controller.ui.browser.selection.selected_paths.len(), 2);
 
     controller.clear_browser_selection();
     controller.focus_browser_row_only(2);
 
-    assert!(controller.ui.browser.selected_paths.is_empty());
-    assert_eq!(controller.ui.browser.selected_visible, Some(2));
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(2));
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(2)
+    );
 }
 
 #[test]
@@ -272,15 +293,18 @@ fn ctrl_click_toggles_selection_and_focuses_row() {
     controller.rebuild_browser_lists();
 
     controller.focus_browser_row_only(0);
-    assert!(controller.ui.browser.selected_paths.is_empty());
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
 
     controller.toggle_browser_row_selection(2);
 
-    let selected: Vec<_> = controller.ui.browser.selected_paths.to_vec();
+    let selected: Vec<_> = controller.ui.browser.selection.selected_paths.to_vec();
     assert!(selected.contains(&PathBuf::from("one.wav")));
     assert!(selected.contains(&PathBuf::from("three.wav")));
-    assert_eq!(controller.ui.browser.selected_visible, Some(2));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
 }
 
 #[test]
@@ -300,13 +324,16 @@ fn shift_click_extends_selection_range() {
 
     controller.extend_browser_selection_to_row(1);
 
-    let selected: Vec<_> = controller.ui.browser.selected_paths.to_vec();
+    let selected: Vec<_> = controller.ui.browser.selection.selected_paths.to_vec();
     assert_eq!(selected.len(), 2);
     assert!(selected.contains(&PathBuf::from("one.wav")));
     assert!(selected.contains(&PathBuf::from("two.wav")));
     assert!(!selected.contains(&PathBuf::from("three.wav")));
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
 }
 
 #[test]
@@ -332,6 +359,7 @@ fn ctrl_shift_click_adds_range_without_resetting_anchor() {
     let selected: Vec<_> = controller
         .ui
         .browser
+        .selection
         .selected_paths
         .iter()
         .cloned()
@@ -341,8 +369,11 @@ fn ctrl_shift_click_adds_range_without_resetting_anchor() {
     assert!(selected.contains(&PathBuf::from("two.wav")));
     assert!(selected.contains(&PathBuf::from("three.wav")));
     assert!(selected.contains(&PathBuf::from("six.wav")));
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
-    assert_eq!(controller.ui.browser.selected_visible, Some(2));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
 }
 
 #[test]
@@ -363,12 +394,16 @@ fn shift_arrow_grows_selection() {
     let selected: Vec<_> = controller
         .ui
         .browser
+        .selection
         .selected_paths
         .iter()
         .cloned()
         .collect();
     assert!(selected.contains(&PathBuf::from("two.wav")));
     assert!(selected.contains(&PathBuf::from("three.wav")));
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(1));
-    assert_eq!(controller.ui.browser.selected_visible, Some(2));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(1)
+    );
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
 }

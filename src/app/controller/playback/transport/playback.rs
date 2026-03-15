@@ -109,7 +109,7 @@ pub(crate) fn handle_escape(controller: &mut AppController) {
         controller.ui.waveform.cursor_last_navigation_at = None;
         controller.ui.waveform.last_start_marker = Some(0.0);
     }
-    if !controller.ui.browser.selected_paths.is_empty() {
+    if !controller.ui.browser.selection.selected_paths.is_empty() {
         controller.clear_browser_selection();
     }
     if matches!(controller.ui.focus.context, FocusContext::SourceFolders) {

@@ -33,7 +33,7 @@ fn projection_cache_key_changes_when_options_panel_state_changes() {
 fn projection_cache_key_changes_when_browser_filter_encoding_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
     let first = build_projection_cache_key(&controller);
-    controller.ui.browser.filter = TriageFlagFilter::Keep;
+    controller.ui.browser.search.filter = TriageFlagFilter::Keep;
     let second = build_projection_cache_key(&controller);
     assert_ne!(first, second);
 }
@@ -43,7 +43,7 @@ fn projection_cache_key_changes_when_browser_filter_encoding_changes() {
 fn projection_cache_key_changes_when_browser_sort_encoding_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
     let first = build_projection_cache_key(&controller);
-    controller.ui.browser.sort = SampleBrowserSort::PlaybackAgeAsc;
+    controller.ui.browser.search.sort = SampleBrowserSort::PlaybackAgeAsc;
     let second = build_projection_cache_key(&controller);
     assert_ne!(first, second);
 }

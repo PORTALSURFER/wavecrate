@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `20f83666`
 - Phase: `Phase 2 in progress`
-- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-6 are complete and items 7-9 remain pending.`
+- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-7 are complete and items 8-9 remain pending.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md` from the current branch head.
 
@@ -278,7 +278,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: `2026-03-15`
-- Commit: `pending`
+- Commit: `87c4a93e`
 - Assumptions used:
   - Keeping the public setter names and signatures unchanged is sufficient to preserve the external controller contract while moving internal side-effect code.
   - The option-sync tests plus BPM-scale tests are the most direct regression net for the preview-vs-persist BPM behavior in this file.
@@ -289,7 +289,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Plan-order deviation: None
 
-### 7. [ ] Break `SampleBrowserState` into focused selection, viewport, and search/similarity state slices
+### 7. [x] Break `SampleBrowserState` into focused selection, viewport, and search/similarity state slices
 
 - Classification: Architecture improvement
 - Confidence: Medium
@@ -317,6 +317,18 @@
   - Browser pipeline tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Commit: `pending`
+- Assumptions used:
+  - The nested `selection`, `viewport`, and `search` slices preserve the existing durable browser contract while clarifying ownership of derived caches and busy/request bookkeeping.
+  - Path-authoritative multi-selection remains the only canonical selection identity, and index/view caches remain explicitly derivable state under the new slice boundaries.
+- Validation outcome:
+  - `cargo fmt --all`
+  - `cargo test browser_async -- --test-threads=1`
+  - `cargo test browser_core -- --test-threads=1`
+  - `cargo test focus_random -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Plan-order deviation: None
 
 ### 8. [ ] Expand GUI scenario and desktop-AIV packs for transport, volume drag, and map-point interaction
 

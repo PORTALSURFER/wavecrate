@@ -13,8 +13,8 @@ fn refresh_browser_search_results(controller: &mut AppController) {
 }
 
 pub(crate) fn set_browser_filter(controller: &mut AppController, filter: TriageFlagFilter) {
-    if controller.ui.browser.filter != filter {
-        controller.ui.browser.filter = filter;
+    if controller.ui.browser.search.filter != filter {
+        controller.ui.browser.search.filter = filter;
         controller.mark_browser_search_projection_revision_dirty();
         refresh_browser_search_results(controller);
     }
@@ -27,17 +27,17 @@ pub(crate) fn set_browser_rating_filter(controller: &mut AppController, level: i
     }
     let mut changed = false;
     if additive {
-        if controller.ui.browser.rating_filter.contains(&level) {
-            controller.ui.browser.rating_filter.remove(&level);
+        if controller.ui.browser.search.rating_filter.contains(&level) {
+            controller.ui.browser.search.rating_filter.remove(&level);
         } else {
-            controller.ui.browser.rating_filter.insert(level);
+            controller.ui.browser.search.rating_filter.insert(level);
         }
         changed = true;
-    } else if controller.ui.browser.rating_filter.len() != 1
-        || !controller.ui.browser.rating_filter.contains(&level)
+    } else if controller.ui.browser.search.rating_filter.len() != 1
+        || !controller.ui.browser.search.rating_filter.contains(&level)
     {
-        controller.ui.browser.rating_filter.clear();
-        controller.ui.browser.rating_filter.insert(level);
+        controller.ui.browser.search.rating_filter.clear();
+        controller.ui.browser.search.rating_filter.insert(level);
         changed = true;
     }
     if changed {
@@ -54,10 +54,10 @@ fn replace_browser_rating_filter(
     let next_filter = levels
         .into_iter()
         .collect::<std::collections::BTreeSet<_>>();
-    if controller.ui.browser.rating_filter == next_filter {
+    if controller.ui.browser.search.rating_filter == next_filter {
         return;
     }
-    controller.ui.browser.rating_filter = next_filter;
+    controller.ui.browser.search.rating_filter = next_filter;
     controller.mark_browser_search_projection_revision_dirty();
     refresh_browser_search_results(controller);
 }
@@ -81,7 +81,7 @@ pub(crate) fn invert_browser_rating_filter(controller: &mut AppController, level
     let Some(levels) = inverted_browser_rating_filter_levels(level) else {
         return;
     };
-    if controller.ui.browser.rating_filter == levels {
+    if controller.ui.browser.search.rating_filter == levels {
         clear_browser_rating_filter(controller);
     } else {
         replace_browser_rating_filter(controller, levels);
@@ -90,19 +90,19 @@ pub(crate) fn invert_browser_rating_filter(controller: &mut AppController, level
 
 /// Clear all browser rating filters.
 pub(crate) fn clear_browser_rating_filter(controller: &mut AppController) {
-    if controller.ui.browser.rating_filter.is_empty() {
+    if controller.ui.browser.search.rating_filter.is_empty() {
         return;
     }
-    controller.ui.browser.rating_filter.clear();
+    controller.ui.browser.search.rating_filter.clear();
     controller.mark_browser_search_projection_revision_dirty();
     refresh_browser_search_results(controller);
 }
 
 pub(crate) fn set_browser_sort(controller: &mut AppController, sort: SampleBrowserSort) {
-    if controller.ui.browser.sort != sort {
-        controller.ui.browser.sort = sort;
+    if controller.ui.browser.search.sort != sort {
+        controller.ui.browser.search.sort = sort;
         if sort != SampleBrowserSort::Similarity {
-            controller.ui.browser.similarity_sort_follow_loaded = false;
+            controller.ui.browser.search.similarity_sort_follow_loaded = false;
         }
         controller.mark_browser_search_projection_revision_dirty();
         refresh_browser_search_results(controller);
@@ -111,31 +111,31 @@ pub(crate) fn set_browser_sort(controller: &mut AppController, sort: SampleBrows
 
 pub(crate) fn focus_browser_search(controller: &mut AppController) {
     controller.focus_browser_context();
-    if controller.ui.browser.search_focus_requested {
+    if controller.ui.browser.search.search_focus_requested {
         return;
     }
-    controller.ui.browser.search_focus_requested = true;
+    controller.ui.browser.search.search_focus_requested = true;
     controller.mark_browser_search_projection_revision_dirty();
 }
 
 /// Clear browser-search focus while leaving the current query text intact.
 pub(crate) fn blur_browser_search(controller: &mut AppController) {
-    if !controller.ui.browser.search_focus_requested {
+    if !controller.ui.browser.search.search_focus_requested {
         return;
     }
-    controller.ui.browser.search_focus_requested = false;
+    controller.ui.browser.search.search_focus_requested = false;
     controller.mark_browser_search_projection_revision_dirty();
 }
 
 pub(crate) fn set_browser_search(controller: &mut AppController, query: impl Into<String>) {
     let query = query.into();
-    if controller.ui.browser.search_query == query {
+    if controller.ui.browser.search.search_query == query {
         return;
     }
-    controller.ui.browser.search_query = query;
+    controller.ui.browser.search.search_query = query;
     controller.mark_browser_search_projection_revision_dirty();
-    controller.ui.browser.similar_query = None;
-    controller.ui.browser.sort = SampleBrowserSort::ListOrder;
-    controller.ui.browser.similarity_sort_follow_loaded = false;
+    controller.ui.browser.search.similar_query = None;
+    controller.ui.browser.search.sort = SampleBrowserSort::ListOrder;
+    controller.ui.browser.search.similarity_sort_follow_loaded = false;
     refresh_browser_search_results(controller);
 }

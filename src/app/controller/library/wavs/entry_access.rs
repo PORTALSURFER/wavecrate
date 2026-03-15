@@ -15,17 +15,17 @@ impl AppController {
 
     /// Visible wav indices after applying the active sample browser filter.
     pub fn visible_browser_rows(&self) -> &crate::app::state::VisibleRows {
-        &self.ui.browser.visible
+        &self.ui.browser.viewport.visible
     }
 
     /// Visible row count after applying the active sample browser filter.
     pub fn visible_browser_len(&self) -> usize {
-        self.ui.browser.visible.len()
+        self.ui.browser.viewport.visible.len()
     }
 
     /// Map a visible row to the absolute wav index.
     pub fn visible_browser_index(&self, row: usize) -> Option<usize> {
-        self.ui.browser.visible.get(row)
+        self.ui.browser.viewport.visible.get(row)
     }
 
     /// Return the total wav-entry count for the active source cache.

@@ -12,7 +12,7 @@ impl AppController {
     pub(crate) fn clear_focused_similarity_highlight(&mut self) {
         self.runtime.pending_similarity_refresh = None;
         self.runtime.pending_similarity_refresh_not_before = None;
-        self.ui.browser.focused_similarity = None;
+        self.ui.browser.search.focused_similarity = None;
     }
 
     /// Refresh near-duplicate highlights for the focused sample.
@@ -21,7 +21,7 @@ impl AppController {
         sample_id: &str,
         anchor_index: Option<usize>,
     ) {
-        self.ui.browser.focused_similarity =
+        self.ui.browser.search.focused_similarity =
             similar::build_focused_similarity_highlight(self, sample_id, anchor_index)
                 .unwrap_or_default();
     }

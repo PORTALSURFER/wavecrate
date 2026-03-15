@@ -156,7 +156,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         active_rating_filters: {
             let mut flags = [false; 8];
             for (index, level) in [-3, -2, -1, 0, 1, 2, 3, 4].into_iter().enumerate() {
-                flags[index] = controller.ui.browser.rating_filter.contains(&level);
+                flags[index] = controller.ui.browser.search.rating_filter.contains(&level);
             }
             flags
         },
@@ -238,13 +238,13 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
 
 /// Project browser action availability for toolbar command enablement.
 pub(crate) fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel {
-    let has_focus = ui.browser.selected_visible.is_some();
-    let has_selection = has_focus || !ui.browser.selected_paths.is_empty();
+    let has_focus = ui.browser.selection.selected_visible.is_some();
+    let has_selection = has_focus || !ui.browser.selection.selected_paths.is_empty();
     BrowserActionsModel {
         can_rename: has_focus,
         can_delete: has_selection,
         can_tag: has_selection,
-        random_navigation_enabled: ui.browser.random_navigation_mode,
+        random_navigation_enabled: ui.browser.search.random_navigation_mode,
     }
 }
 

@@ -27,7 +27,7 @@ fn focus_hotkey_does_not_autoplay_browser_sample() {
         Some(Path::new("one.wav"))
     );
     assert!(controller.runtime.jobs.pending_playback.is_none());
-    assert_eq!(controller.ui.browser.selected_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn moving_browser_focus_queues_async_preview_playback() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("two.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
     assert_eq!(
         controller.sample_view.wav.loaded_wav.as_deref(),
         Some(Path::new("one.wav"))
@@ -105,7 +105,7 @@ fn native_focus_browser_row_queues_async_preview_without_blocking_selection() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("two.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
     assert_eq!(
         controller.sample_view.wav.loaded_wav.as_deref(),
         Some(Path::new("one.wav"))
@@ -158,7 +158,7 @@ fn native_move_browser_focus_queues_async_preview_playback() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("two.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
     assert_eq!(
         controller.sample_view.wav.loaded_wav.as_deref(),
         Some(Path::new("one.wav"))
@@ -207,7 +207,7 @@ fn native_move_browser_focus_uses_random_mode_pool_without_repeating_current_row
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("three.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(2));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
     assert_eq!(
         controller
             .runtime
@@ -251,10 +251,10 @@ fn native_set_browser_view_start_scrolls_without_changing_selection() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("row_001.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
-    assert_eq!(controller.ui.browser.view_window_start, 2);
-    assert_eq!(controller.ui.browser.render_window_start, 2);
-    assert!(!controller.ui.browser.autoscroll);
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.viewport.view_window_start, 2);
+    assert_eq!(controller.ui.browser.viewport.render_window_start, 2);
+    assert!(!controller.ui.browser.selection.autoscroll);
     assert!(controller.runtime.jobs.pending_audio.is_none());
     assert!(controller.runtime.jobs.pending_playback.is_none());
 }
@@ -269,18 +269,21 @@ fn native_set_browser_view_start_preserves_requested_top_row_within_visible_boun
         ));
     }
     let (mut controller, _source) = prepare_with_source_and_wav_entries(entries);
-    let visible_count = controller.ui.browser.visible.len();
+    let visible_count = controller.ui.browser.viewport.visible.len();
     let expected_view_start = visible_count.saturating_sub(1);
     let expected_render_start = visible_count.saturating_sub(MAX_RENDERED_BROWSER_ROWS);
 
     controller.set_browser_view_start_action(visible_count.saturating_sub(1));
 
-    assert_eq!(controller.ui.browser.view_window_start, expected_view_start);
     assert_eq!(
-        controller.ui.browser.render_window_start,
+        controller.ui.browser.viewport.view_window_start,
+        expected_view_start
+    );
+    assert_eq!(
+        controller.ui.browser.viewport.render_window_start,
         expected_render_start
     );
-    assert!(!controller.ui.browser.autoscroll);
+    assert!(!controller.ui.browser.selection.autoscroll);
 }
 
 #[test]
@@ -297,10 +300,10 @@ fn focus_after_manual_scroll_preserves_requested_top_row_for_small_visible_lists
     controller.set_browser_view_start_action(7);
     controller.focus_browser_row_only(18);
 
-    assert_eq!(controller.ui.browser.selected_visible, Some(18));
-    assert_eq!(controller.ui.browser.view_window_start, 7);
-    assert_eq!(controller.ui.browser.render_window_start, 0);
-    assert!(controller.ui.browser.autoscroll);
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(18));
+    assert_eq!(controller.ui.browser.viewport.view_window_start, 7);
+    assert_eq!(controller.ui.browser.viewport.render_window_start, 0);
+    assert!(controller.ui.browser.selection.autoscroll);
 }
 
 #[test]
@@ -360,5 +363,5 @@ fn f_hotkey_focuses_loaded_sample_in_browser() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("two.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
 }

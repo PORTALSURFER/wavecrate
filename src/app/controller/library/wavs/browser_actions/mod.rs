@@ -33,13 +33,14 @@ pub enum BrowserFocusIntent {
 impl AppController {
     /// Resolve the visible browser row reached by moving `delta` from the current focus.
     pub(super) fn browser_target_visible_row_from_delta(&self, delta: i8) -> Option<usize> {
-        let visible_count = self.ui.browser.visible.len();
+        let visible_count = self.ui.browser.viewport.visible.len();
         if visible_count == 0 {
             return None;
         }
         let base = self
             .ui
             .browser
+            .selection
             .selected_visible
             .unwrap_or(0)
             .min(visible_count - 1);

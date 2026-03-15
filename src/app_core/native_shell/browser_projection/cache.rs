@@ -19,7 +19,7 @@ fn hash_scalar<T: Hash + ?Sized>(value: &T) -> u64 {
 /// Clear the retained selected-path lookup cache.
 pub(super) fn clear_projected_selected_paths_lookup(controller: &mut AppController) {
     controller.projected_selected_paths_revision =
-        Some(controller.ui.browser.selected_paths_revision);
+        Some(controller.ui.browser.selection.selected_paths_revision);
     controller.projected_selected_paths_lookup = None;
 }
 
@@ -27,7 +27,7 @@ pub(super) fn clear_projected_selected_paths_lookup(controller: &mut AppControll
 pub(in crate::app_core::native_shell) fn refresh_projected_selected_paths_lookup(
     controller: &mut AppController,
 ) {
-    let selection_revision = controller.ui.browser.selected_paths_revision;
+    let selection_revision = controller.ui.browser.selection.selected_paths_revision;
     let selected_indices = controller.browser_selected_indices_snapshot();
     if selected_indices.is_empty() {
         if controller.projected_selected_paths_lookup.is_some()

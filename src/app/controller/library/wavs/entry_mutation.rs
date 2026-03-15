@@ -203,11 +203,12 @@ pub(super) fn update_cached_entry(
             .wav_entries
             .insert_lookup(new_entry.relative_path.clone(), index);
         updated = true;
-        if controller.ui.browser.last_focused_index == Some(index)
-            || controller.ui.browser.last_focused_path.as_deref() == Some(old_path)
+        if controller.ui.browser.selection.last_focused_index == Some(index)
+            || controller.ui.browser.selection.last_focused_path.as_deref() == Some(old_path)
         {
-            controller.ui.browser.last_focused_index = Some(index);
-            controller.ui.browser.last_focused_path = Some(new_entry.relative_path.clone());
+            controller.ui.browser.selection.last_focused_index = Some(index);
+            controller.ui.browser.selection.last_focused_path =
+                Some(new_entry.relative_path.clone());
         }
     }
     if let Some(cache) = controller.cache.wav.entries.get_mut(&source.id)
@@ -252,10 +253,11 @@ pub(super) fn update_selection_paths(
     new_path: &Path,
 ) {
     if controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
-        if !controller.ui.browser.selected_paths.is_empty() {
-            let mut updated = Vec::with_capacity(controller.ui.browser.selected_paths.len());
+        if !controller.ui.browser.selection.selected_paths.is_empty() {
+            let mut updated =
+                Vec::with_capacity(controller.ui.browser.selection.selected_paths.len());
             let mut replaced = false;
-            for path in controller.ui.browser.selected_paths.iter() {
+            for path in controller.ui.browser.selection.selected_paths.iter() {
                 if path == old_path {
                     replaced = true;
                     if !updated.iter().any(|candidate| candidate == new_path) {

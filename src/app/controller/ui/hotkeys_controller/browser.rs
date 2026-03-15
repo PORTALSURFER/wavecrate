@@ -40,7 +40,7 @@ pub(crate) fn handle_browser_command(
             if matches!(controller.ui.browser.active_tab, SampleBrowserTab::Map) {
                 controller.ui.browser.active_tab = SampleBrowserTab::List;
             }
-            if controller.ui.browser.similar_query.is_some() {
+            if controller.ui.browser.search.similar_query.is_some() {
                 controller.clear_similar_filter();
             } else if let Some(row) = controller.focused_browser_row() {
                 if let Err(err) = controller.find_similar_for_visible_row(row) {

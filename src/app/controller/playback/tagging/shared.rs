@@ -26,7 +26,7 @@ pub(super) fn prepare_tagging_selection(
     let primary_row = controller.visible_row_for_path(&refocus_path)?;
     let rows = controller.action_rows_from_primary(primary_row);
     controller.focus_browser_context();
-    controller.ui.browser.autoscroll = true;
+    controller.ui.browser.selection.autoscroll = true;
     let (contexts, last_error) = collect_unique_contexts(controller, rows);
     Some(TaggingSelection {
         primary_row,

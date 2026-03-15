@@ -57,17 +57,21 @@ fn matching_browser_search_message_refreshes_visible_rows_and_clears_busy_state(
     ]);
     controller.sample_view.wav.selected_wav = Some(PathBuf::from("hat.wav"));
     controller.sample_view.wav.loaded_wav = Some(PathBuf::from("snare.wav"));
-    controller.ui.browser.search_query = "hat".into();
-    controller.ui.browser.search_busy = true;
-    controller.ui.browser.latest_search_request_id = 9;
-    controller.ui.browser.latest_applied_search_request_id = 3;
-    controller.ui.browser.visible_rows_revision = 14;
-    controller.ui.browser.marker_cache = Some(Default::default());
-    controller.ui.browser.selection_anchor_visible = Some(7);
-    controller.ui.browser.selected = None;
-    controller.ui.browser.loaded = None;
-    controller.ui.browser.selected_visible = None;
-    controller.ui.browser.loaded_visible = None;
+    controller.ui.browser.search.search_query = "hat".into();
+    controller.ui.browser.search.search_busy = true;
+    controller.ui.browser.search.latest_search_request_id = 9;
+    controller
+        .ui
+        .browser
+        .search
+        .latest_applied_search_request_id = 3;
+    controller.ui.browser.viewport.visible_rows_revision = 14;
+    controller.ui.browser.selection.marker_cache = Some(Default::default());
+    controller.ui.browser.selection.selection_anchor_visible = Some(7);
+    controller.ui.browser.selection.selected = None;
+    controller.ui.browser.selection.loaded = None;
+    controller.ui.browser.selection.selected_visible = None;
+    controller.ui.browser.selection.loaded_visible = None;
     controller.set_ui_loaded_wav(None);
 
     controller.handle_background_job_message(JobMessage::BrowserSearchFinished(SearchResult {
@@ -81,22 +85,38 @@ fn matching_browser_search_message_refreshes_visible_rows_and_clears_busy_state(
         scores: Arc::from([Some(11_i64), None, Some(42_i64)]),
     }));
 
-    assert_eq!(controller.ui.browser.visible.len(), 2);
-    assert_eq!(controller.ui.browser.visible_rows_revision, 15);
-    assert_eq!(controller.ui.browser.latest_applied_search_request_id, 9);
-    assert!(!controller.ui.browser.search_busy);
-    assert!(controller.ui.browser.marker_cache.is_none());
-    assert_eq!(controller.ui.browser.selected_visible, Some(0));
-    assert_eq!(controller.ui.browser.loaded_visible, None);
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
+    assert_eq!(controller.ui.browser.viewport.visible.len(), 2);
+    assert_eq!(controller.ui.browser.viewport.visible_rows_revision, 15);
+    assert_eq!(
+        controller
+            .ui
+            .browser
+            .search
+            .latest_applied_search_request_id,
+        9
+    );
+    assert!(!controller.ui.browser.search.search_busy);
+    assert!(controller.ui.browser.selection.marker_cache.is_none());
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.loaded_visible, None);
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
     let selected = controller
         .ui
         .browser
+        .selection
         .selected
         .expect("selected browser index");
     assert_eq!(selected.column, TriageFlagColumn::Keep);
     assert_eq!(selected.row, 0);
-    let loaded = controller.ui.browser.loaded.expect("loaded browser index");
+    let loaded = controller
+        .ui
+        .browser
+        .selection
+        .loaded
+        .expect("loaded browser index");
     assert_eq!(loaded.column, TriageFlagColumn::Trash);
     assert_eq!(loaded.row, 0);
     assert_eq!(
@@ -117,12 +137,16 @@ fn stale_browser_search_message_leaves_visible_rows_and_busy_state_unchanged() {
         sample_entry("kick.wav", Rating::NEUTRAL),
         sample_entry("snare.wav", Rating::NEUTRAL),
     ]);
-    controller.ui.browser.search_query = "kick".into();
-    controller.ui.browser.search_busy = true;
-    controller.ui.browser.latest_search_request_id = 5;
-    controller.ui.browser.latest_applied_search_request_id = 2;
-    controller.ui.browser.visible_rows_revision = 8;
-    let starting_visible_len = controller.ui.browser.visible.len();
+    controller.ui.browser.search.search_query = "kick".into();
+    controller.ui.browser.search.search_busy = true;
+    controller.ui.browser.search.latest_search_request_id = 5;
+    controller
+        .ui
+        .browser
+        .search
+        .latest_applied_search_request_id = 2;
+    controller.ui.browser.viewport.visible_rows_revision = 8;
+    let starting_visible_len = controller.ui.browser.viewport.visible.len();
 
     controller.handle_background_job_message(JobMessage::BrowserSearchFinished(SearchResult {
         request_id: 4,
@@ -135,10 +159,20 @@ fn stale_browser_search_message_leaves_visible_rows_and_busy_state_unchanged() {
         scores: Arc::from([Some(7_i64), None]),
     }));
 
-    assert_eq!(controller.ui.browser.visible.len(), starting_visible_len);
-    assert_eq!(controller.ui.browser.visible_rows_revision, 8);
-    assert_eq!(controller.ui.browser.latest_applied_search_request_id, 2);
-    assert!(controller.ui.browser.search_busy);
+    assert_eq!(
+        controller.ui.browser.viewport.visible.len(),
+        starting_visible_len
+    );
+    assert_eq!(controller.ui.browser.viewport.visible_rows_revision, 8);
+    assert_eq!(
+        controller
+            .ui
+            .browser
+            .search
+            .latest_applied_search_request_id,
+        2
+    );
+    assert!(controller.ui.browser.search.search_busy);
 }
 
 #[test]

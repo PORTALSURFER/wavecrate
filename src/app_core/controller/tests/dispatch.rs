@@ -142,7 +142,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
 
     for case in cases {
         let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-        controller.ui.browser.search_focus_requested = true;
+        controller.ui.browser.search.search_focus_requested = true;
         controller.ui.focus.context = FocusContext::Waveform;
         controller.ui.waveform.selection = Some(crate::selection::SelectionRange::new(0.2, 0.8));
         controller.ui.waveform.edit_selection =
@@ -151,14 +151,14 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
         match case.expected {
             Expected::BrowserSearch(expected) => {
                 assert_eq!(
-                    controller.ui.browser.search_query, expected,
+                    controller.ui.browser.search.search_query, expected,
                     "{}",
                     case.label
                 );
             }
             Expected::BrowserSearchFocused(expected) => {
                 assert_eq!(
-                    controller.ui.browser.search_focus_requested, expected,
+                    controller.ui.browser.search.search_focus_requested, expected,
                     "{}",
                     case.label
                 );
@@ -168,6 +168,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                     controller
                         .ui
                         .browser
+                        .search
                         .rating_filter
                         .iter()
                         .copied()
@@ -179,7 +180,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
             }
             Expected::RandomNavigationMode(expected) => {
                 assert_eq!(
-                    controller.ui.browser.random_navigation_mode, expected,
+                    controller.ui.browser.search.random_navigation_mode, expected,
                     "{}",
                     case.label
                 );
@@ -274,6 +275,7 @@ fn apply_native_inverted_browser_rating_filter_toggles_off_when_reclicked() {
         controller
             .ui
             .browser
+            .search
             .rating_filter
             .iter()
             .copied()
@@ -285,7 +287,7 @@ fn apply_native_inverted_browser_rating_filter_toggles_off_when_reclicked() {
         level: 4,
         invert: true,
     });
-    assert!(controller.ui.browser.rating_filter.is_empty());
+    assert!(controller.ui.browser.search.rating_filter.is_empty());
 }
 
 #[test]
@@ -301,6 +303,7 @@ fn apply_native_locked_keep_filter_sets_only_locked_level() {
         controller
             .ui
             .browser
+            .search
             .rating_filter
             .iter()
             .copied()

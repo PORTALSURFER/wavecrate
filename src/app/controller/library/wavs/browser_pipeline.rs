@@ -72,10 +72,10 @@ pub(crate) fn build_visible_rows(
     ensure_base_stage(controller);
 
     let query = controller.active_search_query().map(str::to_owned);
-    let similar_query = controller.ui.browser.similar_query.clone();
-    let sort_mode = controller.ui.browser.sort;
-    let filter = controller.ui.browser.filter;
-    let rating_filter = controller.ui.browser.rating_filter.clone();
+    let similar_query = controller.ui.browser.search.similar_query.clone();
+    let sort_mode = controller.ui.browser.search.sort;
+    let filter = controller.ui.browser.search.filter;
+    let rating_filter = controller.ui.browser.search.rating_filter.clone();
     let rating_filter_hash = helpers::hash_value(&rating_filter);
     let folder_selection = controller.folder_selection_for_filter().cloned();
     let folder_negated = controller.folder_negation_for_filter().cloned();
@@ -105,7 +105,7 @@ pub(crate) fn build_visible_rows(
         && similar_query.is_none()
         && sort_mode == SampleBrowserSort::ListOrder
         && filter == TriageFlagFilter::All
-        && controller.ui.browser.rating_filter.is_empty()
+        && controller.ui.browser.search.rating_filter.is_empty()
         && !has_folder_filters
     {
         let total = controller.wav_entries_len();

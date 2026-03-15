@@ -100,7 +100,7 @@ impl AppController {
     }
 
     fn browser_selection_rows_for_folder_move(&mut self) -> Vec<usize> {
-        let selected_paths = self.ui.browser.selected_paths.clone();
+        let selected_paths = self.ui.browser.selection.selected_paths.clone();
         let mut rows: Vec<usize> = selected_paths
             .iter()
             .filter_map(|path| self.visible_row_for_path(path))
@@ -122,7 +122,7 @@ impl AppController {
     ) -> Vec<DragSample> {
         rows.iter()
             .filter_map(|row| {
-                let entry_index = self.ui.browser.visible.get(*row)?;
+                let entry_index = self.ui.browser.viewport.visible.get(*row)?;
                 let entry = self.wav_entry(entry_index)?;
                 Some(DragSample {
                     source_id: source.id.clone(),
@@ -133,7 +133,7 @@ impl AppController {
     }
 
     fn next_focus_path_after_folder_move(&mut self, rows: &[usize]) -> Option<PathBuf> {
-        if rows.is_empty() || self.ui.browser.visible.len() == 0 {
+        if rows.is_empty() || self.ui.browser.viewport.visible.len() == 0 {
             return None;
         }
         let mut sorted = rows.to_vec();
@@ -142,13 +142,13 @@ impl AppController {
         let first = sorted.first().copied().unwrap_or(highest);
         let after = highest
             .checked_add(1)
-            .and_then(|idx| self.ui.browser.visible.get(idx))
+            .and_then(|idx| self.ui.browser.viewport.visible.get(idx))
             .and_then(|entry_idx| self.wav_entry(entry_idx))
             .map(|entry| entry.relative_path.clone());
         after.or_else(|| {
             first
                 .checked_sub(1)
-                .and_then(|idx| self.ui.browser.visible.get(idx))
+                .and_then(|idx| self.ui.browser.viewport.visible.get(idx))
                 .and_then(|entry_idx| self.wav_entry(entry_idx))
                 .map(|entry| entry.relative_path.clone())
         })

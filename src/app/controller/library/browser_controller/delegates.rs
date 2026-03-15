@@ -172,19 +172,22 @@ impl AppController {
     }
 
     pub(crate) fn refocus_after_filtered_removal(&mut self, primary_visible_row: usize) {
-        if matches!(self.ui.browser.filter, TriageFlagFilter::All)
-            && self.ui.browser.rating_filter.is_empty()
+        if matches!(self.ui.browser.search.filter, TriageFlagFilter::All)
+            && self.ui.browser.search.rating_filter.is_empty()
         {
             return;
         }
-        if self.ui.browser.visible.len() == 0 || self.ui.browser.selected_visible.is_some() {
+        if self.ui.browser.viewport.visible.len() == 0
+            || self.ui.browser.selection.selected_visible.is_some()
+        {
             return;
         }
         if self.random_navigation_mode_enabled() {
             self.focus_random_visible_sample();
             return;
         }
-        let target_row = primary_visible_row.min(self.ui.browser.visible.len().saturating_sub(1));
+        let target_row =
+            primary_visible_row.min(self.ui.browser.viewport.visible.len().saturating_sub(1));
         self.focus_browser_row_only(target_row);
     }
 }

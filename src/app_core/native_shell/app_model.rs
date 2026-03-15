@@ -70,7 +70,7 @@ pub(crate) fn project_app_model(controller: &mut AppController) -> AppModel {
             call,
             selected_column = derived_inputs.selected_column,
             status_len = derived_inputs.status_text.len(),
-            visible_browser_rows = controller.ui.browser.visible.len(),
+            visible_browser_rows = controller.ui.browser.viewport.visible.len(),
             "native shell: project_app_model start"
         );
     }

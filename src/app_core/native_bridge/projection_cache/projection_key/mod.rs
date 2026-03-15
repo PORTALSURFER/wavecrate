@@ -34,7 +34,7 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         browser_selected_paths_len: browser_frame_key.browser_selected_paths_len,
         browser_selected_paths_revision: browser_rows_key.browser_selected_paths_revision,
         browser_search_revision: browser_frame_key.browser_search_revision,
-        browser_filter: encode_browser_filter(controller.ui.browser.filter),
+        browser_filter: encode_browser_filter(controller.ui.browser.search.filter),
         browser_sort: browser_frame_key.browser_sort,
         browser_tab: browser_frame_key.browser_tab,
         progress_visible: controller.ui.progress.visible,

@@ -30,19 +30,23 @@ fn x_key_toggle_respects_focus() {
 
     controller.focus_browser_row(0);
     controller.toggle_focused_selection();
-    assert!(controller.ui.browser.selected_paths.is_empty());
-    assert_eq!(controller.ui.browser.selected_visible, Some(0));
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
 
     controller.toggle_focused_selection();
     assert!(
         controller
             .ui
             .browser
+            .selection
             .selected_paths
             .iter()
             .any(|path| path == &PathBuf::from("one.wav"))
     );
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
 }
 
 #[test]
@@ -160,10 +164,10 @@ fn selection_persists_when_nudging_focus() {
     controller.toggle_browser_row_selection(1);
     controller.nudge_selection(1);
 
-    let selected = &controller.ui.browser.selected_paths;
+    let selected = &controller.ui.browser.selection.selected_paths;
     assert!(selected.contains(&PathBuf::from("one.wav")));
     assert!(selected.contains(&PathBuf::from("two.wav")));
-    assert_eq!(controller.ui.browser.selected_visible, Some(2));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
 }
 
 #[test]
@@ -175,12 +179,12 @@ fn focused_row_actions_work_without_explicit_selection() {
 
     controller.settings.controls.advance_after_rating = false;
     controller.nudge_selection(0);
-    assert!(controller.ui.browser.selected_paths.is_empty());
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
 
     controller.tag_selected_left();
 
     assert_eq!(controller.wav_entry(0).unwrap().tag, Rating::TRASH_3);
-    assert_eq!(controller.ui.browser.selected_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
 }
 
 #[test]
@@ -204,5 +208,5 @@ fn nudge_selection_uses_random_mode_pool_without_repeating_current_row() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("three.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(2));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
 }

@@ -71,14 +71,17 @@ fn click_clears_selection_and_focuses_row() {
 
     controller.focus_browser_row(0);
     controller.toggle_browser_row_selection(1);
-    assert_eq!(controller.ui.browser.selected_paths.len(), 2);
+    assert_eq!(controller.ui.browser.selection.selected_paths.len(), 2);
 
     controller.clear_browser_selection();
     controller.focus_browser_row_only(2);
 
-    assert!(controller.ui.browser.selected_paths.is_empty());
-    assert_eq!(controller.ui.browser.selected_visible, Some(2));
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(2));
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(2)
+    );
 }
 
 #[test]
@@ -90,15 +93,18 @@ fn ctrl_click_toggles_selection_and_focuses_row() {
     let row2 = visible_path(controller, 2);
 
     controller.focus_browser_row(0);
-    assert_eq!(controller.ui.browser.selected_paths.len(), 1);
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.selected_paths.len(), 1);
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
 
     controller.toggle_browser_row_selection(2);
 
-    let selected: Vec<_> = controller.ui.browser.selected_paths.to_vec();
+    let selected: Vec<_> = controller.ui.browser.selection.selected_paths.to_vec();
     assert!(selected.contains(&row0));
     assert!(selected.contains(&row2));
-    assert_eq!(controller.ui.browser.selected_visible, Some(2));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
 }
 
 #[test]
@@ -115,13 +121,16 @@ fn shift_click_extends_selection_range() {
 
     controller.extend_browser_selection_to_row(1);
 
-    let selected: Vec<_> = controller.ui.browser.selected_paths.to_vec();
+    let selected: Vec<_> = controller.ui.browser.selection.selected_paths.to_vec();
     assert_eq!(selected.len(), 2);
     assert!(selected.contains(&row0));
     assert!(selected.contains(&row1));
     assert!(!selected.contains(&row2));
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
 }
 
 #[test]
@@ -146,14 +155,17 @@ fn ctrl_shift_click_adds_range_without_resetting_anchor() {
 
     controller.add_range_browser_selection(2);
 
-    let selected: Vec<_> = controller.ui.browser.selected_paths.to_vec();
+    let selected: Vec<_> = controller.ui.browser.selection.selected_paths.to_vec();
     assert_eq!(selected.len(), 4);
     assert!(selected.contains(&row0));
     assert!(selected.contains(&row1));
     assert!(selected.contains(&row2));
     assert!(selected.contains(&row5));
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
-    assert_eq!(controller.ui.browser.selected_visible, Some(2));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
 }
 
 #[test]

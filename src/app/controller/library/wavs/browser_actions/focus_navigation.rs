@@ -12,6 +12,7 @@ impl AppController {
         let current_index = self
             .ui
             .browser
+            .selection
             .selected
             .map(|selected| match selected.column {
                 crate::app::state::TriageFlagColumn::Trash => 0,
@@ -66,11 +67,11 @@ impl AppController {
     /// `render_window_start`, which only needs to ensure the requested top row
     /// remains reachable inside the projected slice.
     pub fn set_browser_view_start_action(&mut self, visible_row: usize) {
-        let visible_count = self.ui.browser.visible.len();
+        let visible_count = self.ui.browser.viewport.visible.len();
         if visible_count == 0 {
-            self.ui.browser.view_window_start = 0;
-            self.ui.browser.render_window_start = 0;
-            self.ui.browser.autoscroll = false;
+            self.ui.browser.viewport.view_window_start = 0;
+            self.ui.browser.viewport.render_window_start = 0;
+            self.ui.browser.selection.autoscroll = false;
             return;
         }
         let clamped = visible_row.min(visible_count.saturating_sub(1));
@@ -78,9 +79,9 @@ impl AppController {
             visible_count,
             MAX_RENDERED_BROWSER_ROWS,
         ));
-        self.ui.browser.autoscroll = false;
-        self.ui.browser.view_window_start = clamped;
-        self.ui.browser.render_window_start = render_start;
+        self.ui.browser.selection.autoscroll = false;
+        self.ui.browser.viewport.view_window_start = clamped;
+        self.ui.browser.viewport.render_window_start = render_start;
         self.refresh_browser_selection_markers();
     }
 
@@ -132,10 +133,10 @@ impl AppController {
             return;
         };
         self.focus_browser_context();
-        self.ui.browser.autoscroll = true;
-        self.ui.browser.selection_anchor_visible = Some(visible_row);
-        self.ui.browser.last_focused_index = Some(entry_index);
-        self.ui.browser.last_focused_path = Some(path);
+        self.ui.browser.selection.autoscroll = true;
+        self.ui.browser.selection.selection_anchor_visible = Some(visible_row);
+        self.ui.browser.selection.last_focused_index = Some(entry_index);
+        self.ui.browser.selection.last_focused_path = Some(path);
         self.focus_wav_by_index_preview_with_rebuild(entry_index, false);
         self.refresh_browser_selection_markers();
     }
@@ -148,9 +149,10 @@ impl AppController {
         let Some(entry_index) = self
             .ui
             .browser
+            .selection
             .selected_visible
             .and_then(|visible_row| self.visible_browser_index(visible_row))
-            .or(self.ui.browser.last_focused_index)
+            .or(self.ui.browser.selection.last_focused_index)
         else {
             return false;
         };
@@ -161,9 +163,9 @@ impl AppController {
             return false;
         };
         self.focus_browser_context();
-        self.ui.browser.autoscroll = true;
+        self.ui.browser.selection.autoscroll = true;
         if let Some(row) = self.browser_visible_row_for_entry(entry_index) {
-            self.ui.browser.selection_anchor_visible = Some(row);
+            self.ui.browser.selection.selection_anchor_visible = Some(row);
         }
         self.select_wav_by_path_with_rebuild(&path, false);
         self.refresh_browser_selection_markers();
@@ -230,18 +232,18 @@ impl AppController {
         if matches!(self.ui.focus.context, FocusContext::Waveform) {
             return;
         }
-        if self.ui.browser.selected.is_none()
-            && self.ui.browser.selected_visible.is_none()
-            && self.ui.browser.selection_anchor_visible.is_none()
-            && self.ui.browser.selected_paths.is_empty()
+        if self.ui.browser.selection.selected.is_none()
+            && self.ui.browser.selection.selected_visible.is_none()
+            && self.ui.browser.selection.selection_anchor_visible.is_none()
+            && self.ui.browser.selection.selected_paths.is_empty()
         {
             return;
         }
-        self.ui.browser.autoscroll = false;
-        self.ui.browser.selected = None;
-        self.ui.browser.selected_visible = None;
-        self.ui.browser.selection_anchor_visible = None;
-        if !self.ui.browser.selected_paths.is_empty() {
+        self.ui.browser.selection.autoscroll = false;
+        self.ui.browser.selection.selected = None;
+        self.ui.browser.selection.selected_visible = None;
+        self.ui.browser.selection.selection_anchor_visible = None;
+        if !self.ui.browser.selection.selected_paths.is_empty() {
             self.clear_browser_selected_indices();
         }
         self.rebuild_browser_lists();

@@ -23,7 +23,7 @@ fn browser_row_cache_persists_when_visible_revision_changes() {
             long_sample_mark: false,
         },
     );
-    controller.ui.browser.visible_rows_revision = 8;
+    controller.ui.browser.viewport.visible_rows_revision = 8;
 
     refresh_projected_browser_row_cache(&mut controller);
 
@@ -86,7 +86,7 @@ fn selected_path_lookup_refreshes_for_same_len_path_changes() {
             last_played_at: None,
         },
     ]);
-    controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("first.wav")];
+    controller.ui.browser.selection.selected_paths = vec![std::path::PathBuf::from("first.wav")];
     controller.mark_browser_selected_paths_changed();
     refresh_projected_selected_paths_lookup(&mut controller);
     assert!(matches!(
@@ -96,7 +96,7 @@ fn selected_path_lookup_refreshes_for_same_len_path_changes() {
     assert!(selected_index_is_selected(&controller, 0));
     assert!(!selected_index_is_selected(&controller, 1));
 
-    controller.ui.browser.selected_paths = vec![std::path::PathBuf::from("second.wav")];
+    controller.ui.browser.selection.selected_paths = vec![std::path::PathBuf::from("second.wav")];
     controller.mark_browser_selected_paths_changed();
     refresh_projected_selected_paths_lookup(&mut controller);
     assert!(matches!(
@@ -201,7 +201,7 @@ fn browser_rows_projection_reuses_provided_buffer_capacity() {
         missing: false,
         last_played_at: None,
     }]);
-    controller.ui.browser.visible =
+    controller.ui.browser.viewport.visible =
         crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
     let mut rows = Vec::new();
 

@@ -112,8 +112,8 @@ impl AppController {
     /// Apply one browser-search result when it still matches the active request.
     pub(super) fn handle_browser_search_finished_message(&mut self, message: SearchResult) {
         if Some(&message.source_id) == self.selection_state.ctx.selected_source.as_ref()
-            && message.query == self.ui.browser.search_query
-            && message.request_id == self.ui.browser.latest_search_request_id
+            && message.query == self.ui.browser.search.search_query
+            && message.request_id == self.ui.browser.search.latest_search_request_id
         {
             self.mark_browser_search_projection_revision_dirty();
             self.apply_browser_projection(
@@ -123,8 +123,8 @@ impl AppController {
                 message.keep,
             );
             self.ui_cache.browser.search.scores = message.scores;
-            self.ui.browser.latest_applied_search_request_id = message.request_id;
-            self.ui.browser.search_busy = false;
+            self.ui.browser.search.latest_applied_search_request_id = message.request_id;
+            self.ui.browser.search.search_busy = false;
         }
     }
 

@@ -11,20 +11,22 @@ impl AppController {
 
     /// Focus the sample browser, selecting a row if none is active.
     pub(crate) fn focus_browser_list(&mut self) {
-        let visible_len = self.ui.browser.visible.len();
+        let visible_len = self.ui.browser.viewport.visible.len();
         let anchor = self
             .ui
             .browser
+            .selection
             .selection_anchor_visible
             .filter(|row| *row < visible_len);
         let selected = self
             .ui
             .browser
+            .selection
             .selected_visible
             .filter(|row| *row < visible_len);
-        let last_focused_index = self.ui.browser.last_focused_index;
-        let last_focused_path = self.ui.browser.last_focused_path.clone();
-        let selected_paths = self.ui.browser.selected_paths.clone();
+        let last_focused_index = self.ui.browser.selection.last_focused_index;
+        let last_focused_path = self.ui.browser.selection.last_focused_path.clone();
+        let selected_paths = self.ui.browser.selection.selected_paths.clone();
         let selected_wav = self.sample_view.wav.selected_wav.clone();
         let target_row = anchor
             .or(selected)
@@ -47,7 +49,7 @@ impl AppController {
                     .as_ref()
                     .and_then(|path| self.visible_row_for_path(path))
             })
-            .or_else(|| self.ui.browser.visible.get(0));
+            .or_else(|| self.ui.browser.viewport.visible.get(0));
         let Some(target_row) = target_row else {
             self.set_status_message(StatusMessage::AddSourceWithSamplesFirst);
             return;

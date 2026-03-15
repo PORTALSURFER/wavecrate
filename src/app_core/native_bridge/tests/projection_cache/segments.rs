@@ -34,7 +34,7 @@ fn projection_segment_status_dirty_mask_and_lookup_counts() {
 #[test]
 fn projection_segment_browser_frame_dirty_mask_and_lookup_counts() {
     let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
-        controller.ui.browser.sort = SampleBrowserSort::PlaybackAgeAsc;
+        controller.ui.browser.search.sort = SampleBrowserSort::PlaybackAgeAsc;
     });
     assert_eq!(
         dirty_segments,
@@ -54,8 +54,8 @@ fn projection_segment_browser_frame_copies_active_rating_filters() {
     let mut cache = NativeProjectionCache::default();
     let _ = cache.resolve_or_project(&mut controller);
 
-    controller.ui.browser.rating_filter.insert(3);
-    controller.ui.browser.rating_filter.insert(4);
+    controller.ui.browser.search.rating_filter.insert(3);
+    controller.ui.browser.search.rating_filter.insert(4);
     controller.mark_browser_search_projection_revision_dirty();
 
     let (model, dirty_segments) = cache.resolve_or_project(&mut controller);

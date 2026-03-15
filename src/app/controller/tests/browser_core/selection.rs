@@ -12,15 +12,15 @@ fn browser_selection_is_cleared_when_focus_leaves_browser() {
     controller.rebuild_browser_lists();
 
     controller.focus_browser_row(0);
-    assert_eq!(controller.ui.browser.selected_visible, Some(0));
-    assert!(controller.ui.browser.selected.is_some());
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
+    assert!(controller.ui.browser.selection.selected.is_some());
 
     controller.focus_sources_list();
     controller.blur_browser_focus();
 
-    assert!(controller.ui.browser.selected_visible.is_none());
-    assert!(controller.ui.browser.selected.is_none());
-    assert!(controller.ui.browser.selected_paths.is_empty());
+    assert!(controller.ui.browser.selection.selected_visible.is_none());
+    assert!(controller.ui.browser.selection.selected.is_none());
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
 }
 
 #[test]
@@ -39,7 +39,7 @@ fn browser_selection_is_retained_when_waveform_focused() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("one.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
 
     controller.focus_waveform_context();
     controller.blur_browser_focus();
@@ -50,6 +50,6 @@ fn browser_selection_is_retained_when_waveform_focused() {
         Some(Path::new("one.wav"))
     );
     let visible_row = controller.visible_row_for_path(Path::new("one.wav"));
-    let selected_visible = controller.ui.browser.selected_visible;
+    let selected_visible = controller.ui.browser.selection.selected_visible;
     assert_eq!(selected_visible, visible_row);
 }

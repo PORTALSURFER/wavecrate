@@ -159,8 +159,8 @@ fn select_wav_known_index_with_options(
         }
     }
     controller.sample_view.wav.selected_wav = Some(path.clone());
-    controller.ui.browser.last_focused_index = Some(index);
-    controller.ui.browser.last_focused_path = Some(path.clone());
+    controller.ui.browser.selection.last_focused_index = Some(index);
+    controller.ui.browser.selection.last_focused_path = Some(path.clone());
     if path_changed {
         if side_effects.record_focus_history {
             controller.record_focus_history(&path);
@@ -248,7 +248,7 @@ pub(crate) fn select_from_browser(controller: &mut AppController, path: &Path) {
 }
 
 pub(crate) fn triage_flag_drop_target(controller: &AppController) -> TriageFlagColumn {
-    match controller.ui.browser.filter {
+    match controller.ui.browser.search.filter {
         TriageFlagFilter::All | TriageFlagFilter::Untagged => TriageFlagColumn::Neutral,
         TriageFlagFilter::Keep => TriageFlagColumn::Keep,
         TriageFlagFilter::Trash => TriageFlagColumn::Trash,

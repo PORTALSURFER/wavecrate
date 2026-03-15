@@ -120,9 +120,10 @@ fn browser_column_index_maps_rating_buckets() {
 #[test]
 fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-    controller.ui.browser.sort = SampleBrowserSort::PlaybackAgeDesc;
+    controller.ui.browser.search.sort = SampleBrowserSort::PlaybackAgeDesc;
     controller.ui.browser.active_tab = SampleBrowserTab::Map;
-    controller.ui.browser.visible = crate::app_core::app_api::state::VisibleRows::All { total: 42 };
+    controller.ui.browser.viewport.visible =
+        crate::app_core::app_api::state::VisibleRows::All { total: 42 };
     let projected = project_browser_model(&mut controller);
     assert_eq!(
         projected.search_placeholder.as_deref(),
@@ -141,7 +142,7 @@ fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
 #[test]
 fn browser_projection_marks_search_placeholder_when_focused() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-    controller.ui.browser.search_focus_requested = true;
+    controller.ui.browser.search.search_focus_requested = true;
     let projected = project_browser_model(&mut controller);
     assert_eq!(projected.search_placeholder.as_deref(), Some("▌"));
 }
@@ -150,9 +151,9 @@ fn browser_projection_marks_search_placeholder_when_focused() {
 #[test]
 fn browser_projection_exposes_manual_viewport_state() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-    controller.ui.browser.autoscroll = false;
-    controller.ui.browser.view_window_start = 1_470;
-    controller.ui.browser.visible =
+    controller.ui.browser.selection.autoscroll = false;
+    controller.ui.browser.viewport.view_window_start = 1_470;
+    controller.ui.browser.viewport.visible =
         crate::app_core::app_api::state::VisibleRows::All { total: 1_506 };
 
     let projected = project_browser_panel_frame_model(&controller);
@@ -166,8 +167,8 @@ fn browser_projection_exposes_manual_viewport_state() {
 #[test]
 fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
     let mut ui = UiState::default();
-    ui.browser.sort = SampleBrowserSort::Similarity;
-    ui.browser.similarity_sort_follow_loaded = true;
+    ui.browser.search.sort = SampleBrowserSort::Similarity;
+    ui.browser.search.similarity_sort_follow_loaded = true;
     let projected = project_browser_chrome_model(&ui, 1437);
     assert_eq!(projected.samples_tab_label, "Samples");
     assert_eq!(projected.map_tab_label, "Similarity map");
@@ -185,7 +186,7 @@ fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
 #[test]
 fn browser_chrome_projection_marks_search_focus_copy() {
     let mut ui = UiState::default();
-    ui.browser.search_focus_requested = true;
+    ui.browser.search.search_focus_requested = true;
     let projected = project_browser_chrome_model(&ui, 7);
     assert_eq!(projected.search_prefix_label, "Search • focused");
     assert_eq!(projected.search_placeholder, "▌");

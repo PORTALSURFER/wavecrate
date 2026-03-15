@@ -5,7 +5,7 @@ pub(crate) fn project_browser_chrome_model(
     ui: &UiState,
     visible_count: usize,
 ) -> BrowserChromeModel {
-    let search_focused = ui.browser.search_focus_requested;
+    let search_focused = ui.browser.search.search_focus_requested;
     BrowserChromeModel {
         samples_tab_label: String::from("Samples"),
         map_tab_label: String::from("Similarity map"),
@@ -18,8 +18,9 @@ pub(crate) fn project_browser_chrome_model(
         activity_ready_label: String::from("Ready"),
         activity_busy_label: String::from("Filtering"),
         sort_prefix_label: String::from("Sort"),
-        sort_order_label: browser_sort_label(SampleBrowserSort::from(ui.browser.sort)).to_owned(),
-        similarity_toggle_label: if ui.browser.similarity_sort_follow_loaded {
+        sort_order_label: browser_sort_label(SampleBrowserSort::from(ui.browser.search.sort))
+            .to_owned(),
+        similarity_toggle_label: if ui.browser.search.similarity_sort_follow_loaded {
             String::from("follow loaded")
         } else {
             String::from("manual anchor")

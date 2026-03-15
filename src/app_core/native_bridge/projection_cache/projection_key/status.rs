@@ -10,11 +10,11 @@ pub(super) fn build_status_projection_key(
     let inline_progress_visible = controller.ui.progress.visible && !controller.ui.progress.modal;
     StatusProjectionCacheKey {
         status_revision: controller.ui.projection_revisions.status,
-        browser_visible_len: controller.ui.browser.visible.len(),
-        browser_selected_paths_len: controller.ui.browser.selected_paths.len(),
-        browser_anchor_visible: controller.ui.browser.selection_anchor_visible,
+        browser_visible_len: controller.ui.browser.viewport.visible.len(),
+        browser_selected_paths_len: controller.ui.browser.selection.selected_paths.len(),
+        browser_anchor_visible: controller.ui.browser.selection.selection_anchor_visible,
         browser_search_revision: controller.ui.projection_revisions.browser_search,
-        browser_search_busy: controller.ui.browser.search_busy,
+        browser_search_busy: controller.ui.browser.search.search_busy,
         inline_progress_visible,
         inline_progress_completed: if inline_progress_visible {
             controller.ui.progress.completed

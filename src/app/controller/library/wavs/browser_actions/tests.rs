@@ -37,7 +37,7 @@ fn focus_browser_row_preview_is_load_free() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("two.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
     assert!(controller.runtime.jobs.pending_audio.is_none());
     assert!(controller.runtime.jobs.pending_playback.is_none());
 }
@@ -79,9 +79,12 @@ fn extend_browser_selection_respects_anchor() {
 
     controller.extend_browser_selection_to_row(2);
 
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
     assert_eq!(
-        controller.ui.browser.selected_paths,
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
         vec![
             PathBuf::from("one.wav"),
             PathBuf::from("two.wav"),
@@ -102,9 +105,12 @@ fn toggle_browser_row_selection_preserves_anchor_membership() {
 
     controller.toggle_browser_row_selection(2);
 
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(0));
     assert_eq!(
-        controller.ui.browser.selected_paths,
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
         vec![PathBuf::from("one.wav"), PathBuf::from("three.wav")]
     );
 }
@@ -121,10 +127,13 @@ fn select_all_browser_rows_preserves_anchor_and_disables_autoscroll() {
 
     controller.select_all_browser_rows();
 
-    assert!(!controller.ui.browser.autoscroll);
-    assert_eq!(controller.ui.browser.selection_anchor_visible, Some(1));
+    assert!(!controller.ui.browser.selection.autoscroll);
     assert_eq!(
-        controller.ui.browser.selected_paths,
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(1)
+    );
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
         vec![
             PathBuf::from("one.wav"),
             PathBuf::from("two.wav"),
@@ -186,7 +195,7 @@ fn focus_browser_row_and_play_queues_latest_preview_for_unloaded_sample() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("two.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
     assert_eq!(
         controller.sample_view.wav.loaded_wav.as_deref(),
         Some(Path::new("one.wav"))

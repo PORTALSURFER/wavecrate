@@ -12,26 +12,26 @@ fn rating_auto_advance_works() {
 
     controller.focus_browser_row(0);
     controller.set_advance_after_rating(true);
-    assert_eq!(controller.ui.browser.selected_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
 
     controller.adjust_selected_rating(1);
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
 
     controller.adjust_selected_rating(-1);
-    assert_eq!(controller.ui.browser.selected_visible, Some(2));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
 
     controller.adjust_selected_rating(1);
-    assert_eq!(controller.ui.browser.selected_visible, Some(2));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
 
     controller.set_advance_after_rating(false);
     controller.focus_browser_row(0);
     controller.adjust_selected_rating(1);
-    assert_eq!(controller.ui.browser.selected_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
 
     controller.set_advance_after_rating(true);
     controller.focus_browser_row(0);
     controller.tag_selected(Rating::KEEP_1);
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
 }
 
 #[test]
@@ -48,9 +48,9 @@ fn keyboard_focus_near_bottom_edge_advances_render_slice_without_overwriting_vie
     controller.focus_browser_row_only(MAX_RENDERED_BROWSER_ROWS.saturating_sub(3));
 
     assert_eq!(
-        controller.ui.browser.selected_visible,
+        controller.ui.browser.selection.selected_visible,
         Some(MAX_RENDERED_BROWSER_ROWS.saturating_sub(3))
     );
-    assert_eq!(controller.ui.browser.render_window_start, 1);
-    assert_eq!(controller.ui.browser.view_window_start, 0);
+    assert_eq!(controller.ui.browser.viewport.render_window_start, 1);
+    assert_eq!(controller.ui.browser.viewport.view_window_start, 0);
 }

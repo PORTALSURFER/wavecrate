@@ -5,14 +5,16 @@ fn app_model_projection_fixture_controller() -> AppController {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
     controller.ui.status.text = String::from("Projection fixture status");
     controller.ui.volume = 1.25;
-    controller.ui.browser.visible = crate::app_core::app_api::state::VisibleRows::All { total: 24 };
-    controller.ui.browser.sort = SampleBrowserSort::PlaybackAgeAsc;
-    controller.ui.browser.search_query = String::from("kick");
-    controller.ui.browser.search_busy = true;
-    controller.ui.browser.selected = Some(crate::app_core::app_api::state::SampleBrowserIndex {
-        column: TriageFlagColumn::Keep,
-        row: 0,
-    });
+    controller.ui.browser.viewport.visible =
+        crate::app_core::app_api::state::VisibleRows::All { total: 24 };
+    controller.ui.browser.search.sort = SampleBrowserSort::PlaybackAgeAsc;
+    controller.ui.browser.search.search_query = String::from("kick");
+    controller.ui.browser.search.search_busy = true;
+    controller.ui.browser.selection.selected =
+        Some(crate::app_core::app_api::state::SampleBrowserIndex {
+            column: TriageFlagColumn::Keep,
+            row: 0,
+        });
     controller.ui.browser.active_tab = SampleBrowserTab::List;
     controller.ui.waveform.loop_enabled = true;
     controller.ui.update.status = UpdateStatus::Checking;

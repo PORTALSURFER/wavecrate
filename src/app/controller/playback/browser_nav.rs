@@ -34,6 +34,7 @@ fn visible_row_after_offset(
     let current_row = controller
         .ui
         .browser
+        .selection
         .selected_visible
         .or_else(|| {
             selected_wav

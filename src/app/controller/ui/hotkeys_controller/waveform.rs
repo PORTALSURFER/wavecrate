@@ -192,7 +192,7 @@ impl HotkeysController<'_> {
         } else {
             // Use sequential next focus logic
             if let Some(row) = self.visible_row_for_path(&relative_path) {
-                let visible = &self.ui.browser.visible;
+                let visible = &self.ui.browser.viewport.visible;
                 let next_row = row + 1;
                 if next_row < visible.len() {
                     visible

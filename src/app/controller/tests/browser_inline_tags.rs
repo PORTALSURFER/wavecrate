@@ -36,7 +36,8 @@ fn cached_browser_row_metadata_prefers_bpm_loop_and_long_without_rating_text() {
             })],
         },
     );
-    controller.ui.browser.visible = crate::app::state::VisibleRows::List(vec![0usize].into());
+    controller.ui.browser.viewport.visible =
+        crate::app::state::VisibleRows::List(vec![0usize].into());
     let mut rows = Vec::new();
 
     project_browser_rows_model_into(&mut controller, 1, Some(0), None, &mut rows);

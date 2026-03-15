@@ -18,7 +18,7 @@ fn tagging_keeps_selection_on_same_sample() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("one.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(0));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
     assert_eq!(
         controller.wav_entry(0).unwrap().tag,
         crate::sample_sources::Rating::KEEP_1
@@ -69,7 +69,7 @@ fn tagging_under_filter_advances_focus_to_next_visible() {
     controller.tag_selected(crate::sample_sources::Rating::KEEP_1);
 
     assert_eq!(visible_indices(&controller), vec![0, 2, 3]);
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
     assert_eq!(
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("three.wav"))
@@ -96,7 +96,7 @@ fn rating_filter_rating_keeps_focus_on_next_visible_item() {
     controller.adjust_selected_rating(1);
 
     assert_eq!(visible_indices(&controller), vec![0, 2, 3]);
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
     assert_eq!(
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("three.wav"))
@@ -128,7 +128,7 @@ fn tagging_under_filter_uses_random_focus_in_random_mode() {
     assert_eq!(visible_indices(&controller), vec![0, 2]);
     assert_eq!(controller.history.random_history.entries.len(), 1);
     assert_eq!(controller.history.random_history.cursor, Some(0));
-    let Some(selected_visible) = controller.ui.browser.selected_visible else {
+    let Some(selected_visible) = controller.ui.browser.selection.selected_visible else {
         panic!("expected a selected row");
     };
     assert!(selected_visible < controller.visible_browser_len());
@@ -167,5 +167,5 @@ fn undo_tagging_refocuses_original_sample_under_filter() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("two.wav"))
     );
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
 }

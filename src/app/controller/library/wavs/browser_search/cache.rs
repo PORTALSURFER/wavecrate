@@ -57,7 +57,7 @@ impl Default for BrowserSearchCache {
 impl AppController {
     /// Return the active trimmed browser query, when non-empty.
     pub(crate) fn active_search_query(&self) -> Option<&str> {
-        let query = self.ui.browser.search_query.trim();
+        let query = self.ui.browser.search.search_query.trim();
         if query.is_empty() { None } else { Some(query) }
     }
 

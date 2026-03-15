@@ -139,6 +139,7 @@ impl AppController {
         let entry_index = self
             .ui
             .browser
+            .viewport
             .visible
             .get(row)
             .ok_or_else(|| "Selected row is out of range".to_string())?;
@@ -166,15 +167,15 @@ impl AppController {
             self.select_source(Some(source_id.clone()));
         }
         self.focus_browser_context();
-        self.ui.browser.autoscroll = true;
-        if !self.ui.browser.selected_paths.is_empty() {
+        self.ui.browser.selection.autoscroll = true;
+        if !self.ui.browser.selection.selected_paths.is_empty() {
             self.clear_browser_selected_indices();
         }
-        self.ui.browser.selection_anchor_visible = None;
+        self.ui.browser.selection.selection_anchor_visible = None;
         self.selection_state.suppress_autoplay_once = true;
         self.select_wav_by_path(&relative_path);
         if let Some(row) = self.visible_row_for_path(&relative_path) {
-            self.ui.browser.selection_anchor_visible = Some(row);
+            self.ui.browser.selection.selection_anchor_visible = Some(row);
         }
         Ok(())
     }

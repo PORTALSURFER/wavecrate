@@ -22,12 +22,12 @@ fn sample_browser_indices_track_tags() {
     assert_eq!(controller.browser_indices(TriageFlagColumn::Keep).len(), 1);
     assert_eq!(visible_indices(&controller), vec![0, 1, 2]);
 
-    let selected = controller.ui.browser.selected.unwrap();
+    let selected = controller.ui.browser.selection.selected.unwrap();
     assert_eq!(selected.column, TriageFlagColumn::Neutral);
-    assert_eq!(controller.ui.browser.selected_visible, Some(1));
-    let loaded = controller.ui.browser.loaded.unwrap();
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    let loaded = controller.ui.browser.selection.loaded.unwrap();
     assert_eq!(loaded.column, TriageFlagColumn::Keep);
-    assert_eq!(controller.ui.browser.loaded_visible, Some(2));
+    assert_eq!(controller.ui.browser.selection.loaded_visible, Some(2));
 }
 
 #[test]
@@ -118,6 +118,7 @@ fn invert_browser_rating_filter_selects_every_level_except_clicked_keep_chip() {
         controller
             .ui
             .browser
+            .search
             .rating_filter
             .iter()
             .copied()
@@ -151,6 +152,7 @@ fn invert_browser_rating_filter_clears_when_same_exclusion_is_reclicked() {
         controller
             .ui
             .browser
+            .search
             .rating_filter
             .iter()
             .copied()
@@ -160,7 +162,7 @@ fn invert_browser_rating_filter_clears_when_same_exclusion_is_reclicked() {
 
     controller.invert_browser_rating_filter(4);
 
-    assert!(controller.ui.browser.rating_filter.is_empty());
+    assert!(controller.ui.browser.search.rating_filter.is_empty());
     assert_eq!(visible_indices(&controller), vec![0, 1, 2, 3, 4, 5, 6, 7]);
 }
 
@@ -228,6 +230,7 @@ fn invert_browser_rating_filter_selects_every_level_except_clicked_trash_chip() 
         controller
             .ui
             .browser
+            .search
             .rating_filter
             .iter()
             .copied()
@@ -262,6 +265,7 @@ fn invert_browser_rating_filter_selects_every_level_except_clicked_neutral_chip(
         controller
             .ui
             .browser
+            .search
             .rating_filter
             .iter()
             .copied()
