@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-15T11:51:34Z
+Last Updated: 2026-03-15T12:42:32Z
 Updated By: Codex
 
 ## Purpose
@@ -12,29 +12,15 @@ Updated By: Codex
 
 - I am on `next` in `C:\dev\sempal`.
 - `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The latest completed lane is execution of the refreshed evidence-driven improvement audit backlog.
-- `tmp/improvement_audit_plan.md` is the current source of truth and the completed execution record for that lane.
-- `tmp/improvement_audit_plan.md` was rebuilt on `2026-03-15` from the live `6c9dc2d8` tree and now records the finished Phase 2 execution.
-- Phase 2 is complete.
-- Item 1 is complete: `scripts/ci_quick.ps1` now runs `scripts/run_gui_contract.ps1`, and `docs/gui_test_platform.md` is aligned with that default quick gate.
-- Item 1 implementation commit is `2fddca31`.
-- Item 2 is complete: browser multi-selection is now path-authoritative, with derived selected indices cached lazily for index-driven projection and controller code.
-- Item 2 implementation commit is `7338908a`.
-- Item 3 is complete: `browser_search` is now split into focused `cache`, `dispatch_policy`, and `mutations` modules behind the existing browser facade.
-- Item 3 implementation commit is `cddf369d`.
-- Item 4 is complete: `browser_lists` is now split so rebuild/prune orchestration, projection application, and lookup-map maintenance live in separate modules.
-- Item 4 implementation commit is `ba52b318`.
-- Item 5 is complete: the folder-browser tree module is now split across retained model, scan orchestration, and projection/filter helpers.
-- Item 5 implementation commit is `cb561557`.
-- Item 6 is complete: the hotkey registry now has direct invariant tests for unique ids, same-scope gesture conflicts, and global-vs-focus lookup separation.
-- Item 6 implementation commit is `3dfca2e0`.
-- Item 7 is complete: `wav_sanitize` now documents its narrow repair scope, enforces logical `Read + Seek` behavior after rewinding into the sanitized header, and keeps direct seek coverage in `src/wav_sanitize/tests.rs`.
-- Item 7 implementation commit is `06d94dc6`.
-- Item 8 is complete: the generic undo stack now lives in `src/app/controller/undo/stack.rs`, and controller tests directly cover deferred undo success, cancellation, and redo-failure restoration.
-- Item 8 implementation commit is `f2e8bf72`.
-- Item 9 is complete: the semantic automation tree now exposes browser scrollbar track/thumb nodes in `vendor/radiant`, and the GUI platform doc reflects that browser action buttons, rows, and scrollbars are covered.
-- Item 9 implementation commits are `8e26cfda` in `vendor/radiant` and `e137ea3b` in `sempal`.
-- The audit backlog in `tmp/improvement_audit_plan.md` is fully complete.
+- The active lane is a fresh evidence-driven improvement audit.
+- `tmp/improvement_audit_plan.md` is the current source of truth.
+- `tmp/improvement_audit_plan.md` was rebuilt on `2026-03-15` from the live `20f83666` tree and is back in Phase 1.
+- Phase 1 is complete and awaiting explicit implementation approval.
+- The top current findings are:
+  - the browser search-worker stage hub still mixes cache refresh, scoring, and visible-row construction in one file;
+  - the analysis-job progress poller still mixes source discovery, aggregation, stale cleanup, and thread orchestration;
+  - the hotkey registry, browser controller actions, source lifecycle controller, and interaction-options controller remain large allowlisted hubs;
+  - the GUI platform still explicitly calls out missing transport, volume-drag, and map-point scenario coverage plus unresolved AIV foreground/focus hardening.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -42,10 +28,10 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Wait for the next user-directed lane; do not reopen `tmp/improvement_audit_plan.md` unless follow-up audit work is explicitly requested.
-2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned when the active lane changes.
+1. Wait for explicit user confirmation before implementing any backlog item from `tmp/improvement_audit_plan.md`.
+2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned while the refreshed audit backlog is awaiting approval.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
-4. Treat `scripts/ci_local.ps1` green as the current expected Windows local parity baseline.
+4. Treat `scripts/ci_quick.ps1` as the default pre-push validation gate on Windows and `scripts/ci_local.ps1` as the broader parity baseline when needed.
 
 ## Work Notes
 

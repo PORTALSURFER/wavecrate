@@ -1,494 +1,400 @@
 # Evidence-Driven Improvement Audit Plan
 
-- Generated (UTC): `2026-03-15T09:37:47Z`
+- Generated (UTC): `2026-03-15T12:42:32Z`
 - Repository: `C:\dev\sempal`
-- Branch / head: `next` / `6c9dc2d8`
-- Phase: `Phase 2 complete`
-- Status: `All ROI-ranked backlog items are complete; this file is now the execution record for the finished improvement-audit lane.`
+- Branch / head: `next` / `20f83666`
+- Phase: `Phase 1 complete`
+- Status: `Fresh ROI-ranked backlog rebuilt from the current tree; awaiting explicit implementation approval.`
 - Validation baseline:
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed on this branch.
-  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md` from the current branch head.
 
 ## Repository Context
 
-- Project purpose: Rust desktop sample-triage and sample-editing tool focused on responsive audio auditioning, curation, and library cleanup.
+- Project purpose: realtime-oriented desktop sample triage and editing tool focused on responsive auditioning, discovery, and curation.
   - Confidence: Explicitly documented
   - Evidence: `README.md`, `docs/design_principles.md`
-- Maturity level: active, guardrail-heavy application with live companion apps/tools, strong local validation scripts, and ongoing GUI/runtime migration and automation work.
+- Maturity level: active, guardrail-heavy application with a large Rust workspace, a custom GUI runtime in `vendor/radiant`, and multiple maintained validation loops.
   - Confidence: Strongly implied by code/docs
-  - Evidence: `Cargo.toml`, `.github/workflows/ci.yml`, `docs/gui_test_platform.md`, `docs/QUALITY_SCORE.md`
-- Primary languages/frameworks/tooling: Rust 2024 workspace, Cargo, PowerShell-first Windows workflow wrappers, and the local `vendor/radiant` GUI/runtime layer.
+  - Evidence: `Cargo.toml`, `docs/README.md`, `.github/workflows/ci.yml`, `docs/QUALITY_SCORE.md`
+- Primary languages / frameworks / tooling: Rust 2024 workspace, Cargo, PowerShell-first Windows wrappers, `vendor/radiant` for GUI/runtime behavior, and `cargo-nextest` in CI.
   - Confidence: Explicitly documented
-  - Evidence: `Cargo.toml`, `README.md`, `AGENTS.md`
-- Repository shape: root app in `src/`, companion apps in `apps/`, support tools in `tools/`, developer docs in `docs/`, live plans in `tmp/`, and GUI framework code in `vendor/radiant/`.
+  - Evidence: `Cargo.toml`, `README.md`, `.github/workflows/ci.yml`, `docs/TEST.md`
+- Repository shape: root app logic in `src/`, companion apps in `apps/`, support tools in `tools/`, developer docs in `docs/`, live planning state in `tmp/`, and GUI/runtime code in `vendor/radiant/`.
   - Confidence: Explicitly documented
-  - Evidence: `Cargo.toml`, `docs/ARCHITECTURE.md`
-- Architectural boundaries: domain/application logic belongs in `src/**`, backend-neutral projection/action contracts in `src/app_core/**`, and GUI behavior/layout/input/runtime internals in `vendor/radiant/**`.
+  - Evidence: `Cargo.toml`, `docs/ARCHITECTURE.md`, `docs/README.md`
+- Architectural boundaries: `src/**` owns domain logic and UI intent, `src/app_core/**` owns backend-neutral action/projection contracts, and `vendor/radiant/**` owns GUI behavior, layout, input routing, and runtime rendering.
   - Confidence: Explicitly documented
   - Evidence: `README.md`, `docs/ARCHITECTURE.md`
-- Test strategy: narrow PowerShell wrappers for the fast loop, broader local parity via `ci_local`, and explicit semantic GUI contract/AIV loops beside normal Rust unit and integration tests.
+- Test strategy: fast PowerShell wrappers for the inner loop, `ci_local` for broader parity, semantic GUI contract/suite loops, and targeted `radiant` native-shell/runtime tests beside the main Rust unit/integration suite.
   - Confidence: Explicitly documented
-  - Evidence: `docs/TEST.md`, `docs/gui_test_platform.md`, `scripts/ci_quick.ps1`, `scripts/run_gui_contract.ps1`
+  - Evidence: `docs/TEST.md`, `docs/gui_test_platform.md`, `scripts/ci_quick.ps1`, `scripts/run_gui_contract.ps1`, `scripts/run_gui_suite.ps1`
 - Canonical local validation on Windows:
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
   - Confidence: Explicitly documented
   - Evidence: `README.md`, `AGENTS.md`, `docs/README.md`, `docs/TEST.md`
-- Documented priorities: responsiveness, non-blocking work, deterministic interaction, explicit ownership boundaries, and strong documentation/guardrails.
+- Documented priorities: non-blocking interaction, deterministic contextual hotkeys, clear state ownership, responsive GUI/runtime behavior, and trustworthy reversible sample-management flows.
   - Confidence: Explicitly documented
-  - Evidence: `docs/design_principles.md`, `AGENTS.md`
-- Explicit non-goals: DAW replacement, attention-capture platform behavior, and speculative large-scope redesigns without evidence.
+  - Evidence: `docs/design_principles.md`, `docs/ARCHITECTURE.md`
+- Explicit non-goals: DAW replacement, cloud/social platform behavior, attention-capture features, and speculative broad redesigns without evidence.
   - Confidence: Explicitly documented
   - Evidence: `docs/design_principles.md`
 
 ## ROI-Ranked Backlog
 
-### 1. [x] Promote the semantic GUI contract loop into the normal quick validation path
-
-- Classification: Developer-experience improvement
-- Confidence: High
-- ROI: High
-- Effort: S
-- Why it matters:
-  - The repository now treats GUI actions, semantic automation nodes, and GUI artifacts as contract surfaces, but the default quick gate still skips the dedicated GUI contract loop. That leaves the newest migration surface under-validated during normal iteration.
-- Evidence:
-  - `docs/gui_test_platform.md` says the GUI test platform exists to make native GUI actions cataloged, semantically testable, and consumable by automation.
-  - `docs/gui_test_platform.md` lists “Promote the GUI contract loop into `ci_quick` once it is stable enough to be mandatory” as an immediate next step.
-  - `scripts/run_gui_contract.ps1` already exists and runs catalog tests, `gui_test` tests, and a focused `vendor/radiant` hit-test smoke.
-  - `scripts/ci_quick.ps1` currently only runs `cargo nextest run -p sempal --profile quick --lib --tests`.
-- Recommended change:
-  - Add `scripts/run_gui_contract.ps1` to `scripts/ci_quick.ps1` after the existing branch-policy check.
-  - Keep desktop AIV loops out of `ci_quick`; only the semantic/runtime contract slice should become mandatory here.
-- Expected impact:
-  - Catches action-catalog, semantic-node, and runtime-hit-test regressions before full CI.
-  - Aligns the quick loop with the repo’s documented GUI testing direction.
-- Risks / tradeoffs:
-  - Could lengthen the quick loop slightly.
-  - If the contract lane still has intermittent failures, it will raise local friction until stabilized.
-- Dependencies:
-  - None.
-- Suggested validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completed: `2026-03-15`
-- Implementation commit: `2fddca31`
-- Assumptions used:
-  - `ci_quick` should adopt only the semantic/runtime GUI contract lane; the broader desktop AIV automation loop remains outside the default quick gate.
-- Validation outcome:
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`, including `scripts/run_gui_contract.ps1`.
-- Plan-order deviation: None
-
-### 2. [x] Make browser multi-selection state single-source-of-truth and derive the compatibility view lazily
+### 1. [ ] Decompose the browser search-worker stage hub into cache refresh, scoring, and visible-row builders
 
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
 - Why it matters:
-  - Browser selection is now tracked in both absolute-index and relative-path form. The controller repeatedly resynchronizes both views, bumps revisions off that sync work, and re-derives markers and projection lookups from the duplicated state. That adds maintenance risk to one of the repo’s busiest paths.
+  - Browser search remains a responsiveness-critical path, but the worker-side pipeline still centralizes DB reopen logic, compact-entry reloads, query-score cache reuse, fast-path short-circuiting, filter/folder gating, similarity handling, and sort application in one file. The current shape raises the cost of changing search behavior safely.
 - Evidence:
-  - `src/app/state/browser.rs` stores both `selected_indices` and `selected_paths`, plus a shared `selected_paths_revision`.
-  - `src/app/controller/library/wavs/browser_actions/selection.rs` has `sync_browser_selected_indices_from_paths`, `sync_browser_selected_paths_from_indices`, `mark_browser_selected_paths_changed`, and `set_browser_selected_indices`.
-  - `src/app/controller/library/wavs/browser_lists.rs` clones and resynchronizes both representations inside `prune_browser_selection()` before every rebuild/marker refresh.
-  - `src/app_core/native_shell/browser_projection/cache.rs` and `src/app_core/native_bridge/projection_cache/projection_key/browser.rs` consume revisions/lengths from this mixed state.
+  - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` at 456 lines and flags it as a likely test-gap hotspot.
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` defines `ensure_search_cache_ready_for_job`, `ensure_search_entries_loaded_for_job`, `resolve_query_scores_for_job`, `build_fast_path_result_if_applicable`, `build_visible_rows_for_job`, and `build_visible_rows_for_similar` in one module.
+  - `docs/design_principles.md` treats responsiveness as a correctness issue and requires long-running work to remain non-blocking and observable.
 - Recommended change:
-  - Keep one canonical browser multi-selection representation, preferably absolute indices because the current code already treats them as primary in several comments and projection paths.
-  - Derive relative paths only at explicit I/O boundaries such as clipboard/export/file-op requests, or behind one cached adapter.
-  - Keep a single revision source tied to the canonical selection state.
+  - Split the file into focused modules for source/DB cache refresh, query-score cache and scoring, and visible-row construction/similarity sorting.
+  - Add direct stage-level tests for cache reuse, cancellation boundaries, and similarity-sort anchoring so worker behavior is not characterized only indirectly.
 - Expected impact:
-  - Reduces selection drift risk and controller churn in browser rebuilds.
-  - Makes later browser projection/cache work easier to reason about.
+  - Reduces regression risk in a hot async pipeline.
+  - Makes future browser-search performance work easier to reason about and measure.
 - Risks / tradeoffs:
-  - Selection, clipboard, drag/drop, and browser projection all touch this state.
-  - Any hidden consumer that assumes eager `selected_paths` updates will need targeted coverage.
+  - Search ordering and cancellation semantics are user-visible and performance-sensitive.
+  - A careless split could accidentally perturb the worker fast path or score-cache reuse rules.
 - Dependencies:
   - None.
 - Suggested validation:
-  - Targeted browser selection tests
-  - Clipboard selection tests
-  - Browser projection cache tests
+  - Targeted `browser_search_worker` tests
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completed: `2026-03-15`
-- Implementation commit: `7338908a`
-- Assumptions used:
-  - Relative paths are the safest canonical browser-selection identity because they survive rename/move remapping and projection reorder better than absolute entry indices.
-- Validation outcome:
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
-  - `cargo test browser_selection -- --test-threads=1` passed on `2026-03-15`.
-  - `cargo test browser_cache -- --test-threads=1` passed on `2026-03-15`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
-- Plan-order deviation: None
 
-### 3. [x] Decompose `browser_search.rs` into scoring/cache mechanics, async policy, and UI-trigger handlers
+### 2. [ ] Split the analysis-job progress poller into source discovery, aggregation, stale cleanup, and loop orchestration
 
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
 - Why it matters:
-  - Browser search remains one of the most active and performance-sensitive controller paths. One file still owns cache state, synchronous scoring, label cache fill, async job dispatch, search/filter/sort mutations, runtime environment toggles, and test-only pipeline overrides.
+  - Analysis progress is part of the app’s non-blocking trust surface, but the poller still mixes condvar wakeup state, source enumeration, cached total aggregation, stale-job cleanup, DB refresh policy, and the background thread loop in one concurrency-sensitive file.
 - Evidence:
-  - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/library/wavs/browser_search.rs` at 474 lines.
-  - `src/app/controller/library/wavs/browser_search.rs` defines `BrowserSearchCache`, scoring helpers, `dispatch_search_job`, filter/rating/sort/search handlers, environment-based async/offload policy, and a test-only thread-local override in one module.
-  - The same file is responsible for both runtime behavior and test-only pipeline forcing (`with_browser_async_pipeline_enabled_for_tests`).
+  - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/library/analysis_jobs/pool/job_progress.rs` at 418 lines.
+  - `src/app/controller/library/analysis_jobs/pool/job_progress.rs` defines `ProgressPollerWakeup`, `refresh_sources`, `current_progress_all`, `cleanup_stale_jobs`, `spawn_progress_poller`, and `should_refresh_db` together.
+  - `docs/design_principles.md` requires long-running work to be observable and non-blocking.
 - Recommended change:
-  - Split the file into focused modules such as `cache`, `dispatch_policy`, and `mutations`.
-  - Keep the external controller façade stable while reducing the number of unrelated reasons to edit the same file.
-  - Preserve the current async-authoritative runtime policy unless a later clarification explicitly changes it.
+  - Extract source discovery/refresh, cached aggregation, and stale cleanup into focused helpers or modules.
+  - Leave `spawn_progress_poller` as a thin orchestration loop with explicit timing policy.
+  - Keep the existing cache/message behavior intact and add direct tests for refresh cadence and touched-source cache updates where useful.
 - Expected impact:
-  - Lowers regression risk in a hot controller surface.
-  - Makes search behavior changes more reviewable and easier to test in isolation.
+  - Lowers concurrency-regression risk in progress reporting and stale-job cleanup.
+  - Makes future observability and worker-pool changes easier to review.
 - Risks / tradeoffs:
-  - Search behavior is user-visible and performance-sensitive.
-  - Careless decomposition could hide the current explicit async-vs-sync behavior.
+  - Poll timing, wakeup behavior, and cache refresh policy are timing-sensitive.
+  - Any ownership split must preserve current repaint and message emission semantics.
 - Dependencies:
   - None.
 - Suggested validation:
-  - Browser async tests in `src/app/controller/tests/browser_async.rs`
-  - Browser filter/search tests in `src/app/controller/tests/browser_core/filters.rs`
+  - Targeted `job_progress` tests
+  - Analysis-job pool tests covering cleanup/progress
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completed: `2026-03-15`
-- Implementation commit: `cddf369d`
-- Assumptions used:
-  - The public controller façade in `browser_facade.rs` should remain stable while `browser_search` is split internally.
-  - The current async-authoritative runtime policy remains correct for now and should move intact into its own module rather than be redesigned in this item.
-- Validation outcome:
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
-  - `cargo test browser_async -- --test-threads=1` passed on `2026-03-15`.
-  - `cargo test browser_core::filters -- --test-threads=1` passed on `2026-03-15`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
-- Plan-order deviation: None
 
-### 4. [x] Split browser projection refresh and lookup-map maintenance out of `browser_lists.rs`
+### 3. [ ] Break the hotkey registry into scope-focused tables and keep one explicit export surface
 
 - Classification: Refactor / cleanup
 - Confidence: High
 - ROI: High
 - Effort: M
 - Why it matters:
-  - `browser_lists.rs` is now the place where selection pruning, visible-row projection application, focus/loaded marker refresh, viewport sync, and lazy reverse-lookup rebuilding all meet. That centrality makes even behavior-preserving changes risky.
+  - Contextual hotkeys are a first-class interaction contract, but one 516-line file still acts as the single edit point for every gesture across global, browser, folder, and waveform scopes. Even with direct invariant tests now in place, that hub is still expensive to change safely and remains on the file-size allowlist.
 - Evidence:
-  - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/library/wavs/browser_lists.rs` at 461 lines.
-  - `src/app/controller/library/wavs/browser_lists.rs` owns `rebuild_browser_lists`, `apply_browser_projection`, `prune_browser_selection`, `refresh_browser_selection_markers`, and both visible/triage lookup rebuild paths.
-  - The file duplicates highlight/focus/loaded-row logic across full rebuild and marker-only refresh.
+  - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/ui/hotkeys/actions.rs` at 516 lines.
+  - `docs/file_size_budget_allowlist.txt` still allowlists `src/app/controller/ui/hotkeys/actions.rs`.
+  - `src/app/controller/ui/hotkeys/actions.rs` is almost entirely one `HOTKEY_ACTIONS` table plus tests.
+  - `src/app/controller/ui/hotkeys/types.rs` shows the real domain split is already scope/gesture/command based.
+  - `docs/design_principles.md` says hotkeys must be contextual, explicit, predictable, and inspectable.
 - Recommended change:
-  - Separate projection application, selection-prune normalization, and lookup-map rebuild logic into focused helpers/modules.
-  - Leave `rebuild_browser_lists()` and marker refresh as thin orchestration entrypoints.
+  - Split the static registry into scope-focused declarative chunks, keeping one exported combined registry for lookup behavior.
+  - Keep the current invariant tests and add any missing table-shape tests at the combined export boundary rather than inside one giant table file.
 - Expected impact:
-  - Reduces the blast radius for future browser-view maintenance.
-  - Makes marker refresh and reverse lookup invariants easier to characterize directly.
+  - Reduces review noise and keymap drift risk for a user-facing control surface.
+  - Removes one of the largest remaining allowlisted controller files.
 - Risks / tradeoffs:
-  - This file sits between controller state and native/browser projection behavior.
-  - Refactors must not perturb visible-row revision semantics or viewport stability.
+  - Registry order, ids, and gestures are compatibility surfaces.
+  - Over-abstracting a mostly declarative table would make it harder to audit, not easier.
 - Dependencies:
-  - Item 2 should inform the final ownership split if both are approved.
+  - None.
 - Suggested validation:
-  - Existing lookup tests in `src/app/controller/library/wavs/browser_lists.rs`
-  - Browser selection/focus tests
+  - `cargo test hotkey_registry -- --test-threads=1`
+  - `cargo test hotkey_helper_views -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completed: `2026-03-15`
-- Implementation commit: `ba52b318`
-- Assumptions used:
-  - This item is a file-boundary refactor only; rebuild/prune orchestration should stay behaviorally identical while projection and lookup helpers move behind module boundaries.
-- Validation outcome:
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
-  - `cargo test browser_visible_lookup -- --test-threads=1` passed on `2026-03-15`.
-  - `cargo test browser_triage_lookup -- --test-threads=1` passed on `2026-03-15`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
-- Plan-order deviation: None
 
-### 5. [x] Separate folder-browser scan/cache orchestration from tree projection and fuzzy filtering
+### 4. [ ] Split browser-controller row actions by mutation family instead of keeping one omnibus action hub
+
+- Classification: Refactor / cleanup
+- Confidence: High
+- ROI: High
+- Effort: M
+- Why it matters:
+  - The browser controller still centralizes tagging, loop-marker changes, BPM writes, normalization, loop-crossfade, rename, delete, and dead-link removal behind one trait impl. That mixes multiple persistence and focus-restoration policies in a single mutation hub.
+- Evidence:
+  - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/library/browser_controller/actions.rs` at 402 lines and flags it as a likely test-gap hotspot.
+  - `src/app/controller/library/browser_controller/actions.rs` defines the `BrowserActions` trait with multiple unrelated command families and shares resolution/focus logic like `resolve_unique_browser_contexts`, `next_browser_focus_after_delete`, and `refocus_after_filtered_removal`.
+  - The same file handles source-grouped BPM updates, playback restoration after loop-crossfade, and delete/dead-link focus recovery.
+- Recommended change:
+  - Split the file by mutation family, for example metadata/tagging, destructive/removal flows, and audio-transform flows.
+  - Keep shared row-context resolution and refocus helpers in a small common helper layer.
+- Expected impact:
+  - Reduces blast radius for user-visible browser mutation changes.
+  - Makes it easier to add targeted tests for one action family without touching unrelated flows.
+- Risks / tradeoffs:
+  - Delete/focus restoration and playback-retarget behavior must stay stable.
+  - Multi-row grouping logic is shared and easy to duplicate accidentally.
+- Dependencies:
+  - None.
+- Suggested validation:
+  - Targeted browser-controller action tests
+  - Undo/redo coverage for affected flows
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Product clarification required: No
+
+### 5. [ ] Separate source selection, source lifecycle/remap, and missing/watcher maintenance in `sources.rs`
 
 - Classification: Architecture improvement
 - Confidence: High
+- ROI: Medium-High
+- Effort: M
+- Why it matters:
+  - Source management is foundational for the library model, but one controller file still mixes source selection, add/remove/remap flows, missing-source repair, watcher refresh, UI row projection, and config persistence. That makes source-lifecycle changes riskier than they need to be.
+- Evidence:
+  - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/library/sources.rs` at 422 lines.
+  - `src/app/controller/library/sources.rs` owns `select_source_internal`, `add_source_from_path`, `remove_source`, `refresh_sources_ui`, `refresh_source_watcher`, `rebuild_missing_sources`, `mark_source_missing`, `remap_source_to`, and `open_source_folder`.
+  - `docs/design_principles.md` emphasizes data integrity and trust for library mutations.
+- Recommended change:
+  - Split source selection/loading orchestration from source lifecycle/remap operations and from missing/watcher maintenance.
+  - Make the remap/remove path explicit about which caches, UI rows, and persisted selections are invalidated.
+- Expected impact:
+  - Lowers regression risk in source-root changes and missing-source recovery.
+  - Makes future folder/source features easier to implement without touching one large hub.
+- Risks / tradeoffs:
+  - Source-id preservation, DB copy/remap behavior, and selected-source recovery are trust-sensitive.
+  - A split that obscures cache invalidation order would be a regression.
+- Dependencies:
+  - None.
+- Suggested validation:
+  - Source add/remove/remap tests
+  - Missing-source recovery tests
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Product clarification required: No
+
+### 6. [ ] Separate pure option-setting policy from live playback/waveform side effects in `interaction_options.rs`
+
+- Classification: Refactor / cleanup
+- Confidence: High
 - ROI: Medium
 - Effort: M
 - Why it matters:
-  - The folder browser is a mixed controller/UI cache with hotkeys, manual-folder tracking, disk-scan freshness, row-tree building, and fuzzy search ranking in one place. That makes the folder feature harder to extend safely than the existing tests suggest.
+  - Interaction options are user-facing and stateful, but the current controller file mixes clamp/normalization logic, config persistence, input-monitor restarts, anti-clip player updates, waveform reloads, and replay-after-BPM-change behavior in one setter-heavy hub.
 - Evidence:
-  - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/library/source_folders/tree.rs` at 442 lines.
-  - `src/app/controller/library/source_folders/tree.rs` defines `FolderBrowserModel`, disk-refresh application, timed refresh orchestration (`AUTO_SYNC_INTERVAL`), row-tree flattening, fuzzy row filtering, and recursive disk scanning.
-  - Other folder features (`actions/hotkeys.rs`, `selection/navigation.rs`, `selection/search.rs`) already depend on the same `FolderBrowserModel`, which increases coupling pressure.
+  - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/ui/interaction_options.rs` at 428 lines.
+  - `src/app/controller/ui/interaction_options.rs` owns pure clamp helpers at the top, then a long `impl AppController` with setters that trigger audio-player mutation, waveform reload, replay, and config persistence.
+  - `docs/design_principles.md` prioritizes predictability and immediate auditioning.
 - Recommended change:
-  - Move disk-scan freshness/cache behavior into a focused model module.
-  - Keep tree building/flattening and fuzzy filtering in separate projection helpers.
-  - Preserve the current `refresh_folder_browser_for_tests()` seam so existing tests stay deterministic.
+  - Extract pure control normalization and state-mutation policy from the live side-effect paths.
+  - Keep explicit controller entrypoints, but move replay/reload/player-monitor behavior into focused helpers that make their side effects obvious.
 - Expected impact:
-  - Makes folder-browser behavior easier to reason about without changing user-visible semantics.
-  - Reduces the chance that scan-policy changes accidentally disturb row projection behavior.
+  - Makes option changes safer to review and test directly.
+  - Reduces the chance that a new persisted control unintentionally inherits the wrong live side effects.
 - Risks / tradeoffs:
-  - Folder selection and hotkey flows already depend on this state model.
-  - Splitting without clear ownership boundaries could just move complexity around.
+  - BPM/stretch and monitoring settings have live audio consequences.
+  - The split should not hide when persistence is expected versus when preview-only behavior is intended.
 - Dependencies:
   - None.
 - Suggested validation:
-  - Folder tests under `src/app/controller/tests/folders_core/`
-  - `src/app/controller/tests/folders_search.rs`
+  - Interaction-options tests
+  - Playback option/reload tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completed: `2026-03-15`
-- Implementation commit: `cb561557`
-- Assumptions used:
-  - This item should preserve the existing `refresh_folder_browser_for_tests()` seam and folder-selection behavior while only changing module ownership boundaries.
-- Validation outcome:
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
-  - `cargo test folders_core -- --test-threads=1` passed on `2026-03-15`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
-- Plan-order deviation: None
 
-### 6. [x] Add direct hotkey-registry invariants and reduce reliance on ad hoc registration tests
+### 7. [ ] Break `SampleBrowserState` into focused selection, viewport, and search/similarity state slices
 
-- Classification: Test gap
-- Confidence: High
-- ROI: Medium
-- Effort: S
-- Why it matters:
-  - Hotkeys are a core interaction surface, but the codebase currently proves them mostly through piecemeal action-specific tests instead of a direct registry invariant suite. That leaves duplicate ids, duplicate gestures within a scope, and accidental scope collisions harder to catch than they should be.
-- Evidence:
-  - `tmp/cleanup_audit_hotspots.md` lists `src/app/controller/ui/hotkeys/actions.rs` at 455 lines.
-  - `src/app/controller/ui/hotkeys/mod.rs` simply filters `HOTKEY_ACTIONS`, so most safety depends on the table staying internally consistent.
-  - Existing tests in files like `src/app/controller/tests/focus_random/browser_focus.rs`, `history.rs`, `mutation_hotkeys.rs`, and waveform hotkey tests validate selected actions, not the registry as a whole.
-- Recommended change:
-  - Add direct table-driven tests for duplicate action ids, duplicate gestures per scope, and representative global/focus lookup behavior.
-  - If useful, split the table by scope family to make review smaller, but keep one explicit exported registry.
-- Expected impact:
-  - Improves confidence in a user-facing control surface with minimal code churn.
-  - Reduces future hotkey regressions caused by adding one more entry to a large table.
-- Risks / tradeoffs:
-  - If the repo intentionally allows some cross-scope gesture reuse, the tests must encode that rule explicitly rather than over-constraining the table.
-- Dependencies:
-  - None.
-- Suggested validation:
-  - New hotkey registry invariant tests
-  - Existing waveform/browser hotkey controller tests
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completed: `2026-03-15`
-- Implementation commit: `3dfca2e0`
-- Assumptions used:
-  - Cross-scope gesture reuse remains valid; the new invariant coverage should only reject duplicate gestures within the same hotkey scope and keep global-vs-focus lookups explicitly characterized.
-- Validation outcome:
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
-  - `cargo test hotkey_registry -- --test-threads=1` passed on `2026-03-15`.
-  - `cargo test hotkey_helper_views -- --test-threads=1` passed on `2026-03-15`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
-- Plan-order deviation: None
-
-### 7. [x] Clarify and harden the `wav_sanitize` public `Read + Seek` contract
-
-- Classification: Documentation gap
-- Confidence: High
-- ROI: Medium
-- Effort: S-M
-- Why it matters:
-  - `wav_sanitize.rs` exposes public helpers used by live audio-loading and waveform paths, but its documentation and inline comments no longer describe the contract cleanly. The most complex part of the type is `Seek`, yet the current tests only validate read-through and in-memory sanitization behavior.
-- Evidence:
-  - `tmp/cleanup_audit_hotspots.md` lists `src/wav_sanitize.rs` at 467 lines.
-  - `src/wav_sanitize.rs` implements non-trivial `SeekFrom::Start`, `SeekFrom::Current`, and `SeekFrom::End` logic for `SanitizedWavReader`.
-  - The file still contains stale conversational comments such as “Let’s implement Current via Start for simplicity” and “I’ll add a wrapper,” which are not stable contract documentation.
-  - Runtime code calls these helpers from `src/app/controller/library/wav_io.rs`, `src/app/controller/playback/audio_loader/stages.rs`, and `src/app/controller/library/wavs/waveform_rendering.rs`.
-- Recommended change:
-  - Replace conversational/stale comments with stable doc comments that define what gets repaired, what does not, and how `Seek` behaves across sanitized headers.
-  - Add direct tests for `SeekFrom::Start`, `SeekFrom::Current`, and `SeekFrom::End` on both pass-through and sanitized-header paths.
-  - If the file is still hard to reason about after that, split streaming-reader behavior from header-repair helpers.
-- Expected impact:
-  - Makes a public audio-loading surface safer to change.
-  - Reduces the chance of silent seek-position bugs in downstream decoders.
-- Risks / tradeoffs:
-  - WAV header repair is format-sensitive; avoid broadening repair scope without stronger corpus evidence.
-- Dependencies:
-  - None.
-- Suggested validation:
-  - `wav_sanitize` unit tests
-  - Targeted audio/waveform loading tests that exercise sanitized inputs
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completed: `2026-03-15`
-- Implementation commit: `06d94dc6`
-- Assumptions used:
-  - The repair scope should remain limited to the existing padded-`fmt ` cases; hardening this item means documenting and enforcing the current `Read + Seek` behavior, not broadening the sanitizer to new malformed WAV variants.
-- Validation outcome:
-  - `cargo test wav_sanitize -- --test-threads=1` passed on `2026-03-15`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
-- Plan-order deviation: None
-
-### 8. [x] Add targeted coverage for deferred undo/redo file flows and separate generic undo primitives from controller/file glue
-
-- Classification: Test gap
+- Classification: Architecture improvement
 - Confidence: Medium
 - ROI: Medium
 - Effort: M
 - Why it matters:
-  - Undo/redo is explicitly documented as a first-class interaction primitive, but the most complex part of the implementation is the deferred file-operation path, not the generic in-memory stack. That path currently spans multiple files with only light indirect coverage.
+  - The browser’s durable UI state is still concentrated in one 439-line struct that mixes triage partitions, visible-row revisions and reverse lookups, multi-selection caches, marker cache state, search state, similarity state, prompts, and copy-flash state. That centrality makes safe browser work harder even after the earlier selection-authority cleanup.
 - Evidence:
-  - `docs/design_principles.md` defines universal undo/redo as a first-class interaction primitive.
-  - `src/app/controller/undo.rs` mixes generic undo stack logic, controller-facing `undo()` / `redo()` entrypoints, selection undo helpers, and `OverwriteBackup`.
-  - `src/app/controller/undo_jobs.rs` runs deferred filesystem undo jobs for overwrite/remove/restore cases.
-  - `src/app/controller/ui/file_ops.rs` applies deferred undo results and restores/pushes entries depending on success or cancellation.
-  - `src/app/controller/undo.rs` local tests cover stack limit and redo clearing, but do not directly characterize deferred file-job lifecycle behavior.
+  - `tmp/cleanup_audit_hotspots.md` lists `src/app/state/browser.rs` at 439 lines and `src/app/controller/library/wavs/browser_actions/selection.rs` at 356 lines.
+  - `src/app/state/browser.rs` defines one `SampleBrowserState` with selection, viewport, reverse-lookup caches, search/similarity, prompts, and visual flash state together.
+  - `src/app/controller/library/wavs/browser_pipeline.rs` and `src/app/controller/library/wavs/browser_actions/selection.rs` still depend on overlapping pieces of that state.
 - Recommended change:
-  - Add targeted tests for deferred undo success, cancellation, and failure restoration behavior.
-  - Split generic undo structures from controller/file-operation glue if that makes the deferred flow easier to test directly.
+  - Introduce focused nested structs or modules for browser selection/markers, visible-row/viewport bookkeeping, and query/similarity state.
+  - Preserve the current path-authoritative selection behavior and keep derived caches explicit.
 - Expected impact:
-  - Increases confidence in one of the repo’s explicitly documented trust/safety features.
-  - Makes future file-editing features safer to add.
+  - Makes the remaining browser code easier to audit and change without broad state churn.
+  - Gives clearer ownership boundaries for future browser refactors.
 - Risks / tradeoffs:
-  - File-backed undo tests can become slow or fragile if they are not tightly scoped.
-  - Refactors must preserve current user-facing undo labels and stack behavior.
+  - Browser selection, lookup caches, and busy/request ids are tightly coupled.
+  - If the new split is too granular, it could just move complexity around without clarifying ownership.
 - Dependencies:
   - None.
 - Suggested validation:
-  - Targeted undo/deferred file-op tests
-  - Existing selection/tagging undo coverage
+  - Browser selection/marker tests
+  - Browser pipeline tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completed: `2026-03-15`
-- Implementation commit: `f2e8bf72`
-- Assumptions used:
-  - The safest separation boundary is the one already implicit in the code: keep reusable stack mechanics in a generic module and leave controller/file-operation orchestration in the controller-facing module.
-- Validation outcome:
-  - `cargo test undo -- --test-threads=1` passed on `2026-03-15`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
-- Plan-order deviation: None
 
-### 9. [x] Expand the semantic automation tree to cover the remaining browser action-strip buttons and other micro-controls
+### 8. [ ] Expand GUI scenario and desktop-AIV packs for transport, volume drag, and map-point interaction
 
-- Classification: Feature opportunity
-- Confidence: Medium
+- Classification: Test gap
+- Confidence: High
 - ROI: Medium
 - Effort: M
 - Why it matters:
-  - The repo already invested in a semantic GUI automation surface for the CLI runner and AIV desktop loop, but the docs still describe that automation coverage as broad rather than exhaustive. The remaining uncovered controls reduce the value of the existing platform.
+  - The semantic GUI platform is already part of the quick loop, but the current scenario packs still stop short of several user-visible interaction surfaces that the docs explicitly call out as the next coverage slice.
 - Evidence:
-  - `docs/gui_test_platform.md` says automation coverage is “broad but not yet exhaustive for every micro-control.”
-  - The same doc lists “Expand the automation tree to cover the remaining browser action-strip buttons and other micro-controls” as the first immediate next step.
-  - The platform already has CLI, scenario, runtime-artifact, and AIV wrappers that benefit from stable semantic ids.
+  - `docs/gui_test_platform.md` lists “Add more seeded fixtures and scenario assertions for transport, volume drag, and map-point interaction” as the first immediate next step.
+  - `src/gui_test/packs.rs` currently ships only the `contract-smoke` pack with scenarios for browser search, waveform seek/zoom, options, prompt, and update panel flows.
+  - `src/gui_test/aiv/packs.rs` desktop regression cases cover browser, prompt, update, and waveform transport/selection, but not dedicated transport-button, volume-drag, or map-point semantic cases.
 - Recommended change:
-  - Extend the semantic snapshot only where the current automation/test platform already expects stable node ids.
-  - Prioritize browser action-strip controls first, because the docs name them explicitly.
-  - Keep scope limited to semantic-node coverage; do not couple this item to desktop AIV CI promotion.
+  - Add deterministic fixture seeds and scenario assertions for the missing transport, volume-drag, and map-point interactions in both the in-process GUI pack and the desktop-AIV manifest where appropriate.
+  - Keep coverage tied to stable semantic ids instead of screenshot-only assertions.
 - Expected impact:
-  - Increases the utility of the existing GUI automation platform without inventing a new product lane.
-  - Makes later GUI regression work less dependent on screenshot matching.
+  - Improves the value of the already-promoted semantic GUI contract lane.
+  - Reduces reliance on ad hoc manual verification for important micro-interactions.
 - Risks / tradeoffs:
-  - Semantic ids are compatibility surfaces once external tooling depends on them.
-  - Expanding coverage without characterization tests could create brittle automation churn.
+  - New semantic ids and assertions become compatibility surfaces for GUI tooling.
+  - Poor fixture seeding could make GUI coverage noisy instead of useful.
 - Dependencies:
-  - Item 1 becomes more valuable once more of the automation tree is contract-tested.
+  - None.
 - Suggested validation:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
-- Completed: `2026-03-15`
-- Implementation commits:
-  - `vendor/radiant`: `8e26cfda`
-  - `sempal`: `e137ea3b`
-- Assumptions used:
-  - The browser action-strip controls were already represented in the semantic automation tree; in the current codebase, the remaining uncovered browser micro-control surface was the table scrollbar track/thumb pair.
-- Validation outcome:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml automation -- --test-threads=1` passed on `2026-03-15`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1` passed on `2026-03-15`.
-- Plan-order deviation: None
+
+### 9. [ ] Harden the desktop-AIV smoke wrapper around foreground/focus failures before considering broader promotion
+
+- Classification: Developer-experience improvement
+- Confidence: Medium
+- ROI: Medium
+- Effort: M
+- Why it matters:
+  - The repository already ships a usable desktop-AIV wrapper, but the docs still call out Windows foreground/focus behavior as the reason it is not safe to promote into CI. That limits confidence in the end-to-end desktop loop the project is already investing in.
+- Evidence:
+  - `docs/gui_test_platform.md` says desktop AIV stability still depends on Windows foreground/focus behavior and lists hardening the AIV smoke wrapper as an immediate next step.
+  - `scripts/run_gui_aiv_smoke.ps1` is only a thin wrapper over `run_gui_aiv_suite.ps1`.
+  - `scripts/run_gui_aiv_suite.ps1` currently does a straightforward `Wait-ForWindow`, one `Ensure-WindowForeground`, then step execution; on failure it captures screenshots but does not encode a stronger retry/reacquire policy in this top-level flow.
+- Recommended change:
+  - Add explicit foreground-retry and re-acquire handling at the desktop wrapper level, plus clearer failure categorization for focus-related flake versus application-level failures.
+  - Keep the contract loop in `ci_quick`; do not promote desktop AIV gating until the wrapper has objective stability evidence.
+- Expected impact:
+  - Makes the desktop-AIV loop more trustworthy for local regression work.
+  - Produces cleaner diagnostics when Windows focus behavior is the actual failure mode.
+- Risks / tradeoffs:
+  - Desktop automation can still fail for environment reasons outside the app’s control.
+  - Over-retrying could hide true regressions if failure classification is too loose.
+- Dependencies:
+  - None.
+- Suggested validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_smoke.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_aiv_suite.ps1 -PackName desktop-regression`
+- Product clarification required: No
 
 ## Open Questions / Missing Definitions
 
-### [!] What exactly should become mandatory in `ci_quick`: the semantic GUI contract loop only, or a broader GUI lane?
+### [!] What stability bar should desktop AIV meet before it is eligible for CI or any stronger default gate?
 
 - Evidence:
-  - `docs/gui_test_platform.md` says the semantic contract loop should be promoted into `ci_quick`.
-  - The same doc says desktop AIV stability still depends on Windows foreground/focus behavior and that no CI gate yet enforces desktop AIV smoke stability.
+  - `docs/gui_test_platform.md` says desktop AIV is useful locally but “not yet stable enough to promote into CI.”
+  - The same doc lists Windows foreground/focus behavior as the blocking limitation.
 - Why this matters:
-  - Without a precise gate definition, “promote GUI testing into quick validation” can accidentally pull unstable desktop automation into the default loop.
+  - Without a defined promotion bar, work on the AIV wrapper can drift between “local convenience” and “intended CI contract” without clear success criteria.
 - Affected files/modules:
-  - `scripts/ci_quick.ps1`
-  - `scripts/run_gui_contract.ps1`
-  - `scripts/run_gui_aiv_*.ps1`
   - `docs/gui_test_platform.md`
+  - `scripts/run_gui_aiv_smoke.ps1`
+  - `scripts/run_gui_aiv_suite.ps1`
+  - `src/gui_test/aiv/packs.rs`
 - Risk if guessed incorrectly:
-  - Either the quick loop stays weaker than intended, or it becomes noisy/slow due to the unstable desktop-AIV slice.
+  - The team could either under-invest in a strategic test loop or accidentally turn a flaky desktop loop into a noisy gate.
 - Most conservative provisional assumption:
-  - Promote only `scripts/run_gui_contract.ps1` into `ci_quick`; keep AIV wrappers opt-in.
+  - Keep desktop AIV local-only and non-mandatory until repeated local evidence shows stable foreground/focus handling.
 
-### [!] Is `selected_paths` still intended to be durable browser state, or only a compatibility view over canonical index-based selection?
+### [!] What is the intended long-term ownership boundary between durable browser UI state and derived browser pipeline caches?
 
 - Evidence:
-  - `src/app/controller/library/wavs/browser_actions/selection.rs` calls the path list a “compatibility path list” while also keeping `selected_paths_revision`.
-  - `src/app/state/browser.rs` still stores both paths and indices.
+  - `src/app/state/browser.rs` still stores durable browser selection, visible-row revisions, reverse-lookup caches, search state, and similarity state together.
+  - `src/app/controller/library/wavs/browser_pipeline.rs` keeps separate retained pipeline caches in `ui_cache.browser.pipeline`.
+  - `src/app/controller/library/wavs/browser_actions/selection.rs` still owns large selection/anchor behavior helpers around the same browser state.
 - Why this matters:
-  - The safe refactor boundary depends on whether callers are allowed to assume eager path-state availability.
+  - Safe future browser refactors depend on knowing which data is meant to be durable state versus derivable cache or controller helper state.
 - Affected files/modules:
   - `src/app/state/browser.rs`
+  - `src/app/controller/library/wavs/browser_pipeline.rs`
   - `src/app/controller/library/wavs/browser_actions/selection.rs`
-  - `src/app/controller/library/wavs/browser_lists.rs`
-  - `src/app_core/native_shell/browser_projection/cache.rs`
 - Risk if guessed incorrectly:
-  - Selection, clipboard, projection caching, or drag/drop behavior could drift subtly.
+  - Refactors could either duplicate cache state again or over-couple controller helpers to data that should be ephemeral.
 - Most conservative provisional assumption:
-  - Treat absolute indices as authoritative and keep path materialization behind a compatibility adapter until all consumers are explicit.
+  - Keep durable user-visible browser state in `SampleBrowserState`, but move derivable caches and algorithmic helpers behind smaller focused wrappers rather than inventing new durable state.
 
-### [!] What malformed WAV-header variants are intentionally in scope for automatic sanitization?
+### [!] What exact remap/remove contract should source management preserve for DB history, cache invalidation, and focused selection recovery?
 
 - Evidence:
-  - `src/wav_sanitize.rs` currently repairs padded PCM/IEEE-float `fmt ` chunks, but the public helper names and docs are broad.
+  - `src/app/controller/library/sources.rs` copies `.sempal_samples.db` during remap when the destination DB is absent, preserves source ids, clears caches, and conditionally clears waveform/browser state in one flow.
+  - There is no single dedicated source-lifecycle doc that defines the intended user-visible guarantees for remap/remove behavior.
 - Why this matters:
-  - Without a clear scope, future changes can accidentally expand repair heuristics in a risky media-decoding path.
+  - Source lifecycle work touches trust-sensitive library state, and the safest refactor boundary depends on which of these behaviors are strict contract versus implementation detail.
 - Affected files/modules:
-  - `src/wav_sanitize.rs`
-  - `src/app/controller/library/wav_io.rs`
-  - `src/app/controller/playback/audio_loader/stages.rs`
-  - `src/app/controller/library/wavs/waveform_rendering.rs`
+  - `src/app/controller/library/sources.rs`
+  - `src/sample_sources/library.rs`
+  - `src/sample_sources/db/*`
 - Risk if guessed incorrectly:
-  - The app could silently mutate unsupported files incorrectly or reject cases maintainers assumed were handled.
+  - A cleanup refactor could silently change tag/history preservation or selected-source recovery behavior.
 - Most conservative provisional assumption:
-  - Keep the repair scope narrow and document only the currently implemented padded-`fmt ` fixes until broader corpus evidence exists.
-
-### [!] What user-visible freshness contract should the folder browser provide for disk-only folders?
-
-- Evidence:
-  - `src/app/controller/library/source_folders/tree.rs` refreshes disk folders on a 10-second interval and reuses cached folder state when entries are empty or a load is pending.
-- Why this matters:
-  - Scan cadence and cache reuse affect user-visible folder availability, but the behavior is implicit in code rather than documented.
-- Affected files/modules:
-  - `src/app/controller/library/source_folders/tree.rs`
-  - `src/app/controller/tests/folders_*`
-- Risk if guessed incorrectly:
-  - Cleanup refactors can unintentionally make folder rows feel stale or overly eager to rescan.
-- Most conservative provisional assumption:
-  - Preserve the current async refresh cadence and cache reuse rules unless a user-visible contract is documented.
+  - Preserve source ids, reuse existing DB history when safe, and keep current selection/waveform clearing behavior unless a dedicated source-lifecycle contract is documented.
 
 ## Rejected Ideas
 
-### [-] Remove the synchronous browser rebuild path entirely
+### [-] Promote desktop AIV smoke into `ci_quick` or CI now
 
 - Why it was considered:
-  - The runtime path now prefers the async worker pipeline.
+  - The repo already has semantic GUI artifacts, desktop manifests, and wrapper scripts.
 - Why it was rejected:
-  - The repository still uses the synchronous path for deterministic tests and fallback behavior.
+  - Current docs explicitly say the desktop-AIV loop is not yet stable enough because of Windows foreground/focus behavior.
 - What evidence was missing:
-  - No doc or code comment says the sync path should be deleted outright.
+  - No current stability threshold or repeated green desktop evidence that would justify promotion.
 
-### [-] Start a new crate-split lane immediately for build speed
+### [-] Add configurable hotkeys
 
 - Why it was considered:
-  - `docs/build_speed.md` lists future split candidates.
+  - The hotkey registry is large and highly visible.
 - Why it was rejected:
-  - The same doc explicitly says to re-measure first and only continue if timing data still justifies more structural splits.
+  - A large registry is not evidence that user-customizable keymaps are an intended product direction.
 - What evidence was missing:
-  - No fresh timing artifact in the current repo snapshot shows the app package still needs another crate split.
+  - No roadmap note, doc section, or existing config surface suggests customizable hotkeys are planned.
 
-### [-] Add user-configurable hotkeys
+### [-] Remove the legacy runtime compatibility path entirely
 
 - Why it was considered:
-  - `HOTKEY_ACTIONS` is large and high-visibility.
+  - `README.md` emphasizes the `radiant` path as the active default runtime.
 - Why it was rejected:
-  - A large registry is not by itself evidence that customizable keymaps are an intended product direction.
+  - The architecture docs still describe `src/legacy_runtime` as a compatibility path rather than dead code.
 - What evidence was missing:
-  - No roadmap note, doc section, or test surface suggests customizable hotkeys are planned.
+  - No doc or active plan says the legacy runtime should now be deleted outright.
+
+### [-] Start another broad crate-split or build-system redesign lane
+
+- Why it was considered:
+  - The workspace is large and performance/build docs exist.
+- Why it was rejected:
+  - The active documentation already tracks a completed runtime-performance lane and does not present a current build-architecture crisis in the refreshed tree.
+- What evidence was missing:
+  - No fresh timing artifact or active doc says another structural crate split is currently the highest-value next step.

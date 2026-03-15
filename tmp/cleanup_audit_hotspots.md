@@ -1,34 +1,30 @@
 # Cleanup Hotspot Audit Snapshot
 
-- Generated (UTC): `2026-03-15T09:37:47Z`
+- Generated (UTC): `2026-03-15T12:39:47Z`
 - Branch: `next`
-- Commit: `6c9dc2d8`
-- Rust files scanned: 796
+- Commit: `20f83666`
+- Rust files scanned: 807
 - File-size budget limit: `400`
 
 ## Summary
 
-- Over file-size budget: 21
-- Function spans captured: 5374
+- Over file-size budget: 16
+- Function spans captured: 5406
 - Files with `dead_code` suppressions: 1
 - Files with `clippy::too_many_arguments` suppressions: 1
-- Likely large-file test-gap hotspots (heuristic): 85
+- Likely large-file test-gap hotspots (heuristic): 83
 
 ## Largest Rust files
 
 | Lines | File |
 | --- | --- |
-| 474 | `src/app/controller/library/wavs/browser_search.rs` |
-| 467 | `src/wav_sanitize.rs` |
+| 516 | `src/app/controller/ui/hotkeys/actions.rs` |
 | 462 | `src/analysis/frequency_domain/stft.rs` |
-| 461 | `src/app/controller/library/wavs/browser_lists.rs` |
 | 456 | `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` |
-| 455 | `src/app/controller/ui/hotkeys/actions.rs` |
 | 454 | `src/app/controller/playback/mod.rs` |
-| 442 | `src/app/controller/library/source_folders/tree.rs` |
+| 439 | `src/app/state/browser.rs` |
 | 432 | `src/waveform/model.rs` |
 | 428 | `src/app/controller/ui/interaction_options.rs` |
-| 426 | `src/app/state/browser.rs` |
 | 423 | `tools/analysis-admin/src/bin/sempal-hdbscan.rs` |
 | 422 | `src/app/controller/library/sources.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
@@ -36,8 +32,12 @@
 | 418 | `src/app/controller/library/analysis_jobs/pool/job_progress.rs` |
 | 413 | `src/sample_sources/scanner/scan/tests.rs` |
 | 409 | `src/app/controller/playback/tests.rs` |
-| 406 | `src/app/controller/undo.rs` |
 | 403 | `src/app/controller/playback/loop_crossfade.rs` |
+| 402 | `src/app/controller/library/browser_controller/actions.rs` |
+| 399 | `tests/unit/audio_output_tests.rs` |
+| 397 | `src/sqlite_ext.rs` |
+| 397 | `src/selection/range.rs` |
+| 397 | `src/app/controller/ui/hotkeys_controller/waveform.rs` |
 
 ## Largest function spans (heuristic)
 
@@ -68,17 +68,13 @@
 
 | Lines | File |
 | --- | --- |
-| 474 | `src/app/controller/library/wavs/browser_search.rs` |
-| 467 | `src/wav_sanitize.rs` |
+| 516 | `src/app/controller/ui/hotkeys/actions.rs` |
 | 462 | `src/analysis/frequency_domain/stft.rs` |
-| 461 | `src/app/controller/library/wavs/browser_lists.rs` |
 | 456 | `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` |
-| 455 | `src/app/controller/ui/hotkeys/actions.rs` |
 | 454 | `src/app/controller/playback/mod.rs` |
-| 442 | `src/app/controller/library/source_folders/tree.rs` |
+| 439 | `src/app/state/browser.rs` |
 | 432 | `src/waveform/model.rs` |
 | 428 | `src/app/controller/ui/interaction_options.rs` |
-| 426 | `src/app/state/browser.rs` |
 | 423 | `tools/analysis-admin/src/bin/sempal-hdbscan.rs` |
 | 422 | `src/app/controller/library/sources.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
@@ -86,7 +82,6 @@
 | 418 | `src/app/controller/library/analysis_jobs/pool/job_progress.rs` |
 | 413 | `src/sample_sources/scanner/scan/tests.rs` |
 | 409 | `src/app/controller/playback/tests.rs` |
-| 406 | `src/app/controller/undo.rs` |
 | 403 | `src/app/controller/playback/loop_crossfade.rs` |
 | 402 | `src/app/controller/library/browser_controller/actions.rs` |
 
@@ -110,7 +105,6 @@ Skips dedicated test modules/paths (`tests/**`, `tests.rs`, `*_test.rs`).
 | Lines | File |
 | --- | --- |
 | 456 | `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` |
-| 455 | `src/app/controller/ui/hotkeys/actions.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
 | 418 | `src/sample_sources/db/write.rs` |
 | 402 | `src/app/controller/library/browser_controller/actions.rs` |
@@ -121,6 +115,7 @@ Skips dedicated test modules/paths (`tests/**`, `tests.rs`, `*_test.rs`).
 | 384 | `src/app/controller/library/wavs/waveform_rendering.rs` |
 | 367 | `src/sample_sources/db/read.rs` |
 | 367 | `src/app/controller/playback/audio_loader/stages.rs` |
+| 356 | `src/app/controller/library/wavs/browser_actions/selection.rs` |
 | 354 | `src/app/controller/playback/recording/waveform_loader/aggregation.rs` |
 | 351 | `src/app/controller/playback/audio_options/controller.rs` |
 | 348 | `src/app_core/native_bridge/metrics.rs` |
