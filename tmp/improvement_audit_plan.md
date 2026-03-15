@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `6c9dc2d8`
 - Phase: `Phase 2 in progress`
-- Status: `Implementing the ROI-ranked backlog in plan order; item 1 is complete.`
+- Status: `Implementing the ROI-ranked backlog in plan order; items 1-2 are complete.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed on this branch.
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md`.
@@ -80,7 +80,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`, including `scripts/run_gui_contract.ps1`.
 - Plan-order deviation: None
 
-### 2. [ ] Make browser multi-selection state single-source-of-truth and derive the compatibility view lazily
+### 2. [x] Make browser multi-selection state single-source-of-truth and derive the compatibility view lazily
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -111,6 +111,16 @@
   - Browser projection cache tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Implementation commit: `7338908a`
+- Assumptions used:
+  - Relative paths are the safest canonical browser-selection identity because they survive rename/move remapping and projection reorder better than absolute entry indices.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
+  - `cargo test browser_selection -- --test-threads=1` passed on `2026-03-15`.
+  - `cargo test browser_cache -- --test-threads=1` passed on `2026-03-15`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
+- Plan-order deviation: None
 
 ### 3. [ ] Decompose `browser_search.rs` into scoring/cache mechanics, async policy, and UI-trigger handlers
 
