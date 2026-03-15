@@ -146,6 +146,10 @@ This runs:
 - runner smoke tests
 - one native-shell runtime hit-test smoke
 
+This semantic/runtime contract slice is part of the normal Windows quick gate:
+
+- `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+
 ### Feature loop
 
 - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
@@ -196,4 +200,4 @@ The platform is intentionally first-slice, not final:
 1. Expand the automation tree to cover the remaining browser action-strip buttons and other micro-controls.
 2. Add more seeded fixtures and scenario assertions for transport, volume drag, and map-point interaction.
 3. Harden the AIV smoke wrapper around Windows foreground/focus failure modes.
-4. Promote the GUI contract loop into `ci_quick` once it is stable enough to be mandatory.
+4. Keep the semantic GUI contract loop healthy inside `ci_quick` without pulling unstable desktop AIV coverage into the default gate.

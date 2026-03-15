@@ -4,9 +4,10 @@ Runs a fast local development test pass.
 
 .DESCRIPTION
 Executes the everyday fast test loop for normal development by running the
-quick nextest profile over library and integration tests. This intentionally
-skips support-tool binaries, slower recovery tests, clippy, rustdoc, benches,
-perf guards, and other CI-parity checks reserved for `scripts/ci_local.ps1`.
+quick nextest profile over library and integration tests plus the semantic GUI
+contract lane. This intentionally skips support-tool binaries, slower recovery
+tests, desktop AIV loops, clippy, rustdoc, benches, perf guards, and other
+CI-parity checks reserved for `scripts/ci_local.ps1`.
 #>
 
 param(
@@ -53,6 +54,11 @@ try {
   Write-Host "[ci_quick] cargo nextest run -p sempal --profile quick --lib --tests"
   Invoke-NativeStep -Label "cargo nextest run -p sempal --profile quick --lib --tests" -Command {
     cargo nextest run -p sempal --profile quick --lib --tests
+  }
+
+  Write-Host "[ci_quick] scripts/run_gui_contract.ps1"
+  Invoke-NativeStep -Label "scripts/run_gui_contract.ps1" -Command {
+    & (Join-Path $PSScriptRoot "run_gui_contract.ps1")
   }
 
   Write-Host "[ci_quick] OK"
