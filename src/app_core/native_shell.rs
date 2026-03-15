@@ -42,8 +42,6 @@ use crate::app_core::ui::{MAX_RENDERED_BROWSER_ROWS, MAX_RENDERED_MAP_POINTS};
 use crate::gui::types::ImageRgba;
 use crate::{analysis::similarity::SIMILARITY_MODEL_ID, app_core::view_model};
 use std::{
-    collections::HashSet,
-    hash::{Hash, Hasher},
     sync::Arc,
     sync::atomic::{AtomicU64, Ordering},
 };

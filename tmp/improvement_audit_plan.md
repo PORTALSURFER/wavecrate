@@ -179,11 +179,19 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 6. Split `src/app_core/native_shell/map_projection.rs` into cache/query refresh, retained-point projection, and label assembly helpers
+### [x] 6. Split `src/app_core/native_shell/map_projection.rs` into cache/query refresh, retained-point projection, and label assembly helpers
 - Classification: Architecture improvement
 - Confidence: Medium
 - ROI: Medium-High
 - Effort: M
+- Completed: `2026-03-15`
+- Assumption used: the safe cut is to keep map projection policy in `app_core` and only split cache refresh, retained-point normalization, and label assembly inside that layer.
+- Validation:
+  - `cargo test app_core::native_shell::tests::map -- --test-threads=1`
+  - `cargo test short_sample_label_prefers_filename_and_truncates_long_values -- --test-threads=1`
+  - `cargo test projected_map_points_normalize_into_milli_space_and_count_clusters -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: `project_map_model` is the main projection bridge for the map panel, but it currently mixes active-state gating, cache-key checks, DB/query refresh behavior, retained normalized-point caching, and user-facing label formatting in one long function.
 - Evidence:
   - `tmp/cleanup_audit_hotspots.md` lists `project_map_model` (`src/app_core/native_shell/map_projection.rs:11`) at 212 lines.
