@@ -1,6 +1,7 @@
 //! Folder and tag filtering helpers for search worker pipeline execution.
 
 use super::*;
+use std::path::Path;
 
 /// Return whether a tag passes the active triage + rating filter settings.
 pub(super) fn filter_accepts_tag(
@@ -98,44 +99,30 @@ fn build_folder_accepts(
     queue: &SearchJobQueue,
     generation: u64,
 ) -> Option<Vec<bool>> {
-    let mut accepts = vec![false; entries.len()];
-    for (index, entry) in entries.iter().enumerate() {
+    for index in 0..entries.len() {
         if super::search_job_canceled_for_index(queue, generation, index) {
             return None;
         }
-        let path = Path::new(entry.relative_path.as_ref());
-        accepts[index] = crate::app::controller::library::source_folders::folder_filter_accepts(
-            path,
+    }
+    Some(
+        crate::app::controller::library::source_folders::build_folder_filter_acceptance_map(
+            entries
+                .iter()
+                .map(|entry| Some(Path::new(entry.relative_path.as_ref()))),
             job.folder_selection.as_ref(),
             job.folder_negated.as_ref(),
             job.root_mode,
-        );
-    }
-    Some(accepts)
+        ),
+    )
 }
 
 /// Hash a folder-filter payload into a stable worker cache key.
 pub(super) fn folder_filter_hash_for_job(job: &SearchJob) -> u64 {
-    hash_value(&(
+    crate::app::controller::library::source_folders::folder_filter_fingerprint(
         job.folder_selection.as_ref(),
         job.folder_negated.as_ref(),
-        root_mode_key(job.root_mode),
-    ))
-}
-
-/// Convert root-folder mode into a compact scalar for hashing.
-fn root_mode_key(mode: crate::app::state::RootFolderFilterMode) -> u8 {
-    match mode {
-        crate::app::state::RootFolderFilterMode::AllDescendants => 0,
-        crate::app::state::RootFolderFilterMode::RootOnly => 1,
-    }
-}
-
-/// Hash an arbitrary value for worker cache fingerprints.
-fn hash_value<T: Hash + ?Sized>(value: &T) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
+        job.root_mode,
+    )
 }
 
 #[cfg(test)]

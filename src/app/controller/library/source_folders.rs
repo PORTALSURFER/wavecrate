@@ -7,7 +7,9 @@ mod entry_updates;
 mod selection;
 mod tree;
 
-pub(crate) use selection::{folder_filter_accepts, folder_filters_active};
+pub(crate) use selection::{
+    build_folder_filter_acceptance_map, folder_filter_fingerprint, folder_filters_active,
+};
 pub(crate) use tree::FolderBrowserModel;
 pub(crate) use tree::scan_disk_folders;
 

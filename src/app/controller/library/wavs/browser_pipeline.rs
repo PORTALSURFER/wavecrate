@@ -82,11 +82,11 @@ pub(crate) fn build_visible_rows(
     let root_mode = controller
         .root_folder_filter_mode_for_filter()
         .unwrap_or_default();
-    let folder_hash = helpers::hash_value(&(
+    let folder_hash = crate::app::controller::library::source_folders::folder_filter_fingerprint(
         folder_selection.as_ref(),
         folder_negated.as_ref(),
-        helpers::root_mode_key(root_mode),
-    ));
+        root_mode,
+    );
     let has_folder_filters = crate::app::controller::library::source_folders::folder_filters_active(
         folder_selection.as_ref(),
         folder_negated.as_ref(),
@@ -337,20 +337,23 @@ fn ensure_folder_acceptance_stage(
         return;
     }
 
-    let mut accepts = vec![true; entries_len];
-    if has_folder_filters {
-        for (index, slot) in accepts.iter_mut().enumerate() {
-            let accepted = controller.wav_entry(index).is_some_and(|entry| {
-                crate::app::controller::library::source_folders::folder_filter_accepts(
-                    &entry.relative_path,
-                    folder_selection,
-                    folder_negated,
-                    root_mode,
-                )
-            });
-            *slot = accepted;
-        }
-    }
+    let accepts = if has_folder_filters {
+        let relative_paths: Vec<_> = (0..entries_len)
+            .map(|index| {
+                controller
+                    .wav_entry(index)
+                    .map(|entry| entry.relative_path.clone())
+            })
+            .collect();
+        crate::app::controller::library::source_folders::build_folder_filter_acceptance_map(
+            relative_paths.iter().map(|path| path.as_deref()),
+            folder_selection,
+            folder_negated,
+            root_mode,
+        )
+    } else {
+        vec![true; entries_len]
+    };
 
     controller.ui_cache.browser.pipeline.folder_accepts_by_index = accepts;
     controller

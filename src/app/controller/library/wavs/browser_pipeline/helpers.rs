@@ -111,14 +111,6 @@ pub(super) fn hash_value<T: Hash + ?Sized>(value: &T) -> u64 {
     hasher.finish()
 }
 
-/// Convert root-folder mode into a stable scalar for cache keys.
-pub(super) fn root_mode_key(mode: crate::app::state::RootFolderFilterMode) -> u8 {
-    match mode {
-        crate::app::state::RootFolderFilterMode::AllDescendants => 0,
-        crate::app::state::RootFolderFilterMode::RootOnly => 1,
-    }
-}
-
 /// Convert triage-filter enum into a stable scalar for cache keys.
 pub(super) fn filter_key(filter: TriageFlagFilter) -> u8 {
     match filter {

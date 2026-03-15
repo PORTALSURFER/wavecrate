@@ -1,6 +1,7 @@
 use super::super::*;
 use crate::app::state::RootFolderFilterMode;
 use std::collections::BTreeSet;
+use std::hash::{Hash, Hasher};
 
 impl AppController {
     pub(crate) fn folder_selection_for_filter(&self) -> Option<&BTreeSet<PathBuf>> {
@@ -83,6 +84,31 @@ pub(crate) fn folder_filter_accepts(
     !excluded
 }
 
+/// Hash the active folder-filter payload into a stable cache fingerprint.
+pub(crate) fn folder_filter_fingerprint(
+    selection: Option<&BTreeSet<PathBuf>>,
+    negated: Option<&BTreeSet<PathBuf>>,
+    root_mode: RootFolderFilterMode,
+) -> u64 {
+    hash_value(&(selection, negated, root_mode_key(root_mode)))
+}
+
+/// Build folder-filter acceptance values for a path stream in source order.
+pub(crate) fn build_folder_filter_acceptance_map<'a>(
+    relative_paths: impl IntoIterator<Item = Option<&'a Path>>,
+    selection: Option<&BTreeSet<PathBuf>>,
+    negated: Option<&BTreeSet<PathBuf>>,
+    root_mode: RootFolderFilterMode,
+) -> Vec<bool> {
+    relative_paths
+        .into_iter()
+        .map(|relative_path| {
+            relative_path
+                .is_some_and(|path| folder_filter_accepts(path, selection, negated, root_mode))
+        })
+        .collect()
+}
+
 /// Report whether folder-based filtering is active.
 pub(crate) fn folder_filters_active(
     selection: Option<&BTreeSet<PathBuf>>,
@@ -121,4 +147,55 @@ fn is_negated_relative_path(relative_path: &Path, negated: &BTreeSet<PathBuf>) -
         .iter()
         .filter(|folder| !folder.as_os_str().is_empty())
         .any(|folder| relative_path.starts_with(folder))
+}
+
+fn root_mode_key(mode: RootFolderFilterMode) -> u8 {
+    match mode {
+        RootFolderFilterMode::AllDescendants => 0,
+        RootFolderFilterMode::RootOnly => 1,
+    }
+}
+
+fn hash_value<T: Hash + ?Sized>(value: &T) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn folder_filter_fingerprint_changes_with_root_mode() {
+        let selection = BTreeSet::from([PathBuf::from("")]);
+
+        let all =
+            folder_filter_fingerprint(Some(&selection), None, RootFolderFilterMode::AllDescendants);
+        let root_only =
+            folder_filter_fingerprint(Some(&selection), None, RootFolderFilterMode::RootOnly);
+
+        assert_ne!(all, root_only);
+    }
+
+    #[test]
+    fn build_folder_filter_acceptance_map_matches_direct_contract() {
+        let selection = BTreeSet::from([PathBuf::from(""), PathBuf::from("drums")]);
+        let negated = BTreeSet::from([PathBuf::from("hits")]);
+        let paths = [
+            Some(Path::new("root.wav")),
+            Some(Path::new("drums/kick.wav")),
+            Some(Path::new("hits/snare.wav")),
+            None,
+        ];
+
+        let accepts = build_folder_filter_acceptance_map(
+            paths,
+            Some(&selection),
+            Some(&negated),
+            RootFolderFilterMode::RootOnly,
+        );
+
+        assert_eq!(accepts, vec![true, true, false, false]);
+    }
 }
