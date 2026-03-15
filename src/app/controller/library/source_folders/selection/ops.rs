@@ -1,46 +1,8 @@
 use super::super::*;
+use super::ops_logic::{
+    FolderSelectMode, apply_path_selection, apply_root_selection, insert_folder,
+};
 use crate::app::state::FolderRowView;
-use std::collections::BTreeSet;
-
-fn ancestors(path: &Path) -> Vec<PathBuf> {
-    let mut result = Vec::new();
-    let mut current = path.parent();
-    while let Some(parent) = current {
-        if parent.as_os_str().is_empty() {
-            break;
-        }
-        result.push(parent.to_path_buf());
-        current = parent.parent();
-    }
-    result
-}
-
-fn remove_descendants(selected: &mut BTreeSet<PathBuf>, path: &Path) {
-    let descendants: Vec<PathBuf> = selected
-        .iter()
-        .filter(|candidate| candidate != &path && candidate.starts_with(path))
-        .cloned()
-        .collect();
-    for descendant in descendants {
-        selected.remove(&descendant);
-    }
-}
-
-fn insert_folder(selected: &mut BTreeSet<PathBuf>, path: &Path, has_children: bool) {
-    selected.insert(path.to_path_buf());
-    for ancestor in ancestors(path) {
-        selected.remove(&ancestor);
-    }
-    if has_children {
-        remove_descendants(selected, path);
-    }
-}
-
-#[derive(Clone, Copy)]
-enum FolderSelectMode {
-    Replace,
-    Toggle,
-}
 
 impl AppController {
     pub(crate) fn replace_folder_selection(&mut self, row_index: usize) {
@@ -260,44 +222,7 @@ impl AppController {
                 let Some(model) = self.current_folder_model_mut() else {
                     return;
                 };
-                let before = model.selected.clone();
-                let before_mode = model.root_filter_mode;
-                let root_path = PathBuf::new();
-                match mode {
-                    FolderSelectMode::Replace => {
-                        if model.selected.contains(&root_path) {
-                            model.root_filter_mode = model.root_filter_mode.toggle();
-                        } else {
-                            model.selected.clear();
-                            model.selected.insert(root_path.clone());
-                            model.selection_anchor = Some(root_path.clone());
-                            model.root_filter_mode =
-                                crate::app::state::RootFolderFilterMode::AllDescendants;
-                        }
-                    }
-                    FolderSelectMode::Toggle => {
-                        if model.selected.contains(&root_path) {
-                            model.selected.remove(&root_path);
-                            if model.selection_anchor.as_ref() == Some(&root_path) {
-                                model.selection_anchor = None;
-                            }
-                        } else {
-                            model.selected.insert(root_path.clone());
-                            if model.selection_anchor.is_none() {
-                                model.selection_anchor = Some(root_path.clone());
-                            }
-                            model.root_filter_mode =
-                                crate::app::state::RootFolderFilterMode::AllDescendants;
-                        }
-                    }
-                }
-                if model.selected.is_empty() {
-                    model.selection_anchor = None;
-                }
-                let changed = before != model.selected || before_mode != model.root_filter_mode;
-                if changed {
-                    model.focused = Some(root_path);
-                }
+                let changed = apply_root_selection(model, mode);
                 (model.clone(), changed)
             };
             self.ui.sources.folders.focused = Some(row_index);
@@ -314,37 +239,7 @@ impl AppController {
             let Some(model) = self.current_folder_model_mut() else {
                 return;
             };
-            if !model.available.contains(&path) {
-                return;
-            }
-            let before = model.selected.clone();
-            match mode {
-                FolderSelectMode::Replace => {
-                    model.selected.clear();
-                    insert_folder(&mut model.selected, &path, row.has_children);
-                    model.selection_anchor = Some(path.clone());
-                }
-                FolderSelectMode::Toggle => {
-                    if model.selected.contains(&path) {
-                        model.selected.remove(&path);
-                        if model.selection_anchor.as_ref() == Some(&path) {
-                            model.selection_anchor = None;
-                        }
-                    } else {
-                        insert_folder(&mut model.selected, &path, row.has_children);
-                        if model.selection_anchor.is_none() {
-                            model.selection_anchor = Some(path.clone());
-                        }
-                    }
-                }
-            }
-            if model.selected.is_empty() {
-                model.selection_anchor = None;
-            }
-            let changed = before != model.selected;
-            if changed {
-                model.focused = Some(path.clone());
-            }
+            let changed = apply_path_selection(model, &path, row.has_children, mode);
             (model.clone(), changed)
         };
         self.ui.sources.folders.focused = Some(row_index);
