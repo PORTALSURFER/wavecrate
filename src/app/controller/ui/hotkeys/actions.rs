@@ -453,3 +453,64 @@ pub(crate) const HOTKEY_ACTIONS: &[HotkeyAction] = &[
         command: HotkeyCommand::NudgeSelectionRight,
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::controller::ui::hotkeys;
+
+    #[test]
+    fn hotkey_registry_ids_are_unique() {
+        for (index, action) in HOTKEY_ACTIONS.iter().enumerate() {
+            let duplicate = HOTKEY_ACTIONS
+                .iter()
+                .skip(index + 1)
+                .find(|candidate| candidate.id == action.id);
+            assert!(duplicate.is_none(), "duplicate hotkey id: {}", action.id);
+        }
+    }
+
+    #[test]
+    fn hotkey_registry_gestures_are_unique_within_scope() {
+        for (index, action) in HOTKEY_ACTIONS.iter().enumerate() {
+            let duplicate = HOTKEY_ACTIONS.iter().skip(index + 1).find(|candidate| {
+                candidate.scope == action.scope && candidate.gesture == action.gesture
+            });
+            assert!(
+                duplicate.is_none(),
+                "duplicate scoped hotkey gesture for {:?}: {:?}",
+                action.scope,
+                action.gesture
+            );
+        }
+    }
+
+    #[test]
+    fn hotkey_helper_views_keep_global_and_focus_actions_separate() {
+        let global = hotkeys::global_actions();
+        assert!(!global.is_empty());
+        assert!(global.iter().all(HotkeyAction::is_global));
+        assert!(
+            global
+                .iter()
+                .any(|action| action.command() == HotkeyCommand::FocusBrowserSearch)
+        );
+
+        let folder_focus = hotkeys::focused_actions(FocusContext::SourceFolders);
+        assert!(!folder_focus.is_empty());
+        assert!(folder_focus.iter().all(|action| matches!(
+            action.scope,
+            HotkeyScope::Focus(FocusContext::SourceFolders)
+        )));
+        assert!(
+            folder_focus
+                .iter()
+                .any(|action| action.command() == HotkeyCommand::FocusFolderSearch)
+        );
+        assert!(
+            folder_focus
+                .iter()
+                .all(|action| action.command() != HotkeyCommand::FocusBrowserSearch)
+        );
+    }
+}
