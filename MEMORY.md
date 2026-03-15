@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-15T10:50:55Z
+Last Updated: 2026-03-15T15:33:00Z
 Updated By: Codex
 
 ## Purpose
@@ -12,12 +12,13 @@ Updated By: Codex
 
 - I am on `next` in `C:\dev\sempal`.
 - `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The active lane is a refreshed evidence-driven improvement audit.
+- The active lane is execution of the refreshed evidence-driven improvement audit backlog.
 - `tmp/improvement_audit_plan.md` is the current source of truth.
-- `tmp/improvement_audit_plan.md` was rebuilt on `2026-03-15` from the live `6c9dc2d8` tree and now contains a new Phase 1 ROI-ranked backlog.
-- Phase 1 is complete and no implementation has started yet.
+- `tmp/improvement_audit_plan.md` was rebuilt on `2026-03-15` from the live `6c9dc2d8` tree and now doubles as the execution record for Phase 2.
+- Phase 2 is in progress.
+- Item 1 is complete: `scripts/ci_quick.ps1` now runs `scripts/run_gui_contract.ps1`, and `docs/gui_test_platform.md` is aligned with that default quick gate.
+- Item 1 implementation commit is `2fddca31`.
 - The highest-leverage current findings are:
-  - The quick validation path still omits the semantic GUI contract lane even though the GUI test platform docs say it should be promoted into `ci_quick`.
   - Browser controller state still carries duplicated selection/search projection responsibilities across `browser_search.rs`, `browser_lists.rs`, and `src/app/state/browser.rs`.
   - `wav_sanitize.rs` and deferred undo/file-op flows remain under-defined relative to their public/runtime importance.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
@@ -27,8 +28,8 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Wait for explicit user confirmation before implementing any item from `tmp/improvement_audit_plan.md`.
-2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned while the audit lane is awaiting approval.
+1. Implement item 2 from `tmp/improvement_audit_plan.md`: consolidate browser multi-selection state into one authority and derive compatibility state lazily.
+2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned while Phase 2 advances.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Treat `scripts/ci_local.ps1` green as the current expected Windows local parity baseline.
 
