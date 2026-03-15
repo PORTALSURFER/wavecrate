@@ -1,8 +1,7 @@
 //! Re-exports for controller state submodules.
 
 pub(super) use super::state::audio::{
-    AudioLoadIntent, ControllerAudioState, LoadedAudio, PendingAgeUpdate, PendingAudio,
-    PendingPlayback,
+    AudioLoadIntent, ControllerAudioState, LoadedAudio, PendingAudio, PendingPlayback,
 };
 pub(crate) use super::state::cache::{AnalysisJobStatus, FeatureCache, FeatureStatus};
 pub(super) use super::state::cache::{ControllerUiCacheState, LibraryCacheState, WavEntriesState};

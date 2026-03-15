@@ -3,16 +3,18 @@ pub(crate) use super::{AppController, BPM_MIN_SELECTION_DIVISOR, StatusTone};
 pub(crate) use crate::sample_sources::*;
 pub(crate) use crate::selection::SelectionRange;
 
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::PathBuf;
+use std::time::Duration;
 
 pub(crate) mod audio_cache;
 pub(crate) mod audio_loader;
 pub(crate) mod audio_options;
 pub(crate) mod audio_samples;
+mod bpm_policy;
 pub(crate) mod loop_crossfade;
 /// Disk-backed waveform cache persistence used to reuse decoded waveforms across app restarts.
 pub(crate) mod persistent_waveform_cache;
+mod playback_age;
 pub(crate) mod recording;
 
 mod browser_nav;
@@ -34,8 +36,8 @@ mod tests;
 /// Waveform action behavior tests.
 mod waveform_action_tests;
 
+pub(crate) use bpm_policy::{bpm_min_selection_seconds, selection_meets_bpm_min_for_playback};
 use formatting::{format_selection_duration, format_timestamp_hms_ms};
-use tracing::warn;
 
 #[cfg(test)]
 const SHOULD_PLAY_RANDOM_SAMPLE: bool = false;
@@ -48,51 +50,6 @@ const WAVEFORM_VIEW_NOOP_EPSILON: f64 = 1.0e-9;
 const WAVEFORM_ANCHOR_RATIO_MICROS_SCALE: f64 = 1_000_000.0;
 /// Debounce duration for deferred playback-age database writes.
 const DEFERRED_PLAYBACK_AGE_COMMIT_DELAY: Duration = Duration::from_millis(160);
-
-fn selection_meets_bpm_min(controller: &AppController, range: SelectionRange) -> bool {
-    if !controller.ui.waveform.bpm_snap_enabled {
-        return true;
-    }
-    let Some(min_seconds) = bpm_min_selection_seconds(controller) else {
-        return true;
-    };
-    let Some(duration) = controller.loaded_audio_duration_seconds() else {
-        return true;
-    };
-    if !min_seconds.is_finite() || min_seconds <= 0.0 {
-        return true;
-    }
-    if !duration.is_finite() || duration <= 0.0 {
-        return true;
-    }
-    let selection_seconds = range.width() * duration;
-    let epsilon = min_seconds * 1.0e-3;
-    selection_seconds + epsilon >= min_seconds
-}
-/// Compute the BPM-snapped minimum selection length (seconds) when snap is enabled.
-pub(crate) fn bpm_min_selection_seconds(controller: &AppController) -> Option<f32> {
-    if !controller.ui.waveform.bpm_snap_enabled {
-        return None;
-    }
-    let bpm = controller.ui.waveform.bpm_value?;
-    if !bpm.is_finite() || bpm <= 0.0 {
-        return None;
-    }
-    let beat = 60.0 / bpm;
-    let min_seconds = beat / BPM_MIN_SELECTION_DIVISOR;
-    if min_seconds.is_finite() && min_seconds > 0.0 {
-        Some(min_seconds)
-    } else {
-        None
-    }
-}
-/// Check whether a candidate selection range is long enough for BPM-snapped playback.
-pub(crate) fn selection_meets_bpm_min_for_playback(
-    controller: &AppController,
-    range: SelectionRange,
-) -> bool {
-    selection_meets_bpm_min(controller, range)
-}
 
 impl AppController {
     /// Returns the duration in seconds for the currently loaded audio, if any.
@@ -183,115 +140,6 @@ impl AppController {
     /// Start playback with the provided loop and start override settings.
     pub fn play_audio(&mut self, looped: bool, start_override: Option<f32>) -> Result<(), String> {
         player::play_audio(self, looped, start_override)
-    }
-
-    /// Record playback for the currently loaded audio, updating caches and UI.
-    pub(crate) fn record_loaded_audio_playback(&mut self) {
-        let Some(audio) = self.sample_view.wav.loaded_audio.as_ref() else {
-            return;
-        };
-        let source_id = audio.source_id.clone();
-        let root = audio.root.clone();
-        let relative_path = audio.relative_path.clone();
-        let played_at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
-
-        self.audio.pending_age_update = Some(PendingAgeUpdate {
-            source_id: source_id.clone(),
-            root,
-            relative_path: relative_path.clone(),
-            played_at,
-        });
-
-        if self.selection_state.ctx.selected_source.as_ref() == Some(&source_id)
-            && let Some(index) = self.wav_index_for_path(&relative_path)
-        {
-            let _ = self.ensure_wav_page_loaded(index);
-            if let Some(entry) = self.wav_entries.entry_mut(index) {
-                entry.last_played_at = Some(played_at);
-            }
-        }
-        if let Some(cache) = self.cache.wav.entries.get_mut(&source_id)
-            && let Some(index) = cache.lookup.get(&relative_path).copied()
-            && let Some(entry) = cache.entry_mut(index)
-        {
-            entry.last_played_at = Some(played_at);
-        }
-    }
-
-    /// Defer pending playback-age persistence when focus changes away from a path.
-    pub(crate) fn defer_pending_age_update_commit_if_path_changes(&mut self, next_path: &Path) {
-        let should_defer = self
-            .audio
-            .pending_age_update
-            .as_ref()
-            .is_some_and(|update| update.relative_path != next_path);
-        if !should_defer {
-            return;
-        }
-        self.runtime.pending_age_update_commit = self.audio.pending_age_update.take();
-        self.runtime.pending_age_update_commit_not_before =
-            Some(Instant::now() + DEFERRED_PLAYBACK_AGE_COMMIT_DELAY);
-    }
-
-    /// Flush any deferred playback-age update persistence request.
-    pub(crate) fn flush_pending_age_update_commit(&mut self) {
-        if self
-            .runtime
-            .pending_age_update_commit_not_before
-            .is_some_and(|deadline| Instant::now() < deadline)
-        {
-            return;
-        }
-        self.runtime.pending_age_update_commit_not_before = None;
-        let Some(update) = self.runtime.pending_age_update_commit.take() else {
-            return;
-        };
-        self.commit_pending_age_update_value(update);
-    }
-
-    /// Return true when deferred playback-age persistence is queued.
-    pub(crate) fn has_pending_age_update_commit(&self) -> bool {
-        self.runtime.pending_age_update_commit.is_some()
-    }
-
-    /// Commit any pending playback age update to the database and refresh the UI.
-    pub fn commit_pending_age_update(&mut self) {
-        let Some(update) = self.audio.pending_age_update.take() else {
-            return;
-        };
-        self.commit_pending_age_update_value(update);
-    }
-
-    /// Persist one playback-age update payload and refresh browser lists when needed.
-    fn commit_pending_age_update_value(&mut self, update: PendingAgeUpdate) {
-        let source = SampleSource {
-            id: update.source_id.clone(),
-            root: update.root,
-        };
-        match self.database_for(&source) {
-            Ok(db) => {
-                if let Err(err) = db.set_last_played_at(&update.relative_path, update.played_at) {
-                    warn!(
-                        "Failed to update playback age for {}: {}",
-                        update.relative_path.display(),
-                        err
-                    );
-                }
-            }
-            Err(err) => {
-                warn!(
-                    "Database unavailable for playback age update {}: {}",
-                    update.relative_path.display(),
-                    err
-                );
-            }
-        }
-        if self.selection_state.ctx.selected_source.as_ref() == Some(&update.source_id) {
-            self.rebuild_browser_lists();
-        }
     }
 
     /// Return true if audio playback is currently active.
