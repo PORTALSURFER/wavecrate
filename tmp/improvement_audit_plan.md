@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `6c9dc2d8`
 - Phase: `Phase 2 in progress`
-- Status: `Implementing the ROI-ranked backlog in plan order; items 1-2 are complete.`
+- Status: `Implementing the ROI-ranked backlog in plan order; items 1-3 are complete.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed on this branch.
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md`.
@@ -122,7 +122,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
 - Plan-order deviation: None
 
-### 3. [ ] Decompose `browser_search.rs` into scoring/cache mechanics, async policy, and UI-trigger handlers
+### 3. [x] Decompose `browser_search.rs` into scoring/cache mechanics, async policy, and UI-trigger handlers
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -151,6 +151,17 @@
   - Browser filter/search tests in `src/app/controller/tests/browser_core/filters.rs`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Implementation commit: `cddf369d`
+- Assumptions used:
+  - The public controller façade in `browser_facade.rs` should remain stable while `browser_search` is split internally.
+  - The current async-authoritative runtime policy remains correct for now and should move intact into its own module rather than be redesigned in this item.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed on `2026-03-15`.
+  - `cargo test browser_async -- --test-threads=1` passed on `2026-03-15`.
+  - `cargo test browser_core::filters -- --test-threads=1` passed on `2026-03-15`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed on `2026-03-15`.
+- Plan-order deviation: None
 
 ### 4. [ ] Split browser projection refresh and lookup-map maintenance out of `browser_lists.rs`
 
