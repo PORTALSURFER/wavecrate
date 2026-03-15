@@ -52,7 +52,7 @@ Current node coverage includes:
 - top bar update panel metadata and update action nodes
 - sources panel rows and action buttons
 - waveform toolbar and waveform interaction region
-- browser tabs, search field, rating filters, table rows, and map points
+- browser tabs, search field, rating filters, action buttons, table rows, scrollbars, and map points
 - options panel, prompt overlay, and modal progress overlay
 - status bar readout
 
@@ -197,7 +197,6 @@ The platform is intentionally first-slice, not final:
 
 ## Immediate Next Steps
 
-1. Expand the automation tree to cover the remaining browser action-strip buttons and other micro-controls.
-2. Add more seeded fixtures and scenario assertions for transport, volume drag, and map-point interaction.
-3. Harden the AIV smoke wrapper around Windows foreground/focus failure modes.
-4. Keep the semantic GUI contract loop healthy inside `ci_quick` without pulling unstable desktop AIV coverage into the default gate.
+1. Add more seeded fixtures and scenario assertions for transport, volume drag, and map-point interaction.
+2. Harden the AIV smoke wrapper around Windows foreground/focus failure modes.
+3. Keep the semantic GUI contract loop healthy inside `ci_quick` without pulling unstable desktop AIV coverage into the default gate.
