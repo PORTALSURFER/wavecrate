@@ -23,7 +23,6 @@ src/app/controller/playback/mod.rs
 src/app/controller/playback/tests.rs
 src/app/controller/tests/playback_loop.rs
 src/app/controller/tests/waveform_nav_cursor.rs
-src/app/controller/ui/hotkeys/actions.rs
 src/app/controller/ui/interaction_options.rs
 src/app/state/browser.rs
 src/app_core/native_bridge/projection_cache.rs

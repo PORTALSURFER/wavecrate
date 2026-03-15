@@ -4,7 +4,7 @@
 - Repository: `C:\dev\sempal`
 - Branch / head: `next` / `20f83666`
 - Phase: `Phase 2 in progress`
-- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-2 are complete and items 3-9 remain pending.`
+- Status: `Sequential backlog implementation is in progress on 2026-03-15; items 1-3 are complete and items 4-9 remain pending.`
 - Validation baseline:
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md` from the current branch head.
 
@@ -114,7 +114,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: `2026-03-15`
-- Commit: `pending`
+- Commit: `96a50782`
 - Assumptions used:
   - The split preserves the existing wakeup, repaint, and message-emission behavior of the progress poller loop.
   - The cached aggregate remains the only reusable source of truth between DB refreshes; no new durable state is introduced.
@@ -126,7 +126,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Plan-order deviation: None
 
-### 3. [ ] Break the hotkey registry into scope-focused tables and keep one explicit export surface
+### 3. [x] Break the hotkey registry into scope-focused tables and keep one explicit export surface
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -156,6 +156,17 @@
   - `cargo test hotkey_helper_views -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-15`
+- Commit: `pending`
+- Assumptions used:
+  - Registry export order remains the compatibility surface, even while the actual action definitions move into scope-owned files.
+  - The file-size budget allowlist should drop `src/app/controller/ui/hotkeys/actions.rs` once the registry hub is split below the limit.
+- Validation outcome:
+  - `cargo fmt --all`
+  - `cargo test hotkey_registry -- --test-threads=1`
+  - `cargo test hotkey_helper_views -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Plan-order deviation: None
 
 ### 4. [ ] Split browser-controller row actions by mutation family instead of keeping one omnibus action hub
 
