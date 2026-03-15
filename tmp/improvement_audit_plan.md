@@ -123,11 +123,18 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### [ ] 4. Separate overlay geometry accessors from overlay-family rendering in `vendor/radiant/src/gui/native_shell/state/overlays.rs`
+### [x] 4. Separate overlay geometry accessors from overlay-family rendering in `vendor/radiant/src/gui/native_shell/state/overlays.rs`
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
+- Completed: `2026-03-15`
+- Commit: `e017b9d7` in `vendor/radiant` (`refactor(overlays): split geometry and render helpers`)
+- Assumption used: shared geometry and border helpers should remain the common native-shell access surface, while prompt/progress/drag paint paths can move into family-specific modules without changing overlay call sites.
+- Validation:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml overlays -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml overlay_controls -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Why it matters: progress, prompt, and drag overlays are user-visible interruption states. The current file combines layout rect accessors and three distinct overlay render flows, which makes overlay-specific behavior harder to discover and change safely.
 - Evidence:
   - `vendor/radiant/src/gui/native_shell/state/overlays.rs` is allowlisted in `docs/file_size_budget_allowlist.txt`.
