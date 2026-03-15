@@ -65,6 +65,8 @@ mod sources_projection;
 mod status_projection;
 /// Update panel projection helpers.
 mod update_projection;
+/// Shared waveform-image translation helpers used by controller and projection paths.
+mod waveform_image_translation;
 /// Waveform panel and waveform chrome projection helpers.
 mod waveform_projection;
 
@@ -91,6 +93,7 @@ pub(crate) use sources_projection::project_sources_model;
 use status_projection::status_bar_right_text;
 pub(crate) use status_projection::{project_status_model, selected_column_index};
 pub(crate) use update_projection::project_update_model;
+pub(crate) use waveform_image_translation::waveform_image_to_native_rgba;
 pub(crate) use waveform_projection::{project_waveform_chrome_model, project_waveform_model};
 
 static PROJECT_APP_MODEL_CALLS: AtomicU64 = AtomicU64::new(0);

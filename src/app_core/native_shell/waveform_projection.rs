@@ -141,30 +141,11 @@ fn project_waveform_image(controller: &mut AppController) -> Option<Arc<ImageRgb
             .waveform
             .image
             .as_ref()
-            .and_then(waveform_image_to_native_rgba)
+            .and_then(super::waveform_image_to_native_rgba)
     });
     controller.projected_waveform_image_signature = signature;
     controller.projected_waveform_image = projected_waveform_image.clone();
     projected_waveform_image
-}
-
-/// Convert a rendered waveform image into the native immutable RGBA payload.
-fn waveform_image_to_native_rgba(image: &crate::waveform::WaveformImage) -> Option<Arc<ImageRgba>> {
-    if image.size[0] == 0 || image.size[1] == 0 {
-        return None;
-    }
-    let mut pixels = Vec::with_capacity(
-        image.size[0]
-            .saturating_mul(image.size[1])
-            .saturating_mul(4),
-    );
-    for pixel in &image.pixels {
-        pixels.push(pixel.r());
-        pixels.push(pixel.g());
-        pixels.push(pixel.b());
-        pixels.push(pixel.a());
-    }
-    ImageRgba::new(image.size[0], image.size[1], pixels).map(Arc::new)
 }
 
 /// Project waveform chrome labels and action-hint copy.

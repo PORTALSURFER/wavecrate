@@ -24,21 +24,7 @@ pub(crate) const DEFAULT_TRANSIENT_SENSITIVITY: f32 = 0.6;
 pub(crate) fn waveform_image_to_native_rgba(
     image: &crate::waveform::WaveformImage,
 ) -> Option<Arc<ImageRgba>> {
-    if image.size[0] == 0 || image.size[1] == 0 {
-        return None;
-    }
-    let mut pixels = Vec::with_capacity(
-        image.size[0]
-            .saturating_mul(image.size[1])
-            .saturating_mul(4),
-    );
-    for pixel in &image.pixels {
-        pixels.push(pixel.r());
-        pixels.push(pixel.g());
-        pixels.push(pixel.b());
-        pixels.push(pixel.a());
-    }
-    ImageRgba::new(image.size[0], image.size[1], pixels).map(Arc::new)
+    crate::app_core::native_shell::waveform_image_to_native_rgba(image)
 }
 
 /// Return the dominant waveform refresh reason when multiple requests coalesce.
