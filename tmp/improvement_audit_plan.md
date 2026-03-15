@@ -1,7 +1,7 @@
 # Improvement Audit Plan
 
 - Generated: `2026-03-15`
-- Status: `Phase 1 complete - awaiting explicit implementation confirmation`
+- Status: `Phase 2 complete`
 - Branch: `next`
 - Audit baseline commit: `74e6f51b`
 - Canonical Windows validation commands:
@@ -246,7 +246,7 @@
 - ROI: Medium
 - Effort: M
 - Completed: `2026-03-15`
-- Commit: `PENDING`
+- Commit: `b56216e6` (`refactor(db): split source read helpers`)
 - Assumption used: the read-side cleanup should stay inside the existing `SourceDatabase` surface, with pure row decoding, wav/path query families, and BPM lookups separated without changing the public query contract.
 - Validation:
   - `cargo test sample_sources::db::read::tests -- --test-threads=1`
