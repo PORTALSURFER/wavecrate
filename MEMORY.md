@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-16T15:45:00Z
+Last Updated: 2026-03-16T17:05:00Z
 Updated By: Codex
 
 ## Purpose
@@ -12,10 +12,10 @@ Updated By: Codex
 
 - I am on `next` in `X:\sempal`.
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The active lane is the completed refreshed evidence-driven improvement audit handoff.
+- The active lane is a fresh evidence-driven improvement audit handoff.
 - `tmp/improvement_audit_plan.md` is the current source of truth.
-- `tmp/improvement_audit_plan.md` now records the refreshed ROI-ranked backlog and the completed Phase 2 execution record for the current codebase.
-- The refreshed audit lane is complete; items 1-9 are implemented and pushed.
+- `tmp/improvement_audit_plan.md` now records the refreshed ROI-ranked backlog for the current codebase.
+- Phase 1 is complete and no implementation has started from the new backlog.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -23,8 +23,8 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Wait for the next user-directed lane before reopening `tmp/improvement_audit_plan.md`.
-2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned around the completed audit execution record.
+1. Wait for explicit user confirmation before implementing any item from `tmp/improvement_audit_plan.md`.
+2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned around the current Phase 1 audit backlog.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Treat `scripts/ci_quick.ps1` as the default pre-push validation gate on Windows and `scripts/ci_local.ps1` as the broader parity baseline for validation/tooling changes.
 
