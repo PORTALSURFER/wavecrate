@@ -7,168 +7,17 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Apply background analysis worker events to progress UI and follow-up queues.
 pub(crate) fn handle_analysis_message(controller: &mut AppController, message: AnalysisJobMessage) {
     match message {
-        AnalysisJobMessage::Progress {
-            source_id,
-            progress,
-        } => {
-            if let Some(state) = controller.runtime.similarity_prep.as_ref()
-                && source_id.as_ref() != Some(&state.source_id)
-            {
-                return;
-            }
-            let selected_source = controller.selection_state.ctx.selected_source.clone();
-            let mut progress = progress;
-            if source_id.is_none()
-                && let Some(selected_id) = selected_source.as_ref()
-                && let Some(source) = controller.current_source()
-                && &source.id == selected_id
-                && let Ok(scoped) = analysis_jobs::current_progress_for_source(&source)
-            {
-                progress = scoped;
-            }
-            let selected_matches = match source_id.as_ref() {
-                None => true,
-                Some(id) => selected_source
-                    .as_ref()
-                    .map(|selected| selected == id)
-                    .unwrap_or(false),
-            };
-            if let Some(source_id) = source_id.as_ref()
-                && controller
-                    .runtime
-                    .similarity_prep
-                    .as_ref()
-                    .is_some_and(|state| &state.source_id == source_id)
-            {
-                controller.handle_similarity_analysis_progress(&progress);
-            }
-            if !selected_matches {
-                return;
-            }
-            if progress.total() == 0 {
-                if controller.ui.progress.task == Some(ProgressTaskKind::Analysis) {
-                    controller.clear_progress();
-                }
-                return;
-            }
-            if progress.pending == 0 && progress.running == 0 {
-                if let Some(source) = controller.current_source() {
-                    controller.queue_analysis_failures_refresh(&source);
-                    controller.ui_cache.browser.features.remove(&source.id);
-                    controller.ui_cache.browser.bpm_values.remove(&source.id);
-                }
-                if controller.ui.progress.task == Some(ProgressTaskKind::Analysis) {
-                    controller.clear_progress();
-                }
-                return;
-            }
-            if controller.ui.progress.task.is_none()
-                || controller.ui.progress.task == Some(ProgressTaskKind::Analysis)
-            {
-                progress::ensure_progress_visible(
-                    controller,
-                    ProgressTaskKind::Analysis,
-                    "Analyzing samples",
-                    progress.total(),
-                    true,
-                );
-                let jobs_completed = progress.completed();
-                let jobs_total = progress.total();
-                let samples_completed = progress.samples_completed();
-                let samples_total = progress.samples_total;
-                let mut detail = format!(
-                    "Jobs {jobs_completed}/{jobs_total} • Samples {samples_completed}/{samples_total}"
-                );
-                if progress.failed > 0 {
-                    detail.push_str(&format!(" • {} failed", progress.failed));
-                }
-                let running_jobs = if let Some(source) = controller.current_source() {
-                    analysis_jobs::current_running_jobs_for_source(&source, 3)
-                        .ok()
-                        .map(|jobs: Vec<RunningJobInfo>| {
-                            let now_epoch = SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .ok()
-                                .map(|duration| duration.as_secs() as i64);
-                            let stale_after = analysis_jobs::stale_running_job_seconds();
-                            jobs.into_iter()
-                                .map(|job| {
-                                    let label =
-                                        analysis_jobs::parse_sample_id(job.sample_id.as_str())
-                                            .ok()
-                                            .map(|(_, path): (String, PathBuf)| {
-                                                path.to_string_lossy().to_string()
-                                            })
-                                            .unwrap_or(job.sample_id);
-                                    RunningJobSnapshot::from_heartbeat(
-                                        label,
-                                        job.last_heartbeat_at,
-                                        Some(stale_after),
-                                        now_epoch,
-                                    )
-                                })
-                                .collect::<Vec<_>>()
-                        })
-                        .unwrap_or_default()
-                } else {
-                    Vec::new()
-                };
-                controller.ui.progress.set_analysis_snapshot(Some(
-                    crate::app::state::AnalysisProgressSnapshot {
-                        pending: progress.pending,
-                        running: progress.running,
-                        failed: progress.failed,
-                        samples_completed,
-                        samples_total,
-                        running_jobs,
-                        stale_after_secs: Some(analysis_jobs::stale_running_job_seconds()),
-                    },
-                ));
-                progress::update_progress_totals(
-                    controller,
-                    ProgressTaskKind::Analysis,
-                    progress.total(),
-                    progress.completed(),
-                    Some(detail),
-                );
-            }
+        AnalysisJobMessage::Progress { source_id, progress } => {
+            handle_analysis_progress_message(controller, source_id, progress);
         }
         AnalysisJobMessage::EnqueueFinished { inserted, progress } => {
-            controller.runtime.analysis.resume();
-            if inserted > 0 {
-                controller.set_status(format!("Queued {inserted} analysis jobs"), StatusTone::Info);
-            }
-            if let Some(source_id) = controller.selection_state.ctx.selected_source.clone() {
-                controller.ui_cache.browser.features.remove(&source_id);
-            }
-            let _ = controller
-                .runtime
-                .jobs
-                .message_sender()
-                .send(JobMessage::Analysis(AnalysisJobMessage::Progress {
-                    source_id: controller.selection_state.ctx.selected_source.clone(),
-                    progress,
-                }));
+            handle_enqueue_finished(controller, inserted, progress, false);
         }
         AnalysisJobMessage::EnqueueFailed(err) => {
             controller.set_status(format!("Analysis enqueue failed: {err}"), StatusTone::Error);
         }
         AnalysisJobMessage::EmbeddingBackfillEnqueueFinished { inserted, progress } => {
-            controller.runtime.analysis.resume();
-            if inserted > 0 {
-                controller.set_status(
-                    format!("Queued {inserted} embedding backfill jobs"),
-                    StatusTone::Info,
-                );
-            }
-            let _ = controller
-                .runtime
-                .jobs
-                .message_sender()
-                .send(JobMessage::Analysis(AnalysisJobMessage::Progress {
-                    source_id: controller.selection_state.ctx.selected_source.clone(),
-                    progress,
-                }));
+            handle_enqueue_finished(controller, inserted, progress, true);
         }
         AnalysisJobMessage::EmbeddingBackfillEnqueueFailed(err) => {
             controller.set_status(
@@ -177,19 +26,265 @@ pub(crate) fn handle_analysis_message(controller: &mut AppController, message: A
             );
         }
         AnalysisJobMessage::DurationsUpdated { source_id, updated } => {
-            if updated > 0 {
-                controller.ui_cache.browser.features.remove(&source_id);
-                controller.ui_cache.browser.durations.remove(&source_id);
-            }
+            invalidate_cached_browser_analysis_data(controller, source_id, updated > 0);
         }
     }
+}
+
+fn handle_analysis_progress_message(
+    controller: &mut AppController,
+    source_id: Option<SourceId>,
+    progress: analysis_jobs::AnalysisProgress,
+) {
+    if should_ignore_analysis_progress(controller, source_id.as_ref()) {
+        return;
+    }
+    let selected_source = controller.selection_state.ctx.selected_source.clone();
+    let progress = resolve_scoped_analysis_progress(
+        controller,
+        selected_source.as_ref(),
+        source_id.is_none(),
+        progress,
+    );
+    route_similarity_analysis_progress(controller, source_id.as_ref(), &progress);
+    if !progress_matches_selected_source(selected_source.as_ref(), source_id.as_ref()) {
+        return;
+    }
+    if progress.total() == 0 {
+        clear_analysis_progress_if_active(controller);
+        return;
+    }
+    if analysis_progress_is_idle(&progress) {
+        finalize_selected_source_analysis_progress(controller);
+        clear_analysis_progress_if_active(controller);
+        return;
+    }
+    update_analysis_progress_ui(controller, &progress);
+}
+
+fn should_ignore_analysis_progress(
+    controller: &AppController,
+    source_id: Option<&SourceId>,
+) -> bool {
+    controller
+        .runtime
+        .similarity_prep
+        .as_ref()
+        .is_some_and(|state| source_id != Some(&state.source_id))
+}
+
+fn resolve_scoped_analysis_progress(
+    controller: &mut AppController,
+    selected_source: Option<&SourceId>,
+    progress_is_global: bool,
+    progress: analysis_jobs::AnalysisProgress,
+) -> analysis_jobs::AnalysisProgress {
+    if selected_source.is_none() || !progress_is_global {
+        return progress;
+    }
+    let Some(source) = controller.current_source() else {
+        return progress;
+    };
+    if selected_source_matches_current_source(selected_source, &source.id)
+        && let Ok(scoped) = analysis_jobs::current_progress_for_source(&source)
+    {
+        return scoped;
+    }
+    progress
+}
+
+fn selected_source_matches_current_source(
+    selected_source: Option<&SourceId>,
+    source_id: &SourceId,
+) -> bool {
+    selected_source.is_some_and(|selected| selected == source_id)
+}
+
+fn progress_matches_selected_source(
+    selected_source: Option<&SourceId>,
+    source_id: Option<&SourceId>,
+) -> bool {
+    match source_id {
+        None => true,
+        Some(id) => selected_source.is_some_and(|selected| selected == id),
+    }
+}
+
+fn route_similarity_analysis_progress(
+    controller: &mut AppController,
+    source_id: Option<&SourceId>,
+    progress: &analysis_jobs::AnalysisProgress,
+) {
+    if let Some(source_id) = source_id
+        && controller
+            .runtime
+            .similarity_prep
+            .as_ref()
+            .is_some_and(|state| &state.source_id == source_id)
+    {
+        controller.handle_similarity_analysis_progress(progress);
+    }
+}
+
+fn analysis_progress_is_idle(progress: &analysis_jobs::AnalysisProgress) -> bool {
+    progress.pending == 0 && progress.running == 0
+}
+
+fn finalize_selected_source_analysis_progress(controller: &mut AppController) {
+    if let Some(source) = controller.current_source() {
+        controller.queue_analysis_failures_refresh(&source);
+        controller.ui_cache.browser.features.remove(&source.id);
+        controller.ui_cache.browser.bpm_values.remove(&source.id);
+    }
+}
+
+fn clear_analysis_progress_if_active(controller: &mut AppController) {
+    if controller.ui.progress.task == Some(ProgressTaskKind::Analysis) {
+        controller.clear_progress();
+    }
+}
+
+fn update_analysis_progress_ui(
+    controller: &mut AppController,
+    progress: &analysis_jobs::AnalysisProgress,
+) {
+    if controller.ui.progress.task.is_some()
+        && controller.ui.progress.task != Some(ProgressTaskKind::Analysis)
+    {
+        return;
+    }
+    progress::ensure_progress_visible(
+        controller,
+        ProgressTaskKind::Analysis,
+        "Analyzing samples",
+        progress.total(),
+        true,
+    );
+    let samples_completed = progress.samples_completed();
+    let samples_total = progress.samples_total;
+    let running_jobs = current_source_running_job_snapshots(controller);
+    controller.ui.progress.set_analysis_snapshot(Some(
+        crate::app::state::AnalysisProgressSnapshot {
+            pending: progress.pending,
+            running: progress.running,
+            failed: progress.failed,
+            samples_completed,
+            samples_total,
+            running_jobs,
+            stale_after_secs: Some(analysis_jobs::stale_running_job_seconds()),
+        },
+    ));
+    progress::update_progress_totals(
+        controller,
+        ProgressTaskKind::Analysis,
+        progress.total(),
+        progress.completed(),
+        Some(analysis_progress_detail(progress, samples_completed, samples_total)),
+    );
+}
+
+fn analysis_progress_detail(
+    progress: &analysis_jobs::AnalysisProgress,
+    samples_completed: usize,
+    samples_total: usize,
+) -> String {
+    let mut detail = format!(
+        "Jobs {}/{} • Samples {samples_completed}/{samples_total}",
+        progress.completed(),
+        progress.total()
+    );
+    if progress.failed > 0 {
+        detail.push_str(&format!(" • {} failed", progress.failed));
+    }
+    detail
+}
+
+fn current_source_running_job_snapshots(controller: &mut AppController) -> Vec<RunningJobSnapshot> {
+    let Some(source) = controller.current_source() else {
+        return Vec::new();
+    };
+    analysis_jobs::current_running_jobs_for_source(&source, 3)
+        .ok()
+        .map(build_running_job_snapshots)
+        .unwrap_or_default()
+}
+
+fn build_running_job_snapshots(jobs: Vec<RunningJobInfo>) -> Vec<RunningJobSnapshot> {
+    let now_epoch = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_secs() as i64);
+    let stale_after = analysis_jobs::stale_running_job_seconds();
+    jobs.into_iter()
+        .map(|job| {
+            let label = analysis_jobs::parse_sample_id(job.sample_id.as_str())
+                .ok()
+                .map(|(_, path): (String, PathBuf)| path.to_string_lossy().to_string())
+                .unwrap_or(job.sample_id);
+            RunningJobSnapshot::from_heartbeat(
+                label,
+                job.last_heartbeat_at,
+                Some(stale_after),
+                now_epoch,
+            )
+        })
+        .collect()
+}
+
+fn handle_enqueue_finished(
+    controller: &mut AppController,
+    inserted: usize,
+    progress: analysis_jobs::AnalysisProgress,
+    embedding_backfill: bool,
+) {
+    controller.runtime.analysis.resume();
+    if inserted > 0 {
+        let label = if embedding_backfill {
+            "embedding backfill jobs"
+        } else {
+            "analysis jobs"
+        };
+        controller.set_status(format!("Queued {inserted} {label}"), StatusTone::Info);
+    }
+    if !embedding_backfill
+        && let Some(source_id) = controller.selection_state.ctx.selected_source.clone()
+    {
+        controller.ui_cache.browser.features.remove(&source_id);
+    }
+    queue_selected_source_analysis_progress(controller, progress);
+}
+
+fn queue_selected_source_analysis_progress(
+    controller: &mut AppController,
+    progress: analysis_jobs::AnalysisProgress,
+) {
+    let _ = controller
+        .runtime
+        .jobs
+        .message_sender()
+        .send(JobMessage::Analysis(AnalysisJobMessage::Progress {
+            source_id: controller.selection_state.ctx.selected_source.clone(),
+            progress,
+        }));
+}
+
+fn invalidate_cached_browser_analysis_data(
+    controller: &mut AppController,
+    source_id: SourceId,
+    should_invalidate: bool,
+) {
+    if !should_invalidate {
+        return;
+    }
+    controller.ui_cache.browser.features.remove(&source_id);
+    controller.ui_cache.browser.durations.remove(&source_id);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::controller::library::analysis_jobs::AnalysisProgress;
     use crate::app::controller::jobs::JobMessage;
+    use crate::app::controller::library::analysis_jobs::AnalysisProgress;
     use crate::app::controller::state::cache::FeatureCache;
     use crate::app::controller::test_support::dummy_controller;
     use std::collections::HashMap;
@@ -258,7 +353,10 @@ mod tests {
             },
         );
 
-        assert_eq!(controller.ui.progress.task, Some(ProgressTaskKind::Analysis));
+        assert_eq!(
+            controller.ui.progress.task,
+            Some(ProgressTaskKind::Analysis)
+        );
         assert!(controller.ui.progress.visible);
         assert_eq!(controller.ui.progress.completed, 4);
         assert_eq!(controller.ui.progress.total, 7);
@@ -289,10 +387,11 @@ mod tests {
         let (mut controller, source) = dummy_controller();
         controller.library.sources.push(source.clone());
         controller.selection_state.ctx.selected_source = Some(source.id.clone());
-        controller.ui_cache.browser.features.insert(
-            source.id.clone(),
-            FeatureCache { rows: Vec::new() },
-        );
+        controller
+            .ui_cache
+            .browser
+            .features
+            .insert(source.id.clone(), FeatureCache { rows: Vec::new() });
 
         let progress = sample_progress();
         handle_analysis_message(
@@ -304,7 +403,13 @@ mod tests {
         );
 
         assert_eq!(controller.ui.status.text, "Queued 2 analysis jobs");
-        assert!(!controller.ui_cache.browser.features.contains_key(&source.id));
+        assert!(
+            !controller
+                .ui_cache
+                .browser
+                .features
+                .contains_key(&source.id)
+        );
         match controller.runtime.jobs.try_recv_message() {
             Ok(JobMessage::Analysis(AnalysisJobMessage::Progress {
                 source_id,
@@ -321,10 +426,11 @@ mod tests {
     fn durations_updated_invalidates_cached_durations_and_features() {
         let (mut controller, source) = dummy_controller();
         let source_id = source.id.clone();
-        controller.ui_cache.browser.features.insert(
-            source_id.clone(),
-            FeatureCache { rows: Vec::new() },
-        );
+        controller
+            .ui_cache
+            .browser
+            .features
+            .insert(source_id.clone(), FeatureCache { rows: Vec::new() });
         controller.ui_cache.browser.durations.insert(
             source_id.clone(),
             HashMap::from([(PathBuf::from("kick.wav"), 1.25)]),
@@ -338,7 +444,19 @@ mod tests {
             },
         );
 
-        assert!(!controller.ui_cache.browser.features.contains_key(&source_id));
-        assert!(!controller.ui_cache.browser.durations.contains_key(&source_id));
+        assert!(
+            !controller
+                .ui_cache
+                .browser
+                .features
+                .contains_key(&source_id)
+        );
+        assert!(
+            !controller
+                .ui_cache
+                .browser
+                .durations
+                .contains_key(&source_id)
+        );
     }
 }

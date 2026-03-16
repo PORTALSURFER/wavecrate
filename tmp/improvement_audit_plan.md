@@ -8,7 +8,7 @@ Status: Phase 2 in progress. Ranked backlog item 1 is complete, items 2-9 are pe
 - This document records a fresh evidence-driven improvement audit for the current repository state on 2026-03-16.
 - Items are ranked in strict execution order by expected ROI, not by category.
 - Recommendations are limited to improvements supported by live repository evidence.
-- No implementation has been performed for this Phase 1 backlog.
+- Phase 2 implementation is in progress; completed items record their own execution notes below.
 
 ## Repository Context
 
@@ -47,7 +47,7 @@ Status: Phase 2 in progress. Ranked backlog item 1 is complete, items 2-9 are pe
   - Assumption: the parked cleanup backlog should remain a historical snapshot, but its maintenance notes must match the live debt-tracking inputs closely enough to avoid reintroducing stale path references in future audits.
   - Validation: reran `powershell -ExecutionPolicy Bypass -File scripts/prune_file_size_budget_allowlist.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`; full quick-gate validation will be rerun after the next code-bearing item.
 
-### 2. [ ] Decompose `handle_analysis_message(...)` into progress routing, cache invalidation, and follow-up scheduling helpers
+### 2. [x] Decompose `handle_analysis_message(...)` into progress routing, cache invalidation, and follow-up scheduling helpers
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -64,6 +64,10 @@ Status: Phase 2 in progress. Ranked backlog item 1 is complete, items 2-9 are pe
 - Dependencies: none
 - Suggested validation: `cargo test background_jobs::analysis -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Assumption: the handler's selected-source gating, similarity-prep routing, and progress-detail formatting are part of the existing controller contract and must remain behaviorally identical through the helper split.
+  - Validation: `cargo test background_jobs::analysis -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
 ### 3. [ ] Split `vendor/radiant/src/gui/native_shell/state/waveform_segments/mod.rs` by static-segment routing, waveform overlays, and header/image helpers
 
