@@ -199,7 +199,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
   - Assumption: the lowest-churn ownership split is browser rows, browser chrome, surface routes, and wheel/waveform helpers, all under one small `browser_pointer` module so the shared native-Vello harness stays in `tests.rs`.
   - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml browser_pointer -- --test-threads=1`.
 
-### 9. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer.rs` by waveform interaction family
+### 9. [x] Split `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer.rs` by waveform interaction family
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -215,6 +215,10 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Dependencies: none
 - Suggested validation: targeted `waveform_pointer` vendor tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Assumption: the cleanest ownership split is selection creation, resize/shift gestures, clear semantics, and anchor helpers, while the unrelated browser-toolbar alt-click case should stay covered in `browser_pointer` instead of remaining duplicated here.
+  - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml waveform_pointer -- --test-threads=1`.
 
 ## Open Questions / Missing Definitions
 
