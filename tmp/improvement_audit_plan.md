@@ -142,11 +142,11 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
-  - Commit: pending
+  - Commit: `d2efb0a5` `refactor(waveform): split model helpers`
   - Assumption: the public `crate::waveform::*` surface should remain unchanged while the implementation moves into `model/*` helpers for types, peak-span math, and renderer state.
   - Validation: ran `cargo test waveform::model -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 6. [ ] Split `src/gui_test/packs.rs` into pack registry and fixture-family scenario builders
+### 6. [x] Split `src/gui_test/packs.rs` into pack registry and fixture-family scenario builders
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -163,6 +163,11 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Dependencies: none
 - Suggested validation: targeted GUI pack tests plus `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commit: pending
+  - Assumption: the `contract-smoke` pack name, scenario order, and scenario bodies should remain stable while only the scenario-builder ownership moves into fixture-oriented modules.
+  - Validation: ran `cargo test gui_test::packs -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
 ### 7. [ ] Break the native-shell chrome-layout regression hub into ownership-aligned test modules
 
