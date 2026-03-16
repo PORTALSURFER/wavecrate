@@ -208,7 +208,7 @@
   - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::state::tests::chrome_layout -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 7. Break the remaining oversized native-shell test hubs into ownership-aligned modules
+### [x] 7. Break the remaining oversized native-shell test hubs into ownership-aligned modules
 - Classification: Refactor / cleanup
 - Confidence: High
 - ROI: Medium
@@ -226,6 +226,12 @@
   - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-16`
+- Commit hash: `b425a971` (`vendor/radiant`)
+- Assumption used: the native-shell regression coverage should keep one shared canonical fixture helper while each behavior family moves into its own local test module.
+- Validation outcome:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 8. Split `vendor/radiant/src/gui/native_shell/shots.rs` into fixture I/O, snapshot canonicalization, rasterization, and model builders
 - Classification: Refactor / cleanup
