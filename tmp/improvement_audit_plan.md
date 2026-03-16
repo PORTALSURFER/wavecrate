@@ -123,7 +123,7 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
   - Assumption: the safest split preserves the existing cache-key, signature, and retained-scene names at the `native_vello` module boundary while moving their implementations into focused `scene_cache/*` helpers.
   - Validation: ran `cargo test --manifest-path X:\\sempal\\vendor\\radiant\\Cargo.toml gui_runtime::native_vello -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 5. [ ] Separate `src/waveform/model.rs` public waveform types from peak-span sampling and renderer façade helpers
+### 5. [x] Separate `src/waveform/model.rs` public waveform types from peak-span sampling and renderer façade helpers
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -140,6 +140,11 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Dependencies: none
 - Suggested validation: targeted waveform render/decode/cache tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commit: pending
+  - Assumption: the public `crate::waveform::*` surface should remain unchanged while the implementation moves into `model/*` helpers for types, peak-span math, and renderer state.
+  - Validation: ran `cargo test waveform::model -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
 ### 6. [ ] Split `src/gui_test/packs.rs` into pack registry and fixture-family scenario builders
 
