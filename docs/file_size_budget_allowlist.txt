@@ -9,8 +9,3 @@
 # Prefer shrinking or splitting these files over time and delete entries once
 # they fall back under the budget.
 
-src/analysis/frequency_domain/stft.rs
-vendor/radiant/src/app/actions.rs
-vendor/radiant/src/gui/native_shell/layout.rs
-vendor/radiant/src/gui/native_shell/state/tests/chrome_layout.rs
-

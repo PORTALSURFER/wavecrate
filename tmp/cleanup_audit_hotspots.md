@@ -1,15 +1,15 @@
 # Cleanup Hotspot Audit Snapshot
 
-- Generated (UTC): `2026-03-16T12:28:04Z`
+- Generated (UTC): `2026-03-16T15:02:23Z`
 - Branch: `next`
-- Commit: `b95a4aa2`
-- Rust files scanned: 859
+- Commit: `5e165afe`
+- Rust files scanned: 878
 - File-size budget limit: `400`
 
 ## Summary
 
-- Over file-size budget: 7
-- Function spans captured: 5498
+- Over file-size budget: 6
+- Function spans captured: 5510
 - Files with `dead_code` suppressions: 1
 - Files with `clippy::too_many_arguments` suppressions: 1
 - Likely large-file test-gap hotspots (heuristic): 81
@@ -18,18 +18,14 @@
 
 | Lines | File |
 | --- | --- |
-| 462 | `src/analysis/frequency_domain/stft.rs` |
-| 432 | `src/waveform/model.rs` |
-| 423 | `tools/analysis-admin/src/bin/sempal-hdbscan.rs` |
+| 428 | `src/app/controller/library/background_jobs/scan.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
 | 413 | `src/sample_sources/scanner/scan/tests.rs` |
 | 409 | `src/app/controller/tests/browser_selection.rs` |
 | 409 | `src/app/controller/playback/tests.rs` |
+| 407 | `src/selection/range.rs` |
 | 399 | `tests/unit/audio_output_tests.rs` |
 | 397 | `src/sqlite_ext.rs` |
-| 397 | `src/selection/range.rs` |
-| 397 | `src/gui_test/packs.rs` |
-| 397 | `src/app/controller/ui/hotkeys_controller/waveform.rs` |
 | 394 | `src/app/controller/state/runtime.rs` |
 | 394 | `src/app/controller/playback/transport/selection.rs` |
 | 394 | `src/app/controller/library/selection_edits/ops.rs` |
@@ -38,6 +34,10 @@
 | 387 | `src/audio/output/stream.rs` |
 | 386 | `tools/bench-cli/src/bench/gui/interactions.rs` |
 | 386 | `src/sample_sources/db/mod.rs` |
+| 384 | `src/sample_sources/db/file_ops_journal/tests.rs` |
+| 383 | `src/issue_gateway/api.rs` |
+| 380 | `src/app/controller/playback/persistent_waveform_cache.rs` |
+| 378 | `src/app/controller/tests/waveform_nav_render.rs` |
 
 ## Largest function spans (heuristic)
 
@@ -48,10 +48,10 @@
 | 219 | `settings_round_trip_preserves_fields` (`src/sample_sources/config_io/tests/save.rs:124`) |
 | 219 | `apply_native_ui_action_routes_grouped_dispatch_cases` (`src/app_core/controller/tests/dispatch.rs:31`) |
 | 190 | `handle_analysis_message` (`src/app/controller/library/background_jobs/analysis.rs:8`) |
+| 173 | `handle_scan_finished` (`src/app/controller/library/background_jobs/scan.rs:21`) |
 | 165 | `matches` (`src/app/controller/ui/hotkeys/types.rs:12`) |
 | 164 | `handle_sample_drop_to_drop_target` (`src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs:28`) |
 | 158 | `apply_waveform_native_ui_action` (`src/app_core/controller/waveform_actions.rs:12`) |
-| 156 | `handle_scan_finished` (`src/app/controller/library/background_jobs/scan.rs:21`) |
 | 144 | `handle_samples_drop_to_folder` (`src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/plan.rs:29`) |
 | 144 | `refresh_similarity_prep_progress` (`src/app/controller/library/similarity_prep/progress.rs:7`) |
 | 138 | `derive_waveform_projection_scalars` (`src/app_core/native_bridge/projection_cache/projection_key/waveform.rs:78`) |
@@ -68,13 +68,12 @@
 
 | Lines | File |
 | --- | --- |
-| 462 | `src/analysis/frequency_domain/stft.rs` |
-| 432 | `src/waveform/model.rs` |
-| 423 | `tools/analysis-admin/src/bin/sempal-hdbscan.rs` |
+| 428 | `src/app/controller/library/background_jobs/scan.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
 | 413 | `src/sample_sources/scanner/scan/tests.rs` |
 | 409 | `src/app/controller/tests/browser_selection.rs` |
 | 409 | `src/app/controller/playback/tests.rs` |
+| 407 | `src/selection/range.rs` |
 
 ## dead_code suppression density
 
@@ -96,7 +95,7 @@ Skips dedicated test modules/paths (`tests/**`, `tests.rs`, `*_test.rs`).
 | Lines | File |
 | --- | --- |
 | 422 | `src/analysis/ann_index_tests.rs` |
-| 397 | `src/selection/range.rs` |
+| 407 | `src/selection/range.rs` |
 | 386 | `tools/bench-cli/src/bench/gui/interactions.rs` |
 | 373 | `src/app/controller/library/wavs/browser_actions/selection.rs` |
 | 367 | `src/app/controller/playback/audio_loader/stages.rs` |

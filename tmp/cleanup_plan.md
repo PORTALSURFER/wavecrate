@@ -7,7 +7,7 @@
 - Status: `Parked; resume only after explicit user confirmation before Phase 2 implementation`
 - Note: later GUI/browser AIV work landed on `next`; this file remains the last cleanup audit snapshot, not a refreshed post-AIV audit.
 - Historical-only warning: some backlog items below refer to paths or module names that have since been split, removed, or relocated. Treat this file as a dated planning snapshot, not as a live file map; use `tmp/cleanup_audit_hotspots.md` plus the active improvement audit for current-tree prioritization.
-- Maintenance note (2026-03-16): live debt-tracking inputs were refreshed again in the active improvement-audit lane; the current allowlist now contains only four live over-budget exceptions, and this parked backlog remains historical context rather than a live file map.
+- Maintenance note (2026-03-16): live debt-tracking inputs were refreshed again in the active improvement-audit lane; the current allowlist is now empty, `tmp/cleanup_audit_hotspots.md` is the live hotspot snapshot, and this parked backlog remains historical context rather than a live file map.
 - Canonical dev loop (Windows): `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`

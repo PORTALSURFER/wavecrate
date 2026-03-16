@@ -1,7 +1,7 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-16
-Status: Phase 1 complete. Ranked backlog is refreshed for the live tree and awaits explicit user confirmation before any implementation. The four conservative open-question codifications were implemented on 2026-03-16 without starting the ranked backlog.
+Status: Phase 2 in progress. Ranked backlog item 1 is complete, items 2-9 are pending, and the four conservative open-question codifications were implemented on 2026-03-16 without counting toward the ranked backlog.
 
 ## Scope
 
@@ -25,7 +25,7 @@ Status: Phase 1 complete. Ranked backlog is refreshed for the live tree and awai
 
 ## Ordered Backlog
 
-### 1. [ ] Refresh stale cleanup-debt tracking artifacts before using them for further prioritization
+### 1. [x] Refresh stale cleanup-debt tracking artifacts before using them for further prioritization
 
 - Classification: Developer-experience improvement
 - Confidence: High
@@ -42,6 +42,10 @@ Status: Phase 1 complete. Ranked backlog is refreshed for the live tree and awai
 - Dependencies: none
 - Suggested validation: rerun the cleanup/hotspot generation scripts and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Assumption: the parked cleanup backlog should remain a historical snapshot, but its maintenance notes must match the live debt-tracking inputs closely enough to avoid reintroducing stale path references in future audits.
+  - Validation: reran `powershell -ExecutionPolicy Bypass -File scripts/prune_file_size_budget_allowlist.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`; full quick-gate validation will be rerun after the next code-bearing item.
 
 ### 2. [ ] Decompose `handle_analysis_message(...)` into progress routing, cache invalidation, and follow-up scheduling helpers
 
