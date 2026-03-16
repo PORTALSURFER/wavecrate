@@ -123,7 +123,7 @@
   - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::waveform_pointer -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 4. Separate browser-truncation caches, overlay fingerprints, and segmented emit plumbing in `vendor/radiant/src/gui/native_shell/state/cache_types.rs`
+### [x] 4. Separate browser-truncation caches, overlay fingerprints, and segmented emit plumbing in `vendor/radiant/src/gui/native_shell/state/cache_types.rs`
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: Medium-High
@@ -143,6 +143,12 @@
   - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-16`
+- Commit hash: `360d3ba6` (`vendor/radiant`)
+- Assumption used: cache-type families should split along existing consumers without changing the small subset of shell/runtime fingerprints that intentionally stay crate-visible.
+- Validation outcome:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 5. Split `src/app/controller/playback/loop_crossfade.rs` into controller orchestration, file-output helpers, and undo registration
 - Classification: Architecture improvement
