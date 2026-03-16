@@ -61,10 +61,10 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: evidence-driven improvement audit handoff
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed ROI-ranked backlog for the current codebase; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: Phase 1 of a fresh improvement audit is complete on `2026-03-16`; the backlog is rewritten and waiting for explicit user confirmation before any implementation begins.
+- Current status: Phase 1 of a fresh improvement audit is complete on `2026-03-16`; the backlog is rewritten and still waiting for explicit user confirmation before ranked-backlog implementation begins. The approved conservative follow-ups for the four open questions are now codified in code comments/docs.
 
 ## Immediate Next Actions
-1. Wait for explicit user confirmation before implementing any item from `tmp/improvement_audit_plan.md`.
+1. Wait for explicit user confirmation before implementing any ranked backlog item from `tmp/improvement_audit_plan.md`.
 2. Keep `tmp/improvement_audit_plan.md` as the Phase 1 source of truth for the current audit backlog.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized when the active lane changes.

@@ -1,7 +1,7 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-16
-Status: Phase 1 complete. Ranked backlog is refreshed for the live tree and awaits explicit user confirmation before any implementation.
+Status: Phase 1 complete. Ranked backlog is refreshed for the live tree and awaits explicit user confirmation before any implementation. The four conservative open-question codifications were implemented on 2026-03-16 without starting the ranked backlog.
 
 ## Scope
 
@@ -196,6 +196,10 @@ Status: Phase 1 complete. Ranked backlog is refreshed for the live tree and awai
 - Product clarification required: No
 
 ## Open Questions / Missing Definitions
+
+Conservative codification note:
+- The current implementation now explicitly documents the conservative direction for these four questions in code comments/docs.
+- They remain listed here because the architectural questions still exist, but the current preferred posture is now recorded in the relevant modules.
 
 ### 1. Should `vendor/radiant/src/app/actions/mod.rs` remain one intentionally centralized compatibility surface?
 

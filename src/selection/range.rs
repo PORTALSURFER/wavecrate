@@ -1,6 +1,12 @@
 //! Selection range geometry and fade/gain math utilities.
+//!
+//! This module intentionally keeps the normalized selection bounds, fade
+//! parameters, and fade/gain evaluation rules together because they define one
+//! shared waveform-editing domain model. The file is dense, but the preferred
+//! maintenance approach is to preserve that cohesion and only extract helpers
+//! when a clearly separate subdomain emerges.
 
-/// Parameters for a fade curve (in or out).
+/// Parameters for one fade curve attached to a [`SelectionRange`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FadeParams {
     /// Fade length as a fraction of selection width (0.0-1.0).
@@ -43,7 +49,11 @@ impl FadeParams {
     }
 }
 
-/// Normalized selection bounds over a waveform (0.0 - 1.0).
+/// Normalized selection bounds and edit parameters over a waveform (`0.0..=1.0`).
+///
+/// The range carries the geometry and edit-state needed by waveform selection,
+/// fade preview, and destructive edit flows so those surfaces all evaluate the
+/// same normalized selection contract.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SelectionRange {
     start: f32,
