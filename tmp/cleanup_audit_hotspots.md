@@ -1,15 +1,15 @@
 # Cleanup Hotspot Audit Snapshot
 
-- Generated (UTC): `2026-03-16T10:38:01Z`
+- Generated (UTC): `2026-03-16T12:28:04Z`
 - Branch: `next`
-- Commit: `b37a789e`
-- Rust files scanned: 855
+- Commit: `b95a4aa2`
+- Rust files scanned: 859
 - File-size budget limit: `400`
 
 ## Summary
 
 - Over file-size budget: 7
-- Function spans captured: 5491
+- Function spans captured: 5498
 - Files with `dead_code` suppressions: 1
 - Files with `clippy::too_many_arguments` suppressions: 1
 - Likely large-file test-gap hotspots (heuristic): 81
@@ -30,7 +30,6 @@
 | 397 | `src/selection/range.rs` |
 | 397 | `src/gui_test/packs.rs` |
 | 397 | `src/app/controller/ui/hotkeys_controller/waveform.rs` |
-| 396 | `src/app/controller/library/trash.rs` |
 | 394 | `src/app/controller/state/runtime.rs` |
 | 394 | `src/app/controller/playback/transport/selection.rs` |
 | 394 | `src/app/controller/library/selection_edits/ops.rs` |
@@ -38,6 +37,7 @@
 | 388 | `src/wav_sanitize.rs` |
 | 387 | `src/audio/output/stream.rs` |
 | 386 | `tools/bench-cli/src/bench/gui/interactions.rs` |
+| 386 | `src/sample_sources/db/mod.rs` |
 
 ## Largest function spans (heuristic)
 
@@ -47,7 +47,7 @@
 | 223 | `run_folder_sample_move_task` (`src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/worker.rs:62`) |
 | 219 | `settings_round_trip_preserves_fields` (`src/sample_sources/config_io/tests/save.rs:124`) |
 | 219 | `apply_native_ui_action_routes_grouped_dispatch_cases` (`src/app_core/controller/tests/dispatch.rs:31`) |
-| 179 | `handle_analysis_message` (`src/app/controller/library/background_jobs/analysis.rs:8`) |
+| 190 | `handle_analysis_message` (`src/app/controller/library/background_jobs/analysis.rs:8`) |
 | 165 | `matches` (`src/app/controller/ui/hotkeys/types.rs:12`) |
 | 164 | `handle_sample_drop_to_drop_target` (`src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs:28`) |
 | 158 | `apply_waveform_native_ui_action` (`src/app_core/controller/waveform_actions.rs:12`) |

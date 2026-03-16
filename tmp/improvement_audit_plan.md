@@ -1,13 +1,20 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-16
-Status: Phase 1 complete. Awaiting explicit user confirmation before any implementation.
+Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution, and the user has also approved the conservative follow-ups for the four open questions.
 
 ## Scope
 
 - This document records a fresh evidence-driven improvement audit for the live repository state on 2026-03-16.
 - Items are ranked in strict execution order by expected ROI, not by category.
-- No implementation work has been started from this backlog.
+- Implementation is proceeding in ranked order for items 1-8.
+- The four open-question follow-ups are out-of-band scope added after Phase 1 confirmation and will be executed after item 8 unless an earlier item naturally overlaps the same file.
+
+## Phase 2 Order Notes
+
+- The user explicitly confirmed implementation of items 1-8 on 2026-03-16.
+- After Phase 1, the user also approved the conservative recommendations for the open questions around `vendor/radiant/src/app/actions.rs`, `vendor/radiant/src/gui/native_shell/layout.rs`, `vendor/radiant/src/gui/native_shell/state.rs`, and `src/app/controller/ui/hotkeys_controller/waveform.rs`.
+- To preserve the ranked backlog order, those four follow-ups are treated as a second execution block after item 8 unless a ranked item safely overlaps the same file.
 
 ## Repository Context
 
@@ -24,7 +31,7 @@ Status: Phase 1 complete. Awaiting explicit user confirmation before any impleme
 
 ## Ordered Backlog
 
-### 1. [ ] Refresh stale cleanup-debt tracking artifacts before using them for further prioritization
+### 1. [x] Refresh stale cleanup-debt tracking artifacts before using them for further prioritization
 
 - Classification: Developer-experience improvement
 - Confidence: High
@@ -41,6 +48,11 @@ Status: Phase 1 complete. Awaiting explicit user confirmation before any impleme
 - Dependencies: none
 - Suggested validation: rerun the cleanup/hotspot generation scripts and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commit: pending (to be filled after commit)
+  - Assumption: the parked cleanup plan should stay historical, but its maintenance note must still describe the live debt-tracking state accurately enough that future audits do not reuse obsolete path references.
+  - Validation: reran `powershell -ExecutionPolicy Bypass -File scripts/prune_file_size_budget_allowlist.ps1`, reran `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
 ### 2. [ ] Add direct controller coverage for `handle_scan_finished(...)` success, backfill, cancel, and failure branches
 

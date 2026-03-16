@@ -12,10 +12,5 @@
 src/analysis/frequency_domain/stft.rs
 vendor/radiant/src/app/actions.rs
 vendor/radiant/src/gui/native_shell/layout.rs
-vendor/radiant/src/gui/native_shell/layout_adapter/controls.rs
-vendor/radiant/src/gui/native_shell/layout_adapter/overlays/text.rs
-vendor/radiant/src/gui/native_shell/mod.rs
 vendor/radiant/src/gui/native_shell/state/tests/chrome_layout.rs
-vendor/radiant/src/gui_runtime/native_vello/tests/browser_pointer.rs
-vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer.rs
 
