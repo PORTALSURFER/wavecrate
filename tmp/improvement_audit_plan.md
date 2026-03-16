@@ -112,7 +112,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
   - Assumption: the cleanest boundary is a façade plus `update_buttons`, `sidebar_buttons`, `browser_toolbar`, and `shared` helper modules rather than a more abstract generic layout API.
   - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml controls -- --test-threads=1`.
 
-### 5. [ ] Split `vendor/radiant/src/gui/native_shell/layout_adapter/overlays/text.rs` into overlay-family text builders and shared line-layout primitives
+### 5. [x] Split `vendor/radiant/src/gui/native_shell/layout_adapter/overlays/text.rs` into overlay-family text builders and shared line-layout primitives
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -129,6 +129,10 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Dependencies: none
 - Suggested validation: targeted overlay layout tests in `vendor/radiant` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Assumption: prompt, progress, and drag overlays should own their text assembly independently while a small shared module continues to own only line-layout primitives.
+  - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml overlay_controls -- --test-threads=1` and `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::layout_adapter::overlays::text::tests -- --test-threads=1`.
 
 ### 6. [ ] Add direct controller coverage for `handle_analysis_message(...)` progress, clear, enqueue, and cache-invalidation branches
 
