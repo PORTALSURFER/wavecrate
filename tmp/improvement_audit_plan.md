@@ -69,7 +69,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
   - Assumption: existing trash controller tests already covered the happy-path move, cancel, auto-trash, and successful permanent-delete branches, so the highest-value missing slice was rollback after a failed move.
   - Validation: ran `cargo test trash -- --test-threads=1`.
 
-### 3. [ ] Split `src/app/controller/library/trash.rs` by trash-folder configuration, move orchestration, delete sweep, and result/focus refresh ownership
+### 3. [x] Split `src/app/controller/library/trash.rs` by trash-folder configuration, move orchestration, delete sweep, and result/focus refresh ownership
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -85,6 +85,10 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Dependencies: item 2 is the safest precursor so behavior is locked before refactoring.
 - Suggested validation: targeted trash tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Assumption: the safest boundary is a tiny `trash.rs` façade plus focused `config`, `moves`, `deletion`, and `results` submodules, while the existing `AppController` API stays intact.
+  - Validation: ran `cargo test trash -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
 ### 4. [ ] Split `vendor/radiant/src/gui/native_shell/layout_adapter/controls.rs` by control-family ownership
 
