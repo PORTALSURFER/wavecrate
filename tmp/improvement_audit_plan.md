@@ -73,11 +73,11 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
-  - Commit: pending
+  - Commit: `bf492243` `test(scan): cover scan completion branches`
   - Assumption: queue-wav-load side effects are part of the selected-source success path, so the most stable direct assertions are on cache invalidation, follow-up job enqueue, and similarity-prep transitions rather than the transient status text.
   - Validation: ran `cargo test background_jobs::scan -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 3. [ ] Decompose `src/analysis/frequency_domain/stft.rs` into frame-loop orchestration, spectral-stat helpers, and power/SIMD helpers
+### 3. [x] Decompose `src/analysis/frequency_domain/stft.rs` into frame-loop orchestration, spectral-stat helpers, and power/SIMD helpers
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -94,6 +94,11 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Dependencies: none
 - Suggested validation: targeted STFT/frequency-domain tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commit: pending
+  - Assumption: the safest split keeps the STFT entrypoint unchanged and only separates frame types, power-spectrum helpers, and spectral-stat derivation into sibling helpers under one `stft` module.
+  - Validation: ran `cargo test frequency_domain:: -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
 ### 4. [ ] Separate cache fingerprints, state-diff planning, and signature hashing in `vendor/radiant/src/gui_runtime/native_vello/scene_cache.rs`
 
