@@ -59,9 +59,9 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `X:\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: evidence-driven improvement audit handoff
-- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed ROI-ranked backlog for the current codebase; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: Phase 1 of a fresh improvement audit is complete on `2026-03-16`; the backlog is rewritten and still waiting for explicit user confirmation before ranked-backlog implementation begins. The approved conservative follow-ups for the four open questions are now codified in code comments/docs.
+- Program: evidence-driven improvement audit refresh
+- Source of truth: `tmp/improvement_audit_plan.md` for the current ROI-ranked backlog for the live tree; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
+- Current status: Phase 1 of the improvement audit was refreshed on `2026-03-16`; the backlog in `tmp/improvement_audit_plan.md` is current and still waiting for explicit user confirmation before sequential implementation begins.
 
 ## Immediate Next Actions
 1. Wait for explicit user confirmation before implementing any ranked backlog item from `tmp/improvement_audit_plan.md`.

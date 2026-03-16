@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-16T22:05:00Z
+Last updated (UTC): 2026-03-16T18:16:57.5734111Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -11,9 +11,9 @@ Purpose:
 
 ## Current lane
 
-- Phase 1 of a fresh improvement-audit lane is complete.
+- Phase 1 of the improvement-audit lane was refreshed against the live tree on 2026-03-16.
 - `tmp/improvement_audit_plan.md` is the source of truth for the refreshed ROI-ranked backlog awaiting confirmation.
-- The conservative follow-ups for the four open questions are codified, but the ranked backlog remains unstarted.
+- The ranked backlog remains unstarted and still needs explicit user confirmation before Phase 2 begins.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
