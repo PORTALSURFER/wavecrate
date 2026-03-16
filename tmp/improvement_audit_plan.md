@@ -90,7 +90,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
   - Assumption: the safest boundary is a tiny `trash.rs` façade plus focused `config`, `moves`, `deletion`, and `results` submodules, while the existing `AppController` API stays intact.
   - Validation: ran `cargo test trash -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 4. [ ] Split `vendor/radiant/src/gui/native_shell/layout_adapter/controls.rs` by control-family ownership
+### 4. [x] Split `vendor/radiant/src/gui/native_shell/layout_adapter/controls.rs` by control-family ownership
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -107,6 +107,10 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Dependencies: none
 - Suggested validation: relevant `vendor/radiant` native-shell layout tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Assumption: the cleanest boundary is a façade plus `update_buttons`, `sidebar_buttons`, `browser_toolbar`, and `shared` helper modules rather than a more abstract generic layout API.
+  - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml controls -- --test-threads=1`.
 
 ### 5. [ ] Split `vendor/radiant/src/gui/native_shell/layout_adapter/overlays/text.rs` into overlay-family text builders and shared line-layout primitives
 
