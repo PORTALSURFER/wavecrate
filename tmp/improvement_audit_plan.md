@@ -165,11 +165,11 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
-  - Commit: pending
+  - Commit: `0671695b` `refactor(gui-test): split scenario packs`
   - Assumption: the `contract-smoke` pack name, scenario order, and scenario bodies should remain stable while only the scenario-builder ownership moves into fixture-oriented modules.
   - Validation: ran `cargo test gui_test::packs -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 7. [ ] Break the native-shell chrome-layout regression hub into ownership-aligned test modules
+### 7. [x] Break the native-shell chrome-layout regression hub into ownership-aligned test modules
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -186,6 +186,11 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Dependencies: none
 - Suggested validation: targeted native-shell layout tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commit: `vendor/radiant 276a0d4f` `refactor(tests): split chrome layout suites`
+  - Assumption: the existing layout assertions should stay grouped by real contract families rather than being reduced to one-test-per-file fragments.
+  - Validation: ran `cargo test --manifest-path X:\\sempal\\vendor\\radiant\\Cargo.toml chrome_layout -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
 ### 8. [ ] Split `tools/analysis-admin/src/bin/sempal-hdbscan.rs` into argument parsing, embedding load/validation, clustering policy, and writeback helpers
 
