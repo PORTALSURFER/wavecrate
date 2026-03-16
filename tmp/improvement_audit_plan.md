@@ -93,7 +93,7 @@
   - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_toolbar -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 3. Decompose `vendor/radiant/src/gui_runtime/native_vello/input.rs` into clearer keyboard, shell-hit-test, waveform, and wheel route layers
+### [x] 3. Decompose `vendor/radiant/src/gui_runtime/native_vello/input.rs` into clearer keyboard, shell-hit-test, waveform, and wheel route layers
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
@@ -114,6 +114,14 @@
   - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::waveform_pointer -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-16`
+- Commit hash: `0218d0e6` (`vendor/radiant`)
+- Assumption used: `input.rs` should remain the stable export surface while key dispatch and pointer route arbitration move into separate ownership modules.
+- Validation outcome:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::key_bindings -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::browser_pointer -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::waveform_pointer -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 4. Separate browser-truncation caches, overlay fingerprints, and segmented emit plumbing in `vendor/radiant/src/gui/native_shell/state/cache_types.rs`
 - Classification: Architecture improvement
