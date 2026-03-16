@@ -180,7 +180,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 6. Split `vendor/radiant/src/gui/native_shell/style/sizing.rs` into base tokens, tier deltas, and sizing invariants
+### [x] 6. Split `vendor/radiant/src/gui/native_shell/style/sizing.rs` into base tokens, tier deltas, and sizing invariants
 - Classification: Refactor / cleanup
 - Confidence: Medium
 - ROI: Medium
@@ -200,6 +200,13 @@
   - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::tests::chrome_layout -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-16`
+- Commit hash: `964086a6` (`vendor/radiant`)
+- Assumption used: the giant sizing file should keep the stable `SizingTokens` schema while base values, tier deltas, and local invariants move into separate ownership files.
+- Validation outcome:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::style -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::state::tests::chrome_layout -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 7. Break the remaining oversized native-shell test hubs into ownership-aligned modules
 - Classification: Refactor / cleanup
