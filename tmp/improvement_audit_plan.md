@@ -59,13 +59,14 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Completed: `2026-03-16`
+- Commit hash: `da07fc16`
 - Assumption used: the parked cleanup plan should remain historical, while the live allowlist and hotspot snapshot should match the current tree.
 - Validation outcome:
   - `powershell -ExecutionPolicy Bypass -File scripts/prune_file_size_budget_allowlist.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 2. Split `vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar.rs` by sidebar rendering family
+### [x] 2. Split `vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar.rs` by sidebar rendering family
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
@@ -84,6 +85,13 @@
   - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_toolbar -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-16`
+- Commit hash: `88fb4e3b` (`vendor/radiant`)
+- Assumption used: the sidebar visual contract should stay stable while header chrome, source rows, folder rendering, and footer controls move into separate ownership modules.
+- Validation outcome:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml sidebar -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_toolbar -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 3. Decompose `vendor/radiant/src/gui_runtime/native_vello/input.rs` into clearer keyboard, shell-hit-test, waveform, and wheel route layers
 - Classification: Architecture improvement
