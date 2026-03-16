@@ -1,37 +1,31 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-16
-Status: Phase 2 complete. Ranked backlog items 1-8 and the approved conservative follow-ups for the four open questions were completed on 2026-03-16.
+Status: Phase 1 complete. Ranked backlog is refreshed for the live tree and awaits explicit user confirmation before any implementation.
 
 ## Scope
 
-- This document records a fresh evidence-driven improvement audit for the live repository state on 2026-03-16.
+- This document records a fresh evidence-driven improvement audit for the current repository state on 2026-03-16.
 - Items are ranked in strict execution order by expected ROI, not by category.
-- Implementation completed in ranked order for items 1-8.
-- The four open-question follow-ups were approved after Phase 1 and completed as a second execution block after item 8.
-
-## Phase 2 Order Notes
-
-- The user explicitly confirmed implementation of items 1-8 on 2026-03-16.
-- After Phase 1, the user also approved the conservative recommendations for the open questions around `vendor/radiant/src/app/actions.rs`, `vendor/radiant/src/gui/native_shell/layout.rs`, `vendor/radiant/src/gui/native_shell/state.rs`, and `src/app/controller/ui/hotkeys_controller/waveform.rs`.
-- To preserve the ranked backlog order, those four follow-ups were executed as a second block after item 8.
+- Recommendations are limited to improvements supported by live repository evidence.
+- No implementation has been performed for this Phase 1 backlog.
 
 ## Repository Context
 
-- Project purpose: Explicitly documented. [README.md](/X:/sempal/README.md) describes Sempal as a realtime-oriented sample triage and curation app for large local libraries.
-- Maturity level: Explicitly documented. [README.md](/X:/sempal/README.md) labels the app early alpha and warns that bugs may modify or delete samples.
-- Primary languages / frameworks / tooling: Explicitly documented. [Cargo.toml](/X:/sempal/Cargo.toml) defines a Rust 2024 workspace; [docs/ARCHITECTURE.md](/X:/sempal/docs/ARCHITECTURE.md) and [README.md](/X:/sempal/README.md) place the retained GUI/runtime stack in `vendor/radiant`.
-- Repository shape: Explicitly documented. [README.md](/X:/sempal/README.md) and [docs/ARCHITECTURE.md](/X:/sempal/docs/ARCHITECTURE.md) split ownership across `src/`, `src/app_core`, `vendor/radiant`, `tools/`, and `docs/`.
-- Architectural boundaries: Explicitly documented. [docs/ARCHITECTURE.md](/X:/sempal/docs/ARCHITECTURE.md) presents `app_core` as the bridge layer and keeps renderer/runtime concerns in `vendor/radiant`.
-- Test strategy: Explicitly documented. [docs/TEST.md](/X:/sempal/docs/TEST.md), [AGENTS.md](/X:/sempal/AGENTS.md), and [.github/workflows/ci.yml](/X:/sempal/.github/workflows/ci.yml) define the normal Windows validation path as `scripts/devcheck.ps1`, `scripts/ci_quick.ps1`, and `scripts/ci_local.ps1`.
-- Canonical local validation commands: Explicitly documented. [docs/TEST.md](/X:/sempal/docs/TEST.md) and [AGENTS.md](/X:/sempal/AGENTS.md) point to the PowerShell wrappers as the default Windows flow.
-- Documented priorities: Explicitly documented. [docs/design_principles.md](/X:/sempal/docs/design_principles.md) prioritizes realtime behavior, non-blocking execution, data integrity, integrated mouse/keyboard semantics, and undoable edits.
-- Explicit non-goals / unsupported promotions: Explicitly documented. [docs/gui_test_platform.md](/X:/sempal/docs/gui_test_platform.md) says desktop AIV remains local-only and is not ready for CI promotion.
-- Product direction beyond those documents: Weakly implied / uncertain. The current repository evidence strongly favors correctness, maintainability, and tooling hardening over broad new end-user feature work.
+- Project purpose: Explicitly documented. `README.md` describes Sempal as a realtime-oriented sample triage and curation app for large local libraries.
+- Maturity level: Explicitly documented. `README.md` labels the app early alpha and warns that bugs may modify or delete samples.
+- Primary languages / frameworks / tooling: Explicitly documented. `Cargo.toml` defines a Rust 2024 workspace; `vendor/radiant` owns the retained GUI/runtime stack.
+- Repository shape: Explicitly documented. `docs/ARCHITECTURE.md` splits ownership across `src/`, `src/app_core`, `vendor/radiant`, `tools/`, and `docs/`.
+- Architectural boundaries: Explicitly documented. `docs/ARCHITECTURE.md` keeps domain logic in `src`, bridge/projection logic in `app_core`, and renderer/runtime concerns in `vendor/radiant`.
+- Test strategy: Explicitly documented. `docs/TEST.md`, `AGENTS.md`, and `.github/workflows/ci.yml` define the normal Windows validation path as `scripts/devcheck.ps1`, `scripts/ci_quick.ps1`, and `scripts/ci_local.ps1`.
+- Canonical local validation commands: Explicitly documented. Windows sessions should use the PowerShell wrappers in `scripts/*.ps1`.
+- Documented priorities: Explicitly documented. `docs/design_principles.md` prioritizes realtime behavior, non-blocking execution, data integrity, integrated mouse/keyboard semantics, and undoable edits.
+- Explicit non-goals / unsupported promotions: Explicitly documented. `docs/gui_test_platform.md` says desktop AIV remains local-only and is not ready for CI promotion.
+- Product direction beyond those documents: Strongly implied by code/docs. The live tree still favors correctness, maintainability, ownership clarity, and validation hardening over broad new end-user feature work.
 
 ## Ordered Backlog
 
-### 1. [x] Refresh stale cleanup-debt tracking artifacts before using them for further prioritization
+### 1. [ ] Refresh stale cleanup-debt tracking artifacts before using them for further prioritization
 
 - Classification: Developer-experience improvement
 - Confidence: High
@@ -39,291 +33,226 @@ Status: Phase 2 complete. Ranked backlog items 1-8 and the approved conservative
 - Effort: S
 - Why it matters: the repo’s own cleanup inputs are stale again, so future audits and cleanup passes will mis-rank already-finished work.
 - Evidence:
-  - [docs/file_size_budget_allowlist.txt](/X:/sempal/docs/file_size_budget_allowlist.txt) still allowlists already-split files such as `vendor/radiant/src/gui/native_shell/layout_adapter/controls.rs`, `vendor/radiant/src/gui/native_shell/layout_adapter/overlays/text.rs`, `vendor/radiant/src/gui/native_shell/mod.rs`, `vendor/radiant/src/gui_runtime/native_vello/tests/browser_pointer.rs`, and `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer.rs`.
-  - [tmp/cleanup_audit_hotspots.md](/X:/sempal/tmp/cleanup_audit_hotspots.md) still reports previously split or removed hotspots.
-  - [tmp/cleanup_plan.md](/X:/sempal/tmp/cleanup_plan.md) still references removed historical paths.
-- Recommended change: refresh the file-size allowlist and hotspot snapshots, and annotate stale parked cleanup entries so later audits start from the live tree rather than obsolete debt data.
-- Expected impact: future cleanup prioritization stops resurfacing already-completed work and better reflects the live codebase.
+  - `docs/file_size_budget_allowlist.txt` still allowlists historical paths that no longer exist in their old form, including `src/analysis/frequency_domain/stft.rs`, `vendor/radiant/src/app/actions.rs`, `vendor/radiant/src/gui/native_shell/layout.rs`, and `vendor/radiant/src/gui/native_shell/state/tests/chrome_layout.rs`.
+  - `tmp/cleanup_audit_hotspots.md` still reports old hotspots from commit `b95a4aa2`, including already-split or renamed files such as `stft.rs`, `waveform/model.rs`, and `gui_test/packs.rs`.
+  - `tmp/cleanup_plan.md` still references old cleanup targets, including the pre-split `src/app/controller/playback/audio_options.rs`.
+- Recommended change: refresh the allowlist and parked hotspot snapshots, and annotate stale parked cleanup references so later audits start from the live tree rather than obsolete debt data.
+- Expected impact: future cleanup prioritization stops resurfacing already-completed work and better reflects the current codebase.
 - Risks / tradeoffs: this is meta-work rather than product behavior work, but the effort is small and it protects planning quality.
 - Dependencies: none
 - Suggested validation: rerun the cleanup/hotspot generation scripts and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
-- Execution notes:
-  - Date: 2026-03-16
-  - Commit: `a9e48221` `docs(audit): refresh cleanup debt inputs`
-  - Assumption: the parked cleanup plan should stay historical, but its maintenance note must still describe the live debt-tracking state accurately enough that future audits do not reuse obsolete path references.
-  - Validation: reran `powershell -ExecutionPolicy Bypass -File scripts/prune_file_size_budget_allowlist.ps1`, reran `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 2. [x] Add direct controller coverage for `handle_scan_finished(...)` success, backfill, cancel, and failure branches
+### 2. [ ] Decompose `handle_analysis_message(...)` into progress routing, cache invalidation, and follow-up scheduling helpers
+
+- Classification: Architecture improvement
+- Confidence: High
+- ROI: High
+- Effort: M
+- Why it matters: analysis progress handling is one of the main branch-heavy controller seams for long-running background work, and it still concentrates unrelated responsibilities in one function.
+- Evidence:
+  - `src/app/controller/library/background_jobs/analysis.rs:8` defines `handle_analysis_message(...)` as the single entrypoint for progress updates, enqueue-finished follow-up work, embedding backfill progress, and duration-update invalidation.
+  - The same file handles selected-source scoping, similarity-prep routing, overlay visibility, detail-string construction, analysis snapshot updates, feature/duration cache invalidation, and follow-up message emission around `AnalysisJobMessage::EnqueueFinished` and `AnalysisJobMessage::DurationsUpdated`.
+  - Direct tests now exist in the same file for several branches, which reduces test-risk but makes the remaining ownership mix more obvious rather than less important.
+- Recommended change: keep the message surface stable, but split progress-overlay policy, cache invalidation/follow-up invalidation, and enqueue-finished scheduling into focused helpers or internal modules.
+- Expected impact: future analysis-job changes become easier to review and less likely to regress overlay state or cache invalidation behavior.
+- Risks / tradeoffs: the split must preserve selected-source gating and similarity-prep semantics exactly.
+- Dependencies: none
+- Suggested validation: `cargo test background_jobs::analysis -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Product clarification required: No
+
+### 3. [ ] Split `vendor/radiant/src/gui/native_shell/state/waveform_segments/mod.rs` by static-segment routing, waveform overlays, and header/image helpers
+
+- Classification: Architecture improvement
+- Confidence: High
+- ROI: High
+- Effort: M
+- Why it matters: waveform rendering is a user-visible hot path, and one file still mixes segment ownership decisions with several unrelated overlay and image emit families.
+- Evidence:
+  - `vendor/radiant/src/gui/native_shell/state/waveform_segments/mod.rs:26`-`49` owns static-segment routing via `static_segment_for_primitive`, `static_segment_for_text`, and `static_segment_for_point`.
+  - `vendor/radiant/src/gui/native_shell/state/waveform_segments/mod.rs:95`-`238` builds waveform playhead, selection, loop, fade, and scrollbar overlays.
+  - `vendor/radiant/src/gui/native_shell/state/waveform_segments/mod.rs:240`-`295` renders the waveform loading placeholder, while `:297`-`327` emits waveform images and `:329`-`393` renders the waveform header overlay.
+  - The file already has sibling modules for `fades`, `scrollbar`, `selection`, and `trail`, which strongly implies the remaining mixed helpers are ready for further decomposition.
+- Recommended change: preserve the external `waveform_segments` surface, but move segment routing, loading/image emission, and header overlay assembly into focused siblings next to the existing overlay helpers.
+- Expected impact: waveform-shell changes become easier to localize, and regressions in retained segment ownership are easier to diagnose separately from overlay rendering.
+- Risks / tradeoffs: segment ownership logic is cache-sensitive, so the split must not change which static segment owns existing primitives or text runs.
+- Dependencies: none
+- Suggested validation: targeted native-shell waveform/state tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Product clarification required: No
+
+### 4. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/text_renderer.rs` into font loading, layout caching, atom caching, and glyph-layout helpers
+
+- Classification: Architecture improvement
+- Confidence: High
+- ROI: High
+- Effort: M
+- Why it matters: native text rendering affects many runtime surfaces, but font discovery, cache eviction, glyph layout, and color/icon encoding still live together in one file with no direct local test module.
+- Evidence:
+  - `vendor/radiant/src/gui_runtime/native_vello/text_renderer.rs:38` defines `NativeTextRenderer` with both layout-cache and atom-cache state.
+  - `vendor/radiant/src/gui_runtime/native_vello/text_renderer.rs:122`-`156` owns layout-cache lookup/eviction, while `:181`-`218` owns atom interning/eviction.
+  - `vendor/radiant/src/gui_runtime/native_vello/text_renderer.rs:220`-`306` computes glyph layout and cursor stops.
+  - `vendor/radiant/src/gui_runtime/native_vello/text_renderer.rs:309`-`352` handles native font discovery/loading, and the file also carries primitive color/icon conversion helpers.
+  - A targeted test search found usage from runtime startup and text editing, but no focused local tests for the renderer/cache helpers themselves.
+- Recommended change: keep `NativeTextRenderer` as the runtime-facing façade, but move font discovery, layout-cache policy, atom-cache policy, and pure glyph-layout computation into focused helper modules with direct tests.
+- Expected impact: text-related regressions become easier to isolate, and cache-policy work stops competing with glyph-shaping and font-discovery changes in one file.
+- Risks / tradeoffs: text layout is runtime-sensitive; the split should preserve cache capacity, fallback font order, and cursor-stop semantics exactly.
+- Dependencies: none
+- Suggested validation: targeted native-Vello text/key-binding tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Product clarification required: No
+
+### 5. [ ] Separate browser path-selection cache/set logic from focus/load side effects in `src/app/controller/library/wavs/browser_actions/selection.rs`
+
+- Classification: Architecture improvement
+- Confidence: High
+- ROI: High
+- Effort: M
+- Why it matters: browser multi-selection is now path-authoritative, but one file still mixes canonical selection-set maintenance with focus, rebuild, and load-preview side effects.
+- Evidence:
+  - `src/app/controller/library/wavs/browser_actions/selection.rs:8`-`116` manages canonical path/index selection cache invalidation and conversions.
+  - `src/app/controller/library/wavs/browser_actions/selection.rs:118`-`204` manages anchor-based range extension and visible-row resolution.
+  - `src/app/controller/library/wavs/browser_actions/selection.rs:231`-`357` mixes selection mutation with `focus_browser_context()`, `rebuild_browser_lists()`, `focus_wav_by_index_preview_with_rebuild(...)`, and `select_wav_by_index_with_rebuild(...)`.
+  - There is focused surrounding behavior coverage in `src/app/controller/tests/browser_selection.rs`, `src/app/controller/tests/browser_actions/row_actions.rs`, and `src/app/controller/library/wavs/browser_actions/tests.rs`, which lowers behavior risk and highlights the remaining ownership mix.
+- Recommended change: keep the public controller methods stable, but split pure selection-set/cache helpers from the action-layer methods that trigger focus, rebuild, preview-load, and marker refresh side effects.
+- Expected impact: browser-selection behavior becomes easier to extend safely, and future source-of-truth changes stop requiring edits in a mixed cache/UI side-effect hub.
+- Risks / tradeoffs: the split must preserve anchor semantics, visible-row behavior, and preview-vs-commit load behavior.
+- Dependencies: none
+- Suggested validation: targeted browser selection/action tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Product clarification required: No
+
+### 6. [ ] Add direct controller coverage for audio option refresh/apply/fallback branches before refactoring the audio-options controller
 
 - Classification: Test gap
 - Confidence: High
-- ROI: High
+- ROI: Medium-High
 - Effort: M
-- Why it matters: scan completion drives cache invalidation, status updates, wav reloads, similarity-prep handoff, analysis enqueue, embedding backfill, and duration refresh, but the branchy completion handler is still only exercised indirectly.
+- Why it matters: audio host/device selection is user-visible and stateful, but the controller layer currently lacks direct tests around refresh/apply/fallback behavior.
 - Evidence:
-  - [src/app/controller/library/background_jobs/scan.rs](/X:/sempal/src/app/controller/library/background_jobs/scan.rs) centralizes almost all scan completion behavior in `handle_scan_finished(...)`.
-  - The handler mixes selected-source checks, auto-scan suppression, cache invalidation, `queue_wav_load()`, similarity-prep completion, `enqueue_jobs_for_source(...)`, `enqueue_jobs_for_source_backfill(...)`, `enqueue_jobs_for_embedding_backfill(...)`, and `update_missing_durations_for_source(...)`.
-  - A targeted search found references in polling/message-router code and generic polling tests, but no direct local tests for `handle_scan_finished(...)` branch behavior.
-- Recommended change: add focused controller tests for changed-sample success, unchanged-sample backfill, similarity-prep short-circuit, cancel, and error branches before any structural refactor.
-- Expected impact: one of the more side-effect-heavy library handlers becomes safer to change and regressions become easier to localize.
-- Risks / tradeoffs: tests need thread/message harness setup and may require lightweight stubs for spawned job signaling.
-- Dependencies: none, but this should precede any structural split of scan completion logic.
-- Suggested validation: targeted scan/background-job tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - `src/app/controller/playback/audio_options/controller.rs:9`-`153` owns output/input refresh normalization, device probing, warning propagation, and input-channel normalization.
+  - `src/app/controller/playback/audio_options/controller.rs:156`-`276` owns host/device/sample-rate setters, persistence, player rebuild, and applied-status updates.
+  - `src/app/controller/playback/audio_options/controller.rs:279`-`321` formats output/input fallback warnings.
+  - A targeted test search found call sites and lower-level audio enumeration modules, but no direct controller tests for `refresh_audio_options(...)`, `refresh_audio_input_options(...)`, `apply_audio_selection(...)`, or the fallback-message branches.
+- Recommended change: add focused controller tests for output refresh normalization, input-channel warning normalization, successful apply/persist, rebuild failure, and fallback-warning formatting before changing structure.
+- Expected impact: refactoring this controller becomes materially safer, and audio-setting regressions become easier to localize.
+- Risks / tradeoffs: test harnesses may need lightweight stubs for the player rebuild path and enumerated audio backends.
+- Dependencies: none, but this should precede item 7.
+- Suggested validation: targeted audio-options controller tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
-- Execution notes:
-  - Date: 2026-03-16
-  - Commit: `bf492243` `test(scan): cover scan completion branches`
-  - Assumption: queue-wav-load side effects are part of the selected-source success path, so the most stable direct assertions are on cache invalidation, follow-up job enqueue, and similarity-prep transitions rather than the transient status text.
-  - Validation: ran `cargo test background_jobs::scan -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 3. [x] Decompose `src/analysis/frequency_domain/stft.rs` into frame-loop orchestration, spectral-stat helpers, and power/SIMD helpers
-
-- Classification: Architecture improvement
-- Confidence: High
-- ROI: High
-- Effort: M
-- Why it matters: this is a correctness-sensitive analysis path and it still mixes data types, frame orchestration, DSP helpers, spectral statistics, band-energy computation, and SSE3-specific code in one over-budget module.
-- Evidence:
-  - [src/analysis/frequency_domain/stft.rs](/X:/sempal/src/analysis/frequency_domain/stft.rs) is 431 lines.
-  - The file defines `FrameSet`, `SpectralFrame`, `BandFrame`, `StftProcessor`, `compute_frames(...)`, `process_frame(...)`, `spectral_from_power(...)`, `bands_from_power(...)`, and `power_spectrum_sse3_into(...)`.
-  - The local test module covers only three `compute_frames(...)` cases and does not directly isolate spectral-stat or SIMD-helper behavior.
-- Recommended change: split the STFT entrypoint from spectral-stat aggregation and power-spectrum helpers, keeping the public contract unchanged while creating direct unit-test seams for the pure DSP pieces.
-- Expected impact: analysis correctness work becomes easier to review and extend; SIMD and stat logic can be tested independently from the frame loop.
-- Risks / tradeoffs: DSP code is brittle, so boundaries should stay local and behavior-preserving rather than introducing new abstractions.
-- Dependencies: none
-- Suggested validation: targeted STFT/frequency-domain tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Product clarification required: No
-- Execution notes:
-  - Date: 2026-03-16
-  - Commit: `3a84f819` `refactor(analysis): split stft helpers`
-  - Assumption: the safest split keeps the STFT entrypoint unchanged and only separates frame types, power-spectrum helpers, and spectral-stat derivation into sibling helpers under one `stft` module.
-  - Validation: ran `cargo test frequency_domain:: -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-
-### 4. [x] Separate cache fingerprints, state-diff planning, and signature hashing in `vendor/radiant/src/gui_runtime/native_vello/scene_cache.rs`
-
-- Classification: Architecture improvement
-- Confidence: High
-- ROI: High
-- Effort: M
-- Why it matters: native Vello rebuild behavior depends on stable cache fingerprints and diff planning, but several unrelated cache contracts still share one file.
-- Evidence:
-  - [vendor/radiant/src/gui_runtime/native_vello/scene_cache.rs](/X:/sempal/vendor/radiant/src/gui_runtime/native_vello/scene_cache.rs) is 368 lines.
-  - The file combines image-upload cache keys, overlay fingerprints, static-segment fingerprints, `StaticSegmentStateGraph`, `StaticSegmentDiffPlan`, scene-cache entries, and low-level fingerprint mixing helpers.
-  - The signatures span both shell/model state and static segment rebuild decisions, which obscures ownership when regressions appear in retained rendering.
-- Recommended change: split cache-key/fingerprint types, static diff planning, and generic signature-mixing helpers into focused modules while preserving the runtime cache contract.
-- Expected impact: retained-render cache bugs become easier to localize, and future cache-key changes stop competing inside one mixed file.
-- Risks / tradeoffs: cache code is sensitive to behavior drift, so the split should avoid changing hash content or rebuild decisions.
-- Dependencies: none
-- Suggested validation: targeted native-Vello cache/runtime tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Product clarification required: No
-- Execution notes:
-  - Date: 2026-03-16
-  - Commit: `vendor/radiant ed041837` `refactor(runtime): split scene cache helpers`
-  - Assumption: the safest split preserves the existing cache-key, signature, and retained-scene names at the `native_vello` module boundary while moving their implementations into focused `scene_cache/*` helpers.
-  - Validation: ran `cargo test --manifest-path X:\\sempal\\vendor\\radiant\\Cargo.toml gui_runtime::native_vello -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-
-### 5. [x] Separate `src/waveform/model.rs` public waveform types from peak-span sampling and renderer façade helpers
+### 7. [ ] Split `src/app/controller/playback/audio_options/controller.rs` into refresh policy, apply/persist flow, and fallback-message helpers
 
 - Classification: Refactor / cleanup
 - Confidence: High
 - ROI: Medium-High
 - Effort: M
-- Why it matters: one public waveform model file still owns multiple unrelated concerns: public data types, peak-span queries, view sampling, cache-token plumbing, and renderer façade state.
+- Why it matters: audio-options control flow currently mixes pure normalization/probing policy with player rebuilds, persistence, UI projection, and user-facing fallback text.
 - Evidence:
-  - [src/waveform/model.rs](/X:/sempal/src/waveform/model.rs) is 399 lines.
-  - The file defines `WaveformRgba`, `WaveformImage`, `LoadedWaveform`, `DecodedWaveform`, `WaveformPeaks`, `WaveformChannelView`, `WaveformColumnView`, `WaveformRenderer`, and helper functions like `next_cache_token()`, `max_abs_from_samples(...)`, and `max_abs_from_peaks(...)`.
-  - Downstream code imports many of these types independently, while other waveform responsibilities already live in split modules such as `waveform/render/*`, `waveform/decode/*`, and `waveform/zoom_cache/*`.
-- Recommended change: keep the public API stable but move peak-span math, view-sampling helpers, and renderer-facade internals beside their owning modules so `model.rs` becomes a true data-model surface.
-- Expected impact: the waveform subsystem becomes easier to navigate, and public API types stop sharing a file with lower-level helper logic.
-- Risks / tradeoffs: the split must preserve re-export behavior and documentation for downstream callers.
-- Dependencies: none
-- Suggested validation: targeted waveform render/decode/cache tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - `src/app/controller/playback/audio_options/controller.rs` remains a 352-line controller file with both output and input branches.
+  - The file interleaves pure normalization/probing work with mutation and persistence paths such as `set_audio_host(...)`, `set_audio_device(...)`, `apply_audio_selection(...)`, and `rebuild_audio_player(...)`.
+  - The repo’s historical cleanup artifacts also still mention the older unsplit `audio_options.rs`, which suggests this ownership seam has been visible for multiple audit passes.
+- Recommended change: after item 6 lands, move output/input refresh policy, apply/rebuild/persist flow, and fallback-message formatting into focused siblings while keeping the public controller API unchanged.
+- Expected impact: audio-option logic becomes easier to navigate and future changes stop reopening one controller file for both probing policy and side effects.
+- Risks / tradeoffs: audio settings are user-visible and hardware-sensitive, so the split must preserve warning text, persistence timing, and rebuild failure behavior.
+- Dependencies: item 6
+- Suggested validation: targeted audio-options tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
-- Execution notes:
-  - Date: 2026-03-16
-  - Commit: `d2efb0a5` `refactor(waveform): split model helpers`
-  - Assumption: the public `crate::waveform::*` surface should remain unchanged while the implementation moves into `model/*` helpers for types, peak-span math, and renderer state.
-  - Validation: ran `cargo test waveform::model -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 6. [x] Split `src/gui_test/packs.rs` into pack registry and fixture-family scenario builders
-
-- Classification: Refactor / cleanup
-- Confidence: High
-- ROI: Medium-High
-- Effort: M
-- Why it matters: the repo explicitly leans on named scenario packs for semantic GUI validation, but the live contract-smoke pack still centralizes many unrelated scenario builders in one file.
-- Evidence:
-  - [src/gui_test/packs.rs](/X:/sempal/src/gui_test/packs.rs) is 382 lines.
-  - The file contains `gui_scenario_pack(...)`, `contract_smoke_pack()`, and nine scenario builders spanning browser, transport, waveform, map, options, prompt, and update-panel flows.
-  - [docs/gui_test_platform.md](/X:/sempal/docs/gui_test_platform.md) documents named packs as a first-class validation surface and explicitly calls out the `contract-smoke` pack.
-- Recommended change: keep the pack name and scenario contracts stable, but move scenario definitions into smaller modules grouped by fixture family or interaction surface.
-- Expected impact: GUI scenario maintenance becomes easier, and new contract slices can be added without reopening one omnibus pack file.
-- Risks / tradeoffs: over-modularizing the pack registry would hurt discoverability, so the registry should remain shallow and explicit.
-- Dependencies: none
-- Suggested validation: targeted GUI pack tests plus `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Product clarification required: No
-- Execution notes:
-  - Date: 2026-03-16
-  - Commit: `0671695b` `refactor(gui-test): split scenario packs`
-  - Assumption: the `contract-smoke` pack name, scenario order, and scenario bodies should remain stable while only the scenario-builder ownership moves into fixture-oriented modules.
-  - Validation: ran `cargo test gui_test::packs -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-
-### 7. [x] Break the native-shell chrome-layout regression hub into ownership-aligned test modules
-
-- Classification: Refactor / cleanup
-- Confidence: High
-- ROI: Medium
-- Effort: M
-- Why it matters: the remaining over-budget native-shell layout regression suite mixes unrelated contract families, which makes targeted maintenance slower and obscures what broke when layout contracts move.
-- Evidence:
-  - [vendor/radiant/src/gui/native_shell/state/tests/chrome_layout.rs](/X:/sempal/vendor/radiant/src/gui/native_shell/state/tests/chrome_layout.rs) is 404 lines.
-  - The file mixes browser action-model signatures, waveform toolbar flags, sidebar band layout, scrollbar-lane geometry, seam borders, chrome motion overlay behavior, and toolbar hit-cell invariants.
-  - The production layout code around [vendor/radiant/src/gui/native_shell/layout.rs](/X:/sempal/vendor/radiant/src/gui/native_shell/layout.rs) and surrounding state helpers is already decomposed enough that the regression suite is now one of the larger ownership hubs.
-- Recommended change: split the layout regression hub by behavior family such as sidebar bands, waveform toolbar contracts, chrome seams, and motion overlays, while keeping the current assertions and fixtures intact.
-- Expected impact: layout regressions become easier to triage and modify, and test ownership better matches the production surfaces they protect.
-- Risks / tradeoffs: test-file splits can add navigation overhead if taken too far, so the new modules should follow real contract families rather than tiny per-test fragments.
-- Dependencies: none
-- Suggested validation: targeted native-shell layout tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Product clarification required: No
-- Execution notes:
-  - Date: 2026-03-16
-  - Commit: `vendor/radiant 276a0d4f` `refactor(tests): split chrome layout suites`
-  - Assumption: the existing layout assertions should stay grouped by real contract families rather than being reduced to one-test-per-file fragments.
-  - Validation: ran `cargo test --manifest-path X:\\sempal\\vendor\\radiant\\Cargo.toml chrome_layout -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-
-### 8. [x] Split `tools/analysis-admin/src/bin/sempal-hdbscan.rs` into argument parsing, embedding load/validation, clustering policy, and writeback helpers
-
-- Classification: Refactor / cleanup
-- Confidence: Medium
-- ROI: Medium
-- Effort: M
-- Why it matters: the developer clustering CLI is one of the larger support-tool files and still mixes parsing, DB I/O, clustering setup, noise-policy enforcement, and writeback in one executable module.
-- Evidence:
-  - [tools/analysis-admin/src/bin/sempal-hdbscan.rs](/X:/sempal/tools/analysis-admin/src/bin/sempal-hdbscan.rs) is 399 lines.
-  - The file contains `parse_args(...)`, `load_embeddings(...)`, clustering hyper-parameter setup, label summarization, noise-policy handling, and `write_clusters(...)` in one module.
-  - The local tests focus on argument parsing and noise-policy behavior, leaving the file’s ownership boundaries broader than similar split support code elsewhere in `tools/`.
-- Recommended change: preserve CLI behavior but separate parse/validate, embedding load, clustering summarization, and writeback concerns into smaller helpers or internal modules.
-- Expected impact: maintenance of analysis-admin tooling gets easier and future clustering-policy changes become less error-prone.
-- Risks / tradeoffs: this is support-tooling work, so ROI is lower than the main runtime/controller items above.
-- Dependencies: none
-- Suggested validation: targeted `analysis-admin` tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-- Product clarification required: No
-- Execution notes:
-  - Date: 2026-03-16
-  - Commit: `7ff18e56` `refactor(tools): split hdbscan helper`
-  - Assumption: the support CLI should preserve its current flags and output while only the internal ownership boundaries move into parse, embedding, clustering, and writeback helpers.
-  - Validation: ran `cargo test -p sempal-analysis-admin --bin sempal-hdbscan -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
-
-## Approved Conservative Follow-Ups (Completed)
-
-### 9. [x] Keep the centralized `UiAction` contract but add explicit internal action-family structure
-
-- Classification: Refactor / cleanup
-- Confidence: High
-- ROI: Medium
-- Effort: S
-- Why it matters: the single `UiAction` enum is still the right compatibility surface, but it benefits from explicit family grouping so future growth does not turn the file back into undifferentiated sprawl.
-- Evidence:
-  - [vendor/radiant/src/app/actions/mod.rs](/X:/sempal/vendor/radiant/src/app/actions/mod.rs) remains the one host/runtime action contract.
-  - The file spans browser, transport, folder, prompt, waveform, options, history, and update actions.
-- Recommended change: keep the enum centralized, add explicit sectioning, and add a test-only family taxonomy to make internal grouping and regression coverage more explicit without changing the bridge contract.
-- Expected impact: better future-proofing for the action surface with no serialization or host-callsite churn.
-- Risks / tradeoffs: the family taxonomy is intentionally test-only so release builds do not carry unused grouping helpers.
-- Dependencies: none
-- Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml app::actions -- --test-threads=1`
-- Product clarification required: No
-- Execution notes:
-  - Date: 2026-03-16
-  - Commits: `vendor/radiant 62a05331` `refactor(actions): add ui action families`; `vendor/radiant d54dccd7` `refactor(actions): scope family helpers to tests`
-  - Assumption: the safest long-term shape keeps one top-level `UiAction` enum and restricts family grouping to internal documentation/tests.
-  - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml app::actions -- --test-threads=1`.
-
-### 10. [x] Keep native-shell layout unified but extract pure geometry and contract seams
+### 8. [ ] Split `vendor/radiant/src/gui/native_shell/state/options_panel.rs` by geometry, action definitions, rendering, and style helpers
 
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: Medium
 - Effort: M
-- Why it matters: `layout.rs` was broad but still cohesive, so the safest improvement was to pull out pure helper seams without fragmenting the geometry model itself.
+- Why it matters: the native-shell options panel is a distinct UI surface, but one file still mixes geometry, hit-testing, action definitions, text formatting, and style-state coloring.
 - Evidence:
-  - The former [vendor/radiant/src/gui/native_shell/layout.rs](/X:/sempal/vendor/radiant/src/gui/native_shell/layout/mod.rs) mixed shell geometry build flow with contract snapshots, compatibility column math, and retained-tree assembly.
-- Recommended change: preserve `ShellLayout` as the main geometry surface while extracting contract snapshots, compatibility-geometry helpers, and retained-tree construction into focused sibling helpers.
-- Expected impact: the main layout pipeline stays easy to reason about while small pure helpers now have clearer ownership and lower edit risk.
-- Risks / tradeoffs: the split deliberately stops short of deeper layout fragmentation to preserve cohesion.
+  - `vendor/radiant/src/gui/native_shell/state/options_panel.rs:12`-`46` computes status-button and right-text geometry.
+  - `vendor/radiant/src/gui/native_shell/state/options_panel.rs:48`-`137` builds panel layout and point/action hit-testing.
+  - `vendor/radiant/src/gui/native_shell/state/options_panel.rs:139`-`233` renders the button and panel surfaces.
+  - `vendor/radiant/src/gui/native_shell/state/options_panel.rs:235`-`356` defines button/action catalogs, display text, and hover/flash style helpers.
+  - Existing coverage in `vendor/radiant/src/gui/native_shell/state/tests/overlay_controls.rs` exercises some behavior, but the production ownership boundaries are still broad.
+- Recommended change: preserve the current options-panel UI contract, but split geometry/hit-test helpers, button/action definitions, and rendering/style helpers into focused siblings.
+- Expected impact: options-panel changes become easier to isolate and review, especially when adding or adjusting settings-specific UI.
+- Risks / tradeoffs: the split should avoid duplicating style math between status-button and panel rendering.
 - Dependencies: none
-- Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
+- Suggested validation: targeted native-shell overlay/options tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
-- Execution notes:
-  - Date: 2026-03-16
-  - Commit: `vendor/radiant 11b73dc4` `refactor(native-shell): split layout helpers`
-  - Assumption: shell geometry and hit testing still belong in one layout-facing module, while contract snapshots and compatibility helpers are safe extractions.
-  - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`.
 
-### 11. [x] Treat `vendor/radiant/src/gui/native_shell/state.rs` as a façade and move only nontrivial entrypoints outward
-
-- Classification: Refactor / cleanup
-- Confidence: High
-- ROI: Medium
-- Effort: S
-- Why it matters: inspection confirmed `state.rs` was already mostly a façade, so the correct move was to codify that role instead of forcing a larger split.
-- Evidence:
-  - [vendor/radiant/src/gui/native_shell/state.rs](/X:/sempal/vendor/radiant/src/gui/native_shell/state.rs) already delegates most behavior to `automation`, `browser_rows`, `cache`, `frame_build`, `hit_testing`, `overlays`, and related helpers.
-  - The remaining nontrivial root-only logic was the frame-entrypoint wrapper set.
-- Recommended change: document the façade role in `state.rs` and move the frame-entrypoint wrapper methods into a focused submodule while leaving the shared state surface centralized.
-- Expected impact: clearer ownership boundaries without scattering the top-level native-shell state entrypoint.
-- Risks / tradeoffs: this intentionally avoids deeper decomposition because the evidence did not justify it.
-- Dependencies: none
-- Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
-- Product clarification required: No
-- Execution notes:
-  - Date: 2026-03-16
-  - Commit: `vendor/radiant 11b73dc4` `refactor(native-shell): split layout helpers`
-  - Assumption: the right long-term boundary is a thin façade file plus behavior-heavy sibling submodules, not nested state-object churn.
-  - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`.
-
-### 12. [x] Keep waveform hotkey dispatch centralized but extract heavy controller flows
+### 9. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/profiling.rs` into feature-gated stats aggregation, reporting, and no-op adapter helpers
 
 - Classification: Refactor / cleanup
 - Confidence: High
 - ROI: Medium
 - Effort: M
-- Why it matters: the waveform hotkey module should stay readable as one dispatch hub, but the delete-and-navigate and normalization flows were large enough to deserve their own ownership seams.
+- Why it matters: runtime profiling is already isolated behind a feature flag, but the live implementation still combines many unrelated counters and a very large reporting/reset path in one file.
 - Evidence:
-  - [src/app/controller/ui/hotkeys_controller/waveform/mod.rs](/X:/sempal/src/app/controller/ui/hotkeys_controller/waveform/mod.rs) still owns the waveform hotkey dispatch match.
-  - The heavier controller behavior now lives in [src/app/controller/ui/hotkeys_controller/waveform/delete_navigation.rs](/X:/sempal/src/app/controller/ui/hotkeys_controller/waveform/delete_navigation.rs) and [src/app/controller/ui/hotkeys_controller/waveform/normalization.rs](/X:/sempal/src/app/controller/ui/hotkeys_controller/waveform/normalization.rs).
-- Recommended change: keep the dispatch table centralized and move the behavior-heavy flows into sibling helper modules with direct local tests.
-- Expected impact: the command hub remains discoverable while risky controller paths become easier to review and extend.
-- Risks / tradeoffs: the split deliberately leaves small toggle/dispatch helpers in the hub to avoid scattering command routing.
+  - `vendor/radiant/src/gui_runtime/native_vello/profiling.rs:49` defines `NativeVelloProfiler` with redraw, rebuild, pull, overlay, and interaction-latency counters in one struct.
+  - `vendor/radiant/src/gui_runtime/native_vello/profiling.rs:100`-`197` exposes many small counter mutators, while `:199`-`317` concentrates the full reporting, averaging, rate computation, and reset cycle inside `record_redraw(...)`.
+  - The file also duplicates the public profiler surface in the non-`gui-performance` no-op implementation at `:356`-`406`.
+  - A targeted search found no focused local tests for the reporting or reset behavior.
+- Recommended change: keep the runtime-facing profiler API stable, but separate the feature-gated stats bucket types, reporting/formatting logic, and no-op shim into smaller helpers with direct tests where practical.
+- Expected impact: runtime profiling becomes easier to evolve without accidental drift between the real and no-op implementations.
+- Risks / tradeoffs: the profiler is diagnostic-only, so ROI is lower than the controller/native-shell items above; the split should avoid adding overhead in the hot path.
 - Dependencies: none
-- Suggested validation: `cargo test hotkeys_controller::waveform -- --test-threads=1`
+- Suggested validation: targeted native-Vello runtime tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
-- Execution notes:
-  - Date: 2026-03-16
-  - Commit: `0bbbd007` `refactor(hotkeys): split waveform heavy flows`
-  - Assumption: waveform hotkey dispatch is still intentionally centralized; only the complex controller flows should move out.
-  - Validation: ran `cargo test hotkeys_controller::waveform -- --test-threads=1`.
 
-## Remaining Ambiguity
+## Open Questions / Missing Definitions
 
-- No additional clarification blockers remain from this audit pass after the conservative follow-ups above.
+### 1. Should `vendor/radiant/src/app/actions/mod.rs` remain one intentionally centralized compatibility surface?
+
+- Evidence:
+  - The file is still 485 lines and remains the one `UiAction` catalog shared across runtime/native-shell boundaries.
+  - Recent work already added internal family grouping without changing the top-level contract.
+- Why this matters: future cleanup passes could mistake file size for accidental sprawl and destabilize a compatibility-sensitive surface.
+- Affected files/modules: `vendor/radiant/src/app/actions/mod.rs`, native runtime action routing, native-shell action emission.
+- Risk if guessed incorrectly: splitting the top-level enum prematurely could introduce unnecessary contract churn across runtime/native-shell bridges.
+- Most conservative provisional assumption: keep one top-level `UiAction` surface unless a concrete bridge-contract mismatch appears.
+
+### 2. Is `vendor/radiant/src/gui/layout_core/engine/context.rs` oversized but still intentionally cohesive?
+
+- Evidence:
+  - `vendor/radiant/src/gui/layout_core/engine/context.rs` is 398 lines and mixes measurement caches, virtualization caches, diagnostics, and debug primitive recording.
+  - Surrounding tests in `vendor/radiant/src/gui/layout_core/engine/tests.rs`, `stress_tests.rs`, and `virtualization_tests.rs` already exercise diagnostics and virtualization behavior through the engine entrypoints.
+- Why this matters: further splitting could help readability, but it could also fracture a central engine evaluation context that is intentionally shared by measure/layout/scroll passes.
+- Affected files/modules: `vendor/radiant/src/gui/layout_core/engine/context.rs`, `layout.rs`, `measure.rs`, `layout/scroll*.rs`.
+- Risk if guessed incorrectly: over-splitting the context could add indirection without improving correctness or testability.
+- Most conservative provisional assumption: treat `LayoutContext` as acceptable until a clearer ownership or testability problem emerges.
+
+### 3. Should `vendor/radiant/src/gui_runtime/native_vello/text_bpm.rs` remain a shared text-entry hub for browser search and waveform BPM editing?
+
+- Evidence:
+  - `vendor/radiant/src/gui_runtime/native_vello/text_bpm.rs` mixes generic text-input target syncing with waveform-BPM-specific sanitization and browser-search pointer routing.
+  - Surrounding runtime code already splits some related responsibilities into `text_runtime.rs`, `runtime_events/pointer.rs`, and `runtime_input/cursor.rs`.
+- Why this matters: a future split could either clarify ownership or unnecessarily separate one intentionally shared single-line text-editor path.
+- Affected files/modules: `vendor/radiant/src/gui_runtime/native_vello/text_bpm.rs`, `text_runtime.rs`, `runtime_events/pointer.rs`.
+- Risk if guessed incorrectly: an unnecessary split could fragment one editor-state contract across multiple partially overlapping modules.
+- Most conservative provisional assumption: keep one shared text-entry hub unless the browser-search and waveform-BPM paths start diverging in behavior rather than just in targets.
+
+### 4. Is `src/selection/range.rs` large but still appropriately domain-cohesive?
+
+- Evidence:
+  - `src/selection/range.rs` is 397 lines and mixes normalized range geometry, fade parameter mutation, shift logic, and fade/gain evaluation.
+  - The domain already has focused surrounding coverage in `src/selection/tests.rs`, and the types are widely reused across controller, waveform render, native bridge, and playback code.
+- Why this matters: size alone suggests a split, but the file may still be the correct home for one dense but cohesive waveform-selection math surface.
+- Affected files/modules: `src/selection/range.rs`, `src/selection/tests.rs`, waveform render and controller selection code.
+- Risk if guessed incorrectly: splitting the core selection math too early could scatter one stable domain concept across multiple tiny helpers with little practical gain.
+- Most conservative provisional assumption: keep `SelectionRange` and its core fade/gain math together unless a stronger ownership conflict appears.
 
 ## Rejected Ideas
 
-### 1. Promote desktop AIV work further into normal CI
+### 1. Promote desktop AIV further into normal CI
 
-- Why it was considered: GUI docs and recent work emphasize semantic and desktop automation.
-- Why it was rejected: [docs/gui_test_platform.md](/X:/sempal/docs/gui_test_platform.md) still explicitly says desktop AIV is local-only and not stable enough for CI promotion.
-- What evidence was missing: repo evidence that foreground/focus instability is resolved well enough for normal CI promotion.
+- Why it was considered: the repo continues to invest in semantic and desktop GUI validation.
+- Why it was rejected: `docs/gui_test_platform.md` still explicitly says desktop AIV remains local-only and is not ready for CI promotion.
+- What evidence was missing: live evidence that foreground/focus instability is resolved well enough for normal CI use.
 
-### 2. Add another trash-controller backlog item
+### 2. Reopen a broad native-shell layout split immediately
 
-- Why it was considered: destructive flows are high-risk and had been a recurring audit target.
-- Why it was rejected: the live tree now already contains direct trash controller coverage in [src/app/controller/tests/trash.rs](/X:/sempal/src/app/controller/tests/trash.rs) and the controller itself has already been split into focused submodules under [src/app/controller/library/trash](/X:/sempal/src/app/controller/library/trash).
-- What evidence was missing: a current live gap beyond the already-covered rollback and destructive-flow branches.
+- Why it was considered: some native-shell files remain near or above the preferred size target.
+- Why it was rejected: the recent layout/state cleanup already extracted several helper seams, and the remaining root surfaces still look intentionally cohesive.
+- What evidence was missing: a concrete ownership conflict beyond size pressure alone.
 
-### 3. Split `vendor/radiant/src/app/actions.rs` immediately because it is over 400 lines
+### 3. Add another trash-controller item to this backlog
 
-- Why it was considered: the file is over the preferred size target.
-- Why it was rejected: current evidence still points to intentional compatibility-surface centralization rather than accidental mixed ownership.
-- What evidence was missing: a concrete mismatch between the current single-enum shape and the documented runtime/native-shell bridge contract.
+- Why it was considered: destructive flows are high-risk and were recurring audit targets in earlier passes.
+- Why it was rejected: the live tree already contains direct trash controller coverage in `src/app/controller/tests/trash.rs` and split controller helpers under `src/app/controller/library/trash/`.
+- What evidence was missing: a current live destructive-flow gap that is not already covered by the recent work.
