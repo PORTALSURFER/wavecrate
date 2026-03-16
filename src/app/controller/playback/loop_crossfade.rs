@@ -1,10 +1,13 @@
 use super::*;
-use crate::app::controller::jobs::UndoFileJob;
-use crate::app::controller::library::wav_io::{file_metadata, read_samples_for_normalization};
-use crate::app::controller::undo;
-use crate::app::state::{LoopCrossfadePrompt, LoopCrossfadeSettings, LoopCrossfadeUnit};
-use hound::SampleFormat;
+use crate::app::state::{LoopCrossfadePrompt, LoopCrossfadeSettings};
 use std::path::{Path, PathBuf};
+
+mod audio;
+mod file_output;
+mod undo_ops;
+
+#[cfg(test)]
+mod tests;
 
 impl AppController {
     /// Open the loop crossfade prompt for a visible browser row.
@@ -54,7 +57,7 @@ impl AppController {
                     looped: was_looping,
                     start_override,
                 }));
-            // Suppress the default autoplay to avoid double-trigger or reset to start
+            // Suppress the default autoplay to avoid double-trigger or reset to start.
             self.selection_state.suppress_autoplay_once = true;
         }
 
@@ -75,25 +78,20 @@ impl AppController {
         absolute_path: &Path,
         settings: &LoopCrossfadeSettings,
     ) -> Result<PathBuf, String> {
-        let (mut samples, spec) = read_samples_for_normalization(absolute_path)?;
-        let (channels, total_frames) = loop_crossfade_layout(&samples, spec.channels)?;
-        let fade_frames = loop_crossfade_frames(settings, spec.sample_rate.max(1), total_frames)?;
-        apply_loop_crossfade(&mut samples, channels, total_frames, fade_frames)?;
-        let suffix = loop_crossfade_suffix(settings);
-        let new_relative = next_loop_crossfade_relative_path(relative_path, &source.root, &suffix);
-        let new_absolute = source.root.join(&new_relative);
+        let rendered = audio::render_loop_crossfade(absolute_path, settings)?;
         let tag = self.sample_tag_for(source, relative_path)?;
-        write_loop_crossfade_wav(&new_absolute, &samples, loop_crossfade_spec(&spec))?;
-        register_loop_crossfade_entry(self, source, &new_relative, &new_absolute, tag)?;
-        maybe_capture_loop_crossfade_undo(self, source, &new_relative, &new_absolute, tag);
+        let output = file_output::write_loop_crossfade_copy(&source.root, relative_path, &rendered)?;
+        file_output::register_loop_crossfade_entry(self, source, &output, tag)?;
+        undo_ops::maybe_capture_loop_crossfade_undo(self, source, &output, tag);
         self.set_status(
-            format!("Created loop crossfade {}", new_relative.display()),
+            format!("Created loop crossfade {}", output.relative_path.display()),
             StatusTone::Info,
         );
-        Ok(new_relative)
+        Ok(output.relative_path)
     }
 }
 
+/// Resolve the sample source referenced by a loop crossfade prompt or undo entry.
 fn loop_crossfade_source(
     controller: &AppController,
     source_id: &SourceId,
@@ -102,401 +100,7 @@ fn loop_crossfade_source(
         .library
         .sources
         .iter()
-        .find(|s| &s.id == source_id)
+        .find(|source| &source.id == source_id)
         .cloned()
         .ok_or_else(|| "Source not available".to_string())
-}
-
-fn loop_crossfade_frames(
-    settings: &LoopCrossfadeSettings,
-    sample_rate: u32,
-    total_frames: usize,
-) -> Result<usize, String> {
-    let frames = match settings.unit {
-        LoopCrossfadeUnit::Milliseconds => {
-            let ms = settings.depth_ms.max(1) as f32;
-            ((sample_rate as f32 * ms / 1000.0).round() as usize).max(1)
-        }
-        LoopCrossfadeUnit::Samples => settings.depth_samples.max(1) as usize,
-    };
-    let max_frames = total_frames / 2;
-    if max_frames == 0 {
-        return Err("Sample is too short for a loop crossfade".into());
-    }
-    Ok(frames.min(max_frames))
-}
-
-fn loop_crossfade_layout(samples: &[f32], channels: u16) -> Result<(usize, usize), String> {
-    if samples.is_empty() {
-        return Err("No audio data to crossfade".into());
-    }
-    let channels = channels.max(1) as usize;
-    let total_frames = samples.len() / channels;
-    if total_frames < 2 {
-        return Err("Sample is too short to crossfade".into());
-    }
-    Ok((channels, total_frames))
-}
-
-fn apply_loop_crossfade(
-    samples: &mut [f32],
-    channels: usize,
-    total_frames: usize,
-    fade_frames: usize,
-) -> Result<(), String> {
-    let fade_frames = fade_frames.min(total_frames / 2);
-    if fade_frames == 0 {
-        return Err("Crossfade depth is too short for this sample".into());
-    }
-    let channels = channels.max(1);
-    let cut_frame = find_crossfade_cut_frame(samples, channels, total_frames, fade_frames);
-    let mut output = vec![0.0; samples.len()];
-    for frame in 0..total_frames {
-        let src_frame = (cut_frame + frame) % total_frames;
-        for ch in 0..channels {
-            let out_idx = frame * channels + ch;
-            let src_idx = src_frame * channels + ch;
-            output[out_idx] = samples[src_idx];
-        }
-    }
-    let denom = (fade_frames.saturating_sub(1)).max(1) as f32;
-    let body_frames = total_frames.saturating_sub(fade_frames);
-    let mut blended = vec![0.0; samples.len()];
-    for frame in 0..body_frames {
-        for ch in 0..channels {
-            let out_idx = frame * channels + ch;
-            let src_idx = (frame + fade_frames) * channels + ch;
-            blended[out_idx] = output[src_idx];
-        }
-    }
-    for frame in 0..fade_frames {
-        let progress = if fade_frames == 1 {
-            0.5
-        } else {
-            frame as f32 / denom
-        };
-        let (from_gain, to_gain) = equal_power_gains(progress);
-        for ch in 0..channels {
-            let head_idx = frame * channels + ch;
-            let tail_idx = (total_frames - fade_frames + frame) * channels + ch;
-            let out_idx = (body_frames + frame) * channels + ch;
-            blended[out_idx] = output[tail_idx] * from_gain + output[head_idx] * to_gain;
-        }
-    }
-    samples.copy_from_slice(&blended);
-    Ok(())
-}
-
-fn equal_power_gains(progress: f32) -> (f32, f32) {
-    let t = progress.clamp(0.0, 1.0);
-    let angle = t * std::f32::consts::FRAC_PI_2;
-    (angle.cos(), angle.sin())
-}
-
-fn find_crossfade_cut_frame(
-    samples: &[f32],
-    channels: usize,
-    total_frames: usize,
-    fade_frames: usize,
-) -> usize {
-    let nominal = total_frames.saturating_sub(fade_frames);
-    let search_window = fade_frames.min(1024).min(nominal);
-    let min_cut = nominal.saturating_sub(search_window);
-    let max_cut = nominal.max(1);
-    let mut best_frame = nominal.max(1);
-    let mut best_score = f32::INFINITY;
-    for frame in min_cut.max(1)..=max_cut {
-        let prev = frame - 1;
-        let mut score = 0.0;
-        for ch in 0..channels {
-            let a = samples[prev * channels + ch];
-            let b = samples[frame * channels + ch];
-            score += (b - a).abs();
-        }
-        if score < best_score {
-            best_score = score;
-            best_frame = frame;
-        }
-    }
-    best_frame
-}
-
-fn loop_crossfade_suffix(settings: &LoopCrossfadeSettings) -> String {
-    match settings.unit {
-        LoopCrossfadeUnit::Milliseconds => format!("fade{}ms", settings.depth_ms.max(1)),
-        LoopCrossfadeUnit::Samples => format!("fade{}samp", settings.depth_samples.max(1)),
-    }
-}
-
-fn loop_crossfade_spec(spec: &hound::WavSpec) -> hound::WavSpec {
-    hound::WavSpec {
-        channels: spec.channels.max(1),
-        sample_rate: spec.sample_rate.max(1),
-        bits_per_sample: 32,
-        sample_format: SampleFormat::Float,
-    }
-}
-
-fn next_loop_crossfade_relative_path(relative_path: &Path, root: &Path, suffix: &str) -> PathBuf {
-    let parent = relative_path.parent().unwrap_or_else(|| Path::new(""));
-    let stem = relative_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .filter(|s| !s.is_empty())
-        .unwrap_or("sample");
-    let ext = relative_path.extension().and_then(|s| s.to_str());
-    let mut counter = 0;
-    loop {
-        let name = if counter == 0 {
-            match ext {
-                Some(ext) => format!("{stem}_{suffix}.{ext}"),
-                None => format!("{stem}_{suffix}"),
-            }
-        } else {
-            match ext {
-                Some(ext) => format!("{stem}_{suffix}_{counter}.{ext}"),
-                None => format!("{stem}_{suffix}_{counter}"),
-            }
-        };
-        let candidate = parent.join(name);
-        if !root.join(&candidate).exists() {
-            return candidate;
-        }
-        counter += 1;
-    }
-}
-
-fn write_loop_crossfade_wav(
-    path: &Path,
-    samples: &[f32],
-    spec: hound::WavSpec,
-) -> Result<(), String> {
-    let mut writer = hound::WavWriter::create(path, spec)
-        .map_err(|err| format!("Failed to write wav: {err}"))?;
-    for sample in samples {
-        writer
-            .write_sample(*sample)
-            .map_err(|err| format!("Failed to write sample: {err}"))?;
-    }
-    writer
-        .finalize()
-        .map_err(|err| format!("Failed to finalize wav: {err}"))
-}
-
-fn register_loop_crossfade_entry(
-    controller: &mut AppController,
-    source: &SampleSource,
-    relative_path: &Path,
-    absolute_path: &Path,
-    tag: crate::sample_sources::Rating,
-) -> Result<(u64, i64), String> {
-    let (file_size, modified_ns) = file_metadata(absolute_path)?;
-    let db = controller
-        .database_for(source)
-        .map_err(|err| format!("Database unavailable: {err}"))?;
-    db.upsert_file(relative_path, file_size, modified_ns)
-        .map_err(|err| format!("Failed to sync database entry: {err}"))?;
-    db.set_tag(relative_path, tag)
-        .map_err(|err| format!("Failed to sync tag: {err}"))?;
-    controller.insert_cached_entry(
-        source,
-        WavEntry {
-            relative_path: relative_path.to_path_buf(),
-            file_size,
-            modified_ns,
-            content_hash: None,
-            tag,
-            looped: false,
-            locked: false,
-            missing: false,
-            last_played_at: None,
-        },
-    );
-    controller.enqueue_similarity_for_new_sample(source, relative_path, file_size, modified_ns);
-    Ok((file_size, modified_ns))
-}
-
-fn maybe_capture_loop_crossfade_undo(
-    controller: &mut AppController,
-    source: &SampleSource,
-    relative_path: &Path,
-    absolute_path: &Path,
-    tag: crate::sample_sources::Rating,
-) {
-    let Ok(backup) = undo::OverwriteBackup::capture_before(absolute_path) else {
-        return;
-    };
-    if backup.capture_after(absolute_path).is_ok() {
-        controller.push_undo_entry(loop_crossfade_undo_entry(
-            format!("Loop crossfaded {}", relative_path.display()),
-            source.id.clone(),
-            relative_path.to_path_buf(),
-            absolute_path.to_path_buf(),
-            tag,
-            backup,
-        ));
-    }
-}
-
-fn loop_crossfade_undo_entry(
-    label: String,
-    source_id: SourceId,
-    relative_path: PathBuf,
-    absolute_path: PathBuf,
-    tag: crate::sample_sources::Rating,
-    backup: undo::OverwriteBackup,
-) -> undo::UndoEntry<AppController> {
-    let after = backup.after.clone();
-    let backup_dir = backup.dir.clone();
-    let undo_source_id = source_id.clone();
-    let redo_source_id = source_id;
-    let undo_relative = relative_path.clone();
-    let redo_relative = relative_path;
-    let undo_absolute = absolute_path.clone();
-    let redo_absolute = absolute_path;
-    undo::UndoEntry::<AppController>::new(
-        label,
-        move |controller: &mut AppController| {
-            let source = loop_crossfade_source(controller, &undo_source_id)?;
-            Ok(undo::UndoExecution::Deferred(UndoFileJob::RemoveSample {
-                source_id: undo_source_id.clone(),
-                source_root: source.root,
-                relative_path: undo_relative.clone(),
-                absolute_path: undo_absolute.clone(),
-            }))
-        },
-        move |controller: &mut AppController| {
-            let source = loop_crossfade_source(controller, &redo_source_id)?;
-            Ok(undo::UndoExecution::Deferred(UndoFileJob::RestoreSample {
-                source_id: redo_source_id.clone(),
-                source_root: source.root,
-                relative_path: redo_relative.clone(),
-                absolute_path: redo_absolute.clone(),
-                backup_path: after.clone(),
-                tag,
-            }))
-        },
-    )
-    .with_cleanup_dir(backup_dir)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{apply_loop_crossfade, find_crossfade_cut_frame, *};
-    use crate::app::controller::test_support;
-    use crate::app::controller::undo::{UndoOutcome, UndoStack};
-    use crate::sample_sources::Rating;
-    use std::mem;
-    use std::path::{Path, PathBuf};
-
-    fn prepare_loop_crossfade_controller(
-        relative_path: &str,
-        tag: Rating,
-    ) -> (AppController, SampleSource, PathBuf) {
-        let (mut controller, source) =
-            test_support::prepare_with_source_and_wav_entries(vec![test_support::sample_entry(
-                relative_path,
-                tag,
-            )]);
-        let absolute_path = source.root.join(relative_path);
-        test_support::write_test_wav(&absolute_path, &[0.0, 0.2, 0.4, 0.1, -0.2, -0.4, -0.1, 0.3]);
-        controller
-            .database_for(&source)
-            .expect("source db")
-            .set_tag(Path::new(relative_path), tag)
-            .expect("set tag");
-        controller.rebuild_browser_lists();
-        (controller, source, absolute_path)
-    }
-
-    #[test]
-    fn loop_crossfade_finds_low_delta_cut() {
-        let samples = vec![0.0, 1.0, 2.0, 2.1, 2.2, 10.0];
-        let cut = find_crossfade_cut_frame(&samples, 1, 6, 2);
-        assert_eq!(cut, 3);
-    }
-
-    #[test]
-    fn loop_crossfade_moves_cut_to_front() {
-        let mut samples = vec![0.0, 1.0, 2.0, 2.1, 2.2, 10.0];
-        apply_loop_crossfade(&mut samples, 1, 6, 2).unwrap();
-        let expected = [10.0, 0.0, 1.0, 2.0, 1.0, 2.2];
-        for (actual, expected) in samples.iter().zip(expected.iter()) {
-            assert!((actual - expected).abs() < 1.0e-6);
-        }
-    }
-
-    #[test]
-    fn request_loop_crossfade_prompt_for_browser_row_sets_prompt_context() {
-        let (mut controller, _source, _absolute_path) =
-            prepare_loop_crossfade_controller("clip.wav", Rating::NEUTRAL);
-
-        controller
-            .request_loop_crossfade_prompt_for_browser_row(0)
-            .expect("prompt should open");
-
-        let prompt = controller
-            .ui
-            .loop_crossfade_prompt
-            .as_ref()
-            .expect("loop crossfade prompt");
-        assert_eq!(prompt.relative_path, PathBuf::from("clip.wav"));
-        assert_eq!(prompt.settings, LoopCrossfadeSettings::default());
-
-        controller.clear_loop_crossfade_prompt();
-        assert!(controller.ui.loop_crossfade_prompt.is_none());
-    }
-
-    #[test]
-    fn apply_loop_crossfade_prompt_creates_suffixed_copy_preserves_tag_and_selects_result() {
-        let (mut controller, source, _absolute_path) =
-            prepare_loop_crossfade_controller("clip.wav", Rating::KEEP_1);
-        let colliding_output = source.root.join("clip_fade5ms.wav");
-        test_support::write_test_wav(&colliding_output, &[0.0, 0.0, 0.0, 0.0]);
-        controller.ui.loop_crossfade_prompt = Some(LoopCrossfadePrompt {
-            source_id: source.id.clone(),
-            relative_path: PathBuf::from("clip.wav"),
-            settings: LoopCrossfadeSettings::default(),
-        });
-
-        controller
-            .apply_loop_crossfade_prompt()
-            .expect("loop crossfade should apply");
-
-        let expected_relative = PathBuf::from("clip_fade5ms_1.wav");
-        let expected_absolute = source.root.join(&expected_relative);
-        assert!(expected_absolute.exists(), "expected created waveform copy");
-        assert!(controller.ui.loop_crossfade_prompt.is_none());
-        assert_eq!(
-            controller.sample_view.wav.selected_wav.as_deref(),
-            Some(expected_relative.as_path())
-        );
-        assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
-        assert_eq!(
-            controller
-                .sample_tag_for(&source, &expected_relative)
-                .expect("copied tag"),
-            Rating::KEEP_1
-        );
-        assert!(!controller.selection_state.suppress_autoplay_once);
-
-        let mut stack = mem::replace(&mut controller.history.undo_stack, UndoStack::new(32));
-        let undo_outcome = stack.undo(&mut controller).expect("undo should queue");
-        controller.history.undo_stack = stack;
-        match undo_outcome {
-            UndoOutcome::Deferred(deferred) => match deferred.job {
-                UndoFileJob::RemoveSample {
-                    ref relative_path,
-                    ref absolute_path,
-                    ..
-                } => {
-                    assert_eq!(relative_path, &expected_relative);
-                    assert_eq!(absolute_path, &expected_absolute);
-                }
-                other => panic!("unexpected undo job: {other:?}"),
-            },
-            UndoOutcome::Applied(label) => panic!("expected deferred undo, got applied {label}"),
-            UndoOutcome::Empty => panic!("expected deferred undo entry"),
-        }
-    }
 }
