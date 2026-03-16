@@ -1,20 +1,20 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-16
-Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution, and the user has also approved the conservative follow-ups for the four open questions.
+Status: Phase 2 complete. Ranked backlog items 1-8 and the approved conservative follow-ups for the four open questions were completed on 2026-03-16.
 
 ## Scope
 
 - This document records a fresh evidence-driven improvement audit for the live repository state on 2026-03-16.
 - Items are ranked in strict execution order by expected ROI, not by category.
-- Implementation is proceeding in ranked order for items 1-8.
-- The four open-question follow-ups are out-of-band scope added after Phase 1 confirmation and will be executed after item 8 unless an earlier item naturally overlaps the same file.
+- Implementation completed in ranked order for items 1-8.
+- The four open-question follow-ups were approved after Phase 1 and completed as a second execution block after item 8.
 
 ## Phase 2 Order Notes
 
 - The user explicitly confirmed implementation of items 1-8 on 2026-03-16.
 - After Phase 1, the user also approved the conservative recommendations for the open questions around `vendor/radiant/src/app/actions.rs`, `vendor/radiant/src/gui/native_shell/layout.rs`, `vendor/radiant/src/gui/native_shell/state.rs`, and `src/app/controller/ui/hotkeys_controller/waveform.rs`.
-- To preserve the ranked backlog order, those four follow-ups are treated as a second execution block after item 8 unless a ranked item safely overlaps the same file.
+- To preserve the ranked backlog order, those four follow-ups were executed as a second block after item 8.
 
 ## Repository Context
 
@@ -211,54 +211,102 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
-  - Commit: pending
+  - Commit: `7ff18e56` `refactor(tools): split hdbscan helper`
   - Assumption: the support CLI should preserve its current flags and output while only the internal ownership boundaries move into parse, embedding, clustering, and writeback helpers.
   - Validation: ran `cargo test -p sempal-analysis-admin --bin sempal-hdbscan -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-## Open Questions / Missing Definitions
+## Approved Conservative Follow-Ups (Completed)
 
-### 1. Should `vendor/radiant/src/app/actions.rs` remain one intentionally centralized compatibility surface?
+### 9. [x] Keep the centralized `UiAction` contract but add explicit internal action-family structure
 
+- Classification: Refactor / cleanup
+- Confidence: High
+- ROI: Medium
+- Effort: S
+- Why it matters: the single `UiAction` enum is still the right compatibility surface, but it benefits from explicit family grouping so future growth does not turn the file back into undifferentiated sprawl.
 - Evidence:
-  - [vendor/radiant/src/app/actions.rs](/X:/sempal/vendor/radiant/src/app/actions.rs) is 450 lines.
-  - The file is a single documented `UiAction` enum spanning browser, transport, folder, prompt, waveform, and options actions.
-  - It appears to be the shared runtime/native-shell compatibility contract rather than an accidental omnibus file.
-- Why this matters: splitting an intentional compatibility surface could reduce discoverability and destabilize one of the repo’s core bridge contracts.
-- Affected files/modules: [vendor/radiant/src/app/actions.rs](/X:/sempal/vendor/radiant/src/app/actions.rs), [src/app_core/actions/catalog/entries.rs](/X:/sempal/src/app_core/actions/catalog/entries.rs)
-- Risk if guessed incorrectly: an unnecessary split could make action evolution harder and blur the single source of truth for emitted UI intents.
-- Most conservative provisional assumption: keep `UiAction` centralized unless a concrete contradiction appears in the runtime/native-shell contract.
+  - [vendor/radiant/src/app/actions/mod.rs](/X:/sempal/vendor/radiant/src/app/actions/mod.rs) remains the one host/runtime action contract.
+  - The file spans browser, transport, folder, prompt, waveform, options, history, and update actions.
+- Recommended change: keep the enum centralized, add explicit sectioning, and add a test-only family taxonomy to make internal grouping and regression coverage more explicit without changing the bridge contract.
+- Expected impact: better future-proofing for the action surface with no serialization or host-callsite churn.
+- Risks / tradeoffs: the family taxonomy is intentionally test-only so release builds do not carry unused grouping helpers.
+- Dependencies: none
+- Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml app::actions -- --test-threads=1`
+- Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commits: `vendor/radiant 62a05331` `refactor(actions): add ui action families`; `vendor/radiant d54dccd7` `refactor(actions): scope family helpers to tests`
+  - Assumption: the safest long-term shape keeps one top-level `UiAction` enum and restricts family grouping to internal documentation/tests.
+  - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml app::actions -- --test-threads=1`.
 
-### 2. Is `vendor/radiant/src/gui/native_shell/layout.rs` oversized but still intentionally cohesive?
+### 10. [x] Keep native-shell layout unified but extract pure geometry and contract seams
 
+- Classification: Architecture improvement
+- Confidence: High
+- ROI: Medium
+- Effort: M
+- Why it matters: `layout.rs` was broad but still cohesive, so the safest improvement was to pull out pure helper seams without fragmenting the geometry model itself.
 - Evidence:
-  - [vendor/radiant/src/gui/native_shell/layout.rs](/X:/sempal/vendor/radiant/src/gui/native_shell/layout.rs) is 403 lines.
-  - The file owns retained shell layout geometry, hit testing, and layout-contract snapshots for the same conceptual surface.
-  - Current responsibilities are broad, but they are still tightly coupled to shell geometry construction.
-- Why this matters: it is a candidate for future cleanup, but the evidence does not yet clearly show a safe ownership split rather than legitimate cohesion.
-- Affected files/modules: [vendor/radiant/src/gui/native_shell/layout.rs](/X:/sempal/vendor/radiant/src/gui/native_shell/layout.rs)
-- Risk if guessed incorrectly: a premature split could create artificial boundaries in the shell geometry model and make layout reasoning harder.
-- Most conservative provisional assumption: defer backloging this until the file grows further or a specific mixed-responsibility pain point is documented.
+  - The former [vendor/radiant/src/gui/native_shell/layout.rs](/X:/sempal/vendor/radiant/src/gui/native_shell/layout/mod.rs) mixed shell geometry build flow with contract snapshots, compatibility column math, and retained-tree assembly.
+- Recommended change: preserve `ShellLayout` as the main geometry surface while extracting contract snapshots, compatibility-geometry helpers, and retained-tree construction into focused sibling helpers.
+- Expected impact: the main layout pipeline stays easy to reason about while small pure helpers now have clearer ownership and lower edit risk.
+- Risks / tradeoffs: the split deliberately stops short of deeper layout fragmentation to preserve cohesion.
+- Dependencies: none
+- Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
+- Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commit: `vendor/radiant 11b73dc4` `refactor(native-shell): split layout helpers`
+  - Assumption: shell geometry and hit testing still belong in one layout-facing module, while contract snapshots and compatibility helpers are safe extractions.
+  - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`.
 
-### 3. Does `vendor/radiant/src/gui/native_shell/state.rs` still need further decomposition, or is it now functioning as a thin façade?
+### 11. [x] Treat `vendor/radiant/src/gui/native_shell/state.rs` as a façade and move only nontrivial entrypoints outward
 
+- Classification: Refactor / cleanup
+- Confidence: High
+- ROI: Medium
+- Effort: S
+- Why it matters: inspection confirmed `state.rs` was already mostly a façade, so the correct move was to codify that role instead of forcing a larger split.
 - Evidence:
-  - [vendor/radiant/src/gui/native_shell/state.rs](/X:/sempal/vendor/radiant/src/gui/native_shell/state.rs) is 398 lines.
-  - The file imports many already-split submodules and appears to act as a façade over frame build, hit testing, toolbar helpers, overlays, automation, and cache state.
-- Why this matters: another split may or may not improve clarity; the file may already be at the intended orchestration boundary.
-- Affected files/modules: [vendor/radiant/src/gui/native_shell/state.rs](/X:/sempal/vendor/radiant/src/gui/native_shell/state.rs)
-- Risk if guessed incorrectly: unnecessary façade fragmentation could make cross-state navigation worse instead of better.
-- Most conservative provisional assumption: treat `state.rs` as acceptable until a concrete ownership collision or testability issue appears.
+  - [vendor/radiant/src/gui/native_shell/state.rs](/X:/sempal/vendor/radiant/src/gui/native_shell/state.rs) already delegates most behavior to `automation`, `browser_rows`, `cache`, `frame_build`, `hit_testing`, `overlays`, and related helpers.
+  - The remaining nontrivial root-only logic was the frame-entrypoint wrapper set.
+- Recommended change: document the façade role in `state.rs` and move the frame-entrypoint wrapper methods into a focused submodule while leaving the shared state surface centralized.
+- Expected impact: clearer ownership boundaries without scattering the top-level native-shell state entrypoint.
+- Risks / tradeoffs: this intentionally avoids deeper decomposition because the evidence did not justify it.
+- Dependencies: none
+- Suggested validation: `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
+- Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commit: `vendor/radiant 11b73dc4` `refactor(native-shell): split layout helpers`
+  - Assumption: the right long-term boundary is a thin façade file plus behavior-heavy sibling submodules, not nested state-object churn.
+  - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`.
 
-### 4. Should `src/app/controller/ui/hotkeys_controller/waveform.rs` stay as a single waveform command hub?
+### 12. [x] Keep waveform hotkey dispatch centralized but extract heavy controller flows
 
+- Classification: Refactor / cleanup
+- Confidence: High
+- ROI: Medium
+- Effort: M
+- Why it matters: the waveform hotkey module should stay readable as one dispatch hub, but the delete-and-navigate and normalization flows were large enough to deserve their own ownership seams.
 - Evidence:
-  - [src/app/controller/ui/hotkeys_controller/waveform.rs](/X:/sempal/src/app/controller/ui/hotkeys_controller/waveform.rs) is 377 lines.
-  - The file mixes hotkey dispatch, BPM/transient toggles, deletion/navigation logic, and selection normalization helpers.
-  - There is some local/direct coverage, but the file still spans multiple controller concerns.
-- Why this matters: it could be a future cleanup candidate, but current evidence is weaker than the ranked items above because some command-hub centralization may be intentional.
-- Affected files/modules: [src/app/controller/ui/hotkeys_controller/waveform.rs](/X:/sempal/src/app/controller/ui/hotkeys_controller/waveform.rs)
-- Risk if guessed incorrectly: splitting it prematurely could scatter hotkey flow ownership and make command routing harder to follow.
-- Most conservative provisional assumption: keep it centralized until there is stronger evidence of testability or ownership pain.
+  - [src/app/controller/ui/hotkeys_controller/waveform/mod.rs](/X:/sempal/src/app/controller/ui/hotkeys_controller/waveform/mod.rs) still owns the waveform hotkey dispatch match.
+  - The heavier controller behavior now lives in [src/app/controller/ui/hotkeys_controller/waveform/delete_navigation.rs](/X:/sempal/src/app/controller/ui/hotkeys_controller/waveform/delete_navigation.rs) and [src/app/controller/ui/hotkeys_controller/waveform/normalization.rs](/X:/sempal/src/app/controller/ui/hotkeys_controller/waveform/normalization.rs).
+- Recommended change: keep the dispatch table centralized and move the behavior-heavy flows into sibling helper modules with direct local tests.
+- Expected impact: the command hub remains discoverable while risky controller paths become easier to review and extend.
+- Risks / tradeoffs: the split deliberately leaves small toggle/dispatch helpers in the hub to avoid scattering command routing.
+- Dependencies: none
+- Suggested validation: `cargo test hotkeys_controller::waveform -- --test-threads=1`
+- Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commit: `0bbbd007` `refactor(hotkeys): split waveform heavy flows`
+  - Assumption: waveform hotkey dispatch is still intentionally centralized; only the complex controller flows should move out.
+  - Validation: ran `cargo test hotkeys_controller::waveform -- --test-threads=1`.
+
+## Remaining Ambiguity
+
+- No additional clarification blockers remain from this audit pass after the conservative follow-ups above.
 
 ## Rejected Ideas
 
