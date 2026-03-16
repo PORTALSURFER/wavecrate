@@ -1,43 +1,43 @@
 # Cleanup Hotspot Audit Snapshot
 
-- Generated (UTC): `2026-03-15T12:39:47Z`
+- Generated (UTC): `2026-03-16T08:16:54Z`
 - Branch: `next`
-- Commit: `20f83666`
-- Rust files scanned: 807
+- Commit: `911d6ec4`
+- Rust files scanned: 851
 - File-size budget limit: `400`
 
 ## Summary
 
-- Over file-size budget: 16
-- Function spans captured: 5406
+- Over file-size budget: 8
+- Function spans captured: 5489
 - Files with `dead_code` suppressions: 1
 - Files with `clippy::too_many_arguments` suppressions: 1
-- Likely large-file test-gap hotspots (heuristic): 83
+- Likely large-file test-gap hotspots (heuristic): 81
 
 ## Largest Rust files
 
 | Lines | File |
 | --- | --- |
-| 516 | `src/app/controller/ui/hotkeys/actions.rs` |
+| 502 | `src/app/controller/playback/loop_crossfade.rs` |
 | 462 | `src/analysis/frequency_domain/stft.rs` |
-| 456 | `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` |
-| 454 | `src/app/controller/playback/mod.rs` |
-| 439 | `src/app/state/browser.rs` |
 | 432 | `src/waveform/model.rs` |
-| 428 | `src/app/controller/ui/interaction_options.rs` |
 | 423 | `tools/analysis-admin/src/bin/sempal-hdbscan.rs` |
-| 422 | `src/app/controller/library/sources.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
-| 418 | `src/sample_sources/db/write.rs` |
-| 418 | `src/app/controller/library/analysis_jobs/pool/job_progress.rs` |
 | 413 | `src/sample_sources/scanner/scan/tests.rs` |
+| 409 | `src/app/controller/tests/browser_selection.rs` |
 | 409 | `src/app/controller/playback/tests.rs` |
-| 403 | `src/app/controller/playback/loop_crossfade.rs` |
-| 402 | `src/app/controller/library/browser_controller/actions.rs` |
 | 399 | `tests/unit/audio_output_tests.rs` |
 | 397 | `src/sqlite_ext.rs` |
 | 397 | `src/selection/range.rs` |
+| 397 | `src/gui_test/packs.rs` |
 | 397 | `src/app/controller/ui/hotkeys_controller/waveform.rs` |
+| 396 | `src/app/controller/library/trash.rs` |
+| 394 | `src/app/controller/state/runtime.rs` |
+| 394 | `src/app/controller/playback/transport/selection.rs` |
+| 394 | `src/app/controller/library/selection_edits/ops.rs` |
+| 393 | `src/issue_gateway/token_store/tests.rs` |
+| 388 | `src/wav_sanitize.rs` |
+| 387 | `src/audio/output/stream.rs` |
 
 ## Largest function spans (heuristic)
 
@@ -46,9 +46,7 @@
 | 285 | `run_folder_move_task` (`src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/worker/folder_move_task.rs:16`) |
 | 223 | `run_folder_sample_move_task` (`src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/worker.rs:62`) |
 | 219 | `settings_round_trip_preserves_fields` (`src/sample_sources/config_io/tests/save.rs:124`) |
-| 218 | `apply_native_ui_action_routes_grouped_dispatch_cases` (`src/app_core/controller/tests/dispatch.rs:31`) |
-| 212 | `project_map_model` (`src/app_core/native_shell/map_projection.rs:11`) |
-| 186 | `build_visible_rows` (`src/app/controller/library/wavs/browser_pipeline.rs:67`) |
+| 219 | `apply_native_ui_action_routes_grouped_dispatch_cases` (`src/app_core/controller/tests/dispatch.rs:31`) |
 | 179 | `handle_analysis_message` (`src/app/controller/library/background_jobs/analysis.rs:8`) |
 | 165 | `matches` (`src/app/controller/ui/hotkeys/types.rs:12`) |
 | 164 | `handle_sample_drop_to_drop_target` (`src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs:28`) |
@@ -63,27 +61,21 @@
 | 132 | `run_undo_file_job` (`src/app/controller/undo_jobs.rs:13`) |
 | 131 | `apply_configuration` (`src/app/controller/config.rs:14`) |
 | 130 | `build_symphonia_peaks` (`src/waveform/decode/symphonia_reader.rs:64`) |
+| 128 | `representative_action_for_kind` (`src/app_core/actions/catalog/entries.rs:39`) |
+| 128 | `select_wav_known_index_with_options` (`src/app/controller/library/wavs/selection_ops.rs:113`) |
 
 ## Over file-size budget
 
 | Lines | File |
 | --- | --- |
-| 516 | `src/app/controller/ui/hotkeys/actions.rs` |
+| 502 | `src/app/controller/playback/loop_crossfade.rs` |
 | 462 | `src/analysis/frequency_domain/stft.rs` |
-| 456 | `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` |
-| 454 | `src/app/controller/playback/mod.rs` |
-| 439 | `src/app/state/browser.rs` |
 | 432 | `src/waveform/model.rs` |
-| 428 | `src/app/controller/ui/interaction_options.rs` |
 | 423 | `tools/analysis-admin/src/bin/sempal-hdbscan.rs` |
-| 422 | `src/app/controller/library/sources.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
-| 418 | `src/sample_sources/db/write.rs` |
-| 418 | `src/app/controller/library/analysis_jobs/pool/job_progress.rs` |
 | 413 | `src/sample_sources/scanner/scan/tests.rs` |
+| 409 | `src/app/controller/tests/browser_selection.rs` |
 | 409 | `src/app/controller/playback/tests.rs` |
-| 403 | `src/app/controller/playback/loop_crossfade.rs` |
-| 402 | `src/app/controller/library/browser_controller/actions.rs` |
 
 ## dead_code suppression density
 
@@ -104,26 +96,26 @@ Skips dedicated test modules/paths (`tests/**`, `tests.rs`, `*_test.rs`).
 
 | Lines | File |
 | --- | --- |
-| 456 | `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
-| 418 | `src/sample_sources/db/write.rs` |
-| 402 | `src/app/controller/library/browser_controller/actions.rs` |
 | 397 | `src/selection/range.rs` |
-| 395 | `src/app/controller/library/source_folders/selection/ops.rs` |
-| 387 | `src/app/controller/library/wavs/browser_pipeline.rs` |
 | 386 | `tools/bench-cli/src/bench/gui/interactions.rs` |
-| 384 | `src/app/controller/library/wavs/waveform_rendering.rs` |
-| 367 | `src/sample_sources/db/read.rs` |
+| 373 | `src/app/controller/library/wavs/browser_actions/selection.rs` |
 | 367 | `src/app/controller/playback/audio_loader/stages.rs` |
-| 356 | `src/app/controller/library/wavs/browser_actions/selection.rs` |
 | 354 | `src/app/controller/playback/recording/waveform_loader/aggregation.rs` |
 | 351 | `src/app/controller/playback/audio_options/controller.rs` |
 | 348 | `src/app_core/native_bridge/metrics.rs` |
+| 348 | `src/app/controller/gui_fixtures.rs` |
 | 345 | `src/app_core/actions/catalog/kinds.rs` |
 | 343 | `src/external_drag/platform.rs` |
+| 339 | `src/gui_test/aiv/packs/cases/browser.rs` |
 | 339 | `src/app/controller/library/wavs/audio_loading.rs` |
 | 331 | `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs` |
 | 326 | `tools/bench-cli/src/bench/gui/rebuild_probe.rs` |
+| 323 | `src/app/controller/library/analysis_jobs/enqueue/invalidate.rs` |
+| 319 | `src/app/controller/library/analysis_jobs/db/artifacts.rs` |
+| 307 | `src/app/controller/library/analysis_jobs/enqueue/enqueue_samples.rs` |
+| 301 | `src/waveform/transients/peaks.rs` |
+| 301 | `src/app/controller/playback/waveform_action_tests.rs` |
 
 ## Suggested follow-up
 

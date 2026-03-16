@@ -1,9 +1,9 @@
-$ErrorActionPreference = 'Stop'
-
 param(
   [int]$Limit = 400,
   [string]$AllowlistPath = "docs/file_size_budget_allowlist.txt"
 )
+
+$ErrorActionPreference = 'Stop'
 
 function Write-Usage {
   Write-Host "Usage: scripts/prune_file_size_budget_allowlist.ps1 [-Limit <n>] [-AllowlistPath <path>]"

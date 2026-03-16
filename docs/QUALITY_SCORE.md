@@ -4,7 +4,7 @@ This document is a lightweight scorecard for key domains/layers in Sempal. The
 goal is to make quality gaps explicit so agents and humans can prioritize the
 next improvements without rediscovering context.
 
-Last reviewed: 2026-03-14
+Last reviewed: 2026-03-16
 
 ## Scoring rubric (0–5)
 
@@ -23,7 +23,7 @@ Last reviewed: 2026-03-14
 | Documentation hygiene | 4 | Knowledge lint exists; still some doc drift risk outside the checked scope. |
 | Agent-facing guardrails | 4 | Diff-aware docs, file-size, taste, and boundary guardrails are wired into local CI and currently passing on the active branch. |
 | Legacy boundary enforcement | 4 | `crate::app` coupling and `app_core` boundaries are enforced diff-aware in CI. |
-| Code size discipline | 3 | File size budget is enforced, the in-scope allowlist matches the current oversized `src/` and `tests/` debt, and `tmp/cleanup_audit_hotspots.md` tracks the broader hotspot set. |
+| Code size discipline | 3 | File size budget is enforced, the live allowlist was refreshed against the current tree on 2026-03-16, and `tmp/cleanup_audit_hotspots.md` tracks the broader hotspot set. |
 | Testing posture | 3 | Focused unit coverage improved in transport/browser actions, but some critical flows remain integration-heavy. |
 | Observability & diagnostics | 3 | Structured logging via `tracing` exists; log bundling helpers added; could improve targeted debug tooling. |
 | Performance guardrails | 3 | `scripts/run_perf_guard.sh` is part of local CI; warning drift (for example `wheel_latency`) still needs ongoing burn-down. |
@@ -31,7 +31,7 @@ Last reviewed: 2026-03-14
 
 ## Known gaps (actionable)
 
-- Reduce live file size allowlist debt: prioritize the remaining browser, updater, and large test hubs, and delete entries as files fall below 400 LOC.
+- Reduce live file size allowlist debt: prioritize the remaining `loop_crossfade`, large native-shell hubs, and oversized test files, and delete entries as files fall below 400 LOC.
 - Continue burning down `#[allow(dead_code)]` suppressions in controller/runtime hot paths after each refactor slice.
 - Add a scheduled doc review cadence: review this file monthly and update scores based on current reality.
 - Add one performance regression harness for a representative large dataset/view and run it in CI (even if it is a coarse threshold test).
