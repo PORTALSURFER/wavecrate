@@ -1,13 +1,13 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-16
-Status: Phase 2 in progress. Items are being executed in ranked order.
+Status: Phase 2 complete. All ranked items are implemented and recorded below.
 
 ## Scope
 
-- This document records an evidence-driven Phase 1 audit only.
-- No backlog items have been implemented yet in this refresh.
-- Recommendations below are ranked in strict execution order by expected ROI.
+- This document records the evidence-driven audit backlog and the completed Phase 2 execution record for the 2026-03-16 refresh.
+- Recommendations below are ranked in the execution order that was used for implementation.
+- Each completed item includes the execution date, assumptions, validation, and recorded commit hashes.
 
 ## Repository Context
 
@@ -44,6 +44,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
+  - Commit: `d1dd12c8` `docs(audit): refresh cleanup debt inputs`
   - Assumption: the parked cleanup plan should remain historical, but obviously obsolete path references should be annotated so it is not mistaken for a live file map.
   - Validation: reran `scripts/prune_file_size_budget_allowlist.ps1`, reran `scripts/audit_cleanup_hotspots.ps1`, and refreshed the parked cleanup-plan note plus the obsolete `shots.rs` entry.
 
@@ -66,6 +67,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
+  - Commit: `7159685b` `test(trash): cover rollback controller flow`
   - Assumption: existing trash controller tests already covered the happy-path move, cancel, auto-trash, and successful permanent-delete branches, so the highest-value missing slice was rollback after a failed move.
   - Validation: ran `cargo test trash -- --test-threads=1`.
 
@@ -87,6 +89,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
+  - Commit: `223d284f` `refactor(trash): split controller trash flow`
   - Assumption: the safest boundary is a tiny `trash.rs` façade plus focused `config`, `moves`, `deletion`, and `results` submodules, while the existing `AppController` API stays intact.
   - Validation: ran `cargo test trash -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
@@ -109,6 +112,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
+  - Commits: vendor `b9257424` `refactor(layout): split control layout helpers`; root `2f7f3611` `refactor(layout): record control helper split`
   - Assumption: the cleanest boundary is a façade plus `update_buttons`, `sidebar_buttons`, `browser_toolbar`, and `shared` helper modules rather than a more abstract generic layout API.
   - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml controls -- --test-threads=1`.
 
@@ -131,6 +135,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
+  - Commits: vendor `eb3b5913` `refactor(layout): split overlay text helpers`; root `8be9b5db` `refactor(layout): record overlay text split`
   - Assumption: prompt, progress, and drag overlays should own their text assembly independently while a small shared module continues to own only line-layout primitives.
   - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml overlay_controls -- --test-threads=1` and `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::layout_adapter::overlays::text::tests -- --test-threads=1`.
 
@@ -153,6 +158,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
+  - Commit: `44ccca62` `test(analysis): cover background progress handler`
   - Assumption: the highest-value direct coverage is the selected-source mismatch, zero-total clear, visible progress snapshot, enqueue follow-up dispatch, and duration-cache invalidation branches because those are the stateful controller edges in this handler.
   - Validation: ran `cargo test background_jobs::analysis -- --test-threads=1`.
 
@@ -175,6 +181,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
+  - Commits: vendor `b3ee977d` `refactor(tests): move native shell contracts into test tree`; root `069159e3` `refactor(tests): record native shell contract split`
   - Assumption: the existing `vendor/radiant/src/gui/native_shell/tests/` tree is the intended ownership-aligned home for these contract cases, so the safest change is to wire `mod.rs` to that tree instead of creating a second relocation layer.
   - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`.
 
@@ -196,6 +203,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
+  - Commits: vendor `4384da5c` `refactor(tests): split browser pointer families`; root `efbc07f3` `refactor(tests): record browser pointer split`
   - Assumption: the lowest-churn ownership split is browser rows, browser chrome, surface routes, and wheel/waveform helpers, all under one small `browser_pointer` module so the shared native-Vello harness stays in `tests.rs`.
   - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml browser_pointer -- --test-threads=1`.
 
@@ -217,6 +225,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
+  - Commits: vendor `a261a634` `refactor(tests): split waveform pointer families`; root `86f822c6` `refactor(tests): record waveform pointer split`
   - Assumption: the cleanest ownership split is selection creation, resize/shift gestures, clear semantics, and anchor helpers, while the unrelated browser-toolbar alt-click case should stay covered in `browser_pointer` instead of remaining duplicated here.
   - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml waveform_pointer -- --test-threads=1`.
 
