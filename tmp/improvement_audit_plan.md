@@ -96,11 +96,11 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
-  - Commit: pending
+  - Commit: `3a84f819` `refactor(analysis): split stft helpers`
   - Assumption: the safest split keeps the STFT entrypoint unchanged and only separates frame types, power-spectrum helpers, and spectral-stat derivation into sibling helpers under one `stft` module.
   - Validation: ran `cargo test frequency_domain:: -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 4. [ ] Separate cache fingerprints, state-diff planning, and signature hashing in `vendor/radiant/src/gui_runtime/native_vello/scene_cache.rs`
+### 4. [x] Separate cache fingerprints, state-diff planning, and signature hashing in `vendor/radiant/src/gui_runtime/native_vello/scene_cache.rs`
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -117,6 +117,11 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Dependencies: none
 - Suggested validation: targeted native-Vello cache/runtime tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commit: `vendor/radiant ed041837` `refactor(runtime): split scene cache helpers`
+  - Assumption: the safest split preserves the existing cache-key, signature, and retained-scene names at the `native_vello` module boundary while moving their implementations into focused `scene_cache/*` helpers.
+  - Validation: ran `cargo test --manifest-path X:\\sempal\\vendor\\radiant\\Cargo.toml gui_runtime::native_vello -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
 ### 5. [ ] Separate `src/waveform/model.rs` public waveform types from peak-span sampling and renderer façade helpers
 
