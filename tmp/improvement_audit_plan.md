@@ -1,7 +1,7 @@
 # Improvement Audit Plan
 
 - Generated: `2026-03-15`
-- Status: `Phase 2 in progress`
+- Status: `Phase 2 complete`
 - Branch: `next`
 - Audit baseline commit: `57b06720`
 - Canonical Windows validation commands:
@@ -233,7 +233,7 @@
   - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 8. Split `vendor/radiant/src/gui/native_shell/shots.rs` into fixture I/O, snapshot canonicalization, rasterization, and model builders
+### [x] 8. Split `vendor/radiant/src/gui/native_shell/shots.rs` into fixture I/O, snapshot canonicalization, rasterization, and model builders
 - Classification: Refactor / cleanup
 - Confidence: Medium
 - ROI: Low-Medium
@@ -253,6 +253,14 @@
   - `cargo test --manifest-path vendor/radiant/Cargo.toml waveform_selection_shot_matches_fixture -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-16`
+- Commit hash: `c4800627` (`vendor/radiant`)
+- Assumption used: visual-regression fixture bytes are part of the trusted contract, so the split must preserve exact snapshot and raster output while moving fixture I/O, canonicalization, rasterization, and model builders into separate helpers.
+- Validation outcome:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml startup_shot_matches_fixture -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_dense_shot_matches_fixture -- --test-threads=1`
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml waveform_selection_shot_matches_fixture -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ## Open Questions / Missing Definitions
 
