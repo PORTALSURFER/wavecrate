@@ -50,11 +50,11 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
-  - Commit: pending (to be filled after commit)
+  - Commit: `a9e48221` `docs(audit): refresh cleanup debt inputs`
   - Assumption: the parked cleanup plan should stay historical, but its maintenance note must still describe the live debt-tracking state accurately enough that future audits do not reuse obsolete path references.
   - Validation: reran `powershell -ExecutionPolicy Bypass -File scripts/prune_file_size_budget_allowlist.ps1`, reran `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 2. [ ] Add direct controller coverage for `handle_scan_finished(...)` success, backfill, cancel, and failure branches
+### 2. [x] Add direct controller coverage for `handle_scan_finished(...)` success, backfill, cancel, and failure branches
 
 - Classification: Test gap
 - Confidence: High
@@ -71,6 +71,11 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Dependencies: none, but this should precede any structural split of scan completion logic.
 - Suggested validation: targeted scan/background-job tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commit: pending
+  - Assumption: queue-wav-load side effects are part of the selected-source success path, so the most stable direct assertions are on cache invalidation, follow-up job enqueue, and similarity-prep transitions rather than the transient status text.
+  - Validation: ran `cargo test background_jobs::scan -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
 ### 3. [ ] Decompose `src/analysis/frequency_domain/stft.rs` into frame-loop orchestration, spectral-stat helpers, and power/SIMD helpers
 
