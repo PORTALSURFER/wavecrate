@@ -134,7 +134,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
   - Assumption: prompt, progress, and drag overlays should own their text assembly independently while a small shared module continues to own only line-layout primitives.
   - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml overlay_controls -- --test-threads=1` and `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::layout_adapter::overlays::text::tests -- --test-threads=1`.
 
-### 6. [ ] Add direct controller coverage for `handle_analysis_message(...)` progress, clear, enqueue, and cache-invalidation branches
+### 6. [x] Add direct controller coverage for `handle_analysis_message(...)` progress, clear, enqueue, and cache-invalidation branches
 
 - Classification: Test gap
 - Confidence: High
@@ -151,6 +151,10 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Dependencies: none
 - Suggested validation: targeted analysis background-job tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Assumption: the highest-value direct coverage is the selected-source mismatch, zero-total clear, visible progress snapshot, enqueue follow-up dispatch, and duration-cache invalidation branches because those are the stateful controller edges in this handler.
+  - Validation: ran `cargo test background_jobs::analysis -- --test-threads=1`.
 
 ### 7. [ ] Split the inline native-shell contract test hub out of `vendor/radiant/src/gui/native_shell/mod.rs`
 
