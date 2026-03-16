@@ -156,7 +156,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
   - Assumption: the highest-value direct coverage is the selected-source mismatch, zero-total clear, visible progress snapshot, enqueue follow-up dispatch, and duration-cache invalidation branches because those are the stateful controller edges in this handler.
   - Validation: ran `cargo test background_jobs::analysis -- --test-threads=1`.
 
-### 7. [ ] Split the inline native-shell contract test hub out of `vendor/radiant/src/gui/native_shell/mod.rs`
+### 7. [x] Split the inline native-shell contract test hub out of `vendor/radiant/src/gui/native_shell/mod.rs`
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -173,6 +173,10 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Dependencies: none
 - Suggested validation: `vendor/radiant` native-shell test suite and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Assumption: the existing `vendor/radiant/src/gui/native_shell/tests/` tree is the intended ownership-aligned home for these contract cases, so the safest change is to wire `mod.rs` to that tree instead of creating a second relocation layer.
+  - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`.
 
 ### 8. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/tests/browser_pointer.rs` by browser interaction family
 
