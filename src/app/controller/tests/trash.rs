@@ -166,3 +166,46 @@ fn over_trashing_sample_moves_it_to_configured_trash_folder() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, PathBuf::from("keep.wav"));
 }
+
+#[test]
+fn move_samples_to_configured_trash_rolls_back_missing_flag_when_move_fails() {
+    let temp = tempdir().unwrap();
+    let trash_root = temp.path().join("trash");
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.settings.trash_folder = Some(trash_root.clone());
+    controller.ui.trash_folder = Some(trash_root.clone());
+
+    let missing_file = source.root.join("missing.wav");
+    write_test_wav(&missing_file, &[0.1, -0.1]);
+
+    let db = controller.database_for(&source).unwrap();
+    db.upsert_file(Path::new("missing.wav"), 4, 1).unwrap();
+    db.set_tag(
+        Path::new("missing.wav"),
+        crate::sample_sources::Rating::TRASH_3,
+    )
+    .unwrap();
+
+    std::fs::remove_file(&missing_file).unwrap();
+
+    let moved = controller.move_samples_to_configured_trash(
+        vec![(
+            source.clone(),
+            sample_entry("missing.wav", crate::sample_sources::Rating::TRASH_3),
+        )],
+        None,
+    );
+
+    assert!(!moved);
+    assert!(!trash_root.join("missing.wav").exists());
+
+    let rows = controller.database_for(&source).unwrap().list_files().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].relative_path, PathBuf::from("missing.wav"));
+    assert!(
+        !rows[0].missing,
+        "controller rollback should clear the temporary missing flag after a failed move"
+    );
+    assert!(controller.ui.status.text.contains("with 1 error"));
+}

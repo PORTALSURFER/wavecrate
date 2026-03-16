@@ -47,7 +47,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
   - Assumption: the parked cleanup plan should remain historical, but obviously obsolete path references should be annotated so it is not mistaken for a live file map.
   - Validation: reran `scripts/prune_file_size_budget_allowlist.ps1`, reran `scripts/audit_cleanup_hotspots.ps1`, and refreshed the parked cleanup-plan note plus the obsolete `shots.rs` entry.
 
-### 2. [ ] Add direct controller coverage for trash auto-move, rollback, cancel, and permanent-delete flows
+### 2. [x] Add direct controller coverage for trash auto-move, rollback, cancel, and permanent-delete flows
 
 - Classification: Test gap
 - Confidence: High
@@ -64,6 +64,10 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Dependencies: none, but this should land before any structural split of `trash.rs`.
 - Suggested validation: targeted trash controller tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Assumption: existing trash controller tests already covered the happy-path move, cancel, auto-trash, and successful permanent-delete branches, so the highest-value missing slice was rollback after a failed move.
+  - Validation: ran `cargo test trash -- --test-threads=1`.
 
 ### 3. [ ] Split `src/app/controller/library/trash.rs` by trash-folder configuration, move orchestration, delete sweep, and result/focus refresh ownership
 
