@@ -192,7 +192,7 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
   - Assumption: the existing layout assertions should stay grouped by real contract families rather than being reduced to one-test-per-file fragments.
   - Validation: ran `cargo test --manifest-path X:\\sempal\\vendor\\radiant\\Cargo.toml chrome_layout -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 8. [ ] Split `tools/analysis-admin/src/bin/sempal-hdbscan.rs` into argument parsing, embedding load/validation, clustering policy, and writeback helpers
+### 8. [x] Split `tools/analysis-admin/src/bin/sempal-hdbscan.rs` into argument parsing, embedding load/validation, clustering policy, and writeback helpers
 
 - Classification: Refactor / cleanup
 - Confidence: Medium
@@ -209,6 +209,11 @@ Status: Phase 2 in progress. Ranked backlog items 1-8 are approved for execution
 - Dependencies: none
 - Suggested validation: targeted `analysis-admin` tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commit: pending
+  - Assumption: the support CLI should preserve its current flags and output while only the internal ownership boundaries move into parse, embedding, clustering, and writeback helpers.
+  - Validation: ran `cargo test -p sempal-analysis-admin --bin sempal-hdbscan -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
 ## Open Questions / Missing Definitions
 
