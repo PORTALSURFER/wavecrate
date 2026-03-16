@@ -44,6 +44,7 @@ Status: Phase 2 in progress. Ranked backlog item 1 is complete, items 2-9 are pe
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
+  - Commit: `8e871ead` `docs(cleanup): refresh debt tracking inputs`
   - Assumption: the parked cleanup backlog should remain a historical snapshot, but its maintenance notes must match the live debt-tracking inputs closely enough to avoid reintroducing stale path references in future audits.
   - Validation: reran `powershell -ExecutionPolicy Bypass -File scripts/prune_file_size_budget_allowlist.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`; full quick-gate validation will be rerun after the next code-bearing item.
 
@@ -66,10 +67,11 @@ Status: Phase 2 in progress. Ranked backlog item 1 is complete, items 2-9 are pe
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-16
+  - Commit: `6d42d8b8` `refactor(analysis): split progress message helpers`
   - Assumption: the handler's selected-source gating, similarity-prep routing, and progress-detail formatting are part of the existing controller contract and must remain behaviorally identical through the helper split.
   - Validation: `cargo test background_jobs::analysis -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 3. [ ] Split `vendor/radiant/src/gui/native_shell/state/waveform_segments/mod.rs` by static-segment routing, waveform overlays, and header/image helpers
+### 3. [x] Split `vendor/radiant/src/gui/native_shell/state/waveform_segments/mod.rs` by static-segment routing, waveform overlays, and header/image helpers
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -87,6 +89,11 @@ Status: Phase 2 in progress. Ranked backlog item 1 is complete, items 2-9 are pe
 - Dependencies: none
 - Suggested validation: targeted native-shell waveform/state tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Commit: `vendor/radiant` `acf54336` `refactor(waveform): split native shell segment helpers`
+  - Assumption: retained segment ownership and waveform overlay draw order are stable contracts, so the split must preserve the existing `waveform_segments` outward API and static bucket assignment behavior.
+  - Validation: `cargo test --manifest-path vendor/radiant/Cargo.toml waveform -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
 ### 4. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/text_renderer.rs` into font loading, layout caching, atom caching, and glyph-layout helpers
 
