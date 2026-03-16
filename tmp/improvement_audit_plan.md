@@ -178,7 +178,7 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
   - Assumption: the existing `vendor/radiant/src/gui/native_shell/tests/` tree is the intended ownership-aligned home for these contract cases, so the safest change is to wire `mod.rs` to that tree instead of creating a second relocation layer.
   - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`.
 
-### 8. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/tests/browser_pointer.rs` by browser interaction family
+### 8. [x] Split `vendor/radiant/src/gui_runtime/native_vello/tests/browser_pointer.rs` by browser interaction family
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -194,6 +194,10 @@ Status: Phase 2 in progress. Items are being executed in ranked order.
 - Dependencies: none
 - Suggested validation: targeted `browser_pointer`-related vendor tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Assumption: the lowest-churn ownership split is browser rows, browser chrome, surface routes, and wheel/waveform helpers, all under one small `browser_pointer` module so the shared native-Vello harness stays in `tests.rs`.
+  - Validation: ran `cargo test --manifest-path vendor/radiant/Cargo.toml browser_pointer -- --test-threads=1`.
 
 ### 9. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer.rs` by waveform interaction family
 
