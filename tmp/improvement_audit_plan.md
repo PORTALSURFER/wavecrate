@@ -1,7 +1,7 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-16
-Status: Phase 1 complete. Awaiting explicit user confirmation before Phase 2 implementation.
+Status: Phase 2 in progress. Items are being executed in ranked order.
 
 ## Scope
 
@@ -24,7 +24,7 @@ Status: Phase 1 complete. Awaiting explicit user confirmation before Phase 2 imp
 
 ## Ordered Backlog
 
-### 1. [ ] Refresh stale cleanup-debt tracking artifacts before using them for further prioritization
+### 1. [x] Refresh stale cleanup-debt tracking artifacts before using them for further prioritization
 
 - Classification: Developer-experience improvement
 - Confidence: High
@@ -42,6 +42,10 @@ Status: Phase 1 complete. Awaiting explicit user confirmation before Phase 2 imp
 - Dependencies: none
 - Suggested validation: rerun the repo’s cleanup/hotspot generation scripts and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-16
+  - Assumption: the parked cleanup plan should remain historical, but obviously obsolete path references should be annotated so it is not mistaken for a live file map.
+  - Validation: reran `scripts/prune_file_size_budget_allowlist.ps1`, reran `scripts/audit_cleanup_hotspots.ps1`, and refreshed the parked cleanup-plan note plus the obsolete `shots.rs` entry.
 
 ### 2. [ ] Add direct controller coverage for trash auto-move, rollback, cancel, and permanent-delete flows
 

@@ -10,20 +10,12 @@
 # they fall back under the budget.
 
 src/analysis/frequency_domain/stft.rs
-src/app/controller/playback/loop_crossfade.rs
 vendor/radiant/src/app/actions.rs
 vendor/radiant/src/gui/native_shell/layout.rs
 vendor/radiant/src/gui/native_shell/layout_adapter/controls.rs
 vendor/radiant/src/gui/native_shell/layout_adapter/overlays/text.rs
 vendor/radiant/src/gui/native_shell/mod.rs
-vendor/radiant/src/gui/native_shell/shots.rs
-vendor/radiant/src/gui/native_shell/state/cache_types.rs
-vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar.rs
-vendor/radiant/src/gui/native_shell/state/tests/browser_toolbar.rs
 vendor/radiant/src/gui/native_shell/state/tests/chrome_layout.rs
-vendor/radiant/src/gui/native_shell/state/tests/overlays.rs
-vendor/radiant/src/gui/native_shell/style/sizing.rs
-vendor/radiant/src/gui_runtime/native_vello/input.rs
 vendor/radiant/src/gui_runtime/native_vello/tests/browser_pointer.rs
 vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer.rs
 

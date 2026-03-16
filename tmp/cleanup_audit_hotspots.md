@@ -1,15 +1,15 @@
 # Cleanup Hotspot Audit Snapshot
 
-- Generated (UTC): `2026-03-16T08:16:54Z`
+- Generated (UTC): `2026-03-16T10:38:01Z`
 - Branch: `next`
-- Commit: `911d6ec4`
-- Rust files scanned: 851
+- Commit: `b37a789e`
+- Rust files scanned: 855
 - File-size budget limit: `400`
 
 ## Summary
 
-- Over file-size budget: 8
-- Function spans captured: 5489
+- Over file-size budget: 7
+- Function spans captured: 5491
 - Files with `dead_code` suppressions: 1
 - Files with `clippy::too_many_arguments` suppressions: 1
 - Likely large-file test-gap hotspots (heuristic): 81
@@ -18,7 +18,6 @@
 
 | Lines | File |
 | --- | --- |
-| 502 | `src/app/controller/playback/loop_crossfade.rs` |
 | 462 | `src/analysis/frequency_domain/stft.rs` |
 | 432 | `src/waveform/model.rs` |
 | 423 | `tools/analysis-admin/src/bin/sempal-hdbscan.rs` |
@@ -38,6 +37,7 @@
 | 393 | `src/issue_gateway/token_store/tests.rs` |
 | 388 | `src/wav_sanitize.rs` |
 | 387 | `src/audio/output/stream.rs` |
+| 386 | `tools/bench-cli/src/bench/gui/interactions.rs` |
 
 ## Largest function spans (heuristic)
 
@@ -68,7 +68,6 @@
 
 | Lines | File |
 | --- | --- |
-| 502 | `src/app/controller/playback/loop_crossfade.rs` |
 | 462 | `src/analysis/frequency_domain/stft.rs` |
 | 432 | `src/waveform/model.rs` |
 | 423 | `tools/analysis-admin/src/bin/sempal-hdbscan.rs` |

@@ -7,6 +7,7 @@
 - Status: `Parked; resume only after explicit user confirmation before Phase 2 implementation`
 - Note: later GUI/browser AIV work landed on `next`; this file remains the last cleanup audit snapshot, not a refreshed post-AIV audit.
 - Historical-only warning: some backlog items below refer to paths or module names that have since been split, removed, or relocated. Treat this file as a dated planning snapshot, not as a live file map; use `tmp/cleanup_audit_hotspots.md` plus the active improvement audit for current-tree prioritization.
+- Maintenance note (2026-03-16): live debt-tracking inputs were refreshed in the active improvement-audit lane; the parked backlog below is retained for historical context only, and obsolete entries should not be reopened without reconciling them against the live tree first.
 - Canonical dev loop (Windows): `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Canonical quick gate (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Canonical full local CI (Windows): `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
@@ -93,13 +94,13 @@
 - Risk / tradeoffs: Low-to-moderate; device selection and fallback behavior must remain unchanged across platforms.
 - Suggested validation: targeted audio-options tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 
-### 11. [ ] Refactor `vendor/radiant/src/gui/native_shell/shots.rs` into fixture I/O, canonicalization, rasterization, and model-builder helpers
+### 11. [-] Historical item: `vendor/radiant/src/gui/native_shell/shots.rs` was already split in a later lane
 - ROI / Effort: Medium / M
-- Why it matters: native-shell fixture maintenance currently lives in one large file that combines snapshot serialization, JSON canonicalization, rasterization, fixture compare/write logic, and large test-model builders, which makes visual-regression churn expensive to review.
-- Evidence: `vendor/radiant/src/gui/native_shell/shots.rs` owns snapshot canonicalization, render/fixture plumbing, and the main startup/browser/waveform fixture builders in one module.
-- Recommended change: separate fixture I/O and canonicalization from raster/render helpers and move large model builders into focused fixture-support modules.
-- Risk / tradeoffs: Moderate; fixture bytes and regeneration behavior must remain stable so reviewers can trust visual-diff output.
-- Suggested validation: targeted `radiant` shot tests, fixture regeneration where needed, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Why it matters: the historical cleanup snapshot still referenced a file that no longer exists in the live tree.
+- Evidence: `vendor/radiant/src/gui/native_shell/shots.rs` is absent from the current repository because that work already landed in a later lane.
+- Recommended change: do not reopen this item from the parked cleanup plan; rely on the active improvement audit and the refreshed hotspot snapshot for current-tree prioritization.
+- Risk / tradeoffs: None beyond losing an outdated historical placeholder.
+- Suggested validation: confirm the file remains absent and keep `tmp/cleanup_audit_hotspots.md` current.
 
 ### 12. [ ] Split `src/waveform/zoom_cache.rs` into cache-core logic and telemetry instrumentation
 - ROI / Effort: Medium / M
