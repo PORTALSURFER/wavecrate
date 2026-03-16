@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-16T10:03:55Z
+Last updated (UTC): 2026-03-16T10:12:21Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -11,13 +11,13 @@ Purpose:
 
 ## Current lane
 
-- The refreshed improvement-audit lane is complete.
-- `tmp/improvement_audit_plan.md` is the source of truth for the completed ROI-ranked backlog and execution record.
+- The refreshed improvement-audit lane is in Phase 1.
+- `tmp/improvement_audit_plan.md` is the source of truth for the current ROI-ranked backlog.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Wait for the next user-directed lane before reopening `tmp/improvement_audit_plan.md`.
-2. Keep `tmp/improvement_audit_plan.md` as the completed execution record for the latest improvement-audit lane.
+1. Wait for explicit user confirmation before implementing any item from `tmp/improvement_audit_plan.md`.
+2. Keep `tmp/improvement_audit_plan.md` as the current Phase 1 audit backlog and implementation gate.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
 4. Keep `AGENTS.md`, `MEMORY.md`, this file, and `tmp/improvement_audit_plan.md` synchronized when the active lane changes.

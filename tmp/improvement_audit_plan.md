@@ -1,320 +1,231 @@
 # Improvement Audit Plan
 
-- Generated: `2026-03-15`
-- Status: `Phase 2 complete`
-- Branch: `next`
-- Audit baseline commit: `57b06720`
-- Canonical Windows validation commands:
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+Generated: 2026-03-16
+Status: Phase 1 complete. Awaiting explicit user confirmation before Phase 2 implementation.
+
+## Scope
+
+- This document records an evidence-driven Phase 1 audit only.
+- No backlog items have been implemented yet in this refresh.
+- Recommendations below are ranked in strict execution order by expected ROI.
 
 ## Repository Context
 
-- Project purpose: `sempal` is a realtime-oriented sample triage and curation tool centered on exploration, auditioning, and trustworthy library maintenance.
-  - Intent label: Explicitly documented
-  - Evidence: `README.md`, `docs/design_principles.md`
-- Maturity level: a mature Rust workspace with enforced docs/lint/test guardrails, a vendor-owned native GUI framework, and multiple completed execution-plan lanes.
-  - Intent label: Strongly implied by code/docs
-  - Evidence: `Cargo.toml`, `.github/workflows/ci.yml`, `docs/TEST.md`, `docs/plans/index.md`
-- Primary languages / frameworks / tooling: Rust 2024 workspace, `vendor/radiant` native GUI/runtime, Vello/Winit rendering, rusqlite-backed source DBs, nextest, and PowerShell/Bash wrapper scripts.
-  - Intent label: Explicitly documented
-  - Evidence: `Cargo.toml`, `README.md`, `docs/ARCHITECTURE.md`, `docs/TEST.md`
-- Repository shape: domain/controller logic in `src/`, app-core/native projection in `src/app_core`, GUI/runtime framework code in `vendor/radiant`, workspace tools under `tools/` and `apps/`, and planning/docs state under `docs/plans` plus `tmp/`.
-  - Intent label: Explicitly documented
-  - Evidence: `docs/ARCHITECTURE.md`, `docs/README.md`, `Cargo.toml`
-- Architectural boundaries: `src/` owns domain behavior and legacy controller flows, `src/app_core` owns stable action/projection bridging, and `vendor/radiant` owns layout, hit testing, retained shell state, and native runtime orchestration.
-  - Intent label: Explicitly documented
-  - Evidence: `README.md`, `docs/ARCHITECTURE.md`
-- Test strategy: fast compile loops via `devcheck`, pre-push quick validation via `ci_quick`, broader parity via `ci_local`, direct `vendor/radiant` suites, and a GUI contract stack that is broader than default CI but still intentionally layered.
-  - Intent label: Explicitly documented
-  - Evidence: `docs/TEST.md`, `.github/workflows/ci.yml`, `docs/gui_test_platform.md`
-- Documented priorities: responsiveness, non-blocking execution, deterministic interaction, explicit ownership, and gradual burn-down of oversized file/test hubs.
-  - Intent label: Explicitly documented
-  - Evidence: `docs/design_principles.md`, `docs/QUALITY_SCORE.md`, `docs/file_size_budget_allowlist.txt`
-- Explicit non-goals: not a DAW replacement, not a platform/ecosystem, and not a visually ornamental app at the expense of responsiveness.
-  - Intent label: Explicitly documented
-  - Evidence: `docs/design_principles.md`
+- Project purpose: Explicitly documented. `README.md` describes Sempal as a realtime-oriented sample triage and curation app for large local libraries.
+- Maturity level: Explicitly documented. `README.md` labels the app early alpha and warns that bugs may modify or delete samples.
+- Primary languages / frameworks / tooling: Explicitly documented. `Cargo.toml` defines a Rust 2024 workspace; `vendor/radiant` provides the native GUI/runtime stack described in `README.md` and `docs/ARCHITECTURE.md`.
+- Repository shape: Explicitly documented. `README.md` and `docs/ARCHITECTURE.md` split ownership across `src/` domain logic, `src/app_core` action/projection contracts, `vendor/radiant` GUI/runtime/layout work, `tools/` support CLIs, and `docs/`.
+- Architectural boundaries: Explicitly documented. `docs/ARCHITECTURE.md` and `README.md` make `app_core` the stable bridge layer and keep renderer/runtime concerns in `vendor/radiant`.
+- Test strategy: Explicitly documented. `docs/TEST.md` and `.github/workflows/ci.yml` define diff-aware guardrails, `cargo fmt`, clippy, rustdoc warnings, nextest/doc tests, and Windows PowerShell validation wrappers.
+- Canonical local validation commands: Explicitly documented. `docs/TEST.md` and `AGENTS.md` point to `scripts/devcheck.ps1`, `scripts/ci_quick.ps1`, and `scripts/ci_local.ps1` as the normal Windows validation flow.
+- Documented priorities: Explicitly documented. `docs/design_principles.md` prioritizes realtime behavior, non-blocking execution, data integrity, integrated mouse/keyboard semantics, and undoable edits.
+- Explicit non-goals / currently unsupported promotions: Explicitly documented. `docs/gui_test_platform.md` says desktop AIV remains local-only and is not yet stable enough for CI promotion.
+- Product direction beyond those documents: Weakly implied / uncertain. The current repository evidence strongly favors correctness, maintainability, and tooling hardening over broad new end-user feature work.
 
-## Ordered ROI Backlog
+## Ordered Backlog
 
-### [x] 1. Refresh the stale cleanup-debt tracking artifacts before relying on them for further prioritization
+### 1. [ ] Refresh stale cleanup-debt tracking artifacts before using them for further prioritization
+
 - Classification: Developer-experience improvement
 - Confidence: High
 - ROI: High
 - Effort: S
-- Why it matters: the repo’s debt-tracking docs now materially disagree with the current tree, which makes future prioritization and guardrail reasoning less trustworthy.
+- Why it matters: the repo is currently carrying stale audit inputs that misreport already-completed work, which will skew future cleanup or audit planning.
 - Evidence:
-  - `docs/QUALITY_SCORE.md` says the live allowlist matches the current oversized scope.
-  - `docs/file_size_budget_allowlist.txt:18`, `:24`, `:52`, and `:54` still list `src/app/controller/library/wavs/browser_search_worker/pipeline/stages.rs`, `src/app/state/browser.rs`, `vendor/radiant/src/gui_runtime/native_vello/runtime_input.rs`, and `vendor/radiant/src/gui_runtime/native_vello/runtime_startup.rs`.
-  - The current tree no longer matches those entries: `browser_search_worker/pipeline/stages.rs` is 15 lines, `src/app/state/browser.rs` is 71 lines, `runtime_input.rs` is 5 lines, and `runtime_startup.rs` is 5 lines.
-  - `tmp/cleanup_plan.md:23`, `:31`, and `:79` still point at `src/app/controller/playback/tagging.rs`, `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs`, and `apps/updater-helper/src/ui.rs`, which no longer exist in the current tree.
-- Recommended change: refresh `docs/file_size_budget_allowlist.txt`, regenerate the hotspot snapshot, and update the parked cleanup-plan references or label them more explicitly as historical so they are not mistaken for live debt.
-- Expected impact: more trustworthy planning inputs, less audit drift, and fewer false positives when choosing the next cleanup lane.
-- Risks / tradeoffs: low; the main risk is spending too much time rewriting historical notes instead of updating only the high-signal stale entries.
+  - `docs/file_size_budget_allowlist.txt` still allowlists `vendor/radiant/src/gui/native_shell/shots.rs`, but that file no longer exists in the current tree.
+  - The same allowlist still includes already-split files such as `src/app/controller/playback/loop_crossfade.rs`, `vendor/radiant/src/gui/native_shell/state/cache_types.rs`, `vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar.rs`, `vendor/radiant/src/gui/native_shell/state/tests/browser_toolbar.rs`, `vendor/radiant/src/gui/native_shell/state/tests/overlays.rs`, and `vendor/radiant/src/gui/native_shell/style/sizing.rs`.
+  - `tmp/cleanup_audit_hotspots.md` still reports `src/app/controller/playback/loop_crossfade.rs` as a 502-line hotspot even though the live file is now much smaller.
+  - `tmp/cleanup_plan.md` still carries a pending `shots.rs` split item even though that file has already been decomposed.
+- Recommended change: refresh the file-size allowlist and hotspot snapshots, and annotate or retire stale parked cleanup entries so future audits start from the live tree instead of obsolete debt data.
+- Expected impact: future audits and cleanup plans will stop re-surfacing already-finished work and will rank actual hotspots more accurately.
+- Risks / tradeoffs: this is meta-work and does not directly improve runtime behavior, but the effort is small and it protects future prioritization quality.
 - Dependencies: none
-- Suggested validation:
-  - confirm current line counts for the refreshed allowlist entries
-  - rerun the file-size/hotspot scan used to regenerate the snapshot
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Suggested validation: rerun the repo’s cleanup/hotspot generation scripts and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
-- Completed: `2026-03-16`
-- Commit hash: `da07fc16`
-- Assumption used: the parked cleanup plan should remain historical, while the live allowlist and hotspot snapshot should match the current tree.
-- Validation outcome:
-  - `powershell -ExecutionPolicy Bypass -File scripts/prune_file_size_budget_allowlist.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [x] 2. Split `vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar.rs` by sidebar rendering family
+### 2. [ ] Add direct controller coverage for trash auto-move, rollback, cancel, and permanent-delete flows
+
+- Classification: Test gap
+- Confidence: High
+- ROI: High
+- Effort: M
+- Why it matters: `trash.rs` contains destructive-adjacent behavior with rollback and error aggregation branches, and the file already exposes test-only hooks that are not backed by direct controller coverage.
+- Evidence:
+  - `src/app/controller/library/trash.rs` is a 396-line controller file with `#[cfg(test)]` behavior such as `run_trash_move_task_with_progress`, `progress_cancel_after`, and a test-fast-path `confirm_warning`.
+  - The file owns rollback-sensitive paths around `db.set_missing(...)`, `db.remove_file(...)`, `move_to_trash(...)`, `apply_trash_move_finished(...)`, and recursive `take_out_trash(...)`.
+  - A targeted ripgrep over `src/**` test files found no direct tests referencing `move_all_trashed_to_folder`, `move_samples_to_configured_trash`, `take_out_trash`, or `apply_trash_move_finished`.
+- Recommended change: add focused controller tests for empty-trash moves, partial move failures with rollback, cancellation after progress, and permanent-delete error aggregation.
+- Expected impact: destructive file-move/delete logic becomes safer to refactor and regressions become easier to catch locally.
+- Risks / tradeoffs: tests will need temp filesystem/source-db setup and may require lightweight harness helpers.
+- Dependencies: none, but this should land before any structural split of `trash.rs`.
+- Suggested validation: targeted trash controller tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Product clarification required: No
+
+### 3. [ ] Split `src/app/controller/library/trash.rs` by trash-folder configuration, move orchestration, delete sweep, and result/focus refresh ownership
+
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
-- Why it matters: sidebar rendering is a user-visible shell path, but one 427-line `render_sidebar` function still owns source header text, add-button chrome, source rows, folder header/recovery badge, folder rows, and footer rendering in one place.
+- Why it matters: the current file mixes UI prompts, config persistence, background move orchestration, direct DB/filesystem mutations, delete sweeps, cache invalidation, and browser refocus behavior in one controller module.
 - Evidence:
-  - `vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar.rs` is 427 lines and exposes only `render_sidebar` at line 3.
-  - `vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar.rs:18`, `:172`, and `:385` show the same function coordinating `source_add_button_rect`, `compute_sidebar_folder_header_layout`, and `compute_sidebar_footer_text_layout`.
-  - `vendor/radiant/src/gui/native_shell/state/tests/sidebar.rs` and `vendor/radiant/src/gui/native_shell/state/tests/browser_toolbar.rs` provide surrounding behavior coverage, but the production ownership surface is still one large render hub with no local tests beside it.
-- Recommended change: extract focused source-header/source-row/folder-header/folder-row/footer render helpers or modules, preserve the existing visual contract, and add targeted sidebar render assertions around recovery-badge and row-selection behavior.
-- Expected impact: smaller blast radius for sidebar changes and clearer separation between header chrome, row rendering, and footer/status copy.
-- Risks / tradeoffs: moderate; row colors, badge placement, and truncation behavior are visually subtle and need characterization coverage.
-- Dependencies: none
-- Suggested validation:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml sidebar -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_toolbar -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+  - `src/app/controller/library/trash.rs` contains `pick_trash_folder`, `open_trash_folder`, `move_all_trashed_to_folder`, `move_samples_to_configured_trash`, `take_out_trash`, `apply_trash_move_finished`, `apply_trash_folder`, `prepare_trash_folder_for_auto_move`, `ensure_trash_folder_ready`, and `refocus_path_after_trash_move`.
+  - The file mixes modal confirmation (`rfd::MessageDialog`), progress UI updates, source DB mutation, filesystem deletion, and cache invalidation in one place.
+- Recommended change: extract focused trash submodules or helper modules for folder configuration/readiness, move orchestration, permanent delete sweep, and post-move result handling while keeping the `AppController` surface stable.
+- Expected impact: destructive file flows become easier to reason about, review, and test; smaller modules will better match the repo’s ownership guidelines.
+- Risks / tradeoffs: splitting too aggressively could obscure flow ownership, so the refactor should preserve one clear controller façade.
+- Dependencies: item 2 is the safest precursor so behavior is locked before refactoring.
+- Suggested validation: targeted trash tests, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
-- Completed: `2026-03-16`
-- Commit hash: `88fb4e3b` (`vendor/radiant`)
-- Assumption used: the sidebar visual contract should stay stable while header chrome, source rows, folder rendering, and footer controls move into separate ownership modules.
-- Validation outcome:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml sidebar -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_toolbar -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [x] 3. Decompose `vendor/radiant/src/gui_runtime/native_vello/input.rs` into clearer keyboard, shell-hit-test, waveform, and wheel route layers
+### 4. [ ] Split `vendor/radiant/src/gui/native_shell/layout_adapter/controls.rs` by control-family ownership
+
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: High
 - Effort: M
-- Why it matters: native input routing is latency-sensitive and central to deterministic interaction, but one 489-line module still mixes keyboard gating, shell-node pointer dispatch, waveform drag-mode glue, geometry helpers, and wheel translation.
+- Why it matters: a hot layout adapter file still mixes unrelated control families and generic slot math, which makes UI geometry regressions harder to localize.
 - Evidence:
-  - `vendor/radiant/src/gui_runtime/native_vello/input.rs` is 489 lines.
-  - `vendor/radiant/src/gui_runtime/native_vello/input.rs:88`, `:232`, `:320`, `:501`, and `:520` show `action_from_key`, `action_from_pointer_with_motion`, `waveform_action_from_pointer`, `browser_wheel_row_delta`, and `waveform_wheel_zoom_action` still concentrated in one file.
-  - The repo already split deeper waveform helpers into `input/waveform_geometry.rs`, `input/waveform_handles.rs`, `input/waveform_routing/`, and `input/wheel.rs`, which strongly implies the remaining top-level dispatch hub is the next ownership seam.
-  - Existing coverage is spread across `vendor/radiant/src/gui_runtime/native_vello/tests/key_bindings.rs`, `tests/browser_pointer.rs`, `tests/waveform_pointer.rs`, and `tests/waveform_fades.rs`, not directly around the route-family boundaries in the production module.
-- Recommended change: keep the runtime API stable while separating keyboard dispatch, shell-node pointer dispatch, waveform-route glue, and wheel helpers into focused modules with direct route-level tests or tighter test ownership.
-- Expected impact: safer edits in the hot input path and clearer responsibility boundaries between shell hit-testing and waveform/browser action translation.
-- Risks / tradeoffs: moderate; modifier handling and pointer-route precedence are correctness-sensitive.
+  - `vendor/radiant/src/gui/native_shell/layout_adapter/controls.rs` is 431 lines.
+  - The file defines `BrowserToolbarSections`, `compute_update_action_button_rects`, `compute_sidebar_action_button_rects`, `compute_browser_toolbar_sections`, `compute_rating_filter_chip_rects`, and several shared fixed-slot layout helpers.
+  - Local tests already live in a separate `controls_tests` module, which suggests the production logic is ready to split without test discoverability getting worse.
+- Recommended change: separate update-panel controls, sidebar action controls, browser-toolbar sectioning, and reusable slot-layout helpers into smaller ownership-based modules.
+- Expected impact: UI geometry work becomes more discoverable and less likely to create accidental cross-surface regressions.
+- Risks / tradeoffs: nearby helpers share sizing tokens and layout conventions, so the split should preserve a compact shared helper surface instead of duplicating math.
 - Dependencies: none
-- Suggested validation:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::key_bindings -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::browser_pointer -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::waveform_pointer -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Suggested validation: relevant `vendor/radiant` native-shell layout tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
-- Completed: `2026-03-16`
-- Commit hash: `0218d0e6` (`vendor/radiant`)
-- Assumption used: `input.rs` should remain the stable export surface while key dispatch and pointer route arbitration move into separate ownership modules.
-- Validation outcome:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::key_bindings -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::browser_pointer -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui_runtime::native_vello::tests::waveform_pointer -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [x] 4. Separate browser-truncation caches, overlay fingerprints, and segmented emit plumbing in `vendor/radiant/src/gui/native_shell/state/cache_types.rs`
+### 5. [ ] Split `vendor/radiant/src/gui/native_shell/layout_adapter/overlays/text.rs` into overlay-family text builders and shared line-layout primitives
+
 - Classification: Architecture improvement
+- Confidence: High
+- ROI: High
+- Effort: M
+- Why it matters: prompt, progress, and drag overlays are user-visible interruption states, but their text geometry still shares one large mixed-responsibility module.
+- Evidence:
+  - `vendor/radiant/src/gui/native_shell/layout_adapter/overlays/text.rs` is 438 lines.
+  - The file combines `compute_prompt_overlay_text_layout`, `compute_progress_overlay_text_layout`, `compute_drag_overlay_text_layout`, prompt/progress row builders, input-error/counter helpers, and centered-line layout primitives.
+  - The local tests cover prompt/progress/drag bounds together, which is useful validation but still leaves the production ownership surface broad.
+- Recommended change: keep the existing overlay contract, but split prompt/progress/drag text builders away from shared line-tree and centering helpers.
+- Expected impact: overlay regressions become easier to isolate, and future overlay-specific changes stop competing inside one text-geometry hub.
+- Risks / tradeoffs: splitting should avoid introducing unnecessary abstraction layers over simple geometry helpers.
+- Dependencies: none
+- Suggested validation: targeted overlay layout tests in `vendor/radiant` and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+- Product clarification required: No
+
+### 6. [ ] Add direct controller coverage for `handle_analysis_message(...)` progress, clear, enqueue, and cache-invalidation branches
+
+- Classification: Test gap
 - Confidence: High
 - ROI: Medium-High
 - Effort: M
-- Why it matters: retained shell state depends on these cache/fingerprint types, but one file still mixes browser truncation keys, waveform/browser hit-test keys, overlay fingerprints, segmented-frame emit sinks, and LRU-style truncation cache behavior.
+- Why it matters: the background-analysis message handler concentrates branchy state updates that affect progress UI, cache invalidation, and follow-up job dispatch, but current evidence does not show direct local coverage.
 - Evidence:
-  - `vendor/radiant/src/gui/native_shell/state/cache_types.rs` is 487 lines.
-  - `vendor/radiant/src/gui/native_shell/state/cache_types.rs:40`, `:78`, `:200`, `:337`, `:413`, and `:473` show `BrowserRowTruncationCacheKey`, `WaveformToolbarHitTestCacheKey`, `StateOverlayFingerprint`, `StaticFrameSegments`, `SegmentedStaticEmitContext`, and `impl BrowserRowTruncationCache` in one file.
-  - `vendor/radiant/src/gui/native_shell/state.rs` and `model_sync.rs` consume overlay fingerprints, while `browser_rows/truncation.rs` and `hit_testing/waveform.rs` consume cache keys, which points to multiple ownership families sharing one module.
-  - The file has a `#[cfg(test)]`-gated struct field surface, but no local `mod tests` block covering the cache or segmented-emitter behavior directly.
-- Recommended change: split the file into focused modules for browser truncation caches, overlay fingerprints, and segmented frame-emitter plumbing, then add direct tests for truncation-cache eviction/touch and segmented sink routing where behavior is non-obvious.
-- Expected impact: clearer cache ownership, smaller review surfaces, and easier targeted testing around retained-shell invalidation behavior.
-- Risks / tradeoffs: moderate; cache-key drift or segmented-emitter mistakes could cause stale or missing shell segments.
+  - `src/app/controller/library/background_jobs/analysis.rs` is only 186 lines, but almost all of the file’s behavior lives inside one `handle_analysis_message(controller, message)` match.
+  - The function handles selected-source scoping, zero-total clear behavior, finished-job cleanup, similarity-prep forwarding, progress snapshot assembly, enqueue follow-up dispatch, and duration-cache invalidation.
+  - A targeted ripgrep over `src/**` test files found no direct test coverage for `AnalysisJobMessage`, `handle_analysis_message`, or the specific progress/enqueue branches in this module.
+- Recommended change: add controller-level tests for selected-source mismatch, `source_id = None` progress fallback, zero-total clear behavior, finished refresh/invalidation, enqueue-finished redispatch, and `DurationsUpdated` cache eviction.
+- Expected impact: analysis-progress behavior becomes safer to change and easier to audit before any further refactor.
+- Risks / tradeoffs: tests will need targeted controller setup for runtime/job sender state.
 - Dependencies: none
-- Suggested validation:
-  - targeted `vendor/radiant` tests for browser truncation and shell frame segmentation
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Suggested validation: targeted analysis background-job tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
-- Completed: `2026-03-16`
-- Commit hash: `360d3ba6` (`vendor/radiant`)
-- Assumption used: cache-type families should split along existing consumers without changing the small subset of shell/runtime fingerprints that intentionally stay crate-visible.
-- Validation outcome:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [x] 5. Split `src/app/controller/playback/loop_crossfade.rs` into controller orchestration, file-output helpers, and undo registration
-- Classification: Architecture improvement
-- Confidence: High
-- ROI: Medium-High
-- Effort: M
-- Why it matters: loop-crossfade is a file-writing user flow, but one 470-line module still combines prompt setup, sample decoding, cut-frame selection, output naming, WAV writing, DB/browser registration, and deferred undo job assembly.
-- Evidence:
-  - `src/app/controller/playback/loop_crossfade.rs` is 470 lines.
-  - `src/app/controller/playback/loop_crossfade.rs:11` and `:25` expose `request_loop_crossfade_prompt_for_browser_row` and `apply_loop_crossfade_prompt`.
-  - The same file also owns `write_loop_crossfade_wav` at `:269` and `maybe_capture_loop_crossfade_undo` at `:319`.
-  - Local tests exist at `:384`, but they currently cover the DSP helper path plus the happy-path prompt/apply flow; the ownership boundary between file output, registration, and undo remains broad.
-- Recommended change: keep the user-facing behavior stable while separating prompt/apply orchestration from pure crossfade math, file-output naming/writing, and undo payload assembly; add a few focused controller-flow edge tests where the split exposes them naturally.
-- Expected impact: safer future edits to a destructive-adjacent flow and clearer reasoning about which layer owns audio rewriting versus undo registration.
-- Risks / tradeoffs: moderate; filename collision, tag preservation, and deferred undo semantics must stay exact.
-- Dependencies: none
-- Suggested validation:
-  - `cargo test loop_crossfade -- --test-threads=1`
-  - `cargo test app::controller::playback::tests -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completed: `2026-03-16`
-- Commit hash: `668b9c04`
-- Assumption used: the root playback module should keep prompt/apply orchestration while pure audio prep, file registration, and deferred undo capture move behind it.
-- Validation outcome:
-  - `cargo test loop_crossfade -- --test-threads=1`
-  - `cargo test app::controller::playback::tests -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+### 7. [ ] Split the inline native-shell contract test hub out of `vendor/radiant/src/gui/native_shell/mod.rs`
 
-### [x] 6. Split `vendor/radiant/src/gui/native_shell/style/sizing.rs` into base tokens, tier deltas, and sizing invariants
 - Classification: Refactor / cleanup
-- Confidence: Medium
-- ROI: Medium
+- Confidence: High
+- ROI: Medium-High
 - Effort: M
-- Why it matters: layout sizing is a compatibility surface used across most native-shell layout/state helpers, but one 580-line file still combines the huge `SizingTokens` schema, base values, compact/wide mutations, and helper methods.
+- Why it matters: the root native-shell module is now dominated by a very large inline test block, which makes the real production entry surface harder to scan and maintain.
 - Evidence:
-  - `vendor/radiant/src/gui/native_shell/style/sizing.rs` is 580 lines.
-  - `vendor/radiant/src/gui/native_shell/style/sizing.rs:7` defines the large `SizingTokens` contract, while `:207`, `:217`, `:320`, `:403`, and `:486` hold `sizing_for_tier`, `base_sizing`, `apply_compact_sizing`, `apply_wide_sizing`, and `impl SizingTokens`.
-  - The token pack is consumed broadly across `layout_adapter/`, `state/`, and `layout_runtime.rs`, which means small edits have a wide blast radius.
-  - Current tests live in `vendor/radiant/src/gui/native_shell/style/mod.rs`, not next to the token pack or its tier-delta logic.
-- Recommended change: separate the base token schema from compact/wide overrides and add a small local invariant suite for non-negative sizes, tier monotonicity where intended, and minimum-width/height assumptions that layout code relies on.
-- Expected impact: easier review of layout-token changes and less accidental churn in the central shell sizing contract.
-- Risks / tradeoffs: medium; some token relationships may be intentionally asymmetric across tiers, so invariants should stay minimal and evidence-based.
+  - `vendor/radiant/src/gui/native_shell/mod.rs` is 958 lines.
+  - The file contains an inline `mod tests` block with layout contract tests, toolbar hit tests, prompt hit tests, sidebar geometry tests, canonical frame tests, and other unrelated native-shell regression families.
+  - The root production module itself is much smaller than the accumulated inline tests, so the file no longer reflects one clear responsibility.
+- Recommended change: move the test families into ownership-aligned modules under the existing native-shell test tree, leaving only shared fixtures/helpers at the root when genuinely necessary.
+- Expected impact: production entry points become easier to navigate and test failures become easier to map back to one feature family.
+- Risks / tradeoffs: moving tests can create temporary churn in fixture/helper imports if not done carefully.
 - Dependencies: none
-- Suggested validation:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::style -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::tests::chrome_layout -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Suggested validation: `vendor/radiant` native-shell test suite and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
-- Completed: `2026-03-16`
-- Commit hash: `964086a6` (`vendor/radiant`)
-- Assumption used: the giant sizing file should keep the stable `SizingTokens` schema while base values, tier deltas, and local invariants move into separate ownership files.
-- Validation outcome:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::style -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell::state::tests::chrome_layout -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [x] 7. Break the remaining oversized native-shell test hubs into ownership-aligned modules
+### 8. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/tests/browser_pointer.rs` by browser interaction family
+
 - Classification: Refactor / cleanup
 - Confidence: High
 - ROI: Medium
 - Effort: M
-- Why it matters: several of the largest remaining files are regression hubs rather than production code, and they currently mix unrelated layout, toolbar, prompt, sidebar, and canonical-frame assertions in ways that make failures harder to localize.
+- Why it matters: one large browser-pointer regression file now mixes row-selection, toolbar, tab, map, volume, status, and wheel behavior, which reduces test discoverability.
 - Evidence:
-  - `vendor/radiant/src/gui/native_shell/mod.rs` is 900 lines and mixes `canonical_shell_model` at `:35` with toolbar hit tests at `:379`, prompt hit tests at `:541`, source-action tests at `:694`, and canonical-frame assertions at `:913`.
-  - `vendor/radiant/src/gui/native_shell/state/tests/browser_toolbar.rs` is 528 lines and mixes source-header, browser search, rating-filter, action-strip, and top-bar coverage.
-  - `vendor/radiant/src/gui/native_shell/state/tests/overlays.rs` is 468 lines and mixes waveform hover, toolbar overlays, browser-row stale-state checks, and generic hover cleanup.
-- Recommended change: split these hubs by behavior family, keep a shared canonical-shell fixture helper where necessary, and align each test module with the production ownership boundary it protects.
-- Expected impact: more discoverable failures, smaller diffs for regression additions, and less accumulation pressure in omnibus test files.
-- Risks / tradeoffs: low; mostly structural, but shared fixtures should stay simple so targeted test commands remain obvious.
+  - `vendor/radiant/src/gui_runtime/native_vello/tests/browser_pointer.rs` is 447 lines.
+  - The file covers browser row click modifiers, browser autoscroll, toolbar/rating-filter clicks, browser action buttons, tab routing, map-point focus, top-bar volume interactions, status options clicks, and wheel behavior in one module.
+- Recommended change: split the tests into focused modules such as browser rows, browser toolbar/actions, tabs/map interactions, and wheel/scroll behavior.
+- Expected impact: future pointer regressions will be easier to triage and new cases can land near the owning behavior instead of in an omnibus file.
+- Risks / tradeoffs: over-splitting can make shared setup noisy; keep a small shared fixture helper layer.
 - Dependencies: none
-- Suggested validation:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Suggested validation: targeted `browser_pointer`-related vendor tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
-- Completed: `2026-03-16`
-- Commit hash: `b425a971` (`vendor/radiant`)
-- Assumption used: the native-shell regression coverage should keep one shared canonical fixture helper while each behavior family moves into its own local test module.
-- Validation outcome:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [x] 8. Split `vendor/radiant/src/gui/native_shell/shots.rs` into fixture I/O, snapshot canonicalization, rasterization, and model builders
+### 9. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer.rs` by waveform interaction family
+
 - Classification: Refactor / cleanup
-- Confidence: Medium
-- ROI: Low-Medium
+- Confidence: High
+- ROI: Medium
 - Effort: M
-- Why it matters: visual-regression maintenance still flows through one 642-line file that mixes snapshot serialization, JSON canonicalization, software rasterization, fixture compare/write logic, and scenario model builders.
+- Why it matters: waveform pointer regressions are packed into one large test file even though the behaviors span distinct editing and transport interaction families.
 - Evidence:
-  - `vendor/radiant/src/gui/native_shell/shots.rs` is 642 lines.
-  - `vendor/radiant/src/gui/native_shell/shots.rs:135`, `:193`, `:237`, `:349`, `:431`, `:489`, and `:579` show `build_snapshot`, `canonicalize_json`, `rasterize_shot`, `write_or_compare_shot`, and the startup/browser/waveform fixture builders in one module.
-  - This file sits on the critical path for trusted shot-fixture updates, but the ownership boundary between fixture plumbing and model construction is still broad.
-- Recommended change: separate snapshot/fixture mechanics from scenario model builders, and keep the canonicalization/rasterization helpers reusable without pulling all model fixtures into the same file.
-- Expected impact: easier maintenance of visual-regression fixtures and smaller diffs when only one fixture family changes.
-- Risks / tradeoffs: medium; fixture bytes and update semantics must stay stable so reviewers can trust shot diffs.
+  - `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer.rs` is 477 lines.
+  - The file covers click modifiers, edit-selection versus playback-selection behavior, selection-edge resize/smart-scale, clear semantics, shift-handle gestures, narrow-selection edge cases, and anchor precedence in one place.
+- Recommended change: split waveform pointer tests into focused modules for selection creation, resize/scale behavior, clear semantics, modifier gestures, and edge-condition handling.
+- Expected impact: waveform interaction coverage stays easier to extend without recreating another omnibus regression file.
+- Risks / tradeoffs: some setup duplication is likely unless shared waveform fixture builders are extracted carefully.
 - Dependencies: none
-- Suggested validation:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml startup_shot_matches_fixture -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_dense_shot_matches_fixture -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml waveform_selection_shot_matches_fixture -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Suggested validation: targeted `waveform_pointer` vendor tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
 - Product clarification required: No
-- Completed: `2026-03-16`
-- Commit hash: `c4800627` (`vendor/radiant`)
-- Assumption used: visual-regression fixture bytes are part of the trusted contract, so the split must preserve exact snapshot and raster output while moving fixture I/O, canonicalization, rasterization, and model builders into separate helpers.
-- Validation outcome:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml startup_shot_matches_fixture -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_dense_shot_matches_fixture -- --test-threads=1`
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml waveform_selection_shot_matches_fixture -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ## Open Questions / Missing Definitions
 
-### [!] 1. Should the parked cleanup backlog be kept continuously current, or intentionally remain a historical snapshot?
-- Question: should `tmp/cleanup_plan.md` be refreshed whenever major cleanup items land, or is it intentionally a dated archive that should not be reused directly?
-- Evidence:
-  - `tmp/cleanup_plan.md` explicitly says it is parked, but it still contains active-looking `[ ]` items with paths that no longer exist, including `src/app/controller/playback/tagging.rs`, `src/app/controller/library/analysis_jobs/pool/job_claim/compute_worker.rs`, and `apps/updater-helper/src/ui.rs`.
-  - `AGENTS.md`, `MEMORY.md`, and `docs/plans/index.md` currently point readers at `tmp/improvement_audit_plan.md` as the live source of truth, not `tmp/cleanup_plan.md`.
-- Why this matters: the safest remediation differs depending on whether the parked cleanup plan should be corrected or simply relabeled as historical-only.
-- Affected files/modules:
-  - `tmp/cleanup_plan.md`
-  - `docs/QUALITY_SCORE.md`
-  - `docs/file_size_budget_allowlist.txt`
-- Risk if guessed incorrectly: either wasted cleanup of a historical archive or continued drift in a document that maintainers may still treat as live debt.
-- Most conservative provisional assumption: keep the parked plan historical, but refresh the live allowlist/hotspot artifacts and make the historical status unmistakable.
+### 1. Should `vendor/radiant/src/app/actions.rs` remain intentionally centralized as the runtime compatibility surface?
 
-### [!] 2. Is `vendor/radiant/src/app/actions.rs` intentionally meant to stay centralized as one schema file?
-- Question: should the native `UiAction` catalog remain a single compatibility surface, or is there an intended direction toward family-specific action declarations plus a shared export layer?
-- Evidence:
-  - `vendor/radiant/src/app/actions.rs` is still 450 lines and contains the whole serialized `UiAction` surface.
-  - Earlier audit work explicitly rejected splitting it because the repo evidence favored centralization.
-- Why this matters: action-schema centralization affects whether later runtime/native-shell cleanup should keep routing logic consolidated around one giant action enum or prepare for family-based modules.
-- Affected files/modules:
-  - `vendor/radiant/src/app/actions.rs`
-  - `src/app_core/actions/catalog/`
-  - `docs/gui_test_platform.md`
-- Risk if guessed incorrectly: unnecessary churn in a compatibility surface used by runtime code, GUI tooling, and action catalogs.
-- Most conservative provisional assumption: treat `UiAction` as intentionally centralized unless a narrower evidence trail emerges.
+- Evidence: the file is still 450 lines, but it is a fully documented `UiAction` enum with serde derives and clear host/runtime contract semantics.
+- Why this matters: splitting a deliberate compatibility surface could add churn without improving clarity, especially if external tools or tests depend on one exhaustive enum location.
+- Affected files/modules: `vendor/radiant/src/app/actions.rs`, `src/app_core/actions/`, runtime input layers, GUI test tooling.
+- Risk if guessed incorrectly: a cleanup refactor could fragment the canonical action contract and make exhaustive matching harder instead of easier.
+- Most conservative provisional assumption: treat `UiAction` centralization as intentional until stronger evidence shows ownership pain beyond file length.
 
-### [!] 3. Should native-shell regression tests stay organized around one canonical-shell fixture, or follow production ownership boundaries more strictly?
-- Question: is the current large `vendor/radiant/src/gui/native_shell/mod.rs` test hub deliberate because the shell contract is inherently cross-cutting, or is it just accumulated debt?
-- Evidence:
-  - `vendor/radiant/src/gui/native_shell/mod.rs` mixes layout, toolbar, prompt, source action, and canonical-frame assertions around one `canonical_shell_model` helper.
-  - Separate focused suites already exist under `state/tests/`, which suggests at least partial appetite for more ownership-aligned test modules.
-- Why this matters: the safest cleanup is different if the big module is intended to preserve one top-level shell contract view.
-- Affected files/modules:
-  - `vendor/radiant/src/gui/native_shell/mod.rs`
-  - `vendor/radiant/src/gui/native_shell/state/tests/*`
-- Risk if guessed incorrectly: over-splitting tests could make cross-shell regressions harder to detect or duplicate fixture setup unnecessarily.
-- Most conservative provisional assumption: keep one shared canonical-shell fixture helper, but move behavior families into smaller modules around it.
+### 2. Is `vendor/radiant/src/gui/native_shell/layout.rs` oversized-but-cohesive, or is there a missing ownership split between layout build, hit-testing, and snapshot export?
+
+- Evidence: the file is just over the nominal target, but the responsibilities all sit near the shell layout contract (`ShellLayout`, hit-testing, column lookup, contract snapshot helpers).
+- Why this matters: if the file is truly cohesive, splitting it now would be churn; if not, later layout work may keep piling responsibilities into one core contract file.
+- Affected files/modules: `vendor/radiant/src/gui/native_shell/layout.rs`, `layout_adapter`, native-shell tests.
+- Risk if guessed incorrectly: premature splitting could obscure the central layout contract or, conversely, delay a needed boundary clarification.
+- Most conservative provisional assumption: do not queue a split yet; prefer higher-confidence mixed-responsibility files first.
+
+### 3. Is `src/gui_test/packs.rs` meant to stay as a single small pack registry, or is the scenario-pack surface expected to grow into multiple ownership-based modules?
+
+- Evidence: the file is currently moderate in size and only exposes the `contract-smoke` pack plus its scenario builders, while `docs/gui_test_platform.md` still describes the platform as a first slice rather than final coverage.
+- Why this matters: future GUI test growth could justify a pack split, but current evidence does not yet show the same ownership pressure as the other hotspots above.
+- Affected files/modules: `src/gui_test/packs.rs`, `src/gui_test/aiv/packs.rs`, `docs/gui_test_platform.md`.
+- Risk if guessed incorrectly: an unnecessary split would create indirection before the pack taxonomy stabilizes.
+- Most conservative provisional assumption: keep the current pack layout until additional packs or clearer ownership boundaries emerge.
 
 ## Rejected Ideas
 
-### [-] 1. Reopen the previously completed browser-search/browser-state/runtime-startup audit items
-- Why it was considered: older audit artifacts and the stale allowlist still mention those files prominently.
-- Why it was rejected: the current tree shows those paths have already been split down substantially (`browser_search_worker/pipeline/stages.rs` is 15 lines, `src/app/state/browser.rs` is 71 lines, `runtime_input.rs` is 5 lines, `runtime_startup.rs` is 5 lines).
-- What evidence was missing: no current oversized ownership surface or fresh contradictory behavior evidence remained in those specific wrapper files.
+### 1. Split `src/analysis/frequency_domain/stft.rs`
 
-### [-] 2. Prioritize `src/analysis/frequency_domain/stft.rs` immediately
-- Why it was considered: it is still 431 lines and over the nominal 400-line budget.
-- Why it was rejected: the file has a clear single responsibility, local tests in the file itself, and no adjacent docs/tests indicating the same level of ownership ambiguity as the GUI/runtime/sidebar candidates above.
-- What evidence was missing: no repo note, stale contract, or nearby mixed-responsibility symptoms suggested it is a top-leverage split right now.
+- Why it was considered: the file is still above the preferred size target.
+- Why it was rejected: current evidence points to a cohesive DSP stage rather than a mixed-responsibility ownership problem, and no contradictory test/doc signals surfaced in this audit pass.
+- What evidence was missing: no strong duplication, boundary confusion, or explicit doc/test mismatch beyond file length.
 
-### [-] 3. Promote desktop AIV automation into default CI
-- Why it was considered: GUI automation is an active, documented repository direction.
-- Why it was rejected: `docs/gui_test_platform.md` still calls out Windows foreground/focus instability and explicitly keeps the desktop-AIV loop local-only.
-- What evidence was missing: no current repository evidence that the desktop AIV layer is stable enough for default CI promotion.
+### 2. Split `src/waveform/model.rs`
+
+- Why it was considered: the file is near the size budget and contains several public waveform model types.
+- Why it was rejected: the file still reads as one cohesive waveform data/model surface with local tests and shared sampling semantics.
+- What evidence was missing: no clear ownership split or correctness risk beyond size pressure alone.
+
+### 3. Add a new GUI feature backlog slice
+
+- Why it was considered: `docs/gui_test_platform.md` notes that automation coverage is not exhaustive for every micro-control.
+- Why it was rejected: the current docs also say the platform is intentionally first-slice and local-only in important areas; the stronger present evidence supports maintainability/test hardening over speculative feature expansion.
+- What evidence was missing: no concrete current-repo signal that a new end-user feature or new automation surface should outrank the maintainability and coverage items above.
