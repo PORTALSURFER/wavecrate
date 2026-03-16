@@ -150,7 +150,7 @@
   - `cargo test --manifest-path vendor/radiant/Cargo.toml gui::native_shell -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
-### [ ] 5. Split `src/app/controller/playback/loop_crossfade.rs` into controller orchestration, file-output helpers, and undo registration
+### [x] 5. Split `src/app/controller/playback/loop_crossfade.rs` into controller orchestration, file-output helpers, and undo registration
 - Classification: Architecture improvement
 - Confidence: High
 - ROI: Medium-High
@@ -171,6 +171,14 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: `2026-03-16`
+- Commit hash: `668b9c04`
+- Assumption used: the root playback module should keep prompt/apply orchestration while pure audio prep, file registration, and deferred undo capture move behind it.
+- Validation outcome:
+  - `cargo test loop_crossfade -- --test-threads=1`
+  - `cargo test app::controller::playback::tests -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 
 ### [ ] 6. Split `vendor/radiant/src/gui/native_shell/style/sizing.rs` into base tokens, tier deltas, and sizing invariants
 - Classification: Refactor / cleanup
