@@ -1,24 +1,23 @@
 # Cleanup Hotspot Audit Snapshot
 
-- Generated (UTC): `2026-03-16T15:02:23Z`
+- Generated (UTC): `2026-03-17T10:35:39Z`
 - Branch: `next`
-- Commit: `5e165afe`
-- Rust files scanned: 878
+- Commit: `4869da6f`
+- Rust files scanned: 885
 - File-size budget limit: `400`
 
 ## Summary
 
-- Over file-size budget: 6
-- Function spans captured: 5510
+- Over file-size budget: 5
+- Function spans captured: 5549
 - Files with `dead_code` suppressions: 1
 - Files with `clippy::too_many_arguments` suppressions: 1
-- Likely large-file test-gap hotspots (heuristic): 81
+- Likely large-file test-gap hotspots (heuristic): 80
 
 ## Largest Rust files
 
 | Lines | File |
 | --- | --- |
-| 428 | `src/app/controller/library/background_jobs/scan.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
 | 413 | `src/sample_sources/scanner/scan/tests.rs` |
 | 409 | `src/app/controller/tests/browser_selection.rs` |
@@ -38,6 +37,7 @@
 | 383 | `src/issue_gateway/api.rs` |
 | 380 | `src/app/controller/playback/persistent_waveform_cache.rs` |
 | 378 | `src/app/controller/tests/waveform_nav_render.rs` |
+| 376 | `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves/worker.rs` |
 
 ## Largest function spans (heuristic)
 
@@ -47,8 +47,6 @@
 | 223 | `run_folder_sample_move_task` (`src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/worker.rs:62`) |
 | 219 | `settings_round_trip_preserves_fields` (`src/sample_sources/config_io/tests/save.rs:124`) |
 | 219 | `apply_native_ui_action_routes_grouped_dispatch_cases` (`src/app_core/controller/tests/dispatch.rs:31`) |
-| 190 | `handle_analysis_message` (`src/app/controller/library/background_jobs/analysis.rs:8`) |
-| 173 | `handle_scan_finished` (`src/app/controller/library/background_jobs/scan.rs:21`) |
 | 165 | `matches` (`src/app/controller/ui/hotkeys/types.rs:12`) |
 | 164 | `handle_sample_drop_to_drop_target` (`src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs:28`) |
 | 158 | `apply_waveform_native_ui_action` (`src/app_core/controller/waveform_actions.rs:12`) |
@@ -63,12 +61,13 @@
 | 130 | `build_symphonia_peaks` (`src/waveform/decode/symphonia_reader.rs:64`) |
 | 128 | `representative_action_for_kind` (`src/app_core/actions/catalog/entries.rs:39`) |
 | 128 | `select_wav_known_index_with_options` (`src/app/controller/library/wavs/selection_ops.rs:113`) |
+| 122 | `open_output_stream` (`src/audio/output/stream.rs:186`) |
+| 122 | `capture` (`src/app_core/native_bridge/metrics/snapshot.rs:72`) |
 
 ## Over file-size budget
 
 | Lines | File |
 | --- | --- |
-| 428 | `src/app/controller/library/background_jobs/scan.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
 | 413 | `src/sample_sources/scanner/scan/tests.rs` |
 | 409 | `src/app/controller/tests/browser_selection.rs` |
@@ -97,10 +96,8 @@ Skips dedicated test modules/paths (`tests/**`, `tests.rs`, `*_test.rs`).
 | 422 | `src/analysis/ann_index_tests.rs` |
 | 407 | `src/selection/range.rs` |
 | 386 | `tools/bench-cli/src/bench/gui/interactions.rs` |
-| 373 | `src/app/controller/library/wavs/browser_actions/selection.rs` |
 | 367 | `src/app/controller/playback/audio_loader/stages.rs` |
 | 354 | `src/app/controller/playback/recording/waveform_loader/aggregation.rs` |
-| 351 | `src/app/controller/playback/audio_options/controller.rs` |
 | 348 | `src/app_core/native_bridge/metrics.rs` |
 | 348 | `src/app/controller/gui_fixtures.rs` |
 | 345 | `src/app_core/actions/catalog/kinds.rs` |
@@ -114,6 +111,8 @@ Skips dedicated test modules/paths (`tests/**`, `tests.rs`, `*_test.rs`).
 | 307 | `src/app/controller/library/analysis_jobs/enqueue/enqueue_samples.rs` |
 | 301 | `src/waveform/transients/peaks.rs` |
 | 301 | `src/app/controller/playback/waveform_action_tests.rs` |
+| 300 | `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/worker/folder_move_task.rs` |
+| 297 | `src/app/controller/library/browser_controller/helpers.rs` |
 
 ## Suggested follow-up
 

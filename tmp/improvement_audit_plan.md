@@ -1,7 +1,7 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-17
-Status: Phase 1 complete. Awaiting explicit user confirmation before implementation.
+Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit user confirmation.
 
 ## Scope
 
@@ -30,7 +30,7 @@ Status: Phase 1 complete. Awaiting explicit user confirmation before implementat
 
 ## Ordered Backlog
 
-### 1. [ ] Refresh stale cleanup-hotspot and quality-score artifacts before using them for further prioritization
+### 1. [x] Refresh stale cleanup-hotspot and quality-score artifacts before using them for further prioritization
 
 - Classification: Developer-experience improvement
 - Confidence: High
@@ -52,6 +52,16 @@ Status: Phase 1 complete. Awaiting explicit user confirmation before implementat
   - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-17
+  - Commit: pending final execution-record sync
+  - Assumption: the live quality score should continue to report code-size discipline as `3` because full-scan debt remains even though allowlist debt is gone.
+  - Validation:
+    - Passed: `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
+    - Passed: `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
+    - Passed: `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
+    - Passed: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
+    - Blocked by environment: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` failed because Windows Application Control blocked `C:\Users\wsvas\.cargo\bin\cargo-nextest.exe` before tests started
 
 ### 2. [ ] Add direct rollback and cancellation coverage for folder-level moves before refactoring the worker
 
