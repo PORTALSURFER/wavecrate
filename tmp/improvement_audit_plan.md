@@ -91,7 +91,7 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
     - Passed: `rustfmt --edition 2024 --check src\app\controller\ui\drag_drop_controller\drag_effects\folder_moves.rs`
     - Blocked by environment: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` failed because Windows Application Control blocked `C:\Users\wsvas\.cargo\bin\cargo-nextest.exe` before tests started
 
-### 3. [ ] Decompose `run_folder_move_task` into validation, filesystem move, DB rewrite, and rollback/result helpers
+### 3. [x] Decompose `run_folder_move_task` into validation, filesystem move, DB rewrite, and rollback/result helpers
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -111,6 +111,16 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-17
+  - Commit: pending final execution-record sync
+  - Assumption: preserving the public `run_folder_move_task` surface and mirroring each durable boundary with one helper is safer than introducing new cross-module abstractions.
+  - Validation:
+    - Passed: `cargo test folder_move -- --test-threads=1` before the final formatting-only patch to the same file
+    - Passed: `rustfmt --edition 2024 --check src\app\controller\ui\drag_drop_controller\drag_effects\folder_moves\worker\folder_move_task.rs`
+    - Passed: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+    - Blocked by environment: rerunning `cargo test --lib folder_move -- --test-threads=1` after the formatting-only patch failed because Windows Application Control blocked `target\debug\deps\sempal-*.exe` before execution
+    - Blocked by environment: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` failed because Windows Application Control blocked `C:\Users\wsvas\.cargo\bin\cargo-nextest.exe` before tests started
 
 ### 4. [ ] Split folder-sample move execution by staged-move preparation, DB commit/journal updates, and finalize/report helpers
 
