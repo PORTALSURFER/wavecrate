@@ -1,7 +1,7 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-17
-Status: Phase 2 in progress on 2026-03-17. Item 1 is complete; items 2-6 remain in ranked order.
+Status: Phase 2 in progress on 2026-03-17. Items 1-3 are complete; items 4-6 remain in ranked order.
 
 ## Scope
 
@@ -83,7 +83,7 @@ Status: Phase 2 in progress on 2026-03-17. Item 1 is complete; items 2-6 remain 
   - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Date completed: 2026-03-17
-- Commit: pending item commit during Phase 2 execution
+- Commit: `9bda0d2e` (`fix(drag-drop): journal cross-source drop targets`)
 - Assumptions used:
   - Preserving `locked` during normal success paths is required because the pre-existing drop-target behavior already copied that flag, even though the journal contract only documents tag/loop/playback metadata.
   - Leaving the journal entry in place on post-DB finalize failures is safer than aggressive rollback because reconcile can still finish or clean the operation on the next startup.
@@ -94,7 +94,7 @@ Status: Phase 2 in progress on 2026-03-17. Item 1 is complete; items 2-6 remain 
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
   - No plan-order deviation; item 2 consumed the remaining source-cleanup rollback branch that item 1 intentionally deferred until the bug fix existed.
 
-### 3. [ ] Refresh stale cleanup-hotspot and quality-score artifacts before using them for further prioritization
+### 3. [x] Refresh stale cleanup-hotspot and quality-score artifacts before using them for further prioritization
 
 - Classification: Developer-experience improvement
 - Confidence: High
@@ -116,6 +116,19 @@ Status: Phase 2 in progress on 2026-03-17. Item 1 is complete; items 2-6 remain 
   - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Date completed: 2026-03-17
+- Commit: pending item commit during Phase 2 execution
+- Assumptions used:
+  - The transient `drop_targets.rs` file-size regression introduced during item 2 needed to be corrected before refreshing the hotspot snapshot; otherwise item 3 would have baked a short-lived artifact into the new baseline.
+  - The process-local Git `core.autocrlf=false` override used while rerunning `check_quality_score_drift.ps1` is validation-only and does not change repository policy.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` passed after splitting the drop-target helper module
+  - `cargo test drag_drop_drop_targets -- --test-threads=1` passed after the helper split
+  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` passed and rewrote `tmp/cleanup_audit_hotspots.md`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` passed when rerun without Git line-ending warning noise
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+  - Tiny prerequisite deviation: split `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs` into a focused child helper module before finalizing the refreshed artifact set, because the new item-2 code temporarily pushed the full-scan budget out of date.
 
 ### 4. [ ] Add parity coverage for long-recording waveform aggregation against the standard waveform decode peak/analysis path
 

@@ -31,8 +31,8 @@ Last reviewed: 2026-03-17
 
 ## Known gaps (actionable)
 
-- Reduce the remaining full-scan file-size debt: prioritize `src/analysis/ann_index_tests.rs`, `src/sample_sources/scanner/scan/tests.rs`, `src/app/controller/tests/browser_selection.rs`, `src/app/controller/playback/tests.rs`, and `src/selection/range.rs`.
-- Continue burning down `#[allow(dead_code)]` suppressions in controller/runtime hot paths after each refactor slice.
+- Reduce the remaining full-scan file-size debt tracked in `tmp/cleanup_audit_hotspots.md`: prioritize `src/app/controller/tests/drag_drop_drop_targets.rs`, `src/analysis/ann_index_tests.rs`, `src/sample_sources/scanner/scan/tests.rs`, `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs`, `src/app/controller/tests/browser_selection.rs`, `src/app/controller/playback/tests.rs`, and `src/selection/range.rs`.
+- Continue burning down the remaining `#[allow(dead_code)]` suppression in `src/lib.rs`; `clippy::too_many_arguments` suppressions are currently at zero on the active tree.
 - Add a scheduled doc review cadence: review this file monthly and update scores based on current reality.
 - Add one performance regression harness for a representative large dataset/view and run it in CI (even if it is a coarse threshold test).
 - The guardrail drift check now lives in `scripts/check_quality_score_drift.sh` and is wired into local CI and GitHub CI.
