@@ -152,7 +152,7 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
     - Passed: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
     - Blocked by environment: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` failed because Windows Application Control blocked `C:\Users\wsvas\.cargo\bin\cargo-nextest.exe` before tests started
 
-### 5. [ ] Replace the `process_batch_work` argument blob with a context struct and remove the remaining suppression
+### 5. [x] Replace the `process_batch_work` argument blob with a context struct and remove the remaining suppression
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -172,6 +172,15 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-17
+  - Commit: pending final execution-record sync
+  - Assumption: a single mutable batch-processing context is the smallest cleanup that removes the suppression without changing queueing or connection-reuse behavior.
+  - Validation:
+    - Passed: `rustfmt --edition 2024 --check src\app\controller\library\analysis_jobs\pool\job_claim\compute_worker\execution.rs`
+    - Passed: `cargo test analysis_jobs -- --test-threads=1`
+    - Passed: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+    - Blocked by environment: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` failed because Windows Application Control blocked `C:\Users\wsvas\.cargo\bin\cargo-nextest.exe` before tests started
 
 ## Open Questions / Missing Definitions
 

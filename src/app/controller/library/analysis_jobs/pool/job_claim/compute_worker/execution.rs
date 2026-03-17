@@ -4,6 +4,12 @@ use tracing::warn;
 
 use crate::app::controller::library::analysis_jobs::pool::job_claim::lease;
 
+type AllowedSourceIds = std::sync::Arc<
+    std::sync::RwLock<Option<std::collections::HashSet<crate::sample_sources::SourceId>>>,
+>;
+
+type ImmediateJob = (analysis_db::ClaimedJob, Result<(), String>);
+
 pub(super) struct BatchSettings {
     pub(super) use_cache: bool,
     pub(super) max_analysis_duration_seconds: f32,
@@ -18,6 +24,16 @@ pub(super) type DecodedBatchMap = HashMap<
         crate::analysis::audio::AnalysisAudio,
     )>,
 >;
+
+struct BatchProcessContext<'a> {
+    connections: &'a mut HashMap<std::path::PathBuf, Connection>,
+    allowed_source_ids: &'a AllowedSourceIds,
+    log_jobs: bool,
+    settings: &'a BatchSettings,
+    decode_queue: &'a super::super::DecodedQueue,
+    decoded_batches: &'a mut DecodedBatchMap,
+    immediate_jobs: &'a mut Vec<ImmediateJob>,
+}
 
 pub(super) fn current_batch_settings(
     use_cache: &std::sync::atomic::AtomicBool,
@@ -44,80 +60,71 @@ pub(super) fn current_batch_settings(
 pub(super) fn process_batch(
     batch: Vec<DecodedWork>,
     connections: &mut HashMap<std::path::PathBuf, Connection>,
-    allowed_source_ids: &std::sync::Arc<
-        std::sync::RwLock<Option<std::collections::HashSet<crate::sample_sources::SourceId>>>,
-    >,
+    allowed_source_ids: &AllowedSourceIds,
     log_jobs: bool,
     settings: &BatchSettings,
     decode_queue: &super::super::DecodedQueue,
-) -> (
-    DecodedBatchMap,
-    Vec<(analysis_db::ClaimedJob, Result<(), String>)>,
-) {
+) -> (DecodedBatchMap, Vec<ImmediateJob>) {
     let mut decoded_batches: DecodedBatchMap = HashMap::new();
     let mut immediate_jobs = Vec::new();
+    let mut context = BatchProcessContext {
+        connections,
+        allowed_source_ids,
+        log_jobs,
+        settings,
+        decode_queue,
+        decoded_batches: &mut decoded_batches,
+        immediate_jobs: &mut immediate_jobs,
+    };
     for work in batch {
-        process_batch_work(
-            work,
-            connections,
-            allowed_source_ids,
-            log_jobs,
-            settings,
-            decode_queue,
-            &mut decoded_batches,
-            &mut immediate_jobs,
-        );
+        context.process_work(work);
     }
     (decoded_batches, immediate_jobs)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn process_batch_work(
-    work: DecodedWork,
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
-    allowed_source_ids: &std::sync::Arc<
-        std::sync::RwLock<Option<std::collections::HashSet<crate::sample_sources::SourceId>>>,
-    >,
-    log_jobs: bool,
-    settings: &BatchSettings,
-    decode_queue: &super::super::DecodedQueue,
-    decoded_batches: &mut DecodedBatchMap,
-    immediate_jobs: &mut Vec<(analysis_db::ClaimedJob, Result<(), String>)>,
-) {
-    let allowed = allowed_source_ids
-        .read()
-        .ok()
-        .and_then(|guard| guard.clone());
-    if !lease::job_allowed(&work.job, allowed.as_ref()) {
-        super::finalization::release_disallowed_work(connections, &work, log_jobs, decode_queue);
-        return;
-    }
-    super::finalization::log_run_start(log_jobs, &work.job);
-    let mut batch_job = None;
-    let mut immediate_job = None;
-    let job_fallback = work.job.clone();
-    let outcome = catch_unwind(AssertUnwindSafe(|| {
-        run_work_item(
-            work,
-            connections,
-            settings,
-            &mut batch_job,
-            &mut immediate_job,
-        )
-    }))
-    .unwrap_or_else(|payload| Err(logging::panic_to_string(payload)));
+impl BatchProcessContext<'_> {
+    fn process_work(&mut self, work: DecodedWork) {
+        let allowed = self
+            .allowed_source_ids
+            .read()
+            .ok()
+            .and_then(|guard| guard.clone());
+        if !lease::job_allowed(&work.job, allowed.as_ref()) {
+            super::finalization::release_disallowed_work(
+                self.connections,
+                &work,
+                self.log_jobs,
+                self.decode_queue,
+            );
+            return;
+        }
+        super::finalization::log_run_start(self.log_jobs, &work.job);
+        let mut batch_job = None;
+        let mut immediate_job = None;
+        let job_fallback = work.job.clone();
+        let outcome = catch_unwind(AssertUnwindSafe(|| {
+            run_work_item(
+                work,
+                self.connections,
+                self.settings,
+                &mut batch_job,
+                &mut immediate_job,
+            )
+        }))
+        .unwrap_or_else(|payload| Err(logging::panic_to_string(payload)));
 
-    if let Err(err) = outcome {
-        immediate_job = Some((job_fallback, Err(err)));
-    }
-    if let Some((job, decoded)) = batch_job {
-        decoded_batches
-            .entry(job.source_root.clone())
-            .or_default()
-            .push((job, decoded));
-    }
-    if let Some(entry) = immediate_job {
-        immediate_jobs.push(entry);
+        if let Err(err) = outcome {
+            immediate_job = Some((job_fallback, Err(err)));
+        }
+        if let Some((job, decoded)) = batch_job {
+            self.decoded_batches
+                .entry(job.source_root.clone())
+                .or_default()
+                .push((job, decoded));
+        }
+        if let Some(entry) = immediate_job {
+            self.immediate_jobs.push(entry);
+        }
     }
 }
 
@@ -208,7 +215,7 @@ pub(super) fn immediate_jobs_with_decoded_batches(
     decoded_batches: DecodedBatchMap,
     connections: &mut HashMap<std::path::PathBuf, Connection>,
     settings: &BatchSettings,
-) -> Vec<(analysis_db::ClaimedJob, Result<(), String>)> {
+) -> Vec<ImmediateJob> {
     let mut immediate_jobs = Vec::new();
     for (source_root, jobs) in decoded_batches {
         run_decoded_batch(
@@ -230,7 +237,7 @@ fn run_decoded_batch(
     )>,
     connections: &mut HashMap<std::path::PathBuf, Connection>,
     settings: &BatchSettings,
-    immediate_jobs: &mut Vec<(analysis_db::ClaimedJob, Result<(), String>)>,
+    immediate_jobs: &mut Vec<ImmediateJob>,
 ) {
     let conn = match db::open_connection_with_retry(connections, &source_root) {
         Ok(conn) => conn,
