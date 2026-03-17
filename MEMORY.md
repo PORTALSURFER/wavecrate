@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-17T17:10:00+01:00
+Last Updated: 2026-03-17T22:25:00+01:00
 Updated By: Codex
 
 ## Purpose
@@ -12,10 +12,10 @@ Updated By: Codex
 
 - I am on `next` in `X:\sempal`.
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The active lane is a fresh evidence-driven improvement audit backlog.
+- The active lane is the completed execution record for the latest evidence-driven improvement audit.
 - `tmp/improvement_audit_plan.md` is the current source of truth.
 - The previous completed audit backlog is now historical input only.
-- A fresh Phase 1 audit completed on 2026-03-17 and rewrote `tmp/improvement_audit_plan.md` with a new ranked backlog.
+- The refreshed audit backlog for 2026-03-17 has been fully implemented and recorded in `tmp/improvement_audit_plan.md`.
 - Full-scan guardrails are currently green, so the old file-size-driven backlog no longer applies as written.
 - The active follow-up is a dual-lane validation workflow for Windows: `scripts/ci_agent.ps1` is the reliable agent-safe lane in constrained environments, while `scripts/ci_quick.ps1` remains the broader integrated lane for humans when `cargo-nextest.exe` is allowed.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
@@ -25,16 +25,16 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Treat `tmp/improvement_audit_plan.md` as the current Phase 1 audit source of truth.
-2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, `docs/plans/index.md`, and this file aligned around the fresh audit backlog plus the dual-lane validation workflow.
+1. Treat `tmp/improvement_audit_plan.md` as the completed execution record for the 2026-03-17 audit lane.
+2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, `docs/plans/index.md`, and this file aligned around the completed audit lane plus the dual-lane validation workflow.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
-4. Wait for explicit user confirmation before implementing any ranked backlog item from `tmp/improvement_audit_plan.md`.
+4. Wait for new user direction before reopening another ranked implementation lane.
 5. Use `scripts/ci_agent.ps1` for agent-side validation in this constrained Windows environment, and treat `scripts/ci_quick.ps1` / `scripts/ci_local.ps1` as broader user-run confirmation lanes when `cargo-nextest.exe` is allowed.
 
 ## Work Notes
 
 - Active audit execution record: `tmp/improvement_audit_plan.md`
-- Current audit backlog: `tmp/improvement_audit_plan.md`
+- Completed audit backlog: `tmp/improvement_audit_plan.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
 - Parked cleanup backlog: `tmp/cleanup_plan.md`

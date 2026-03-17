@@ -1,7 +1,7 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-17
-Status: Phase 2 in progress on 2026-03-17. Items 1-3 are complete; items 4-6 remain in ranked order.
+Status: Phase 2 completed on 2026-03-17. All ranked items are complete and this file now serves as the execution record for the current audit lane.
 
 ## Scope
 
@@ -117,7 +117,7 @@ Status: Phase 2 in progress on 2026-03-17. Items 1-3 are complete; items 4-6 rem
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Date completed: 2026-03-17
-- Commit: pending item commit during Phase 2 execution
+- Commit: `9eb8eb5e` (`chore(audit): refresh cleanup baseline`)
 - Assumptions used:
   - The transient `drop_targets.rs` file-size regression introduced during item 2 needed to be corrected before refreshing the hotspot snapshot; otherwise item 3 would have baked a short-lived artifact into the new baseline.
   - The process-local Git `core.autocrlf=false` override used while rerunning `check_quality_score_drift.ps1` is validation-only and does not change repository policy.
@@ -130,7 +130,7 @@ Status: Phase 2 in progress on 2026-03-17. Items 1-3 are complete; items 4-6 rem
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
   - Tiny prerequisite deviation: split `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs` into a focused child helper module before finalizing the refreshed artifact set, because the new item-2 code temporarily pushed the full-scan budget out of date.
 
-### 4. [ ] Add parity coverage for long-recording waveform aggregation against the standard waveform decode peak/analysis path
+### 4. [x] Add parity coverage for long-recording waveform aggregation against the standard waveform decode peak/analysis path
 
 - Classification: Test gap
 - Confidence: High
@@ -150,8 +150,17 @@ Status: Phase 2 in progress on 2026-03-17. Items 1-3 are complete; items 4-6 rem
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
   - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Date completed: 2026-03-17
+- Commit: `02257e23` (`test(waveform): add recording parity coverage`)
+- Assumptions used:
+  - Writing long float WAV fixtures through `hound` tempfiles is representative enough to compare the recording path and the standard decode path because both consume the same persisted bytes.
+  - The stereo parity regression exposed by the new characterization tests belonged inside this item as a tiny correctness prerequisite; leaving the new tests red until item 5 would have broken the ranked execution lane.
+- Validation outcome:
+  - `cargo test recording_waveform -- --test-threads=1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+  - Tiny plan-order deviation: item 4 included the minimal mono-peak correction required to keep the new parity coverage green after it exposed a live drift between recording aggregation and the standard decode path.
 
-### 5. [ ] Extract shared peak/analysis/clamp helpers so recording waveform aggregation and normal waveform decode cannot drift apart
+### 5. [x] Extract shared peak/analysis/clamp helpers so recording waveform aggregation and normal waveform decode cannot drift apart
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -172,8 +181,17 @@ Status: Phase 2 in progress on 2026-03-17. Items 1-3 are complete; items 4-6 rem
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
   - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Date completed: 2026-03-17
+- Commit: `25866d95` (`refactor(waveform): share peak analysis helpers`)
+- Assumptions used:
+  - An internal `src/waveform/peak_analysis.rs` helper is a small enough boundary to share the long-waveform math without turning the decode and recording paths into a generalized abstraction maze.
+  - Leaving the Symphonia fallback on its existing loop is acceptable for this ranked item because the repository evidence and new parity tests were focused on the WAV decode path and recording aggregation seam.
+- Validation outcome:
+  - `cargo test recording_waveform -- --test-threads=1` passed
+  - `cargo test waveform::decode -- --test-threads=1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 
-### 6. [ ] Expand audio-loader stage coverage for stretch, transient generation, and stale-after-stage exits
+### 6. [x] Expand audio-loader stage coverage for stretch, transient generation, and stale-after-stage exits
 
 - Classification: Test gap
 - Confidence: High
@@ -193,6 +211,14 @@ Status: Phase 2 in progress on 2026-03-17. Items 1-3 are complete; items 4-6 rem
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
   - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Date completed: 2026-03-17
+- Commit: `83dc5977` (`test(audio-loader): cover late stage paths`)
+- Assumptions used:
+  - Test-only stage wrappers with explicit post-stage hooks are the smallest safe way to make stale-after-stretch and stale-after-transients coverage deterministic without relying on timing races.
+  - The transient-result propagation test should verify metadata, cache token, and stretch flag preservation rather than requiring a non-empty transient array from a synthetic fixture.
+- Validation outcome:
+  - `cargo test audio_loader -- --test-threads=1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 
 ## Open Questions / Missing Definitions
 
