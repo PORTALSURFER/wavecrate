@@ -34,6 +34,13 @@ struct StretchStageOutput {
     stretched: bool,
 }
 
+#[cfg(test)]
+pub(super) struct TestStretchStageOutput {
+    pub(super) decoded: Arc<DecodedWaveform>,
+    pub(super) bytes: Arc<[u8]>,
+    pub(super) stretched: bool,
+}
+
 /// Load audio through explicit IO -> decode -> optional stretch -> finalize stages.
 pub(super) fn load_audio_inner(
     renderer: &WaveformRenderer,
@@ -194,6 +201,24 @@ fn run_stretch_stage(
     decoded: Arc<DecodedWaveform>,
     original_bytes: Arc<[u8]>,
 ) -> Result<Option<StretchStageOutput>, AudioLoadError> {
+    run_stretch_stage_with_hook(
+        renderer,
+        job,
+        latest_request_id,
+        decoded,
+        original_bytes,
+        || {},
+    )
+}
+
+fn run_stretch_stage_with_hook(
+    renderer: &WaveformRenderer,
+    job: &AudioLoadJob,
+    latest_request_id: &AtomicU64,
+    decoded: Arc<DecodedWaveform>,
+    original_bytes: Arc<[u8]>,
+    after_stretch: impl FnOnce(),
+) -> Result<Option<StretchStageOutput>, AudioLoadError> {
     let Some(ratio) = job.stretch_ratio else {
         return Ok(Some(StretchStageOutput {
             decoded,
@@ -214,6 +239,7 @@ fn run_stretch_stage(
     let wsola = crate::audio::Wsola::new(decoded.sample_rate);
     let stretched_samples = wsola.stretch(&decoded.samples, decoded.channel_count(), ratio);
     record_alloc_estimate_bytes(stretched_samples.len().saturating_mul(size_of::<f32>()));
+    after_stretch();
 
     if stale_and_record(
         job.request_id,
@@ -253,6 +279,32 @@ fn run_stretch_stage(
         bytes: final_bytes,
         stretched,
     }))
+}
+
+#[cfg(test)]
+pub(super) fn run_stretch_stage_for_test(
+    renderer: &WaveformRenderer,
+    job: &AudioLoadJob,
+    latest_request_id: &AtomicU64,
+    decoded: Arc<DecodedWaveform>,
+    original_bytes: Arc<[u8]>,
+    after_stretch: impl FnOnce(),
+) -> Result<Option<TestStretchStageOutput>, AudioLoadError> {
+    run_stretch_stage_with_hook(
+        renderer,
+        job,
+        latest_request_id,
+        decoded,
+        original_bytes,
+        after_stretch,
+    )
+    .map(|result| {
+        result.map(|output| TestStretchStageOutput {
+            decoded: output.decoded,
+            bytes: output.bytes,
+            stretched: output.stretched,
+        })
+    })
 }
 
 /// Finalize a successful staged load and account for output/allocation telemetry.
@@ -306,6 +358,14 @@ pub(super) fn build_transient_result(
     pending: PendingTransientCompute,
     latest_request_id: &AtomicU64,
 ) -> Option<AudioTransientResult> {
+    build_transient_result_with_hook(pending, latest_request_id, || {})
+}
+
+fn build_transient_result_with_hook(
+    pending: PendingTransientCompute,
+    latest_request_id: &AtomicU64,
+    after_transients: impl FnOnce(),
+) -> Option<AudioTransientResult> {
     if stale_and_record(
         pending.request_id,
         latest_request_id,
@@ -322,6 +382,7 @@ pub(super) fn build_transient_result(
     if let Some(start) = transient_start {
         record_transient_duration(start.elapsed());
     }
+    after_transients();
     if stale_and_record(
         pending.request_id,
         latest_request_id,
@@ -339,6 +400,15 @@ pub(super) fn build_transient_result(
         transients,
         stretched: pending.stretched,
     })
+}
+
+#[cfg(test)]
+pub(super) fn build_transient_result_for_test(
+    pending: PendingTransientCompute,
+    latest_request_id: &AtomicU64,
+    after_transients: impl FnOnce(),
+) -> Option<AudioTransientResult> {
+    build_transient_result_with_hook(pending, latest_request_id, after_transients)
 }
 
 pub(super) fn ensure_safe_relative_path(path: &Path) -> Result<(), AudioLoadError> {
