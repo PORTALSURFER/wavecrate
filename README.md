@@ -42,6 +42,16 @@ Fast local app loop:
 - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - local release-like runs: `cargo run-fast`
 
+Agent-safe local validation loop for constrained environments:
+- macOS/Linux/WSL: `bash scripts/ci_agent.sh`
+- Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Runs `devcheck` plus `cargo test -p sempal --lib -- --test-threads=1` without `cargo nextest`.
+
+Broader integrated local validation loop:
+- macOS/Linux/WSL: `bash scripts/ci_quick.sh`
+- Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Built around `cargo nextest`; the Windows PowerShell wrapper also runs the semantic GUI contract lane.
+
 The CI-parity scripts run formatting, linting, docs, tests, and perf guardrails
 in the same order used by repository workflows.
 On headless Linux hosts, `scripts/ci_local.sh` and `scripts/run_perf_guard.sh`

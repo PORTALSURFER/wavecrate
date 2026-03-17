@@ -455,6 +455,14 @@ run_expect_exit_code \
   scripts/devcheck.sh
 
 run_expect_exit_code \
+  "bash -n scripts/ci_agent.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/ci_agent.sh
+
+run_expect_exit_code \
   "bash -n scripts/ci_quick.sh" \
   0 \
   "$ROOT_DIR" \
@@ -490,6 +498,13 @@ run_expect_exit_code \
   0 \
   "$ROOT_DIR" \
   scripts/devcheck.sh \
+  --help
+
+run_expect_exit_code \
+  "ci_agent --help" \
+  0 \
+  "$ROOT_DIR" \
+  scripts/ci_agent.sh \
   --help
 
 run_expect_exit_code \

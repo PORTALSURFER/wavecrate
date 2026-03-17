@@ -4,6 +4,8 @@ If you're an agent or a new contributor: start in `docs/README.md`, then come ba
 
 ## Where checks run
 
+- Agent-safe local validation gate for constrained environments: `scripts/ci_agent.{sh,ps1}`
+- Broader integrated local validation gate: `scripts/ci_quick.{sh,ps1}`
 - Full local validation gate (broader than GitHub CI because it also runs perf guard): `scripts/ci_local.{sh,ps1}`
 - CI: `.github/workflows/ci.yml`
 
@@ -22,19 +24,25 @@ These are the default “don’t guess, don’t grep” entrypoints for most wor
    - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`
    - `bash scripts/run_agent_preflight.sh` (lightweight version; no full `ci_local`)
    - `bash scripts/install_agent_preflight_hooks.sh` (optional auto-hook install)
-4. Generate cleanup hotspot snapshot (for ROI planning):
+4. Agent-safe validation for constrained environments:
+   - `bash scripts/ci_agent.sh`
+   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+5. Broader integrated local validation:
+   - `bash scripts/ci_quick.sh`
+   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+6. Generate cleanup hotspot snapshot (for ROI planning):
    - `bash scripts/audit_cleanup_hotspots.sh`
    - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
-5. Safe local run (isolated config/logs):
+7. Safe local run (isolated config/logs):
    - `bash scripts/run_sandbox.sh --`
    - `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --`
-6. Find and tail the newest log:
+8. Find and tail the newest log:
    - `bash scripts/latest_log.sh`
    - `powershell -ExecutionPolicy Bypass -File scripts/latest_log.ps1`
-7. Create a bug bundle (logs + config + versions):
+9. Create a bug bundle (logs + config + versions):
    - `bash scripts/bug_bundle.sh`
    - `powershell -ExecutionPolicy Bypass -File scripts/bug_bundle.ps1`
-8. Reset sandbox state (fresh start):
+10. Reset sandbox state (fresh start):
    - `bash scripts/clean_sandbox.sh`
    - `powershell -ExecutionPolicy Bypass -File scripts/clean_sandbox.ps1`
 

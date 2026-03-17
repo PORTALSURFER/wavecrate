@@ -59,15 +59,17 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `X:\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: refreshed evidence-driven improvement audit execution record
-- Source of truth: `tmp/improvement_audit_plan.md` for the completed ROI-ranked execution record; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: the refreshed improvement audit backlog was implemented sequentially on `2026-03-17`; `tmp/improvement_audit_plan.md` now records the completed Phase 2 execution lane.
+- Program: constrained-environment validation workflow update after the refreshed improvement audit execution
+- Source of truth: `tmp/improvement_audit_plan.md` for the completed ROI-ranked execution record; `docs/TEST.md` and `docs/README.md` define the dual-lane validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
+- Current status: the refreshed improvement audit backlog was implemented sequentially on `2026-03-17`; the immediate follow-up is a two-lane validation procedure where agents use `scripts/ci_agent.*` in constrained environments and humans run `scripts/ci_quick.*` or `scripts/ci_local.*` for broader integrated coverage.
 
 ## Immediate Next Actions
 1. Treat `tmp/improvement_audit_plan.md` as the completed execution record for the refreshed audit lane.
 2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
-3. Start a new audit or follow-on implementation lane only after explicit user direction.
-4. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized when the active lane changes.
+3. Use `scripts/ci_agent.ps1` / `scripts/ci_agent.sh` for agent-side validation in constrained environments and report when broader user-run coverage is still pending.
+4. Keep `scripts/ci_quick.ps1` / `scripts/ci_quick.sh` as the broader integrated lane built around `cargo nextest`; the PowerShell wrapper also includes the GUI contract suite.
+5. Start a new audit or follow-on implementation lane only after explicit user direction.
+6. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized when the active lane changes.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
@@ -86,14 +88,17 @@ Write for future selves: be precise, kind, and clear.
 - During the tight edit loop:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - macOS/Linux/WSL: `bash scripts/devcheck.sh`
-- Before commit/push and after non-trivial edits:
+- For constrained agent-side validation before commit/push and after non-trivial edits:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+  - macOS/Linux/WSL: `bash scripts/ci_agent.sh`
+- For broader integrated local validation built around `cargo nextest`:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
   - macOS/Linux/WSL: `bash scripts/ci_quick.sh`
-- If devcheck or quick CI fails: fix and rerun until green
+- If devcheck or the active validation lane fails: fix and rerun until green
 - Do not run Rust test commands in multiple concurrent processes; run them serially in one process to avoid cargo lock contention and misleading timeouts
 - On Windows, do not run the Bash workflow scripts. Use only the PowerShell wrappers (`scripts/*.ps1`) for preflight/CI/devcheck unless the user explicitly overrides this.
 - After code changes: commit and push
-- Do not push unless quick CI is green in the current platform wrapper (`ci_quick.ps1` on Windows, `ci_quick.sh` elsewhere)
+- In constrained agent environments, do not push unless `ci_agent` is green; report whether `ci_quick` or `ci_local` still need a user-run confirmation pass
 - Run full CI in the platform wrapper before pushing broader validation/tooling/perf/dependency changes or when you need full CI parity (`ci_local.ps1` on Windows, `ci_local.sh` elsewhere)
 
 ## Golden Commands
@@ -103,6 +108,9 @@ Write for future selves: be precise, kind, and clear.
 - Smoke devcheck:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - macOS/Linux/WSL: `bash scripts/devcheck.sh`
+- Agent-safe validation:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+  - macOS/Linux/WSL: `bash scripts/ci_agent.sh`
 - Fast dev checks:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
   - macOS/Linux/WSL: `bash scripts/ci_quick.sh`

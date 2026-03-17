@@ -47,9 +47,14 @@ Use these scripts as the default entrypoints for local work (humans and agents).
   - This intentionally skips support-tool bins and tests; still run `devcheck` before commit.
   - macOS/Linux/WSL: `bash scripts/devcheck.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-- Fast development checks:
+- Agent-safe validation loop for constrained environments:
+  - macOS/Linux/WSL: `bash scripts/ci_agent.sh`
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+  - Runs `devcheck` plus `cargo test -p sempal --lib -- --test-threads=1` without `cargo nextest` or the GUI contract wrapper.
+- Broader integrated development checks:
   - macOS/Linux/WSL: `bash scripts/ci_quick.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+  - Built around `cargo nextest`; the Windows PowerShell wrapper also runs the semantic GUI contract lane.
 - GUI-focused contract loop:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
 - GUI-focused broader suite:

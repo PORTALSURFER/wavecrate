@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-# Fast local development checks.
+# Broader integrated local development checks.
 #
-# This script keeps the everyday edit/test loop lean by running the filtered
-# nextest quick profile over library and integration tests while skipping
-# support-tool binaries and the slower CI-parity steps. Use scripts/ci_local.sh
-# for the full gate.
+# This script runs the broader integrated local lane by using the filtered
+# nextest quick profile while still skipping the slower CI-parity steps. The
+# Windows PowerShell wrapper also includes the semantic GUI contract suite. Use
+# scripts/ci_local.sh for the full gate.
 
 set -euo pipefail
 
@@ -19,7 +19,8 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/ci_quick.sh
 
-Run the fast local development test loop.
+Run the broader integrated local development test loop.
+For the constrained agent-safe lane, use `scripts/ci_agent.sh`.
 For the compile-only smoke gate, use `scripts/devcheck.sh`.
 For full CI parity, use `scripts/ci_local.sh`.
 USAGE

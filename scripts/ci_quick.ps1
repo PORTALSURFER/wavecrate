@@ -1,13 +1,13 @@
 <#
 .SYNOPSIS
-Runs a fast local development test pass.
+Runs a broader integrated local development test pass.
 
 .DESCRIPTION
-Executes the everyday fast test loop for normal development by running the
-quick nextest profile over library and integration tests plus the semantic GUI
-contract lane. This intentionally skips support-tool binaries, slower recovery
-tests, desktop AIV loops, clippy, rustdoc, benches, perf guards, and other
-CI-parity checks reserved for `scripts/ci_local.ps1`.
+Executes the broader integrated local test loop by running the quick nextest
+profile over library and integration tests plus the semantic GUI contract lane.
+This intentionally skips support-tool binaries, slower recovery tests, desktop
+AIV loops, clippy, rustdoc, benches, perf guards, and other CI-parity checks
+reserved for `scripts/ci_local.ps1`.
 #>
 
 param(
@@ -21,7 +21,8 @@ $ErrorActionPreference = "Stop"
 
 if ($Help) {
   Write-Host "Usage: scripts/ci_quick.ps1"
-  Write-Host "Run the fast local development test loop."
+  Write-Host "Run the broader integrated local development test loop."
+  Write-Host "For the constrained agent-safe lane, use `scripts/ci_agent.ps1`."
   Write-Host "For the compile-only smoke gate, use `scripts/devcheck.ps1`."
   Write-Host "For full CI parity, use `scripts/ci_local.ps1`."
   exit 0

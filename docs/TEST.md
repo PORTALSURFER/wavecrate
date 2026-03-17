@@ -12,7 +12,10 @@ Use these for normal iteration:
 - Fastest smoke/compile gate:
   - `bash scripts/devcheck.sh`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-- Fast local development checks:
+- Agent-safe local validation checks:
+  - `bash scripts/ci_agent.sh`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Broader integrated local development checks:
   - `bash scripts/ci_quick.sh`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Full CI parity checks:
@@ -23,7 +26,8 @@ Recommended cadence:
 - Use `devcheck_app` when you are only changing the main app/runtime path and
   want the shortest compile loop.
 - Use `devcheck` during the tight edit loop.
-- Use `ci_quick` before commit or after a non-trivial change.
+- Use `ci_agent` when you need a reliable agent-safe gate in constrained environments where `cargo-nextest` or spawned test executables are blocked.
+- Use `ci_quick` for the broader integrated local lane before commit when `cargo nextest` is available; on Windows the PowerShell wrapper also adds the GUI contract wrapper.
 - Use `ci_local` for tooling changes, dependency work, perf-sensitive work, or when you need CI parity.
 
 ## 1) Root crate unit + integration tests (`sempal`)
@@ -35,6 +39,8 @@ Location: `src/` modules with `#[cfg(test)]` blocks and `tests/` integration fil
   - `cargo test --doc`
 - Run the filtered quick app-development subset:
   - `cargo nextest run --profile quick --lib --tests`
+- Run the agent-safe library suite in one cargo process:
+  - `cargo test -p sempal --lib -- --test-threads=1`
 - Run only integration tests:
   - `cargo nextest run --test controller_browser_integration`
   - `cargo nextest run --test take_duration_test`
