@@ -1,7 +1,7 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-17
-Status: Phase 1 complete on 2026-03-17. Awaiting explicit user confirmation before any ranked item is implemented.
+Status: Phase 2 in progress on 2026-03-17. Item 1 is complete; items 2-6 remain in ranked order.
 
 ## Scope
 
@@ -30,7 +30,7 @@ Status: Phase 1 complete on 2026-03-17. Awaiting explicit user confirmation befo
 
 ## Ordered Backlog
 
-### 1. [ ] Add direct regression coverage for cross-source drag/drop target copy and move rollback paths
+### 1. [x] Add direct regression coverage for cross-source drag/drop target copy and move rollback paths
 
 - Classification: Test gap
 - Confidence: High
@@ -50,6 +50,15 @@ Status: Phase 1 complete on 2026-03-17. Awaiting explicit user confirmation befo
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
   - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Date completed: 2026-03-17
+- Commit: pending item commit during Phase 2 execution
+- Assumptions used:
+  - Locking the target source DB with `BEGIN IMMEDIATE` is a safe deterministic way to exercise the target-registration rollback branch because the source-side metadata reads stay unaffected.
+  - The source-row cleanup rollback branch belongs with item 2 because the current implementation still needs behavior changes there; item 1 captures the passing rejection, success, collision, and target-write-rollback seams first.
+- Validation outcome:
+  - `cargo test drag_drop_drop_targets -- --test-threads=1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+  - No plan-order deviation for the completed coverage slice; the remaining source-cleanup-failure branch stays coupled to item 2's implementation work.
 
 ### 2. [ ] Route cross-source drag/drop target copy and move through the staged file-op journal contract instead of ad-hoc mutations
 
