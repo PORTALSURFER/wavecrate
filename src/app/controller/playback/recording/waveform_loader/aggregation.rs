@@ -123,11 +123,15 @@ impl RecordingWaveformState {
         let mut analysis_count = 0usize;
         for frame in 0..total_frames {
             let frame_start = frame.saturating_mul(channels);
+            let mut frame_min = 1.0_f32;
+            let mut frame_max = -1.0_f32;
             let mut frame_sum = 0.0_f32;
             for ch in 0..channels {
                 if let Some(sample) = samples.get(frame_start + ch) {
                     let sample = clamp_sample(*sample);
                     frame_sum += sample;
+                    frame_min = frame_min.min(sample);
+                    frame_max = frame_max.max(sample);
                     if ch == 0 {
                         if let Some(left_peaks) = left.as_mut() {
                             let bucket = frame / bucket_size_frames;
@@ -152,8 +156,8 @@ impl RecordingWaveformState {
             };
             let bucket = frame / bucket_size_frames;
             let (min, max) = &mut mono[bucket];
-            *min = (*min).min(frame_avg);
-            *max = (*max).max(frame_avg);
+            *min = (*min).min(frame_min);
+            *max = (*max).max(frame_max);
             analysis_sum += frame_avg;
             analysis_count += 1;
             if analysis_count >= self.analysis_stride {
@@ -187,12 +191,16 @@ impl RecordingWaveformState {
         while offset < usable {
             let frame_index = self.total_frames;
             self.total_frames = self.total_frames.saturating_add(1);
+            let mut frame_min = 1.0_f32;
+            let mut frame_max = -1.0_f32;
             let mut frame_sum = 0.0f32;
             for ch in 0..self.channels as usize {
                 let sample = f32::from_le_bytes(
                     self.tail[offset..offset + 4].try_into().unwrap_or_default(),
                 );
                 let sample = clamp_sample(sample);
+                frame_min = frame_min.min(sample);
+                frame_max = frame_max.max(sample);
                 if let RecordingWaveformMode::Full { samples } = &mut self.mode {
                     samples.push(sample);
                 } else if let RecordingWaveformMode::Peaks {
@@ -240,8 +248,8 @@ impl RecordingWaveformState {
                     mono.resize(bucket + 1, (1.0, -1.0));
                 }
                 let (min, max) = &mut mono[bucket];
-                *min = (*min).min(frame_avg);
-                *max = (*max).max(frame_avg);
+                *min = (*min).min(frame_min);
+                *max = (*max).max(frame_max);
                 self.analysis_sum += frame_avg;
                 self.analysis_count += 1;
                 if self.analysis_count >= self.analysis_stride {
