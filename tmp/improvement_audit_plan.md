@@ -2,7 +2,7 @@
 
 Generated: 2026-03-16
 Merged backlog update: 2026-03-17
-Status: Phase 2 in progress. The newer remote audit refresh from `05662afb` is the merged baseline; carried-forward completed work from the earlier approved backlog is recorded below, and the remaining merged backlog is being executed sequentially.
+Status: Phase 2 complete. The newer remote audit refresh from `05662afb` is the merged baseline; carried-forward completed work from the earlier approved backlog is recorded below, and all merged backlog items were executed sequentially on 2026-03-17.
 
 ## Scope
 
@@ -102,7 +102,7 @@ Status: Phase 2 in progress. The newer remote audit refresh from `05662afb` is t
 
 ## Merged Pending Backlog
 
-### 1. [ ] Finish splitting `src/app/controller/library/background_jobs/analysis.rs` so file-size and quality-score guardrails recover
+### 1. [x] Finish splitting `src/app/controller/library/background_jobs/analysis.rs` so file-size and quality-score guardrails recover
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -126,8 +126,12 @@ Status: Phase 2 in progress. The newer remote audit refresh from `05662afb` is t
 - Product clarification required: No
 - Execution notes:
   - Partial progress already landed in `6d42d8b8` `refactor(analysis): split progress message helpers`, but the item remains open because the file-size guardrail is still red.
+  - Date: 2026-03-17
+  - Commit: `9b3d2999` `refactor(analysis): move background job tests out of handler module`
+  - Assumption: moving the local test module into a sibling file is sufficient to restore the guardrails without further handler-surface churn.
+  - Validation: `cargo test background_jobs::analysis -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`, `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
 
-### 2. [ ] Decompose `src/app/controller/library/background_jobs/scan.rs` by scan completion policy, follow-up scheduling, and similarity-prep finalization
+### 2. [x] Decompose `src/app/controller/library/background_jobs/scan.rs` by scan completion policy, follow-up scheduling, and similarity-prep finalization
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -148,8 +152,13 @@ Status: Phase 2 in progress. The newer remote audit refresh from `05662afb` is t
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-17
+  - Commit: `9a21f8b0` `refactor(scan): split scan completion helpers`
+  - Assumption: the safest decomposition is to keep `handle_scan_finished(...)` as the public seam and only extract policy/scheduling helpers around it.
+  - Validation: `cargo test background_jobs::scan -- --test-threads=1`, `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
 
-### 3. [ ] Separate browser path-selection cache maintenance from focus/load side effects in `src/app/controller/library/wavs/browser_actions/selection.rs`
+### 3. [x] Separate browser path-selection cache maintenance from focus/load side effects in `src/app/controller/library/wavs/browser_actions/selection.rs`
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -169,8 +178,13 @@ Status: Phase 2 in progress. The newer remote audit refresh from `05662afb` is t
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-17
+  - Commit: `879e3ec8` `refactor(browser): split browser selection path helpers`
+  - Assumption: the highest-value split is to extract the canonical path/index cache layer while keeping action-side focus and preview/commit loading in the parent controller module.
+  - Validation: `cargo test browser_selection -- --test-threads=1` and `cargo test browser_actions -- --test-threads=1` passed.
 
-### 4. [ ] Add direct controller coverage for audio host/device refresh, apply, and fallback branches before refactoring audio-options control flow
+### 4. [x] Add direct controller coverage for audio host/device refresh, apply, and fallback branches before refactoring audio-options control flow
 
 - Classification: Test gap
 - Confidence: High
@@ -188,8 +202,13 @@ Status: Phase 2 in progress. The newer remote audit refresh from `05662afb` is t
   - targeted audio-options controller tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-17
+  - Commit: `0bb0bd1a` `refactor(audio): split audio option controller flow`
+  - Assumption: the safest direct coverage is controller-module tests over refresh/apply/fallback helpers that avoid dependence on live host enumeration.
+  - Validation: `cargo test audio_options -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
 
-### 5. [ ] Split `src/app/controller/playback/audio_options/controller.rs` into refresh policy, apply/persist flow, and fallback-message helpers
+### 5. [x] Split `src/app/controller/playback/audio_options/controller.rs` into refresh policy, apply/persist flow, and fallback-message helpers
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -208,8 +227,13 @@ Status: Phase 2 in progress. The newer remote audit refresh from `05662afb` is t
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-17
+  - Commit: `0bb0bd1a` `refactor(audio): split audio option controller flow`
+  - Assumption: output/input refresh policy, apply/persist flow, and fallback-message formatting can move into sibling helpers without changing the public controller setters.
+  - Validation: `cargo test audio_options -- --test-threads=1` and `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
 
-### 6. [ ] Split `vendor/radiant/src/gui/native_shell/state/options_panel.rs` by geometry, action definitions, rendering, and style helpers
+### 6. [x] Split `vendor/radiant/src/gui/native_shell/state/options_panel.rs` by geometry, action definitions, rendering, and style helpers
 
 - Classification: Architecture improvement
 - Confidence: Medium
@@ -227,8 +251,13 @@ Status: Phase 2 in progress. The newer remote audit refresh from `05662afb` is t
   - targeted native-shell overlay/options tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-17
+  - Commit: `vendor/radiant` `290677c9` `refactor(runtime): split options panel and profiling helpers`
+  - Assumption: the safest extraction keeps the outward options-panel layout/render/hit-test surface stable while moving action, geometry, render, and style helpers behind it.
+  - Validation: `cargo test --manifest-path X:\\sempal\\vendor\\radiant\\Cargo.toml overlay_controls -- --test-threads=1` passed.
 
-### 7. [ ] Split `vendor/radiant/src/gui_runtime/native_vello/profiling.rs` into stats buckets, reporting/reset logic, and no-op adapter helpers
+### 7. [x] Split `vendor/radiant/src/gui_runtime/native_vello/profiling.rs` into stats buckets, reporting/reset logic, and no-op adapter helpers
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -247,6 +276,11 @@ Status: Phase 2 in progress. The newer remote audit refresh from `05662afb` is t
   - targeted native-Vello runtime/profiling tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-17
+  - Commit: `vendor/radiant` `290677c9` `refactor(runtime): split options panel and profiling helpers`
+  - Assumption: the profiler API must remain available to the native-Vello runtime while feature-gated stats buckets, redraw reporting, and the no-op adapter move into sibling modules.
+  - Validation: `cargo test --manifest-path X:\\sempal\\vendor\\radiant\\Cargo.toml gui_runtime::native_vello -- --test-threads=1` passed.
 
 ## Open Questions / Missing Definitions
 

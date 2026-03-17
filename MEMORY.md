@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-17T09:45:00Z
+Last Updated: 2026-03-17T12:30:00Z
 Updated By: Codex
 
 ## Purpose
@@ -12,12 +12,11 @@ Updated By: Codex
 
 - I am on `next` in `X:\sempal`.
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The active lane is a merged evidence-driven improvement audit backlog.
+- The active lane is the completed merged evidence-driven improvement audit execution record.
 - `tmp/improvement_audit_plan.md` is the current source of truth.
-- `tmp/improvement_audit_plan.md` now records the merged Phase 2 execution plan for the live tree.
-- Execution is in progress against the merged backlog.
-- Current full-scan guardrails are degraded because `src/app/controller/library/background_jobs/analysis.rs` exceeds the file-size budget and triggers `scripts/check_quality_score_drift.ps1`.
-- The merged backlog carries forward completed work for cleanup artifact refresh, waveform-segment splitting, and native text-renderer splitting, while the remaining controller/runtime items are still pending.
+- `tmp/improvement_audit_plan.md` now records the completed merged Phase 2 execution record for the live tree.
+- The merged backlog items are fully implemented and validated.
+- Full-scan guardrails are back to green after the `analysis.rs` and `scan.rs` splits.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -25,10 +24,10 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Execute the remaining merged backlog items in `tmp/improvement_audit_plan.md` sequentially.
-2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned around the merged Phase 2 audit execution state.
+1. Treat `tmp/improvement_audit_plan.md` as the completed execution record for the merged audit lane.
+2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and this file aligned around the completed audit state.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
-4. Treat `scripts/ci_quick.ps1` as the default pre-push validation gate on Windows and `scripts/ci_local.ps1` as the broader parity baseline for validation/tooling changes once the baseline file-size guardrails are back to green.
+4. Use `scripts/ci_quick.ps1` as the default Windows validation gate before any future push and `scripts/ci_local.ps1` when broader parity is needed.
 
 ## Work Notes
 

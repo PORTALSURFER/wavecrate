@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-17T09:45:00Z
+Last updated (UTC): 2026-03-17T12:30:00Z
 Owner: Codex agent sessions
 
 Purpose:
@@ -11,14 +11,13 @@ Purpose:
 
 ## Current lane
 
-- The older approved backlog and the newer remote audit refresh were merged on 2026-03-17.
-- `tmp/improvement_audit_plan.md` is the source of truth for the merged ROI-ranked execution backlog.
-- Phase 2 is in progress against that merged plan.
+- The older approved backlog and the newer remote audit refresh were merged and fully executed on 2026-03-17.
+- `tmp/improvement_audit_plan.md` is the source of truth for the completed merged audit execution record.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Finish the merged item 1 work in `tmp/improvement_audit_plan.md` so the file-size and quality-score guardrails recover.
-2. Continue the merged backlog sequentially from `scan.rs`, `selection.rs`, audio-options tests/refactor, `options_panel.rs`, and `profiling.rs`.
-3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
-4. Keep `AGENTS.md`, `MEMORY.md`, this file, and `tmp/improvement_audit_plan.md` synchronized as merged backlog items complete.
+1. Treat `tmp/improvement_audit_plan.md` as the completed execution record for the merged audit lane.
+2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
+3. Start a new audit or follow-on implementation lane only after explicit user direction.
+4. Keep `AGENTS.md`, `MEMORY.md`, this file, and `docs/plans/index.md` synchronized when the active lane changes.

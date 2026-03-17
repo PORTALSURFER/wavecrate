@@ -61,19 +61,19 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: merged evidence-driven improvement audit execution
 - Source of truth: `tmp/improvement_audit_plan.md` for the merged ROI-ranked backlog and execution record; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: the older approved backlog and the newer remote audit refresh were merged on `2026-03-17`; execution is in progress against the merged plan in `tmp/improvement_audit_plan.md`.
+- Current status: the merged improvement audit backlog is fully executed as of `2026-03-17`; `tmp/improvement_audit_plan.md` is now the completed execution record.
 
 ## Immediate Next Actions
-1. Execute the remaining items in `tmp/improvement_audit_plan.md` sequentially in recorded order.
-2. Keep `tmp/improvement_audit_plan.md` updated as the merged Phase 2 execution record.
-3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
-4. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized as merged backlog items complete.
+1. Treat `tmp/improvement_audit_plan.md` as the completed record for the merged audit lane.
+2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
+3. Start a fresh audit or a new implementation lane only after explicit user direction.
+4. Keep `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` synchronized when the active lane changes.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: merged evidence-driven ROI-ranked improvement backlog and execution record for the current tree; execution is in progress as of `2026-03-17`
+- `tmp/improvement_audit_plan.md`: merged evidence-driven ROI-ranked improvement backlog and execution record for the current tree; execution is complete as of `2026-03-17`
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation
