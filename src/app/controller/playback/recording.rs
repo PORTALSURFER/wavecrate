@@ -10,7 +10,6 @@ const RECORDING_FILE_PREFIX: &str = "recording_";
 const RECORDING_FILE_EXT: &str = "wav";
 const RECORDING_REFRESH_INTERVAL: Duration = Duration::from_millis(60);
 const RECORDING_MAX_FULL_FRAMES: usize = 2_500_000;
-const RECORDING_MAX_PEAK_BUCKETS: usize = 1_000_000;
 
 impl AppController {
     /// Return true if a recording session is active.

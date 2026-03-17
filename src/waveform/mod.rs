@@ -4,6 +4,7 @@ mod decode;
 mod error;
 mod loading;
 mod model;
+pub(crate) mod peak_analysis;
 mod render;
 mod sampling;
 pub(crate) mod transients;

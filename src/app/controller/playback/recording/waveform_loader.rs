@@ -1,8 +1,8 @@
 //! Background worker for recording waveform refresh tasks.
 
-use super::{RECORDING_MAX_FULL_FRAMES, RECORDING_MAX_PEAK_BUCKETS};
+use super::RECORDING_MAX_FULL_FRAMES;
 use crate::sample_sources::SourceId;
-use crate::waveform::{DecodedWaveform, WaveformPeaks};
+use crate::waveform::DecodedWaveform;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
