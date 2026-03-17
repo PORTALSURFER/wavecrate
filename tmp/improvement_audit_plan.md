@@ -122,7 +122,7 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
     - Blocked by environment: rerunning `cargo test --lib folder_move -- --test-threads=1` after the formatting-only patch failed because Windows Application Control blocked `target\debug\deps\sempal-*.exe` before execution
     - Blocked by environment: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` failed because Windows Application Control blocked `C:\Users\wsvas\.cargo\bin\cargo-nextest.exe` before tests started
 
-### 4. [ ] Split folder-sample move execution by staged-move preparation, DB commit/journal updates, and finalize/report helpers
+### 4. [x] Split folder-sample move execution by staged-move preparation, DB commit/journal updates, and finalize/report helpers
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -142,6 +142,15 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-17
+  - Commit: pending final execution-record sync
+  - Assumption: reusing the existing staged-move transaction pattern from cross-source sample moves is safer than inventing a separate folder-sample orchestration model.
+  - Validation:
+    - Passed: `cargo test folder_move -- --test-threads=1`
+    - Passed: `rustfmt --edition 2024 --check src\app\controller\ui\drag_drop_controller\drag_effects\folder_moves\worker.rs src\app\controller\ui\drag_drop_controller\drag_effects\folder_moves\worker\folder_sample_move_task.rs`
+    - Passed: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+    - Blocked by environment: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` failed because Windows Application Control blocked `C:\Users\wsvas\.cargo\bin\cargo-nextest.exe` before tests started
 
 ### 5. [ ] Replace the `process_batch_work` argument blob with a context struct and remove the remaining suppression
 

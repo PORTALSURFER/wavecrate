@@ -1,12 +1,8 @@
-use super::super::move_transaction::{
-    load_sample_move_metadata, prepare_staged_move, remove_move_journal_entry,
-    report_staged_move_failure,
-};
+use self::folder_sample_move_task::prepare_folder_sample_move_transaction;
 use crate::app::controller::jobs::{
-    FileOpMessage, FolderEntryMove, FolderMoveRequest, FolderMoveResult, FolderSampleMoveRequest,
+    FileOpMessage, FolderMoveRequest, FolderMoveResult, FolderSampleMoveRequest,
     FolderSampleMoveResult,
 };
-use crate::sample_sources::db::file_ops_journal;
 use crate::sample_sources::{SourceDatabase, SourceId};
 use std::path::PathBuf;
 use std::sync::{
@@ -19,6 +15,8 @@ use std::sync::{Mutex, OnceLock};
 
 /// Folder-level move worker implementation split from the sample-move worker.
 mod folder_move_task;
+/// Staged folder-sample move transaction helpers split from the main worker loop.
+mod folder_sample_move_task;
 
 /// Delegate folder-level move execution to the dedicated folder worker module.
 pub(super) fn run_folder_move_task(
@@ -97,50 +95,8 @@ pub(super) fn run_folder_sample_move_task(
             break;
         }
         let detail = Some(format!("Moving {}", request.relative_path.display()));
-        let absolute = source_root.join(&request.relative_path);
-        if !absolute.is_file() {
-            errors.push(format!("File missing: {}", request.relative_path.display()));
-            completed += 1;
-            report_progress(sender, completed, detail);
-            continue;
-        }
-        if let Some(parent) = request.target_relative.parent() {
-            let target_dir = source_root.join(parent);
-            if !target_dir.is_dir() {
-                errors.push(format!("Folder not found: {}", parent.display()));
-                completed += 1;
-                report_progress(sender, completed, detail);
-                continue;
-            }
-        }
-        let target_absolute = source_root.join(&request.target_relative);
-        if target_absolute.exists() {
-            errors.push(format!(
-                "A file already exists at {}",
-                request.target_relative.display()
-            ));
-            completed += 1;
-            report_progress(sender, completed, detail);
-            continue;
-        }
-        let metadata = match load_sample_move_metadata(&db, &request.relative_path) {
-            Ok(metadata) => metadata,
-            Err(err) => {
-                errors.push(err);
-                completed += 1;
-                report_progress(sender, completed, detail);
-                continue;
-            }
-        };
-        let prepared = match prepare_staged_move(
-            &db,
-            &source_root,
-            &request.relative_path,
-            &source_root,
-            &request.target_relative,
-            metadata,
-        ) {
-            Ok(prepared) => prepared,
+        let transaction = match prepare_folder_sample_move_transaction(&db, &source_root, request) {
+            Ok(transaction) => transaction,
             Err(err) => {
                 errors.push(err);
                 completed += 1;
@@ -150,126 +106,17 @@ pub(super) fn run_folder_sample_move_task(
         };
         #[cfg(test)]
         run_before_folder_sample_batch_hook();
-        let mut batch = match db.write_batch() {
-            Ok(batch) => batch,
-            Err(err) => {
-                report_staged_move_failure(
-                    &mut errors,
-                    &db,
-                    &prepared,
-                    format!("Failed to start database update: {err}"),
-                );
-                completed += 1;
-                report_progress(sender, completed, detail);
-                continue;
-            }
-        };
-        if let Err(err) = batch.remove_file(&request.relative_path) {
-            report_staged_move_failure(
-                &mut errors,
-                &db,
-                &prepared,
-                format!("Failed to drop old entry: {err}"),
-            );
+        if !transaction.commit_db_stage(&mut errors) {
             completed += 1;
             report_progress(sender, completed, detail);
             continue;
         }
-        if let Err(err) = batch.upsert_file(
-            &request.target_relative,
-            prepared.file_size,
-            prepared.modified_ns,
-        ) {
-            report_staged_move_failure(
-                &mut errors,
-                &db,
-                &prepared,
-                format!("Failed to register moved file: {err}"),
-            );
+        if !transaction.finalize_filesystem_stage(&mut errors) {
             completed += 1;
             report_progress(sender, completed, detail);
             continue;
         }
-        if let Err(err) = batch.set_tag(&request.target_relative, metadata.tag) {
-            report_staged_move_failure(
-                &mut errors,
-                &db,
-                &prepared,
-                format!("Failed to copy tag: {err}"),
-            );
-            completed += 1;
-            report_progress(sender, completed, detail);
-            continue;
-        }
-        if let Err(err) = batch.set_looped(&request.target_relative, metadata.looped) {
-            report_staged_move_failure(
-                &mut errors,
-                &db,
-                &prepared,
-                format!("Failed to copy loop marker: {err}"),
-            );
-            completed += 1;
-            report_progress(sender, completed, detail);
-            continue;
-        }
-        if let Some(last_played_at) = metadata.last_played_at
-            && let Err(err) = batch.set_last_played_at(&request.target_relative, last_played_at)
-        {
-            report_staged_move_failure(
-                &mut errors,
-                &db,
-                &prepared,
-                format!("Failed to copy playback age: {err}"),
-            );
-            completed += 1;
-            report_progress(sender, completed, detail);
-            continue;
-        }
-        if let Err(err) = batch.commit() {
-            report_staged_move_failure(
-                &mut errors,
-                &db,
-                &prepared,
-                format!("Failed to save move: {err}"),
-            );
-            completed += 1;
-            report_progress(sender, completed, detail);
-            continue;
-        }
-        if let Err(err) = file_ops_journal::update_stage(
-            &db,
-            &prepared.op_id,
-            file_ops_journal::FileOpStage::TargetDb,
-            None,
-            None,
-        ) {
-            errors.push(format!("Failed to update move journal: {err}"));
-        }
-        if let Err(err) = file_ops_journal::update_stage(
-            &db,
-            &prepared.op_id,
-            file_ops_journal::FileOpStage::SourceDb,
-            None,
-            None,
-        ) {
-            errors.push(format!("Failed to update move journal: {err}"));
-        }
-        if let Err(err) = std::fs::rename(&prepared.staged_absolute, &prepared.target_absolute) {
-            errors.push(format!("Failed to finalize move: {err}"));
-            completed += 1;
-            report_progress(sender, completed, detail);
-            continue;
-        }
-        remove_move_journal_entry(&mut errors, &db, &prepared.op_id);
-        moved.push(FolderEntryMove {
-            old_relative: request.relative_path,
-            new_relative: request.target_relative,
-            file_size: prepared.file_size,
-            modified_ns: prepared.modified_ns,
-            tag: metadata.tag,
-            looped: metadata.looped,
-            last_played_at: metadata.last_played_at,
-        });
+        moved.push(transaction.into_success(&mut errors));
         completed += 1;
         report_progress(sender, completed, detail);
     }
