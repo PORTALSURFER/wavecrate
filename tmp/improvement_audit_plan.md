@@ -63,7 +63,7 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
     - Passed: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
     - Blocked by environment: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` failed because Windows Application Control blocked `C:\Users\wsvas\.cargo\bin\cargo-nextest.exe` before tests started
 
-### 2. [ ] Add direct rollback and cancellation coverage for folder-level moves before refactoring the worker
+### 2. [x] Add direct rollback and cancellation coverage for folder-level moves before refactoring the worker
 
 - Classification: Test gap
 - Confidence: High
@@ -82,6 +82,14 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
   - targeted `folder_move` tests with `cargo test folder_move -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution notes:
+  - Date: 2026-03-17
+  - Commit: pending final execution-record sync
+  - Assumption: folder-move failure coverage should accept any DB-write-stage failure message that still proves the folder rename rolled back and DB state stayed on the source path.
+  - Validation:
+    - Passed: `cargo test folder_move -- --test-threads=1`
+    - Passed: `rustfmt --edition 2024 --check src\app\controller\ui\drag_drop_controller\drag_effects\folder_moves.rs`
+    - Blocked by environment: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` failed because Windows Application Control blocked `C:\Users\wsvas\.cargo\bin\cargo-nextest.exe` before tests started
 
 ### 3. [ ] Decompose `run_folder_move_task` into validation, filesystem move, DB rewrite, and rollback/result helpers
 

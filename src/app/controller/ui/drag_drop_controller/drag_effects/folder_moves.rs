@@ -46,6 +46,65 @@ mod tests {
         }
     }
 
+    /// Build a minimal in-source folder-move fixture with one tracked sample.
+    fn setup_folder_move_fixture() -> (tempfile::TempDir, SampleSource, PathBuf) {
+        let temp = tempdir().must();
+        let source_root = temp.path().join("source");
+        let old_dir = source_root.join("old");
+        let target_dir = source_root.join("dest");
+        std::fs::create_dir_all(&old_dir).must();
+        std::fs::create_dir_all(&target_dir).must();
+        let source = SampleSource::new(source_root.clone());
+        let wav_path = old_dir.join("one.wav");
+        write_test_wav(&wav_path, &[0.0, 0.1, -0.1]);
+        let (file_size, modified_ns) = file_metadata(&wav_path).must();
+        let db = SourceDatabase::open(&source_root).must();
+        let mut batch = db.write_batch().must();
+        batch
+            .upsert_file(Path::new("old/one.wav"), file_size, modified_ns)
+            .must();
+        batch
+            .set_tag(Path::new("old/one.wav"), Rating::KEEP_1)
+            .must();
+        batch.commit().must();
+        (temp, source, source_root)
+    }
+
+    /// Construct a folder-move request relative to the standard folder-move fixture.
+    fn folder_move_request(
+        source: &SampleSource,
+        source_root: &Path,
+        folder: &str,
+        target_folder: &str,
+    ) -> FolderMoveRequest {
+        FolderMoveRequest {
+            source_id: source.id.clone(),
+            source_root: source_root.to_path_buf(),
+            folder: PathBuf::from(folder),
+            target_folder: PathBuf::from(target_folder),
+        }
+    }
+
+    /// Hold an immediate SQLite transaction open until the returned sender is released.
+    fn lock_db_until_released(
+        source_root: &Path,
+    ) -> (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) {
+        let (lock_release_tx, lock_release_rx) = std::sync::mpsc::channel();
+        let (lock_done_tx, lock_done_rx) = std::sync::mpsc::channel();
+        let (locked_tx, locked_rx) = std::sync::mpsc::channel();
+        let db_file = source_root.join(DB_FILE_NAME);
+        std::thread::spawn(move || {
+            let conn = rusqlite::Connection::open(db_file).must();
+            conn.execute_batch("BEGIN IMMEDIATE").must();
+            let _ = locked_tx.send(());
+            let _ = lock_release_rx.recv();
+            let _ = conn.execute_batch("COMMIT");
+            let _ = lock_done_tx.send(());
+        });
+        locked_rx.recv().must();
+        (lock_release_tx, lock_done_rx)
+    }
+
     #[test]
     /// Moving a single file updates filesystem state, DB metadata, and clears journal entries.
     fn folder_sample_move_updates_db_entry() {
@@ -237,32 +296,8 @@ mod tests {
     #[test]
     /// Moving a folder relocates contained files and rewrites their source DB paths.
     fn folder_move_updates_db_entries() {
-        let temp = tempdir().must();
-        let source_root = temp.path().join("source");
-        let old_dir = source_root.join("old");
-        let target_dir = source_root.join("dest");
-        std::fs::create_dir_all(&old_dir).must();
-        std::fs::create_dir_all(&target_dir).must();
-        let source = SampleSource::new(source_root.clone());
-        let wav_path = old_dir.join("one.wav");
-        write_test_wav(&wav_path, &[0.0, 0.1, -0.1]);
-        let (file_size, modified_ns) = file_metadata(&wav_path).must();
-        let db = SourceDatabase::open(&source_root).must();
-        let mut batch = db.write_batch().must();
-        batch
-            .upsert_file(Path::new("old/one.wav"), file_size, modified_ns)
-            .must();
-        batch
-            .set_tag(Path::new("old/one.wav"), Rating::KEEP_1)
-            .must();
-        batch.commit().must();
-
-        let request = FolderMoveRequest {
-            source_id: source.id.clone(),
-            source_root: source_root.clone(),
-            folder: PathBuf::from("old"),
-            target_folder: PathBuf::from("dest"),
-        };
+        let (_temp, source, source_root) = setup_folder_move_fixture();
+        let request = folder_move_request(&source, &source_root, "old", "dest");
         let result = run_folder_move_task(request, Arc::new(AtomicBool::new(false)), None);
 
         assert!(result.errors.is_empty());
@@ -274,6 +309,105 @@ mod tests {
         assert_eq!(
             db.tag_for_path(Path::new("dest/old/one.wav")).must(),
             Some(Rating::KEEP_1)
+        );
+    }
+
+    #[test]
+    /// Cancelling before folder processing starts leaves filesystem and DB state unchanged.
+    fn folder_move_cancelled_before_processing_keeps_source_unchanged() {
+        let (_temp, source, source_root) = setup_folder_move_fixture();
+        let request = folder_move_request(&source, &source_root, "old", "dest");
+        let result = run_folder_move_task(request, Arc::new(AtomicBool::new(true)), None);
+
+        assert!(result.cancelled);
+        assert!(!result.folder_moved);
+        assert!(result.moved.is_empty());
+        assert!(result.errors.is_empty());
+        assert!(source_root.join("old/one.wav").is_file());
+        assert!(!source_root.join("dest/old").exists());
+        let db = SourceDatabase::open(&source_root).must();
+        assert_eq!(
+            db.tag_for_path(Path::new("old/one.wav")).must(),
+            Some(Rating::KEEP_1)
+        );
+    }
+
+    #[test]
+    /// Moving a folder into one of its descendants is rejected without touching the source tree.
+    fn folder_move_rejects_descendant_target() {
+        let (_temp, source, source_root) = setup_folder_move_fixture();
+        std::fs::create_dir_all(source_root.join("old/child")).must();
+        let request = folder_move_request(&source, &source_root, "old", "old/child");
+        let result = run_folder_move_task(request, Arc::new(AtomicBool::new(false)), None);
+
+        assert!(!result.folder_moved);
+        assert!(result.moved.is_empty());
+        assert_eq!(
+            result.errors,
+            vec!["Cannot move a folder into itself".to_string()]
+        );
+        assert!(source_root.join("old/one.wav").is_file());
+        assert!(source_root.join("old/child").is_dir());
+    }
+
+    #[test]
+    /// An existing destination folder rejects the move before any filesystem rename occurs.
+    fn folder_move_rejects_existing_destination_folder() {
+        let (_temp, source, source_root) = setup_folder_move_fixture();
+        std::fs::create_dir_all(source_root.join("dest/old")).must();
+        let request = folder_move_request(&source, &source_root, "old", "dest");
+        let result = run_folder_move_task(request, Arc::new(AtomicBool::new(false)), None);
+
+        assert!(!result.folder_moved);
+        assert!(result.moved.is_empty());
+        assert_eq!(
+            result.errors,
+            vec![format!(
+                "Folder already exists: {}",
+                PathBuf::from("dest").join("old").display()
+            )]
+        );
+        assert!(source_root.join("old/one.wav").is_file());
+        assert!(source_root.join("dest/old").is_dir());
+        let db = SourceDatabase::open(&source_root).must();
+        assert_eq!(
+            db.tag_for_path(Path::new("old/one.wav")).must(),
+            Some(Rating::KEEP_1)
+        );
+    }
+
+    #[test]
+    /// A database lock after the filesystem rename rolls the folder back to its original path.
+    fn folder_move_db_write_failure_rolls_back_source_and_db_state() {
+        let (_temp, source, source_root) = setup_folder_move_fixture();
+        let (lock_release_tx, lock_done_rx) = lock_db_until_released(&source_root);
+        let request = folder_move_request(&source, &source_root, "old", "dest");
+        let result = run_folder_move_task(request, Arc::new(AtomicBool::new(false)), None);
+        let _ = lock_release_tx.send(());
+        lock_done_rx.recv_timeout(Duration::from_secs(1)).must();
+
+        assert!(!result.folder_moved);
+        assert!(result.moved.is_empty());
+        assert_eq!(result.new_folder, PathBuf::from("dest/old"));
+        assert!(result.errors.iter().any(|err| {
+            err.contains("Failed to start database update")
+                || err.contains("Failed to drop old entry")
+                || err.contains("Failed to register moved file")
+                || err.contains("Failed to copy tag")
+                || err.contains("Failed to copy playback age")
+                || err.contains("Failed to save folder move")
+        }));
+        assert!(source_root.join("old/one.wav").is_file());
+        assert!(!source_root.join("dest/old").exists());
+        let db = SourceDatabase::open(&source_root).must();
+        assert_eq!(
+            db.tag_for_path(Path::new("old/one.wav")).must(),
+            Some(Rating::KEEP_1)
+        );
+        assert!(
+            db.tag_for_path(Path::new("dest/old/one.wav"))
+                .must()
+                .is_none()
         );
     }
 }
