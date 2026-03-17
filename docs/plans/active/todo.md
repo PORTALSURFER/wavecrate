@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (UTC): 2026-03-17T12:30:00Z
+Last updated (local): 2026-03-17T11:27:56+01:00
 Owner: Codex agent sessions
 
 Purpose:
@@ -11,13 +11,13 @@ Purpose:
 
 ## Current lane
 
-- The older approved backlog and the newer remote audit refresh were merged and fully executed on 2026-03-17.
-- `tmp/improvement_audit_plan.md` is the source of truth for the completed merged audit execution record.
+- A refreshed evidence-driven improvement audit was completed against the live tree on 2026-03-17.
+- `tmp/improvement_audit_plan.md` is the source of truth for the current Phase 1 backlog.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Treat `tmp/improvement_audit_plan.md` as the completed execution record for the merged audit lane.
+1. Wait for explicit user confirmation before implementing any ranked item from `tmp/improvement_audit_plan.md`.
 2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
-3. Start a new audit or follow-on implementation lane only after explicit user direction.
+3. Treat stale hotspot/scorecard docs as backlog work, not as current truth, until the new backlog is executed.
 4. Keep `AGENTS.md`, `MEMORY.md`, this file, and `docs/plans/index.md` synchronized when the active lane changes.
