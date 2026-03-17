@@ -124,6 +124,7 @@ mod tests {
     use crate::app::controller::library::wav_io::file_metadata;
     use crate::app::controller::test_support::{dummy_controller, write_test_wav};
     use crate::sample_sources::db::file_ops_journal;
+    use crate::sample_sources::Rating;
     use tempfile::tempdir;
 
     #[test]
@@ -143,6 +144,9 @@ mod tests {
             op_id.clone(),
             relative,
             staged_relative,
+            Rating::NEUTRAL,
+            false,
+            None,
         )
         .unwrap();
         file_ops_journal::insert_entry(&db, &entry).unwrap();
@@ -181,6 +185,9 @@ mod tests {
             op_id.clone(),
             relative.clone(),
             staged_relative.clone(),
+            Rating::NEUTRAL,
+            false,
+            None,
         )
         .unwrap();
         file_ops_journal::insert_entry(&context.db, &entry).unwrap();

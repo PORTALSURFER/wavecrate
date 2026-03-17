@@ -1,6 +1,7 @@
 use super::*;
 use crate::app::controller::library::wav_io::file_metadata;
 use crate::sample_sources::db::file_ops_journal;
+use crate::sample_sources::Rating;
 
 pub(super) struct StagedSourcePaste {
     pub(super) prepared: PreparedSourcePaste,
@@ -18,6 +19,9 @@ pub(super) fn stage_source_copy(
         prepared.op_id.clone(),
         prepared.relative.clone(),
         prepared.staged_relative.clone(),
+        Rating::NEUTRAL,
+        false,
+        None,
     ) {
         Ok(entry) => entry,
         Err(err) => return Err(vec![format!("Failed to stage copy journal: {err}")]),

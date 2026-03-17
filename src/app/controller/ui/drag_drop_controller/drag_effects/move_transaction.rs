@@ -33,6 +33,21 @@ pub(super) struct PreparedStagedMove {
     pub(super) modified_ns: i64,
 }
 
+/// Filesystem/journal state prepared before finalizing a staged copy.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct PreparedStagedCopy {
+    /// Journal operation identifier.
+    pub(super) op_id: String,
+    /// Staged temporary destination path.
+    pub(super) staged_absolute: PathBuf,
+    /// Final destination path after commit.
+    pub(super) target_absolute: PathBuf,
+    /// Measured file size from staged contents.
+    pub(super) file_size: u64,
+    /// Measured modified time from staged contents.
+    pub(super) modified_ns: i64,
+}
+
 /// Load source-row metadata needed to recreate the destination DB row.
 pub(super) fn load_sample_move_metadata(
     db: &SourceDatabase,
@@ -55,6 +70,70 @@ pub(super) fn load_sample_move_metadata(
         tag,
         looped,
         last_played_at,
+    })
+}
+
+/// Prepare one staged file copy and journal record before DB commit steps.
+pub(super) fn prepare_staged_copy(
+    journal_db: &SourceDatabase,
+    source_absolute: &Path,
+    target_root: &Path,
+    target_relative: &Path,
+    metadata: SampleMoveMetadata,
+) -> Result<PreparedStagedCopy, String> {
+    let op_id = file_ops_journal::new_op_id();
+    let staged_relative = file_ops_journal::staged_relative_for_target(target_relative, &op_id)
+        .map_err(|err| format!("Failed to build staging path: {err}"))?;
+    let journal_entry = file_ops_journal::FileOpJournalEntry::new_copy(
+        op_id.clone(),
+        target_relative.to_path_buf(),
+        staged_relative.clone(),
+        metadata.tag,
+        metadata.looped,
+        metadata.last_played_at,
+    )
+    .map_err(|err| format!("Failed to stage copy journal: {err}"))?;
+    file_ops_journal::insert_entry(journal_db, &journal_entry)
+        .map_err(|err| format!("Failed to record copy journal: {err}"))?;
+
+    let staged_absolute = target_root.join(&staged_relative);
+    if let Some(parent) = staged_absolute.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).map_err(|err| {
+            let _ = file_ops_journal::remove_entry(journal_db, &op_id);
+            format!("Failed to create target folder {}: {err}", parent.display())
+        })?;
+    }
+    if let Err(err) = std::fs::copy(source_absolute, &staged_absolute) {
+        let _ = file_ops_journal::remove_entry(journal_db, &op_id);
+        return Err(format!("Failed to copy sample: {err}"));
+    }
+    let (file_size, modified_ns) = match file_metadata(&staged_absolute) {
+        Ok(meta) => meta,
+        Err(err) => {
+            let _ = std::fs::remove_file(&staged_absolute);
+            let _ = file_ops_journal::remove_entry(journal_db, &op_id);
+            return Err(err);
+        }
+    };
+    if let Err(err) = file_ops_journal::update_stage(
+        journal_db,
+        &op_id,
+        file_ops_journal::FileOpStage::Staged,
+        Some(file_size),
+        Some(modified_ns),
+    ) {
+        let _ = std::fs::remove_file(&staged_absolute);
+        let _ = file_ops_journal::remove_entry(journal_db, &op_id);
+        return Err(format!("Failed to update copy journal: {err}"));
+    }
+    Ok(PreparedStagedCopy {
+        op_id,
+        staged_absolute,
+        target_absolute: target_root.join(target_relative),
+        file_size,
+        modified_ns,
     })
 }
 

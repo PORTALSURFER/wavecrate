@@ -1,13 +1,17 @@
-use super::super::{DragDropController, file_metadata};
-use super::move_transaction::move_sample_file;
-use super::source_moves::MovedSampleRegistration;
+use super::super::DragDropController;
+use super::move_transaction::{
+    PreparedStagedCopy, PreparedStagedMove, SampleMoveMetadata, move_sample_file,
+    prepare_staged_copy, prepare_staged_move,
+};
 use crate::app::controller::StatusTone;
 use crate::app::state::DragSample;
+use crate::sample_sources::db::file_ops_journal;
 use crate::sample_sources::{Rating, SourceId, WavEntry};
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
 /// Metadata copied from the dragged sample onto the copied/moved target entry.
+#[derive(Clone, Copy)]
 struct DroppedSampleMetadata {
     tag: Rating,
     looped: bool,
@@ -136,53 +140,89 @@ impl DragDropController<'_> {
                     return;
                 }
             };
-        let destination_absolute = target.source.root.join(&destination_relative);
-        if let Err(err) = move_sample_file(&absolute, &destination_absolute) {
-            self.set_status(err, StatusTone::Error);
-            return;
-        }
-        let (file_size, modified_ns) = match file_metadata(&destination_absolute) {
-            Ok(meta) => meta,
+        let target_db = match self.database_for(&target.source) {
+            Ok(db) => db,
             Err(err) => {
-                let _ = move_sample_file(&destination_absolute, &absolute);
+                self.set_status(format!("Database unavailable: {err}"), StatusTone::Error);
+                return;
+            }
+        };
+        let prepared = match prepare_staged_move(
+            target_db.as_ref(),
+            &source.root,
+            &relative_path,
+            &target.source.root,
+            &destination_relative,
+            sample_move_metadata(metadata),
+        ) {
+            Ok(prepared) => prepared,
+            Err(err) => {
                 self.set_status(err, StatusTone::Error);
                 return;
             }
         };
-        if let Err(err) = self.register_moved_sample_for_source(
-            &target.source,
+        if let Err(err) = register_drop_target_target_entry(
+            target_db.as_ref(),
             &destination_relative,
-            MovedSampleRegistration {
-                file_size,
-                modified_ns,
-                tag,
-                looped,
-                locked,
-                last_played_at,
-            },
+            prepared.file_size,
+            prepared.modified_ns,
+            metadata,
         ) {
-            let _ = move_sample_file(&destination_absolute, &absolute);
+            rollback_staged_move(target_db.as_ref(), &prepared);
             self.set_status(err, StatusTone::Error);
             return;
         }
-        if let Err(err) = self.remove_source_db_entry(&source, &relative_path) {
-            let _ = move_sample_file(&destination_absolute, &absolute);
-            self.set_status(err, StatusTone::Error);
-            return;
-        }
-        self.prune_cached_sample(&source, &relative_path);
-        let new_entry = WavEntry {
-            relative_path: destination_relative.clone(),
-            file_size,
-            modified_ns,
-            content_hash: None,
-            tag: metadata.tag,
-            looped: metadata.looped,
-            locked: metadata.locked,
-            missing: false,
-            last_played_at: metadata.last_played_at,
+        warn_on_journal_stage_update(
+            target_db.as_ref(),
+            &prepared.op_id,
+            file_ops_journal::FileOpStage::TargetDb,
+        );
+        let source_db = match self.database_for(&source) {
+            Ok(db) => db,
+            Err(err) => {
+                rollback_staged_move_after_target_db_stage(
+                    target_db.as_ref(),
+                    &prepared,
+                    &destination_relative,
+                );
+                self.set_status(format!("Database unavailable: {err}"), StatusTone::Error);
+                return;
+            }
         };
-        self.insert_cached_entry(&target.source, new_entry);
+        if let Err(err) = source_db.remove_file(&relative_path) {
+            rollback_staged_move_after_target_db_stage(
+                target_db.as_ref(),
+                &prepared,
+                &destination_relative,
+            );
+            self.set_status(format!("Failed to drop database row: {err}"), StatusTone::Error);
+            return;
+        }
+        warn_on_journal_stage_update(
+            target_db.as_ref(),
+            &prepared.op_id,
+            file_ops_journal::FileOpStage::SourceDb,
+        );
+        if let Err(err) = move_sample_file(&prepared.staged_absolute, &prepared.target_absolute) {
+            self.set_status(format!("Failed to finalize move: {err}"), StatusTone::Error);
+            return;
+        }
+        clear_file_op_journal_entry(target_db.as_ref(), &prepared.op_id);
+        self.prune_cached_sample(&source, &relative_path);
+        self.insert_cached_entry(
+            &target.source,
+            WavEntry {
+                relative_path: destination_relative.clone(),
+                file_size: prepared.file_size,
+                modified_ns: prepared.modified_ns,
+                content_hash: None,
+                tag: metadata.tag,
+                looped: metadata.looped,
+                locked: metadata.locked,
+                missing: false,
+                last_played_at: metadata.last_played_at,
+            },
+        );
         self.set_status(
             format!("Moved to {}", target_dir.display()),
             StatusTone::Info,
@@ -218,55 +258,49 @@ impl DragDropController<'_> {
             metadata,
         } = request;
         let destination_relative = copy_destination_relative(target, target_folder, file_name)?;
-        let destination_absolute = target.root.join(&destination_relative);
-        if let Some(parent) = destination_relative.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            let target_dir = target.root.join(parent);
-            if let Err(err) = std::fs::create_dir_all(&target_dir) {
-                return Err(format!(
-                    "Failed to create target folder {}: {err}",
-                    target_dir.display()
-                ));
-            }
-        }
-        if let Err(err) = std::fs::copy(absolute, &destination_absolute) {
-            return Err(format!("Failed to copy sample: {err}"));
-        }
-        let (file_size, modified_ns) = match file_metadata(&destination_absolute) {
-            Ok(meta) => meta,
-            Err(err) => {
-                let _ = std::fs::remove_file(&destination_absolute);
-                return Err(err);
-            }
-        };
-        if let Err(err) = self.register_moved_sample_for_source(
-            target,
+        let target_db = self
+            .database_for(target)
+            .map_err(|err| format!("Database unavailable: {err}"))?;
+        let prepared = prepare_staged_copy(
+            target_db.as_ref(),
+            absolute,
+            &target.root,
             &destination_relative,
-            MovedSampleRegistration {
-                file_size,
-                modified_ns,
+            sample_move_metadata(metadata),
+        )?;
+        if let Err(err) = register_drop_target_target_entry(
+            target_db.as_ref(),
+            &destination_relative,
+            prepared.file_size,
+            prepared.modified_ns,
+            metadata,
+        ) {
+            rollback_staged_copy(target_db.as_ref(), &prepared);
+            return Err(err);
+        }
+        warn_on_journal_stage_update(
+            target_db.as_ref(),
+            &prepared.op_id,
+            file_ops_journal::FileOpStage::TargetDb,
+        );
+        if let Err(err) = move_sample_file(&prepared.staged_absolute, &prepared.target_absolute) {
+            return Err(format!("Failed to finalize copy: {err}"));
+        }
+        clear_file_op_journal_entry(target_db.as_ref(), &prepared.op_id);
+        self.insert_cached_entry(
+            target,
+            WavEntry {
+                relative_path: destination_relative.clone(),
+                file_size: prepared.file_size,
+                modified_ns: prepared.modified_ns,
+                content_hash: None,
                 tag: metadata.tag,
                 looped: metadata.looped,
                 locked: metadata.locked,
+                missing: false,
                 last_played_at: metadata.last_played_at,
             },
-        ) {
-            let _ = std::fs::remove_file(&destination_absolute);
-            return Err(err);
-        }
-        let new_entry = WavEntry {
-            relative_path: destination_relative.clone(),
-            file_size,
-            modified_ns,
-            content_hash: None,
-            tag: metadata.tag,
-            looped: metadata.looped,
-            locked: metadata.locked,
-            missing: false,
-            last_played_at: metadata.last_played_at,
-        };
-        self.insert_cached_entry(target, new_entry);
+        );
         Ok(destination_relative)
     }
 }
@@ -328,4 +362,101 @@ fn copy_destination_relative(
         }
     }
     Err("Failed to find destination file name".into())
+}
+
+fn sample_move_metadata(metadata: DroppedSampleMetadata) -> SampleMoveMetadata {
+    SampleMoveMetadata {
+        tag: metadata.tag,
+        looped: metadata.looped,
+        last_played_at: metadata.last_played_at,
+    }
+}
+
+fn register_drop_target_target_entry(
+    target_db: &crate::sample_sources::SourceDatabase,
+    relative_path: &Path,
+    file_size: u64,
+    modified_ns: i64,
+    metadata: DroppedSampleMetadata,
+) -> Result<(), String> {
+    let mut batch = target_db
+        .write_batch()
+        .map_err(|err| format!("Failed to open target DB batch: {err}"))?;
+    batch
+        .upsert_file(relative_path, file_size, modified_ns)
+        .map_err(|err| format!("Failed to register file: {err}"))?;
+    batch
+        .set_tag(relative_path, metadata.tag)
+        .map_err(|err| format!("Failed to set tag: {err}"))?;
+    batch
+        .set_looped(relative_path, metadata.looped)
+        .map_err(|err| format!("Failed to set loop marker: {err}"))?;
+    batch
+        .set_locked(relative_path, metadata.locked)
+        .map_err(|err| format!("Failed to set keep lock: {err}"))?;
+    if let Some(last_played_at) = metadata.last_played_at {
+        batch
+            .set_last_played_at(relative_path, last_played_at)
+            .map_err(|err| format!("Failed to copy playback age: {err}"))?;
+    }
+    batch
+        .commit()
+        .map_err(|err| format!("Failed to commit target DB update: {err}"))
+}
+
+fn warn_on_journal_stage_update(
+    target_db: &crate::sample_sources::SourceDatabase,
+    op_id: &str,
+    stage: file_ops_journal::FileOpStage,
+) {
+    if let Err(err) = file_ops_journal::update_stage(target_db, op_id, stage, None, None) {
+        warn!("Drop target journal stage update failed for {op_id}: {err}");
+    }
+}
+
+fn clear_file_op_journal_entry(target_db: &crate::sample_sources::SourceDatabase, op_id: &str) {
+    if let Err(err) = file_ops_journal::remove_entry(target_db, op_id) {
+        warn!("Drop target journal cleanup failed for {op_id}: {err}");
+    }
+}
+
+fn rollback_staged_copy(
+    target_db: &crate::sample_sources::SourceDatabase,
+    prepared: &PreparedStagedCopy,
+) {
+    let _ = std::fs::remove_file(&prepared.staged_absolute);
+    clear_file_op_journal_entry(target_db, &prepared.op_id);
+}
+
+fn rollback_staged_move(
+    target_db: &crate::sample_sources::SourceDatabase,
+    prepared: &PreparedStagedMove,
+) {
+    let _ = move_sample_file(&prepared.staged_absolute, &prepared.source_absolute);
+    clear_file_op_journal_entry(target_db, &prepared.op_id);
+}
+
+fn rollback_staged_move_after_target_db_stage(
+    target_db: &crate::sample_sources::SourceDatabase,
+    prepared: &PreparedStagedMove,
+    target_relative: &Path,
+) {
+    let mut cleanup_complete = true;
+    if let Err(err) = target_db.remove_file(target_relative) {
+        cleanup_complete = false;
+        warn!(
+            "Drop target rollback could not remove target DB row {}: {err}",
+            target_relative.display()
+        );
+    }
+    if let Err(err) = move_sample_file(&prepared.staged_absolute, &prepared.source_absolute) {
+        cleanup_complete = false;
+        warn!(
+            "Drop target rollback could not restore source file {}: {err}",
+            prepared.source_absolute.display()
+        );
+    }
+    if cleanup_complete {
+        clear_file_op_journal_entry(target_db, &prepared.op_id);
+    }
 }

@@ -291,6 +291,30 @@ fn cross_source_drop_target_copy_rolls_back_when_target_db_is_locked() {
 }
 
 #[test]
+fn cross_source_drop_target_move_removes_target_row_when_source_cleanup_fails() {
+    let temp = tempdir().must();
+    let _guard = ConfigBaseGuard::set(temp.path().to_path_buf());
+    let (mut controller, source, target, target_drop) = setup_cross_source_drop_fixture(&temp);
+    seed_source_sample(&mut controller, &source, "one.wav");
+    let (lock_release_tx, lock_done_rx) = lock_db_until_released(&source.root);
+
+    finish_drop(
+        &mut controller,
+        source.id.clone(),
+        "one.wav",
+        &target_drop,
+        false,
+    );
+    let _ = lock_release_tx.send(());
+    lock_done_rx.recv_timeout(Duration::from_secs(1)).must();
+
+    assert!(source.root.join("one.wav").is_file());
+    assert!(!target_drop.join("one.wav").exists());
+    assert!(db_entry(&mut controller, &source, "one.wav").is_some());
+    assert!(db_entry(&mut controller, &target, "dest/one.wav").is_none());
+}
+
+#[test]
 fn cross_source_drop_target_missing_source_is_rejected() {
     let temp = tempdir().must();
     let _guard = ConfigBaseGuard::set(temp.path().to_path_buf());

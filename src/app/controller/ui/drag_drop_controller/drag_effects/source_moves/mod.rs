@@ -11,8 +11,6 @@ mod plan;
 mod registration;
 mod worker;
 
-pub(super) use registration::MovedSampleRegistration;
-
 #[cfg(test)]
 use std::sync::{Mutex, MutexGuard, OnceLock};
 

@@ -51,7 +51,7 @@ Status: Phase 2 in progress on 2026-03-17. Item 1 is complete; items 2-6 remain 
   - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Date completed: 2026-03-17
-- Commit: pending item commit during Phase 2 execution
+- Commit: `8e301fae` (`test(drag-drop): cover cross-source drop targets`)
 - Assumptions used:
   - Locking the target source DB with `BEGIN IMMEDIATE` is a safe deterministic way to exercise the target-registration rollback branch because the source-side metadata reads stay unaffected.
   - The source-row cleanup rollback branch belongs with item 2 because the current implementation still needs behavior changes there; item 1 captures the passing rejection, success, collision, and target-write-rollback seams first.
@@ -60,7 +60,7 @@ Status: Phase 2 in progress on 2026-03-17. Item 1 is complete; items 2-6 remain 
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
   - No plan-order deviation for the completed coverage slice; the remaining source-cleanup-failure branch stays coupled to item 2's implementation work.
 
-### 2. [ ] Route cross-source drag/drop target copy and move through the staged file-op journal contract instead of ad-hoc mutations
+### 2. [x] Route cross-source drag/drop target copy and move through the staged file-op journal contract instead of ad-hoc mutations
 
 - Classification: Bug fix
 - Confidence: High
@@ -82,6 +82,17 @@ Status: Phase 2 in progress on 2026-03-17. Item 1 is complete; items 2-6 remain 
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
   - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Date completed: 2026-03-17
+- Commit: pending item commit during Phase 2 execution
+- Assumptions used:
+  - Preserving `locked` during normal success paths is required because the pre-existing drop-target behavior already copied that flag, even though the journal contract only documents tag/loop/playback metadata.
+  - Leaving the journal entry in place on post-DB finalize failures is safer than aggressive rollback because reconcile can still finish or clean the operation on the next startup.
+- Validation outcome:
+  - `cargo test drag_drop_drop_targets -- --test-threads=1` passed
+  - `cargo test file_ops_journal -- --test-threads=1` passed
+  - `cargo test clipboard_paste -- --test-threads=1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+  - No plan-order deviation; item 2 consumed the remaining source-cleanup rollback branch that item 1 intentionally deferred until the bug fix existed.
 
 ### 3. [ ] Refresh stale cleanup-hotspot and quality-score artifacts before using them for further prioritization
 

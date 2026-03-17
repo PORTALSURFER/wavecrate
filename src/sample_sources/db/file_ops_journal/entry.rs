@@ -127,6 +127,9 @@ impl FileOpJournalEntry {
         id: String,
         target_relative: PathBuf,
         staged_relative: PathBuf,
+        tag: Rating,
+        looped: bool,
+        last_played_at: Option<i64>,
     ) -> Result<Self, SourceDbError> {
         Ok(Self {
             id,
@@ -138,9 +141,9 @@ impl FileOpJournalEntry {
             staged_relative: Some(staged_relative),
             file_size: None,
             modified_ns: None,
-            tag: None,
-            looped: None,
-            last_played_at: None,
+            tag: Some(tag),
+            looped: Some(looped),
+            last_played_at,
             created_at: now_epoch_seconds()?,
         })
     }
