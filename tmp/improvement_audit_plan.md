@@ -1,13 +1,13 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-17
-Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit user confirmation.
+Status: Phase 2 complete on 2026-03-17. All ranked backlog items were implemented sequentially and pushed.
 
 ## Scope
 
-- This document is the current evidence-driven improvement backlog for the live tree.
+- This document is the current evidence-driven improvement execution record for the live tree.
 - It supersedes the earlier completed execution record that previously lived at this path.
-- Items are ranked in strict execution order by expected ROI for the current repository state.
+- Items remain listed in strict execution order by expected ROI for the repository state they were executed against.
 - Recommendations are limited to repository-supported improvements; speculative direction is excluded.
 
 ## Repository Context
@@ -54,7 +54,7 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-17
-  - Commit: pending final execution-record sync
+  - Commit: `0f020590` `docs(audit): refresh cleanup baseline`
   - Assumption: the live quality score should continue to report code-size discipline as `3` because full-scan debt remains even though allowlist debt is gone.
   - Validation:
     - Passed: `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
@@ -84,7 +84,7 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-17
-  - Commit: pending final execution-record sync
+  - Commit: `4c62113d` `test(folder-moves): add rollback coverage`
   - Assumption: folder-move failure coverage should accept any DB-write-stage failure message that still proves the folder rename rolled back and DB state stayed on the source path.
   - Validation:
     - Passed: `cargo test folder_move -- --test-threads=1`
@@ -113,7 +113,7 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-17
-  - Commit: pending final execution-record sync
+  - Commit: `5eedabf4` `refactor(folder-moves): split folder move worker phases`
   - Assumption: preserving the public `run_folder_move_task` surface and mirroring each durable boundary with one helper is safer than introducing new cross-module abstractions.
   - Validation:
     - Passed: `cargo test folder_move -- --test-threads=1` before the final formatting-only patch to the same file
@@ -144,7 +144,7 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-17
-  - Commit: pending final execution-record sync
+  - Commit: `2b3ac601` `refactor(folder-moves): split staged sample move phases`
   - Assumption: reusing the existing staged-move transaction pattern from cross-source sample moves is safer than inventing a separate folder-sample orchestration model.
   - Validation:
     - Passed: `cargo test folder_move -- --test-threads=1`
@@ -174,7 +174,7 @@ Status: Phase 2 in progress. Implementation started on 2026-03-17 after explicit
 - Product clarification required: No
 - Execution notes:
   - Date: 2026-03-17
-  - Commit: pending final execution-record sync
+  - Commit: `0127c602` `refactor(analysis): add batch processing context`
   - Assumption: a single mutable batch-processing context is the smallest cleanup that removes the suppression without changing queueing or connection-reuse behavior.
   - Validation:
     - Passed: `rustfmt --edition 2024 --check src\app\controller\library\analysis_jobs\pool\job_claim\compute_worker\execution.rs`
