@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-17T23:35:00+01:00
+Last Updated: 2026-03-18T01:25:00+01:00
 Updated By: Codex
 
 ## Purpose
@@ -15,7 +15,7 @@ Updated By: Codex
 - The active lane is a fresh Phase 1 evidence-driven improvement audit for the current tree.
 - `tmp/improvement_audit_plan.md` is the current source of truth.
 - The previous completed audit backlog is now historical input only.
-- The refreshed audit backlog for 2026-03-17 has been rewritten for the live tree and is waiting for explicit user confirmation before implementation begins.
+- The refreshed audit backlog for 2026-03-18 has been rewritten for the live tree and is waiting for explicit user confirmation before implementation begins.
 - Full-scan guardrails are currently green, so the old file-size-driven backlog no longer applies as written.
 - The active follow-up is a dual-lane validation workflow for Windows: `scripts/ci_agent.ps1` is the reliable agent-safe lane in constrained environments, while `scripts/ci_quick.ps1` remains the broader integrated lane for humans when `cargo-nextest.exe` is allowed.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
@@ -33,7 +33,7 @@ Updated By: Codex
 
 ## Work Notes
 
-- Active audit backlog: `tmp/improvement_audit_plan.md`
+- Active audit backlog: `tmp/improvement_audit_plan.md` (refreshed 2026-03-18)
 - Previous completed audit backlog: historical content recorded in Git history
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`

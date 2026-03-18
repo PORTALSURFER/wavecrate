@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (local): 2026-03-17T23:35:00+01:00
+Last updated (local): 2026-03-18T01:25:00+01:00
 Owner: Codex agent sessions
 
 Purpose:
@@ -11,7 +11,7 @@ Purpose:
 
 ## Current lane
 
-- A fresh evidence-driven improvement audit has been rebuilt for the live tree on 2026-03-17.
+- A fresh evidence-driven improvement audit has been rebuilt for the live tree on 2026-03-18.
 - `tmp/improvement_audit_plan.md` is the source of truth for the current Phase 1 backlog and is waiting for explicit implementation confirmation.
 - The active follow-up is a dual-lane validation workflow: `scripts/ci_agent.*` for constrained agent environments and `scripts/ci_quick.*` / `scripts/ci_local.*` for broader human-run coverage.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.

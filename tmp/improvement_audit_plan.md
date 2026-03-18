@@ -1,207 +1,318 @@
 # Improvement Audit Plan
 
-Generated: 2026-03-17
-Observed commit: `5c69a9ce`
-Status: Phase 1 complete on 2026-03-17. This file is the current ROI-ranked improvement backlog for the live tree and is waiting for explicit user confirmation before implementation.
+Generated: 2026-03-18
+Observed commit: `14dfd479`
+Status: Phase 1 complete on 2026-03-18. This file is the current ROI-ranked improvement backlog for the live tree and is waiting for explicit user confirmation before implementation.
 
 ## Scope
 
-- This document supersedes the previous completed execution record that lived at this path.
-- Items are ranked in strict execution order by expected ROI for the repository state observed on 2026-03-17.
+- This document supersedes the previous plan snapshot that lived at this path.
+- Items are ranked in strict execution order by expected ROI for the repository state observed on 2026-03-18.
 - Recommendations stay inside repository-supported direction; speculative product expansion and preference-driven rewrites are excluded.
 
 ## Repository Context
 
 - Project purpose: Explicitly documented. `README.md` and `docs/design_principles.md` describe Sempal as a realtime-oriented Rust sample triage and curation tool for local audio libraries.
 - Maturity level: Explicitly documented. `README.md` labels the app early alpha and warns that file operations can modify, rename, or delete user data.
-- Primary languages / frameworks / tooling: Explicitly documented. `Cargo.toml` defines a Rust 2024 workspace; `README.md` and `docs/ARCHITECTURE.md` document the vendored `radiant` runtime/UI layer.
-- Repository shape: Explicitly documented. Domain/controller logic lives under `src/`; support tools live under `apps/` and `tools/`; GUI/runtime ownership is split between `src/app_core`, `src/gui*`, and `vendor/radiant`.
-- Architectural boundaries: Explicitly documented. `docs/ARCHITECTURE.md` and `README.md` keep domain state and application logic in `src` while `vendor/radiant` owns GUI runtime behavior and host/runtime action wiring.
-- Test strategy: Strongly implied by code/docs. `docs/TEST.md` and the source tree favor deterministic Rust unit/module tests plus targeted controller/integration coverage; GUI automation remains a broader local lane.
-- Canonical local validation commands: Explicitly documented. `docs/README.md`, `docs/TEST.md`, and `AGENTS.md` define `scripts/devcheck.ps1`, `scripts/ci_agent.ps1`, `scripts/ci_quick.ps1`, and `scripts/ci_local.ps1` as the Windows validation ladder.
+- Primary languages / frameworks / tooling: Explicitly documented. `Cargo.toml` defines a Rust 2024 workspace with the vendored `radiant` runtime/UI layer plus helper apps and tools under `apps/` and `tools/`.
+- Repository shape: Explicitly documented. `docs/ARCHITECTURE.md` splits domain/controller logic under `src/`, runtime/UI framework code under `vendor/radiant/`, and helper binaries under `apps/` / `tools/`.
+- Architectural boundaries: Explicitly documented. `README.md` and `docs/ARCHITECTURE.md` keep domain state and UI intent in `src` while `vendor/radiant` owns runtime UI behavior.
+- Test strategy: Strongly implied by code/docs. `docs/TEST.md` and the source tree favor deterministic Rust unit/module tests, targeted controller tests, and broader GUI contract/AIV lanes outside the default constrained-agent loop.
+- Canonical local validation commands: Explicitly documented. Windows flows center on `scripts/devcheck.ps1`, `scripts/ci_agent.ps1`, `scripts/ci_quick.ps1`, and `scripts/ci_local.ps1`.
 - Documented priorities: Explicitly documented. `docs/design_principles.md` prioritizes responsiveness, non-blocking execution, reversibility, data integrity, and predictable interaction.
 - Explicit non-goals: Explicitly documented. `docs/design_principles.md` says Sempal is not a DAW replacement, cloud platform, or attention-retention product.
+
+## Audit Notes
+
+- Full file-size guardrail now passes on the live tree: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` reported `[file_budget] OK (838 files checked)`.
+- High-visibility score drift is currently healthy: `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` reported `[quality_score] OK: guardrails are healthy and score is 4.`
+- The broader agent-safe validation lane did not complete in this environment: `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` failed during `cargo check -p sempal --tests --bins` because `sccache` timed out before the build script could query `rustc`. This looks environment-specific rather than repository-specific, so it is not included as a backlog item.
 
 ## Intent Boundaries
 
 - What the repo clearly is: a Rust desktop application for listening to, navigating, editing, and curating local sample libraries with strong emphasis on responsiveness and reversible workflows.
-- What the repo appears to be moving toward: Strongly implied by code/docs. Safer staged file operations, stronger local guardrails, and tighter native-runtime/controller contracts with more explicit validation lanes.
-- What is merely possible but unsupported: broad product-scope expansion, splitting intentionally centralized compatibility surfaces only because they are large, or reopening already-finished drag/drop integrity work without fresh contradictory evidence.
+- What the repo appears to be moving toward: Strongly implied by code/docs. More explicit background-job boundaries for file operations, tighter controller/runtime contracts, and stronger local validation/guardrail hygiene.
+- What is merely possible but unsupported: sweeping GUI/catalog rewrites, splitting intentionally centralized compatibility surfaces only because they are large, or reopening already-covered recovery systems without fresh contradictory evidence.
 
 ## Ordered Backlog
 
-### 1. [ ] Refresh stale cleanup-hotspot and quality-score artifacts before using them for further prioritization
+### 1. [ ] Move cross-source drop-target copy/move work off the controller thread and onto the existing file-op worker pipeline
 
-- Classification: Developer-experience improvement
+- Classification: Bug fix
 - Confidence: High
 - ROI: High
-- Effort: S
-- Why it matters: current planning inputs still describe an older tree and now mis-rank already-finished file-size debt, which makes follow-on cleanup prioritization less trustworthy.
+- Effort: M
+- Why it matters: this path performs filesystem staging, SQLite writes, and final file moves inline on the controller thread even though the documented design forbids blocking file I/O and DB work on the UI path.
 - Evidence:
-  - `tmp/cleanup_audit_hotspots.md` was generated at commit `9bda0d2e`, not the observed current commit `5c69a9ce`.
-  - `tmp/cleanup_audit_hotspots.md` still reports 7 over-budget Rust files, including `src/app/controller/tests/drag_drop_drop_targets.rs` at 431 lines and `src/selection/range.rs` at 407 lines.
-  - A fresh full scan on 2026-03-17 passed: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` returned `[file_budget] OK`.
-  - Current line counts on 2026-03-17 place `src/app/controller/tests/drag_drop_drop_targets.rs` at 390 lines, `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs` at 384, and `src/selection/range.rs` at 372.
-  - `docs/QUALITY_SCORE.md` still tells maintainers to burn down the stale file-size list from `tmp/cleanup_audit_hotspots.md`.
-- Recommended change: regenerate `tmp/cleanup_audit_hotspots.md`, update `docs/QUALITY_SCORE.md` to match the now-green full-scan file-size guardrail, and remove stale references to already-finished over-budget files.
-- Expected impact: restores trustworthy debt-tracking inputs for later audits and cleanup work without changing runtime behavior.
-- Risks / tradeoffs: this is meta-work only; the main risk is papering over a new hotspot if the refresh is done carelessly.
+  - `docs/design_principles.md` says blocking file I/O, analysis, indexing, rendering, and database access are explicitly prohibited on the UI thread.
+  - `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs:37` runs `prepare_staged_move`, target/source DB mutations, and `move_sample_file` inline inside `handle_sample_drop_to_drop_target`.
+  - `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs:258` runs `prepare_staged_copy`, DB writes, and `move_sample_file` inline inside `copy_sample_to_target`.
+  - `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs:237` handles multi-sample drops by looping the same synchronous single-sample path.
+  - Equivalent file-op flows already use background jobs plus progress/cancellation: `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/plan.rs` and `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves/plan.rs`.
+- Recommended change: route cross-source drop-target moves/copies through the same `FileOpMessage`/worker-thread pipeline used by folder/source moves, with progress visibility and cancellation support.
+- Expected impact: removes a UI-thread blocking path, aligns drop-target behavior with the repo’s non-blocking contract, and reduces hitch risk on large or slow filesystem moves.
+- Risks / tradeoffs: workerizing the path will require careful result-application wiring so existing cache/journal semantics remain intact.
 - Dependencies: none
 - Suggested validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
+  - targeted drag/drop controller tests for cross-source drop targets
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+  - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### 2. [ ] Add direct controller coverage for folder-drop planning, rejection, and result-application paths
+### 2. [ ] Add direct controller coverage for folder-move planning and result-application branches
 
 - Classification: Test gap
 - Confidence: High
 - ROI: High
 - Effort: M
-- Why it matters: the folder-drop controller seam shapes requests, enforces user-visible rejection rules, updates progress/status, and remaps UI state after worker completion, but the local tests focus on worker execution rather than these controller behaviors.
+- Why it matters: the folder-move controller layer owns user-visible rejection rules, progress setup, remapping/focus updates, and status text, but current local coverage concentrates on worker behavior instead of these controller-only branches.
 - Evidence:
-  - `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/plan.rs` contains `handle_samples_drop_to_folder` and `handle_folder_drop_to_folder`, including same-source checks, selected-source checks, root/self/descendant rejection, progress setup, and test-vs-runtime dispatch.
-  - `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/apply_result.rs` contains `apply_folder_sample_move_result` and `apply_folder_move_result`, which mutate wav-entry caches, folder state, manual folders, focus, and status text.
-  - `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs` embeds tests that call `run_folder_sample_move_task` and `run_folder_move_task`; the current local test module does not exercise the planner or apply-result entrypoints directly.
-  - Repository search on 2026-03-17 found no direct test references to `handle_samples_drop_to_folder`, `handle_folder_drop_to_folder`, `apply_folder_sample_move_result`, or `apply_folder_move_result`.
-- Recommended change: add focused controller tests for empty/sample-source mismatch rejection, selected-source mismatch rejection, root/self/descendant folder rejection, status/progress setup, cancelled/no-op result messaging, and UI remapping after successful folder moves.
-- Expected impact: lowers regression risk in a user-facing file-operation controller boundary before any structural cleanup.
-- Risks / tradeoffs: these tests need controller fixtures rather than isolated worker fixtures, so setup will be slightly heavier than the existing task-level tests.
+  - `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/plan.rs:29` and `:173` contain source validation, same-folder rejection, root/self/descendant folder rejection, progress setup, and test-vs-runtime dispatch.
+  - `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/apply_result.rs:9` and `:82` apply moved-entry cache updates, remap folders, update focus, and synthesize status messages.
+  - Repo-wide search found no direct tests for `handle_samples_drop_to_folder`, `handle_folder_drop_to_folder`, `apply_folder_sample_move_result`, or `apply_folder_move_result`.
+  - `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs` currently tests `run_folder_sample_move_task` and `run_folder_move_task`, which covers worker execution rather than controller branches.
+- Recommended change: add focused controller tests for source mismatch rejection, selected-source mismatch rejection, root/self/descendant rejection, progress overlay setup, cancelled/no-op status messaging, and folder-state/focus remapping after success.
+- Expected impact: makes a user-facing file-op boundary safer to change and protects controller semantics that worker tests cannot catch.
+- Risks / tradeoffs: these tests will need controller fixtures rather than isolated worker fixtures, so setup will be slightly heavier.
 - Dependencies: none
 - Suggested validation:
   - targeted folder-move controller tests
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-  - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### 3. [ ] Split the folder-move drag/drop module so orchestration code and worker tests stop sharing one hotspot file
+### 3. [ ] Add direct regression coverage for cross-source move result application and touched-source invalidation
 
-- Classification: Architecture improvement
+- Classification: Test gap
 - Confidence: High
 - ROI: Medium-High
-- Effort: M
-- Why it matters: one near-budget module currently acts as the public portal for planner/result code while also housing a large embedded worker-test suite, which weakens discoverability and keeps unrelated responsibilities coupled.
+- Effort: S-M
+- Why it matters: source-move result application mutates caches across multiple sources and synthesizes user-facing status, but the current tests focus on request collection and worker transactions rather than the controller result seam.
 - Evidence:
-  - `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs` is 384 lines on 2026-03-17, close to the repository's 400-line hard limit.
-  - The file's production responsibility is only three module declarations (`apply_result`, `plan`, `worker`), but the rest of the file is a large `#[cfg(test)] mod tests` block focused on worker-task behavior.
-  - `AGENTS.md` and repository instructions call for small, focused files and hierarchical module decomposition over broad concatenated hotspots.
-  - `tmp/cleanup_audit_hotspots.md` still names `folder_moves.rs` as an over-budget hotspot, which is now stale on exact count but still points at a real concentration seam.
-- Recommended change: keep `folder_moves.rs` as a small module portal and move the embedded tests into focused sibling test modules, ideally aligned with `plan`, `apply_result`, and worker responsibilities.
-- Expected impact: improves discoverability and keeps future folder-move changes from re-inflating one mixed-responsibility file.
-- Risks / tradeoffs: test relocation changes file layout but not behavior; the main risk is over-fragmenting if the split is too fine-grained.
-- Dependencies: item 2
+  - `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves/apply_result.rs:9` applies move results, invalidates touched sources, and translates outcomes into status text.
+  - Repo-wide search found no direct tests for `apply_source_move_result`, `apply_moved_source_entries`, `invalidate_moved_sources`, or `set_source_move_status`.
+  - Existing tests in `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves/plan.rs` and `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves/worker.rs` cover request/worker behavior instead.
+- Recommended change: add focused controller tests for multi-source invalidation, partial-success status text, cancelled/no-op messaging, and target-source cache refresh behavior.
+- Expected impact: reduces risk of stale browser/source state after cross-source moves and complements the worker-level transaction safety already in place.
+- Risks / tradeoffs: low implementation risk; the main tradeoff is extra fixture setup for multi-source controller state.
+- Dependencies: none
 - Suggested validation:
-  - targeted folder-move tests
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
+  - targeted source-move controller tests
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 
-### 4. [ ] Add long-file parity coverage for the Symphonia fallback peak/analysis path
+### 4. [ ] Make the documented Windows agent-safe validation lane resilient when `sccache` is installed but unhealthy
+
+- Classification: Developer-experience improvement
+- Confidence: Medium
+- ROI: High
+- Effort: S-M
+- Why it matters: the repository’s documented constrained-environment validation lane is supposed to be the safe default for agent work on Windows, but in the current environment it failed before meaningful validation because `sccache` was treated as usable just because it was installed.
+- Evidence:
+  - `scripts/use_cargo_cache.ps1` sets `RUSTC_WRAPPER` to `sccache` whenever `sccache` is found and `SEMPAL_DISABLE_SCCACHE` is not set.
+  - `scripts/devcheck.ps1` and `scripts/ci_agent.ps1` always call `Enable-SempalCargoCache`.
+  - On 2026-03-18, `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` failed during `cargo check -p sempal --tests --bins` because `embed-resource` could not query `rustc` through a timed-out `sccache` startup.
+  - `docs/README.md`, `docs/TEST.md`, and `AGENTS.md` all present `scripts/ci_agent.ps1` as the constrained-environment validation lane.
+- Recommended change: make the cache helper degrade gracefully when `sccache` is installed but unhealthy, for example by probing it, falling back to direct `rustc`, or retrying without `RUSTC_WRAPPER` when the wrapper itself is the failure source.
+- Expected impact: restores the reliability of the documented Windows agent validation path in the environments it is meant to support.
+- Risks / tradeoffs: cache probing/fallback logic adds script complexity and should avoid masking genuine compiler failures.
+- Dependencies: none
+- Suggested validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+  - targeted script guardrails if the helper behavior changes
+- Product clarification required: No
+
+### 5. [ ] Enforce that `DesktopAiv` catalog coverage claims are backed by actual desktop-AIV cases
+
+- Classification: Test gap
+- Confidence: High
+- ROI: High
+- Effort: M
+- Why it matters: the GUI action catalog advertises required coverage layers per action, but current tests only verify that coverage metadata exists, not that the promised desktop-AIV coverage is actually present.
+- Evidence:
+  - `src/app_core/actions/catalog/entries.rs` marks several actions with `DesktopAiv` coverage, including `focus_browser_search`, `open_options_menu`, `select_source_row`, `move_browser_focus`, `focus_browser_row`, `seek_waveform`, `set_waveform_cursor`, and `set_waveform_view_center`.
+  - `src/app_core/actions/tests.rs` checks catalog completeness, unique IDs, and non-empty coverage layers, but it does not verify pack/case coverage against those declarations.
+  - The current desktop-AIV manifests are assembled in `src/gui_test/aiv/packs.rs` and case files under `src/gui_test/aiv/packs/cases/`.
+  - Repo-wide search in the desktop-AIV case files found no coverage for several catalog-marked `DesktopAiv` action IDs, while the metadata still claims that coverage exists.
+- Recommended change: add a coverage-consistency test or generator check that compares catalog `DesktopAiv` claims against the exported AIV suite manifests, then either add the missing cases or downgrade the metadata until it is true.
+- Expected impact: makes GUI coverage metadata trustworthy instead of aspirational and reduces the chance of over-reporting desktop automation coverage.
+- Risks / tradeoffs: if the catalog intentionally models future coverage, this will force the repo to choose between building those cases now or explicitly narrowing the claims.
+- Dependencies: none
+- Suggested validation:
+  - targeted GUI action catalog tests
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
+  - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
+- Product clarification required: No
+
+### 6. [ ] Add controller-branch tests for `AudioLoadResult` routing and transient cache-token gating
 
 - Classification: Test gap
 - Confidence: High
 - ROI: Medium-High
 - Effort: M
-- Why it matters: the Symphonia fallback still has its own long-file peak/analysis loop, but the current tests only prove a malformed WAV can decode, not that the fallback produces the same peak/analysis semantics as the shared waveform path.
+- Why it matters: one controller seam decides whether late audio results still match the active request, whether waveform loading state is cleared, and whether transient data should be applied or persisted.
 - Evidence:
-  - `src/waveform/decode/symphonia_reader.rs` contains `build_symphonia_peaks`, a 130-line peak/analysis builder for long files.
-  - `src/waveform/peak_analysis.rs` now centralizes the same concepts for WAV decode and recording aggregation, but `symphonia_reader.rs` still uses its own loop.
-  - The only local Symphonia test is `symphonia_fallback_decodes_ill_formed_riff_size` in `src/waveform/decode/symphonia_reader.rs`; there is no long-file mono/stereo parity coverage there.
-  - `tmp/cleanup_audit_hotspots.md` lists `build_symphonia_peaks` as one of the largest remaining function spans in the repository.
-- Recommended change: add characterization tests inside `symphonia_reader.rs` for long-file mono and stereo peak output, clamp behavior, analysis stride/sample-rate expectations, and parity against the shared helper semantics.
-- Expected impact: creates a safety net around a duplicated decode path before any deduplication work.
-- Risks / tradeoffs: the tests will need deterministic fixtures that force the long-file fallback path rather than the short fully-decoded path.
+  - `src/app/controller/library/background_jobs/polling/audio.rs:50` routes `AudioLoadResult::Primary` through pending-request matching, clears pending/loading state, and dispatches success/error handling.
+  - `src/app/controller/library/wavs/audio_loading.rs:126` rejects transient updates on source/path mismatch or `cache_token` mismatch and only persists cache for unstretched results.
+  - `src/app/controller/library/background_jobs/polling/tests.rs` exercises folder-scan, search, and generic file-op progress handling but not audio-loaded message branches.
+  - `src/app/controller/tests/waveform_cache_loading.rs` covers cache reuse and reload behavior, but repo-wide search found no direct tests for `handle_audio_loaded_message` or `handle_audio_transients_loaded`.
+- Recommended change: add focused tests for stale primary results, matching primary-result cleanup of pending/loading state, transient source/path/token mismatch ignores, and unstretched-only transient persistence.
+- Expected impact: lowers regression risk for late worker results attaching to the wrong waveform or incorrectly mutating cache state.
+- Risks / tradeoffs: these tests need deliberate setup of pending audio state and decoded waveform tokens.
+- Dependencies: none
+- Suggested validation:
+  - targeted controller audio-routing tests
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Product clarification required: No
+
+### 7. [ ] Add long-file parity coverage for the Symphonia fallback peak/analysis path
+
+- Classification: Test gap
+- Confidence: High
+- ROI: Medium-High
+- Effort: M
+- Why it matters: the tolerant Symphonia fallback still owns its own long-file peak/analysis loop, but current tests only prove malformed-WAV decode success rather than parity of the long-file output semantics.
+- Evidence:
+  - `src/waveform/decode/symphonia_reader.rs:64` implements `build_symphonia_peaks` for long files.
+  - The only local test in that file is `symphonia_fallback_decodes_ill_formed_riff_size` at `src/waveform/decode/symphonia_reader.rs:213`.
+  - `src/waveform/decode/cache_token.rs:47` exposes `load_decoded_with_max_frames`, which can force the long-file branch for deterministic tests.
+  - `src/waveform/decode/peaks.rs` and `src/waveform/peak_analysis.rs` define the shared long-waveform semantics that the Symphonia path should match, but there is no direct parity coverage.
+- Recommended change: add characterization tests for mono/stereo long-file fallback output covering total frames, bucket sizing, left/right/mono peaks, analysis stride, and analysis sample-rate behavior.
+- Expected impact: creates a safety net around the less-common tolerant decode path before any deduplication work.
+- Risks / tradeoffs: exact bucket-for-bucket equality may be more brittle than invariant-based parity, so the test oracle should be chosen carefully.
 - Dependencies: none
 - Suggested validation:
   - targeted waveform decode tests
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-  - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 
-### 5. [ ] Route Symphonia long-file peak/analysis building through the shared `waveform::peak_analysis` helpers
+### 8. [ ] Route Symphonia long-file peak/analysis building through the shared `PeakAnalysisAccumulator`
 
 - Classification: Refactor / cleanup
 - Confidence: High
 - ROI: Medium
 - Effort: M
-- Why it matters: after the recent recording/WAV cleanup, the Symphonia fallback is now the remaining visible duplicate owner of the peak-bucket, clamp, and analysis-accumulation logic.
+- Why it matters: the Symphonia fallback is now the visible remaining duplicate owner of long-waveform bucket sizing, clamping, and analysis-sample accumulation math.
 - Evidence:
-  - `src/waveform/decode/symphonia_reader.rs` manually computes `bucket_size_frames`, `analysis_stride`, mono/left/right peak ranges, and analysis accumulation in `build_symphonia_peaks`.
-  - `src/waveform/decode/peaks.rs` already re-exports shared `analysis_stride` and `peak_bucket_size` from `src/waveform/peak_analysis.rs`.
-  - `src/app/controller/playback/recording/waveform_loader/aggregation.rs` was already moved onto `PeakAnalysisAccumulator`, leaving `symphonia_reader.rs` as the obvious remaining drift seam.
-- Recommended change: reuse `PeakAnalysisAccumulator` or a narrow shared helper from `src/waveform/peak_analysis.rs` so Symphonia long-file fallback no longer owns a second copy of the same math.
-- Expected impact: reduces future correctness drift and keeps waveform math changes localized.
-- Risks / tradeoffs: the helper boundary should stay internal and small; forcing an over-general abstraction would hurt readability more than it helps.
-- Dependencies: item 4
+  - `src/waveform/decode/symphonia_reader.rs:75-185` manually computes bucket sizing, mono/left/right peaks, clamping, and averaged analysis samples.
+  - `src/waveform/peak_analysis.rs:40-151` already centralizes those concerns in `PeakAnalysisAccumulator`.
+  - `src/waveform/decode/peaks.rs:63-97` already uses the shared accumulator for the primary WAV long-file path.
+- Recommended change: after adding parity coverage, reuse `PeakAnalysisAccumulator` or a narrow helper built on it so the Symphonia fallback no longer owns a second copy of the same waveform math.
+- Expected impact: reduces future correctness drift and keeps long-waveform math changes localized to one implementation.
+- Risks / tradeoffs: the abstraction boundary should stay narrow; over-generalizing the helper would harm readability.
+- Dependencies: item 7
 - Suggested validation:
-  - the new Symphonia parity tests from item 4
+  - the new Symphonia parity tests from item 7
   - targeted waveform decode tests
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 
-### 6. [ ] Add direct coverage for audio-load message routing and transient cache-token gating
+### 9. [ ] Refresh stale architecture and planning docs that no longer match the live tree
 
-- Classification: Test gap
+- Classification: Documentation gap
 - Confidence: High
 - ROI: Medium
-- Effort: M
-- Why it matters: one controller boundary decides whether background audio results still belong to the active request and whether transient markers should be persisted or ignored, but current tests only cover adjacent end-to-end effects rather than these explicit routing branches.
+- Effort: S-M
+- Why it matters: several high-visibility handoff and architecture docs still point maintainers toward modules or debt states that no longer exist, which increases the risk of misrouting future work.
 - Evidence:
-  - `src/app/controller/library/background_jobs/polling/audio.rs` contains `handle_audio_loaded_message`, which matches `AudioLoadResult::Primary` against pending request identity, clears pending/loading state, and routes `AudioLoadResult::Transients` into transient handling.
-  - `src/app/controller/library/wavs/audio_loading.rs` contains `handle_audio_transients_loaded`, which rejects results on source/path mismatch or `cache_token` mismatch and persists cache only for unstretched results.
-  - Repository search on 2026-03-17 found no direct test references to `handle_audio_loaded_message`, `AudioLoadResult::Primary`, `AudioLoadResult::Transients`, or `handle_audio_transients_loaded`.
-  - Existing tests in `src/app/controller/tests/waveform_nav_render.rs` and `src/app/controller/tests/waveform_cache_loading.rs` cover stale end-to-end audio results and cache-hit reuse, but not these branch conditions directly.
-- Recommended change: add focused controller tests for primary-result mismatch ignore, pending/loading clear-on-match behavior, transient source/path/token mismatch ignore paths, and unstretched transient persistence.
-- Expected impact: makes a fragile request-routing seam cheaper to change safely and complements the broader audio-loader tests already in place.
-- Risks / tradeoffs: some tests may need local helper construction for `AudioLoadResult` and decoded waveform state rather than full async job execution.
+  - `README.md` still references `src/legacy_runtime` and `src/gui_app`, but those paths do not exist in the current `src/` tree.
+  - `docs/ARCHITECTURE.md` still routes “app-level GUI wiring” to `src/gui_app` and describes `src/gui` as app-level GUI wiring, while `src/gui/mod.rs` is now only `radiant` re-exports.
+  - `docs/INDEX.md` still describes checks in terms of `crate::legacy_runtime::` and `crate::gui_app::` dependencies.
+  - `tmp/cleanup_audit_hotspots.md` was generated at commit `9bda0d2e` and still reports seven over-budget files even though `scripts/check_file_size_budget.ps1 --all` now passes on commit `14dfd479`.
+  - `docs/QUALITY_SCORE.md` still points maintainers at the stale cleanup-hotspot file-size debt list.
+- Recommended change: update the architecture/handoff docs to reflect the live module map, regenerate `tmp/cleanup_audit_hotspots.md`, and refresh `docs/QUALITY_SCORE.md` so planning notes match the current guardrail state.
+- Expected impact: keeps future contributors and agents aligned with the live tree instead of historical module names and stale debt lists.
+- Risks / tradeoffs: documentation-only work can still hide omissions if the refresh is done without checking the live source tree carefully.
 - Dependencies: none
 - Suggested validation:
-  - targeted controller audio tests
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-  - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
+- Product clarification required: No
+
+### 10. [ ] Split `folder_moves.rs` so the module portal and worker-heavy tests stop sharing one hotspot file
+
+- Classification: Refactor / cleanup
+- Confidence: High
+- ROI: Medium-Low
+- Effort: S
+- Why it matters: the public folder-move module is close to the file-size limit even though most of its content is a single embedded worker-test block rather than production orchestration code.
+- Evidence:
+  - `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs` is 384 lines on the live tree.
+  - Its production responsibility is only the three submodule declarations (`apply_result`, `plan`, `worker`), while most of the file is `#[cfg(test)] mod tests`.
+  - `AGENTS.md` and repo guidance call for small, focused files and hierarchical decomposition as files approach the 400-line budget.
+- Recommended change: keep `folder_moves.rs` as a small module portal and move the embedded tests into focused sibling modules aligned with worker/planner responsibilities.
+- Expected impact: improves discoverability and reduces the chance that future folder-move work keeps piling into the same near-budget file.
+- Risks / tradeoffs: this is structural churn only; the main risk is splitting the tests too finely and making them harder to navigate.
+- Dependencies: item 2
+- Suggested validation:
+  - targeted folder-move tests
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Product clarification required: No
 
 ## Open Questions / Missing Definitions
 
-### [!] 1. Should `vendor/radiant/src/app/actions/mod.rs` remain one intentionally centralized compatibility surface?
+### [!] 1. Was the synchronous cross-source drop-target path intentional, or is it an unfinished exception to the non-blocking file-op model?
+
+- Evidence:
+  - `docs/design_principles.md` forbids blocking file I/O and DB work on the UI thread.
+  - `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs` still performs staged file work inline.
+  - Parallel file-op flows in `folder_moves` and `source_moves` already use background workers plus progress.
+- Why this matters: item 1 is a stronger recommendation if the current synchronous path is accidental drift rather than an intentional UX carveout.
+- Affected files/modules: `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs`, file-op job routing, drag/drop progress UI.
+- Risk if guessed incorrectly: changing execution mode could subtly affect drag/drop timing or status semantics if some caller depends on synchronous completion.
+- Most conservative provisional assumption: treat this as unintended drift and align it with the documented non-blocking file-op model unless maintainers document a specific exception.
+
+### [!] 2. Should `vendor/radiant/src/app/actions/mod.rs` remain one centralized compatibility surface?
 
 - Evidence:
   - The module docs in `vendor/radiant/src/app/actions/mod.rs` explicitly say `UiAction` intentionally remains the single compatibility surface between the native runtime and the host bridge.
-  - The same docs say the preferred maintenance approach is to keep the enum centralized while improving internal organization around it.
-- Why this matters: future cleanup passes will keep nominating the file by size unless the intentional contract boundary stays explicit.
-- Affected files/modules: `vendor/radiant/src/app/actions/mod.rs`, runtime action routing, host bridge, automation catalog.
+  - The same docs state the preferred maintenance approach is to keep the enum centralized while improving internal organization around it.
+- Why this matters: large-file heuristics will keep nominating this module unless the intentional centralization remains explicit in the audit record.
+- Affected files/modules: `vendor/radiant/src/app/actions/mod.rs`, app-core action catalog, runtime/automation bridges.
 - Risk if guessed incorrectly: premature splitting could destabilize the one inspectable action surface shared across runtime, host, and automation code.
-- Most conservative provisional assumption: keep `UiAction` centralized and only revisit that choice if a concrete routing or ownership mismatch appears.
+- Most conservative provisional assumption: keep `UiAction` centralized unless a concrete routing or ownership defect appears.
 
-### [!] 2. Should `src/selection/range.rs` continue to keep waveform geometry, fades, and gain math together?
+### [!] 3. Should `src/selection/range.rs` continue to keep waveform geometry, fades, and gain math together?
 
 - Evidence:
-  - The module docs in `src/selection/range.rs` explicitly describe the file as one cohesive waveform-editing domain model.
-  - The file is still large enough to attract size-driven cleanup suggestions even though the current docs argue for cohesion.
-- Why this matters: size-only cleanup pressure could split a correctness-sensitive domain contract without clear behavioral benefit.
-- Affected files/modules: `src/selection/range.rs`, waveform selection preview, fade handles, destructive edit flows.
-- Risk if guessed incorrectly: over-splitting could scatter one normalized selection/fade contract across several low-value helpers and make invariants harder to reason about.
+  - The module docs in `src/selection/range.rs:1-7` explicitly describe the file as one cohesive waveform-editing domain model.
+  - `src/selection/tests.rs` provides broad existing coverage across selection, fade, mute, snapping, and gain semantics.
+- Why this matters: file-size heuristics still make this module look like cleanup debt even though the current docs and tests argue for cohesion.
+- Affected files/modules: `src/selection/range.rs`, waveform edit-selection logic, fade preview, destructive edit flows.
+- Risk if guessed incorrectly: over-splitting could scatter one correctness-sensitive contract across low-value helper modules.
 - Most conservative provisional assumption: keep the module cohesive unless a clearer subdomain or ownership boundary emerges.
 
 ## Rejected Ideas
 
-### [-] 1. Reopen the cross-source drop-target integrity lane
+### [-] 1. Split `src/selection/range.rs` immediately
 
-- Why it was considered: previous audits found a real journal/recovery gap in the cross-source drop-target path.
-- Why it was rejected: the current tree already stages drop-target copy/move work through `move_transaction` helpers, updates `file_ops_journal` stages, and has direct regression coverage in `src/app/controller/tests/drag_drop_drop_targets.rs`.
-- What evidence was missing: any live mismatch between the documented journal contract and the current implementation.
+- Why it was considered: it remains a large, mathematically dense file.
+- Why it was rejected: the file explicitly documents why the range/fade/gain rules stay together, and the existing tests already cover the domain broadly.
+- What evidence was missing: a concrete ownership mismatch, correctness bug, or repeated change friction signal.
 
 ### [-] 2. Split `vendor/radiant/src/app/actions/mod.rs` immediately
 
-- Why it was considered: it remains one of the largest live Rust modules by raw line count.
-- Why it was rejected: the file itself explicitly documents that the centralized action catalog is intentional and shared by runtime, host bridge, and automation code.
-- What evidence was missing: any concrete routing, ownership, or regression pain caused by the current centralized enum.
+- Why it was considered: it is still one of the broader live Rust modules by raw size.
+- Why it was rejected: the module itself documents that the centralized action surface is intentional for runtime/host/automation compatibility.
+- What evidence was missing: any concrete routing or maintenance failure caused by that centralization.
 
-### [-] 3. Split `src/selection/range.rs` immediately
+### [-] 3. Redesign browser-preview audio loading
 
-- Why it was considered: it is dense, mathematically non-trivial, and still relatively large.
-- Why it was rejected: the file itself now documents that geometry, fades, and gain rules are one shared waveform-editing domain model.
-- What evidence was missing: any demonstrated subdomain boundary that would make a split safer or clearer.
+- Why it was considered: preview audio loading is a specialized path with separate behavior from full selection loading.
+- Why it was rejected: `src/app/controller/tests/browser_actions/focus_navigation.rs` already covers the preview queueing semantics, and this audit found no concrete defect or contract mismatch there.
+- What evidence was missing: any documented bug, contradictory test, or stale implementation signal.
+
+### [-] 4. Reopen file-op journal or folder-delete recovery as the next primary concern
+
+- Why it was considered: these are correctness-sensitive recovery systems.
+- Why it was rejected: the implementation and tests currently line up with their docs (`src/sample_sources/db/file_ops_journal/tests.rs` and `src/app/controller/tests/folders_core/rename_delete_recovery.rs`), and this pass found no fresh contradictory evidence.
+- What evidence was missing: a live mismatch between the recovery contracts and the current code.

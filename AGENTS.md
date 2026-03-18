@@ -60,8 +60,8 @@ Write for future selves: be precise, kind, and clear.
 - Product: Sempal
 - Branch: `next`
 - Program: evidence-driven improvement audit handoff
-- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-17 evidence-driven ROI-ranked backlog for the live tree; `docs/TEST.md` and `docs/README.md` still define the dual-lane validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: Phase 1 of a fresh improvement audit is complete on `2026-03-17`; `tmp/improvement_audit_plan.md` has been rewritten for the current tree and is waiting for explicit user confirmation before ranked-backlog implementation begins.
+- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-18 evidence-driven ROI-ranked backlog for the live tree; `docs/TEST.md` and `docs/README.md` still define the dual-lane validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
+- Current status: Phase 1 of the fresh improvement audit is complete on `2026-03-18`; `tmp/improvement_audit_plan.md` has been rewritten for the current tree and is waiting for explicit user confirmation before ranked-backlog implementation begins.
 
 ## Immediate Next Actions
 1. Wait for explicit user confirmation before implementing any ranked backlog item from `tmp/improvement_audit_plan.md`.
@@ -75,7 +75,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; Phase 1 is complete and waiting for explicit implementation confirmation as of `2026-03-17`
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; Phase 1 is complete and waiting for explicit implementation confirmation as of `2026-03-18`
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation
