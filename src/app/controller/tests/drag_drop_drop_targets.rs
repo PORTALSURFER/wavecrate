@@ -1,6 +1,6 @@
 use super::super::test_support::write_test_wav;
 use super::super::*;
-use crate::app::state::{DragPayload, DragSource, DragTarget};
+use crate::app::state::{DragPayload, DragSample, DragSource, DragTarget};
 use crate::app_dirs::ConfigBaseGuard;
 use crate::sample_sources::config::DropTargetConfig;
 use crate::sample_sources::db::DB_FILE_NAME;
@@ -90,6 +90,40 @@ fn seed_source_sample(controller: &mut AppController, source: &SampleSource, rel
     controller.rebuild_browser_lists();
 }
 
+fn set_source_samples_for_tests(
+    controller: &mut AppController,
+    source: &SampleSource,
+    relatives: &[&str],
+) {
+    let entries = relatives
+        .iter()
+        .map(|relative| {
+            let absolute = source.root.join(relative);
+            let metadata = std::fs::metadata(&absolute).must();
+            WavEntry {
+                relative_path: PathBuf::from(relative),
+                file_size: metadata.len(),
+                modified_ns: sample_modified_ns(&absolute),
+                content_hash: None,
+                tag: Rating::KEEP_1,
+                looped: true,
+                locked: true,
+                missing: false,
+                last_played_at: Some(42),
+            }
+        })
+        .collect();
+    controller.set_wav_entries_for_tests(entries);
+    let db = controller.database_for(source).must();
+    for relative in relatives {
+        db.set_looped(Path::new(relative), true).must();
+        db.set_locked(Path::new(relative), true).must();
+        db.set_last_played_at(Path::new(relative), 42).must();
+    }
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+}
+
 fn seed_target_collision(
     controller: &mut AppController,
     target: &SampleSource,
@@ -120,6 +154,23 @@ fn finish_drop(
         source_id,
         relative_path: PathBuf::from(relative_path),
     });
+    controller.ui.drag.copy_on_drop = copy_requested;
+    controller.ui.drag.set_target(
+        DragSource::DropTargets,
+        DragTarget::DropTarget {
+            path: target_path.to_path_buf(),
+        },
+    );
+    controller.finish_active_drag();
+}
+
+fn finish_multi_sample_drop(
+    controller: &mut AppController,
+    samples: Vec<DragSample>,
+    target_path: &Path,
+    copy_requested: bool,
+) {
+    controller.ui.drag.payload = Some(DragPayload::Samples { samples });
     controller.ui.drag.copy_on_drop = copy_requested;
     controller.ui.drag.set_target(
         DragSource::DropTargets,
@@ -264,6 +315,47 @@ fn cross_source_drop_target_copy_uses_collision_suffix() {
     assert!(copied.looped);
     assert!(copied.locked);
     assert_eq!(copied.last_played_at, Some(42));
+}
+
+#[test]
+fn cross_source_drop_target_multi_copy_batches_samples() {
+    let temp = tempdir().must();
+    let _guard = ConfigBaseGuard::set(temp.path().to_path_buf());
+    let (mut controller, source, target, target_drop) = setup_cross_source_drop_fixture(&temp);
+    seed_source_sample(&mut controller, &source, "one.wav");
+    seed_source_sample(&mut controller, &source, "two.wav");
+    set_source_samples_for_tests(&mut controller, &source, &["one.wav", "two.wav"]);
+
+    finish_multi_sample_drop(
+        &mut controller,
+        vec![
+            DragSample {
+                source_id: source.id.clone(),
+                relative_path: PathBuf::from("one.wav"),
+            },
+            DragSample {
+                source_id: source.id.clone(),
+                relative_path: PathBuf::from("two.wav"),
+            },
+        ],
+        &target_drop,
+        true,
+    );
+
+    assert!(source.root.join("one.wav").is_file());
+    assert!(source.root.join("two.wav").is_file());
+    assert!(target_drop.join("one.wav").is_file());
+    assert!(target_drop.join("two.wav").is_file());
+    let copied_one = db_entry(&mut controller, &target, "dest/one.wav").must();
+    let copied_two = db_entry(&mut controller, &target, "dest/two.wav").must();
+    assert_eq!(copied_one.tag, Rating::KEEP_1);
+    assert!(copied_one.looped);
+    assert!(copied_one.locked);
+    assert_eq!(copied_one.last_played_at, Some(42));
+    assert_eq!(copied_two.tag, Rating::KEEP_1);
+    assert!(copied_two.looped);
+    assert!(copied_two.locked);
+    assert_eq!(copied_two.last_played_at, Some(42));
 }
 
 #[test]

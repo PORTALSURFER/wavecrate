@@ -21,6 +21,8 @@ pub(crate) enum FileOpMessage {
 pub(crate) enum FileOpResult {
     /// Clipboard paste or import results.
     ClipboardPaste(ClipboardPasteResult),
+    /// Drop-target copy or move results.
+    DropTargetTransfer(DropTargetTransferResult),
     /// Source move results from drag/drop actions.
     SourceMove(SourceMoveResult),
     /// In-source sample move results from folder drag/drop actions.
@@ -29,6 +31,99 @@ pub(crate) enum FileOpResult {
     FolderMove(FolderMoveResult),
     /// Undo/redo filesystem results.
     UndoFile(UndoFileOpResult),
+}
+
+/// Copy-vs-move mode for a background drop-target transfer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DropTargetTransferKind {
+    /// Duplicate the source file into the target folder.
+    Copy,
+    /// Relocate the source file into the target folder.
+    Move,
+}
+
+impl DropTargetTransferKind {
+    /// Human-readable past-tense verb for status reporting.
+    pub(crate) const fn action_past_tense(self) -> &'static str {
+        match self {
+            Self::Copy => "Copied",
+            Self::Move => "Moved",
+        }
+    }
+
+    /// Human-readable present-participle verb for progress detail.
+    pub(crate) const fn action_present_participle(self) -> &'static str {
+        match self {
+            Self::Copy => "Copying",
+            Self::Move => "Moving",
+        }
+    }
+}
+
+/// Request payload for a background drop-target copy or move.
+#[derive(Debug, Clone)]
+pub(crate) struct DropTargetTransferRequest {
+    /// Source identifier for the sample.
+    pub(crate) source_id: crate::sample_sources::SourceId,
+    /// Root folder for the source.
+    pub(crate) source_root: PathBuf,
+    /// Relative path of the sample to transfer.
+    pub(crate) relative_path: PathBuf,
+    /// Cache-backed metadata captured on the controller when available.
+    pub(crate) metadata: Option<DropTargetTransferMetadata>,
+}
+
+/// Metadata snapshot captured before a drop-target transfer starts.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct DropTargetTransferMetadata {
+    /// Tag associated with the sample.
+    pub(crate) tag: crate::sample_sources::Rating,
+    /// Loop marker state.
+    pub(crate) looped: bool,
+    /// Keep/lock marker state.
+    pub(crate) locked: bool,
+    /// Last played timestamp, if any.
+    pub(crate) last_played_at: Option<i64>,
+}
+
+/// Result of a background drop-target copy or move operation.
+#[derive(Debug)]
+pub(crate) struct DropTargetTransferResult {
+    /// Transfer mode used for the batch.
+    pub(crate) kind: DropTargetTransferKind,
+    /// Target source identifier for the transfer.
+    pub(crate) target_source_id: crate::sample_sources::SourceId,
+    /// Human-readable label for the destination folder.
+    pub(crate) target_label: String,
+    /// Successfully transferred entries with metadata.
+    pub(crate) transferred: Vec<DropTargetTransferSuccess>,
+    /// Errors encountered during the transfer.
+    pub(crate) errors: Vec<String>,
+    /// Whether the operation was cancelled by the user.
+    pub(crate) cancelled: bool,
+}
+
+/// Record for a successfully copied or moved sample into a drop target.
+#[derive(Debug)]
+pub(crate) struct DropTargetTransferSuccess {
+    /// Original source identifier.
+    pub(crate) source_id: crate::sample_sources::SourceId,
+    /// Original relative path.
+    pub(crate) source_relative: PathBuf,
+    /// New relative path at the destination.
+    pub(crate) target_relative: PathBuf,
+    /// File size in bytes.
+    pub(crate) file_size: u64,
+    /// Modified time as epoch nanoseconds.
+    pub(crate) modified_ns: i64,
+    /// Tag associated with the sample.
+    pub(crate) tag: crate::sample_sources::Rating,
+    /// Loop marker state.
+    pub(crate) looped: bool,
+    /// Keep/lock marker state.
+    pub(crate) locked: bool,
+    /// Last played timestamp, if any.
+    pub(crate) last_played_at: Option<i64>,
 }
 
 /// Successful paste into a source folder with metadata for follow-up updates.

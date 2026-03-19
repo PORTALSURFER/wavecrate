@@ -36,7 +36,7 @@ Status: Phase 1 complete on 2026-03-18. This file is the current ROI-ranked impr
 
 ## Ordered Backlog
 
-### 1. [ ] Move cross-source drop-target copy/move work off the controller thread and onto the existing file-op worker pipeline
+### 1. [x] Move cross-source drop-target copy/move work off the controller thread and onto the existing file-op worker pipeline
 
 - Classification: Bug fix
 - Confidence: High
@@ -59,6 +59,15 @@ Status: Phase 1 complete on 2026-03-18. This file is the current ROI-ranked impr
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
   - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: 2026-03-19
+- Commit: pending local commit
+- Assumptions used:
+  - cache-backed wav metadata remains the authoritative source for dragged samples when it is available locally, with source DB reads used only as worker-side fallback
+  - same-source non-copy drop-target batches should keep delegating to the existing folder-move pipeline when every sample already belongs to the target source
+- Validation outcome:
+  - `cargo test drag_drop_drop_targets -- --nocapture` passed when launched through PowerShell 7 with `RUSTC_WRAPPER` cleared and `TEMP`/`TMP` pointed at `tmp/agent_temp`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` still failed before meaningful validation because Cargo invoked the pre-existing unhealthy `sccache` wrapper path tracked separately in backlog item 4
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` failed for the same pre-existing `sccache` wrapper reason
 
 ### 2. [ ] Add direct controller coverage for folder-move planning and result-application branches
 

@@ -1,7 +1,7 @@
-use super::DroppedSampleMetadata;
 use super::super::move_transaction::{
     PreparedStagedCopy, PreparedStagedMove, SampleMoveMetadata, move_sample_file,
 };
+use super::DroppedSampleMetadata;
 use crate::sample_sources::db::file_ops_journal;
 use std::path::Path;
 use tracing::warn;
