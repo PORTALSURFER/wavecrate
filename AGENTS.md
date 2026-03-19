@@ -61,10 +61,10 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: evidence-driven improvement audit execution
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-18 evidence-driven ROI-ranked backlog for the live tree; `docs/TEST.md` and `docs/README.md` still define the dual-lane validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: Phase 2 is in progress on `2026-03-19`; backlog items 1-8 are implemented locally, `tmp/improvement_audit_plan.md` is the live execution tracker, item 9 is next in order, and the Windows PowerShell validation lane now falls back to direct `rustc` plus `tmp/agent_temp` when inherited `sccache` or the default temp dir is unusable.
+- Current status: Phase 2 is in progress on `2026-03-19`; backlog items 1-9 are implemented locally, `tmp/improvement_audit_plan.md` is the live execution tracker, item 10 is next in order, and the Windows PowerShell validation lane now falls back to direct `rustc` plus `tmp/agent_temp` when inherited `sccache` or the default temp dir is unusable.
 
 ## Immediate Next Actions
-1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order, starting with item 9 unless items 1-8 need a follow-up correction.
+1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order, starting with item 10 unless items 1-9 need a follow-up correction.
 2. Keep `tmp/improvement_audit_plan.md` as the live execution tracker, including completion notes, commit hashes, assumptions, and validation results after each item.
 3. Keep the PowerShell validation wrappers on their new direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.

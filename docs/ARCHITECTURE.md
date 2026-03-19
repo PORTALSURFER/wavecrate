@@ -10,15 +10,14 @@ use `docs/FEATURE_CHECKLIST.md` as the default safe path.
 
 - Domain logic (indexing, analysis, playback behavior, persistence): put it in `src/` modules.
 - UI behavior (widgets, layout policies, focus model, hit testing, input routing): put it in `vendor/radiant/`.
-- App UI wiring (turn domain state into UI intent and actions): put it in `src/gui`, `src/gui_app`, `src/gui_runtime`, and `src/app_core`.
+- App UI intent and runtime wiring: put backend-neutral projections/actions in `src/app_core`, host launch adapters in `src/gui_runtime`, and keep `src/gui` limited to `radiant` primitive re-exports.
 - Avoid adding new behavior to legacy UI/controller paths in `src/app` unless you are intentionally working in the legacy runtime.
 
 ## Ownership map (by responsibility)
 
 - App core projection and backend-neutral intent: `src/app_core`
 - Legacy app model/controller: `src/app`
-- GUI abstraction and widgets (app-side): `src/gui`
-- App-level GUI wiring (native runtime): `src/gui_app`
+- Backend-neutral GUI primitive re-exports: `src/gui`
 - Runtime host bridge glue: `src/gui_runtime`
 - UI framework, retained layout, input normalization, rendering coordination: `vendor/radiant`
 - Audio playback, I/O, decoding, processing: `src/audio`
@@ -71,12 +70,10 @@ When changing ownership boundaries:
   - `audio` — playback, I/O, recording, decoding, and processing.
   - `external_clipboard.rs` — platform clipboard integrations.
   - `external_drag/` — platform drag-and-drop integrations.
-  - `gui` — new/active GUI abstraction layer for widgets and views.
-  - `gui_app` — app-level GUI wiring used by the native runtime.
-  - `gui_runtime` — runtime bridge glue for native rendering/input.
+  - `gui` — `radiant` GUI primitive re-exports only; no widget behavior or layout policy lives here.
+  - `gui_runtime` — native runtime bridge glue, launch adapters, and snapshot capture helpers.
   - `http_client.rs` — HTTP client helpers and request utilities.
   - `issue_gateway` — issue reporting and GitHub issue flow.
-  - `legacy_runtime` — compatibility/runtime helpers for older shell paths.
   - `logging.rs` — logging setup and tracing helpers.
   - `sample_sources` — sample catalog, scan, and database integration.
   - `selection.rs` — selection helpers and focus state math.
@@ -84,7 +81,7 @@ When changing ownership boundaries:
   - `updater` — update checking, download, install, and patch flow.
   - `wav_sanitize.rs` — WAV header/corpus sanitization helpers.
   - `waveform` — waveform decoding, rendering, and caching.
-  - `main.rs` — shipping app entrypoint for the root `sempal` package.
+  - `main.rs` — shipping native-Vello app entrypoint for the root `sempal` package.
 - `vendor/radiant/`: UI shell, layout, and rendering engine used by native shells.
   - Layout contract: `docs/radiant_slot_layout_spec.md`.
   - `vendor/radiant/src/app/` — native-app bridge model types and action enums.

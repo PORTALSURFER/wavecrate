@@ -288,6 +288,7 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-19
+- Commit: `6a8c78bd` (`refactor(waveform): share symphonia peak accumulation`)
 - Assumptions used:
   - `PeakAnalysisAccumulator::output()` should represent the frames actually accumulated rather than the initial estimate used to size its buffers, because estimate-based callers like the Symphonia fallback can legitimately decode fewer frames than anticipated
   - keeping the Symphonia EOF shape identical to the now-landed item 7 parity tests is the right guardrail for this refactor, even though the helper tightening also benefits future estimate-based callers more generally
@@ -298,7 +299,7 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 
-### 9. [ ] Refresh stale architecture and planning docs that no longer match the live tree
+### 9. [x] Refresh stale architecture and planning docs that no longer match the live tree
 
 - Classification: Documentation gap
 - Confidence: High
@@ -321,6 +322,17 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
 - Product clarification required: No
+- Completed: 2026-03-19
+- Assumptions used:
+  - item 9 should describe the live guardrail state at implementation time, even when it has drifted since the earlier audit snapshot; preserving a stale “healthy” story would be less accurate than updating the docs to match the current tree
+  - boundary docs should distinguish between live directories (`src/gui_runtime`, `src/app`) and historical dependency tokens that the guardrail scripts still check for compatibility reasons (`crate::gui_app::`, `crate::legacy_runtime::`)
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` passed and regenerated `tmp/cleanup_audit_hotspots.md`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1` passed
+  - `cmd /c pwsh -NoProfile -File scripts/check_quality_score_drift.ps1` passed; the script now reports a degraded score of `3` for `Agent-facing guardrails` because the current tree has active file-size-budget and Rust-taste violations outside this docs-only slice
+- Deviation from original plan order:
+  - item 9 originally assumed the full file-size guardrail was still green, but the live tree had regressed by implementation time; the docs were updated to match current reality rather than the older all-clear snapshot
 
 ### 10. [ ] Split `folder_moves.rs` so the module portal and worker-heavy tests stop sharing one hotspot file
 

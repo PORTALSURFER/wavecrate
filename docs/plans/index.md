@@ -14,7 +14,7 @@ This directory keeps agent handoff planning state out of the way of other docs.
   cleanup refactors across controller, native bridge, DB, and vendor layers
 - `../../tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked
   improvement backlog for the current tree
-  (Phase 1 refreshed on 2026-03-18; waiting for explicit implementation confirmation)
+  (Phase 2 execution is active on 2026-03-19)
 - `../../tmp/cleanup_plan.md` — parked refreshed ROI-ranked cleanup backlog
   (Phase 1 complete on 2026-03-12; resume only after explicit Phase 2 confirmation)
 - `../../tmp/perf_plan.md` — completed runtime performance execution record

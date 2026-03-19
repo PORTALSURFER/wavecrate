@@ -62,10 +62,10 @@ set) to route audio probing to a dummy sink and reduce ALSA warning noise.
 
 - `vendor/radiant` owns GUI abstractions, widgets, layout, input handling, diff/update
   logic, and rendering coordination.
-- `src/gui` contains the app-level GUI wiring for Sempal and consumes the `radiant` API.
-- `src/gui_runtime` is the host-bridge layer between Sempal and `radiant`.
-- `src/app_core` is the stable application-core projection and state transition surface used by both GUI and other runtimes.
-- `src/legacy_runtime` remains for compatibility paths; new runtime behavior should be additive and routed through `radiant`.
+- `src/gui` re-exports backend-neutral `radiant` GUI primitives for app code.
+- `src/gui_runtime` is the thin host-bridge layer between Sempal and `radiant`.
+- `src/app_core` is the stable application-core projection and state transition surface used by the native runtime and automation/test hosts.
+- `src/app` still owns the compatibility-heavy application model/controller logic that has not yet migrated into `app_core`.
 - Core domain logic, sample indexing, playback, and persistence remain in `src/` modules
   (`audio`, `analysis`, `sample_sources`, `updater`, etc.).
 - Rendering is performed by the `vello` backend through the `radiant` runtime path.
@@ -102,8 +102,8 @@ Contract notes for contributors:
   - Widget behavior, layout policies, focus model, hit testing, and event propagation.
   - Diff/update reconciliation and scene invalidation decisions.
   - Scene/paint scheduling and Vello render orchestration.
-- Host bridges (`src/gui_app`, `src/gui_runtime`) are thin adapters:
-  - Convert app runtime options into `radiant` run-time options.
+- The runtime adapter (`src/gui_runtime`) and native entrypoint (`src/main.rs`) are thin adapters:
+  - Convert app runtime options into `radiant` runtime options.
   - Forward errors for diagnostics.
   - Do not embed widget semantics or layout policy.
 
