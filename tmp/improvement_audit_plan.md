@@ -185,7 +185,7 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
 - Product clarification required: No
 - Completed: 2026-03-19
-- Commit: `pending local commit` (`test(gui): align desktop aiv coverage claims`)
+- Commit: `8b0637d7` (`test(gui): align desktop aiv coverage claims`)
 - Assumptions used:
   - when catalog metadata claims `DesktopAiv` coverage, the exported named desktop-AIV manifests should contain at least one `AssertActionRecorded` assertion for that action id
   - downgrading unsupported `DesktopAiv` claims is safer than inventing new desktop cases mid-backlog because the current manifests are the stronger source of truth for what is actually exercised today
@@ -196,7 +196,7 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` did not complete in this host because the wrapper hit a pre-existing language-mode dot-sourcing restriction before it could run the contract suite
 
-### 6. [ ] Add controller-branch tests for `AudioLoadResult` routing and transient cache-token gating
+### 6. [x] Add controller-branch tests for `AudioLoadResult` routing and transient cache-token gating
 
 - Classification: Test gap
 - Confidence: High
@@ -217,6 +217,18 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-19
+- Assumptions used:
+  - routing coverage for the `AudioLoadResult::Transients` controller branch can safely use a stretched transient payload because the router contract is only dispatch, while cache-persistence behavior is covered separately in direct transient-gating tests
+  - transient cache-token gating is best locked down at the `handle_audio_transients_loaded` seam because that method owns the source/path/token guards and the stretched-vs-unstretched cache mutation split
+- Validation outcome:
+  - `cargo fmt --all` passed
+  - `cargo test audio_primary_message_ignores_stale_completion_then_applies_matching_result -- --nocapture` passed with direct-`rustc` and repo-local temp overrides
+  - `cargo test audio_transients_message_routes_to_loaded_waveform_state -- --nocapture` passed with direct-`rustc` and repo-local temp overrides
+  - `cargo test transient_results_require_matching_loaded_source_path_and_cache_token -- --nocapture` passed with direct-`rustc` and repo-local temp overrides
+  - `cargo test transient_results_update_cache_only_for_non_stretched_waveforms -- --nocapture` passed with direct-`rustc` and repo-local temp overrides
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 
 ### 7. [ ] Add long-file parity coverage for the Symphonia fallback peak/analysis path
 
