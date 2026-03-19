@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-19T13:58:15+01:00
+Last Updated: 2026-03-19T14:17:28+01:00
 Updated By: Codex
 
 ## Purpose
@@ -21,7 +21,8 @@ Updated By: Codex
 - Backlog item 4 is implemented in commit `d0685aad` (`fix(scripts): harden windows cargo wrapper fallback`) and makes the Windows PowerShell validation wrappers fall back to direct `rustc` plus `tmp/agent_temp` when inherited `sccache` or the default temp dir is unusable.
 - Backlog item 5 is implemented in commit `8b0637d7` (`test(gui): align desktop aiv coverage claims`) and trims `DesktopAiv` catalog claims down to the action IDs actually asserted by the exported desktop-AIV manifests.
 - Backlog item 6 is implemented in commit `78430bfa` (`test(controller): cover audio load routing branches`) and adds controller coverage for stale-vs-matching `AudioLoadResult::Primary` routing, `AudioLoadResult::Transients` routing, transient source/path/cache-token gating, and the non-stretched-only transient cache-update branch.
-- Backlog item 7 is implemented locally and adds mono/stereo long-file parity coverage for the Symphonia fallback peak/analysis path; the new tests also exposed and fixed a trailing sentinel peak-bucket bug in the Symphonia EOF truncation path, and item 8 is next from `tmp/improvement_audit_plan.md`.
+- Backlog item 7 is implemented in commit `6b24829d` (`test(waveform): cover symphonia long-file parity`) and adds mono/stereo long-file parity coverage for the Symphonia fallback peak/analysis path; the new tests also exposed and fixed a trailing sentinel peak-bucket bug in the Symphonia EOF truncation path.
+- Backlog item 8 is implemented locally and routes the Symphonia long-file peak/analysis path through the shared `PeakAnalysisAccumulator`; the helper now trims unused estimate buckets on output, and item 9 is next from `tmp/improvement_audit_plan.md`.
 - Full-scan guardrails are currently green, so the old file-size-driven backlog no longer applies as written.
 - The active follow-up is a dual-lane validation workflow for Windows: `scripts/ci_agent.ps1` is the reliable agent-safe lane in constrained environments, while `scripts/ci_quick.ps1` remains the broader integrated lane for humans when `cargo-nextest.exe` is allowed.
 - `scripts/devcheck.ps1` and `scripts/ci_agent.ps1` are green again in this constrained Windows environment after the wrapper and temp-dir fallbacks landed.
@@ -32,7 +33,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue Phase 2 in strict `tmp/improvement_audit_plan.md` order with item 8 unless items 1-7 need a correction.
+1. Continue Phase 2 in strict `tmp/improvement_audit_plan.md` order with item 9 unless items 1-8 need a correction.
 2. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `docs/plans/active/todo.md`, `docs/plans/index.md`, and this file aligned around the active execution lane.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.

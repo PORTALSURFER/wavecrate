@@ -1,7 +1,7 @@
 use super::normalize::clamp_sample;
-use super::peaks;
 use crate::audio::Source;
 use crate::audio::decoder::SymphoniaDecoder;
+use crate::waveform::peak_analysis::PeakAnalysisAccumulator;
 use crate::waveform::{DecodedWaveform, WaveformDecodeError, WaveformPeaks, WaveformRenderer};
 use std::sync::Arc;
 #[cfg(test)]
@@ -73,72 +73,31 @@ impl WaveformRenderer {
         I: Iterator<Item = f32>,
     {
         let channels_usize = channels as usize;
-        let bucket_size_frames = peaks::peak_bucket_size(frames_estimate).max(1);
-        let bucket_count_est = frames_estimate.div_ceil(bucket_size_frames).max(1);
-        let analysis_stride = peaks::analysis_stride(sample_rate, frames_estimate);
-        let mut analysis_samples =
-            Vec::with_capacity(frames_estimate.div_ceil(analysis_stride).max(1));
-
-        let mut mono = vec![(1.0_f32, -1.0_f32); bucket_count_est];
-        let mut left = if channels_usize >= 2 {
-            Some(vec![(1.0_f32, -1.0_f32); bucket_count_est])
-        } else {
-            None
-        };
-        let mut right = if channels_usize >= 2 {
-            Some(vec![(1.0_f32, -1.0_f32); bucket_count_est])
-        } else {
-            None
-        };
-
-        let mut total_frames = 0usize;
-        let mut analysis_sum = 0.0f32;
-        let mut analysis_count = 0usize;
+        let mut accumulator = PeakAnalysisAccumulator::new(sample_rate, channels, frames_estimate);
         loop {
-            let bucket = total_frames / bucket_size_frames;
-            if bucket >= mono.len() {
-                mono.push((1.0, -1.0));
-                if let Some(left_peaks) = left.as_mut() {
-                    left_peaks.push((1.0, -1.0));
-                }
-                if let Some(right_peaks) = right.as_mut() {
-                    right_peaks.push((1.0, -1.0));
-                }
-            }
             let mut frame_min = 1.0_f32;
             let mut frame_max = -1.0_f32;
             let mut frame_count = 0usize;
             let mut frame_sum = 0.0f32;
+            let mut left_sample = None;
+            let mut right_sample = None;
             for ch in 0..channels_usize {
                 let Some(sample) = samples.next() else {
-                    let duration_seconds = total_frames as f32 / sample_rate as f32;
-                    let bucket_count = total_frames.div_ceil(bucket_size_frames).max(1);
-                    mono.truncate(bucket_count);
-                    if let Some(left_peaks) = left.as_mut() {
-                        left_peaks.truncate(bucket_count);
-                    }
-                    if let Some(right_peaks) = right.as_mut() {
-                        right_peaks.truncate(bucket_count);
-                    }
-                    if analysis_count > 0 {
-                        analysis_samples.push(analysis_sum / analysis_count as f32);
-                    }
-                    let analysis_sample_rate = ((sample_rate as f32) / analysis_stride as f32)
-                        .round()
-                        .max(1.0) as u32;
+                    let output = accumulator.output();
+                    let duration_seconds = output.peaks.total_frames as f32 / sample_rate as f32;
                     return Ok(DecodedWaveform {
                         cache_token,
                         samples: Arc::from(Vec::new()),
-                        analysis_samples: Arc::from(analysis_samples),
-                        analysis_sample_rate,
-                        analysis_stride,
+                        analysis_samples: Arc::from(output.analysis_samples),
+                        analysis_sample_rate: output.analysis_sample_rate,
+                        analysis_stride: output.analysis_stride,
                         peaks: Some(Arc::new(WaveformPeaks {
-                            total_frames,
-                            channels,
-                            bucket_size_frames,
-                            mono,
-                            left,
-                            right,
+                            total_frames: output.peaks.total_frames,
+                            channels: output.peaks.channels,
+                            bucket_size_frames: output.peaks.bucket_size_frames,
+                            mono: output.peaks.mono,
+                            left: output.peaks.left,
+                            right: output.peaks.right,
                         })),
                         duration_seconds,
                         sample_rate,
@@ -151,37 +110,17 @@ impl WaveformRenderer {
                 frame_count = frame_count.saturating_add(1);
                 frame_sum += sample;
                 if ch == 0 {
-                    if let Some(left_peaks) = left.as_mut() {
-                        let (min, max) = &mut left_peaks[bucket];
-                        *min = (*min).min(sample);
-                        *max = (*max).max(sample);
-                    }
-                } else if ch == 1
-                    && let Some(right_peaks) = right.as_mut()
-                {
-                    let (min, max) = &mut right_peaks[bucket];
-                    *min = (*min).min(sample);
-                    *max = (*max).max(sample);
+                    left_sample = Some(sample);
+                } else if ch == 1 {
+                    right_sample = Some(sample);
                 }
             }
-            let (min, max) = &mut mono[bucket];
-            if frame_count == 0 {
-                *min = (*min).min(0.0);
-                *max = (*max).max(0.0);
+            let (frame_min, frame_max, frame_avg) = if frame_count == 0 {
+                (0.0, 0.0, 0.0)
             } else {
-                *min = (*min).min(frame_min);
-                *max = (*max).max(frame_max);
-            }
-            if frame_count > 0 {
-                analysis_sum += frame_sum / frame_count as f32;
-                analysis_count += 1;
-                if analysis_count >= analysis_stride {
-                    analysis_samples.push(analysis_sum / analysis_count as f32);
-                    analysis_sum = 0.0;
-                    analysis_count = 0;
-                }
-            }
-            total_frames = total_frames.saturating_add(1);
+                (frame_min, frame_max, frame_sum / frame_count as f32)
+            };
+            accumulator.push_frame(frame_min, frame_max, frame_avg, left_sample, right_sample);
         }
     }
 }

@@ -132,6 +132,22 @@ impl PeakAnalysisAccumulator {
         if self.analysis_count > 0 {
             analysis_samples.push(self.analysis_sum / self.analysis_count as f32);
         }
+        let bucket_count = self
+            .total_frames
+            .div_ceil(self.layout.bucket_size_frames)
+            .max(1);
+        let mut mono = self.mono.clone();
+        mono.truncate(bucket_count);
+        let left = self.left.as_ref().map(|peaks| {
+            let mut peaks = peaks.clone();
+            peaks.truncate(bucket_count);
+            peaks
+        });
+        let right = self.right.as_ref().map(|peaks| {
+            let mut peaks = peaks.clone();
+            peaks.truncate(bucket_count);
+            peaks
+        });
         let analysis_sample_rate = ((self.sample_rate as f32) / self.layout.analysis_stride as f32)
             .round()
             .max(1.0) as u32;
@@ -140,9 +156,9 @@ impl PeakAnalysisAccumulator {
                 total_frames: self.total_frames,
                 channels: self.channels,
                 bucket_size_frames: self.layout.bucket_size_frames,
-                mono: self.mono.clone(),
-                left: self.left.clone(),
-                right: self.right.clone(),
+                mono,
+                left,
+                right,
             },
             analysis_samples,
             analysis_sample_rate,
@@ -167,4 +183,23 @@ pub(crate) fn analysis_stride(sample_rate: u32, total_frames: usize) -> usize {
 /// Clamp a sample into the renderer's supported normalized range.
 pub(crate) fn clamp_sample(sample: f32) -> f32 {
     sample.clamp(-1.0, 1.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// Output should trim unused preallocated buckets when fewer frames arrive than estimated.
+    fn output_trims_unused_estimate_buckets() {
+        let mut accumulator = PeakAnalysisAccumulator::new(48_000, 2, 4);
+        accumulator.push_frame(-0.5, 0.5, 0.0, Some(-0.5), Some(0.5));
+
+        let output = accumulator.output();
+
+        assert_eq!(output.peaks.total_frames, 1);
+        assert_eq!(output.peaks.mono.len(), 1);
+        assert_eq!(output.peaks.left.as_ref().map(Vec::len), Some(1));
+        assert_eq!(output.peaks.right.as_ref().map(Vec::len), Some(1));
+    }
 }

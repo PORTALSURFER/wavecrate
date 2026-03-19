@@ -253,6 +253,7 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-19
+- Commit: `6b24829d` (`test(waveform): cover symphonia long-file parity`)
 - Assumptions used:
   - the clean WAV long-file branch is the strongest repository-local oracle for Symphonia fallback parity because it already routes through the shared `PeakAnalysisAccumulator`
   - forcing `max_frames = 1` is an acceptable deterministic seam for both the clean WAV path and the malformed-byte Symphonia fallback path because `load_decoded_with_max_frames` exists explicitly as a test hook
@@ -265,7 +266,7 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
 - Deviation from original plan order:
   - item 7 required one tiny prerequisite production fix in `src/waveform/decode/symphonia_reader.rs` so the new parity coverage could pass against the repository's shared long-file semantics; this stayed within the current item because it was directly exposed by the added tests and did not broaden into the item 8 refactor
 
-### 8. [ ] Route Symphonia long-file peak/analysis building through the shared `PeakAnalysisAccumulator`
+### 8. [x] Route Symphonia long-file peak/analysis building through the shared `PeakAnalysisAccumulator`
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -286,6 +287,16 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-19
+- Assumptions used:
+  - `PeakAnalysisAccumulator::output()` should represent the frames actually accumulated rather than the initial estimate used to size its buffers, because estimate-based callers like the Symphonia fallback can legitimately decode fewer frames than anticipated
+  - keeping the Symphonia EOF shape identical to the now-landed item 7 parity tests is the right guardrail for this refactor, even though the helper tightening also benefits future estimate-based callers more generally
+- Validation outcome:
+  - `cargo fmt --all` passed
+  - `cargo test peak_analysis::tests -- --nocapture` initially failed because `src/waveform/decode/peaks.rs` still re-exported sizing helpers that the refactor no longer used; the dead re-export was removed and the test then passed
+  - `cargo test symphonia_reader::tests -- --nocapture` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 
 ### 9. [ ] Refresh stale architecture and planning docs that no longer match the live tree
 

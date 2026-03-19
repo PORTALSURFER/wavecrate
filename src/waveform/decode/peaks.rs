@@ -2,8 +2,6 @@ use super::normalize::clamp_sample;
 use crate::waveform::peak_analysis::PeakAnalysisAccumulator;
 use crate::waveform::{WaveformDecodeError, WaveformPeaks};
 
-pub(super) use crate::waveform::peak_analysis::{analysis_stride, peak_bucket_size};
-
 /// Combined peaks and decimated analysis samples for long files.
 pub(super) struct PeaksAndAnalysis {
     /// Min/max envelope for waveform rendering.
@@ -66,8 +64,11 @@ fn build_peaks_with_analysis(
     sample_rate: u32,
     mut next_sample: impl FnMut() -> Result<f32, WaveformDecodeError>,
 ) -> Result<PeaksAndAnalysis, WaveformDecodeError> {
-    let mut accumulator =
-        PeakAnalysisAccumulator::new(sample_rate, channels.min(u16::MAX as usize) as u16, total_frames);
+    let mut accumulator = PeakAnalysisAccumulator::new(
+        sample_rate,
+        channels.min(u16::MAX as usize) as u16,
+        total_frames,
+    );
     for _ in 0..total_frames {
         let mut frame_min = 1.0_f32;
         let mut frame_max = -1.0_f32;
