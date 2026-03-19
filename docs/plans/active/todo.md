@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (local): 2026-03-18T01:25:00+01:00
+Last updated (local): 2026-03-19T00:35:00+01:00
 Owner: Codex agent sessions
 
 Purpose:
@@ -11,16 +11,17 @@ Purpose:
 
 ## Current lane
 
-- A fresh evidence-driven improvement audit has been rebuilt for the live tree on 2026-03-18.
-- `tmp/improvement_audit_plan.md` is the source of truth for the current Phase 1 backlog and is waiting for explicit implementation confirmation.
+- A fresh evidence-driven improvement audit was rebuilt for the live tree on 2026-03-18 and is now in Phase 2 execution.
+- `tmp/improvement_audit_plan.md` is the live execution tracker; items 1-2 are complete locally and item 3 is next.
 - The active follow-up is a dual-lane validation workflow: `scripts/ci_agent.*` for constrained agent environments and `scripts/ci_quick.*` / `scripts/ci_local.*` for broader human-run coverage.
+- Backlog item 4 remains the active push blocker because the current Windows validation wrappers still hit the pre-existing unhealthy `sccache` path here.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Wait for explicit user confirmation before implementing any ranked backlog item from `tmp/improvement_audit_plan.md`.
-2. Keep `tmp/improvement_audit_plan.md` as the Phase 1 source of truth for the current audit lane.
-3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
-4. Use `scripts/ci_agent.ps1` as the default agent-side validation gate in this environment.
+1. Implement item 3 from `tmp/improvement_audit_plan.md`: add direct regression coverage for cross-source move result application and touched-source invalidation.
+2. Keep `tmp/improvement_audit_plan.md` updated after each completed item with status, assumptions, validation, and commit metadata.
+3. Treat backlog item 4 as the active blocker for push until `scripts/devcheck.ps1` and `scripts/ci_agent.ps1` stop falling into the unhealthy `sccache` wrapper path.
+4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
 5. Treat `scripts/ci_quick.ps1` and `scripts/ci_local.ps1` as broader user-run confirmation lanes when `cargo-nextest.exe` is allowed.
 6. Keep `AGENTS.md`, `MEMORY.md`, this file, and `docs/plans/index.md` synchronized when the active lane changes.

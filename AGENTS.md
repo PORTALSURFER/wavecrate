@@ -59,15 +59,15 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `X:\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: evidence-driven improvement audit handoff
+- Program: evidence-driven improvement audit execution
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-18 evidence-driven ROI-ranked backlog for the live tree; `docs/TEST.md` and `docs/README.md` still define the dual-lane validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: Phase 1 of the fresh improvement audit is complete on `2026-03-18`; `tmp/improvement_audit_plan.md` has been rewritten for the current tree and is waiting for explicit user confirmation before ranked-backlog implementation begins.
+- Current status: Phase 2 is in progress on `2026-03-19`; backlog items 1-2 are implemented locally, `tmp/improvement_audit_plan.md` is the live execution tracker, item 3 is next in order, and item 4 still captures the pre-existing Windows `sccache` validation blocker that is preventing push.
 
 ## Immediate Next Actions
-1. Wait for explicit user confirmation before implementing any ranked backlog item from `tmp/improvement_audit_plan.md`.
-2. Keep `tmp/improvement_audit_plan.md` as the Phase 1 source of truth for the current audit backlog.
-3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
-4. Use `scripts/ci_agent.ps1` / `scripts/ci_agent.sh` for agent-side validation in constrained environments and report when broader user-run coverage is still pending.
+1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order, starting with item 3 unless items 1-2 need a follow-up correction.
+2. Keep `tmp/improvement_audit_plan.md` as the live execution tracker, including completion notes, commit hashes, assumptions, and validation results after each item.
+3. Treat backlog item 4 as the current push blocker: `scripts/devcheck.ps1` and `scripts/ci_agent.ps1` still hit the pre-existing unhealthy `sccache` wrapper path in this environment.
+4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 5. Keep `scripts/ci_quick.ps1` / `scripts/ci_quick.sh` as the broader integrated lane built around `cargo nextest`; the PowerShell wrapper also includes the GUI contract suite.
 6. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized when the active lane changes.
 
@@ -75,7 +75,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; Phase 1 is complete and waiting for explicit implementation confirmation as of `2026-03-18`
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; Phase 2 execution is active as of `2026-03-19`
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation

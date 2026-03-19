@@ -1,6 +1,7 @@
 use super::super::test_support::{dummy_controller, sample_entry, write_test_wav};
 use super::super::*;
-use crate::app::state::{DragPayload, DragSource, DragTarget};
+use crate::app::controller::jobs::{FolderEntryMove, FolderMoveResult, FolderSampleMoveResult};
+use crate::app::state::{DragPayload, DragSample, DragSource, DragTarget};
 use crate::app_dirs::ConfigBaseGuard;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
@@ -140,4 +141,232 @@ fn folder_drop_to_folder_moves_tree() {
         controller.wav_entry(0).unwrap().relative_path,
         PathBuf::from("dest/one/clip.wav")
     );
+}
+
+#[test]
+fn sample_drop_to_folder_rejects_mixed_source_batches() {
+    let temp = tempdir().unwrap();
+    let _guard = ConfigBaseGuard::set(temp.path().to_path_buf());
+    let root_a = temp.path().join("source_a");
+    let root_b = temp.path().join("source_b");
+    std::fs::create_dir_all(root_a.join("dest")).unwrap();
+    std::fs::create_dir_all(&root_b).unwrap();
+    let renderer = WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source_a = SampleSource::new(root_a);
+    let source_b = SampleSource::new(root_b);
+    controller.library.sources.push(source_a.clone());
+    controller.library.sources.push(source_b.clone());
+    controller.selection_state.ctx.selected_source = Some(source_a.id.clone());
+
+    controller.drag_drop().handle_samples_drop_to_folder(
+        &[
+            DragSample {
+                source_id: source_a.id.clone(),
+                relative_path: PathBuf::from("one.wav"),
+            },
+            DragSample {
+                source_id: source_b.id.clone(),
+                relative_path: PathBuf::from("two.wav"),
+            },
+        ],
+        Path::new("dest"),
+    );
+
+    assert_eq!(
+        controller.ui.status.text,
+        "Samples must come from the same source to move into a folder"
+    );
+    assert!(controller.ui.progress.task.is_none());
+}
+
+#[test]
+fn sample_drop_to_folder_rejects_selected_source_mismatch() {
+    let temp = tempdir().unwrap();
+    let _guard = ConfigBaseGuard::set(temp.path().to_path_buf());
+    let root_a = temp.path().join("source_a");
+    let root_b = temp.path().join("source_b");
+    std::fs::create_dir_all(root_a.join("dest")).unwrap();
+    std::fs::create_dir_all(&root_b).unwrap();
+    let renderer = WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source_a = SampleSource::new(root_a);
+    let source_b = SampleSource::new(root_b);
+    controller.library.sources.push(source_a.clone());
+    controller.library.sources.push(source_b.clone());
+    controller.selection_state.ctx.selected_source = Some(source_b.id.clone());
+
+    controller.drag_drop().handle_samples_drop_to_folder(
+        &[DragSample {
+            source_id: source_a.id.clone(),
+            relative_path: PathBuf::from("one.wav"),
+        }],
+        Path::new("dest"),
+    );
+
+    assert_eq!(
+        controller.ui.status.text,
+        "Switch to the sample's source before moving into its folders"
+    );
+    assert!(controller.ui.progress.task.is_none());
+}
+
+#[test]
+fn folder_drop_to_folder_rejects_selected_source_mismatch() {
+    let temp = tempdir().unwrap();
+    let _guard = ConfigBaseGuard::set(temp.path().to_path_buf());
+    let root_a = temp.path().join("source_a");
+    let root_b = temp.path().join("source_b");
+    std::fs::create_dir_all(root_a.join("old")).unwrap();
+    std::fs::create_dir_all(&root_b).unwrap();
+    let renderer = WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source_a = SampleSource::new(root_a);
+    let source_b = SampleSource::new(root_b);
+    controller.library.sources.push(source_a.clone());
+    controller.library.sources.push(source_b.clone());
+    controller.selection_state.ctx.selected_source = Some(source_b.id.clone());
+
+    controller.drag_drop().handle_folder_drop_to_folder(
+        source_a.id.clone(),
+        PathBuf::from("old"),
+        Path::new("dest"),
+    );
+
+    assert_eq!(
+        controller.ui.status.text,
+        "Switch to the folder's source before moving it"
+    );
+    assert!(controller.ui.progress.task.is_none());
+}
+
+#[test]
+fn folder_drop_to_folder_rejects_root_self_and_descendant_targets() {
+    let temp = tempdir().unwrap();
+    let _guard = ConfigBaseGuard::set(temp.path().to_path_buf());
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(root.join("old/sub")).unwrap();
+    std::fs::create_dir_all(root.join("dest")).unwrap();
+    let renderer = WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(root);
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+
+    controller.drag_drop().handle_folder_drop_to_folder(
+        source.id.clone(),
+        PathBuf::new(),
+        Path::new("dest"),
+    );
+    assert_eq!(controller.ui.status.text, "Root folder cannot be moved");
+
+    controller.drag_drop().handle_folder_drop_to_folder(
+        source.id.clone(),
+        PathBuf::from("old"),
+        Path::new("old"),
+    );
+    assert_eq!(controller.ui.status.text, "Folder is already there");
+
+    controller.drag_drop().handle_folder_drop_to_folder(
+        source.id.clone(),
+        PathBuf::from("old"),
+        Path::new("old/sub"),
+    );
+    assert_eq!(
+        controller.ui.status.text,
+        "Cannot move a folder into itself"
+    );
+}
+
+#[test]
+fn apply_folder_sample_move_result_reports_cancelled_and_noop_statuses() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+
+    controller
+        .drag_drop()
+        .apply_folder_sample_move_result(FolderSampleMoveResult {
+            source_id: source.id.clone(),
+            moved: Vec::new(),
+            errors: Vec::new(),
+            cancelled: true,
+        });
+    assert_eq!(controller.ui.status.text, "Move cancelled");
+
+    controller
+        .drag_drop()
+        .apply_folder_sample_move_result(FolderSampleMoveResult {
+            source_id: source.id,
+            moved: Vec::new(),
+            errors: Vec::new(),
+            cancelled: false,
+        });
+    assert_eq!(controller.ui.status.text, "No samples moved");
+}
+
+#[test]
+fn apply_folder_move_result_remaps_folder_state_and_focuses_destination() {
+    let temp = tempdir().unwrap();
+    let _guard = ConfigBaseGuard::set(temp.path().to_path_buf());
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(root.join("old/manual")).unwrap();
+    std::fs::create_dir_all(root.join("dest/old/manual")).unwrap();
+    let renderer = WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "old/clip.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+
+    {
+        let model = controller.current_folder_model_mut().unwrap();
+        model.selected.insert(PathBuf::from("old"));
+        model.expanded.insert(PathBuf::from("old"));
+        model.focused = Some(PathBuf::from("old"));
+        model.selection_anchor = Some(PathBuf::from("old"));
+        model.manual_folders.insert(PathBuf::from("old/manual"));
+    }
+    controller.ui.sources.folders.last_focused_path = Some(PathBuf::from("old"));
+
+    controller
+        .drag_drop()
+        .apply_folder_move_result(FolderMoveResult {
+            source_id: source.id,
+            old_folder: PathBuf::from("old"),
+            new_folder: PathBuf::from("dest/old"),
+            folder_moved: true,
+            moved: vec![FolderEntryMove {
+                old_relative: PathBuf::from("old/clip.wav"),
+                new_relative: PathBuf::from("dest/old/clip.wav"),
+                file_size: 0,
+                modified_ns: 0,
+                tag: crate::sample_sources::Rating::NEUTRAL,
+                looped: false,
+                last_played_at: None,
+            }],
+            errors: Vec::new(),
+            cancelled: false,
+        });
+
+    let model = controller.current_folder_model().unwrap();
+    assert!(model.selected.contains(Path::new("dest/old")));
+    assert!(model.expanded.contains(Path::new("dest/old")));
+    assert_eq!(model.focused.as_deref(), Some(Path::new("dest/old")));
+    assert_eq!(
+        model.selection_anchor.as_deref(),
+        Some(Path::new("dest/old"))
+    );
+    assert!(model.manual_folders.contains(Path::new("dest/old/manual")));
+    assert_eq!(
+        controller.ui.sources.folders.last_focused_path.as_deref(),
+        Some(Path::new("dest/old"))
+    );
+    assert_eq!(controller.ui.status.text, "Moved folder to dest/old");
 }

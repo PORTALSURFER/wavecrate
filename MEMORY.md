@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-18T01:25:00+01:00
+Last Updated: 2026-03-19T00:35:00+01:00
 Updated By: Codex
 
 ## Purpose
@@ -12,12 +12,14 @@ Updated By: Codex
 
 - I am on `next` in `X:\sempal`.
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The active lane is a fresh Phase 1 evidence-driven improvement audit for the current tree.
+- The active lane is Phase 2 execution of the refreshed evidence-driven improvement audit.
 - `tmp/improvement_audit_plan.md` is the current source of truth.
 - The previous completed audit backlog is now historical input only.
-- The refreshed audit backlog for 2026-03-18 has been rewritten for the live tree and is waiting for explicit user confirmation before implementation begins.
+- Backlog item 1 is implemented in local commit `7e6baff1` (`fix(drag-drop): workerize drop target transfers`).
+- Backlog item 2 is implemented locally and item 3 is next from `tmp/improvement_audit_plan.md`.
 - Full-scan guardrails are currently green, so the old file-size-driven backlog no longer applies as written.
 - The active follow-up is a dual-lane validation workflow for Windows: `scripts/ci_agent.ps1` is the reliable agent-safe lane in constrained environments, while `scripts/ci_quick.ps1` remains the broader integrated lane for humans when `cargo-nextest.exe` is allowed.
+- Backlog item 4 remains a live blocker for push because `scripts/devcheck.ps1` and `scripts/ci_agent.ps1` still fall into the pre-existing unhealthy `sccache` wrapper path in this environment.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -25,9 +27,9 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Wait for explicit user confirmation before implementing any ranked backlog item from `tmp/improvement_audit_plan.md`.
-2. Keep `tmp/improvement_audit_plan.md` as the Phase 1 source of truth for the current audit lane.
-3. Keep `AGENTS.md`, `docs/plans/active/todo.md`, `docs/plans/index.md`, and this file aligned around the refreshed audit lane plus the dual-lane validation workflow.
+1. Continue Phase 2 in strict `tmp/improvement_audit_plan.md` order with item 3 unless items 1-2 need a correction.
+2. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `docs/plans/active/todo.md`, `docs/plans/index.md`, and this file aligned around the active execution lane.
+3. Treat backlog item 4 as the current push blocker until the `sccache` wrapper problem is fixed and `scripts/ci_agent.ps1` is genuinely green.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 5. Use `scripts/ci_agent.ps1` for agent-side validation in this constrained Windows environment, and treat `scripts/ci_quick.ps1` / `scripts/ci_local.ps1` as broader user-run confirmation lanes when `cargo-nextest.exe` is allowed.
 
