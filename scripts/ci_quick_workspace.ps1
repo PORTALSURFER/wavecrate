@@ -43,7 +43,7 @@ try {
   Enable-SempalCargoCache
   Write-Host "[ci_quick_workspace] cargo nextest run --workspace --profile quick --all-targets"
   Invoke-NativeStep -Label "cargo nextest run --workspace --profile quick --all-targets" -Command {
-    cargo nextest run --workspace --profile quick --all-targets
+    Invoke-SempalCargo nextest run --workspace --profile quick --all-targets
   }
 
   Write-Host "[ci_quick_workspace] OK"

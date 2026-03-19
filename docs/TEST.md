@@ -15,6 +15,7 @@ Use these for normal iteration:
 - Agent-safe local validation checks:
   - `bash scripts/ci_agent.sh`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+  - On Windows, the PowerShell wrappers probe inherited `sccache` wrappers and fall back to direct `rustc` plus `tmp/agent_temp` when the wrapper or default temp dir is not usable.
 - Broader integrated local development checks:
   - `bash scripts/ci_quick.sh`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`

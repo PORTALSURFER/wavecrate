@@ -45,7 +45,7 @@ try {
   Enable-SempalCargoCache
   Write-Host "[devcheck_app] cargo check -p sempal --lib --bin sempal"
   Invoke-NativeStep -Label "cargo check -p sempal --lib --bin sempal" -Command {
-    cargo check -p sempal --lib --bin sempal
+    Invoke-SempalCargo check -p sempal --lib --bin sempal
   }
 
   Write-Host "[devcheck_app] OK"

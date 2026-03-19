@@ -27,9 +27,11 @@ can use for `pkeyutl -sign`.
 
 - `SEMPAL_DISABLE_SCCACHE`
 When set to `1`, repo Cargo helper scripts skip auto-configuring `sccache`
-even when it is installed. This is useful when comparing uncached timings or
-debugging wrapper-related issues. Default: unset (`sccache` is auto-used when
-available and `RUSTC_WRAPPER` is not already set).
+even when it is installed. On PowerShell lanes, this also clears an inherited
+`RUSTC_WRAPPER=sccache` for the current script run so the wrappers fall back to
+direct `rustc`. This is useful when comparing uncached timings or debugging
+wrapper-related issues. Default: unset (`sccache` is auto-used when available
+and its wrapper probe passes).
 
 - `SEMPAL_WINDOWS_SIGN_PFX_BASE64`
 CI secret used by `.github/workflows/release-build.yml` to Authenticode-sign

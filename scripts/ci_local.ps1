@@ -45,7 +45,9 @@ Push-Location $rootDir
 try {
   Enable-SempalCargoCache
   Write-Host "[ci_local] cargo fmt --all -- --check"
-  Invoke-NativeStep -Label "cargo fmt --all -- --check" -Command { cargo fmt --all -- --check }
+  Invoke-NativeStep -Label "cargo fmt --all -- --check" -Command {
+    Invoke-SempalCargo fmt --all -- --check
+  }
 
   if (-not $SkipAgentPreflight) {
     Write-Host "[ci_local] scripts/run_agent_ci_checks.ps1"
@@ -54,14 +56,16 @@ try {
 
   Write-Host "[ci_local] cargo clippy --workspace --all-targets"
   Invoke-NativeStep -Label "cargo clippy --workspace --all-targets" -Command {
-    cargo clippy --workspace --all-targets
+    Invoke-SempalCargo clippy --workspace --all-targets
   }
 
   Write-Host "[ci_local] cargo doc -p sempal --no-deps (RUSTDOCFLAGS=-D warnings)"
   $prevRustdocFlags = $env:RUSTDOCFLAGS
   try {
     $env:RUSTDOCFLAGS = "-D warnings"
-    Invoke-NativeStep -Label "cargo doc -p sempal --no-deps" -Command { cargo doc -p sempal --no-deps }
+    Invoke-NativeStep -Label "cargo doc -p sempal --no-deps" -Command {
+      Invoke-SempalCargo doc -p sempal --no-deps
+    }
   } finally {
     if ($null -eq $prevRustdocFlags) {
       Remove-Item Env:RUSTDOCFLAGS -ErrorAction SilentlyContinue
@@ -72,11 +76,13 @@ try {
 
   Write-Host "[ci_local] cargo nextest run --workspace --all-targets --no-fail-fast"
   Invoke-NativeStep -Label "cargo nextest run --workspace --all-targets --no-fail-fast" -Command {
-    cargo nextest run --workspace --all-targets --no-fail-fast
+    Invoke-SempalCargo nextest run --workspace --all-targets --no-fail-fast
   }
 
   Write-Host "[ci_local] cargo test --workspace --doc"
-  Invoke-NativeStep -Label "cargo test --workspace --doc" -Command { cargo test --workspace --doc }
+  Invoke-NativeStep -Label "cargo test --workspace --doc" -Command {
+    Invoke-SempalCargo test --workspace --doc
+  }
 
   Write-Host "[ci_local] scripts/run_perf_guard.ps1"
   & (Join-Path $rootDir "scripts/run_perf_guard.ps1")

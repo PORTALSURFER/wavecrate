@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-19T12:57:05+01:00
+Last Updated: 2026-03-19T13:17:14+01:00
 Updated By: Codex
 
 ## Purpose
@@ -17,10 +17,11 @@ Updated By: Codex
 - The previous completed audit backlog is now historical input only.
 - Backlog item 1 is implemented in local commit `7e6baff1` (`fix(drag-drop): workerize drop target transfers`).
 - Backlog item 2 is implemented in local commit `c6b814d2` (`test(controller): cover folder move branches`).
-- Backlog item 3 is implemented locally and covers direct source-move apply-result invalidation/status behavior; item 4 is next from `tmp/improvement_audit_plan.md`.
+- Backlog item 3 is implemented in local commit `91e5c30e` (`test(controller): cover source move apply-result branches`).
+- Backlog item 4 is implemented locally and makes the Windows PowerShell validation wrappers fall back to direct `rustc` plus `tmp/agent_temp` when inherited `sccache` or the default temp dir is unusable; item 5 is next from `tmp/improvement_audit_plan.md`.
 - Full-scan guardrails are currently green, so the old file-size-driven backlog no longer applies as written.
 - The active follow-up is a dual-lane validation workflow for Windows: `scripts/ci_agent.ps1` is the reliable agent-safe lane in constrained environments, while `scripts/ci_quick.ps1` remains the broader integrated lane for humans when `cargo-nextest.exe` is allowed.
-- Backlog item 4 remains a live blocker for push because `scripts/devcheck.ps1` and `scripts/ci_agent.ps1` still fall into the pre-existing unhealthy `sccache` wrapper path in this environment.
+- `scripts/devcheck.ps1` and `scripts/ci_agent.ps1` are green again in this constrained Windows environment after the wrapper and temp-dir fallbacks landed.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -28,9 +29,9 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue Phase 2 in strict `tmp/improvement_audit_plan.md` order with item 4 unless items 1-3 need a correction.
+1. Continue Phase 2 in strict `tmp/improvement_audit_plan.md` order with item 5 unless items 1-4 need a correction.
 2. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `docs/plans/active/todo.md`, `docs/plans/index.md`, and this file aligned around the active execution lane.
-3. Treat backlog item 4 as the current push blocker until the `sccache` wrapper problem is fixed and `scripts/ci_agent.ps1` is genuinely green.
+3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 5. Use `scripts/ci_agent.ps1` for agent-side validation in this constrained Windows environment, and treat `scripts/ci_quick.ps1` / `scripts/ci_local.ps1` as broader user-run confirmation lanes when `cargo-nextest.exe` is allowed.
 

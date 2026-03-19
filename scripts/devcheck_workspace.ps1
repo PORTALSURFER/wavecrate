@@ -43,7 +43,7 @@ try {
   Enable-SempalCargoCache
   Write-Host "[devcheck_workspace] cargo check --workspace --tests --bins"
   Invoke-NativeStep -Label "cargo check --workspace --tests --bins" -Command {
-    cargo check --workspace --tests --bins
+    Invoke-SempalCargo check --workspace --tests --bins
   }
 
   Write-Host "[devcheck_workspace] OK"

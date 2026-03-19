@@ -99,6 +99,12 @@ Repo Cargo scripts auto-use `sccache` when all of the following are true:
 - `sccache` is installed and on `PATH`
 - `RUSTC_WRAPPER` is not already set
 - `SEMPAL_DISABLE_SCCACHE` is not `1`
+- `sccache rustc --version` passes a short health probe
+
+When repo PowerShell wrappers inherit `RUSTC_WRAPPER=sccache`, they now probe
+that wrapper before running Cargo. If the probe fails or times out, the scripts
+clear the inherited `sccache` wrapper for that run and fall back to direct
+`rustc` instead of failing the whole validation lane immediately.
 
 Install examples:
 

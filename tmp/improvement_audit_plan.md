@@ -2,7 +2,7 @@
 
 Generated: 2026-03-18
 Observed commit: `14dfd479`
-Status: Phase 1 complete on 2026-03-18. This file is the current ROI-ranked improvement backlog for the live tree and is waiting for explicit user confirmation before implementation.
+Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ranked improvement backlog and execution tracker for the current tree.
 
 ## Scope
 
@@ -26,7 +26,7 @@ Status: Phase 1 complete on 2026-03-18. This file is the current ROI-ranked impr
 
 - Full file-size guardrail now passes on the live tree: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` reported `[file_budget] OK (838 files checked)`.
 - High-visibility score drift is currently healthy: `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` reported `[quality_score] OK: guardrails are healthy and score is 4.`
-- The broader agent-safe validation lane did not complete in this environment: `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` failed during `cargo check -p sempal --tests --bins` because `sccache` timed out before the build script could query `rustc`. This looks environment-specific rather than repository-specific, so it is not included as a backlog item.
+- The broader agent-safe validation lane now completes in this environment after the Windows PowerShell wrappers added an unhealthy-`sccache` fallback plus a repo-local temp-dir fallback for constrained sessions.
 
 ## Intent Boundaries
 
@@ -120,7 +120,7 @@ Status: Phase 1 complete on 2026-03-18. This file is the current ROI-ranked impr
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-19
-- Commit: `pending local commit` (`test(controller): cover source move apply-result branches`)
+- Commit: `91e5c30e` (`test(controller): cover source move apply-result branches`)
 - Assumptions used:
   - direct `apply_source_move_result` tests need to seed the source and target databases to match the background worker contract before selected-source invalidation reloads from disk
   - when the target source is currently selected, touched-source invalidation should clear stale state and repopulate the visible wav list from the refreshed target DB rather than leave the selected cache empty
@@ -130,7 +130,7 @@ Status: Phase 1 complete on 2026-03-18. This file is the current ROI-ranked impr
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` still failed before meaningful validation because the documented wrapper kept the pre-existing unhealthy `sccache` path active
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` failed for the same pre-existing `sccache` wrapper reason
 
-### 4. [ ] Make the documented Windows agent-safe validation lane resilient when `sccache` is installed but unhealthy
+### 4. [x] Make the documented Windows agent-safe validation lane resilient when `sccache` is installed but unhealthy
 
 - Classification: Developer-experience improvement
 - Confidence: Medium
@@ -151,6 +151,17 @@ Status: Phase 1 complete on 2026-03-18. This file is the current ROI-ranked impr
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
   - targeted script guardrails if the helper behavior changes
 - Product clarification required: No
+- Completed: 2026-03-19
+- Commit: `pending local commit` (`fix(scripts): harden windows cargo wrapper fallback`)
+- Assumptions used:
+  - the documented PowerShell validation lane should prefer direct `rustc` over an inherited or globally configured `sccache` wrapper when the wrapper cannot successfully answer `rustc --version`
+  - falling back to `tmp/agent_temp` is an acceptable constrained-environment prerequisite because the repo already uses workspace-local temp paths for successful targeted Windows cargo runs in this environment
+  - passing Cargo a direct `--config build.rustc-wrapper=''` override is safer than editing user-global Cargo config and is narrow enough for repo-owned wrapper scripts
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1` passed
 
 ### 5. [ ] Enforce that `DesktopAiv` catalog coverage claims are backed by actual desktop-AIV cases
 

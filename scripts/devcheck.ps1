@@ -51,7 +51,7 @@ try {
 
   Write-Host "[devcheck] cargo check -p sempal --tests --bins"
   Invoke-NativeStep -Label "cargo check -p sempal --tests --bins" -Command {
-    cargo check -p sempal --tests --bins
+    Invoke-SempalCargo check -p sempal --tests --bins
   }
 
   Write-Host "[devcheck] OK"

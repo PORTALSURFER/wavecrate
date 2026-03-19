@@ -51,6 +51,7 @@ Use these scripts as the default entrypoints for local work (humans and agents).
   - macOS/Linux/WSL: `bash scripts/ci_agent.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
   - Runs `devcheck` plus `cargo test -p sempal --lib -- --test-threads=1` without `cargo nextest` or the GUI contract wrapper.
+  - The Windows PowerShell wrappers probe inherited `sccache` usage and fall back to direct `rustc` plus `tmp/agent_temp` when the wrapper or default temp directory is unusable in a constrained session.
 - Broader integrated development checks:
   - macOS/Linux/WSL: `bash scripts/ci_quick.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`

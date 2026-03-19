@@ -54,7 +54,7 @@ try {
 
   Write-Host "[ci_quick] cargo nextest run -p sempal --profile quick --lib --tests"
   Invoke-NativeStep -Label "cargo nextest run -p sempal --profile quick --lib --tests" -Command {
-    cargo nextest run -p sempal --profile quick --lib --tests
+    Invoke-SempalCargo nextest run -p sempal --profile quick --lib --tests
   }
 
   Write-Host "[ci_quick] scripts/run_gui_contract.ps1"

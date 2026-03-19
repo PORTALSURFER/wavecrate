@@ -56,7 +56,7 @@ try {
 
   Write-Host "[ci_agent] cargo test -p sempal --lib -- --test-threads=1"
   Invoke-NativeStep -Label "cargo test -p sempal --lib -- --test-threads=1" -Command {
-    cargo test -p sempal --lib -- --test-threads=1
+    Invoke-SempalCargo test -p sempal --lib "--" --test-threads=1
   }
 
   Write-Host "[ci_agent] OK"
