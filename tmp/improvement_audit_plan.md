@@ -152,7 +152,7 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - targeted script guardrails if the helper behavior changes
 - Product clarification required: No
 - Completed: 2026-03-19
-- Commit: `pending local commit` (`fix(scripts): harden windows cargo wrapper fallback`)
+- Commit: `d0685aad` (`fix(scripts): harden windows cargo wrapper fallback`)
 - Assumptions used:
   - the documented PowerShell validation lane should prefer direct `rustc` over an inherited or globally configured `sccache` wrapper when the wrapper cannot successfully answer `rustc --version`
   - falling back to `tmp/agent_temp` is an acceptable constrained-environment prerequisite because the repo already uses workspace-local temp paths for successful targeted Windows cargo runs in this environment
@@ -163,7 +163,7 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1` passed
 
-### 5. [ ] Enforce that `DesktopAiv` catalog coverage claims are backed by actual desktop-AIV cases
+### 5. [x] Enforce that `DesktopAiv` catalog coverage claims are backed by actual desktop-AIV cases
 
 - Classification: Test gap
 - Confidence: High
@@ -184,6 +184,17 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
   - user-run confirmation lane: `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
 - Product clarification required: No
+- Completed: 2026-03-19
+- Commit: `pending local commit` (`test(gui): align desktop aiv coverage claims`)
+- Assumptions used:
+  - when catalog metadata claims `DesktopAiv` coverage, the exported named desktop-AIV manifests should contain at least one `AssertActionRecorded` assertion for that action id
+  - downgrading unsupported `DesktopAiv` claims is safer than inventing new desktop cases mid-backlog because the current manifests are the stronger source of truth for what is actually exercised today
+- Validation outcome:
+  - `cargo fmt --all` passed
+  - `cargo test desktop_aiv_catalog_claims_are_backed_by_manifest_cases -- --nocapture` passed with direct-`rustc` and repo-local temp overrides
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` did not complete in this host because the wrapper hit a pre-existing language-mode dot-sourcing restriction before it could run the contract suite
 
 ### 6. [ ] Add controller-branch tests for `AudioLoadResult` routing and transient cache-token gating
 
