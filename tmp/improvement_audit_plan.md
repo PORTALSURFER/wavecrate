@@ -218,6 +218,7 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-19
+- Commit: `78430bfa` (`test(controller): cover audio load routing branches`)
 - Assumptions used:
   - routing coverage for the `AudioLoadResult::Transients` controller branch can safely use a stretched transient payload because the router contract is only dispatch, while cache-persistence behavior is covered separately in direct transient-gating tests
   - transient cache-token gating is best locked down at the `handle_audio_transients_loaded` seam because that method owns the source/path/token guards and the stretched-vs-unstretched cache mutation split
@@ -230,7 +231,7 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 
-### 7. [ ] Add long-file parity coverage for the Symphonia fallback peak/analysis path
+### 7. [x] Add long-file parity coverage for the Symphonia fallback peak/analysis path
 
 - Classification: Test gap
 - Confidence: High
@@ -251,6 +252,18 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-19
+- Assumptions used:
+  - the clean WAV long-file branch is the strongest repository-local oracle for Symphonia fallback parity because it already routes through the shared `PeakAnalysisAccumulator`
+  - forcing `max_frames = 1` is an acceptable deterministic seam for both the clean WAV path and the malformed-byte Symphonia fallback path because `load_decoded_with_max_frames` exists explicitly as a test hook
+- Validation outcome:
+  - `cargo fmt --all` passed
+  - `cargo test symphonia_reader::tests -- --nocapture` initially failed because the new parity tests exposed a real trailing-sentinel peak-bucket mismatch in the Symphonia EOF path
+  - `cargo test symphonia_reader::tests -- --nocapture` passed after tightening EOF truncation to the actual used bucket count
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Deviation from original plan order:
+  - item 7 required one tiny prerequisite production fix in `src/waveform/decode/symphonia_reader.rs` so the new parity coverage could pass against the repository's shared long-file semantics; this stayed within the current item because it was directly exposed by the added tests and did not broaden into the item 8 refactor
 
 ### 8. [ ] Route Symphonia long-file peak/analysis building through the shared `PeakAnalysisAccumulator`
 

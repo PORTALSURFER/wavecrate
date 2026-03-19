@@ -112,7 +112,7 @@ impl WaveformRenderer {
             for ch in 0..channels_usize {
                 let Some(sample) = samples.next() else {
                     let duration_seconds = total_frames as f32 / sample_rate as f32;
-                    let bucket_count = mono.len();
+                    let bucket_count = total_frames.div_ceil(bucket_size_frames).max(1);
                     mono.truncate(bucket_count);
                     if let Some(left_peaks) = left.as_mut() {
                         left_peaks.truncate(bucket_count);
@@ -209,6 +209,105 @@ mod tests {
         cursor.into_inner()
     }
 
+    fn corrupt_byte_rate(bytes: &mut [u8]) {
+        let byte_rate_offset = 12 + 8 + 2 + 2 + 4;
+        if bytes.len() >= byte_rate_offset + 4 {
+            bytes[byte_rate_offset..byte_rate_offset + 4].copy_from_slice(&0u32.to_le_bytes());
+        }
+    }
+
+    fn assert_slice_close(actual: &[f32], expected: &[f32], label: &str) {
+        assert_eq!(
+            actual.len(),
+            expected.len(),
+            "{label} length mismatch: actual={} expected={}",
+            actual.len(),
+            expected.len()
+        );
+        for (index, (actual, expected)) in actual.iter().zip(expected).enumerate() {
+            assert!(
+                (actual - expected).abs() < 1e-6,
+                "{label}[{index}] mismatch: actual={actual} expected={expected}"
+            );
+        }
+    }
+
+    fn assert_peak_pairs_close(actual: &[(f32, f32)], expected: &[(f32, f32)], label: &str) {
+        assert_eq!(
+            actual.len(),
+            expected.len(),
+            "{label} peak bucket count mismatch: actual={} expected={}",
+            actual.len(),
+            expected.len()
+        );
+        for (index, (actual, expected)) in actual.iter().zip(expected).enumerate() {
+            assert!(
+                (actual.0 - expected.0).abs() < 1e-6,
+                "{label}[{index}].min mismatch: actual={} expected={}",
+                actual.0,
+                expected.0
+            );
+            assert!(
+                (actual.1 - expected.1).abs() < 1e-6,
+                "{label}[{index}].max mismatch: actual={} expected={}",
+                actual.1,
+                expected.1
+            );
+        }
+    }
+
+    fn assert_long_decode_parity(expected: &DecodedWaveform, actual: &DecodedWaveform) {
+        assert!(expected.samples.is_empty(), "expected long-file decode");
+        assert!(
+            actual.samples.is_empty(),
+            "expected long-file fallback decode"
+        );
+        assert_eq!(actual.channels, expected.channels);
+        assert_eq!(actual.sample_rate, expected.sample_rate);
+        assert_eq!(actual.frame_count(), expected.frame_count());
+        assert_eq!(actual.analysis_stride, expected.analysis_stride);
+        assert_eq!(actual.analysis_sample_rate, expected.analysis_sample_rate);
+        assert!(
+            (actual.duration_seconds - expected.duration_seconds).abs() < 1e-6,
+            "duration mismatch: actual={} expected={}",
+            actual.duration_seconds,
+            expected.duration_seconds
+        );
+        assert_slice_close(
+            actual.analysis_samples.as_ref(),
+            expected.analysis_samples.as_ref(),
+            "analysis_samples",
+        );
+
+        let actual_peaks = actual.peaks.as_ref().expect("actual peaks");
+        let expected_peaks = expected.peaks.as_ref().expect("expected peaks");
+        assert_eq!(actual_peaks.total_frames, expected_peaks.total_frames);
+        assert_eq!(actual_peaks.channels, expected_peaks.channels);
+        assert_eq!(
+            actual_peaks.bucket_size_frames,
+            expected_peaks.bucket_size_frames
+        );
+        assert_peak_pairs_close(
+            actual_peaks.mono.as_slice(),
+            expected_peaks.mono.as_slice(),
+            "mono",
+        );
+        match (&actual_peaks.left, &expected_peaks.left) {
+            (Some(actual), Some(expected)) => {
+                assert_peak_pairs_close(actual.as_slice(), expected.as_slice(), "left");
+            }
+            (None, None) => {}
+            _ => panic!("left peak presence mismatch"),
+        }
+        match (&actual_peaks.right, &expected_peaks.right) {
+            (Some(actual), Some(expected)) => {
+                assert_peak_pairs_close(actual.as_slice(), expected.as_slice(), "right");
+            }
+            (None, None) => {}
+            _ => panic!("right peak presence mismatch"),
+        }
+    }
+
     #[test]
     fn symphonia_fallback_decodes_ill_formed_riff_size() {
         let renderer = WaveformRenderer::new(12, 12);
@@ -233,5 +332,55 @@ mod tests {
         assert_eq!(decoded.sample_rate, 48_000);
         assert!(!decoded.samples.is_empty());
         assert!(decoded.duration_seconds > 0.0);
+    }
+
+    #[test]
+    /// Forced long-file fallback should match the shared mono peak/analysis decode semantics.
+    fn symphonia_long_file_fallback_matches_wav_mono_peak_and_analysis_output() {
+        let renderer = WaveformRenderer::new(12, 12);
+        let clean = wav_bytes_int(16, 1, &[0, 1000, -1000, 2000, -500, 750]);
+        let expected = renderer
+            .load_decoded_with_max_frames(&clean, 1)
+            .expect("expected wav long-file decode");
+
+        let mut corrupted = clean.clone();
+        corrupt_byte_rate(&mut corrupted);
+        assert!(
+            hound::WavReader::new(std::io::Cursor::new(corrupted.as_slice())).is_err(),
+            "expected hound to reject the corrupted wav"
+        );
+
+        let actual = renderer
+            .load_decoded_with_max_frames(&corrupted, 1)
+            .expect("expected symphonia long-file fallback decode");
+
+        assert_long_decode_parity(&expected, &actual);
+    }
+
+    #[test]
+    /// Forced long-file fallback should preserve stereo bucket sizing and channel-specific peaks.
+    fn symphonia_long_file_fallback_matches_wav_stereo_peak_and_analysis_output() {
+        let renderer = WaveformRenderer::new(12, 12);
+        let clean = wav_bytes_int(
+            16,
+            2,
+            &[0, 1000, -2000, 1500, 2000, -1000, -1000, 500, 750, -750],
+        );
+        let expected = renderer
+            .load_decoded_with_max_frames(&clean, 1)
+            .expect("expected wav long-file decode");
+
+        let mut corrupted = clean.clone();
+        corrupt_byte_rate(&mut corrupted);
+        assert!(
+            hound::WavReader::new(std::io::Cursor::new(corrupted.as_slice())).is_err(),
+            "expected hound to reject the corrupted wav"
+        );
+
+        let actual = renderer
+            .load_decoded_with_max_frames(&corrupted, 1)
+            .expect("expected symphonia long-file fallback decode");
+
+        assert_long_decode_parity(&expected, &actual);
     }
 }
