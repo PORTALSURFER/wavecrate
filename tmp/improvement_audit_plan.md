@@ -91,7 +91,7 @@ Status: Phase 1 complete on 2026-03-18. This file is the current ROI-ranked impr
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-19
-- Commit: pending local commit
+- Commit: `c6b814d2` (`test(controller): cover folder move branches`)
 - Assumptions used:
   - direct controller tests in `src/app/controller/tests/drag_drop_folders.rs` are the lowest-risk way to cover the planning and apply-result seams without broadening production scope
 - Validation outcome:
@@ -99,7 +99,7 @@ Status: Phase 1 complete on 2026-03-18. This file is the current ROI-ranked impr
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` still failed before meaningful validation because Cargo invoked the pre-existing unhealthy `sccache` wrapper path tracked separately in backlog item 4
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` failed for the same pre-existing `sccache` wrapper reason
 
-### 3. [ ] Add direct regression coverage for cross-source move result application and touched-source invalidation
+### 3. [x] Add direct regression coverage for cross-source move result application and touched-source invalidation
 
 - Classification: Test gap
 - Confidence: High
@@ -119,6 +119,16 @@ Status: Phase 1 complete on 2026-03-18. This file is the current ROI-ranked impr
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-19
+- Commit: `pending local commit` (`test(controller): cover source move apply-result branches`)
+- Assumptions used:
+  - direct `apply_source_move_result` tests need to seed the source and target databases to match the background worker contract before selected-source invalidation reloads from disk
+  - when the target source is currently selected, touched-source invalidation should clear stale state and repopulate the visible wav list from the refreshed target DB rather than leave the selected cache empty
+- Validation outcome:
+  - `cargo fmt --all` passed
+  - `cargo test drag_drop_sources -- --nocapture` passed with `RUSTC_WRAPPER` cleared and `TEMP`/`TMP` pointed at `tmp/agent_temp`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` still failed before meaningful validation because the documented wrapper kept the pre-existing unhealthy `sccache` path active
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` failed for the same pre-existing `sccache` wrapper reason
 
 ### 4. [ ] Make the documented Windows agent-safe validation lane resilient when `sccache` is installed but unhealthy
 

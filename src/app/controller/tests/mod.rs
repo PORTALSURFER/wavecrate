@@ -11,6 +11,7 @@ mod browser_selection;
 mod common;
 mod drag_drop_drop_targets;
 mod drag_drop_folders;
+mod drag_drop_sources;
 mod drag_drop_waveform;
 mod edit_selection_no_snap;
 mod external_drop_import;

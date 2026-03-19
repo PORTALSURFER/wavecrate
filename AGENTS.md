@@ -61,10 +61,10 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: evidence-driven improvement audit execution
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-18 evidence-driven ROI-ranked backlog for the live tree; `docs/TEST.md` and `docs/README.md` still define the dual-lane validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: Phase 2 is in progress on `2026-03-19`; backlog items 1-2 are implemented locally, `tmp/improvement_audit_plan.md` is the live execution tracker, item 3 is next in order, and item 4 still captures the pre-existing Windows `sccache` validation blocker that is preventing push.
+- Current status: Phase 2 is in progress on `2026-03-19`; backlog items 1-3 are implemented locally, `tmp/improvement_audit_plan.md` is the live execution tracker, item 4 is next in order, and item 4 still captures the pre-existing Windows `sccache` validation blocker that is preventing push.
 
 ## Immediate Next Actions
-1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order, starting with item 3 unless items 1-2 need a follow-up correction.
+1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order, starting with item 4 unless items 1-3 need a follow-up correction.
 2. Keep `tmp/improvement_audit_plan.md` as the live execution tracker, including completion notes, commit hashes, assumptions, and validation results after each item.
 3. Treat backlog item 4 as the current push blocker: `scripts/devcheck.ps1` and `scripts/ci_agent.ps1` still hit the pre-existing unhealthy `sccache` wrapper path in this environment.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.

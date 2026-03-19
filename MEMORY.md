@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-19T00:35:00+01:00
+Last Updated: 2026-03-19T12:57:05+01:00
 Updated By: Codex
 
 ## Purpose
@@ -16,7 +16,8 @@ Updated By: Codex
 - `tmp/improvement_audit_plan.md` is the current source of truth.
 - The previous completed audit backlog is now historical input only.
 - Backlog item 1 is implemented in local commit `7e6baff1` (`fix(drag-drop): workerize drop target transfers`).
-- Backlog item 2 is implemented locally and item 3 is next from `tmp/improvement_audit_plan.md`.
+- Backlog item 2 is implemented in local commit `c6b814d2` (`test(controller): cover folder move branches`).
+- Backlog item 3 is implemented locally and covers direct source-move apply-result invalidation/status behavior; item 4 is next from `tmp/improvement_audit_plan.md`.
 - Full-scan guardrails are currently green, so the old file-size-driven backlog no longer applies as written.
 - The active follow-up is a dual-lane validation workflow for Windows: `scripts/ci_agent.ps1` is the reliable agent-safe lane in constrained environments, while `scripts/ci_quick.ps1` remains the broader integrated lane for humans when `cargo-nextest.exe` is allowed.
 - Backlog item 4 remains a live blocker for push because `scripts/devcheck.ps1` and `scripts/ci_agent.ps1` still fall into the pre-existing unhealthy `sccache` wrapper path in this environment.
@@ -27,7 +28,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue Phase 2 in strict `tmp/improvement_audit_plan.md` order with item 3 unless items 1-2 need a correction.
+1. Continue Phase 2 in strict `tmp/improvement_audit_plan.md` order with item 4 unless items 1-3 need a correction.
 2. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `docs/plans/active/todo.md`, `docs/plans/index.md`, and this file aligned around the active execution lane.
 3. Treat backlog item 4 as the current push blocker until the `sccache` wrapper problem is fixed and `scripts/ci_agent.ps1` is genuinely green.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
