@@ -356,7 +356,7 @@ Status: Phase 2 implementation completed on 2026-03-19. This file remains the li
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Product clarification required: No
 - Completed: 2026-03-19
-- Commit: pending final item commit (`refactor(drag-drop): split folder move worker tests`)
+- Commit: `4485f18e` (`refactor(drag-drop): split folder move worker tests`)
 - Assumptions used:
   - moving the worker-heavy tests under `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/tests/` is the smallest repository-aligned split because the production `folder_moves.rs` file only needs to stay a documented module portal
   - serializing the folder-move worker tests behind one local lock is an acceptable test-only safeguard because the worker exposes global one-shot hooks used to force deterministic DB timing

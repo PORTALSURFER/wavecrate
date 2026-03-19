@@ -24,7 +24,7 @@ Updated By: Codex
 - Backlog item 7 is implemented in commit `6b24829d` (`test(waveform): cover symphonia long-file parity`) and adds mono/stereo long-file parity coverage for the Symphonia fallback peak/analysis path; the new tests also exposed and fixed a trailing sentinel peak-bucket bug in the Symphonia EOF truncation path.
 - Backlog item 8 is implemented in commit `6a8c78bd` (`refactor(waveform): share symphonia peak accumulation`) and routes the Symphonia long-file peak/analysis path through the shared `PeakAnalysisAccumulator`; the helper now trims unused estimate buckets on output.
 - Backlog item 9 is implemented in commit `ac746e8e` (`docs: refresh architecture and audit snapshots`) and refreshes the stale architecture/planning docs, regenerates `tmp/cleanup_audit_hotspots.md`, and downgrades `docs/QUALITY_SCORE.md` to match the current degraded guardrail state.
-- Backlog item 10 is implemented locally and splits `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs` into a documented module portal plus focused worker-test modules under `folder_moves/tests/`; the final item commit/push is the remaining closeout step.
+- Backlog item 10 is implemented in commit `4485f18e` (`refactor(drag-drop): split folder move worker tests`) and splits `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs` into a documented module portal plus focused worker-test modules under `folder_moves/tests/`.
 - Full-scan guardrails are not fully green right now: `scripts/check_file_size_budget.ps1 --all` still fails on the unrelated over-budget file `src/app/controller/tests/drag_drop_drop_targets.rs:477`.
 - The active follow-up is a dual-lane validation workflow for Windows: `scripts/ci_agent.ps1` is the reliable agent-safe lane in constrained environments, while `scripts/ci_quick.ps1` remains the broader integrated lane for humans when `cargo-nextest.exe` is allowed.
 - `scripts/devcheck.ps1` and `scripts/ci_agent.ps1` are green again in this constrained Windows environment after the wrapper and temp-dir fallbacks landed.
@@ -35,7 +35,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Commit and push the completed item 10 closeout, then backfill the final commit metadata into `tmp/improvement_audit_plan.md` on the next tracker-touch if needed.
+1. Push the completed item 10 and tracker closeout commits, then wait for the user to choose the next lane.
 2. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `docs/plans/active/todo.md`, `docs/plans/index.md`, and this file aligned around the completed audit lane until the user selects a new lane.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.

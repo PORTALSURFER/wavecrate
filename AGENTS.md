@@ -61,11 +61,11 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: evidence-driven improvement audit execution
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-18 evidence-driven ROI-ranked backlog for the live tree; `docs/TEST.md` and `docs/README.md` still define the dual-lane validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: Phase 2 implementation completed on `2026-03-19`; backlog items 1-9 are committed, item 10 is implemented locally pending final commit/push closeout, `tmp/improvement_audit_plan.md` is the live execution tracker, and the Windows PowerShell validation lane now falls back to direct `rustc` plus `tmp/agent_temp` when inherited `sccache` or the default temp dir is unusable.
+- Current status: Phase 2 implementation completed on `2026-03-19`; backlog items 1-10 are committed locally, `tmp/improvement_audit_plan.md` is the live execution tracker, and the Windows PowerShell validation lane now falls back to direct `rustc` plus `tmp/agent_temp` when inherited `sccache` or the default temp dir is unusable.
 
 ## Immediate Next Actions
-1. Commit and push the completed item 10 closeout, then keep `tmp/improvement_audit_plan.md` aligned with the final commit metadata on the next tracker-touch if needed.
-2. Keep `tmp/improvement_audit_plan.md` as the live execution tracker for the completed audit backlog, including completion notes, assumptions, and validation results.
+1. Push the completed item 10 and tracker closeout commits, then wait for the user to choose the next lane.
+2. Keep `tmp/improvement_audit_plan.md` as the live execution tracker for the completed audit backlog, including completion notes, assumptions, validation results, and commit metadata.
 3. Keep the PowerShell validation wrappers on their new direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 5. Keep `scripts/ci_quick.ps1` / `scripts/ci_quick.sh` as the broader integrated lane built around `cargo nextest`; the PowerShell wrapper also includes the GUI contract suite.
