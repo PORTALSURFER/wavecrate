@@ -2,7 +2,7 @@
 
 Generated: 2026-03-18
 Observed commit: `14dfd479`
-Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ranked improvement backlog and execution tracker for the current tree.
+Status: Phase 2 implementation completed on 2026-03-19. This file remains the live execution record for the current tree.
 
 ## Scope
 
@@ -24,8 +24,8 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
 
 ## Audit Notes
 
-- Full file-size guardrail now passes on the live tree: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` reported `[file_budget] OK (838 files checked)`.
-- High-visibility score drift is currently healthy: `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` reported `[quality_score] OK: guardrails are healthy and score is 4.`
+- Full file-size guardrail is currently degraded on the live tree: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` currently reports `src/app/controller/tests/drag_drop_drop_targets.rs:477` as the remaining over-budget file outside the folder-move split item.
+- High-visibility score drift currently passes with degraded guardrails: `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` now reports score `3` because active file-size-budget and Rust-taste violations still exist outside this backlog slice.
 - The broader agent-safe validation lane now completes in this environment after the Windows PowerShell wrappers added an unhealthy-`sccache` fallback plus a repo-local temp-dir fallback for constrained sessions.
 
 ## Intent Boundaries
@@ -323,6 +323,7 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
 - Product clarification required: No
 - Completed: 2026-03-19
+- Commit: `ac746e8e` (`docs: refresh architecture and audit snapshots`)
 - Assumptions used:
   - item 9 should describe the live guardrail state at implementation time, even when it has drifted since the earlier audit snapshot; preserving a stale “healthy” story would be less accurate than updating the docs to match the current tree
   - boundary docs should distinguish between live directories (`src/gui_runtime`, `src/app`) and historical dependency tokens that the guardrail scripts still check for compatibility reasons (`crate::gui_app::`, `crate::legacy_runtime::`)
@@ -334,7 +335,7 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
 - Deviation from original plan order:
   - item 9 originally assumed the full file-size guardrail was still green, but the live tree had regressed by implementation time; the docs were updated to match current reality rather than the older all-clear snapshot
 
-### 10. [ ] Split `folder_moves.rs` so the module portal and worker-heavy tests stop sharing one hotspot file
+### 10. [x] Split `folder_moves.rs` so the module portal and worker-heavy tests stop sharing one hotspot file
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -354,6 +355,18 @@ Status: Phase 2 execution is active on 2026-03-19. This file is the live ROI-ran
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Product clarification required: No
+- Completed: 2026-03-19
+- Commit: pending final item commit (`refactor(drag-drop): split folder move worker tests`)
+- Assumptions used:
+  - moving the worker-heavy tests under `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves/tests/` is the smallest repository-aligned split because the production `folder_moves.rs` file only needs to stay a documented module portal
+  - serializing the folder-move worker tests behind one local lock is an acceptable test-only safeguard because the worker exposes global one-shot hooks used to force deterministic DB timing
+- Validation outcome:
+  - `cargo fmt --all` passed
+  - `cargo test folder_sample_move_ -- --nocapture` passed with direct-`rustc` and repo-local temp overrides
+  - `cargo test folder_move_ -- --nocapture` passed with direct-`rustc` and repo-local temp overrides
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` still fails on the pre-existing unrelated violation `src/app/controller/tests/drag_drop_drop_targets.rs:477`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 
 ## Open Questions / Missing Definitions
 

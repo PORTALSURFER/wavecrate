@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-19T14:22:46+01:00
+Last Updated: 2026-03-19T16:15:00+01:00
 Updated By: Codex
 
 ## Purpose
@@ -12,7 +12,7 @@ Updated By: Codex
 
 - I am on `next` in `X:\sempal`.
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The active lane is Phase 2 execution of the refreshed evidence-driven improvement audit.
+- The active lane is the completed execution record of the refreshed evidence-driven improvement audit.
 - `tmp/improvement_audit_plan.md` is the current source of truth.
 - The previous completed audit backlog is now historical input only.
 - Backlog item 1 is implemented in local commit `7e6baff1` (`fix(drag-drop): workerize drop target transfers`).
@@ -23,8 +23,9 @@ Updated By: Codex
 - Backlog item 6 is implemented in commit `78430bfa` (`test(controller): cover audio load routing branches`) and adds controller coverage for stale-vs-matching `AudioLoadResult::Primary` routing, `AudioLoadResult::Transients` routing, transient source/path/cache-token gating, and the non-stretched-only transient cache-update branch.
 - Backlog item 7 is implemented in commit `6b24829d` (`test(waveform): cover symphonia long-file parity`) and adds mono/stereo long-file parity coverage for the Symphonia fallback peak/analysis path; the new tests also exposed and fixed a trailing sentinel peak-bucket bug in the Symphonia EOF truncation path.
 - Backlog item 8 is implemented in commit `6a8c78bd` (`refactor(waveform): share symphonia peak accumulation`) and routes the Symphonia long-file peak/analysis path through the shared `PeakAnalysisAccumulator`; the helper now trims unused estimate buckets on output.
-- Backlog item 9 is implemented locally and refreshes the stale architecture/planning docs, regenerates `tmp/cleanup_audit_hotspots.md`, and downgrades `docs/QUALITY_SCORE.md` to match the current degraded guardrail state; item 10 is next from `tmp/improvement_audit_plan.md`.
-- Full-scan guardrails are currently green, so the old file-size-driven backlog no longer applies as written.
+- Backlog item 9 is implemented in commit `ac746e8e` (`docs: refresh architecture and audit snapshots`) and refreshes the stale architecture/planning docs, regenerates `tmp/cleanup_audit_hotspots.md`, and downgrades `docs/QUALITY_SCORE.md` to match the current degraded guardrail state.
+- Backlog item 10 is implemented locally and splits `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs` into a documented module portal plus focused worker-test modules under `folder_moves/tests/`; the final item commit/push is the remaining closeout step.
+- Full-scan guardrails are not fully green right now: `scripts/check_file_size_budget.ps1 --all` still fails on the unrelated over-budget file `src/app/controller/tests/drag_drop_drop_targets.rs:477`.
 - The active follow-up is a dual-lane validation workflow for Windows: `scripts/ci_agent.ps1` is the reliable agent-safe lane in constrained environments, while `scripts/ci_quick.ps1` remains the broader integrated lane for humans when `cargo-nextest.exe` is allowed.
 - `scripts/devcheck.ps1` and `scripts/ci_agent.ps1` are green again in this constrained Windows environment after the wrapper and temp-dir fallbacks landed.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
@@ -34,8 +35,8 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue Phase 2 in strict `tmp/improvement_audit_plan.md` order with item 10 unless items 1-9 need a correction.
-2. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `docs/plans/active/todo.md`, `docs/plans/index.md`, and this file aligned around the active execution lane.
+1. Commit and push the completed item 10 closeout, then backfill the final commit metadata into `tmp/improvement_audit_plan.md` on the next tracker-touch if needed.
+2. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `docs/plans/active/todo.md`, `docs/plans/index.md`, and this file aligned around the completed audit lane until the user selects a new lane.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 5. Use `scripts/ci_agent.ps1` for agent-side validation in this constrained Windows environment, and treat `scripts/ci_quick.ps1` / `scripts/ci_local.ps1` as broader user-run confirmation lanes when `cargo-nextest.exe` is allowed.
