@@ -28,15 +28,13 @@ pub(super) fn snap_waveform_selection_range_micros(
         return (snapped_start, snapped_end);
     }
     if start == existing_end {
-        end = snap_waveform_resize_endpoint_to_bpm_step(controller, end, step, preserve_view_edge);
+        end = snap_waveform_resize_endpoint_to_bpm_step(end, step, preserve_view_edge);
     } else if end == existing_start {
-        start =
-            snap_waveform_resize_endpoint_to_bpm_step(controller, start, step, preserve_view_edge);
+        start = snap_waveform_resize_endpoint_to_bpm_step(start, step, preserve_view_edge);
     } else if start == existing_start {
-        end = snap_waveform_resize_endpoint_to_bpm_step(controller, end, step, preserve_view_edge);
+        end = snap_waveform_resize_endpoint_to_bpm_step(end, step, preserve_view_edge);
     } else if end == existing_end {
-        start =
-            snap_waveform_resize_endpoint_to_bpm_step(controller, start, step, preserve_view_edge);
+        start = snap_waveform_resize_endpoint_to_bpm_step(start, step, preserve_view_edge);
     }
     (start, end)
 }
@@ -88,23 +86,40 @@ fn snap_micros_to_bpm_step(value_micros: u32, step: f32) -> u32 {
     normalized_to_micros(snapped)
 }
 
-/// Snap one resized waveform endpoint unless it is already clamped to the visible edge.
+/// Snap one resized waveform endpoint unless native input marked it as exact.
 ///
-/// When the pointer moves beyond the waveform plot, native input clamps the raw
-/// endpoint to the current viewport edge. In that case we preserve the viewport
-/// edge exactly instead of snapping back inward to the nearest BPM step.
+/// Native waveform drags set `preserve_view_edge` when the pointer has moved
+/// beyond the waveform plot and the runtime intentionally clamps the drag to an
+/// exact off-plot boundary position. Preserve that absolute position verbatim
+/// so concurrent zoom changes do not re-snap the drag inward to a BPM step.
 fn snap_waveform_resize_endpoint_to_bpm_step(
-    controller: &AppController,
     value_micros: u32,
     step: f32,
     preserve_view_edge: bool,
 ) -> u32 {
     let value_micros = value_micros.min(1_000_000);
-    let view_start_micros = normalized_to_micros(controller.ui.waveform.view.start as f32);
-    let view_end_micros = normalized_to_micros(controller.ui.waveform.view.end as f32);
-    if preserve_view_edge && (value_micros == view_start_micros || value_micros == view_end_micros)
-    {
+    if preserve_view_edge {
         return value_micros;
     }
     snap_micros_to_bpm_step(value_micros, step)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preserve_view_edge_keeps_exact_clamped_resize_endpoint() {
+        let step = 0.125;
+        let exact_endpoint = 410_000;
+
+        assert_eq!(
+            snap_waveform_resize_endpoint_to_bpm_step(exact_endpoint, step, true),
+            exact_endpoint
+        );
+        assert_eq!(
+            snap_waveform_resize_endpoint_to_bpm_step(exact_endpoint, step, false),
+            375_000
+        );
+    }
 }
