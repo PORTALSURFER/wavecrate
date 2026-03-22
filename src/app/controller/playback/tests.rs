@@ -175,6 +175,46 @@ fn native_waveform_view_center_does_not_snap_back_to_visible_playhead() {
     assert!((controller.ui.waveform.view.end - 0.8).abs() < 1.0e-6);
 }
 
+#[test]
+fn native_waveform_selection_begin_does_not_snap_to_visible_playhead() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    seed_waveform_for_zoom(&mut controller);
+    controller.ui.waveform.view = crate::app::state::WaveformView {
+        start: 0.2,
+        end: 0.4,
+    };
+    controller.ui.waveform.playhead.visible = true;
+    controller.ui.waveform.playhead.position = 0.95;
+
+    controller.apply_native_ui_action(NativeUiAction::BeginWaveformSelectionAt {
+        anchor_micros: 300_000,
+    });
+
+    assert!((controller.ui.waveform.view.start - 0.2).abs() < 1.0e-6);
+    assert!((controller.ui.waveform.view.end - 0.4).abs() < 1.0e-6);
+}
+
+#[test]
+fn native_waveform_selection_update_does_not_snap_to_visible_playhead() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    seed_waveform_for_zoom(&mut controller);
+    controller.ui.waveform.view = crate::app::state::WaveformView {
+        start: 0.2,
+        end: 0.4,
+    };
+    controller.ui.waveform.playhead.visible = true;
+    controller.ui.waveform.playhead.position = 0.95;
+
+    controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
+        start_micros: 300_000,
+        end_micros: 350_000,
+        preserve_view_edge: false,
+    });
+
+    assert!((controller.ui.waveform.view.start - 0.2).abs() < 1.0e-6);
+    assert!((controller.ui.waveform.view.end - 0.4).abs() < 1.0e-6);
+}
+
 /// Tiny floating-point drift should not be treated as a waveform view change.
 #[test]
 fn waveform_view_changed_ignores_tiny_float_noise() {

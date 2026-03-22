@@ -47,7 +47,7 @@ pub(super) fn apply_waveform_native_ui_action(
         }
         NativeUiAction::BeginWaveformSelectionAt { anchor_micros } => {
             controller.start_selection_drag(anchor_micros.min(1_000_000) as f32 / 1_000_000.0);
-            controller.focus_waveform();
+            controller.focus_waveform_context();
         }
         NativeUiAction::SetWaveformSelectionRange {
             start_micros,

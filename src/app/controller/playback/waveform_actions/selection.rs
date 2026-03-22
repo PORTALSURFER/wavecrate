@@ -92,7 +92,7 @@ impl AppController {
             return;
         }
         self.set_selection_range(next_range);
-        self.focus_waveform();
+        self.focus_waveform_context();
     }
 
     /// Set waveform selection range without BPM snapping and recalculate BPM for a 4-beat span.
@@ -132,7 +132,7 @@ impl AppController {
         } else {
             self.update_selection_drag(micros_to_ratio(end_micros), false);
         }
-        self.focus_waveform();
+        self.focus_waveform_context();
     }
 
     /// Clear waveform selection and keep waveform focus active.
