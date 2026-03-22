@@ -353,10 +353,15 @@ fn f_hotkey_focuses_loaded_sample_in_browser() {
     controller.ui.focus.set_context(FocusContext::Waveform);
 
     let action = hotkeys::iter_actions()
-        .find(|action| action.command() == hotkeys::HotkeyCommand::FocusLoadedSample)
+        .find(|action| {
+            matches!(
+                action.action,
+                radiant::app::UiAction::FocusLoadedSampleInBrowser
+            )
+        })
         .expect("missing focus loaded sample hotkey");
 
-    controller.handle_hotkey(action, FocusContext::Waveform);
+    controller.handle_hotkey(action, FocusContext::SampleBrowser);
 
     assert_eq!(controller.ui.focus.context, FocusContext::SampleBrowser);
     assert_eq!(

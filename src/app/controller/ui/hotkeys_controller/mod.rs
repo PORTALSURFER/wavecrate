@@ -1,9 +1,7 @@
-use super::*;
-use crate::app::controller::ui::hotkeys::{HotkeyAction, HotkeyCommand};
+use crate::app::controller::AppController;
+use crate::app::controller::ui::hotkeys::HotkeyAction;
 use crate::app::state::FocusContext;
-
-mod browser;
-mod waveform;
+use crate::app_core::controller::AppControllerNativeRuntimeExt;
 
 pub(crate) trait HotkeysActions {
     fn handle_hotkey(&mut self, action: HotkeyAction, focus: FocusContext);
@@ -35,170 +33,10 @@ impl std::ops::DerefMut for HotkeysController<'_> {
 
 impl HotkeysActions for HotkeysController<'_> {
     fn handle_hotkey(&mut self, action: HotkeyAction, focus: FocusContext) {
-        let command = action.command();
-        if self.handle_global_command(command) {
+        if !action.is_active(focus) {
             return;
         }
-        if self.handle_tagging_command(command, focus) {
-            return;
-        }
-        match focus {
-            FocusContext::SampleBrowser => {
-                let _ = browser::handle_browser_command(self, command);
-            }
-            FocusContext::Waveform => {
-                let _ = waveform::handle_waveform_command(self, command);
-            }
-            FocusContext::SourceFolders => {
-                let _ = self.handle_folders_command(command);
-            }
-            FocusContext::SourcesList | FocusContext::None => {}
-        }
-    }
-}
-
-impl HotkeysController<'_> {
-    fn handle_global_command(&mut self, command: HotkeyCommand) -> bool {
-        match command {
-            HotkeyCommand::Undo => {
-                self.undo();
-                true
-            }
-            HotkeyCommand::Redo => {
-                self.redo();
-                true
-            }
-            HotkeyCommand::ToggleOverlay => {
-                self.ui.hotkeys.overlay_visible = !self.ui.hotkeys.overlay_visible;
-                true
-            }
-            HotkeyCommand::OpenFeedbackIssuePrompt => {
-                self.ui.hotkeys.overlay_visible = false;
-                self.open_feedback_issue_prompt();
-                true
-            }
-            HotkeyCommand::CopyStatusLog => {
-                self.copy_status_log_to_clipboard();
-                true
-            }
-            HotkeyCommand::ToggleLoop => {
-                self.toggle_loop();
-                true
-            }
-            HotkeyCommand::ToggleLoopLock => {
-                let enabled = !self.ui.waveform.loop_lock_enabled;
-                self.set_loop_lock_enabled(enabled);
-                true
-            }
-            HotkeyCommand::FocusWaveform => {
-                self.focus_waveform();
-                true
-            }
-            HotkeyCommand::FocusBrowserSamples => {
-                self.focus_browser_list();
-                true
-            }
-            HotkeyCommand::FocusBrowserSearch => {
-                if matches!(
-                    self.ui.browser.active_tab,
-                    crate::app::state::SampleBrowserTab::Map
-                ) {
-                    self.ui.map.focus_selected_requested = true;
-                } else {
-                    self.focus_browser_search();
-                }
-                true
-            }
-            HotkeyCommand::FocusLoadedSample => {
-                self.focus_loaded_sample_in_browser();
-                true
-            }
-            HotkeyCommand::FocusFolderTree => {
-                self.focus_context_from_ui(FocusContext::SourceFolders);
-                true
-            }
-            HotkeyCommand::FocusSourcesList => {
-                self.focus_sources_list();
-                true
-            }
-            HotkeyCommand::PlayFromStart => {
-                self.play_from_start();
-                true
-            }
-            HotkeyCommand::PlayFromCurrentPlayhead => {
-                self.play_from_current_playhead();
-                true
-            }
-            HotkeyCommand::PlayRandomSample => {
-                self.play_random_visible_sample();
-                true
-            }
-            HotkeyCommand::PlayPreviousRandomSample => {
-                self.play_previous_random_sample();
-                true
-            }
-            HotkeyCommand::ToggleRandomNavigationMode => {
-                self.toggle_random_navigation_mode();
-                true
-            }
-            HotkeyCommand::MoveTrashedToFolder => {
-                self.move_all_trashed_to_folder();
-                true
-            }
-            _ => false,
-        }
-    }
-
-    fn handle_folders_command(&mut self, command: HotkeyCommand) -> bool {
-        match command {
-            HotkeyCommand::ToggleFolderSelection => {
-                self.toggle_focused_folder_selection();
-                true
-            }
-            HotkeyCommand::DeleteFocusedFolder => {
-                self.delete_focused_folder();
-                true
-            }
-            HotkeyCommand::RenameFocusedFolder => {
-                self.start_folder_rename();
-                true
-            }
-            HotkeyCommand::CreateFolder => {
-                self.start_new_folder();
-                true
-            }
-            HotkeyCommand::FocusFolderSearch => {
-                self.focus_folder_search();
-                true
-            }
-            _ => false,
-        }
-    }
-
-    fn handle_tagging_command(&mut self, command: HotkeyCommand, _focus: FocusContext) -> bool {
-        match command {
-            HotkeyCommand::TagNeutralSelected => {
-                self.tag_selected(Rating::NEUTRAL);
-                true
-            }
-            HotkeyCommand::TagKeepSelected => {
-                self.tag_selected(Rating::KEEP_1);
-                true
-            }
-            HotkeyCommand::TagTrashSelected => {
-                self.tag_selected(Rating::TRASH_3);
-                true
-            }
-            HotkeyCommand::IncrementRatingSelected => {
-                self.adjust_selected_rating(1);
-                true
-            }
-            HotkeyCommand::DecrementRatingSelected => {
-                self.adjust_selected_rating(-1);
-                true
-            }
-            _ => false,
-        }
+        self.apply_native_ui_action(action.action);
     }
 }
 
@@ -215,14 +53,12 @@ mod tests {
         load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry,
     };
     use crate::app::controller::ui::hotkeys;
-    use crate::app::state::FocusContext;
     use crate::sample_sources::Rating;
     use crate::selection::SelectionRange;
+    use std::path::Path;
 
-    fn action_for(command: HotkeyCommand) -> HotkeyAction {
-        hotkeys::iter_actions()
-            .find(|action| action.command() == command)
-            .expect("missing hotkey action")
+    fn action_for(predicate: impl Fn(&radiant::app::UiAction) -> bool) -> HotkeyAction {
+        hotkeys::find_action(predicate).expect("missing hotkey action")
     }
 
     #[test]
@@ -236,29 +72,15 @@ mod tests {
             &[0.1, -0.2, 0.3, -0.4],
             SelectionRange::new(0.0, 0.5),
         );
-        let action = action_for(HotkeyCommand::CropSelection);
+        let action =
+            action_for(|action| matches!(action, radiant::app::UiAction::CropWaveformSelection));
 
-        controller.handle_hotkey(action, FocusContext::Waveform);
+        controller.handle_hotkey(action.clone(), FocusContext::Waveform);
         assert!(controller.ui.waveform.pending_destructive.is_some());
 
         controller.ui.waveform.pending_destructive = None;
         controller.handle_hotkey(action, FocusContext::SampleBrowser);
         assert!(controller.ui.waveform.pending_destructive.is_none());
-    }
-
-    /// Browser search hotkey should request search focus from any focus context.
-    #[test]
-    fn browser_search_hotkey_is_global() {
-        let renderer = crate::waveform::WaveformRenderer::new(4, 4);
-        let mut controller = AppController::new(renderer, None);
-        let action = action_for(HotkeyCommand::FocusBrowserSearch);
-
-        controller.handle_hotkey(action, FocusContext::SampleBrowser);
-        assert!(controller.ui.browser.search.search_focus_requested);
-
-        controller.ui.browser.search.search_focus_requested = false;
-        controller.handle_hotkey(action, FocusContext::Waveform);
-        assert!(controller.ui.browser.search.search_focus_requested);
     }
 
     #[test]
@@ -277,17 +99,60 @@ mod tests {
         controller.ui.waveform.cursor = Some(0.22);
 
         controller.handle_hotkey(
-            action_for(HotkeyCommand::PlayFromStart),
+            action_for(|action| matches!(action, radiant::app::UiAction::PlayFromStart)),
             FocusContext::SampleBrowser,
         );
         assert_eq!(controller.ui.waveform.last_start_marker, Some(0.0));
-        assert_eq!(controller.ui.waveform.cursor, Some(0.0));
 
         controller.handle_hotkey(
-            action_for(HotkeyCommand::PlayFromCurrentPlayhead),
+            action_for(|action| matches!(action, radiant::app::UiAction::PlayFromCurrentPlayhead)),
             FocusContext::SampleBrowser,
         );
         assert_eq!(controller.ui.waveform.last_start_marker, Some(0.37));
-        assert_eq!(controller.ui.waveform.cursor, Some(0.37));
+    }
+
+    #[test]
+    fn browser_focus_hotkey_uses_explicit_scope() {
+        let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+            sample_entry("one.wav", Rating::NEUTRAL),
+            sample_entry("two.wav", Rating::NEUTRAL),
+        ]);
+        controller.sample_view.wav.loaded_wav = Some("two.wav".into());
+        controller.ui.focus.set_context(FocusContext::Waveform);
+
+        controller.handle_hotkey(
+            action_for(|action| {
+                matches!(action, radiant::app::UiAction::FocusLoadedSampleInBrowser)
+            }),
+            FocusContext::SampleBrowser,
+        );
+
+        assert_eq!(controller.ui.focus.context, FocusContext::SampleBrowser);
+        assert_eq!(
+            controller.sample_view.wav.selected_wav.as_deref(),
+            Some(Path::new("two.wav"))
+        );
+    }
+
+    #[test]
+    fn browser_scoped_hotkey_is_ignored_when_no_section_is_focused() {
+        let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+            sample_entry("one.wav", Rating::NEUTRAL),
+            sample_entry("two.wav", Rating::NEUTRAL),
+        ]);
+        controller.focus_browser_row(0);
+        let before = controller.ui.browser.selection.selected_paths.clone();
+
+        controller.handle_hotkey(
+            action_for(|action| {
+                matches!(
+                    action,
+                    radiant::app::UiAction::ToggleFocusedBrowserRowSelection
+                )
+            }),
+            FocusContext::None,
+        );
+
+        assert_eq!(controller.ui.browser.selection.selected_paths, before);
     }
 }

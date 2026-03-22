@@ -50,6 +50,16 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::CropWaveformSelection
         | NativeUiAction::CropWaveformSelectionToNewSample
         | NativeUiAction::TrimWaveformSelection
+        | NativeUiAction::ReverseWaveformSelection
+        | NativeUiAction::FadeWaveformSelectionLeftToRight
+        | NativeUiAction::FadeWaveformSelectionRightToLeft
+        | NativeUiAction::MuteWaveformSelection
+        | NativeUiAction::DeleteSelectedSliceMarkers
+        | NativeUiAction::AlignWaveformStartToMarker
+        | NativeUiAction::DeleteLoadedWaveformSample
+        | NativeUiAction::SlideWaveformSelection { .. }
+        | NativeUiAction::ToggleTransientMarkers
+        | NativeUiAction::ToggleBpmSnap
         | NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
         | NativeUiAction::ZoomWaveformFull => Some(InteractionActionClass::Waveform),
@@ -103,6 +113,7 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::FocusBrowserPanel
             | NativeUiAction::FocusSourcesPanel
             | NativeUiAction::FocusWaveformPanel
+            | NativeUiAction::FocusFolderPanel
             | NativeUiAction::FocusBrowserSearch
             | NativeUiAction::BlurBrowserSearch
             | NativeUiAction::FocusFolderSearch

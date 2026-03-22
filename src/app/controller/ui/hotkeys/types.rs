@@ -1,7 +1,8 @@
 use crate::app::state::FocusContext;
+use crate::app_core::actions::NativeUiAction;
 use crate::gui::input::KeyCode;
 
-/// Identifies the surface that owns a hotkey action.
+/// Identifies the section that owns a hotkey binding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HotkeyScope {
     Global,
@@ -11,17 +12,10 @@ pub(crate) enum HotkeyScope {
 impl HotkeyScope {
     pub(crate) fn matches(self, focus: FocusContext) -> bool {
         match self {
-            HotkeyScope::Global => true,
-            HotkeyScope::Focus(target) => target == focus,
+            Self::Global => true,
+            Self::Focus(target) => target == focus,
         }
     }
-}
-
-/// Keyboard gesture used to trigger an action.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct HotkeyGesture {
-    pub(crate) first: KeyPress,
-    pub(crate) chord: Option<KeyPress>,
 }
 
 /// A single keypress plus modifier state.
@@ -33,144 +27,21 @@ pub(crate) struct KeyPress {
     pub(crate) alt: bool,
 }
 
-impl HotkeyGesture {
-    pub const fn new(key: KeyCode) -> Self {
-        Self {
-            first: KeyPress::new(key),
-            chord: None,
-        }
-    }
-
-    pub const fn with_command(key: KeyCode) -> Self {
-        Self {
-            first: KeyPress::with_command(key),
-            chord: None,
-        }
-    }
-
-    pub const fn with_shift(key: KeyCode) -> Self {
-        Self {
-            first: KeyPress::with_shift(key),
-            chord: None,
-        }
-    }
-
-    pub const fn with_chord(first: KeyPress, second: KeyPress) -> Self {
-        Self {
-            first,
-            chord: Some(second),
-        }
-    }
-}
-
-impl KeyPress {
-    pub const fn new(key: KeyCode) -> Self {
-        Self {
-            key,
-            command: false,
-            shift: false,
-            alt: false,
-        }
-    }
-
-    pub const fn with_command(key: KeyCode) -> Self {
-        Self {
-            key,
-            command: true,
-            shift: false,
-            alt: false,
-        }
-    }
-
-    pub const fn with_shift(key: KeyCode) -> Self {
-        Self {
-            key,
-            command: false,
-            shift: true,
-            alt: false,
-        }
-    }
-
-    pub const fn with_alt(key: KeyCode) -> Self {
-        Self {
-            key,
-            command: false,
-            shift: false,
-            alt: true,
-        }
-    }
-}
-
-/// Logical identifier for controller-dispatched hotkey commands.
+/// Keyboard gesture used to trigger a hotkey binding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum HotkeyCommand {
-    Undo,
-    Redo,
-    ToggleFocusedSelection,
-    ToggleFolderSelection,
-    NormalizeFocusedSample,
-    DeleteFocusedSample,
-    DeleteFocusedFolder,
-    RenameFocusedFolder,
-    RenameFocusedSample,
-    CreateFolder,
-    FocusFolderSearch,
-    FocusBrowserSearch,
-    FindSimilarFocusedSample,
-    ToggleOverlay,
-    ToggleLoop,
-    ToggleLoopLock,
-    FocusWaveform,
-    FocusBrowserSamples,
-    FocusLoadedSample,
-    FocusFolderTree,
-    FocusSourcesList,
-    PlayFromStart,
-    PlayFromCurrentPlayhead,
-    PlayRandomSample,
-    PlayPreviousRandomSample,
-    ToggleRandomNavigationMode,
-    FocusHistoryPrevious,
-    FocusHistoryNext,
-    MoveTrashedToFolder,
-    TagNeutralSelected,
-    TagKeepSelected,
-    TagTrashSelected,
-    IncrementRatingSelected,
-    DecrementRatingSelected,
-    TrimSelection,
-    ReverseSelection,
-    FadeSelectionLeftToRight,
-    FadeSelectionRightToLeft,
-    MuteSelection,
-    DeleteSliceMarkers,
-    ToggleBpmSnap,
-    ToggleTransientMarkers,
-    NormalizeWaveform,
-    AlignWaveformStartToMarker,
-    CropSelection,
-    CropSelectionNewSample,
-    SaveSelectionToBrowser,
-    OpenFeedbackIssuePrompt,
-    CopyStatusLog,
-    SelectAllBrowser,
-    ZoomInSelection,
-    ZoomOutSelection,
-    DeleteLoadedSample,
-    SlideSelectionLeft,
-    SlideSelectionRight,
-    NudgeSelectionLeft,
-    NudgeSelectionRight,
+pub(crate) struct HotkeyGesture {
+    pub(crate) first: KeyPress,
+    pub(crate) chord: Option<KeyPress>,
 }
 
-/// Hotkey metadata surfaced to the UI.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Hotkey metadata mirrored from the shared `radiant` catalog.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HotkeyAction {
     pub(crate) id: &'static str,
     pub(crate) label: &'static str,
     pub(crate) gesture: HotkeyGesture,
     pub(crate) scope: HotkeyScope,
-    pub(crate) command: HotkeyCommand,
+    pub(crate) action: NativeUiAction,
 }
 
 impl HotkeyAction {
@@ -180,9 +51,5 @@ impl HotkeyAction {
 
     pub(crate) fn is_global(&self) -> bool {
         matches!(self.scope, HotkeyScope::Global)
-    }
-
-    pub(crate) fn command(&self) -> HotkeyCommand {
-        self.command
     }
 }

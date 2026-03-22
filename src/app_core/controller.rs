@@ -200,6 +200,10 @@ fn apply_transport_native_ui_action(
         NativeUiAction::ToggleTransport => controller.toggle_play_pause(),
         NativeUiAction::HandleEscape => controller.handle_escape(),
         NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
+        NativeUiAction::ToggleLoopLock => {
+            let enabled = !controller.ui.waveform.loop_lock_enabled;
+            controller.set_loop_lock_enabled(enabled);
+        }
         NativeUiAction::SetVolume { value_milli } => {
             controller.set_volume_live((f32::from(value_milli.min(1000)) / 1000.0).clamp(0.0, 1.0))
         }
@@ -220,13 +224,50 @@ fn apply_browser_native_ui_action(
         NativeUiAction::FocusBrowserPanel => controller.focus_browser_list(),
         NativeUiAction::FocusSourcesPanel => controller.focus_sources_list(),
         NativeUiAction::FocusWaveformPanel => controller.focus_waveform(),
+        NativeUiAction::FocusFolderPanel => controller
+            .focus_context_from_ui(crate::app_core::app_api::state::FocusContext::SourceFolders),
         NativeUiAction::FocusLoadedSampleInBrowser => controller.focus_loaded_sample_in_browser(),
         NativeUiAction::FocusBrowserSearch => controller.focus_browser_search(),
         NativeUiAction::BlurBrowserSearch => controller.blur_browser_search(),
         NativeUiAction::FocusFolderSearch => controller.focus_folder_search(),
         NativeUiAction::SetFolderSearch { query } => controller.set_folder_search(query),
+        NativeUiAction::FocusSourceRow { index } => {
+            controller.select_source_by_index(index);
+            controller.focus_sources_context();
+        }
         NativeUiAction::SelectSourceRow { index } => controller.select_source_by_index(index),
+        NativeUiAction::MoveSourceFocus { delta } => {
+            controller.nudge_source_selection(delta as isize)
+        }
+        NativeUiAction::ReloadFocusedSourceRow => {
+            if controller.ui.sources.selected.is_some() {
+                controller.request_quick_sync();
+            }
+        }
+        NativeUiAction::HardSyncFocusedSourceRow => {
+            if controller.ui.sources.selected.is_some() {
+                controller.request_hard_sync();
+            }
+        }
+        NativeUiAction::OpenFocusedSourceFolder => {
+            if let Some(index) = controller.ui.sources.selected {
+                controller.open_source_folder(index);
+            }
+        }
+        NativeUiAction::RemoveFocusedSourceRow => {
+            if let Some(index) = controller.ui.sources.selected {
+                controller.remove_source(index);
+            }
+        }
+        NativeUiAction::RemoveDeadLinksForFocusedSourceRow => {
+            if let Some(index) = controller.ui.sources.selected {
+                controller.remove_dead_links_for_source(index);
+            }
+        }
         NativeUiAction::FocusFolderRow { index } => controller.replace_folder_selection(index),
+        NativeUiAction::ToggleFocusedFolderSelection => {
+            controller.toggle_focused_folder_selection()
+        }
         NativeUiAction::MoveFolderFocus { delta } => controller.nudge_folder_focus_action(delta),
         NativeUiAction::StartNewFolder => controller.start_new_folder(),
         NativeUiAction::StartNewFolderAtRoot => {
@@ -308,6 +349,16 @@ fn apply_browser_native_ui_action(
             }
         }
         NativeUiAction::ToggleRandomNavigationMode => controller.toggle_random_navigation_mode(),
+        NativeUiAction::FocusPreviousBrowserHistory => controller.focus_previous_sample_history(),
+        NativeUiAction::FocusNextBrowserHistory => controller.focus_next_sample_history(),
+        NativeUiAction::ToggleFindSimilarFocusedSample => {
+            toggle_find_similar_focused_sample(controller)
+        }
+        NativeUiAction::PlayRandomSample => controller.play_random_visible_sample(),
+        NativeUiAction::PlayPreviousRandomSample => controller.play_previous_random_sample(),
+        NativeUiAction::AdjustSelectedBrowserRating { delta } => {
+            controller.adjust_selected_rating(delta)
+        }
         NativeUiAction::StartBrowserRename => controller.start_browser_rename(),
         NativeUiAction::ConfirmBrowserRename => controller.apply_pending_browser_rename(),
         NativeUiAction::CancelBrowserRename => controller.cancel_browser_rename(),
@@ -324,6 +375,7 @@ fn apply_browser_native_ui_action(
         NativeUiAction::DeleteBrowserSelection => {
             controller.delete_active_browser_selection_action()
         }
+        NativeUiAction::MoveTrashedSamplesToFolder => controller.move_all_trashed_to_folder(),
         action => return Err(action),
     }
     Ok(())
@@ -354,6 +406,14 @@ fn apply_prompt_and_update_native_ui_action(
         NativeUiAction::ConfirmPrompt => controller.confirm_active_prompt_action(),
         NativeUiAction::CancelPrompt => controller.cancel_active_prompt_action(),
         NativeUiAction::CancelProgress => controller.request_progress_cancel(),
+        NativeUiAction::ToggleHotkeyOverlay => {
+            controller.ui.hotkeys.overlay_visible = !controller.ui.hotkeys.overlay_visible
+        }
+        NativeUiAction::CopyStatusLog => controller.copy_status_log_to_clipboard(),
+        NativeUiAction::OpenFeedbackIssuePrompt => {
+            controller.ui.hotkeys.overlay_visible = false;
+            controller.open_feedback_issue_prompt();
+        }
         NativeUiAction::CheckForUpdates => controller.check_for_updates_now(),
         NativeUiAction::OpenUpdateLink => controller.open_update_link(),
         NativeUiAction::InstallUpdate => controller.install_update_and_exit(),
@@ -361,6 +421,24 @@ fn apply_prompt_and_update_native_ui_action(
         action => return Err(action),
     }
     Ok(())
+}
+
+fn toggle_find_similar_focused_sample(controller: &mut AppController) {
+    if matches!(
+        controller.ui.browser.active_tab,
+        crate::app_core::state::SampleBrowserTab::Map
+    ) {
+        controller.ui.browser.active_tab = crate::app_core::state::SampleBrowserTab::List;
+    }
+    if controller.ui.browser.search.similar_query.is_some() {
+        controller.clear_similar_filter();
+    } else if let Some(row) = controller.focused_browser_row() {
+        if let Err(err) = controller.find_similar_for_visible_row(row) {
+            controller.set_status(format!("Find similar failed: {err}"), StatusTone::Error);
+        }
+    } else {
+        controller.set_status("Focus a sample to find similar", StatusTone::Info);
+    }
 }
 
 #[cfg(test)]

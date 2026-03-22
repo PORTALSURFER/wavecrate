@@ -120,6 +120,85 @@ fn remove_source_row_action_removes_target_source() {
 }
 
 #[test]
+/// Native source-row focus action should select the source and move section focus to the source list.
+fn focus_source_row_action_selects_source_and_focuses_sources_list() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let dir = tempdir().unwrap();
+    let source_a = dir.path().join("source-a");
+    let source_b = dir.path().join("source-b");
+    std::fs::create_dir_all(&source_a).unwrap();
+    std::fs::create_dir_all(&source_b).unwrap();
+    controller.add_source_from_path(source_a).unwrap();
+    controller.add_source_from_path(source_b).unwrap();
+    controller.ui.focus.context = FocusContext::Waveform;
+
+    controller.apply_native_ui_action(NativeUiAction::FocusSourceRow { index: 1 });
+
+    assert_eq!(controller.ui.sources.selected, Some(1));
+    assert_eq!(controller.ui.focus.context, FocusContext::SourcesList);
+}
+
+#[test]
+/// Native source-panel focus should preserve the currently selected source row.
+fn focus_sources_panel_preserves_selected_source_row() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let dir = tempdir().unwrap();
+    let source_a = dir.path().join("source-a");
+    let source_b = dir.path().join("source-b");
+    std::fs::create_dir_all(&source_a).unwrap();
+    std::fs::create_dir_all(&source_b).unwrap();
+    controller.add_source_from_path(source_a).unwrap();
+    controller.add_source_from_path(source_b).unwrap();
+    controller.select_source_by_index(1);
+    controller.ui.focus.context = FocusContext::Waveform;
+
+    controller.apply_native_ui_action(NativeUiAction::FocusSourcesPanel);
+
+    assert_eq!(controller.ui.sources.selected, Some(1));
+    assert_eq!(controller.ui.focus.context, FocusContext::SourcesList);
+}
+
+#[test]
+/// Native folder-panel focus should not disturb the existing folder selection state.
+fn focus_folder_panel_preserves_existing_folder_selection() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let dir = tempdir().unwrap();
+    let source_root = dir.path().join("source");
+    let folder_path = PathBuf::from("drums");
+    std::fs::create_dir_all(source_root.join(&folder_path)).unwrap();
+    controller.add_source_from_path(source_root).unwrap();
+    controller.select_source_by_index(0);
+    controller.refresh_folder_browser_for_tests();
+    let row_index = controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .position(|row| row.path == folder_path)
+        .expect("failed to locate folder row");
+    controller.replace_folder_selection(row_index);
+    let selected_before = controller
+        .folder_selection_for_filter()
+        .cloned()
+        .unwrap_or_default();
+    let focused_before = controller.ui.sources.folders.focused;
+    controller.ui.focus.context = FocusContext::Waveform;
+
+    controller.apply_native_ui_action(NativeUiAction::FocusFolderPanel);
+
+    assert_eq!(
+        controller
+            .folder_selection_for_filter()
+            .cloned()
+            .unwrap_or_default(),
+        selected_before
+    );
+    assert_eq!(controller.ui.sources.folders.focused, focused_before);
+    assert_eq!(controller.ui.focus.context, FocusContext::SourceFolders);
+}
+
+#[test]
 /// Loading configuration should prune transient benchmark-only sources.
 fn apply_configuration_prunes_transient_benchmark_sources() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);

@@ -6,7 +6,10 @@ fn trash_move_hotkeys_are_registered() {
         .find(|a| a.id == "move-trashed-to-folder")
         .expect("move-trashed-to-folder hotkey");
     assert_eq!(base.label, "Move trashed samples to folder");
-    assert!(base.is_global());
+    assert_eq!(
+        base.scope,
+        hotkeys::HotkeyScope::Focus(FocusContext::SampleBrowser)
+    );
     assert_eq!(base.gesture.first.key, KeyCode::P);
     assert!(!base.gesture.first.shift);
 
@@ -14,7 +17,10 @@ fn trash_move_hotkeys_are_registered() {
         .find(|a| a.id == "move-trashed-to-folder-shift")
         .expect("move-trashed-to-folder-shift hotkey");
     assert_eq!(shifted.label, "Move trashed samples to folder");
-    assert!(shifted.is_global());
+    assert_eq!(
+        shifted.scope,
+        hotkeys::HotkeyScope::Focus(FocusContext::SampleBrowser)
+    );
     assert_eq!(shifted.gesture.first.key, KeyCode::P);
     assert!(shifted.gesture.first.shift);
 }
@@ -86,7 +92,7 @@ fn trash_move_hotkey_moves_samples() -> Result<(), String> {
     let action = hotkeys::iter_actions()
         .find(|a| a.id == "move-trashed-to-folder")
         .expect("move-trashed-to-folder hotkey");
-    controller.handle_hotkey(action, FocusContext::None);
+    controller.handle_hotkey(action, FocusContext::SampleBrowser);
 
     assert!(trash_root.join("trash.wav").is_file());
     assert!(!trash_file.exists());

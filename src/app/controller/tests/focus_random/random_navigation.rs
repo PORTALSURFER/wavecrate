@@ -36,7 +36,10 @@ fn random_sample_hotkey_is_registered() {
         .find(|a| a.id == "play-random-sample")
         .expect("play-random-sample hotkey");
     assert_eq!(action.label, "Play random sample");
-    assert!(action.is_global());
+    assert_eq!(
+        action.scope,
+        hotkeys::HotkeyScope::Focus(FocusContext::SampleBrowser)
+    );
     assert_eq!(action.gesture.first.key, KeyCode::R);
     assert!(action.gesture.first.shift);
     assert!(!action.gesture.first.command);
@@ -49,7 +52,10 @@ fn random_history_hotkey_is_registered() {
         .find(|a| a.id == "play-previous-random-sample")
         .expect("play-previous-random-sample hotkey");
     assert_eq!(action.label, "Play previous random sample");
-    assert!(action.is_global());
+    assert_eq!(
+        action.scope,
+        hotkeys::HotkeyScope::Focus(FocusContext::SampleBrowser)
+    );
     assert_eq!(action.gesture.first.key, KeyCode::R);
     assert!(action.gesture.first.shift);
     assert!(action.gesture.first.command);
@@ -62,7 +68,10 @@ fn random_navigation_toggle_hotkey_is_registered() {
         .find(|a| a.id == "toggle-random-navigation-mode")
         .expect("toggle-random-navigation-mode hotkey");
     assert_eq!(action.label, "Toggle random navigation mode");
-    assert!(action.is_global());
+    assert_eq!(
+        action.scope,
+        hotkeys::HotkeyScope::Focus(FocusContext::SampleBrowser)
+    );
     assert_eq!(action.gesture.first.key, KeyCode::R);
     assert!(action.gesture.first.alt);
     assert!(!action.gesture.first.shift);

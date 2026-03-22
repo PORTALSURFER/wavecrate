@@ -24,6 +24,8 @@ pub enum GuiActionKind {
     FocusSourcesPanel,
     /// Move focus into the waveform panel.
     FocusWaveformPanel,
+    /// Move focus into the folder-browser subsection of the sources panel.
+    FocusFolderPanel,
     /// Focus the currently loaded sample inside the browser list.
     FocusLoadedSampleInBrowser,
     /// Focus the browser search field.
@@ -44,8 +46,22 @@ pub enum GuiActionKind {
     FocusFolderSearch,
     /// Set the sources folder-search query.
     SetFolderSearch,
+    /// Focus one source row directly and activate the sources list section.
+    FocusSourceRow,
     /// Select one source row directly.
     SelectSourceRow,
+    /// Move source focus by a relative delta.
+    MoveSourceFocus,
+    /// Reload the currently focused source row.
+    ReloadFocusedSourceRow,
+    /// Force a hard sync on the currently focused source row.
+    HardSyncFocusedSourceRow,
+    /// Open the currently focused source folder in the host shell.
+    OpenFocusedSourceFolder,
+    /// Remove the currently focused source row from the library list.
+    RemoveFocusedSourceRow,
+    /// Remove dead links associated with the currently focused source row.
+    RemoveDeadLinksForFocusedSourceRow,
     /// Reload the focused source row.
     ReloadSourceRow,
     /// Force a hard sync on the focused source row.
@@ -58,6 +74,8 @@ pub enum GuiActionKind {
     RemoveDeadLinksForSourceRow,
     /// Focus one folder row directly.
     FocusFolderRow,
+    /// Toggle selection for the currently focused folder row.
+    ToggleFocusedFolderSelection,
     /// Move folder focus by a relative delta.
     MoveFolderFocus,
     /// Start creating a new folder under the current parent.
@@ -100,6 +118,18 @@ pub enum GuiActionKind {
     ToggleBrowserRatingFilter,
     /// Toggle random browser-navigation mode.
     ToggleRandomNavigationMode,
+    /// Focus the previous sample from browser history.
+    FocusPreviousBrowserHistory,
+    /// Focus the next sample from browser history.
+    FocusNextBrowserHistory,
+    /// Toggle find-similar mode for the focused browser sample.
+    ToggleFindSimilarFocusedSample,
+    /// Play a random visible browser sample.
+    PlayRandomSample,
+    /// Replay the previous random-visible browser sample.
+    PlayPreviousRandomSample,
+    /// Adjust the rating for selected browser rows by a signed delta.
+    AdjustSelectedBrowserRating,
     /// Switch the browser between samples and map tabs.
     SetBrowserTab,
     /// Focus one sample in the map view.
@@ -126,12 +156,36 @@ pub enum GuiActionKind {
     CropWaveformSelectionToNewSample,
     /// Trim away audio outside the active waveform selection.
     TrimWaveformSelection,
+    /// Reverse the active waveform selection.
+    ReverseWaveformSelection,
+    /// Fade the active waveform selection from left to right.
+    FadeWaveformSelectionLeftToRight,
+    /// Fade the active waveform selection from right to left.
+    FadeWaveformSelectionRightToLeft,
+    /// Mute the active waveform selection or merge selected slices.
+    MuteWaveformSelection,
+    /// Delete the selected slice markers.
+    DeleteSelectedSliceMarkers,
+    /// Align waveform start to the latest hover marker.
+    AlignWaveformStartToMarker,
+    /// Delete the currently loaded waveform sample.
+    DeleteLoadedWaveformSample,
+    /// Slide or nudge the active waveform selection.
+    SlideWaveformSelection,
     /// Confirm the active prompt dialog.
     ConfirmPrompt,
     /// Cancel the active prompt dialog.
     CancelPrompt,
     /// Cancel the active progress operation.
     CancelProgress,
+    /// Toggle the hotkey overlay.
+    ToggleHotkeyOverlay,
+    /// Copy the status log to the clipboard.
+    CopyStatusLog,
+    /// Open the feedback issue prompt flow.
+    OpenFeedbackIssuePrompt,
+    /// Move trashed browser samples into the configured trash folder.
+    MoveTrashedSamplesToFolder,
     /// Enable or disable live input monitoring.
     SetInputMonitoringEnabled,
     /// Enable or disable automatic advance after rating.
@@ -142,6 +196,8 @@ pub enum GuiActionKind {
     SetInvertWaveformScroll,
     /// Toggle loop playback for the active sample or selection.
     ToggleLoopPlayback,
+    /// Toggle whether loop state stays locked across sample changes.
+    ToggleLoopLock,
     /// Switch the waveform channel-view mode.
     SetWaveformChannelView,
     /// Enable or disable normalized audition playback.
@@ -156,6 +212,10 @@ pub enum GuiActionKind {
     SetTransientSnapEnabled,
     /// Enable or disable transient marker visibility.
     SetTransientMarkersEnabled,
+    /// Toggle transient marker visibility.
+    ToggleTransientMarkers,
+    /// Toggle BPM snap behavior.
+    ToggleBpmSnap,
     /// Enable or disable waveform slice mode.
     SetSliceModeEnabled,
     /// Set transport volume.
@@ -230,7 +290,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 110] = [
+    pub const ALL: [Self; 140] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -240,6 +300,7 @@ impl GuiActionKind {
         Self::FocusBrowserPanel,
         Self::FocusSourcesPanel,
         Self::FocusWaveformPanel,
+        Self::FocusFolderPanel,
         Self::FocusLoadedSampleInBrowser,
         Self::FocusBrowserSearch,
         Self::BlurBrowserSearch,
@@ -250,13 +311,21 @@ impl GuiActionKind {
         Self::OpenTrashFolder,
         Self::FocusFolderSearch,
         Self::SetFolderSearch,
+        Self::FocusSourceRow,
         Self::SelectSourceRow,
+        Self::MoveSourceFocus,
+        Self::ReloadFocusedSourceRow,
+        Self::HardSyncFocusedSourceRow,
+        Self::OpenFocusedSourceFolder,
+        Self::RemoveFocusedSourceRow,
+        Self::RemoveDeadLinksForFocusedSourceRow,
         Self::ReloadSourceRow,
         Self::HardSyncSourceRow,
         Self::OpenSourceFolderRow,
         Self::RemoveSourceRow,
         Self::RemoveDeadLinksForSourceRow,
         Self::FocusFolderRow,
+        Self::ToggleFocusedFolderSelection,
         Self::MoveFolderFocus,
         Self::StartNewFolder,
         Self::StartNewFolderAtRoot,
@@ -278,6 +347,12 @@ impl GuiActionKind {
         Self::SetBrowserSearch,
         Self::ToggleBrowserRatingFilter,
         Self::ToggleRandomNavigationMode,
+        Self::FocusPreviousBrowserHistory,
+        Self::FocusNextBrowserHistory,
+        Self::ToggleFindSimilarFocusedSample,
+        Self::PlayRandomSample,
+        Self::PlayPreviousRandomSample,
+        Self::AdjustSelectedBrowserRating,
         Self::SetBrowserTab,
         Self::FocusMapSample,
         Self::SetPromptInput,
@@ -291,14 +366,27 @@ impl GuiActionKind {
         Self::CropWaveformSelection,
         Self::CropWaveformSelectionToNewSample,
         Self::TrimWaveformSelection,
+        Self::ReverseWaveformSelection,
+        Self::FadeWaveformSelectionLeftToRight,
+        Self::FadeWaveformSelectionRightToLeft,
+        Self::MuteWaveformSelection,
+        Self::DeleteSelectedSliceMarkers,
+        Self::AlignWaveformStartToMarker,
+        Self::DeleteLoadedWaveformSample,
+        Self::SlideWaveformSelection,
         Self::ConfirmPrompt,
         Self::CancelPrompt,
         Self::CancelProgress,
+        Self::ToggleHotkeyOverlay,
+        Self::CopyStatusLog,
+        Self::OpenFeedbackIssuePrompt,
+        Self::MoveTrashedSamplesToFolder,
         Self::SetInputMonitoringEnabled,
         Self::SetAdvanceAfterRatingEnabled,
         Self::SetDestructiveYoloMode,
         Self::SetInvertWaveformScroll,
         Self::ToggleLoopPlayback,
+        Self::ToggleLoopLock,
         Self::SetWaveformChannelView,
         Self::SetNormalizedAuditionEnabled,
         Self::SetBpmSnapEnabled,
@@ -306,6 +394,8 @@ impl GuiActionKind {
         Self::SetWaveformBpmValue,
         Self::SetTransientSnapEnabled,
         Self::SetTransientMarkersEnabled,
+        Self::ToggleTransientMarkers,
+        Self::ToggleBpmSnap,
         Self::SetSliceModeEnabled,
         Self::SetVolume,
         Self::CommitVolumeSetting,

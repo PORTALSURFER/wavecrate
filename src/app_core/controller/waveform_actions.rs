@@ -161,6 +161,46 @@ pub(super) fn apply_waveform_native_ui_action(
             let _ = controller
                 .request_destructive_selection_edit(DestructiveSelectionEdit::TrimSelection);
         }
+        NativeUiAction::ReverseWaveformSelection => {
+            let _ = controller
+                .request_destructive_selection_edit(DestructiveSelectionEdit::ReverseSelection);
+        }
+        NativeUiAction::FadeWaveformSelectionLeftToRight => {
+            let _ = controller
+                .request_destructive_selection_edit(DestructiveSelectionEdit::FadeLeftToRight);
+        }
+        NativeUiAction::FadeWaveformSelectionRightToLeft => {
+            let _ = controller
+                .request_destructive_selection_edit(DestructiveSelectionEdit::FadeRightToLeft);
+        }
+        NativeUiAction::MuteWaveformSelection => {
+            handle_waveform_mute_action(controller);
+        }
+        NativeUiAction::DeleteSelectedSliceMarkers => {
+            handle_delete_selected_slice_markers(controller);
+        }
+        NativeUiAction::AlignWaveformStartToMarker => {
+            if let Err(err) = controller.align_waveform_start_to_last_marker() {
+                controller.set_status(err, StatusTone::Error);
+            }
+        }
+        NativeUiAction::DeleteLoadedWaveformSample => {
+            if let Err(err) = controller.delete_loaded_sample_and_navigate() {
+                controller.set_status(err, StatusTone::Error);
+            }
+        }
+        NativeUiAction::SlideWaveformSelection { delta, fine } => {
+            if fine {
+                controller.nudge_selection_range(delta.into(), true);
+            } else {
+                controller.slide_selection_range(delta.into());
+            }
+        }
+        NativeUiAction::ToggleTransientMarkers => {
+            let enabled = !controller.ui.waveform.transient_markers_enabled;
+            controller.set_transient_markers_enabled(enabled);
+        }
+        NativeUiAction::ToggleBpmSnap => toggle_bpm_snap(controller),
         action => return Err(action),
     }
     Ok(())
@@ -174,6 +214,44 @@ fn adjust_waveform_bpm(controller: &mut AppController, delta: i8) {
     let current = controller.ui.waveform.bpm_value.unwrap_or(120.0);
     let next = (current + f32::from(delta)).max(1.0);
     controller.set_bpm_value(next);
+}
+
+fn handle_delete_selected_slice_markers(controller: &mut AppController) {
+    if !controller.ui.waveform.slice_mode_enabled {
+        return;
+    }
+    let removed = controller.delete_selected_slices();
+    if removed > 0 {
+        controller.set_status(format!("Deleted {removed} slices"), StatusTone::Info);
+    } else {
+        controller.set_status("Select slices to delete", StatusTone::Info);
+    }
+}
+
+fn handle_waveform_mute_action(controller: &mut AppController) {
+    if controller.ui.waveform.slice_mode_enabled {
+        let selected = controller.ui.waveform.selected_slices.len();
+        if selected < 2 {
+            controller.set_status("Select at least 2 slices to merge", StatusTone::Info);
+        } else if controller.merge_selected_slices().is_some() {
+            controller.set_status(format!("Merged {selected} slices"), StatusTone::Info);
+        } else {
+            controller.set_status("No slices merged", StatusTone::Info);
+        }
+        return;
+    }
+    let _ = controller.request_destructive_selection_edit(DestructiveSelectionEdit::MuteSelection);
+}
+
+fn toggle_bpm_snap(controller: &mut AppController) {
+    let enabled = !controller.ui.waveform.bpm_snap_enabled;
+    let previous_bpm = controller.ui.waveform.bpm_value;
+    controller.set_bpm_snap_enabled(enabled);
+    if enabled && previous_bpm.is_none() {
+        let fallback = 142.0;
+        controller.set_bpm_value(fallback);
+        controller.ui.waveform.bpm_input = format!("{fallback:.0}");
+    }
 }
 
 /// Convert native action pointer coordinates into controller UI points.
