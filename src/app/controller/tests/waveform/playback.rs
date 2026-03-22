@@ -1,6 +1,7 @@
 use super::super::super::test_support::{
     load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry,
 };
+use crate::app::state::WaveformView;
 use crate::selection::SelectionRange;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -68,4 +69,55 @@ fn normalized_audition_applies_to_plain_playback_without_cached_waveform_decode(
         (gain - 2.0).abs() < 1.0e-6,
         "expected full-track peak normalization gain, got {gain}"
     );
+}
+
+#[test]
+fn playback_start_refreshes_stale_zoomed_waveform_image_before_showing_selection() {
+    let Some(player) = crate::audio::AudioPlayer::playing_for_tests() else {
+        return;
+    };
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "playback_refreshes_zoomed_waveform.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.audio.player = Some(Rc::new(RefCell::new(player)));
+    controller.sample_view.waveform.size = [320, 32];
+    let selection = SelectionRange::new(0.5004, 0.5006);
+    load_waveform_selection(
+        &mut controller,
+        &source,
+        "playback_refreshes_zoomed_waveform.wav",
+        &vec![0.5; 48_000],
+        selection,
+    );
+    controller.selection_state.range.set_range(Some(selection));
+    controller.ui.waveform.view = WaveformView {
+        start: 0.500_0,
+        end: 0.501_0,
+    };
+    controller.refresh_waveform_image();
+    let before = *controller
+        .sample_view
+        .waveform
+        .render_meta
+        .as_ref()
+        .expect("initial waveform render");
+    assert!((before.view_start - 0.500_0).abs() < 1.0e-9);
+    assert!((before.view_end - 0.501_0).abs() < 1.0e-9);
+
+    controller.ui.waveform.view = WaveformView {
+        start: 0.500_2,
+        end: 0.501_2,
+    };
+
+    assert!(controller.play_audio(false, None).is_ok());
+
+    let after = *controller
+        .sample_view
+        .waveform
+        .render_meta
+        .as_ref()
+        .expect("refreshed waveform render");
+    assert!((after.view_start - 0.500_2).abs() < 1.0e-9);
+    assert!((after.view_end - 0.501_2).abs() < 1.0e-9);
 }

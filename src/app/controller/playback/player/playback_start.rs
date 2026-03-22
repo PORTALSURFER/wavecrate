@@ -29,6 +29,7 @@ pub(crate) fn play_audio(
     player.borrow_mut().set_playback_gain(audition_gain);
     let start = start_player_range(&player, selection, looped, start_override, span_end)?;
     sync_playback_ui(controller, start, span_end, start_override);
+    refresh_waveform_image_if_view_stale(controller);
     controller.record_loaded_audio_playback();
     Ok(())
 }
@@ -216,6 +217,32 @@ fn sync_playback_ui(
             position: start,
             started_at: Instant::now(),
         });
+    }
+}
+
+/// Refresh the waveform raster before playback overlays animate over it.
+///
+/// Zoom and selection interactions can leave a queued or stale waveform image
+/// behind the current view window until the next explicit redraw. When playback
+/// starts, the selection/playhead overlays immediately begin using the current
+/// zoom bounds, so refresh the raster first when those retained inputs drift.
+fn refresh_waveform_image_if_view_stale(controller: &mut AppController) {
+    let Some(decoded) = controller.sample_view.waveform.decoded.as_ref() else {
+        return;
+    };
+    let Some(render_meta) = controller.sample_view.waveform.render_meta.as_ref() else {
+        controller.refresh_waveform_image();
+        return;
+    };
+    let view = controller.ui.waveform.view.clamp();
+    let stale_view = (render_meta.view_start - view.start).abs() > f64::EPSILON
+        || (render_meta.view_end - view.end).abs() > f64::EPSILON;
+    let stale_layout = render_meta.size != controller.sample_view.waveform.size
+        || render_meta.samples_len != decoded.frame_count()
+        || render_meta.channel_view != controller.ui.waveform.channel_view
+        || render_meta.channels != decoded.channels;
+    if stale_view || stale_layout || controller.ui.waveform.image.is_none() {
+        controller.refresh_waveform_image();
     }
 }
 
