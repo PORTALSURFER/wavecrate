@@ -1,6 +1,8 @@
 use super::*;
 use crate::app::controller::state::audio::PendingAgeUpdate;
 use crate::app::controller::test_support;
+use crate::app_core::actions::NativeUiAction;
+use crate::app_core::controller::AppControllerNativeRuntimeExt;
 use crate::waveform::DecodedWaveform;
 use std::path::Path;
 use std::path::PathBuf;
@@ -152,6 +154,25 @@ fn zoom_steps_from_ui_initializes_cursor_at_view_center() {
     controller.zoom_waveform_steps_from_ui(true, 1);
 
     assert_eq!(controller.ui.waveform.cursor, Some(0.5));
+}
+
+#[test]
+fn native_waveform_view_center_does_not_snap_back_to_visible_playhead() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    seed_waveform_for_zoom(&mut controller);
+    controller.ui.waveform.view = crate::app::state::WaveformView {
+        start: 0.2,
+        end: 0.4,
+    };
+    controller.ui.waveform.playhead.visible = true;
+    controller.ui.waveform.playhead.position = 0.0;
+
+    controller.apply_native_ui_action(NativeUiAction::SetWaveformViewCenter {
+        center_micros: 700_000,
+    });
+
+    assert!((controller.ui.waveform.view.start - 0.6).abs() < 1.0e-6);
+    assert!((controller.ui.waveform.view.end - 0.8).abs() < 1.0e-6);
 }
 
 /// Tiny floating-point drift should not be treated as a waveform view change.

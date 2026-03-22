@@ -94,7 +94,7 @@ impl AppController {
         self.scroll_waveform_view(
             f64::from(center_micros.min(1_000_000)) / WAVEFORM_ANCHOR_RATIO_MICROS_SCALE,
         );
-        self.focus_waveform();
+        self.focus_waveform_context();
     }
 
     /// Reset waveform zoom to full range while preserving waveform focus.
