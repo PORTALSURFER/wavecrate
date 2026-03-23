@@ -120,7 +120,11 @@ mod tests {
     fn decoded_waveform() -> DecodedWaveform {
         DecodedWaveform {
             cache_token: 1,
-            samples: Arc::from((0..256).map(|index| index as f32 / 256.0).collect::<Vec<_>>()),
+            samples: Arc::from(
+                (0..256)
+                    .map(|index| index as f32 / 256.0)
+                    .collect::<Vec<_>>(),
+            ),
             analysis_samples: Arc::from(Vec::new()),
             analysis_sample_rate: 0,
             analysis_stride: 1,

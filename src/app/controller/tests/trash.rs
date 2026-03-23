@@ -200,7 +200,11 @@ fn move_samples_to_configured_trash_rolls_back_missing_flag_when_move_fails() {
     assert!(!moved);
     assert!(!trash_root.join("missing.wav").exists());
 
-    let rows = controller.database_for(&source).unwrap().list_files().unwrap();
+    let rows = controller
+        .database_for(&source)
+        .unwrap()
+        .list_files()
+        .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, PathBuf::from("missing.wav"));
     assert!(

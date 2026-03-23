@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::controller::library::wav_io::file_metadata;
-use crate::sample_sources::db::file_ops_journal;
 use crate::sample_sources::Rating;
+use crate::sample_sources::db::file_ops_journal;
 
 pub(super) struct StagedSourcePaste {
     pub(super) prepared: PreparedSourcePaste,

@@ -69,7 +69,10 @@ fn progress_message_updates_snapshot_and_detail() {
         },
     );
 
-    assert_eq!(controller.ui.progress.task, Some(ProgressTaskKind::Analysis));
+    assert_eq!(
+        controller.ui.progress.task,
+        Some(ProgressTaskKind::Analysis)
+    );
     assert!(controller.ui.progress.visible);
     assert_eq!(controller.ui.progress.completed, 4);
     assert_eq!(controller.ui.progress.total, 7);

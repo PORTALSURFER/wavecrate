@@ -7,7 +7,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Apply background analysis worker events to progress UI and follow-up queues.
 pub(crate) fn handle_analysis_message(controller: &mut AppController, message: AnalysisJobMessage) {
     match message {
-        AnalysisJobMessage::Progress { source_id, progress } => {
+        AnalysisJobMessage::Progress {
+            source_id,
+            progress,
+        } => {
             handle_analysis_progress_message(controller, source_id, progress);
         }
         AnalysisJobMessage::EnqueueFinished { inserted, progress } => {
@@ -179,7 +182,11 @@ fn update_analysis_progress_ui(
         ProgressTaskKind::Analysis,
         progress.total(),
         progress.completed(),
-        Some(analysis_progress_detail(progress, samples_completed, samples_total)),
+        Some(analysis_progress_detail(
+            progress,
+            samples_completed,
+            samples_total,
+        )),
     );
 }
 

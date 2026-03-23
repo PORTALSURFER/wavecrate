@@ -123,8 +123,8 @@ mod tests {
     use super::*;
     use crate::app::controller::library::wav_io::file_metadata;
     use crate::app::controller::test_support::{dummy_controller, write_test_wav};
-    use crate::sample_sources::db::file_ops_journal;
     use crate::sample_sources::Rating;
+    use crate::sample_sources::db::file_ops_journal;
     use tempfile::tempdir;
 
     #[test]

@@ -1,3 +1,10 @@
+#[cfg(test)]
+use super::super::trash_move::TrashMoveMessage;
+#[cfg(not(test))]
+use super::super::trash_move::run_trash_move_task;
+#[cfg(test)]
+use super::super::trash_move::run_trash_move_task_with_progress;
+use super::super::trash_move::{self, TrashMoveFinished};
 use super::super::*;
 use crate::app::state::ProgressTaskKind;
 use std::path::PathBuf;
@@ -6,13 +13,6 @@ use std::sync::atomic::Ordering;
 #[cfg(not(test))]
 use std::sync::mpsc::channel;
 use std::sync::{Arc, atomic::AtomicBool};
-use super::super::trash_move::{self, TrashMoveFinished};
-#[cfg(test)]
-use super::super::trash_move::TrashMoveMessage;
-#[cfg(not(test))]
-use super::super::trash_move::run_trash_move_task;
-#[cfg(test)]
-use super::super::trash_move::run_trash_move_task_with_progress;
 
 impl AppController {
     /// Move all samples tagged as Trash into the configured trash folder after confirmation.

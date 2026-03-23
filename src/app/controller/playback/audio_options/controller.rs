@@ -2,8 +2,8 @@ use super::apply::{
     apply_audio_selection_result, rebuild_audio_player, update_audio_input_status,
     update_audio_output_status,
 };
-use super::refresh::{apply_audio_input_refresh, apply_audio_output_refresh};
 use super::normalize::{normalize_audio_options, normalize_input_channel_selection};
+use super::refresh::{apply_audio_input_refresh, apply_audio_output_refresh};
 use crate::app::controller::AppController;
 
 impl AppController {
@@ -63,7 +63,14 @@ impl AppController {
         } else {
             Ok(self.ui.audio.input_channel_count)
         };
-        apply_audio_input_refresh(self, previous, hosts, normalized, input_channels, probe_details);
+        apply_audio_input_refresh(
+            self,
+            previous,
+            hosts,
+            normalized,
+            input_channels,
+            probe_details,
+        );
     }
 
     /// Update the selected host and rebuild the audio stream.

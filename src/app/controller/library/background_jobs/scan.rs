@@ -75,7 +75,14 @@ fn handle_successful_scan(
         .as_ref()
         .is_some_and(|state| state.source_id == *source_id);
 
-    report_successful_scan_status(controller, label, is_selected_source, is_auto, scan_changed, &stats);
+    report_successful_scan_status(
+        controller,
+        label,
+        is_selected_source,
+        is_auto,
+        scan_changed,
+        &stats,
+    );
     invalidate_scan_caches(controller, source_id, is_selected_source);
 
     let source = controller
@@ -147,15 +154,14 @@ fn spawn_changed_scan_enqueue(
     std::thread::spawn(move || {
         match analysis_jobs::enqueue_jobs_for_source(&source, &changed_samples) {
             Ok((inserted, progress)) => {
-                let _ = tx.send(JobMessage::Analysis(super::AnalysisJobMessage::EnqueueFinished {
-                    inserted,
-                    progress,
-                }));
+                let _ = tx.send(JobMessage::Analysis(
+                    super::AnalysisJobMessage::EnqueueFinished { inserted, progress },
+                ));
             }
             Err(err) => {
-                let _ = tx.send(JobMessage::Analysis(super::AnalysisJobMessage::EnqueueFailed(
-                    err,
-                )));
+                let _ = tx.send(JobMessage::Analysis(
+                    super::AnalysisJobMessage::EnqueueFailed(err),
+                ));
             }
         }
     });
@@ -166,15 +172,14 @@ fn spawn_unchanged_scan_backfill(controller: &mut AppController, source: SampleS
     std::thread::spawn(move || {
         match analysis_jobs::enqueue_jobs_for_source_backfill(&source) {
             Ok((inserted, progress)) => {
-                let _ = tx.send(JobMessage::Analysis(super::AnalysisJobMessage::EnqueueFinished {
-                    inserted,
-                    progress,
-                }));
+                let _ = tx.send(JobMessage::Analysis(
+                    super::AnalysisJobMessage::EnqueueFinished { inserted, progress },
+                ));
             }
             Err(err) => {
-                let _ = tx.send(JobMessage::Analysis(super::AnalysisJobMessage::EnqueueFailed(
-                    err,
-                )));
+                let _ = tx.send(JobMessage::Analysis(
+                    super::AnalysisJobMessage::EnqueueFailed(err),
+                ));
             }
         }
         match analysis_jobs::enqueue_jobs_for_embedding_backfill(&source) {
@@ -199,22 +204,26 @@ fn spawn_unchanged_scan_backfill(controller: &mut AppController, source: SampleS
 
 fn spawn_duration_refresh(controller: &mut AppController, source: SampleSource) {
     let tx = controller.runtime.jobs.message_sender();
-    std::thread::spawn(move || match analysis_jobs::update_missing_durations_for_source(&source) {
-        Ok(updated) => {
-            if updated > 0 {
-                let _ = tx.send(JobMessage::Analysis(super::AnalysisJobMessage::DurationsUpdated {
-                    source_id: source.id.clone(),
-                    updated,
-                }));
+    std::thread::spawn(
+        move || match analysis_jobs::update_missing_durations_for_source(&source) {
+            Ok(updated) => {
+                if updated > 0 {
+                    let _ = tx.send(JobMessage::Analysis(
+                        super::AnalysisJobMessage::DurationsUpdated {
+                            source_id: source.id.clone(),
+                            updated,
+                        },
+                    ));
+                }
             }
-        }
-        Err(err) => {
-            tracing::warn!(
-                "Duration probe after scan failed for {}: {err}",
-                source.id.as_str()
-            );
-        }
-    });
+            Err(err) => {
+                tracing::warn!(
+                    "Duration probe after scan failed for {}: {err}",
+                    source.id.as_str()
+                );
+            }
+        },
+    );
 }
 
 fn handle_scan_failure(

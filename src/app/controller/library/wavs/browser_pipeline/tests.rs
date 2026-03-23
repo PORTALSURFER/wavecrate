@@ -18,7 +18,10 @@ fn base_stage_partitions_rows_by_triage_bucket() {
 
     ensure_base_stage(&mut controller);
 
-    assert_eq!(controller.ui_cache.browser.pipeline.base_rows, vec![0, 1, 2]);
+    assert_eq!(
+        controller.ui_cache.browser.pipeline.base_rows,
+        vec![0, 1, 2]
+    );
     assert_eq!(controller.ui_cache.browser.pipeline.trash_rows, vec![1]);
     assert_eq!(controller.ui_cache.browser.pipeline.neutral_rows, vec![0]);
     assert_eq!(controller.ui_cache.browser.pipeline.keep_rows, vec![2]);
@@ -96,7 +99,11 @@ fn build_visible_rows_sort_stage_maps_focus_and_loaded_positions() {
     assert_eq!(loaded, Some(2));
 }
 
-fn search_entry(path: &str, tag: Rating, last_played_at: Option<i64>) -> crate::sample_sources::WavEntry {
+fn search_entry(
+    path: &str,
+    tag: Rating,
+    last_played_at: Option<i64>,
+) -> crate::sample_sources::WavEntry {
     crate::sample_sources::WavEntry {
         relative_path: PathBuf::from(path),
         file_size: 0,

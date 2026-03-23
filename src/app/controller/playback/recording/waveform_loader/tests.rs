@@ -83,10 +83,8 @@ fn recording_waveform_from_wav_bytes(
     channels: u16,
 ) -> DecodedWaveform {
     let data_offset = find_wav_data_chunk(wav_bytes).expect("data chunk");
-    let total_frames = total_frames_for_data(
-        wav_bytes.len().saturating_sub(data_offset) as u64,
-        channels,
-    );
+    let total_frames =
+        total_frames_for_data(wav_bytes.len().saturating_sub(data_offset) as u64, channels);
     let mut state = RecordingWaveformState::new(sample_rate, channels, data_offset);
     state.prepare_for_total_frames(total_frames);
     let consumed = state.consume_data_bytes(&wav_bytes[data_offset..]);
@@ -152,7 +150,10 @@ fn assert_decoded_peak_parity(actual: &DecodedWaveform, expected: &DecodedWavefo
     let expected_peaks = expected.peaks.as_deref().expect("reference peaks");
     assert_eq!(actual_peaks.total_frames, expected_peaks.total_frames);
     assert_eq!(actual_peaks.channels, expected_peaks.channels);
-    assert_eq!(actual_peaks.bucket_size_frames, expected_peaks.bucket_size_frames);
+    assert_eq!(
+        actual_peaks.bucket_size_frames,
+        expected_peaks.bucket_size_frames
+    );
     assert_peak_pairs_approx_eq(&actual_peaks.mono, &expected_peaks.mono);
     match (&actual_peaks.left, &expected_peaks.left) {
         (Some(actual), Some(expected)) => assert_peak_pairs_approx_eq(actual, expected),

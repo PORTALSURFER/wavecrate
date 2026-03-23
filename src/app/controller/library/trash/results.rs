@@ -1,5 +1,5 @@
-use super::super::*;
 use super::super::trash_move::TrashMoveFinished;
+use super::super::*;
 use tracing::warn;
 
 impl AppController {

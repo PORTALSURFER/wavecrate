@@ -4,9 +4,7 @@ use super::normalize::NormalizedAudioOptions;
 use super::refresh::{apply_audio_input_refresh, apply_audio_output_refresh};
 use crate::app::controller::test_support::dummy_controller;
 use crate::app::state::StatusTone;
-use crate::audio::{
-    AudioDeviceSummary, AudioHostSummary, ResolvedInput, ResolvedOutput,
-};
+use crate::audio::{AudioDeviceSummary, AudioHostSummary, ResolvedInput, ResolvedOutput};
 
 fn host(id: &str, is_default: bool) -> AudioHostSummary {
     AudioHostSummary {
@@ -33,7 +31,11 @@ fn normalized_audio_options(
         host_id: host_id.map(str::to_string),
         device_name: device_name.map(str::to_string),
         sample_rate,
-        devices: vec![device(host_id.unwrap_or("default"), device_name.unwrap_or("Built-in"), true)],
+        devices: vec![device(
+            host_id.unwrap_or("default"),
+            device_name.unwrap_or("Built-in"),
+            true,
+        )],
         sample_rates: vec![48_000, 96_000],
         warning: None,
     }
@@ -116,7 +118,10 @@ fn apply_audio_selection_result_syncs_selected_state_on_success() {
 
     apply_audio_selection_result(&mut controller, Ok(()));
 
-    assert_eq!(controller.ui.audio.selected, controller.settings.audio_output);
+    assert_eq!(
+        controller.ui.audio.selected,
+        controller.settings.audio_output
+    );
     assert_eq!(controller.ui.status.status_tone, StatusTone::Idle);
 }
 
@@ -152,7 +157,9 @@ fn output_fallback_message_lists_unavailable_requested_settings() {
 
     assert_eq!(
         message.as_deref(),
-        Some("Using Built-in via asio (host wasapi, device Studio, sample rate 96000, buffer 512 unavailable)")
+        Some(
+            "Using Built-in via asio (host wasapi, device Studio, sample rate 96000, buffer 512 unavailable)"
+        )
     );
 }
 
@@ -180,6 +187,8 @@ fn input_fallback_message_lists_requested_channels_when_downmixed() {
 
     assert_eq!(
         message.as_deref(),
-        Some("Using USB via asio (host wasapi, device Mic, sample rate 48000, inputs 1, 2 unavailable)")
+        Some(
+            "Using USB via asio (host wasapi, device Mic, sample rate 48000, inputs 1, 2 unavailable)"
+        )
     );
 }

@@ -80,7 +80,8 @@ impl AppController {
     ) -> Result<PathBuf, String> {
         let rendered = audio::render_loop_crossfade(absolute_path, settings)?;
         let tag = self.sample_tag_for(source, relative_path)?;
-        let output = file_output::write_loop_crossfade_copy(&source.root, relative_path, &rendered)?;
+        let output =
+            file_output::write_loop_crossfade_copy(&source.root, relative_path, &rendered)?;
         file_output::register_loop_crossfade_entry(self, source, &output, tag)?;
         undo_ops::maybe_capture_loop_crossfade_undo(self, source, &output, tag);
         self.set_status(

@@ -165,11 +165,7 @@ fn load_audio_inner_applies_stretch_ratio_and_returns_stretched_payload() {
     let samples: Vec<f32> = (0..16_384).map(generated_audio_sample).collect();
     let wav_bytes = build_float_wav(&samples, 1, 48_000);
     let temp = write_test_wav(&wav_bytes);
-    let relative_path = PathBuf::from(
-        temp.path()
-            .file_name()
-            .expect("temp filename"),
-    );
+    let relative_path = PathBuf::from(temp.path().file_name().expect("temp filename"));
     let job = test_job_with_root(
         1,
         temp.path().parent().expect("temp parent"),

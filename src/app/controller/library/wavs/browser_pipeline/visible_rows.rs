@@ -52,8 +52,13 @@ pub(crate) fn build_visible_rows(
         return (VisibleRows::All { total }, focused_index, loaded_index);
     }
 
-    let filtered_fingerprint =
-        ensure_filtered_stage(controller, filter, &rating_filter, rating_filter_hash, folder_hash);
+    let filtered_fingerprint = ensure_filtered_stage(
+        controller,
+        filter,
+        &rating_filter,
+        rating_filter_hash,
+        folder_hash,
+    );
 
     if let Some(similar) = similar_query {
         ensure_sorted_stage_for_similar(controller, filtered_fingerprint, sort_mode, &similar);

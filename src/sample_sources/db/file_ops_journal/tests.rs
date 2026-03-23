@@ -243,9 +243,18 @@ fn reconcile_copy_from_staged_file() {
     let summary = reconcile_pending_ops(&target_db).unwrap();
     assert_eq!(summary.completed, 1);
     assert!(target_root.join(&target_relative).exists());
-    assert_eq!(target_db.tag_for_path(&target_relative).unwrap(), Some(Rating::KEEP_1));
-    assert_eq!(target_db.looped_for_path(&target_relative).unwrap(), Some(true));
-    assert_eq!(target_db.last_played_at_for_path(&target_relative).unwrap(), Some(123));
+    assert_eq!(
+        target_db.tag_for_path(&target_relative).unwrap(),
+        Some(Rating::KEEP_1)
+    );
+    assert_eq!(
+        target_db.looped_for_path(&target_relative).unwrap(),
+        Some(true)
+    );
+    assert_eq!(
+        target_db.last_played_at_for_path(&target_relative).unwrap(),
+        Some(123)
+    );
     assert_no_journal_entries(&target_db);
 }
 

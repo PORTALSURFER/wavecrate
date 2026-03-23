@@ -1,9 +1,7 @@
 //! Incremental waveform aggregation state and retained recording decode buffers.
 
 use super::*;
-use crate::waveform::peak_analysis::{
-    PeakAnalysisAccumulator, PeakAnalysisLayout, clamp_sample,
-};
+use crate::waveform::peak_analysis::{PeakAnalysisAccumulator, PeakAnalysisLayout, clamp_sample};
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub(super) struct RecordingWaveformKey {
@@ -12,7 +10,9 @@ pub(super) struct RecordingWaveformKey {
 }
 
 pub(super) enum RecordingWaveformMode {
-    Full { samples: Vec<f32> },
+    Full {
+        samples: Vec<f32>,
+    },
     Peaks {
         peak_analysis: PeakAnalysisAccumulator,
     },
@@ -99,13 +99,7 @@ impl RecordingWaveformState {
             } else {
                 0.0
             };
-            peak_analysis.push_frame(
-                frame_min,
-                frame_max,
-                frame_avg,
-                left_sample,
-                right_sample,
-            );
+            peak_analysis.push_frame(frame_min, frame_max, frame_avg, left_sample, right_sample);
         }
         self.mode = RecordingWaveformMode::Peaks { peak_analysis };
     }

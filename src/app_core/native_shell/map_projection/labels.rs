@@ -176,9 +176,8 @@ mod tests {
 
     #[test]
     fn short_sample_label_prefers_filename_and_truncates_long_values() {
-        let label = short_sample_label(
-            "source::folder/abcdefghijklmnopqrstuvwxyz0123456789_kick.wav",
-        );
+        let label =
+            short_sample_label("source::folder/abcdefghijklmnopqrstuvwxyz0123456789_kick.wav");
 
         assert!(label.ends_with("..."));
         assert!(label.len() <= 32);

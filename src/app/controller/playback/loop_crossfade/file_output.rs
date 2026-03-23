@@ -101,8 +101,8 @@ fn write_loop_crossfade_wav(
     samples: &[f32],
     spec: hound::WavSpec,
 ) -> Result<(), String> {
-    let mut writer =
-        hound::WavWriter::create(path, spec).map_err(|err| format!("Failed to write wav: {err}"))?;
+    let mut writer = hound::WavWriter::create(path, spec)
+        .map_err(|err| format!("Failed to write wav: {err}"))?;
     for sample in samples {
         writer
             .write_sample(*sample)
