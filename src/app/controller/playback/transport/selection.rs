@@ -4,6 +4,11 @@ use crate::selection::SelectionEdge;
 
 const TRANSIENT_SNAP_RADIUS: f32 = 0.01;
 
+/// Begin one new playback-selection drag from the exact pointer anchor.
+///
+/// The initial anchor is preserved verbatim so mark creation starts exactly
+/// where the pointer went down. BPM/transient snapping is deferred to follow-up
+/// drag updates and resize gestures.
 pub(crate) fn start_selection_drag(controller: &mut AppController, position: f32) {
     controller.selection_state.bpm_scale_beats = None;
     controller.begin_selection_undo("Selection");
@@ -12,10 +17,14 @@ pub(crate) fn start_selection_drag(controller: &mut AppController, position: f32
     controller.apply_selection(Some(range));
 }
 
+/// Begin one new edit-selection drag from the exact pointer anchor.
+///
+/// The initial anchor must remain under the pointer for predictable destructive
+/// edit painting. Transient snapping still applies once the drag extends.
 pub(crate) fn start_edit_selection_drag(controller: &mut AppController, position: f32) {
     let _ = controller.commit_edit_selection_fades();
     waveform_actions::clear_edit_fade_drag(controller);
-    let start = snap_to_transient(controller, position).unwrap_or(position);
+    let start = position.clamp(0.0, 1.0);
     let range = controller.selection_state.edit_range.begin_new(start);
     controller.apply_edit_selection(Some(range));
 }

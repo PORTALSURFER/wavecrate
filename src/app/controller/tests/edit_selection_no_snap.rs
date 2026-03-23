@@ -1,5 +1,6 @@
 use super::super::test_support::{dummy_controller, load_waveform_selection};
 use super::super::*;
+use std::sync::Arc;
 
 #[test]
 fn edit_selection_drag_does_not_snap_to_bpm() {
@@ -39,4 +40,53 @@ fn edit_selection_drag_does_not_snap_to_bpm() {
     let updated = controller.ui.waveform.edit_selection.unwrap();
     // It should NOT have snapped to 0.0 or step
     assert!((updated.end() - target).abs() < 1e-6);
+}
+
+#[test]
+fn edit_selection_drag_start_preserves_exact_click_with_transient_snap_enabled() {
+    let (mut controller, source) = dummy_controller();
+    let samples = vec![0.0; 32];
+    let selection = SelectionRange::new(0.0, 0.5);
+    load_waveform_selection(
+        &mut controller,
+        &source,
+        "edit_transient_anchor.wav",
+        &samples,
+        selection,
+    );
+
+    controller.ui.waveform.transient_markers_enabled = true;
+    controller.ui.waveform.transient_snap_enabled = true;
+    controller.ui.waveform.transients = Arc::from(vec![0.12_f32]);
+
+    controller.start_edit_selection_drag(0.125);
+
+    let updated = controller.ui.waveform.edit_selection.unwrap();
+    assert!((updated.start() - 0.125).abs() < 1e-6);
+    assert!((updated.end() - 0.125).abs() < 1e-6);
+}
+
+#[test]
+fn edit_selection_drag_update_still_snaps_to_transient_after_exact_start() {
+    let (mut controller, source) = dummy_controller();
+    let samples = vec![0.0; 32];
+    let selection = SelectionRange::new(0.0, 0.5);
+    load_waveform_selection(
+        &mut controller,
+        &source,
+        "edit_transient_followup.wav",
+        &samples,
+        selection,
+    );
+
+    controller.ui.waveform.transient_markers_enabled = true;
+    controller.ui.waveform.transient_snap_enabled = true;
+    controller.ui.waveform.transients = Arc::from(vec![0.12_f32]);
+
+    controller.start_edit_selection_drag(0.125);
+    controller.update_edit_selection_drag(0.118, false);
+
+    let updated = controller.ui.waveform.edit_selection.unwrap();
+    assert!((updated.start() - 0.12).abs() < 1e-6);
+    assert!((updated.end() - 0.125).abs() < 1e-6);
 }
