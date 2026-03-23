@@ -123,12 +123,7 @@ impl AppController {
         &mut self,
         keep_source_focused: bool,
     ) -> Result<(), String> {
-        let selection = self
-            .ui
-            .waveform
-            .selection
-            .filter(|range| range.width() >= MIN_SELECTION_WIDTH)
-            .ok_or_else(|| "Create a selection first".to_string())?;
+        let selection = self.active_waveform_selection_for_export()?;
         let audio = self
             .sample_view
             .wav
@@ -188,6 +183,7 @@ impl AppController {
                     format!("Saved clip {}", entry.relative_path.display()),
                     StatusTone::Info,
                 );
+                self.record_waveform_selection_export_flash();
                 Ok(())
             }
             Err(err) => Err(err),
@@ -282,6 +278,29 @@ impl AppController {
             }
             counter += 1;
         }
+    }
+
+    /// Return the active waveform selection span suitable for clip export.
+    ///
+    /// Export should accept any non-empty active selection, even when it is
+    /// narrower than the global normalized editing threshold used for drag and
+    /// paint affordances on very long files.
+    fn active_waveform_selection_for_export(&self) -> Result<SelectionRange, String> {
+        self.selection_state
+            .range
+            .range()
+            .or(self.ui.waveform.selection)
+            .filter(|range| !range.is_empty())
+            .ok_or_else(|| "Create a selection first".to_string())
+    }
+
+    /// Emit one success token so native shells can blink the current selection once.
+    fn record_waveform_selection_export_flash(&mut self) {
+        self.ui.waveform.selection_export_flash_nonce = self
+            .ui
+            .waveform
+            .selection_export_flash_nonce
+            .wrapping_add(1);
     }
 }
 

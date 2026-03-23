@@ -164,3 +164,72 @@ fn export_selection_clip_applies_short_edge_fades_when_enabled() {
     assert!((samples[1] - 1.0).abs() < 1e-6);
     assert!((samples[6] - 1.0).abs() < 1e-6);
 }
+
+#[test]
+/// Saving from the waveform should accept deep, narrow selections on long files.
+fn save_waveform_selection_to_browser_exports_narrow_deep_selection() {
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(source_root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+
+    let wav_path = source_root.join("long.wav");
+    let samples = vec![0.25; 4096];
+    write_test_wav(&wav_path, &samples);
+    controller
+        .load_waveform_for_selection(&source, Path::new("long.wav"))
+        .unwrap();
+    let narrow_deep_selection = SelectionRange::new(0.995, 0.9955);
+    controller
+        .selection_state
+        .range
+        .set_range(Some(narrow_deep_selection));
+    controller.ui.waveform.selection = Some(narrow_deep_selection);
+
+    controller
+        .save_waveform_selection_to_browser(true)
+        .expect("narrow selection should export");
+
+    assert!(source_root.join("long_selection_001.wav").is_file());
+    assert!(controller.ui.status.text.contains("Saved clip"));
+}
+
+#[test]
+/// Successful waveform selection exports should raise one native-shell flash token.
+fn save_waveform_selection_to_browser_records_flash_nonce() {
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(source_root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+
+    let wav_path = source_root.join("flash.wav");
+    write_test_wav(&wav_path, &[0.1, 0.2, 0.3, 0.4]);
+    controller
+        .load_waveform_for_selection(&source, Path::new("flash.wav"))
+        .unwrap();
+    let selection = SelectionRange::new(0.25, 0.75);
+    controller.selection_state.range.set_range(Some(selection));
+    controller.ui.waveform.selection = Some(selection);
+
+    let before = controller.ui.waveform.selection_export_flash_nonce;
+    controller
+        .save_waveform_selection_to_browser(true)
+        .expect("selection export should succeed");
+
+    assert_eq!(
+        controller.ui.waveform.selection_export_flash_nonce,
+        before + 1
+    );
+}

@@ -81,6 +81,12 @@ pub struct WaveformState {
     pub pan_drag_pos: Option<UiPoint>,
     /// Start time for the current waveform copy flash.
     pub copy_flash_at: Option<Instant>,
+    /// Monotonic token incremented after a successful selection export from the waveform.
+    ///
+    /// Native shells use this as a one-shot event marker so they can trigger
+    /// local blink feedback without depending on wall-clock synchronization
+    /// with controller `Instant` values.
+    pub selection_export_flash_nonce: u64,
 }
 
 impl Default for WaveformState {
@@ -122,6 +128,7 @@ impl Default for WaveformState {
             suppress_hover_cursor: false,
             pan_drag_pos: None,
             copy_flash_at: None,
+            selection_export_flash_nonce: 0,
         }
     }
 }
