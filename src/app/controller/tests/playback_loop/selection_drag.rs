@@ -195,7 +195,7 @@ fn mutating_selection_clears_pending_loop_retarget() {
 }
 
 #[test]
-/// Zero-width click markers should not clamp non-loop seek playback to a tiny span.
+/// Defensive zero-width playback ranges should not clamp seek playback to a tiny span.
 fn zero_width_selection_does_not_truncate_seek_playback() {
     let Some(mut player) = crate::audio::AudioPlayer::playing_for_tests() else {
         return;

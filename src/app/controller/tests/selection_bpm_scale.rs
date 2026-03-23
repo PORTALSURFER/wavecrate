@@ -175,7 +175,7 @@ fn shift_resizedrag_overrides_bpm_snapping() {
 }
 
 #[test]
-fn start_drag_preserves_exact_click_anchor_when_bpm_snap_enabled() {
+fn start_drag_preserves_existing_selection_until_motion_when_bpm_snap_enabled() {
     let (mut controller, source) = dummy_controller();
     let samples = vec![0.0; 32];
     let selection = SelectionRange::new(0.2, 0.4);
@@ -194,8 +194,7 @@ fn start_drag_preserves_exact_click_anchor_when_bpm_snap_enabled() {
     controller.start_selection_drag(0.005);
 
     let updated = controller.ui.waveform.selection.unwrap();
-    assert!((updated.start() - 0.005).abs() < 1e-6);
-    assert!((updated.end() - 0.005).abs() < 1e-6);
+    assert_eq!(updated, selection);
 }
 
 #[test]

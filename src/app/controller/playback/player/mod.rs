@@ -11,8 +11,8 @@ mod waveform_ui;
 
 /// Smallest normalized selection width treated as an intentional playback span.
 ///
-/// Zero-width click markers are represented as selection ranges where
-/// `start == end`; those should not clamp non-loop playback to an instant blip.
+/// Defensive guard: any zero-width playback range where `start == end` should
+/// not clamp non-loop playback to an instant blip.
 const PLAYBACK_SELECTION_MIN_WIDTH: f32 = 1.0e-6;
 
 pub(crate) use lifecycle::{

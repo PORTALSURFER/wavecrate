@@ -50,8 +50,25 @@ impl SelectionState {
         self.drag.is_some()
     }
 
+    /// True while a fresh selection-creation drag is armed or active.
+    pub fn is_creating(&self) -> bool {
+        matches!(self.drag, Some(DragKind::Create { .. }))
+    }
+
+    /// Arm a fresh selection-creation drag without changing the visible range.
+    ///
+    /// This keeps any existing selection intact until the pointer actually
+    /// moves, which lets click-vs-drag interactions defer visible updates
+    /// until gesture intent is clear.
+    pub fn arm_new(&mut self, position: f32) {
+        self.drag = Some(DragKind::Create {
+            anchor: clamp01(position),
+        });
+    }
+
     /// Begin creating a new selection from the given anchor point.
     pub fn begin_new(&mut self, position: f32) -> SelectionRange {
+        let position = clamp01(position);
         let range = SelectionRange::new(position, position);
         self.range = Some(range);
         self.drag = Some(DragKind::Create { anchor: position });

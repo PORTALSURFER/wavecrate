@@ -29,6 +29,31 @@ fn drag_create_tracks_anchor() {
 }
 
 #[test]
+fn arm_new_defers_visible_selection_until_drag_updates() {
+    let mut state = SelectionState::new();
+    state.arm_new(0.1);
+    assert!(state.is_dragging());
+    assert!(state.is_creating());
+    assert!(state.range().is_none());
+
+    let updated = state.update_drag(0.6).unwrap();
+    assert_eq!(updated, SelectionRange::new(0.1, 0.6));
+}
+
+#[test]
+fn arm_new_preserves_existing_range_until_drag_updates() {
+    let mut state = SelectionState::new();
+    let existing = SelectionRange::new(0.2, 0.4);
+    state.set_range(Some(existing));
+
+    state.arm_new(0.7);
+
+    assert_eq!(state.range(), Some(existing));
+    let updated = state.update_drag(0.9).unwrap();
+    assert_eq!(updated, SelectionRange::new(0.7, 0.9));
+}
+
+#[test]
 fn drag_updates_clamp_outside_bounds() {
     let mut state = SelectionState::new();
     state.begin_new(0.3);

@@ -79,7 +79,14 @@ impl AppController {
         end_micros: u32,
         preserve_view_edge: bool,
     ) {
-        let existing_range = current_playback_selection(self);
+        // Fresh create-drags keep any old selection visible until motion begins,
+        // so the first update must not be misclassified as a resize/translate of
+        // that old range.
+        let existing_range = if self.selection_state.range.is_creating() {
+            None
+        } else {
+            current_playback_selection(self)
+        };
         let (start_micros, end_micros) = selection_updates::snap_waveform_selection_range_micros(
             self,
             start_micros,

@@ -6,15 +6,13 @@ const TRANSIENT_SNAP_RADIUS: f32 = 0.01;
 
 /// Begin one new playback-selection drag from the exact pointer anchor.
 ///
-/// The initial anchor is preserved verbatim so mark creation starts exactly
-/// where the pointer went down. BPM/transient snapping is deferred to follow-up
-/// drag updates and resize gestures.
+/// The initial anchor is preserved verbatim, but plain press does not create a
+/// visible selection yet. BPM/transient snapping is deferred to follow-up drag
+/// updates and resize gestures once the pointer actually moves.
 pub(crate) fn start_selection_drag(controller: &mut AppController, position: f32) {
     controller.selection_state.bpm_scale_beats = None;
     controller.begin_selection_undo("Selection");
-    let start = position.clamp(0.0, 1.0);
-    let range = controller.selection_state.range.begin_new(start);
-    controller.apply_selection(Some(range));
+    controller.selection_state.range.arm_new(position);
 }
 
 /// Begin one new edit-selection drag from the exact pointer anchor.
@@ -374,22 +372,20 @@ mod tests {
     use crate::app::controller::test_support;
 
     #[test]
-    fn start_selection_drag_preserves_exact_anchor_with_bpm_snap() {
+    fn start_selection_drag_arms_without_creating_visible_selection() {
         let (mut controller, _source) = test_support::dummy_controller();
         controller.ui.waveform.bpm_snap_enabled = true;
 
         start_selection_drag(&mut controller, 0.005);
 
-        let range = if let Some(range) = controller.selection_state.range.range() {
-            range
-        } else {
-            panic!("selection range should be initialized");
-        };
-        assert!((range.start() - 0.005).abs() <= f32::EPSILON);
+        assert!(controller.selection_state.range.is_dragging());
+        assert!(controller.selection_state.range.is_creating());
+        assert!(controller.selection_state.range.range().is_none());
+        assert!(controller.ui.waveform.selection.is_none());
     }
 
     #[test]
-    fn update_selection_drag_snaps_created_range_after_exact_anchor_start() {
+    fn update_selection_drag_materializes_exact_anchor_before_snapping() {
         let (mut controller, source) = test_support::dummy_controller();
         controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
             source_id: source.id.clone(),
@@ -412,5 +408,31 @@ mod tests {
             .expect("selection range should be initialized");
         assert!((range.start() - 0.31).abs() < 1.0e-6);
         assert!((range.end() - 0.435).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn finish_selection_drag_without_motion_keeps_no_selection() {
+        let (mut controller, _source) = test_support::dummy_controller();
+
+        start_selection_drag(&mut controller, 0.25);
+        finish_selection_drag(&mut controller);
+
+        assert!(!controller.selection_state.range.is_dragging());
+        assert!(controller.selection_state.range.range().is_none());
+        assert!(controller.ui.waveform.selection.is_none());
+    }
+
+    #[test]
+    fn start_selection_drag_preserves_existing_visible_selection_until_motion() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        let existing = SelectionRange::new(0.2, 0.4);
+        controller.selection_state.range.set_range(Some(existing));
+        controller.apply_selection(Some(existing));
+
+        start_selection_drag(&mut controller, 0.7);
+
+        assert_eq!(controller.ui.waveform.selection, Some(existing));
+        assert_eq!(controller.selection_state.range.range(), Some(existing));
+        assert!(controller.selection_state.range.is_creating());
     }
 }

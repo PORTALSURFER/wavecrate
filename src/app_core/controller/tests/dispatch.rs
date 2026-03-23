@@ -135,7 +135,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
             action: NativeUiAction::BeginWaveformSelectionAt {
                 anchor_micros: 125_000,
             },
-            expected: Expected::SelectionRange(Some((125, 125))),
+            expected: Expected::SelectionRange(Some((200, 800))),
         },
         Case {
             label: "waveform edit group",
@@ -265,7 +265,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
 }
 
 #[test]
-fn apply_native_begin_waveform_selection_at_preserves_exact_anchor_with_bpm_snap() {
+fn apply_native_begin_waveform_selection_at_arms_drag_without_visible_selection() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.set_bpm_snap_enabled(true);
     controller.set_bpm_value(120.0);
@@ -274,10 +274,7 @@ fn apply_native_begin_waveform_selection_at_preserves_exact_anchor_with_bpm_snap
         anchor_micros: 5_000,
     });
 
-    assert_eq!(
-        controller.ui.waveform.selection,
-        Some(crate::selection::SelectionRange::new(0.005, 0.005))
-    );
+    assert!(controller.ui.waveform.selection.is_none());
     assert!(controller.is_selection_dragging());
 }
 
