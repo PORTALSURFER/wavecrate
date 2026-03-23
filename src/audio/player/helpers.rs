@@ -85,7 +85,7 @@ impl AudioPlayer {
         }
     }
 
-    pub(super) fn normalized_span(&self, start: f32, end: f32) -> Result<(f32, f32, f32), String> {
+    pub(super) fn normalized_span(&self, start: f64, end: f64) -> Result<(f32, f32, f32), String> {
         let duration = self
             .track_duration
             .ok_or_else(|| "Load a .wav file first".to_string())?;
@@ -97,10 +97,11 @@ impl AudioPlayer {
         } else {
             (end, start)
         };
-        let clamped_start = start.clamp(0.0, 1.0) * duration;
-        let clamped_end = end.clamp(0.0, 1.0) * duration;
-        let mut bounded_start = clamped_start.min(duration);
-        let mut bounded_end = clamped_end.min(duration);
+        let duration64 = f64::from(duration);
+        let clamped_start = start.clamp(0.0, 1.0) * duration64;
+        let clamped_end = end.clamp(0.0, 1.0) * duration64;
+        let mut bounded_start = clamped_start.min(duration64) as f32;
+        let mut bounded_end = clamped_end.min(duration64) as f32;
         let min_span = self.min_span_seconds.unwrap_or(0.01);
         if bounded_end <= bounded_start {
             bounded_end = (bounded_start + min_span).min(duration);

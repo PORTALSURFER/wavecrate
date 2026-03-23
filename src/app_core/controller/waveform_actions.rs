@@ -39,8 +39,14 @@ pub(super) fn apply_waveform_native_ui_action(
         NativeUiAction::SetSliceModeEnabled { enabled } => {
             controller.set_slice_mode_enabled(enabled)
         }
+        NativeUiAction::SeekWaveformPrecise { position_nanos } => {
+            controller.queue_waveform_seek_nanos(position_nanos)
+        }
         NativeUiAction::SeekWaveform { position_milli } => {
             controller.queue_waveform_seek_milli(position_milli)
+        }
+        NativeUiAction::SetWaveformCursorPrecise { position_nanos } => {
+            controller.set_waveform_cursor_nanos(position_nanos)
         }
         NativeUiAction::SetWaveformCursor { position_milli } => {
             controller.set_waveform_cursor_milli(position_milli)

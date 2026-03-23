@@ -88,7 +88,7 @@ fn should_resume_after_loop_disable(
 fn take_due_loop_retarget(
     controller: &mut AppController,
     player: &Rc<RefCell<AudioPlayer>>,
-) -> Option<f32> {
+) -> Option<f64> {
     let player_ref = player.borrow();
     controller.audio.take_due_loop_retarget(
         Instant::now(),

@@ -79,7 +79,7 @@ impl BrowserController<'_> {
                 && let Some(source) = primary_source
             {
                 let start_override = if playhead_position.is_finite() {
-                    Some(playhead_position.clamp(0.0, 1.0))
+                    Some(f64::from(playhead_position.clamp(0.0, 1.0)))
                 } else {
                     None
                 };

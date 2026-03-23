@@ -5,7 +5,9 @@ use crate::app_core::app_api::controller_state::{DerivedNodeId, DirtyReason};
 pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAction) -> bool {
     !matches!(
         action,
-        NativeUiAction::SeekWaveform { .. }
+        NativeUiAction::SeekWaveformPrecise { .. }
+            | NativeUiAction::SetWaveformCursorPrecise { .. }
+            | NativeUiAction::SeekWaveform { .. }
             | NativeUiAction::SetWaveformCursor { .. }
             | NativeUiAction::SetWaveformViewCenter { .. }
             | NativeUiAction::BeginWaveformSelectionAt { .. }
@@ -72,7 +74,9 @@ pub(super) fn classify_dirty_source(
     action: &NativeUiAction,
 ) -> Option<(DerivedNodeId, DirtyReason)> {
     match action {
-        NativeUiAction::SeekWaveform { .. }
+        NativeUiAction::SeekWaveformPrecise { .. }
+        | NativeUiAction::SetWaveformCursorPrecise { .. }
+        | NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::BeginWaveformSelectionAt { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }

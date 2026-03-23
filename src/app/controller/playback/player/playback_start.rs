@@ -6,7 +6,7 @@ use std::time::Instant;
 pub(crate) fn play_audio(
     controller: &mut AppController,
     looped: bool,
-    start_override: Option<f32>,
+    start_override: Option<f64>,
 ) -> Result<(), String> {
     if controller.is_recording() {
         return Err("Stop recording before playback".into());
@@ -62,7 +62,7 @@ pub(crate) fn live_progress(controller: &AppController) -> Option<f32> {
 fn queue_or_load_pending_playback(
     controller: &mut AppController,
     looped: bool,
-    start_override: Option<f32>,
+    start_override: Option<f64>,
 ) -> Result<(), String> {
     if let Some(pending) = controller.runtime.jobs.pending_audio() {
         controller
@@ -126,7 +126,7 @@ fn playback_selection(controller: &AppController) -> Option<SelectionRange> {
 fn audition_span(
     selection: Option<SelectionRange>,
     looped: bool,
-    start_override: Option<f32>,
+    start_override: Option<f64>,
     span_end: f32,
 ) -> (f32, f32) {
     if looped {
@@ -136,6 +136,7 @@ fn audition_span(
             .unwrap_or((0.0, 1.0))
     } else {
         let span_start = start_override
+            .map(|start| start.clamp(0.0, 1.0) as f32)
             .or_else(|| selection.as_ref().map(|range| range.start()))
             .unwrap_or(0.0);
         (span_start, span_end)
@@ -146,7 +147,7 @@ fn start_player_range(
     player: &Rc<RefCell<AudioPlayer>>,
     selection: Option<SelectionRange>,
     looped: bool,
-    start_override: Option<f32>,
+    start_override: Option<f64>,
     span_end: f32,
 ) -> Result<f32, String> {
     if looped {
@@ -154,23 +155,26 @@ fn start_player_range(
     }
 
     let start = start_override
-        .or_else(|| selection.as_ref().map(|range| range.start()))
+        .map(|start| start.clamp(0.0, 1.0))
+        .or_else(|| selection.as_ref().map(|range| f64::from(range.start())))
         .unwrap_or(0.0);
-    player.borrow_mut().play_range(start, span_end, false)?;
-    Ok(start)
+    player
+        .borrow_mut()
+        .play_range(start, f64::from(span_end), false)?;
+    Ok(start as f32)
 }
 
 fn start_looped_range(
     player: &Rc<RefCell<AudioPlayer>>,
     selection: Option<SelectionRange>,
-    start_override: Option<f32>,
+    start_override: Option<f64>,
 ) -> Result<f32, String> {
     if let Some(range) = selection {
         return play_looped_selection(player, range, start_override);
     }
     if let Some(start_pos) = start_override {
         player.borrow_mut().play_full_wrapped_from(start_pos)?;
-        return Ok(start_pos);
+        return Ok(start_pos as f32);
     }
     player.borrow_mut().play_range(0.0, 1.0, true)?;
     Ok(0.0)
@@ -179,22 +183,24 @@ fn start_looped_range(
 fn play_looped_selection(
     player: &Rc<RefCell<AudioPlayer>>,
     range: SelectionRange,
-    start_override: Option<f32>,
+    start_override: Option<f64>,
 ) -> Result<f32, String> {
     if let Some(start_pos) = start_override
-        && start_pos >= range.start()
-        && start_pos <= range.end()
+        && start_pos >= f64::from(range.start())
+        && start_pos <= f64::from(range.end())
     {
-        player
-            .borrow_mut()
-            .play_looped_range_from(range.start(), range.end(), start_pos)?;
-        return Ok(start_pos);
+        player.borrow_mut().play_looped_range_from(
+            f64::from(range.start()),
+            f64::from(range.end()),
+            start_pos,
+        )?;
+        return Ok(start_pos as f32);
     }
 
     let start = range.start();
     player
         .borrow_mut()
-        .play_range(range.start(), range.end(), true)?;
+        .play_range(f64::from(range.start()), f64::from(range.end()), true)?;
     Ok(start)
 }
 
@@ -202,7 +208,7 @@ fn sync_playback_ui(
     controller: &mut AppController,
     start: f32,
     span_end: f32,
-    start_override: Option<f32>,
+    start_override: Option<f64>,
 ) {
     controller.ui.waveform.playhead.active_span_end = Some(span_end.clamp(0.0, 1.0));
     controller.ui.waveform.playhead.visible = true;

@@ -4,10 +4,17 @@ use super::*;
 
 /// Equality epsilon used for smart-scale BPM no-op detection.
 const WAVEFORM_BPM_NOOP_EPSILON: f32 = 1.0e-3;
+/// Integer precision used for exact waveform transport positions.
+pub(in crate::app::controller::playback) const WAVEFORM_POSITION_NANOS_SCALE: f64 = 1_000_000_000.0;
 
 /// Convert one UI waveform milli value (`0..=1000`) into normalized `[0.0, 1.0]`.
 pub(in crate::app::controller::playback) fn normalized_from_milli(value: u16) -> f32 {
     (value.min(1000) as f32) / 1000.0
+}
+
+/// Convert one UI waveform milli value (`0..=1000`) into normalized `[0.0, 1.0]` as `f64`.
+pub(in crate::app::controller::playback) fn normalized64_from_milli(value: u16) -> f64 {
+    f64::from(value.min(1000)) / 1000.0
 }
 
 /// Convert one normalized waveform position into UI milli space (`0..=1000`).
@@ -20,14 +27,29 @@ pub(in crate::app::controller::playback) fn normalized_to_micros(value: f32) -> 
     (value.clamp(0.0, 1.0) * 1_000_000.0).round() as u32
 }
 
+/// Convert one normalized waveform position into UI nanounits (`0..=1_000_000_000`).
+pub(in crate::app::controller::playback) fn normalized64_to_nanos(value: f64) -> u32 {
+    (value.clamp(0.0, 1.0) * WAVEFORM_POSITION_NANOS_SCALE).round() as u32
+}
+
 /// Convert one UI waveform micro value (`0..=1_000_000`) back into normalized space.
 pub(in crate::app::controller::playback) fn normalized_from_micros(value: u32) -> f32 {
     (value.min(1_000_000) as f32) / 1_000_000.0
 }
 
+/// Convert one UI waveform nanounit value (`0..=1_000_000_000`) back into normalized space.
+pub(in crate::app::controller::playback) fn normalized64_from_nanos(value: u32) -> f64 {
+    f64::from(value.min(1_000_000_000)) / WAVEFORM_POSITION_NANOS_SCALE
+}
+
 /// Convert one UI waveform milli value (`0..=1000`) into micro space.
 pub(in crate::app::controller::playback) fn micros_from_milli(value: u16) -> u32 {
     u32::from(value.min(1000)) * 1000
+}
+
+/// Convert one UI waveform milli value (`0..=1000`) into nanounits.
+pub(in crate::app::controller::playback) fn nanos_from_milli(value: u16) -> u32 {
+    u32::from(value.min(1000)) * 1_000_000
 }
 
 /// Build a normalized selection range from two UI waveform milli values (`0..=1000`).

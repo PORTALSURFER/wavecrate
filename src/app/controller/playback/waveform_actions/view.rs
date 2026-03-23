@@ -7,26 +7,36 @@ const WAVEFORM_CURSOR_NOOP_EPSILON: f32 = 1.0e-6;
 
 impl AppController {
     /// Seek playback to the given normalized position.
-    pub fn seek_to(&mut self, position: f32) {
+    pub fn seek_to(&mut self, position: f64) {
         transport::seek_to(self, position);
+    }
+
+    /// Seek waveform/playback using an exact nanounit position from UI actions.
+    pub fn seek_waveform_nanos(&mut self, position_nanos: u32) {
+        let normalized = normalized64_from_nanos(position_nanos);
+        self.seek_to(normalized);
+        self.set_waveform_cursor(normalized as f32);
+        self.focus_waveform();
     }
 
     /// Seek waveform/playback using a 0..=1000 milli position from UI actions.
     pub fn seek_waveform_milli(&mut self, position_milli: u16) {
-        let normalized = normalized_from_milli(position_milli);
-        self.seek_to(normalized);
-        self.set_waveform_cursor(normalized);
-        self.focus_waveform();
+        self.seek_waveform_nanos(nanos_from_milli(position_milli));
+    }
+
+    /// Queue a waveform seek from UI actions using exact nanounits.
+    pub fn queue_waveform_seek_nanos(&mut self, position_nanos: u32) {
+        transport::queue_waveform_seek_nanos(self, position_nanos);
     }
 
     /// Queue a waveform seek from UI actions and defer commit-side playback work.
     pub fn queue_waveform_seek_milli(&mut self, position_milli: u16) {
-        transport::queue_waveform_seek_milli(self, position_milli);
+        self.queue_waveform_seek_nanos(nanos_from_milli(position_milli));
     }
 
-    /// Set waveform cursor using a 0..=1000 milli position from UI actions.
-    pub fn set_waveform_cursor_milli(&mut self, position_milli: u16) {
-        let normalized = normalized_from_milli(position_milli);
+    /// Set waveform cursor using an exact nanounit position from UI actions.
+    pub fn set_waveform_cursor_nanos(&mut self, position_nanos: u32) {
+        let normalized = normalized64_from_nanos(position_nanos) as f32;
         let cursor_unchanged =
             self.ui.waveform.cursor.is_some_and(|existing| {
                 (existing - normalized).abs() <= WAVEFORM_CURSOR_NOOP_EPSILON
@@ -36,6 +46,11 @@ impl AppController {
         }
         self.set_waveform_cursor(normalized);
         self.focus_waveform();
+    }
+
+    /// Set waveform cursor using a 0..=1000 milli position from UI actions.
+    pub fn set_waveform_cursor_milli(&mut self, position_milli: u16) {
+        self.set_waveform_cursor_nanos(nanos_from_milli(position_milli));
     }
 
     /// Zoom waveform from UI actions using clamped step counts and focus retention.

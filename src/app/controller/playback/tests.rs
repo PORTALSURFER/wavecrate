@@ -445,9 +445,15 @@ fn queue_waveform_seek_milli_defers_commit_until_deadline() {
 
     controller.queue_waveform_seek_milli(500);
 
-    assert_eq!(controller.pending_waveform_seek_milli_for_test(), Some(500));
+    assert_eq!(
+        controller.pending_waveform_seek_nanos_for_test(),
+        Some(500_000_000)
+    );
     controller.flush_pending_waveform_seek_commit();
-    assert_eq!(controller.pending_waveform_seek_milli_for_test(), Some(500));
+    assert_eq!(
+        controller.pending_waveform_seek_nanos_for_test(),
+        Some(500_000_000)
+    );
 }
 
 /// Expired deferred waveform seek commits should clear queued seek state.
@@ -460,7 +466,7 @@ fn flush_pending_waveform_seek_commit_clears_queue_after_deadline() {
 
     controller.flush_pending_waveform_seek_commit();
 
-    assert!(controller.runtime.pending_waveform_seek_milli.is_none());
+    assert!(controller.runtime.pending_waveform_seek_nanos.is_none());
     assert!(
         controller
             .runtime

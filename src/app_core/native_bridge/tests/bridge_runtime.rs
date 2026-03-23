@@ -131,7 +131,7 @@ fn on_action_applies_waveform_preview_actions_immediately() {
         position_milli: 420,
     });
 
-    assert_eq!(bridge.pending_waveform_actions.cursor_milli, None);
+    assert_eq!(bridge.pending_waveform_actions.cursor_nanos, None);
     assert!(
         bridge
             .controller
@@ -148,7 +148,10 @@ fn on_action_keeps_seek_actions_queued() {
         position_milli: 333,
     });
 
-    assert_eq!(bridge.pending_waveform_actions.seek_milli, Some(333));
+    assert_eq!(
+        bridge.pending_waveform_actions.seek_nanos,
+        Some(333_000_000)
+    );
 }
 
 /// Flushing queued waveform actions should clear queue state and mark waveform dirties.

@@ -20,9 +20,19 @@ pub(in crate::app::controller::playback) fn normalized_from_milli(value: u16) ->
     shared::normalized_from_milli(value)
 }
 
+/// Convert one UI waveform milli value (`0..=1000`) into normalized `[0.0, 1.0]` as `f64`.
+pub(in crate::app::controller::playback) fn normalized64_from_milli(value: u16) -> f64 {
+    shared::normalized64_from_milli(value)
+}
+
 /// Convert one UI waveform micro value (`0..=1_000_000`) back into normalized space.
 pub(in crate::app::controller::playback) fn normalized_from_micros(value: u32) -> f32 {
     shared::normalized_from_micros(value)
+}
+
+/// Convert one UI waveform nanounit value (`0..=1_000_000_000`) back into normalized space.
+pub(in crate::app::controller::playback) fn normalized64_from_nanos(value: u32) -> f64 {
+    shared::normalized64_from_nanos(value)
 }
 
 /// Convert one normalized waveform position into UI micro space (`0..=1_000_000`).
@@ -30,9 +40,19 @@ pub(in crate::app::controller::playback) fn normalized_to_micros(value: f32) -> 
     shared::normalized_to_micros(value)
 }
 
+/// Convert one normalized waveform position into UI nanounits (`0..=1_000_000_000`).
+pub(in crate::app::controller::playback) fn normalized64_to_nanos(value: f64) -> u32 {
+    shared::normalized64_to_nanos(value)
+}
+
 /// Convert one UI waveform milli value (`0..=1000`) into micro space.
 pub(in crate::app::controller::playback) fn micros_from_milli(value: u16) -> u32 {
     shared::micros_from_milli(value)
+}
+
+/// Convert one UI waveform milli value (`0..=1000`) into nanounits.
+pub(in crate::app::controller::playback) fn nanos_from_milli(value: u16) -> u32 {
+    shared::nanos_from_milli(value)
 }
 
 /// Build a normalized selection range from two UI waveform milli values (`0..=1000`).

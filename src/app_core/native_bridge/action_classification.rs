@@ -24,7 +24,9 @@ pub(super) fn classify_action_interaction(
         NativeUiAction::SetBrowserTab { map: true } | NativeUiAction::FocusMapSample { .. } => {
             Some(InteractionActionClass::MapPanProxy)
         }
-        NativeUiAction::SeekWaveform { .. }
+        NativeUiAction::SeekWaveformPrecise { .. }
+        | NativeUiAction::SetWaveformCursorPrecise { .. }
+        | NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::SetWaveformViewCenter { .. }
         | NativeUiAction::BeginWaveformSelectionAt { .. }
@@ -77,7 +79,8 @@ pub(super) fn classify_action_interaction(
 pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> bool {
     matches!(
         action,
-        NativeUiAction::SetWaveformCursor { .. }
+        NativeUiAction::SetWaveformCursorPrecise { .. }
+            | NativeUiAction::SetWaveformCursor { .. }
             | NativeUiAction::BeginWaveformSelectionAt { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
             | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }

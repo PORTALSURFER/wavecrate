@@ -16,8 +16,8 @@ fn waveform_action_queue_last_write_wins() {
     assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
         position_milli: 420,
     }));
-    assert_eq!(queue.seek_milli, Some(220));
-    assert_eq!(queue.cursor_milli, Some(420));
+    assert_eq!(queue.seek_nanos, Some(220_000_000));
+    assert_eq!(queue.cursor_nanos, Some(420_000_000));
 }
 
 /// Cursor updates should be dropped when seek targets the same milli value.
@@ -30,7 +30,22 @@ fn waveform_action_queue_dedupes_cursor_when_seek_matches() {
     assert!(queue.enqueue(&NativeUiAction::SeekWaveform {
         position_milli: 420,
     }));
-    assert_eq!(queue.deduped_cursor_milli(), None);
+    assert_eq!(queue.deduped_cursor_nanos(), None);
+}
+
+/// Precise waveform actions should remain last-write-wins without milli fallback.
+#[test]
+fn waveform_action_queue_keeps_precise_seek_and_cursor_targets() {
+    let mut queue = PendingWaveformActions::default();
+    assert!(queue.enqueue(&NativeUiAction::SeekWaveformPrecise {
+        position_nanos: 123_456_789,
+    }));
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformCursorPrecise {
+        position_nanos: 234_567_890,
+    }));
+
+    assert_eq!(queue.seek_nanos, Some(123_456_789));
+    assert_eq!(queue.cursor_nanos, Some(234_567_890));
 }
 
 /// Mixed waveform batches should emit deterministic action order with precedence applied.
@@ -77,11 +92,11 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
             NativeUiAction::SetWaveformViewCenter {
                 center_micros: 500_000,
             },
-            NativeUiAction::SetWaveformCursor {
-                position_milli: 410,
+            NativeUiAction::SetWaveformCursorPrecise {
+                position_nanos: 410_000_000,
             },
-            NativeUiAction::SeekWaveform {
-                position_milli: 900,
+            NativeUiAction::SeekWaveformPrecise {
+                position_nanos: 900_000_000,
             },
         ]
     );

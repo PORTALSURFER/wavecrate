@@ -23,7 +23,25 @@ fn apply_native_seek_queues_deferred_seek_commit() {
         position_milli: 420,
     });
 
-    assert_eq!(controller.pending_waveform_seek_milli_for_test(), Some(420));
+    assert_eq!(
+        controller.pending_waveform_seek_nanos_for_test(),
+        Some(420_000_000)
+    );
+}
+
+/// Precise native seek actions should preserve nanounit targets.
+#[test]
+fn apply_native_precise_seek_queues_exact_deferred_seek_commit() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+
+    controller.apply_native_ui_action(NativeUiAction::SeekWaveformPrecise {
+        position_nanos: 420_123_456,
+    });
+
+    assert_eq!(
+        controller.pending_waveform_seek_nanos_for_test(),
+        Some(420_123_456)
+    );
 }
 
 /// Dispatch groups should route representative native actions to the right handlers.
@@ -207,8 +225,8 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
             }
             Expected::PendingSeek(expected) => {
                 assert_eq!(
-                    controller.pending_waveform_seek_milli_for_test(),
-                    expected,
+                    controller.pending_waveform_seek_nanos_for_test(),
+                    expected.map(|value| u32::from(value) * 1_000_000),
                     "{}",
                     case.label
                 );

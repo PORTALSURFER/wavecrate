@@ -178,7 +178,7 @@ impl AppController {
 
                     if is_currently_loaded && was_playing {
                         let start_override = if playhead_position.is_finite() {
-                            Some(playhead_position.clamp(0.0, 1.0))
+                            Some(f64::from(playhead_position.clamp(0.0, 1.0)))
                         } else {
                             None
                         };

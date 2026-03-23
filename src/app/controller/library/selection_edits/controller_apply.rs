@@ -11,7 +11,7 @@ pub(super) struct SelectionEditVisualState {
 pub(super) struct PlaybackResumeState {
     pub(super) was_playing: bool,
     pub(super) was_looping: bool,
-    pub(super) start_override: Option<f32>,
+    pub(super) start_override: Option<f64>,
 }
 
 pub(super) struct SelectionEditSession {
@@ -184,7 +184,7 @@ impl AppController {
             .playhead
             .position
             .is_finite()
-            .then(|| self.ui.waveform.playhead.position.clamp(0.0, 1.0));
+            .then(|| f64::from(self.ui.waveform.playhead.position.clamp(0.0, 1.0)));
         PlaybackResumeState {
             was_playing,
             was_looping,

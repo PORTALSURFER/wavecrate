@@ -66,6 +66,8 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
         view_end_milli: normalized64_to_milli(ui.waveform.view.end),
         view_start_micros: normalized64_to_micros(ui.waveform.view.start),
         view_end_micros: normalized64_to_micros(ui.waveform.view.end),
+        view_start_nanos: normalized64_to_nanos(ui.waveform.view.start),
+        view_end_nanos: normalized64_to_nanos(ui.waveform.view.end),
         beat_step_micros: project_waveform_beat_step_micros(controller),
         loop_enabled: ui.waveform.loop_enabled,
         tempo_label: ui.waveform.bpm_value.map(|bpm| format!("{bpm:.1} BPM")),
@@ -286,4 +288,9 @@ pub(super) fn normalized64_to_milli(value: f64) -> u16 {
 /// Convert normalized `f64` scalar values to micro-style millionths.
 pub(super) fn normalized64_to_micros(value: f64) -> u32 {
     (value.clamp(0.0, 1.0) * 1_000_000.0).round() as u32
+}
+
+/// Convert normalized `f64` scalar values to nano-style billionths.
+pub(super) fn normalized64_to_nanos(value: f64) -> u32 {
+    (value.clamp(0.0, 1.0) * 1_000_000_000.0).round() as u32
 }

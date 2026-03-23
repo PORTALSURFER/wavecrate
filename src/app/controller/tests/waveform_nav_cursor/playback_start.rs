@@ -17,7 +17,10 @@ fn replay_from_last_start_requeues_pending_playback() {
         .pending_playback
         .as_ref()
         .expect("pending playback request");
-    assert_eq!(pending.start_override, Some(0.42));
+    assert_eq!(
+        pending.start_override,
+        controller.ui.waveform.last_start_marker.map(f64::from)
+    );
 }
 
 #[test]
@@ -64,7 +67,7 @@ fn play_from_start_prefers_active_play_selection_start() {
         .pending_playback
         .as_ref()
         .expect("pending playback request");
-    assert_eq!(pending.start_override, Some(selection.start()));
+    assert_eq!(pending.start_override, Some(f64::from(selection.start())));
     assert_eq!(
         controller.ui.waveform.last_start_marker,
         Some(selection.start())
@@ -95,7 +98,7 @@ fn play_from_start_preserves_zoomed_view_inside_active_selection() {
             .pending_playback
             .as_ref()
             .map(|pending| pending.start_override),
-        Some(Some(selection.start()))
+        Some(Some(f64::from(selection.start())))
     );
     assert_eq!(
         controller.ui.waveform.last_start_marker,
@@ -129,7 +132,7 @@ fn replay_from_last_start_falls_back_to_cursor() {
         .pending_playback
         .as_ref()
         .expect("pending playback request");
-    assert_eq!(pending.start_override, Some(0.25));
+    assert_eq!(pending.start_override, controller.ui.waveform.cursor.map(f64::from));
     assert_eq!(controller.ui.waveform.last_start_marker, Some(0.25));
 }
 
@@ -152,6 +155,9 @@ fn play_from_current_playhead_prefers_visible_playhead_position() {
         .pending_playback
         .as_ref()
         .expect("pending playback request");
-    assert_eq!(pending.start_override, Some(0.58));
+    assert_eq!(
+        pending.start_override,
+        Some(f64::from(controller.ui.waveform.playhead.position))
+    );
     assert_eq!(controller.ui.waveform.last_start_marker, Some(0.58));
 }

@@ -16,12 +16,12 @@ impl AudioPlayer {
     }
 
     /// Begin playback at the given normalized position (0.0 - 1.0).
-    pub fn play_from_fraction(&mut self, fraction: f32) -> Result<(), String> {
+    pub fn play_from_fraction(&mut self, fraction: f64) -> Result<(), String> {
         self.play_range(fraction, 1.0, false)
     }
 
     /// Play between two normalized points, optionally looping the segment.
-    pub fn play_range(&mut self, start: f32, end: f32, looped: bool) -> Result<(), String> {
+    pub fn play_range(&mut self, start: f64, end: f64, looped: bool) -> Result<(), String> {
         let (bounded_start, bounded_end, duration) = self.normalized_span(start, end)?;
         self.loop_offset = None;
         self.loop_offset_frames = None;
@@ -31,18 +31,19 @@ impl AudioPlayer {
     /// Loop a selection while starting playback at an offset within the selection.
     pub fn play_looped_range_from(
         &mut self,
-        start: f32,
-        end: f32,
-        offset: f32,
+        start: f64,
+        end: f64,
+        offset: f64,
     ) -> Result<(), String> {
         let (bounded_start, bounded_end, duration) = self.normalized_span(start, end)?;
         let clamped_offset = offset.clamp(start.min(end), start.max(end));
-        let offset_seconds = (clamped_offset * duration - bounded_start).max(0.0);
+        let offset_seconds =
+            ((clamped_offset * f64::from(duration)) - f64::from(bounded_start)).max(0.0) as f32;
         self.start_with_looped_span_offset(bounded_start, bounded_end, duration, offset_seconds)
     }
 
     /// Loop the full track while starting playback at the given normalized position.
-    pub fn play_full_wrapped_from(&mut self, start: f32) -> Result<(), String> {
+    pub fn play_full_wrapped_from(&mut self, start: f64) -> Result<(), String> {
         let duration = self
             .track_duration
             .ok_or_else(|| "Load a .wav file first".to_string())?;
@@ -66,7 +67,7 @@ impl AudioPlayer {
         }
 
         let buffer = SamplesBuffer::new(channels, sample_rate, samples);
-        let offset_frames = ((start.clamp(0.0, 1.0) * total_frames as f32).floor() as u64)
+        let offset_frames = ((start.clamp(0.0, 1.0) * total_frames as f64).floor() as u64)
             .min(total_frames.saturating_sub(1));
         let offset_samples = offset_frames.saturating_mul(channels as u64) as usize;
         let repeated = buffer.repeat_infinite().skip_samples(offset_samples);

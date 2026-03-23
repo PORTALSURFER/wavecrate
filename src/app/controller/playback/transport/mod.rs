@@ -12,7 +12,7 @@ pub(crate) use playback::{
     replay_from_last_start, stop_playback_if_active, toggle_play_pause,
 };
 pub(crate) use seek::{
-    flush_pending_waveform_seek_commit, queue_waveform_seek_milli, record_play_start, seek_to,
+    flush_pending_waveform_seek_commit, queue_waveform_seek_nanos, record_play_start, seek_to,
 };
 pub(crate) use selection::{
     clear_edit_selection, clear_selection, finish_edit_selection_drag, finish_selection_drag,

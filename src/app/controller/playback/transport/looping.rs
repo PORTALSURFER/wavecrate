@@ -175,19 +175,19 @@ fn restart_loop_playback_if_playing(controller: &mut AppController) {
 }
 
 /// Compute restart start position for loop-enabled playback based on active selection and cursor state.
-fn loop_restart_start_override(controller: &AppController, progress: Option<f32>) -> Option<f32> {
+fn loop_restart_start_override(controller: &AppController, progress: Option<f32>) -> Option<f64> {
     if has_loop_playback_selection(controller) {
         return None;
     }
-    progress.or_else(|| {
+    progress.map(f64::from).or_else(|| {
         if controller.ui.waveform.playhead.visible {
-            Some(controller.ui.waveform.playhead.position)
+            Some(f64::from(controller.ui.waveform.playhead.position))
         } else {
-            controller
+            controller.ui.waveform.cursor.map(f64::from).or(controller
                 .ui
                 .waveform
-                .cursor
-                .or(controller.ui.waveform.last_start_marker)
+                .last_start_marker
+                .map(f64::from))
         }
     })
 }
@@ -261,21 +261,30 @@ mod tests {
         let (mut controller, _source) = test_support::dummy_controller();
 
         let with_progress = loop_restart_start_override(&controller, Some(0.42));
-        assert_eq!(with_progress, Some(0.42));
+        assert_eq!(with_progress, Some(f64::from(0.42_f32)));
 
         controller.ui.waveform.playhead.visible = true;
         controller.ui.waveform.playhead.position = 0.37;
         let with_playhead = loop_restart_start_override(&controller, None);
-        assert_eq!(with_playhead, Some(0.37));
+        assert_eq!(
+            with_playhead,
+            Some(f64::from(controller.ui.waveform.playhead.position))
+        );
 
         controller.ui.waveform.playhead.visible = false;
         controller.ui.waveform.cursor = Some(0.55);
         controller.ui.waveform.last_start_marker = Some(0.19);
         let with_cursor = loop_restart_start_override(&controller, None);
-        assert_eq!(with_cursor, Some(0.55));
+        assert_eq!(
+            with_cursor,
+            controller.ui.waveform.cursor.map(f64::from)
+        );
 
         controller.ui.waveform.cursor = None;
         let with_last_marker = loop_restart_start_override(&controller, None);
-        assert_eq!(with_last_marker, Some(0.19));
+        assert_eq!(
+            with_last_marker,
+            controller.ui.waveform.last_start_marker.map(f64::from)
+        );
     }
 }

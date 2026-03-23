@@ -132,7 +132,7 @@ impl AppController {
     fn current_playback_resume(&self) -> Option<PlaybackResume> {
         let was_playing = self.is_playing();
         let start_override = if was_playing {
-            Some(self.ui.waveform.playhead.position)
+            Some(f64::from(self.ui.waveform.playhead.position))
         } else {
             None
         };
@@ -175,7 +175,7 @@ impl AppController {
 
 struct PlaybackResume {
     was_playing: bool,
-    start_override: Option<f32>,
+    start_override: Option<f64>,
     looped: bool,
     source: crate::sample_sources::SampleSource,
     relative_path: std::path::PathBuf,

@@ -45,7 +45,7 @@ impl ControllerAudioState {
     }
 
     /// Schedule one loop retarget to apply at the provided cycle boundary.
-    pub(crate) fn schedule_loop_retarget(&mut self, deadline: Instant, start_override: f32) {
+    pub(crate) fn schedule_loop_retarget(&mut self, deadline: Instant, start_override: f64) {
         self.pending_loop_retarget = Some(PendingLoopRetarget {
             deadline,
             start_override: start_override.clamp(0.0, 1.0),
@@ -61,7 +61,7 @@ impl ControllerAudioState {
         now: Instant,
         is_playing: bool,
         is_looping: bool,
-    ) -> Option<f32> {
+    ) -> Option<f64> {
         let pending = self.pending_loop_retarget?;
         if !is_playing || !is_looping {
             self.pending_loop_retarget = None;
@@ -116,14 +116,14 @@ pub(crate) struct PendingPlayback {
     pub(crate) source_id: SourceId,
     pub(crate) relative_path: PathBuf,
     pub(crate) looped: bool,
-    pub(crate) start_override: Option<f32>,
+    pub(crate) start_override: Option<f64>,
 }
 
 /// Deferred loop-span retarget applied once the current loop cycle completes.
 #[derive(Clone, Copy)]
 pub(crate) struct PendingLoopRetarget {
     pub(crate) deadline: Instant,
-    pub(crate) start_override: f32,
+    pub(crate) start_override: f64,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

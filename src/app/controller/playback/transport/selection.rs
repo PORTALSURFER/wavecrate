@@ -223,7 +223,7 @@ fn restart_non_looped_selection_playback(
     } else {
         selection.start()
     };
-    if let Err(err) = controller.play_audio(false, Some(start)) {
+    if let Err(err) = controller.play_audio(false, Some(f64::from(start))) {
         controller.set_status(err, StatusTone::Error);
     }
 }
@@ -238,7 +238,7 @@ fn retarget_looped_selection_playback(controller: &mut AppController, selection:
 }
 
 fn schedule_loop_retarget_or_restart(controller: &mut AppController, start: f32) {
-    match controller.defer_loop_retarget_after_cycle(start) {
+    match controller.defer_loop_retarget_after_cycle(f64::from(start)) {
         Ok(true) => {}
         Ok(false) => restart_looped_selection_playback(controller, start),
         Err(err) => controller.set_status(err, StatusTone::Error),
@@ -247,7 +247,7 @@ fn schedule_loop_retarget_or_restart(controller: &mut AppController, start: f32)
 
 fn restart_looped_selection_playback(controller: &mut AppController, start: f32) {
     controller.audio.clear_pending_loop_retarget();
-    if let Err(err) = controller.play_audio(true, Some(start)) {
+    if let Err(err) = controller.play_audio(true, Some(f64::from(start))) {
         controller.set_status(err, StatusTone::Error);
     }
 }

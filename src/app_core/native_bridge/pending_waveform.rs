@@ -36,10 +36,10 @@ pub(super) enum PendingModelPullPreparation {
 /// Queue of high-frequency waveform actions that can be coalesced per pull frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct PendingWaveformActions {
-    /// Latest seek target in normalized milli space.
-    pub(super) seek_milli: Option<u16>,
-    /// Latest cursor target in normalized milli space.
-    pub(super) cursor_milli: Option<u16>,
+    /// Latest seek target in normalized nanounits.
+    pub(super) seek_nanos: Option<u32>,
+    /// Latest cursor target in normalized nanounits.
+    pub(super) cursor_nanos: Option<u32>,
     /// Latest explicit selection range in normalized milli space.
     pub(super) selection_range_micros: Option<(u32, u32)>,
     /// Whether the queued selection range should preserve an out-of-bounds view edge.
@@ -63,8 +63,8 @@ pub(super) struct PendingWaveformActions {
 impl PendingWaveformActions {
     /// Return true when at least one queued waveform action is present.
     pub(super) fn has_pending(&self) -> bool {
-        self.seek_milli.is_some()
-            || self.cursor_milli.is_some()
+        self.seek_nanos.is_some()
+            || self.cursor_nanos.is_some()
             || self.selection_range_micros.is_some()
             || self.clear_selection
             || self.view_center_micros.is_some()
@@ -76,12 +76,20 @@ impl PendingWaveformActions {
     /// Queue a coalescable waveform action and return true when absorbed.
     pub(super) fn enqueue(&mut self, action: &NativeUiAction) -> bool {
         match action {
+            NativeUiAction::SeekWaveformPrecise { position_nanos } => {
+                self.seek_nanos = Some(*position_nanos);
+                true
+            }
             NativeUiAction::SeekWaveform { position_milli } => {
-                self.seek_milli = Some(*position_milli);
+                self.seek_nanos = Some(u32::from((*position_milli).min(1000)) * 1_000_000);
+                true
+            }
+            NativeUiAction::SetWaveformCursorPrecise { position_nanos } => {
+                self.cursor_nanos = Some(*position_nanos);
                 true
             }
             NativeUiAction::SetWaveformCursor { position_milli } => {
-                self.cursor_milli = Some(*position_milli);
+                self.cursor_nanos = Some(u32::from((*position_milli).min(1000)) * 1_000_000);
                 true
             }
             NativeUiAction::SetWaveformSelectionRange {
@@ -172,12 +180,12 @@ impl PendingWaveformActions {
     /// Return the cursor update after removing redundant cursor+seek pairs.
     ///
     /// A queued seek already updates cursor position, so sending both actions at
-    /// the same normalized milli target adds no behavior but does add apply cost.
-    pub(super) fn deduped_cursor_milli(&self) -> Option<u16> {
-        if self.cursor_milli.is_some() && self.cursor_milli == self.seek_milli {
+    /// the same normalized target adds no behavior but does add apply cost.
+    pub(super) fn deduped_cursor_nanos(&self) -> Option<u32> {
+        if self.cursor_nanos.is_some() && self.cursor_nanos == self.seek_nanos {
             None
         } else {
-            self.cursor_milli
+            self.cursor_nanos
         }
     }
 
@@ -236,12 +244,12 @@ impl PendingWaveformActions {
             emit(NativeUiAction::SetWaveformViewCenter { center_micros });
             emitted_actions = emitted_actions.saturating_add(1);
         }
-        if let Some(position_milli) = self.deduped_cursor_milli() {
-            emit(NativeUiAction::SetWaveformCursor { position_milli });
+        if let Some(position_nanos) = self.deduped_cursor_nanos() {
+            emit(NativeUiAction::SetWaveformCursorPrecise { position_nanos });
             emitted_actions = emitted_actions.saturating_add(1);
         }
-        if let Some(position_milli) = self.seek_milli {
-            emit(NativeUiAction::SeekWaveform { position_milli });
+        if let Some(position_nanos) = self.seek_nanos {
+            emit(NativeUiAction::SeekWaveformPrecise { position_nanos });
             emitted_actions = emitted_actions.saturating_add(1);
         }
         emitted_actions

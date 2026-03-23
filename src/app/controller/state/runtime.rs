@@ -88,7 +88,7 @@ pub(crate) struct ControllerRuntimeState {
     /// Earliest frame time when deferred duration metadata persistence may run.
     pub(crate) pending_loaded_duration_metadata_not_before: Option<Instant>,
     /// Latest queued waveform seek target from high-frequency interaction updates.
-    pub(crate) pending_waveform_seek_milli: Option<u16>,
+    pub(crate) pending_waveform_seek_nanos: Option<u32>,
     /// Earliest frame time when a deferred waveform seek commit may run.
     pub(crate) pending_waveform_seek_not_before: Option<Instant>,
     /// Reused map-query SQLite connections keyed by source id.
@@ -145,7 +145,7 @@ impl ControllerRuntimeState {
             pending_similarity_refresh_not_before: None,
             pending_loaded_duration_metadata: None,
             pending_loaded_duration_metadata_not_before: None,
-            pending_waveform_seek_milli: None,
+            pending_waveform_seek_nanos: None,
             pending_waveform_seek_not_before: None,
             map_query_connections: HashMap::new(),
             projection_revision_dirty: ProjectionRevisionDirtyMask::default(),

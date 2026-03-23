@@ -95,9 +95,9 @@ impl WaveformController<'_> {
         }
         let playhead = self.ui.waveform.playhead.position;
         let start_override = if playhead >= selection.start() && playhead <= selection.end() {
-            Some(playhead)
+            Some(f64::from(playhead))
         } else {
-            Some(selection.start())
+            Some(f64::from(selection.start()))
         };
         if let Err(err) = self.play_audio(true, start_override) {
             self.set_status(err, StatusTone::Error);

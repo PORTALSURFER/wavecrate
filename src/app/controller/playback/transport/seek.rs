@@ -1,4 +1,7 @@
 use super::*;
+use crate::app::controller::playback::waveform_actions::{
+    nanos_from_milli, normalized64_from_nanos,
+};
 use std::time::{Duration, Instant};
 
 /// Debounce window for committing queued waveform seek playback updates.
@@ -7,7 +10,7 @@ use std::time::{Duration, Instant};
 /// seek shortly after pointer activity settles.
 const WAVEFORM_SEEK_COMMIT_DEBOUNCE: Duration = Duration::from_millis(24);
 
-pub(crate) fn seek_to(controller: &mut AppController, position: f32) {
+pub(crate) fn seek_to(controller: &mut AppController, position: f64) {
     let looped = controller.ui.waveform.loop_enabled;
     record_play_start(controller, position);
     if let Err(err) = controller.play_audio(looped, Some(position)) {
@@ -16,41 +19,46 @@ pub(crate) fn seek_to(controller: &mut AppController, position: f32) {
 }
 
 /// Queue a waveform seek request and defer playback restart to frame prep.
-pub(crate) fn queue_waveform_seek_milli(controller: &mut AppController, position_milli: u16) {
-    let clamped = position_milli.min(1000);
-    clear_selection_for_outside_waveform_seek(controller, clamped);
-    controller.set_waveform_cursor_milli(clamped);
+pub(crate) fn queue_waveform_seek_nanos(controller: &mut AppController, position_nanos: u32) {
+    let clamped = position_nanos.min(1_000_000_000);
+    clear_selection_for_outside_waveform_seek(controller, normalized64_from_nanos(clamped));
+    controller.set_waveform_cursor_nanos(clamped);
     if should_commit_waveform_seek_immediately(controller) {
-        controller.runtime.pending_waveform_seek_milli = None;
+        controller.runtime.pending_waveform_seek_nanos = None;
         controller.runtime.pending_waveform_seek_not_before = None;
-        let normalized = (f32::from(clamped) / 1000.0).clamp(0.0, 1.0);
+        let normalized = normalized64_from_nanos(clamped);
         seek_to(controller, normalized);
-        controller.set_waveform_cursor(normalized);
+        controller.set_waveform_cursor(normalized as f32);
         controller.focus_waveform();
         return;
     }
-    controller.runtime.pending_waveform_seek_milli = Some(clamped);
+    controller.runtime.pending_waveform_seek_nanos = Some(clamped);
     controller.runtime.pending_waveform_seek_not_before =
         Some(Instant::now() + WAVEFORM_SEEK_COMMIT_DEBOUNCE);
 }
 
+/// Queue a waveform seek request and defer playback restart to frame prep.
+pub(crate) fn queue_waveform_seek_milli(controller: &mut AppController, position_milli: u16) {
+    queue_waveform_seek_nanos(controller, nanos_from_milli(position_milli));
+}
+
 /// Record the most recent play start position.
-pub(crate) fn record_play_start(controller: &mut AppController, position: f32) {
+pub(crate) fn record_play_start(controller: &mut AppController, position: f64) {
     record_play_start_with_view_policy(controller, position, false);
 }
 
 /// Record the most recent play start position without changing the current waveform view.
-pub(crate) fn record_play_start_preserving_view(controller: &mut AppController, position: f32) {
+pub(crate) fn record_play_start_preserving_view(controller: &mut AppController, position: f64) {
     record_play_start_with_view_policy(controller, position, true);
 }
 
 /// Record the most recent play start position and optionally preserve the current waveform view.
 fn record_play_start_with_view_policy(
     controller: &mut AppController,
-    position: f32,
+    position: f64,
     preserve_view: bool,
 ) {
-    let clamped = position.clamp(0.0, 1.0);
+    let clamped = position.clamp(0.0, 1.0) as f32;
     controller.ui.waveform.last_start_marker = Some(clamped);
     if preserve_view {
         if !controller.waveform_ready() {
@@ -73,21 +81,18 @@ pub(crate) fn flush_pending_waveform_seek_commit(controller: &mut AppController)
         return;
     }
     controller.runtime.pending_waveform_seek_not_before = None;
-    let Some(position_milli) = controller.runtime.pending_waveform_seek_milli.take() else {
+    let Some(position_nanos) = controller.runtime.pending_waveform_seek_nanos.take() else {
         return;
     };
-    let normalized = (f32::from(position_milli) / 1000.0).clamp(0.0, 1.0);
+    let normalized = normalized64_from_nanos(position_nanos);
     seek_to(controller, normalized);
-    controller.set_waveform_cursor(normalized);
+    controller.set_waveform_cursor(normalized as f32);
     controller.focus_waveform();
 }
 
 /// Clear the active playback selection when a waveform seek lands outside it.
-///
-/// This keeps a plain waveform click from leaving an old marked playback span
-/// active when the user is clearly asking to audition a different location.
-fn clear_selection_for_outside_waveform_seek(controller: &mut AppController, position_milli: u16) {
-    let normalized = (f32::from(position_milli.min(1000)) / 1000.0).clamp(0.0, 1.0);
+fn clear_selection_for_outside_waveform_seek(controller: &mut AppController, position: f64) {
+    let normalized = position.clamp(0.0, 1.0) as f32;
     let Some(selection) = controller
         .selection_state
         .range
@@ -144,9 +149,12 @@ mod tests {
     fn queue_waveform_seek_milli_clamps_input() {
         let (mut controller, _source) = test_support::dummy_controller();
 
-        queue_waveform_seek_milli(&mut controller, 1500);
+        queue_waveform_seek_nanos(&mut controller, 1_500_000_000);
 
-        assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(1000));
+        assert_eq!(
+            controller.runtime.pending_waveform_seek_nanos,
+            Some(1_000_000_000)
+        );
         assert!(
             controller
                 .runtime
@@ -158,13 +166,16 @@ mod tests {
     #[test]
     fn flush_pending_waveform_seek_commit_waits_for_deadline() {
         let (mut controller, _source) = test_support::dummy_controller();
-        queue_waveform_seek_milli(&mut controller, 500);
+        queue_waveform_seek_nanos(&mut controller, 500_000_000);
         controller.runtime.pending_waveform_seek_not_before =
             Some(Instant::now() + Duration::from_millis(50));
 
         flush_pending_waveform_seek_commit(&mut controller);
 
-        assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(500));
+        assert_eq!(
+            controller.runtime.pending_waveform_seek_nanos,
+            Some(500_000_000)
+        );
     }
 
     #[test]
@@ -175,11 +186,14 @@ mod tests {
         controller.selection_state.range.set_range(Some(selection));
         controller.apply_selection(Some(selection));
 
-        queue_waveform_seek_milli(&mut controller, 750);
+        queue_waveform_seek_nanos(&mut controller, 750_000_000);
 
         assert!(controller.selection_state.range.range().is_none());
         assert!(controller.ui.waveform.selection.is_none());
-        assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(750));
+        assert_eq!(
+            controller.runtime.pending_waveform_seek_nanos,
+            Some(750_000_000)
+        );
         assert_eq!(controller.ui.waveform.cursor, Some(0.75));
     }
 
@@ -191,11 +205,14 @@ mod tests {
         controller.selection_state.range.set_range(Some(selection));
         controller.apply_selection(Some(selection));
 
-        queue_waveform_seek_milli(&mut controller, 300);
+        queue_waveform_seek_nanos(&mut controller, 300_000_000);
 
         assert_eq!(controller.selection_state.range.range(), Some(selection));
         assert_eq!(controller.ui.waveform.selection, Some(selection));
-        assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(300));
+        assert_eq!(
+            controller.runtime.pending_waveform_seek_nanos,
+            Some(300_000_000)
+        );
         assert_eq!(controller.ui.waveform.cursor, Some(0.3));
     }
 
@@ -226,9 +243,9 @@ mod tests {
             .borrow_mut()
             .stop();
 
-        queue_waveform_seek_milli(&mut controller, 500);
+        queue_waveform_seek_nanos(&mut controller, 500_000_000);
 
-        assert!(controller.runtime.pending_waveform_seek_milli.is_none());
+        assert!(controller.runtime.pending_waveform_seek_nanos.is_none());
         assert!(
             controller
                 .runtime
@@ -261,9 +278,12 @@ mod tests {
         assert!(controller.play_audio(false, None).is_ok());
         assert!(controller.is_playing());
 
-        queue_waveform_seek_milli(&mut controller, 750);
+        queue_waveform_seek_nanos(&mut controller, 750_000_000);
 
-        assert_eq!(controller.runtime.pending_waveform_seek_milli, Some(750));
+        assert_eq!(
+            controller.runtime.pending_waveform_seek_nanos,
+            Some(750_000_000)
+        );
         assert!(
             controller
                 .runtime

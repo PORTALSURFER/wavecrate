@@ -222,6 +222,10 @@ pub enum GuiActionKind {
     SetVolume,
     /// Commit the current volume setting after an interactive edit.
     CommitVolumeSetting,
+    /// Seek playback to one waveform position using nanounit precision.
+    SeekWaveformPrecise,
+    /// Set the waveform cursor to one position using nanounit precision.
+    SetWaveformCursorPrecise,
     /// Seek playback to one waveform position.
     SeekWaveform,
     /// Set the waveform cursor to one position.
@@ -290,7 +294,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 140] = [
+    pub const ALL: [Self; 142] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -399,6 +403,8 @@ impl GuiActionKind {
         Self::SetSliceModeEnabled,
         Self::SetVolume,
         Self::CommitVolumeSetting,
+        Self::SeekWaveformPrecise,
+        Self::SetWaveformCursorPrecise,
         Self::SeekWaveform,
         Self::SetWaveformCursor,
         Self::BeginWaveformSelectionAt,

@@ -126,7 +126,7 @@ fn set_selection_range_while_looping_schedules_retarget_when_playhead_inside_loo
         .audio
         .pending_loop_retarget
         .expect("loop retarget scheduled");
-    assert!((pending.start_override - updated_selection.start()).abs() < 1e-6);
+    assert!((pending.start_override - f64::from(updated_selection.start())).abs() < 1e-6);
 }
 
 #[test]

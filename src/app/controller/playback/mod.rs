@@ -85,7 +85,7 @@ impl AppController {
     }
 
     /// Record the most recent play start position.
-    pub fn record_play_start(&mut self, position: f32) {
+    pub fn record_play_start(&mut self, position: f64) {
         transport::record_play_start(self, position);
     }
 
@@ -116,13 +116,13 @@ impl AppController {
 
     /// Return true when a deferred waveform-seek commit is queued.
     pub(crate) fn has_pending_waveform_seek_commit(&self) -> bool {
-        self.runtime.pending_waveform_seek_milli.is_some()
+        self.runtime.pending_waveform_seek_nanos.is_some()
     }
 
     #[cfg(test)]
     /// Expose queued deferred waveform seek target for controller/runtime tests.
-    pub(crate) fn pending_waveform_seek_milli_for_test(&self) -> Option<u16> {
-        self.runtime.pending_waveform_seek_milli
+    pub(crate) fn pending_waveform_seek_nanos_for_test(&self) -> Option<u32> {
+        self.runtime.pending_waveform_seek_nanos
     }
 
     /// Toggle between play and pause.
@@ -141,7 +141,7 @@ impl AppController {
     }
 
     /// Start playback with the provided loop and start override settings.
-    pub fn play_audio(&mut self, looped: bool, start_override: Option<f32>) -> Result<(), String> {
+    pub fn play_audio(&mut self, looped: bool, start_override: Option<f64>) -> Result<(), String> {
         player::play_audio(self, looped, start_override)
     }
 
@@ -238,7 +238,7 @@ impl AppController {
     /// Queue one loop restart at the current cycle boundary using a new start position.
     pub(crate) fn defer_loop_retarget_after_cycle(
         &mut self,
-        start_override: f32,
+        start_override: f64,
     ) -> Result<bool, String> {
         player::defer_loop_retarget_after_cycle(self, start_override)
     }

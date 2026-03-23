@@ -122,8 +122,11 @@ fn restart_playback_at_preserving_view(controller: &mut AppController, position:
         return false;
     }
     let clamped = position.clamp(0.0, 1.0);
-    super::seek::record_play_start_preserving_view(controller, clamped);
-    if let Err(err) = controller.play_audio(controller.ui.waveform.loop_enabled, Some(clamped)) {
+    super::seek::record_play_start_preserving_view(controller, f64::from(clamped));
+    if let Err(err) = controller.play_audio(
+        controller.ui.waveform.loop_enabled,
+        Some(f64::from(clamped)),
+    ) {
         controller.set_status(err, StatusTone::Error);
     }
     true

@@ -54,7 +54,7 @@ pub(crate) fn defer_loop_disable_after_cycle(controller: &mut AppController) -> 
 /// Re-arm loop playback at the next cycle boundary using a new start position.
 pub(crate) fn defer_loop_retarget_after_cycle(
     controller: &mut AppController,
-    start_override: f32,
+    start_override: f64,
 ) -> Result<bool, String> {
     controller.audio.clear_pending_loop_retarget();
     let Some(player_rc) = ensure_player(controller)? else {
