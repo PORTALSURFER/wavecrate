@@ -36,8 +36,30 @@ pub(crate) fn queue_waveform_seek_milli(controller: &mut AppController, position
 
 /// Record the most recent play start position.
 pub(crate) fn record_play_start(controller: &mut AppController, position: f32) {
+    record_play_start_with_view_policy(controller, position, false);
+}
+
+/// Record the most recent play start position without changing the current waveform view.
+pub(crate) fn record_play_start_preserving_view(controller: &mut AppController, position: f32) {
+    record_play_start_with_view_policy(controller, position, true);
+}
+
+/// Record the most recent play start position and optionally preserve the current waveform view.
+fn record_play_start_with_view_policy(
+    controller: &mut AppController,
+    position: f32,
+    preserve_view: bool,
+) {
     let clamped = position.clamp(0.0, 1.0);
     controller.ui.waveform.last_start_marker = Some(clamped);
+    if preserve_view {
+        if !controller.waveform_ready() {
+            return;
+        }
+        controller.ui.waveform.cursor = Some(clamped);
+        controller.ui.waveform.cursor_last_navigation_at = Some(Instant::now());
+        return;
+    }
     controller.set_waveform_cursor(clamped);
 }
 

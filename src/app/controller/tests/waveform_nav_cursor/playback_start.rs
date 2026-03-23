@@ -72,6 +72,47 @@ fn play_from_start_prefers_active_play_selection_start() {
 }
 
 #[test]
+fn play_from_start_preserves_zoomed_view_inside_active_selection() {
+    let (mut controller, source) = dummy_controller();
+    prepare_browser_sample(&mut controller, &source, "zoomed-marked.wav");
+    controller.select_wav_by_path(Path::new("zoomed-marked.wav"));
+    install_decoded_waveform(&mut controller);
+    let selection = crate::selection::SelectionRange::new(0.25, 0.75);
+    controller.selection_state.range.set_range(Some(selection));
+    controller.ui.waveform.selection = Some(selection);
+    controller.ui.waveform.view = crate::app::state::WaveformView {
+        start: 0.55,
+        end: 0.65,
+    };
+
+    let handled = controller.play_from_start();
+
+    assert!(handled);
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_playback
+            .as_ref()
+            .map(|pending| pending.start_override),
+        Some(Some(selection.start()))
+    );
+    assert_eq!(
+        controller.ui.waveform.last_start_marker,
+        Some(selection.start())
+    );
+    assert_eq!(controller.ui.waveform.cursor, Some(selection.start()));
+    assert!(
+        (controller.ui.waveform.view.start - 0.55).abs() < 1.0e-9,
+        "playback start should preserve the current zoomed view start"
+    );
+    assert!(
+        (controller.ui.waveform.view.end - 0.65).abs() < 1.0e-9,
+        "playback start should preserve the current zoomed view end"
+    );
+}
+
+#[test]
 fn replay_from_last_start_falls_back_to_cursor() {
     let (mut controller, source) = dummy_controller();
     prepare_browser_sample(&mut controller, &source, "marker.wav");

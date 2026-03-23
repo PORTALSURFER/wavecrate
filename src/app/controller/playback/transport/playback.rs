@@ -3,34 +3,29 @@ use crate::app::state::FocusContext;
 
 pub(crate) fn replay_from_last_start(controller: &mut AppController) -> bool {
     if let Some(position) = controller.ui.waveform.last_start_marker {
-        super::seek::seek_to(controller, position);
-        return true;
+        return restart_playback_at_preserving_view(controller, position);
     }
     if let Some(cursor) = controller.ui.waveform.cursor {
-        super::seek::seek_to(controller, cursor);
-        return true;
+        return restart_playback_at_preserving_view(controller, cursor);
     }
     if controller.ui.waveform.playhead.visible {
-        super::seek::seek_to(controller, controller.ui.waveform.playhead.position);
-        return true;
+        return restart_playback_at_preserving_view(
+            controller,
+            controller.ui.waveform.playhead.position,
+        );
     }
     false
 }
 
 pub(crate) fn play_from_start(controller: &mut AppController) -> bool {
-    if !waveform_playback_target_exists(controller) {
-        return false;
-    }
-    super::seek::seek_to(controller, play_from_start_position(controller));
-    true
+    restart_playback_at_preserving_view(controller, play_from_start_position(controller))
 }
 
 pub(crate) fn play_from_current_playhead(controller: &mut AppController) -> bool {
     let Some(position) = current_playhead_position(controller) else {
         return false;
     };
-    super::seek::seek_to(controller, position);
-    true
+    restart_playback_at_preserving_view(controller, position)
 }
 
 pub(crate) fn play_from_cursor(controller: &mut AppController) -> bool {
@@ -46,8 +41,7 @@ pub(crate) fn play_from_cursor(controller: &mut AppController) -> bool {
         (Some(hover), Some(nav)) => nav >= hover,
     };
     if cursor_from_navigation && let Some(cursor) = controller.ui.waveform.cursor {
-        super::seek::seek_to(controller, cursor);
-        return true;
+        return restart_playback_at_preserving_view(controller, cursor);
     }
     replay_from_last_start(controller)
 }
@@ -120,6 +114,19 @@ pub(crate) fn handle_escape(controller: &mut AppController) {
 fn waveform_playback_target_exists(controller: &AppController) -> bool {
     controller.sample_view.wav.selected_wav.is_some()
         || controller.sample_view.wav.loaded_audio.is_some()
+}
+
+/// Restart playback at one normalized position without forcing the waveform viewport to recenter.
+fn restart_playback_at_preserving_view(controller: &mut AppController, position: f32) -> bool {
+    if !waveform_playback_target_exists(controller) {
+        return false;
+    }
+    let clamped = position.clamp(0.0, 1.0);
+    super::seek::record_play_start_preserving_view(controller, clamped);
+    if let Err(err) = controller.play_audio(controller.ui.waveform.loop_enabled, Some(clamped)) {
+        controller.set_status(err, StatusTone::Error);
+    }
+    true
 }
 
 fn current_playhead_position(controller: &AppController) -> Option<f32> {
