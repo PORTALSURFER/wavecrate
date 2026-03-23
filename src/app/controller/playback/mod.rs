@@ -30,6 +30,9 @@ mod waveform_actions;
 #[cfg(test)]
 mod audio_options_tests;
 #[cfg(test)]
+/// Native waveform action regressions for playback behavior.
+mod native_action_tests;
+#[cfg(test)]
 /// Playback facade behavior tests.
 mod tests;
 #[cfg(test)]

@@ -111,6 +111,63 @@ fn pending_loop_retarget_restarts_from_new_selection_start_at_cycle_boundary() {
 }
 
 #[test]
+fn set_selection_range_while_looping_schedules_retarget_when_playhead_inside_loop() {
+    let initial_selection = SelectionRange::new(0.1, 0.4);
+    let Some(mut controller) = setup_looping_controller(initial_selection) else {
+        return;
+    };
+    let updated_selection = SelectionRange::new(0.2, 0.6);
+    controller.ui.waveform.playhead.position = 0.3;
+
+    controller.set_selection_range(updated_selection);
+
+    assert!((controller.ui.waveform.playhead.position - 0.3).abs() < 1e-6);
+    let pending = controller
+        .audio
+        .pending_loop_retarget
+        .expect("loop retarget scheduled");
+    assert!((pending.start_override - updated_selection.start()).abs() < 1e-6);
+}
+
+#[test]
+fn set_selection_range_restarts_from_new_selection_start_at_cycle_boundary() {
+    let initial_selection = SelectionRange::new(0.1, 0.4);
+    let Some(mut controller) = setup_looping_controller(initial_selection) else {
+        return;
+    };
+    let updated_selection = SelectionRange::new(0.2, 0.6);
+    controller.ui.waveform.playhead.position = 0.3;
+
+    controller.set_selection_range(updated_selection);
+    controller
+        .audio
+        .pending_loop_retarget
+        .as_mut()
+        .expect("loop retarget scheduled")
+        .deadline = Instant::now() - Duration::from_millis(1);
+
+    controller.tick_playhead();
+
+    assert!((controller.ui.waveform.playhead.position - updated_selection.start()).abs() < 1e-6);
+    assert!(controller.audio.pending_loop_retarget.is_none());
+}
+
+#[test]
+fn set_selection_range_restarts_immediately_when_playhead_outside_updated_loop() {
+    let initial_selection = SelectionRange::new(0.1, 0.8);
+    let Some(mut controller) = setup_looping_controller(initial_selection) else {
+        return;
+    };
+    let updated_selection = SelectionRange::new(0.2, 0.6);
+    controller.ui.waveform.playhead.position = 0.7;
+
+    controller.set_selection_range(updated_selection);
+
+    assert!((controller.ui.waveform.playhead.position - updated_selection.start()).abs() < 1e-6);
+    assert!(controller.audio.pending_loop_retarget.is_none());
+}
+
+#[test]
 fn mutating_selection_clears_pending_loop_retarget() {
     let initial_selection = SelectionRange::new(0.1, 0.4);
     let Some(mut controller) = setup_looping_controller(initial_selection) else {
