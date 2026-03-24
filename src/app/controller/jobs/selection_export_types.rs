@@ -53,6 +53,27 @@ pub(crate) struct SelectionExportSnapshot {
     pub(crate) bpm: Option<f32>,
 }
 
+/// Immutable snapshot of one slice-batch export captured on the UI thread.
+#[derive(Clone, Debug)]
+pub(crate) struct SelectionSliceBatchExportSnapshot {
+    /// Source id that owns the loaded sample.
+    pub(crate) source_id: SourceId,
+    /// Source root folder.
+    pub(crate) source_root: PathBuf,
+    /// Relative path of the loaded sample.
+    pub(crate) relative_path: PathBuf,
+    /// Slice bounds to export as individual clips.
+    pub(crate) slices: Vec<SelectionRange>,
+    /// Naming profile for the generated clips.
+    pub(crate) profile: crate::app::state::WaveformSliceBatchProfile,
+    /// Captured audio payload.
+    pub(crate) audio: SelectionExportAudioPayload,
+    /// Whether short edge fades should be applied to new files.
+    pub(crate) apply_edge_fades: bool,
+    /// Edge-fade duration in milliseconds when enabled.
+    pub(crate) edge_fade_ms: f32,
+}
+
 /// Destination-specific job configuration for selection clip exports.
 #[derive(Clone, Debug)]
 pub(crate) enum SelectionClipDestination {
@@ -106,13 +127,22 @@ pub(crate) enum SelectionExportJob {
         /// Preserved playback state for post-completion auto-open behavior.
         playback: SelectionExportPlaybackState,
     },
+    /// Export the current waveform slice batch as multiple clips.
+    SliceBatch {
+        /// Monotonic request identifier for stale-result protection.
+        request_id: u64,
+        /// Captured slice-batch snapshot.
+        snapshot: SelectionSliceBatchExportSnapshot,
+    },
 }
 
 impl SelectionExportJob {
     /// Return the stable request id associated with this job.
     pub(crate) fn request_id(&self) -> u64 {
         match self {
-            Self::Clip { request_id, .. } | Self::CropNewSample { request_id, .. } => *request_id,
+            Self::Clip { request_id, .. }
+            | Self::CropNewSample { request_id, .. }
+            | Self::SliceBatch { request_id, .. } => *request_id,
         }
     }
 }
@@ -172,6 +202,25 @@ pub(crate) struct SelectionCropExportSuccess {
     pub(crate) timings: SelectionExportTimings,
 }
 
+/// Successful completion payload for one slice-batch export.
+#[derive(Clone, Debug)]
+pub(crate) struct SelectionSliceBatchExportSuccess {
+    /// Request id echoed from the originating job.
+    pub(crate) request_id: u64,
+    /// Source id that owns the new clips.
+    pub(crate) source_id: SourceId,
+    /// Source root that owns the new clips.
+    pub(crate) source_root: PathBuf,
+    /// Original source-relative path that was sliced.
+    pub(crate) source_relative_path: PathBuf,
+    /// Newly created browser/source entries.
+    pub(crate) entries: Vec<WavEntry>,
+    /// Per-slice errors encountered during the batch, if any.
+    pub(crate) errors: Vec<String>,
+    /// Timings recorded by the worker.
+    pub(crate) timings: SelectionExportTimings,
+}
+
 /// Completion result published back to the controller from selection-export workers.
 #[derive(Clone, Debug)]
 pub(crate) enum SelectionExportResult {
@@ -189,15 +238,42 @@ pub(crate) enum SelectionExportResult {
         /// Worker result payload.
         result: Result<SelectionCropExportSuccess, String>,
     },
+    /// Slice-batch export completion.
+    SliceBatch {
+        /// Request id echoed from the originating job.
+        request_id: u64,
+        /// Worker result payload.
+        result: Result<SelectionSliceBatchExportSuccess, String>,
+    },
 }
 
 impl SelectionExportResult {
     /// Return the request id associated with this completion, when available.
     pub(crate) fn request_id(&self) -> u64 {
         match self {
-            Self::Clip { request_id, .. } | Self::CropNewSample { request_id, .. } => *request_id,
+            Self::Clip { request_id, .. }
+            | Self::CropNewSample { request_id, .. }
+            | Self::SliceBatch { request_id, .. } => *request_id,
         }
     }
+}
+
+/// Streamed progress or completion message for selection-export work.
+#[derive(Clone, Debug)]
+pub(crate) enum SelectionExportMessage {
+    /// Incremental progress update for a slice-batch export.
+    Progress {
+        /// Request id echoed from the originating job.
+        request_id: u64,
+        /// Total number of slices scheduled for export.
+        total: usize,
+        /// Number of slices completed so far.
+        completed: usize,
+        /// Optional per-slice detail label.
+        detail: Option<String>,
+    },
+    /// Final completion payload for any selection-export job.
+    Finished(SelectionExportResult),
 }
 
 /// Return the best audio payload for selection-export work from the currently loaded waveform.

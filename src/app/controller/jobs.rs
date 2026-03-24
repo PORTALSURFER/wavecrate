@@ -72,6 +72,7 @@ pub(crate) use self::messages::*;
 pub(crate) use self::queue_orchestration::JobMessageSender;
 pub(crate) use self::selection_export_types::*;
 pub(super) use self::state::ControllerJobsInit;
+pub(crate) use self::state::PendingSliceBatchExport;
 
 type TryRecvError = std::sync::mpsc::TryRecvError;
 
@@ -95,6 +96,7 @@ pub(crate) struct ControllerJobs {
     pub(super) pending_audio: Option<PendingAudio>,
     pub(super) pending_playback: Option<PendingPlayback>,
     pub(super) pending_recording_waveform: Option<PendingRecordingWaveform>,
+    pub(super) pending_slice_batch_export: Option<PendingSliceBatchExport>,
     request_counters: JobRequestCounters,
     in_progress: JobInProgressState,
     cancel_handles: JobCancelHandles,

@@ -52,6 +52,7 @@ impl ControllerJobs {
             pending_audio: None,
             pending_playback: None,
             pending_recording_waveform: None,
+            pending_slice_batch_export: None,
             request_counters: JobRequestCounters::default(),
             in_progress: JobInProgressState::default(),
             cancel_handles: JobCancelHandles::default(),

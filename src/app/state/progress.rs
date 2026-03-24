@@ -12,6 +12,8 @@ pub enum ProgressTaskKind {
     Analysis,
     /// Normalizing audio samples.
     Normalization,
+    /// Exporting waveform slice batches in the background.
+    SelectionExport,
     /// Copying, moving, or restoring files in the background.
     FileOps,
 }

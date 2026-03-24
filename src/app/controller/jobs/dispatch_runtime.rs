@@ -153,8 +153,21 @@ impl ControllerJobs {
             move || {
                 crate::app::controller::library::selection_export::run_selection_export_job(job)
             },
-            JobMessage::SelectionExportFinished,
+            |result| JobMessage::SelectionExport(SelectionExportMessage::Finished(result)),
         );
+    }
+
+    /// Start one streamed background slice-batch export job.
+    pub(in super::super) fn begin_selection_slice_batch_export(&self, job: SelectionExportJob) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.start_progress_stream(
+            rx,
+            JobMessage::SelectionExport,
+            selection_export_message_is_finished,
+        );
+        thread::spawn(move || {
+            crate::app::controller::library::selection_export::run_slice_batch_export_job(job, &tx);
+        });
     }
 
     /// Start a one-shot audio normalization job.
@@ -165,6 +178,10 @@ impl ControllerJobs {
             JobMessage::Normalized,
         );
     }
+}
+
+fn selection_export_message_is_finished(message: &SelectionExportMessage) -> bool {
+    matches!(message, SelectionExportMessage::Finished(_))
 }
 
 impl AppController {

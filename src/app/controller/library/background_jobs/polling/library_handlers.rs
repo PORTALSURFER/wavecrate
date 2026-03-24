@@ -128,8 +128,47 @@ impl AppController {
         }
     }
 
-    /// Apply one completed selection-export worker result.
-    pub(super) fn handle_selection_export_finished_message(
+    /// Apply one streamed selection-export worker message.
+    pub(super) fn handle_selection_export_message(
+        &mut self,
+        message: crate::app::controller::jobs::SelectionExportMessage,
+    ) {
+        match message {
+            crate::app::controller::jobs::SelectionExportMessage::Progress {
+                request_id,
+                total,
+                completed,
+                detail,
+            } => {
+                if self
+                    .runtime
+                    .jobs
+                    .pending_slice_batch_export()
+                    .is_some_and(|pending| pending.request_id == request_id)
+                {
+                    progress::ensure_progress_visible(
+                        self,
+                        ProgressTaskKind::SelectionExport,
+                        "Saving slices",
+                        total,
+                        false,
+                    );
+                    progress::update_progress_totals(
+                        self,
+                        ProgressTaskKind::SelectionExport,
+                        total,
+                        completed,
+                        detail,
+                    );
+                }
+            }
+            crate::app::controller::jobs::SelectionExportMessage::Finished(message) => {
+                self.handle_selection_export_finished_result(message)
+            }
+        }
+    }
+
+    fn handle_selection_export_finished_result(
         &mut self,
         message: crate::app::controller::jobs::SelectionExportResult,
     ) {
@@ -147,6 +186,18 @@ impl AppController {
             } => {
                 let _ = request_id;
                 self.apply_selection_crop_export_success(success);
+            }
+            crate::app::controller::jobs::SelectionExportResult::SliceBatch {
+                request_id,
+                result: Ok(success),
+            } => {
+                if self.ui.progress.task == Some(ProgressTaskKind::SelectionExport) {
+                    self.clear_progress();
+                }
+                self.runtime
+                    .jobs
+                    .clear_pending_slice_batch_export(request_id);
+                self.apply_selection_slice_batch_export_success(success);
             }
             crate::app::controller::jobs::SelectionExportResult::Clip {
                 request_id,
@@ -166,6 +217,18 @@ impl AppController {
                 result: Err(err),
                 ..
             } => {
+                self.set_status(err, StatusTone::Error);
+            }
+            crate::app::controller::jobs::SelectionExportResult::SliceBatch {
+                request_id,
+                result: Err(err),
+            } => {
+                if self.ui.progress.task == Some(ProgressTaskKind::SelectionExport) {
+                    self.clear_progress();
+                }
+                self.runtime
+                    .jobs
+                    .clear_pending_slice_batch_export(request_id);
                 self.set_status(err, StatusTone::Error);
             }
         }

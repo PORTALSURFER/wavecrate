@@ -15,16 +15,22 @@ pub(crate) const SILENCE_THRESHOLD_ON_DB: f32 = -45.0;
 pub(crate) const SILENCE_THRESHOLD_OFF_DB: f32 = -55.0;
 pub(crate) const SILENCE_PRE_ROLL_SECONDS: f32 = 0.01;
 pub(crate) const SILENCE_POST_ROLL_SECONDS: f32 = 0.005;
+pub(crate) const SLICE_SILENCE_THRESHOLD_ON_DB: f32 = -50.0;
+pub(crate) const SLICE_SILENCE_THRESHOLD_OFF_DB: f32 = -60.0;
+pub(crate) const SLICE_SILENCE_WINDOW_SECONDS: f32 = 0.02;
+pub(crate) const SLICE_SILENCE_HOP_SECONDS: f32 = 0.005;
+pub(crate) const SLICE_SILENCE_PRE_ROLL_SECONDS: f32 = 0.015;
+pub(crate) const SLICE_SILENCE_POST_ROLL_SECONDS: f32 = 0.015;
+pub(crate) const SLICE_SILENCE_MERGE_GAP_SECONDS: f32 = 0.01;
 const EMBEDDING_TARGET_RMS_DB: f32 = -20.0;
 
-pub(crate) use analysis_prep::downmix_to_mono_into;
 pub(crate) use decode::decode_for_analysis;
 pub(crate) use decode::{
     decode_for_analysis_with_rate, decode_for_analysis_with_rate_limit, probe_metadata,
 };
 pub(crate) use normalize::normalize_peak_in_place;
 pub(crate) use normalize::sanitize_samples_in_place;
-pub(crate) use silence::detect_non_silent_ranges;
+pub(crate) use silence::detect_non_silent_ranges_for_slices;
 
 /// Decoded mono audio ready for analysis.
 #[derive(Debug)]

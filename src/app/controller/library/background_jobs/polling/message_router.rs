@@ -60,9 +60,7 @@ impl AppController {
             JobMessage::BrowserSearchFinished(message) => {
                 self.handle_browser_search_finished_message(message)
             }
-            JobMessage::SelectionExportFinished(message) => {
-                self.handle_selection_export_finished_message(message)
-            }
+            JobMessage::SelectionExport(message) => self.handle_selection_export_message(message),
             JobMessage::Normalized(message) => self.handle_normalized_message(message),
         }
     }

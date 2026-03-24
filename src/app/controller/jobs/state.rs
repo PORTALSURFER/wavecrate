@@ -8,6 +8,17 @@ pub(super) struct PendingFolderScan {
     pub(crate) source_id: SourceId,
 }
 
+/// In-flight waveform slice-batch export tracked for UI gating and stale-result checks.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingSliceBatchExport {
+    /// Monotonic request identifier for the active batch.
+    pub(crate) request_id: u64,
+    /// Source that owns the waveform being exported.
+    pub(crate) source_id: SourceId,
+    /// Relative path of the waveform being exported.
+    pub(crate) relative_path: PathBuf,
+}
+
 /// Monotonic request-id counters for async controller jobs.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct JobRequestCounters {

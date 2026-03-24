@@ -4,8 +4,9 @@ use super::helpers::fast_content_hash;
 use super::*;
 use crate::app::controller::jobs::{
     SelectionClipDestination, SelectionClipExportSuccess, SelectionCropExportSuccess,
-    SelectionExportAudioPayload, SelectionExportJob, SelectionExportPlaybackState,
-    SelectionExportResult, SelectionExportSnapshot, SelectionExportTimings,
+    SelectionExportAudioPayload, SelectionExportJob, SelectionExportMessage,
+    SelectionExportPlaybackState, SelectionExportResult, SelectionExportSnapshot,
+    SelectionExportTimings, SelectionSliceBatchExportSnapshot, SelectionSliceBatchExportSuccess,
 };
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::library::selection_edits::{
@@ -14,8 +15,10 @@ use crate::app::controller::library::selection_edits::{
 use crate::app::controller::playback::audio_samples::{crop_samples, decode_samples_from_bytes};
 use crate::sample_sources::{Rating, SampleSource, SourceDatabase, WavEntry};
 use rusqlite::params;
+use std::borrow::Cow;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant, SystemTime};
 
 /// Run one background selection-export job and return its typed completion payload.
@@ -38,7 +41,33 @@ pub(crate) fn run_selection_export_job(job: SelectionExportJob) -> SelectionExpo
             request_id,
             result: run_crop_export_job(request_id, snapshot, playback, started_at),
         },
+        SelectionExportJob::SliceBatch {
+            request_id,
+            snapshot,
+        } => SelectionExportResult::SliceBatch {
+            request_id,
+            result: run_slice_batch_export(request_id, snapshot, None, started_at),
+        },
     }
+}
+
+/// Run one streamed slice-batch export job and forward progress to the caller.
+pub(crate) fn run_slice_batch_export_job(
+    job: SelectionExportJob,
+    sender: &Sender<SelectionExportMessage>,
+) {
+    let started_at = Instant::now();
+    let result = match job {
+        SelectionExportJob::SliceBatch {
+            request_id,
+            snapshot,
+        } => SelectionExportResult::SliceBatch {
+            request_id,
+            result: run_slice_batch_export(request_id, snapshot, Some(sender), started_at),
+        },
+        other => run_selection_export_job(other),
+    };
+    let _ = sender.send(SelectionExportMessage::Finished(result));
 }
 
 fn run_clip_export_job(
@@ -48,7 +77,8 @@ fn run_clip_export_job(
     started_at: Instant,
 ) -> Result<SelectionClipExportSuccess, String> {
     let prepare_started = Instant::now();
-    let mut prepared = prepare_selection_clip(&snapshot)?;
+    let audio = resolve_selection_export_audio(&snapshot.audio)?;
+    let mut prepared = prepare_selection_clip(&audio, &snapshot)?;
     let prepare = prepare_started.elapsed();
 
     let target_relative = match &destination {
@@ -96,7 +126,8 @@ fn run_crop_export_job(
     started_at: Instant,
 ) -> Result<SelectionCropExportSuccess, String> {
     let prepare_started = Instant::now();
-    let mut prepared = prepare_selection_clip(&snapshot)?;
+    let audio = resolve_selection_export_audio(&snapshot.audio)?;
+    let mut prepared = prepare_selection_clip(&audio, &snapshot)?;
     let prepare = prepare_started.elapsed();
 
     let new_relative = next_crop_relative_path(&snapshot.relative_path, &snapshot.source_root)?;
@@ -127,34 +158,137 @@ fn run_crop_export_job(
     })
 }
 
+fn run_slice_batch_export(
+    request_id: u64,
+    snapshot: SelectionSliceBatchExportSnapshot,
+    sender: Option<&Sender<SelectionExportMessage>>,
+    started_at: Instant,
+) -> Result<SelectionSliceBatchExportSuccess, String> {
+    let prepare_started = Instant::now();
+    let audio = resolve_selection_export_audio(&snapshot.audio)?;
+    let prepare = prepare_started.elapsed();
+    let mut counter = 1usize;
+    let mut entries = Vec::with_capacity(snapshot.slices.len());
+    let mut errors = Vec::new();
+    let mut write = Duration::default();
+    let mut register = Duration::default();
+
+    for (index, slice) in snapshot.slices.iter().copied().enumerate() {
+        let target_relative = super::slice_batch::next_slice_path_in_dir_for_root(
+            &snapshot.source_root,
+            &snapshot.relative_path,
+            snapshot.profile,
+            &mut counter,
+        );
+        let absolute_path = snapshot.source_root.join(&target_relative);
+        let detail = Some(format!("Saving {}", target_relative.display()));
+
+        let write_started = Instant::now();
+        let write_result =
+            crop_samples(audio.samples.as_ref(), audio.channels, slice).and_then(|samples| {
+                write_slice_batch_clip(
+                    &absolute_path,
+                    &samples,
+                    &snapshot,
+                    audio.sample_rate,
+                    audio.channels,
+                )
+            });
+        write += write_started.elapsed();
+        if let Err(err) = write_result {
+            errors.push(format!(
+                "Failed to export {}: {err}",
+                target_relative.display()
+            ));
+            if let Some(progress) = sender {
+                let _ = progress.send(SelectionExportMessage::Progress {
+                    request_id,
+                    total: snapshot.slices.len(),
+                    completed: index + 1,
+                    detail,
+                });
+            }
+            continue;
+        }
+
+        let register_started = Instant::now();
+        match record_slice_batch_entry(&snapshot, target_relative) {
+            Ok(entry) => entries.push(entry),
+            Err(err) => errors.push(err),
+        }
+        register += register_started.elapsed();
+
+        if let Some(progress) = sender {
+            let _ = progress.send(SelectionExportMessage::Progress {
+                request_id,
+                total: snapshot.slices.len(),
+                completed: index + 1,
+                detail,
+            });
+        }
+    }
+
+    Ok(SelectionSliceBatchExportSuccess {
+        request_id,
+        source_id: snapshot.source_id,
+        source_root: snapshot.source_root,
+        source_relative_path: snapshot.relative_path,
+        entries,
+        errors,
+        timings: SelectionExportTimings {
+            prepare,
+            write,
+            register,
+            total: started_at.elapsed(),
+        },
+    })
+}
+
 struct PreparedSelectionClip {
     samples: Vec<f32>,
     sample_rate: u32,
     channels: u16,
 }
 
-fn prepare_selection_clip(
-    snapshot: &SelectionExportSnapshot,
-) -> Result<PreparedSelectionClip, String> {
-    let (mut samples, sample_rate, channels) = match &snapshot.audio {
+struct ResolvedSelectionExportAudio<'a> {
+    samples: Cow<'a, [f32]>,
+    sample_rate: u32,
+    channels: u16,
+}
+
+fn resolve_selection_export_audio<'a>(
+    audio: &'a SelectionExportAudioPayload,
+) -> Result<ResolvedSelectionExportAudio<'a>, String> {
+    match audio {
         SelectionExportAudioPayload::Decoded {
             samples,
             channels,
             sample_rate,
-        } => (
-            crop_samples(samples.as_ref(), *channels, snapshot.bounds)?,
-            (*sample_rate).max(1),
-            (*channels).max(1),
-        ),
+        } => Ok(ResolvedSelectionExportAudio {
+            samples: Cow::Borrowed(samples.as_ref()),
+            sample_rate: (*sample_rate).max(1),
+            channels: (*channels).max(1),
+        }),
         SelectionExportAudioPayload::Encoded { bytes } => {
             let decoded = decode_samples_from_bytes(bytes)?;
-            (
-                crop_samples(&decoded.samples, decoded.channels, snapshot.bounds)?,
-                decoded.sample_rate.max(1),
-                decoded.channels.max(1),
-            )
+            Ok(ResolvedSelectionExportAudio {
+                samples: Cow::Owned(decoded.samples),
+                sample_rate: decoded.sample_rate.max(1),
+                channels: decoded.channels.max(1),
+            })
         }
-    };
+    }
+}
+
+fn prepare_selection_clip(
+    audio: &ResolvedSelectionExportAudio<'_>,
+    snapshot: &SelectionExportSnapshot,
+) -> Result<PreparedSelectionClip, String> {
+    let (mut samples, sample_rate, channels) = (
+        crop_samples(audio.samples.as_ref(), audio.channels, snapshot.bounds)?,
+        audio.sample_rate,
+        audio.channels,
+    );
     if samples.is_empty() {
         return Err("Selection has no audio to export".to_string());
     }
@@ -183,11 +317,45 @@ fn write_selection_clip(
     )
 }
 
+fn write_slice_batch_clip(
+    absolute_path: &Path,
+    samples: &[f32],
+    snapshot: &SelectionSliceBatchExportSnapshot,
+    sample_rate: u32,
+    channels: u16,
+) -> Result<(), String> {
+    let mut prepared = PreparedSelectionClip {
+        samples: samples.to_vec(),
+        sample_rate,
+        channels,
+    };
+    if snapshot.apply_edge_fades {
+        let fade_duration = Duration::from_secs_f32(snapshot.edge_fade_ms.max(0.0) / 1000.0);
+        apply_short_edge_fades_to_clip(
+            &mut prepared.samples,
+            prepared.channels as usize,
+            prepared.sample_rate,
+            fade_duration,
+        );
+    }
+    super::write_wav(
+        absolute_path,
+        &prepared.samples,
+        prepared.sample_rate,
+        prepared.channels,
+    )
+}
+
 fn record_clip_entry(
     snapshot: &SelectionExportSnapshot,
     relative_path: PathBuf,
 ) -> Result<WavEntry, String> {
-    let entry = build_written_entry(snapshot, relative_path)?;
+    let entry = build_written_entry(
+        &snapshot.source_root,
+        relative_path,
+        snapshot.target_tag.unwrap_or(Rating::NEUTRAL),
+        snapshot.looped,
+    )?;
     let source = sample_source(snapshot);
     let db = SourceDatabase::open_fast(&source.root)
         .map_err(|err| format!("Database unavailable: {err}"))?;
@@ -211,7 +379,12 @@ fn record_crop_entry(
     snapshot: &SelectionExportSnapshot,
     relative_path: PathBuf,
 ) -> Result<WavEntry, String> {
-    let mut entry = build_written_entry(snapshot, relative_path)?;
+    let mut entry = build_written_entry(
+        &snapshot.source_root,
+        relative_path,
+        snapshot.target_tag.unwrap_or(Rating::NEUTRAL),
+        false,
+    )?;
     entry.looped = false;
     entry.tag = snapshot.target_tag.unwrap_or(Rating::NEUTRAL);
     let source = sample_source(snapshot);
@@ -224,11 +397,29 @@ fn record_crop_entry(
     Ok(entry)
 }
 
-fn build_written_entry(
-    snapshot: &SelectionExportSnapshot,
+fn record_slice_batch_entry(
+    snapshot: &SelectionSliceBatchExportSnapshot,
     relative_path: PathBuf,
 ) -> Result<WavEntry, String> {
-    let metadata = fs::metadata(snapshot.source_root.join(&relative_path))
+    let entry = build_written_entry(&snapshot.source_root, relative_path, Rating::NEUTRAL, false)?;
+    let source = SampleSource {
+        id: snapshot.source_id.clone(),
+        root: snapshot.source_root.clone(),
+    };
+    let db = SourceDatabase::open_fast(&source.root)
+        .map_err(|err| format!("Database unavailable: {err}"))?;
+    db.upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)
+        .map_err(|err| format!("Failed to register slice: {err}"))?;
+    Ok(entry)
+}
+
+fn build_written_entry(
+    source_root: &Path,
+    relative_path: PathBuf,
+    tag: Rating,
+    looped: bool,
+) -> Result<WavEntry, String> {
+    let metadata = fs::metadata(source_root.join(&relative_path))
         .map_err(|err| format!("Failed to read saved clip: {err}"))?;
     let modified_ns = metadata
         .modified()
@@ -241,8 +432,8 @@ fn build_written_entry(
         file_size: metadata.len(),
         modified_ns,
         content_hash: None,
-        tag: snapshot.target_tag.unwrap_or(Rating::NEUTRAL),
-        looped: snapshot.looped,
+        tag,
+        looped,
         locked: false,
         missing: false,
         last_played_at: None,

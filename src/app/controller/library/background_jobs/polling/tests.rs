@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::controller::jobs::{
     ClipboardPasteOutcome, ClipboardPasteResult, FileOpMessage, FileOpResult, FolderScanResult,
-    SearchResult,
+    SearchResult, SelectionExportMessage,
 };
 use crate::app::controller::playback::audio_loader::{AudioLoadOutcome, AudioTransientResult};
 use crate::app::controller::state::audio::PendingAudio;
@@ -245,6 +245,41 @@ fn file_ops_messages_update_progress_and_clear_active_overlay_on_finish() {
     assert!(!controller.runtime.jobs.file_ops_in_progress());
     assert!(!controller.ui.progress.visible);
     assert_eq!(controller.ui.progress.task, None);
+}
+
+#[test]
+fn selection_export_progress_message_updates_status_bar_progress() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.runtime.jobs.set_pending_slice_batch_export(Some(
+        crate::app::controller::jobs::PendingSliceBatchExport {
+            request_id: 23,
+            source_id: source.id.clone(),
+            relative_path: PathBuf::from("clip.wav"),
+        },
+    ));
+
+    controller.handle_background_job_message(JobMessage::SelectionExport(
+        SelectionExportMessage::Progress {
+            request_id: 23,
+            total: 4,
+            completed: 2,
+            detail: Some("Saving clip_slice002.wav".into()),
+        },
+    ));
+
+    assert!(controller.ui.progress.visible);
+    assert!(!controller.ui.progress.modal);
+    assert_eq!(
+        controller.ui.progress.task,
+        Some(ProgressTaskKind::SelectionExport)
+    );
+    assert_eq!(controller.ui.progress.total, 4);
+    assert_eq!(controller.ui.progress.completed, 2);
+    assert_eq!(
+        controller.ui.progress.detail.as_deref(),
+        Some("Saving clip_slice002.wav")
+    );
 }
 
 #[test]

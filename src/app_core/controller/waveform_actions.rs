@@ -37,6 +37,13 @@ pub(super) fn apply_waveform_native_ui_action(
             controller.set_transient_markers_enabled(enabled)
         }
         NativeUiAction::SetSliceModeEnabled { enabled } => {
+            if controller.loaded_waveform_slice_export_in_progress() {
+                controller.set_status(
+                    "Wait for the current slice export to finish",
+                    StatusTone::Info,
+                );
+                return Ok(());
+            }
             controller.set_slice_mode_enabled(enabled)
         }
         NativeUiAction::ToggleWaveformSliceSelection { index } => {
@@ -235,6 +242,13 @@ fn handle_delete_selected_slice_markers(controller: &mut AppController) {
     if !controller.ui.waveform.slice_mode_enabled {
         return;
     }
+    if controller.loaded_waveform_slice_export_in_progress() {
+        controller.set_status(
+            "Wait for the current slice export to finish",
+            StatusTone::Info,
+        );
+        return;
+    }
     let removed = controller.delete_selected_slices();
     if removed > 0 {
         controller.set_status(format!("Deleted {removed} slices"), StatusTone::Info);
@@ -245,6 +259,13 @@ fn handle_delete_selected_slice_markers(controller: &mut AppController) {
 
 fn handle_waveform_mute_action(controller: &mut AppController) {
     if controller.ui.waveform.slice_mode_enabled {
+        if controller.loaded_waveform_slice_export_in_progress() {
+            controller.set_status(
+                "Wait for the current slice export to finish",
+                StatusTone::Info,
+            );
+            return;
+        }
         let selected = controller.ui.waveform.selected_slices.len();
         if selected < 2 {
             controller.set_status("Select at least 2 slices to merge", StatusTone::Info);

@@ -1,6 +1,7 @@
 //! Request dispatch/state mutation methods for [`ControllerJobs`].
 
 use super::*;
+use std::path::Path;
 
 impl ControllerJobs {
     /// Return true when the requested source still has a pending waveform load.
@@ -69,6 +70,46 @@ impl ControllerJobs {
         pending: Option<PendingRecordingWaveform>,
     ) {
         self.pending_recording_waveform = pending;
+    }
+
+    /// Return the in-flight slice-batch export request, if any.
+    pub(in super::super) fn pending_slice_batch_export(&self) -> Option<PendingSliceBatchExport> {
+        self.pending_slice_batch_export.clone()
+    }
+
+    /// Replace the active slice-batch export request.
+    pub(in super::super) fn set_pending_slice_batch_export(
+        &mut self,
+        pending: Option<PendingSliceBatchExport>,
+    ) {
+        self.pending_slice_batch_export = pending;
+    }
+
+    /// Return whether the active slice-batch export still matches the provided waveform.
+    pub(in super::super) fn pending_slice_batch_export_matches(
+        &self,
+        request_id: u64,
+        source_id: &SourceId,
+        relative_path: &Path,
+    ) -> bool {
+        self.pending_slice_batch_export
+            .as_ref()
+            .is_some_and(|pending| {
+                pending.request_id == request_id
+                    && &pending.source_id == source_id
+                    && pending.relative_path == relative_path
+            })
+    }
+
+    /// Clear the active slice-batch export request when the request id still matches.
+    pub(in super::super) fn clear_pending_slice_batch_export(&mut self, request_id: u64) {
+        if self
+            .pending_slice_batch_export
+            .as_ref()
+            .is_some_and(|pending| pending.request_id == request_id)
+        {
+            self.pending_slice_batch_export = None;
+        }
     }
 
     /// Generate a request id for audio-load jobs.

@@ -204,8 +204,9 @@ mod tests {
         controller.ui.drag.pending_external_selection_request_id = Some(42);
 
         controller.apply_background_job_message_for_tests(
-            crate::app::controller::jobs::JobMessage::SelectionExportFinished(
-                crate::app::controller::jobs::SelectionExportResult::Clip {
+            crate::app::controller::jobs::JobMessage::SelectionExport(
+                crate::app::controller::jobs::SelectionExportMessage::Finished(
+                    crate::app::controller::jobs::SelectionExportResult::Clip {
                     request_id: 41,
                     result: Ok(crate::app::controller::jobs::SelectionClipExportSuccess {
                         request_id: 41,
@@ -227,7 +228,7 @@ mod tests {
                             crate::app::controller::jobs::SelectionClipDestination::ExternalDrag,
                         timings: Default::default(),
                     }),
-                },
+                }),
             ),
         );
 

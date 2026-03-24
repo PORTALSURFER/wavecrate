@@ -58,6 +58,13 @@ pub(crate) fn handle_waveform_command(
         }
         HotkeyCommand::DeleteSliceMarkers => {
             if controller.ui.waveform.slice_mode_enabled {
+                if controller.loaded_waveform_slice_export_in_progress() {
+                    controller.set_status(
+                        "Wait for the current slice export to finish",
+                        StatusTone::Info,
+                    );
+                    return true;
+                }
                 let removed = controller.delete_selected_slices();
                 if removed > 0 {
                     controller.set_status(format!("Deleted {removed} slices"), StatusTone::Info);
@@ -69,6 +76,13 @@ pub(crate) fn handle_waveform_command(
         }
         HotkeyCommand::MuteSelection => {
             if controller.ui.waveform.slice_mode_enabled {
+                if controller.loaded_waveform_slice_export_in_progress() {
+                    controller.set_status(
+                        "Wait for the current slice export to finish",
+                        StatusTone::Info,
+                    );
+                    return true;
+                }
                 let selected = controller.ui.waveform.selected_slices.len();
                 if selected < 2 {
                     controller.set_status("Select at least 2 slices to merge", StatusTone::Info);

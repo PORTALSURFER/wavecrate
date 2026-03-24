@@ -6,8 +6,11 @@ mod helpers;
 mod recording;
 /// Typed export/registration request objects used by the selection-export workflow.
 mod requests;
+/// Waveform slice-batch export orchestration.
+mod slice_batch;
 
 pub(crate) use self::background::run_selection_export_job;
+pub(crate) use self::background::run_slice_batch_export_job;
 use self::helpers::crop_selection_samples;
 pub(crate) use self::requests::{SelectionClipExportRequest, SelectionEntryRecordRequest};
 use super::selection_edits::apply_short_edge_fades_to_clip;
@@ -36,8 +39,7 @@ impl AppController {
             Err(err) => return Err(err),
         }
         if !self.ui.waveform.slices.is_empty() {
-            let count = self.accept_waveform_slices()?;
-            self.set_status(format!("Saved {count} slices"), StatusTone::Info);
+            self.start_waveform_slice_batch_export()?;
             return Ok(());
         }
         self.save_waveform_selection_to_browser(keep_source_focused)
