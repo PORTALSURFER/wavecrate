@@ -1,4 +1,8 @@
 //! Projection-key, pull, and motion-model runtime behavior for the native bridge.
+//!
+//! Sampled pull lifecycle traces stay at `debug` so default `info` logs are
+//! reserved for higher-value runtime outcomes, while bridge profiling remains
+//! opt-in through the feature/env-controlled metrics path.
 
 use super::{
     PendingModelPullPreparation, SempalNativeBridge,
@@ -23,7 +27,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tracing::info;
+use tracing::debug;
 
 impl SempalNativeBridge {
     /// Mark the cached projection key snapshot stale after controller mutation.
@@ -132,7 +136,7 @@ impl SempalNativeBridge {
         let prepare_start = profiling.then(Instant::now);
         let mut use_local_pull_fast_path = false;
         if call <= 24 {
-            info!(
+            debug!(
                 call,
                 local_only = use_local_pull_fast_path,
                 "native bridge: pull_model start"
@@ -141,7 +145,7 @@ impl SempalNativeBridge {
         self.flush_pending_input_actions();
         use_local_pull_fast_path = self.consume_local_model_pull_fast_path();
         if call <= 24 && use_local_pull_fast_path {
-            info!(call, "native bridge: pull_model using local-only fast path");
+            debug!(call, "native bridge: pull_model using local-only fast path");
         }
         if !use_local_pull_fast_path {
             let revisions_before_prepare = self.controller.ui.projection_revisions;
@@ -172,7 +176,7 @@ impl SempalNativeBridge {
             trace_pull_model_projection(project_duration);
         }
         if call <= 24 {
-            info!(
+            debug!(
                 call,
                 transport_running = model.transport_running,
                 browser_visible = model.browser.visible_count,
@@ -193,12 +197,12 @@ impl SempalNativeBridge {
         let profiling = bridge_profiling_enabled();
         let prepare_start = profiling.then(Instant::now);
         if call <= 24 {
-            info!(call, "native bridge: project_motion_model start");
+            debug!(call, "native bridge: project_motion_model start");
         }
         self.flush_pending_input_actions();
         if requires_full_pull {
             if call <= 24 {
-                info!(
+                debug!(
                     call,
                     "native bridge: project_motion_model escalated to full model pull"
                 );
@@ -224,7 +228,7 @@ impl SempalNativeBridge {
             trace_pull_motion_projection(project_duration);
         }
         if call <= 24 {
-            info!(call, "native bridge: project_motion_model completed");
+            debug!(call, "native bridge: project_motion_model completed");
         }
         if profiling && call.is_multiple_of(BRIDGE_PROFILE_INTERVAL) {
             maybe_log_bridge_profile();

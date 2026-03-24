@@ -1,4 +1,8 @@
 //! Action-reduction and queue-flush behavior for the native bridge.
+//!
+//! The bridge keeps per-call reduction traces at `debug` so default `info`
+//! logging stays readable while targeted investigations can still sample the
+//! early reduction flow.
 
 use super::{
     PendingWaveformActions, SempalNativeBridge,
@@ -19,7 +23,7 @@ use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::controller_state::{DerivedNodeId, DirtyReason};
 use crate::app_core::controller::AppControllerNativeRuntimeExt;
 use std::time::{Duration, Instant};
-use tracing::info;
+use tracing::debug;
 
 impl SempalNativeBridge {
     /// Apply browser-focus movement immediately so wheel/arrow nudges are visible in-frame.
@@ -145,7 +149,7 @@ impl SempalNativeBridge {
         let profiling = bridge_profiling_enabled();
         let action_start = profiling.then(Instant::now);
         if call <= 64 {
-            info!(call, delta, "native bridge: apply MoveBrowserFocus");
+            debug!(call, delta, "native bridge: apply MoveBrowserFocus");
         }
         self.apply_browser_focus_delta_immediately(delta);
         if profiling {
@@ -162,7 +166,7 @@ impl SempalNativeBridge {
         let profiling = bridge_profiling_enabled();
         let action_start = profiling.then(Instant::now);
         if call <= 64 {
-            info!(call, action = ?action, "native bridge: apply waveform preview action");
+            debug!(call, action = ?action, "native bridge: apply waveform preview action");
         }
         self.schedule_full_model_pull_preparation();
         self.apply_action_immediately(action);
@@ -184,7 +188,7 @@ impl SempalNativeBridge {
         let profiling = bridge_profiling_enabled();
         let action_start = profiling.then(Instant::now);
         if call <= 64 {
-            info!(call, action = ?action, "native bridge: queue waveform action");
+            debug!(call, action = ?action, "native bridge: queue waveform action");
         }
         if profiling {
             let action_duration =
@@ -202,7 +206,7 @@ impl SempalNativeBridge {
         let interaction_class = classify_action_interaction(&action);
         let action_start = profiling.then(Instant::now);
         if call <= 64 {
-            info!(call, action = ?action, "native bridge: reduce_action");
+            debug!(call, action = ?action, "native bridge: reduce_action");
         }
         self.apply_action_immediately(action);
         if profiling {

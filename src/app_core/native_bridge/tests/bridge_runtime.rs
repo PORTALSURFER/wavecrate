@@ -31,6 +31,22 @@ fn pull_model_bumps_segment_revisions_on_first_projection() {
     assert!(revisions.global_static > 0);
 }
 
+/// Repeated idle motion pulls should stay on the motion-only path without
+/// forcing a fallback full-model refresh.
+#[test]
+fn idle_motion_projection_stays_available_across_repeated_pulls() {
+    let mut bridge = test_bridge(16);
+
+    let first = bridge.project_motion_model_snapshot();
+    let second = bridge.project_motion_model_snapshot();
+    let third = bridge.project_motion_model_snapshot();
+
+    assert!(first.is_some());
+    assert!(second.is_some());
+    assert!(third.is_some());
+    assert!(!bridge.controller.has_dirty_derived_nodes());
+}
+
 /// No-op immediate focus movement should keep projection cache keys intact.
 #[test]
 fn apply_browser_focus_delta_immediate_noop_keeps_projection_cache_key() {

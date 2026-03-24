@@ -1,4 +1,8 @@
 //! Bridge profiling counters, snapshots, and trace hooks.
+//!
+//! Bridge profiling remains feature- and env-gated. Default `info` logs should
+//! stay high-signal, while sampled per-call bridge lifecycle traces remain
+//! available as debug-only diagnostics for focused local investigation.
 
 mod registry;
 mod reporting;
@@ -11,6 +15,8 @@ use super::projection_cache::ProjectionSegment;
 use crate::app_core::actions::NativeFrameBuildResult;
 #[cfg(feature = "native-bridge-metrics")]
 use std::sync::atomic::Ordering;
+#[cfg(not(feature = "native-bridge-metrics"))]
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 #[cfg(feature = "native-bridge-metrics")]
@@ -25,6 +31,19 @@ pub(super) use self::registry::{
 };
 pub(super) use self::reporting::maybe_log_bridge_profile;
 
+#[cfg(not(feature = "native-bridge-metrics"))]
+static FALLBACK_PULL_MODEL_CALL_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(not(feature = "native-bridge-metrics"))]
+static FALLBACK_PULL_MOTION_CALL_COUNT: AtomicU64 = AtomicU64::new(0);
+#[cfg(not(feature = "native-bridge-metrics"))]
+static FALLBACK_ACTION_CALL_COUNT: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(not(feature = "native-bridge-metrics"))]
+#[inline(always)]
+fn trace_fallback_call(counter: &AtomicU64) -> u64 {
+    counter.fetch_add(1, Ordering::Relaxed) + 1
+}
+
 #[cfg(feature = "native-bridge-metrics")]
 pub(super) fn trace_pull_model_call() -> u64 {
     BRIDGE_METRICS
@@ -35,7 +54,7 @@ pub(super) fn trace_pull_model_call() -> u64 {
 #[cfg(not(feature = "native-bridge-metrics"))]
 #[inline(always)]
 pub(super) fn trace_pull_model_call() -> u64 {
-    1
+    trace_fallback_call(&FALLBACK_PULL_MODEL_CALL_COUNT)
 }
 
 #[cfg(feature = "native-bridge-metrics")]
@@ -48,7 +67,7 @@ pub(super) fn trace_pull_motion_call() -> u64 {
 #[cfg(not(feature = "native-bridge-metrics"))]
 #[inline(always)]
 pub(super) fn trace_pull_motion_call() -> u64 {
-    1
+    trace_fallback_call(&FALLBACK_PULL_MOTION_CALL_COUNT)
 }
 
 #[cfg(feature = "native-bridge-metrics")]
@@ -58,7 +77,7 @@ pub(super) fn trace_action_call() -> u64 {
 #[cfg(not(feature = "native-bridge-metrics"))]
 #[inline(always)]
 pub(super) fn trace_action_call() -> u64 {
-    1
+    trace_fallback_call(&FALLBACK_ACTION_CALL_COUNT)
 }
 
 #[cfg(feature = "native-bridge-metrics")]
@@ -284,6 +303,35 @@ pub(super) fn trace_waveform_flush(duration: Duration, emitted_actions: u64) {
 #[inline(always)]
 /// No-op waveform flush tracer for non-profiling builds.
 pub(super) fn trace_waveform_flush(_duration: Duration, _emitted_actions: u64) {}
+
+#[cfg(test)]
+mod tests {
+    use super::{trace_action_call, trace_pull_model_call, trace_pull_motion_call};
+
+    fn assert_monotonic_increase(mut trace_call: impl FnMut() -> u64) {
+        let first = trace_call();
+        let second = trace_call();
+        let third = trace_call();
+
+        assert!(second > first);
+        assert!(third > second);
+    }
+
+    #[test]
+    fn pull_model_call_trace_is_monotonic() {
+        assert_monotonic_increase(trace_pull_model_call);
+    }
+
+    #[test]
+    fn pull_motion_call_trace_is_monotonic() {
+        assert_monotonic_increase(trace_pull_motion_call);
+    }
+
+    #[test]
+    fn action_call_trace_is_monotonic() {
+        assert_monotonic_increase(trace_action_call);
+    }
+}
 
 #[cfg(feature = "native-bridge-metrics")]
 #[inline(always)]
