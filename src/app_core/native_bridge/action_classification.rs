@@ -27,6 +27,7 @@ pub(super) fn classify_action_interaction(
         NativeUiAction::SeekWaveformPrecise { .. }
         | NativeUiAction::SetWaveformCursorPrecise { .. }
         | NativeUiAction::PlayFromWaveformCursor
+        | NativeUiAction::PlayWaveformAtPrecise { .. }
         | NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::SetWaveformViewCenter { .. }

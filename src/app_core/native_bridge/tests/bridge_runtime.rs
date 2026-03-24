@@ -246,12 +246,14 @@ fn mark_dirty_for_waveform_action_marks_graph_nodes() {
     );
 }
 
-/// Cursor-first waveform playback should still dirty the transport graph.
+/// Exact-position waveform click-play should still dirty the transport graph.
 #[test]
-fn mark_dirty_for_waveform_cursor_playback_marks_transport_state_dirty() {
+fn mark_dirty_for_waveform_click_play_marks_transport_state_dirty() {
     let mut bridge = test_bridge(16);
 
-    bridge.mark_dirty_for_action(&NativeUiAction::PlayFromWaveformCursor);
+    bridge.mark_dirty_for_action(&NativeUiAction::PlayWaveformAtPrecise {
+        position_nanos: 420_000_000,
+    });
 
     assert!(
         bridge

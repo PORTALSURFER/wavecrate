@@ -168,7 +168,7 @@ fn play_from_current_playhead_prefers_visible_playhead_position() {
 }
 
 #[test]
-fn play_from_waveform_cursor_prefers_cursor_position_over_visible_playhead() {
+fn play_waveform_at_precise_starts_from_clicked_position_over_visible_playhead() {
     let (mut controller, source) = dummy_controller();
     prepare_browser_sample(&mut controller, &source, "click-play.wav");
     controller.select_wav_by_path(Path::new("click-play.wav"));
@@ -176,10 +176,9 @@ fn play_from_waveform_cursor_prefers_cursor_position_over_visible_playhead() {
     controller.ui.waveform.playhead.visible = true;
     controller.ui.waveform.playhead.position = 0.84;
 
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformCursorPrecise {
+    controller.apply_native_ui_action(NativeUiAction::PlayWaveformAtPrecise {
         position_nanos: 330_000_000,
     });
-    controller.apply_native_ui_action(NativeUiAction::PlayFromWaveformCursor);
 
     let pending = controller
         .runtime

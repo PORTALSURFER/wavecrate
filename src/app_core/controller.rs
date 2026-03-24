@@ -200,6 +200,9 @@ fn apply_transport_native_ui_action(
         NativeUiAction::PlayFromWaveformCursor => {
             controller.play_from_cursor();
         }
+        NativeUiAction::PlayWaveformAtPrecise { position_nanos } => {
+            controller.seek_waveform_nanos(position_nanos);
+        }
         NativeUiAction::ToggleTransport => controller.toggle_play_pause(),
         NativeUiAction::HandleEscape => controller.handle_escape(),
         NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),

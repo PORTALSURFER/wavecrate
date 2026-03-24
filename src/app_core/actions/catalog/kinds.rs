@@ -18,6 +18,8 @@ pub enum GuiActionKind {
     PlayFromCurrentPlayhead,
     /// Start waveform click-play from the waveform cursor position.
     PlayFromWaveformCursor,
+    /// Start waveform click-play from one exact nanounit position.
+    PlayWaveformAtPrecise,
     /// Apply the shell-wide escape-key behavior.
     HandleEscape,
     /// Move focus into the browser panel.
@@ -304,13 +306,14 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 147] = [
+    pub const ALL: [Self; 148] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
         Self::PlayFromStart,
         Self::PlayFromCurrentPlayhead,
         Self::PlayFromWaveformCursor,
+        Self::PlayWaveformAtPrecise,
         Self::HandleEscape,
         Self::FocusBrowserPanel,
         Self::FocusSourcesPanel,

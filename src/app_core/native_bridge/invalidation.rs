@@ -146,6 +146,7 @@ pub(super) fn classify_dirty_source(
         NativeUiAction::PlayFromStart
         | NativeUiAction::PlayFromCurrentPlayhead
         | NativeUiAction::PlayFromWaveformCursor
+        | NativeUiAction::PlayWaveformAtPrecise { .. }
         | NativeUiAction::ToggleTransport
         | NativeUiAction::ToggleLoopPlayback
         | NativeUiAction::SetVolume { .. }

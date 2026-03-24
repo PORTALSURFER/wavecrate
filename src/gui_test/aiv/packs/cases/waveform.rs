@@ -43,12 +43,12 @@ pub(crate) fn waveform_click_play_case() -> GuiAivCase {
             wait_for_node("waveform.region"),
             click_node("waveform.region", Some(80), Some(50)),
             assert_step(GuiAivAssertion::AssertActionRecorded {
-                action_id: String::from("play_from_waveform_cursor"),
+                action_id: String::from("play_waveform_at_precise"),
             }),
             screenshot("waveform-click-play"),
         ],
         expected_assertions: vec![GuiAivAssertion::AssertActionRecorded {
-            action_id: String::from("play_from_waveform_cursor"),
+            action_id: String::from("play_waveform_at_precise"),
         }],
     }
 }
