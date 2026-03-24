@@ -20,8 +20,9 @@ pub(super) use options_prompt::{options_open_close_case, prompt_cancel_case, pro
 pub(super) use startup::startup_ready_case;
 pub(super) use update::update_panel_actions_case;
 pub(super) use waveform::{
-    transport_volume_slider_drag_case, waveform_outside_click_clears_both_marks_case,
-    waveform_transport_button_case, waveform_transport_cursor_selection_zoom_case,
+    transport_volume_slider_drag_case, waveform_click_seek_case,
+    waveform_outside_click_clears_both_marks_case, waveform_transport_button_case,
+    waveform_transport_cursor_selection_zoom_case,
 };
 
 const BROWSER_SCROLL_VIEWPORT: [u32; 2] = [1280, 720];

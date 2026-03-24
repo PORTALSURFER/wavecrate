@@ -21,6 +21,7 @@ pub(crate) fn seek_to(controller: &mut AppController, position: f64) {
 /// Queue a waveform seek request and defer playback restart to frame prep.
 pub(crate) fn queue_waveform_seek_nanos(controller: &mut AppController, position_nanos: u32) {
     let clamped = position_nanos.min(1_000_000_000);
+    super::selection::cancel_click_armed_selection_drag(controller);
     clear_selection_for_outside_waveform_seek(controller, normalized64_from_nanos(clamped));
     controller.set_waveform_cursor_nanos(clamped);
     if should_commit_waveform_seek_immediately(controller) {
@@ -195,6 +196,45 @@ mod tests {
             Some(750_000_000)
         );
         assert_eq!(controller.ui.waveform.cursor, Some(0.75));
+    }
+
+    #[test]
+    fn queue_waveform_seek_nanos_cancels_click_armed_selection_drag() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        seed_waveform_ready_for_seek(&mut controller);
+        super::selection::start_selection_drag(&mut controller, 0.25);
+
+        assert!(controller.selection_state.range.is_creating());
+        assert!(controller.selection_state.pending_undo.is_some());
+
+        queue_waveform_seek_nanos(&mut controller, 750_000_000);
+
+        assert!(!controller.selection_state.range.is_dragging());
+        assert!(controller.selection_state.pending_undo.is_none());
+        assert_eq!(
+            controller.runtime.pending_waveform_seek_nanos,
+            Some(750_000_000)
+        );
+        assert_eq!(controller.ui.waveform.cursor, Some(0.75));
+    }
+
+    #[test]
+    fn queue_waveform_seek_nanos_clears_existing_selection_after_canceling_click_arm() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        seed_waveform_ready_for_seek(&mut controller);
+        let selection = SelectionRange::new(0.2, 0.4);
+        controller.selection_state.range.set_range(Some(selection));
+        controller.apply_selection(Some(selection));
+        super::selection::start_selection_drag(&mut controller, 0.7);
+
+        assert!(controller.selection_state.range.is_creating());
+
+        queue_waveform_seek_nanos(&mut controller, 750_000_000);
+
+        assert!(!controller.selection_state.range.is_dragging());
+        assert!(controller.selection_state.range.range().is_none());
+        assert!(controller.ui.waveform.selection.is_none());
+        assert!(controller.selection_state.pending_undo.is_none());
     }
 
     #[test]

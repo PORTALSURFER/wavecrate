@@ -117,6 +117,22 @@ pub(crate) fn finish_selection_drag(controller: &mut AppController) {
     adjust_playback_after_selection_change(controller);
 }
 
+/// Cancel one click-armed playback-selection drag without committing playback effects.
+///
+/// Plain waveform click-to-seek arms selection creation on press so real drags
+/// can extend into a range, but release-without-drag should not leave the
+/// controller in a latent drag state or produce an undo entry. This helper
+/// clears only that inert armed state and preserves any existing visible
+/// selection until the follow-up seek/clear behavior runs.
+pub(crate) fn cancel_click_armed_selection_drag(controller: &mut AppController) {
+    if !controller.selection_state.range.is_creating() {
+        return;
+    }
+    controller.selection_state.range.finish_drag();
+    controller.selection_state.bpm_scale_beats = None;
+    controller.selection_state.pending_undo = None;
+}
+
 pub(crate) fn finish_edit_selection_drag(controller: &mut AppController) {
     controller.selection_state.edit_range.finish_drag();
     controller.commit_edit_selection_undo();
@@ -433,6 +449,22 @@ mod tests {
     }
 
     #[test]
+    fn cancel_click_armed_selection_drag_clears_pending_drag_and_undo() {
+        let (mut controller, _source) = test_support::dummy_controller();
+
+        start_selection_drag(&mut controller, 0.25);
+
+        assert!(controller.selection_state.range.is_creating());
+        assert!(controller.selection_state.pending_undo.is_some());
+
+        cancel_click_armed_selection_drag(&mut controller);
+
+        assert!(!controller.selection_state.range.is_dragging());
+        assert!(controller.selection_state.range.range().is_none());
+        assert!(controller.selection_state.pending_undo.is_none());
+    }
+
+    #[test]
     fn start_selection_drag_preserves_existing_visible_selection_until_motion() {
         let (mut controller, _source) = test_support::dummy_controller();
         let existing = SelectionRange::new(0.2, 0.4);
@@ -444,5 +476,21 @@ mod tests {
         assert_eq!(controller.ui.waveform.selection, Some(existing));
         assert_eq!(controller.selection_state.range.range(), Some(existing));
         assert!(controller.selection_state.range.is_creating());
+    }
+
+    #[test]
+    fn cancel_click_armed_selection_drag_preserves_existing_visible_selection() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        let existing = SelectionRange::new(0.2, 0.4);
+        controller.selection_state.range.set_range(Some(existing));
+        controller.apply_selection(Some(existing));
+
+        start_selection_drag(&mut controller, 0.7);
+        cancel_click_armed_selection_drag(&mut controller);
+
+        assert_eq!(controller.selection_state.range.range(), Some(existing));
+        assert_eq!(controller.ui.waveform.selection, Some(existing));
+        assert!(!controller.selection_state.range.is_dragging());
+        assert!(controller.selection_state.pending_undo.is_none());
     }
 }

@@ -10,7 +10,8 @@ use self::cases::{
     browser_search_type_smoke_case, browser_tabs_and_rating_filters_case,
     browser_wheel_scroll_uses_rendered_viewport_case, options_open_close_case, prompt_cancel_case,
     prompt_confirm_case, startup_ready_case, transport_volume_slider_drag_case,
-    update_panel_actions_case, waveform_outside_click_clears_both_marks_case,
+    update_panel_actions_case, waveform_click_seek_case,
+    waveform_outside_click_clears_both_marks_case,
     waveform_transport_button_case, waveform_transport_cursor_selection_zoom_case,
 };
 use super::{
@@ -60,6 +61,7 @@ fn desktop_regression_pack() -> GuiAivSuiteManifest {
             prompt_cancel_case(),
             waveform_transport_button_case(),
             transport_volume_slider_drag_case(),
+            waveform_click_seek_case(),
             waveform_transport_cursor_selection_zoom_case(),
             waveform_outside_click_clears_both_marks_case(),
             update_panel_actions_case(),
@@ -109,6 +111,7 @@ mod tests {
                 "prompt_cancel",
                 "waveform_transport_button",
                 "transport_volume_slider_drag",
+                "waveform_click_seek",
                 "waveform_transport_cursor_selection_zoom",
                 "waveform_outside_click_clears_both_marks",
                 "update_panel_actions",

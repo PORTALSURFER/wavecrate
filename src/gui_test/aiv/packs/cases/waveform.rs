@@ -33,6 +33,26 @@ pub(crate) fn waveform_transport_cursor_selection_zoom_case() -> GuiAivCase {
     }
 }
 
+pub(crate) fn waveform_click_seek_case() -> GuiAivCase {
+    GuiAivCase {
+        name: String::from("waveform_click_seek"),
+        fixture_tag: String::from("waveform"),
+        viewport: DEFAULT_VIEWPORT,
+        window_title: String::from(GUI_TEST_WINDOW_TITLE),
+        steps: vec![
+            wait_for_node("waveform.region"),
+            click_node("waveform.region", Some(80), Some(50)),
+            assert_step(GuiAivAssertion::AssertActionRecorded {
+                action_id: String::from("seek_waveform_precise"),
+            }),
+            screenshot("waveform-click-seek"),
+        ],
+        expected_assertions: vec![GuiAivAssertion::AssertActionRecorded {
+            action_id: String::from("seek_waveform_precise"),
+        }],
+    }
+}
+
 pub(crate) fn waveform_transport_button_case() -> GuiAivCase {
     GuiAivCase {
         name: String::from("waveform_transport_button"),
