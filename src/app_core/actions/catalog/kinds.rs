@@ -98,6 +98,8 @@ pub enum GuiActionKind {
     CommitFocusedBrowserRow,
     /// Save the current waveform selection back to the browser/sample metadata.
     SaveWaveformSelectionToBrowser,
+    /// Detect silence-separated waveform slices and preview them for export.
+    DetectWaveformSilenceSlices,
     /// Toggle selection on one browser row.
     ToggleBrowserRowSelection,
     /// Extend browser selection through one row.
@@ -218,6 +220,8 @@ pub enum GuiActionKind {
     ToggleBpmSnap,
     /// Enable or disable waveform slice mode.
     SetSliceModeEnabled,
+    /// Toggle selection for one previewed waveform slice.
+    ToggleWaveformSliceSelection,
     /// Set transport volume.
     SetVolume,
     /// Commit the current volume setting after an interactive edit.
@@ -298,7 +302,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 144] = [
+    pub const ALL: [Self; 146] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -345,6 +349,7 @@ impl GuiActionKind {
         Self::FocusBrowserRow,
         Self::CommitFocusedBrowserRow,
         Self::SaveWaveformSelectionToBrowser,
+        Self::DetectWaveformSilenceSlices,
         Self::ToggleBrowserRowSelection,
         Self::ExtendBrowserSelectionToRow,
         Self::AddRangeBrowserSelection,
@@ -405,6 +410,7 @@ impl GuiActionKind {
         Self::ToggleTransientMarkers,
         Self::ToggleBpmSnap,
         Self::SetSliceModeEnabled,
+        Self::ToggleWaveformSliceSelection,
         Self::SetVolume,
         Self::CommitVolumeSetting,
         Self::SeekWaveformPrecise,

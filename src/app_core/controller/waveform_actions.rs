@@ -39,6 +39,10 @@ pub(super) fn apply_waveform_native_ui_action(
         NativeUiAction::SetSliceModeEnabled { enabled } => {
             controller.set_slice_mode_enabled(enabled)
         }
+        NativeUiAction::ToggleWaveformSliceSelection { index } => {
+            controller.toggle_slice_selection(index);
+            controller.focus_waveform_context();
+        }
         NativeUiAction::SeekWaveformPrecise { position_nanos } => {
             controller.queue_waveform_seek_nanos(position_nanos)
         }
@@ -133,6 +137,9 @@ pub(super) fn apply_waveform_native_ui_action(
         NativeUiAction::FinishWaveformEditSelectionDrag => controller.finish_edit_selection_drag(),
         NativeUiAction::SaveWaveformSelectionToBrowser => {
             controller.save_waveform_selection_or_slices_to_browser_action(true)
+        }
+        NativeUiAction::DetectWaveformSilenceSlices => {
+            controller.detect_waveform_silence_slices_action();
         }
         NativeUiAction::ClearWaveformSelection => controller.clear_waveform_selection_with_focus(),
         NativeUiAction::ClearWaveformEditSelection => {

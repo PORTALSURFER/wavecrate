@@ -2,9 +2,11 @@ use super::AppController;
 use super::MIN_SELECTION_WIDTH;
 use super::selection_export::SelectionEntryRecordRequest;
 use crate::analysis::audio::{detect_non_silent_ranges, downmix_to_mono_into};
+use crate::app::controller::StatusTone;
 use crate::app::controller::playback::audio_samples::{
     DecodedSamples, crop_samples, decode_samples_from_bytes, write_wav,
 };
+use crate::app::state::WaveformSliceBatchProfile;
 use crate::sample_sources::SampleSource;
 use crate::selection::SelectionRange;
 use std::cmp::Ordering;
@@ -13,7 +15,7 @@ use std::path::{Path, PathBuf};
 mod ops;
 
 impl AppController {
-    /// Detect non-silent slice ranges for the loaded waveform and store them in UI state.
+    /// Detect silence-split slice ranges for the loaded waveform and store them in UI state.
     pub(crate) fn detect_waveform_slices_from_silence(&mut self) -> Result<usize, String> {
         let audio = self
             .sample_view
@@ -28,18 +30,7 @@ impl AppController {
         if total_frames == 0 {
             return Err("No audio data to slice".into());
         }
-        let mut slices = Vec::new();
-        let use_transients = self.ui.waveform.transient_markers_enabled
-            && self.ui.waveform.transient_snap_enabled
-            && !self.ui.waveform.transients.is_empty();
-        let transients = if use_transients {
-            let mut positions = self.ui.waveform.transients.to_vec();
-            positions.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-            positions
-        } else {
-            Vec::new()
-        };
-        let non_silent_ranges = detect_non_silent_ranges(&mono, decoded.sample_rate)
+        let slices = detect_non_silent_ranges(&mono, decoded.sample_rate)
             .into_iter()
             .map(|(start, end)| {
                 let start_norm = start as f32 / total_frames as f32;
@@ -48,20 +39,38 @@ impl AppController {
             })
             .filter(|range| range.width() >= MIN_SELECTION_WIDTH)
             .collect::<Vec<_>>();
-        if use_transients {
-            append_slices_from_transients(&mut slices, &non_silent_ranges, &transients);
-        } else {
-            slices.extend(non_silent_ranges);
-        }
         self.ui.waveform.slices = slices;
         self.ui.waveform.selected_slices.clear();
+        self.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::SilenceSplit;
+        self.ui.waveform.slice_mode_enabled = true;
+        if self.ui.waveform.slices.is_empty() {
+            self.clear_waveform_slices();
+            self.set_status("No audible slices found", StatusTone::Info);
+            return Ok(0);
+        }
+        self.set_status(
+            format!(
+                "Detected {} silence slices. Press Enter to export them.",
+                self.ui.waveform.slices.len()
+            ),
+            StatusTone::Info,
+        );
         Ok(self.ui.waveform.slices.len())
+    }
+
+    /// Run silence-only slice detection and surface any failure via status UI.
+    pub(crate) fn detect_waveform_silence_slices_action(&mut self) {
+        if let Err(err) = self.detect_waveform_slices_from_silence() {
+            self.set_error_status(err);
+        }
+        self.focus_waveform_context();
     }
 
     /// Clear any detected slice ranges from the waveform view.
     pub(crate) fn clear_waveform_slices(&mut self) {
         self.ui.waveform.slices.clear();
         self.ui.waveform.selected_slices.clear();
+        self.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::Manual;
     }
 
     /// Apply a manually painted slice, cutting it out of any overlapping slices.
@@ -73,6 +82,7 @@ impl AppController {
         };
         self.ui.waveform.slices = updated;
         self.ui.waveform.selected_slices.clear();
+        self.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::Manual;
         true
     }
 
@@ -91,6 +101,7 @@ impl AppController {
         )?;
         self.ui.waveform.slices = updated.slices;
         self.ui.waveform.selected_slices = updated.selected_indices;
+        self.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::Manual;
         updated.new_index
     }
 
@@ -118,10 +129,11 @@ impl AppController {
             return Err("No slices to export".into());
         }
         let (source, relative_path, decoded) = self.slice_export_context()?;
+        let profile = self.ui.waveform.slice_batch_profile;
         let mut counter = 1usize;
-        let exported = self.export_slice_batch(&source, &relative_path, &decoded, &mut counter)?;
-        self.ui.waveform.slices.clear();
-        self.ui.waveform.selected_slices.clear();
+        let exported =
+            self.export_slice_batch(&source, &relative_path, &decoded, profile, &mut counter)?;
+        self.clear_waveform_slices();
         Ok(exported)
     }
 
@@ -161,6 +173,7 @@ impl AppController {
             }
         }
         self.ui.waveform.selected_slices.clear();
+        self.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::Manual;
         removed
     }
 
@@ -205,6 +218,7 @@ impl AppController {
             .position(|slice| *slice == merged)
             .unwrap_or(0);
         self.ui.waveform.selected_slices = vec![merged_index];
+        self.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::Manual;
         Some(merged)
     }
 
@@ -213,11 +227,12 @@ impl AppController {
         source: &SampleSource,
         relative_path: &Path,
         decoded: &DecodedSamples,
+        profile: WaveformSliceBatchProfile,
         counter: &mut usize,
     ) -> Result<usize, String> {
         let mut exported = 0usize;
         for slice in self.ui.waveform.slices.clone() {
-            self.export_single_slice(source, relative_path, decoded, slice, counter)?;
+            self.export_single_slice(source, relative_path, decoded, slice, profile, counter)?;
             exported += 1;
         }
         Ok(exported)
@@ -229,10 +244,11 @@ impl AppController {
         relative_path: &Path,
         decoded: &DecodedSamples,
         slice: SelectionRange,
+        profile: WaveformSliceBatchProfile,
         counter: &mut usize,
     ) -> Result<(), String> {
         let samples = crop_samples(&decoded.samples, decoded.channels, slice)?;
-        let target_rel = self.next_slice_path_in_dir(source, relative_path, counter);
+        let target_rel = self.next_slice_path_in_dir(source, relative_path, profile, counter);
         let target_abs = source.root.join(&target_rel);
         write_wav(&target_abs, &samples, decoded.sample_rate, decoded.channels)?;
         self.record_selection_entry(SelectionEntryRecordRequest {
@@ -269,6 +285,7 @@ impl AppController {
         &self,
         source: &SampleSource,
         original: &Path,
+        profile: WaveformSliceBatchProfile,
         counter: &mut usize,
     ) -> PathBuf {
         let parent = original.parent().unwrap_or_else(|| Path::new(""));
@@ -277,9 +294,15 @@ impl AppController {
             .and_then(|s| s.to_str())
             .filter(|s| !s.is_empty())
             .unwrap_or("slice");
-        let stem = strip_slice_suffix(stem);
+        let stem = match profile {
+            WaveformSliceBatchProfile::Manual => strip_numbered_suffix(stem, "slice"),
+            WaveformSliceBatchProfile::SilenceSplit => strip_numbered_suffix(stem, "silence_split"),
+        };
         loop {
-            let suffix = format!("slice{:03}", counter);
+            let suffix = match profile {
+                WaveformSliceBatchProfile::Manual => format!("slice{:03}", counter),
+                WaveformSliceBatchProfile::SilenceSplit => format!("silence_split_{:03}", counter),
+            };
             let candidate = parent.join(format!("{stem}_{suffix}.wav"));
             let absolute = source.root.join(&candidate);
             if !absolute.exists() {
@@ -291,47 +314,13 @@ impl AppController {
     }
 }
 
-fn strip_slice_suffix(stem: &str) -> &str {
-    if let Some((prefix, suffix)) = stem.rsplit_once("_slice")
-        && !prefix.is_empty()
-        && !suffix.is_empty()
-        && suffix.chars().all(|c| c.is_ascii_digit())
-    {
-        return prefix;
+fn strip_numbered_suffix<'a>(stem: &'a str, suffix: &str) -> &'a str {
+    if let Some((prefix, tail)) = stem.rsplit_once(&format!("_{suffix}")) {
+        if !prefix.is_empty() && !tail.is_empty() && tail.chars().all(|c| c.is_ascii_digit()) {
+            return prefix;
+        }
     }
     stem
-}
-
-fn append_slices_from_transients(
-    slices: &mut Vec<SelectionRange>,
-    non_silent_ranges: &[SelectionRange],
-    transients: &[f32],
-) {
-    if non_silent_ranges.is_empty() {
-        return;
-    }
-    let mut points = Vec::with_capacity(transients.len() + 2);
-    points.push(0.0);
-    points.extend(
-        transients
-            .iter()
-            .copied()
-            .filter(|marker| *marker > 0.0 && *marker < 1.0),
-    );
-    points.push(1.0);
-    points.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-    for pair in points.windows(2) {
-        let slice = SelectionRange::new(pair[0], pair[1]);
-        if slice.width() < MIN_SELECTION_WIDTH {
-            continue;
-        }
-        if non_silent_ranges
-            .iter()
-            .any(|range| ops::ranges_overlap(*range, slice))
-        {
-            slices.push(slice);
-        }
-    }
 }
 
 #[cfg(test)]

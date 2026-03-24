@@ -51,6 +51,7 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
                 normalized_to_micros(selection.end()),
             )
         }),
+        slices: project_waveform_slice_previews(ui),
         selection_export_flash_nonce: ui.waveform.selection_export_flash_nonce,
         edit_selection_milli: project_waveform_edit_selection_milli(ui),
         edit_fade_in_end_milli: fade_overlay.fade_in_end_milli,
@@ -176,6 +177,24 @@ pub(super) fn project_waveform_edit_selection_milli(ui: &UiState) -> Option<Norm
             normalized_to_micros(selection.end()),
         )
     })
+}
+
+/// Project waveform slice previews into the native runtime model.
+pub(super) fn project_waveform_slice_previews(
+    ui: &UiState,
+) -> Vec<radiant::app::WaveformSlicePreviewModel> {
+    ui.waveform
+        .slices
+        .iter()
+        .enumerate()
+        .map(|(index, slice)| radiant::app::WaveformSlicePreviewModel {
+            range: NormalizedRangeModel::from_micros(
+                normalized_to_micros(slice.start()),
+                normalized_to_micros(slice.end()),
+            ),
+            selected: ui.waveform.selected_slices.contains(&index),
+        })
+        .collect()
 }
 
 /// Project edit fade-handle positions into normalized milli and micro space.

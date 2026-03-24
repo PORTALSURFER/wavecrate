@@ -27,6 +27,8 @@ pub struct WaveformState {
     pub edit_selection: Option<SelectionRange>,
     /// Detected slice ranges for the current waveform.
     pub slices: Vec<SelectionRange>,
+    /// Batch origin that determines how slice exports should be named.
+    pub slice_batch_profile: WaveformSliceBatchProfile,
     /// Indices of slice ranges currently selected for edits.
     pub selected_slices: Vec<usize>,
     /// When true, waveform drags paint slice ranges instead of selection.
@@ -89,6 +91,19 @@ pub struct WaveformState {
     pub selection_export_flash_nonce: u64,
 }
 
+/// Origin of the currently prepared waveform slice batch.
+///
+/// The controller uses this to keep export naming predictable for previewed
+/// silence-split batches while preserving the existing manual slice naming
+/// convention for user-authored slices.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WaveformSliceBatchProfile {
+    /// Slice batch created manually or by legacy slice tools.
+    Manual,
+    /// Slice batch created from silence-only detection.
+    SilenceSplit,
+}
+
 impl Default for WaveformState {
     fn default() -> Self {
         Self {
@@ -101,6 +116,7 @@ impl Default for WaveformState {
             selection_duration: None,
             edit_selection: None,
             slices: Vec::new(),
+            slice_batch_profile: WaveformSliceBatchProfile::Manual,
             selected_slices: Vec::new(),
             slice_mode_enabled: false,
             hover_time_label: None,
@@ -226,12 +242,13 @@ pub struct PlayheadTrailSample {
 
 #[cfg(test)]
 mod tests {
-    use super::WaveformState;
+    use super::{WaveformSliceBatchProfile, WaveformState};
 
     #[test]
     fn waveform_state_defaults_without_image_signature() {
         let state = WaveformState::default();
         assert!(state.image.is_none());
         assert!(state.waveform_image_signature.is_none());
+        assert_eq!(state.slice_batch_profile, WaveformSliceBatchProfile::Manual);
     }
 }

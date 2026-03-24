@@ -17,7 +17,7 @@ pub(crate) fn clear_waveform_view(controller: &mut AppController) {
     controller.ui.waveform.selection = None;
     controller.ui.waveform.selection_duration = None;
     controller.ui.waveform.edit_selection = None;
-    controller.ui.waveform.slices.clear();
+    controller.clear_waveform_slices();
     controller.ui.waveform.view = WaveformView::default();
     controller.selection_state.range.clear();
     controller.selection_state.edit_range.clear();

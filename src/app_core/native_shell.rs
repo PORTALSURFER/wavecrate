@@ -167,6 +167,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
                 waveform_projection::normalized_to_micros(selection.end()),
             )
         }),
+        waveform_slices: waveform_projection::project_waveform_slice_previews(&controller.ui),
         waveform_selection_export_flash_nonce: controller.ui.waveform.selection_export_flash_nonce,
         waveform_edit_selection_milli: waveform_projection::project_waveform_edit_selection_milli(
             &controller.ui,

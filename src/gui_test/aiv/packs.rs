@@ -11,8 +11,8 @@ use self::cases::{
     browser_wheel_scroll_uses_rendered_viewport_case, options_open_close_case, prompt_cancel_case,
     prompt_confirm_case, startup_ready_case, transport_volume_slider_drag_case,
     update_panel_actions_case, waveform_click_seek_case,
-    waveform_outside_click_clears_both_marks_case,
-    waveform_transport_button_case, waveform_transport_cursor_selection_zoom_case,
+    waveform_outside_click_clears_both_marks_case, waveform_transport_button_case,
+    waveform_transport_cursor_selection_zoom_case,
 };
 use super::{
     DEFAULT_GUI_AIV_PACK, GUI_AIV_SCHEMA_VERSION, GUI_TEST_WINDOW_TITLE, GuiAivSuiteManifest,

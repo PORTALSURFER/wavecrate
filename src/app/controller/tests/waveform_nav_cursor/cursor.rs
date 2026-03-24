@@ -20,7 +20,10 @@ fn play_from_cursor_prefers_cursor_position() {
         .pending_playback
         .as_ref()
         .expect("pending playback request");
-    assert_eq!(pending.start_override, controller.ui.waveform.cursor.map(f64::from));
+    assert_eq!(
+        pending.start_override,
+        controller.ui.waveform.cursor.map(f64::from)
+    );
     assert_eq!(controller.ui.waveform.last_start_marker, Some(0.33));
 }
 

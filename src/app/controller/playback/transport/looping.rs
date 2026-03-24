@@ -275,10 +275,7 @@ mod tests {
         controller.ui.waveform.cursor = Some(0.55);
         controller.ui.waveform.last_start_marker = Some(0.19);
         let with_cursor = loop_restart_start_override(&controller, None);
-        assert_eq!(
-            with_cursor,
-            controller.ui.waveform.cursor.map(f64::from)
-        );
+        assert_eq!(with_cursor, controller.ui.waveform.cursor.map(f64::from));
 
         controller.ui.waveform.cursor = None;
         let with_last_marker = loop_restart_start_override(&controller, None);

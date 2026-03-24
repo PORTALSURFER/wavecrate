@@ -49,6 +49,22 @@ fn apply_native_waveform_trim_routes_to_controller_behavior() {
 }
 
 #[test]
+fn apply_native_waveform_silence_slice_detect_routes_to_controller_behavior() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.apply_native_ui_action(NativeUiAction::DetectWaveformSilenceSlices);
+
+    assert!(
+        controller
+            .ui
+            .status
+            .text
+            .contains("Load a sample before slicing"),
+        "status was {:?}",
+        controller.ui.status.text
+    );
+}
+
+#[test]
 fn apply_native_waveform_smart_scale_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.set_loaded_audio_duration_for_tests(4.0);
@@ -254,6 +270,14 @@ fn apply_native_waveform_option_actions_update_waveform_state() {
     controller.ui.waveform.selected_slices = vec![0, 1];
     controller.apply_native_ui_action(NativeUiAction::SetSliceModeEnabled { enabled: true });
     assert!(controller.ui.waveform.slice_mode_enabled);
+
+    controller.ui.waveform.slices = vec![
+        crate::selection::SelectionRange::new(0.1, 0.2),
+        crate::selection::SelectionRange::new(0.3, 0.4),
+    ];
+    controller.ui.waveform.selected_slices.clear();
+    controller.apply_native_ui_action(NativeUiAction::ToggleWaveformSliceSelection { index: 1 });
+    assert_eq!(controller.ui.waveform.selected_slices, vec![1]);
 
     controller.apply_native_ui_action(NativeUiAction::SetSliceModeEnabled { enabled: false });
     assert!(!controller.ui.waveform.slice_mode_enabled);
