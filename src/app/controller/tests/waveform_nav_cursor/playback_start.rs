@@ -1,4 +1,6 @@
 use super::*;
+use crate::app_core::controller::AppControllerNativeRuntimeExt;
+use crate::app_core::actions::NativeUiAction;
 
 #[test]
 fn replay_from_last_start_requeues_pending_playback() {
@@ -163,4 +165,40 @@ fn play_from_current_playhead_prefers_visible_playhead_position() {
         Some(f64::from(controller.ui.waveform.playhead.position))
     );
     assert_eq!(controller.ui.waveform.last_start_marker, Some(0.58));
+}
+
+#[test]
+fn play_from_waveform_cursor_prefers_cursor_position_over_visible_playhead() {
+    let (mut controller, source) = dummy_controller();
+    prepare_browser_sample(&mut controller, &source, "click-play.wav");
+    controller.select_wav_by_path(Path::new("click-play.wav"));
+    install_decoded_waveform(&mut controller);
+    controller.ui.waveform.playhead.visible = true;
+    controller.ui.waveform.playhead.position = 0.84;
+
+    controller.apply_native_ui_action(NativeUiAction::SetWaveformCursorPrecise {
+        position_nanos: 330_000_000,
+    });
+    controller.apply_native_ui_action(NativeUiAction::PlayFromWaveformCursor);
+
+    let pending = controller
+        .runtime
+        .jobs
+        .pending_playback
+        .as_ref()
+        .expect("pending playback request");
+    assert!(
+        (pending.start_override.expect("playback start override") - 0.33).abs() < 1.0e-6
+    );
+    assert!(
+        (controller
+            .ui
+            .waveform
+            .last_start_marker
+            .expect("last start marker") as f64
+            - 0.33)
+            .abs()
+            < 1.0e-6
+    );
+    assert_eq!(controller.ui.waveform.playhead.position, 0.84);
 }

@@ -197,6 +197,9 @@ fn apply_transport_native_ui_action(
         NativeUiAction::PlayFromCurrentPlayhead => {
             controller.play_from_current_playhead();
         }
+        NativeUiAction::PlayFromWaveformCursor => {
+            controller.play_from_cursor();
+        }
         NativeUiAction::ToggleTransport => controller.toggle_play_pause(),
         NativeUiAction::HandleEscape => controller.handle_escape(),
         NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),

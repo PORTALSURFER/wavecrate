@@ -246,6 +246,25 @@ fn mark_dirty_for_waveform_action_marks_graph_nodes() {
     );
 }
 
+/// Cursor-first waveform playback should still dirty the transport graph.
+#[test]
+fn mark_dirty_for_waveform_cursor_playback_marks_transport_state_dirty() {
+    let mut bridge = test_bridge(16);
+
+    bridge.mark_dirty_for_action(&NativeUiAction::PlayFromWaveformCursor);
+
+    assert!(
+        bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::TransportState)
+    );
+    assert!(
+        bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::NativeAppProjectionKey)
+    );
+}
+
 /// High-frequency browser focus actions should avoid broad invalidation fan-out.
 #[test]
 fn mark_dirty_for_browser_focus_action_stays_targeted() {

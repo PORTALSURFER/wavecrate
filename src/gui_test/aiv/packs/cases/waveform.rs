@@ -33,9 +33,9 @@ pub(crate) fn waveform_transport_cursor_selection_zoom_case() -> GuiAivCase {
     }
 }
 
-pub(crate) fn waveform_click_seek_case() -> GuiAivCase {
+pub(crate) fn waveform_click_play_case() -> GuiAivCase {
     GuiAivCase {
-        name: String::from("waveform_click_seek"),
+        name: String::from("waveform_click_play"),
         fixture_tag: String::from("waveform"),
         viewport: DEFAULT_VIEWPORT,
         window_title: String::from(GUI_TEST_WINDOW_TITLE),
@@ -43,12 +43,12 @@ pub(crate) fn waveform_click_seek_case() -> GuiAivCase {
             wait_for_node("waveform.region"),
             click_node("waveform.region", Some(80), Some(50)),
             assert_step(GuiAivAssertion::AssertActionRecorded {
-                action_id: String::from("seek_waveform_precise"),
+                action_id: String::from("play_from_waveform_cursor"),
             }),
-            screenshot("waveform-click-seek"),
+            screenshot("waveform-click-play"),
         ],
         expected_assertions: vec![GuiAivAssertion::AssertActionRecorded {
-            action_id: String::from("seek_waveform_precise"),
+            action_id: String::from("play_from_waveform_cursor"),
         }],
     }
 }
