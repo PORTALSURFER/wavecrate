@@ -1,6 +1,6 @@
 use super::*;
-use crate::app_core::controller::AppControllerNativeRuntimeExt;
 use crate::app_core::actions::NativeUiAction;
+use crate::app_core::controller::AppControllerNativeRuntimeExt;
 
 #[test]
 fn replay_from_last_start_requeues_pending_playback() {
@@ -186,9 +186,7 @@ fn play_waveform_at_precise_starts_from_clicked_position_over_visible_playhead()
         .pending_playback
         .as_ref()
         .expect("pending playback request");
-    assert!(
-        (pending.start_override.expect("playback start override") - 0.33).abs() < 1.0e-6
-    );
+    assert!((pending.start_override.expect("playback start override") - 0.33).abs() < 1.0e-6);
     assert!(
         (controller
             .ui
