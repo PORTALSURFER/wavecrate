@@ -201,6 +201,16 @@ fn apply_transport_native_ui_action(
             controller.play_from_cursor();
         }
         NativeUiAction::PlayWaveformAtPrecise { position_nanos } => {
+            info!(
+                position_nanos,
+                selection = ?controller.ui.waveform.selection,
+                selection_dragging = controller.is_selection_dragging(),
+                cursor = ?controller.ui.waveform.cursor,
+                playhead_visible = controller.ui.waveform.playhead.visible,
+                playhead_position = controller.ui.waveform.playhead.position,
+                is_playing = controller.is_playing(),
+                "waveform click play action received"
+            );
             controller.seek_waveform_nanos(position_nanos);
         }
         NativeUiAction::ToggleTransport => controller.toggle_play_pause(),
