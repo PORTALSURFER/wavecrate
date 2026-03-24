@@ -25,7 +25,11 @@ impl AppController {
             match result {
                 Ok((inserted, progress)) => {
                     let _ = tx.send(super::jobs::JobMessage::Analysis(
-                        analysis_jobs::AnalysisJobMessage::EnqueueFinished { inserted, progress },
+                        analysis_jobs::AnalysisJobMessage::EnqueueFinished {
+                            inserted,
+                            progress,
+                            announce: false,
+                        },
                     ));
                 }
                 Err(err) => {
@@ -51,7 +55,11 @@ impl AppController {
             match result {
                 Ok((inserted, progress)) => {
                     let _ = tx.send(super::jobs::JobMessage::Analysis(
-                        analysis_jobs::AnalysisJobMessage::EnqueueFinished { inserted, progress },
+                        analysis_jobs::AnalysisJobMessage::EnqueueFinished {
+                            inserted,
+                            progress,
+                            announce: true,
+                        },
                     ));
                 }
                 Err(err) => {
@@ -80,6 +88,7 @@ impl AppController {
                         analysis_jobs::AnalysisJobMessage::EmbeddingBackfillEnqueueFinished {
                             inserted,
                             progress,
+                            announce: true,
                         },
                     ));
                 }
@@ -140,6 +149,7 @@ impl AppController {
                             analysis_jobs::AnalysisJobMessage::EnqueueFinished {
                                 inserted,
                                 progress,
+                                announce: true,
                             },
                         ));
                     }
@@ -158,6 +168,7 @@ impl AppController {
                         analysis_jobs::AnalysisJobMessage::EmbeddingBackfillEnqueueFinished {
                             inserted,
                             progress,
+                            announce: true,
                         },
                     ));
                 }

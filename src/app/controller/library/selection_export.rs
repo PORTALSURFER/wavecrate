@@ -1,3 +1,5 @@
+/// Background worker implementation for non-blocking selection exports.
+mod background;
 /// Helper routines shared by the selection-export workflow.
 mod helpers;
 /// Persistence and cache-registration steps for newly exported clips.
@@ -5,12 +7,18 @@ mod recording;
 /// Typed export/registration request objects used by the selection-export workflow.
 mod requests;
 
+pub(crate) use self::background::run_selection_export_job;
 use self::helpers::crop_selection_samples;
 pub(crate) use self::requests::{SelectionClipExportRequest, SelectionEntryRecordRequest};
 use super::selection_edits::apply_short_edge_fades_to_clip;
 use super::*;
 use std::time::Duration;
 
+use crate::app::controller::jobs::{
+    SelectionClipDestination, SelectionClipExportSuccess, SelectionCropExportSuccess,
+    SelectionExportJob, SelectionExportSnapshot, SelectionExportTimings,
+    build_selection_export_audio_payload,
+};
 use crate::app::controller::playback::audio_samples::write_wav;
 
 impl AppController {
@@ -124,20 +132,13 @@ impl AppController {
         keep_source_focused: bool,
     ) -> Result<(), String> {
         let selection = self.active_waveform_selection_for_export()?;
-        let audio = self
-            .sample_view
-            .wav
-            .loaded_audio
-            .as_ref()
-            .ok_or_else(|| "Load a sample first".to_string())?;
-        let source_id = audio.source_id.clone();
-        let relative_path = audio.relative_path.clone();
         let folder_override = self
             .selection_state
             .ctx
             .selected_source
             .as_ref()
-            .is_some_and(|selected| selected == &source_id)
+            .zip(self.sample_view.wav.loaded_audio.as_ref())
+            .is_some_and(|(selected, audio)| selected == &audio.source_id)
             .then(|| {
                 self.ui.sources.folders.focused.and_then(|idx| {
                     self.ui
@@ -150,44 +151,19 @@ impl AppController {
             })
             .flatten()
             .filter(|path| !path.as_os_str().is_empty());
-        let export = if let Some(folder) = folder_override.as_deref() {
-            self.export_selection_clip_in_folder(
-                SelectionClipExportRequest {
-                    source_id: &source_id,
-                    relative_path: &relative_path,
-                    bounds: selection,
-                    target_tag: None,
-                    add_to_browser: true,
-                    register_in_source: true,
+        let request_id = self.runtime.jobs.next_selection_export_request_id();
+        self.runtime
+            .jobs
+            .begin_selection_export(SelectionExportJob::Clip {
+                request_id,
+                snapshot: self.capture_selection_export_snapshot(selection, None)?,
+                destination: SelectionClipDestination::Browser {
+                    keep_source_focused,
+                    folder_override,
                 },
-                folder,
-            )
-        } else {
-            self.export_selection_clip(SelectionClipExportRequest {
-                source_id: &source_id,
-                relative_path: &relative_path,
-                bounds: selection,
-                target_tag: None,
-                add_to_browser: true,
-                register_in_source: true,
-            })
-        };
-        match export {
-            Ok(entry) => {
-                if !keep_source_focused {
-                    self.ui.browser.selection.autoscroll = true;
-                    self.selection_state.suppress_autoplay_once = true;
-                    self.select_from_browser(&entry.relative_path);
-                }
-                self.set_status(
-                    format!("Saved clip {}", entry.relative_path.display()),
-                    StatusTone::Info,
-                );
-                self.record_waveform_selection_export_flash();
-                Ok(())
-            }
-            Err(err) => Err(err),
-        }
+            });
+        self.set_status("Saving selection clip...", StatusTone::Busy);
+        Ok(())
     }
 
     pub(crate) fn export_selection_clip_to_root(
@@ -235,6 +211,36 @@ impl AppController {
             return Err("Selection no longer matches the loaded sample".into());
         }
         Ok(audio.clone())
+    }
+
+    /// Capture a worker-safe selection export snapshot from the currently loaded sample.
+    pub(crate) fn capture_selection_export_snapshot(
+        &self,
+        bounds: SelectionRange,
+        target_tag: Option<crate::sample_sources::Rating>,
+    ) -> Result<SelectionExportSnapshot, String> {
+        let audio = self
+            .sample_view
+            .wav
+            .loaded_audio
+            .as_ref()
+            .ok_or_else(|| "Load a sample first".to_string())?;
+        let (looped, bpm) = self.selection_export_metadata();
+        Ok(SelectionExportSnapshot {
+            source_id: audio.source_id.clone(),
+            source_root: audio.root.clone(),
+            relative_path: audio.relative_path.clone(),
+            bounds,
+            audio: build_selection_export_audio_payload(
+                self.sample_view.waveform.decoded.as_ref(),
+                Arc::clone(&audio.bytes),
+            ),
+            apply_edge_fades: self.settings.controls.auto_edge_fades_on_selection_exports,
+            edge_fade_ms: self.settings.controls.anti_clip_fade_ms.max(0.0),
+            target_tag,
+            looped,
+            bpm,
+        })
     }
 
     fn selection_export_metadata(&self) -> (bool, Option<f32>) {
@@ -302,6 +308,156 @@ impl AppController {
             .selection_export_flash_nonce
             .wrapping_add(1);
     }
+
+    /// Apply one completed selection clip export on the UI thread.
+    pub(crate) fn apply_selection_clip_export_success(
+        &mut self,
+        success: SelectionClipExportSuccess,
+    ) {
+        self.record_selection_export_timings("clip", &success.entry.relative_path, success.timings);
+        let source = SampleSource {
+            id: success.source_id.clone(),
+            root: success.source_root.clone(),
+        };
+        self.insert_cached_entry(&source, success.entry.clone());
+        self.enqueue_similarity_for_new_sample(
+            &source,
+            &success.entry.relative_path,
+            success.entry.file_size,
+            success.entry.modified_ns,
+        );
+        match success.destination {
+            SelectionClipDestination::Browser {
+                keep_source_focused,
+                ..
+            }
+            | SelectionClipDestination::Folder {
+                keep_source_focused,
+                ..
+            } => {
+                if !keep_source_focused {
+                    self.ui.browser.selection.autoscroll = true;
+                    self.selection_state.suppress_autoplay_once = true;
+                    self.select_from_browser(&success.entry.relative_path);
+                }
+                self.set_status(
+                    format!("Saved clip {}", success.entry.relative_path.display()),
+                    StatusTone::Info,
+                );
+                self.record_waveform_selection_export_flash();
+            }
+            SelectionClipDestination::ExternalDrag => {
+                self.finish_external_selection_drag_export(success);
+            }
+        }
+    }
+
+    /// Apply one completed crop-to-new-sample export on the UI thread.
+    pub(crate) fn apply_selection_crop_export_success(
+        &mut self,
+        success: SelectionCropExportSuccess,
+    ) {
+        self.record_selection_export_timings(
+            "crop_new_sample",
+            &success.entry.relative_path,
+            success.timings,
+        );
+        let source = SampleSource {
+            id: success.source_id.clone(),
+            root: success.source_root.clone(),
+        };
+        self.insert_cached_entry(&source, success.entry.clone());
+        self.enqueue_similarity_for_new_sample(
+            &source,
+            &success.entry.relative_path,
+            success.entry.file_size,
+            success.entry.modified_ns,
+        );
+        if let Ok(backup) = undo::OverwriteBackup::capture_before(&success.absolute_path)
+            && backup.capture_after(&success.absolute_path).is_ok()
+        {
+            self.push_undo_entry(self.crop_new_sample_undo_entry(
+                format!(
+                    "Cropped to new sample {}",
+                    success.entry.relative_path.display()
+                ),
+                source.id.clone(),
+                success.entry.relative_path.clone(),
+                success.absolute_path.clone(),
+                success.tag,
+                backup,
+            ));
+        }
+        self.ui.browser.selection.autoscroll = true;
+        self.selection_state.suppress_autoplay_once = true;
+        self.select_wav_by_path(&success.entry.relative_path);
+        if success.playback.was_playing {
+            self.runtime
+                .jobs
+                .set_pending_playback(Some(PendingPlayback {
+                    source_id: source.id.clone(),
+                    relative_path: success.entry.relative_path.clone(),
+                    looped: success.playback.was_looping,
+                    start_override: success.playback.start_override,
+                }));
+        }
+        self.focus_waveform();
+        self.set_status(
+            format!(
+                "Cropped to new sample {}",
+                success.entry.relative_path.display()
+            ),
+            StatusTone::Info,
+        );
+    }
+
+    fn record_selection_export_timings(
+        &self,
+        action: &str,
+        relative_path: &Path,
+        timings: SelectionExportTimings,
+    ) {
+        tracing::debug!(
+            "selection_export action={} path={} prepare_us={} write_us={} register_us={} total_us={}",
+            action,
+            relative_path.display(),
+            timings.prepare.as_micros(),
+            timings.write.as_micros(),
+            timings.register.as_micros(),
+            timings.total.as_micros()
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    fn finish_external_selection_drag_export(&mut self, success: SelectionClipExportSuccess) {
+        let Some(request_id) = self.ui.drag.pending_external_selection_request_id else {
+            return;
+        };
+        if request_id != success.request_id {
+            return;
+        }
+        self.ui.drag.pending_external_selection_request_id = None;
+        match self
+            .drag_drop()
+            .start_external_drag(&[success.absolute_path.clone()])
+        {
+            Ok(()) => {
+                let label = format!(
+                    "Drag {} to an external target",
+                    success.entry.relative_path.display()
+                );
+                self.drag_drop().reset_drag();
+                self.set_status(label, StatusTone::Info);
+            }
+            Err(err) => {
+                self.drag_drop().reset_drag();
+                self.set_status(err, StatusTone::Error);
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn finish_external_selection_drag_export(&mut self, _success: SelectionClipExportSuccess) {}
 }
 
 #[cfg(test)]

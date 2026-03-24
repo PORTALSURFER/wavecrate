@@ -11,6 +11,7 @@ impl DragDropController<'_> {
         self.ui.drag.copy_on_drop = false;
         self.ui.drag.external_started = false;
         self.ui.drag.external_arm_at = None;
+        self.ui.drag.pending_external_selection_request_id = None;
         self.ui.drag.pointer_left_window = false;
         self.ui.drag.pending_os_drag = None;
         self.ui.drag.origin_source = None;
@@ -25,6 +26,7 @@ impl DragDropController<'_> {
         self.ui.drag.copy_on_drop = false;
         self.ui.drag.external_started = false;
         self.ui.drag.external_arm_at = None;
+        self.ui.drag.pending_external_selection_request_id = None;
         self.ui.drag.pointer_left_window = false;
         self.ui.drag.pending_os_drag = None;
         self.ui.drag.origin_source = None;

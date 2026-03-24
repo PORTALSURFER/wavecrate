@@ -26,6 +26,7 @@ pub(crate) enum JobMessage {
     IssueTokenDeleted(IssueTokenDeleteResult),
     BrowserSearchFinished(SearchResult),
     SourceDbMaintenanceFinished(SourceDbMaintenanceResult),
+    SelectionExportFinished(SelectionExportResult),
     Normalized(NormalizationResult),
 }
 

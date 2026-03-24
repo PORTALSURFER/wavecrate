@@ -13,13 +13,11 @@ mod write_service;
 mod selection_click;
 mod selection_normalize;
 
+pub(crate) use buffer::next_crop_relative_path;
 use buffer::{SelectionEditBuffer, SelectionTarget};
 pub(crate) use selection_click::repair_clicks_selection as repair_clicks_buffer;
 use selection_normalize::normalize_selection;
-use write_service::{
-    CropNewSampleWriteRequest, SelectionEditWriteRequest, apply_selection_edit_write,
-    crop_selection_to_new_sample_write,
-};
+use write_service::{SelectionEditWriteRequest, apply_selection_edit_write};
 
 use ops::{
     SelectionFadeRequest, apply_directional_fade, apply_edge_fades, apply_selection_fades,

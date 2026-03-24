@@ -241,7 +241,42 @@ pub(super) fn insert_cached_entry(
     source: &SampleSource,
     entry: WavEntry,
 ) {
-    controller.invalidate_wav_entries_for_source(source);
+    let selected_source_active =
+        controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id);
+    let selected_entries_loaded =
+        selected_source_active && controller.wav_entries.source_id.as_ref() == Some(&source.id);
+    let entry_index = controller
+        .database_for(source)
+        .ok()
+        .and_then(|db| db.index_for_path(&entry.relative_path).ok().flatten());
+    let mut selected_inserted = false;
+    if let Some(index) = entry_index {
+        if selected_entries_loaded {
+            selected_inserted = controller.wav_entries.insert_entry_at(index, entry.clone());
+        }
+        if let Some(cache) = controller.cache.wav.entries.get_mut(&source.id) {
+            let _ = cache.insert_entry_at(index, entry.clone());
+        }
+    }
+    if selected_source_active {
+        if selected_entries_loaded && selected_inserted {
+            controller.ui_cache.browser.labels.remove(&source.id);
+            controller.ui_cache.browser.bpm_values.remove(&source.id);
+            controller.ui_cache.browser.search.invalidate();
+            controller.ui_cache.browser.pipeline.invalidate();
+            controller.rebuild_browser_lists();
+        } else if selected_entries_loaded {
+            controller.invalidate_wav_entries_for_source(source);
+        } else {
+            controller.ui_cache.browser.labels.remove(&source.id);
+            controller.ui_cache.browser.bpm_values.remove(&source.id);
+            controller.ui_cache.browser.search.invalidate();
+            controller.ui_cache.browser.pipeline.invalidate();
+        }
+    } else {
+        controller.ui_cache.browser.labels.remove(&source.id);
+        controller.ui_cache.browser.bpm_values.remove(&source.id);
+    }
     controller.invalidate_cached_audio(&source.id, &entry.relative_path);
 }
 

@@ -13,14 +13,22 @@ pub(crate) fn handle_analysis_message(controller: &mut AppController, message: A
         } => {
             handle_analysis_progress_message(controller, source_id, progress);
         }
-        AnalysisJobMessage::EnqueueFinished { inserted, progress } => {
-            handle_enqueue_finished(controller, inserted, progress, false);
+        AnalysisJobMessage::EnqueueFinished {
+            inserted,
+            progress,
+            announce,
+        } => {
+            handle_enqueue_finished(controller, inserted, progress, false, announce);
         }
         AnalysisJobMessage::EnqueueFailed(err) => {
             controller.set_status(format!("Analysis enqueue failed: {err}"), StatusTone::Error);
         }
-        AnalysisJobMessage::EmbeddingBackfillEnqueueFinished { inserted, progress } => {
-            handle_enqueue_finished(controller, inserted, progress, true);
+        AnalysisJobMessage::EmbeddingBackfillEnqueueFinished {
+            inserted,
+            progress,
+            announce,
+        } => {
+            handle_enqueue_finished(controller, inserted, progress, true, announce);
         }
         AnalysisJobMessage::EmbeddingBackfillEnqueueFailed(err) => {
             controller.set_status(
@@ -243,9 +251,10 @@ fn handle_enqueue_finished(
     inserted: usize,
     progress: analysis_jobs::AnalysisProgress,
     embedding_backfill: bool,
+    announce: bool,
 ) {
     controller.runtime.analysis.resume();
-    if inserted > 0 {
+    if inserted > 0 && announce {
         let label = if embedding_backfill {
             "embedding backfill jobs"
         } else {

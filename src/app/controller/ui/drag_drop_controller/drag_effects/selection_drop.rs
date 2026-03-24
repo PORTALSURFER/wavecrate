@@ -1,6 +1,5 @@
 use super::super::DragDropController;
 use crate::app::controller::StatusTone;
-use crate::app::controller::library::selection_export::SelectionClipExportRequest;
 use crate::app::state::TriageFlagColumn;
 use crate::sample_sources::{Rating, SourceId};
 use crate::selection::SelectionRange;
@@ -64,7 +63,7 @@ impl DragDropController<'_> {
     fn handle_selection_drop_to_folder(
         &mut self,
         source_id: &SourceId,
-        relative_path: &Path,
+        _relative_path: &Path,
         bounds: SelectionRange,
         folder: &Path,
         keep_source_focused: bool,
@@ -103,27 +102,21 @@ impl DragDropController<'_> {
             );
             return;
         }
-        match self.export_selection_clip_in_folder(
-            SelectionClipExportRequest {
-                source_id,
-                relative_path,
-                bounds,
-                target_tag: None,
-                add_to_browser: true,
-                register_in_source: true,
-            },
-            folder,
-        ) {
-            Ok(entry) => {
-                if !keep_source_focused {
-                    self.ui.browser.selection.autoscroll = true;
-                    self.selection_state.suppress_autoplay_once = true;
-                    self.select_from_browser(&entry.relative_path);
-                }
-                self.set_status(
-                    format!("Saved clip {}", entry.relative_path.display()),
-                    StatusTone::Info,
+        match self.capture_selection_export_snapshot(bounds, None) {
+            Ok(snapshot) => {
+                let request_id = self.runtime.jobs.next_selection_export_request_id();
+                self.runtime.jobs.begin_selection_export(
+                    crate::app::controller::jobs::SelectionExportJob::Clip {
+                        request_id,
+                        snapshot,
+                        destination:
+                            crate::app::controller::jobs::SelectionClipDestination::Folder {
+                                folder: folder.to_path_buf(),
+                                keep_source_focused,
+                            },
+                    },
                 );
+                self.set_status("Saving selection clip...", StatusTone::Busy);
             }
             Err(err) => self.set_status(err, StatusTone::Error),
         }
@@ -132,7 +125,7 @@ impl DragDropController<'_> {
     fn handle_selection_drop_to_browser(
         &mut self,
         source_id: &SourceId,
-        relative_path: &Path,
+        _relative_path: &Path,
         bounds: SelectionRange,
         target_tag: Option<Rating>,
         keep_source_focused: bool,
@@ -155,37 +148,21 @@ impl DragDropController<'_> {
             })
             .flatten()
             .filter(|path| !path.as_os_str().is_empty());
-        let export = if let Some(folder) = folder_override.as_deref() {
-            self.export_selection_clip_in_folder(
-                SelectionClipExportRequest {
-                    source_id,
-                    relative_path,
-                    bounds,
-                    target_tag,
-                    add_to_browser: true,
-                    register_in_source: true,
-                },
-                folder,
-            )
-        } else {
-            self.export_selection_clip(SelectionClipExportRequest {
-                source_id,
-                relative_path,
-                bounds,
-                target_tag,
-                add_to_browser: true,
-                register_in_source: true,
-            })
-        };
-        match export {
-            Ok(entry) => {
-                if !keep_source_focused {
-                    self.ui.browser.selection.autoscroll = true;
-                    self.selection_state.suppress_autoplay_once = true;
-                    self.select_from_browser(&entry.relative_path);
-                }
-                let status = format!("Saved clip {}", entry.relative_path.display());
-                self.set_status(status, StatusTone::Info);
+        match self.capture_selection_export_snapshot(bounds, target_tag) {
+            Ok(snapshot) => {
+                let request_id = self.runtime.jobs.next_selection_export_request_id();
+                self.runtime.jobs.begin_selection_export(
+                    crate::app::controller::jobs::SelectionExportJob::Clip {
+                        request_id,
+                        snapshot,
+                        destination:
+                            crate::app::controller::jobs::SelectionClipDestination::Browser {
+                                keep_source_focused,
+                                folder_override,
+                            },
+                    },
+                );
+                self.set_status("Saving selection clip...", StatusTone::Busy);
             }
             Err(err) => self.set_status(err, StatusTone::Error),
         }

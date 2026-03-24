@@ -108,6 +108,7 @@ fn changed_scan_refreshes_selected_source_and_enqueues_follow_up_analysis() {
         AnalysisJobMessage::EnqueueFinished {
             inserted: _,
             progress: _,
+            announce: true,
         } => {}
         other => panic!("unexpected analysis message: {other:?}"),
     }

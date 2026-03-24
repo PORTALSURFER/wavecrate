@@ -102,72 +102,36 @@ impl AppController {
 
     /// Write the cropped selection to a new sample file alongside the original.
     pub(crate) fn crop_waveform_selection_to_new_sample(&mut self) -> Result<(), String> {
-        let session = self.begin_crop_new_sample_session()?;
-        let new_relative = buffer::next_crop_relative_path(
-            &session.target.relative_path,
-            &session.target.source.root,
-        )?;
-        let edge_fade = self
-            .settings
-            .controls
-            .auto_edge_fades_on_selection_exports
-            .then(|| {
-                Duration::from_secs_f32(self.settings.controls.anti_clip_fade_ms.max(0.0) / 1000.0)
-            });
-        let outcome = crop_selection_to_new_sample_write(CropNewSampleWriteRequest {
-            target: &session.target,
-            new_relative,
-            db: &session.db,
-            tag: session.tag,
-            edge_fade,
-        })?;
-
-        self.insert_cached_entry(&session.target.source, outcome.entry.clone());
-        self.enqueue_similarity_for_new_sample(
-            &session.target.source,
-            &outcome.entry.relative_path,
-            outcome.entry.file_size,
-            outcome.entry.modified_ns,
+        let target = self.selection_target()?;
+        let tag = self.sample_tag_for(&target.source, &target.relative_path)?;
+        let request_id = self.runtime.jobs.next_selection_export_request_id();
+        self.runtime.jobs.begin_selection_export(
+            crate::app::controller::jobs::SelectionExportJob::CropNewSample {
+                request_id,
+                snapshot: self.capture_selection_export_snapshot(target.selection, Some(tag))?,
+                playback: crate::app::controller::jobs::SelectionExportPlaybackState {
+                    was_playing: self.is_playing(),
+                    was_looping: if self.ui.waveform.loop_enabled {
+                        true
+                    } else if self.audio.pending_loop_disable_at.is_some() {
+                        false
+                    } else {
+                        self.audio
+                            .player
+                            .as_ref()
+                            .is_some_and(|player| player.borrow().is_looping())
+                    },
+                    start_override: self
+                        .ui
+                        .waveform
+                        .playhead
+                        .position
+                        .is_finite()
+                        .then(|| f64::from(self.ui.waveform.playhead.position.clamp(0.0, 1.0))),
+                },
+            },
         );
-        self.refresh_waveform_for_sample(&session.target.source, &session.target.relative_path);
-
-        if let Ok(backup) = undo::OverwriteBackup::capture_before(&outcome.new_absolute)
-            && backup.capture_after(&outcome.new_absolute).is_ok()
-        {
-            self.push_undo_entry(self.crop_new_sample_undo_entry(
-                format!(
-                    "Cropped to new sample {}",
-                    outcome.entry.relative_path.display()
-                ),
-                session.target.source.id.clone(),
-                outcome.entry.relative_path.clone(),
-                outcome.new_absolute.clone(),
-                session.tag,
-                backup,
-            ));
-        }
-
-        if session.playback.was_playing {
-            self.runtime
-                .jobs
-                .set_pending_playback(Some(PendingPlayback {
-                    source_id: session.target.source.id.clone(),
-                    relative_path: outcome.entry.relative_path.clone(),
-                    looped: session.playback.was_looping,
-                    start_override: session.playback.start_override,
-                }));
-        }
-
-        let _ =
-            self.load_waveform_for_selection(&session.target.source, &outcome.entry.relative_path);
-        self.focus_waveform();
-        self.set_status(
-            format!(
-                "Cropped to new sample {}",
-                outcome.entry.relative_path.display()
-            ),
-            StatusTone::Info,
-        );
+        self.set_status("Cropping selection to new sample...", StatusTone::Busy);
         Ok(())
     }
 

@@ -155,7 +155,11 @@ fn spawn_changed_scan_enqueue(
         match analysis_jobs::enqueue_jobs_for_source(&source, &changed_samples) {
             Ok((inserted, progress)) => {
                 let _ = tx.send(JobMessage::Analysis(
-                    super::AnalysisJobMessage::EnqueueFinished { inserted, progress },
+                    super::AnalysisJobMessage::EnqueueFinished {
+                        inserted,
+                        progress,
+                        announce: true,
+                    },
                 ));
             }
             Err(err) => {
@@ -173,7 +177,11 @@ fn spawn_unchanged_scan_backfill(controller: &mut AppController, source: SampleS
         match analysis_jobs::enqueue_jobs_for_source_backfill(&source) {
             Ok((inserted, progress)) => {
                 let _ = tx.send(JobMessage::Analysis(
-                    super::AnalysisJobMessage::EnqueueFinished { inserted, progress },
+                    super::AnalysisJobMessage::EnqueueFinished {
+                        inserted,
+                        progress,
+                        announce: true,
+                    },
                 ));
             }
             Err(err) => {
@@ -189,6 +197,7 @@ fn spawn_unchanged_scan_backfill(controller: &mut AppController, source: SampleS
                         super::AnalysisJobMessage::EmbeddingBackfillEnqueueFinished {
                             inserted,
                             progress,
+                            announce: true,
                         },
                     ));
                 }

@@ -159,6 +159,8 @@ pub struct DragState {
     pub external_started: bool,
     /// Timestamp when external drag was armed.
     pub external_arm_at: Option<Instant>,
+    /// Active async selection-export request backing an external drag, if any.
+    pub pending_external_selection_request_id: Option<u64>,
     /// Best-effort signal that the cursor has left the app window mid-drag (Windows-only use).
     ///
     /// Some platforms/input backends stop sending pointer positions once the cursor leaves the
@@ -193,6 +195,7 @@ impl Default for DragState {
             copy_on_drop: false,
             external_started: false,
             external_arm_at: None,
+            pending_external_selection_request_id: None,
             pointer_left_window: false,
             pending_os_drag: None,
             os_left_mouse_down: false,

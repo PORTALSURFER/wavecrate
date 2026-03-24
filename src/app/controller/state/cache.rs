@@ -188,6 +188,50 @@ impl WavEntriesState {
         true
     }
 
+    /// Insert one entry at the absolute index when the surrounding page window is loaded.
+    ///
+    /// Returns `true` when any loaded page content changed. If the insertion falls wholly
+    /// outside the loaded page window, only `total` is updated and callers should treat the
+    /// change as metadata-only for the current cache.
+    pub(crate) fn insert_entry_at(&mut self, index: usize, entry: WavEntry) -> bool {
+        self.total = self.total.saturating_add(1);
+        let mut changed = false;
+        let mut current_index = index;
+        let mut carry = entry;
+        loop {
+            let page_index = current_index / self.page_size;
+            let in_page = current_index % self.page_size;
+            let Some(page) = self.pages.get_mut(&page_index) else {
+                break;
+            };
+            let insert_at = in_page.min(page.len());
+            page.insert(insert_at, carry);
+            changed = true;
+            if page.len() <= self.page_size {
+                break;
+            }
+            let Some(displaced) = page.pop() else {
+                break;
+            };
+            carry = displaced;
+            current_index = (page_index + 1) * self.page_size;
+        }
+        if changed {
+            self.lookup.clear();
+            let mut lookup_entries = Vec::new();
+            for (page_index, page) in &self.pages {
+                let offset = page_index * self.page_size;
+                for (idx, item) in page.iter().enumerate() {
+                    lookup_entries.push((item.relative_path.clone(), offset + idx));
+                }
+            }
+            for (path, index) in lookup_entries {
+                self.insert_lookup(path, index);
+            }
+        }
+        changed
+    }
+
     pub(crate) fn insert_lookup(&mut self, path: PathBuf, index: usize) {
         let normalized = path.to_string_lossy().replace('\\', "/");
         self.lookup.insert(PathBuf::from(normalized), index);

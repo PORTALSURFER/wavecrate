@@ -124,6 +124,7 @@ impl AppController {
         let entries_for_db = entries.clone();
         self.wav_entries.clear();
         self.wav_entries.total = entries.len();
+        self.wav_entries.source_id = self.current_source().map(|source| source.id.clone());
         self.wav_entries.insert_page(0, entries);
         self.rebuild_wav_lookup();
         if let Some(source) = self.current_source() {

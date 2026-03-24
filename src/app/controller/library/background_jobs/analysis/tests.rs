@@ -3,6 +3,7 @@ use crate::app::controller::jobs::JobMessage;
 use crate::app::controller::library::analysis_jobs::AnalysisProgress;
 use crate::app::controller::state::cache::FeatureCache;
 use crate::app::controller::test_support::dummy_controller;
+use crate::app_core::state::StatusTone;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -115,6 +116,7 @@ fn enqueue_finished_invalidates_feature_cache_and_queues_follow_up_progress() {
         AnalysisJobMessage::EnqueueFinished {
             inserted: 2,
             progress,
+            announce: true,
         },
     );
 
@@ -136,6 +138,28 @@ fn enqueue_finished_invalidates_feature_cache_and_queues_follow_up_progress() {
         }
         other => panic!("unexpected queued message: {other:?}"),
     }
+}
+
+#[test]
+fn enqueue_finished_can_skip_status_announcement() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.set_status("Saved clip clip_selection_001.wav", StatusTone::Info);
+
+    handle_analysis_message(
+        &mut controller,
+        AnalysisJobMessage::EnqueueFinished {
+            inserted: 1,
+            progress: sample_progress(),
+            announce: false,
+        },
+    );
+
+    assert_eq!(
+        controller.ui.status.text,
+        "Saved clip clip_selection_001.wav"
+    );
 }
 
 #[test]

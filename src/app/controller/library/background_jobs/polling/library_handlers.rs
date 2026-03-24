@@ -128,6 +128,44 @@ impl AppController {
         }
     }
 
+    /// Apply one completed selection-export worker result.
+    pub(super) fn handle_selection_export_finished_message(
+        &mut self,
+        message: crate::app::controller::jobs::SelectionExportResult,
+    ) {
+        match message {
+            crate::app::controller::jobs::SelectionExportResult::Clip {
+                request_id,
+                result: Ok(success),
+            } => {
+                let _ = request_id;
+                self.apply_selection_clip_export_success(success);
+            }
+            crate::app::controller::jobs::SelectionExportResult::CropNewSample {
+                request_id,
+                result: Ok(success),
+            } => {
+                let _ = request_id;
+                self.apply_selection_crop_export_success(success);
+            }
+            crate::app::controller::jobs::SelectionExportResult::Clip {
+                request_id,
+                result: Err(err),
+            } => {
+                if self.ui.drag.pending_external_selection_request_id == Some(request_id) {
+                    self.drag_drop().reset_drag();
+                }
+                self.set_status(err, StatusTone::Error);
+            }
+            crate::app::controller::jobs::SelectionExportResult::CropNewSample {
+                result: Err(err),
+                ..
+            } => {
+                self.set_status(err, StatusTone::Error);
+            }
+        }
+    }
+
     /// Apply one normalization result and refresh the affected browser/waveform state.
     pub(super) fn handle_normalized_message(&mut self, message: NormalizationResult) {
         let source = self

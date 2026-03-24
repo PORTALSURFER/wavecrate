@@ -2,9 +2,27 @@ use super::super::super::test_support::{
     load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry,
 };
 use super::super::common::max_sample_amplitude;
+use crate::app::controller::AppController;
 use crate::app::controller::ui::hotkeys;
 use crate::app::state::{DestructiveSelectionEdit, FocusContext};
 use crate::selection::SelectionRange;
+use std::path::Path;
+use std::time::{Duration, Instant};
+
+fn pump_background_jobs_until(
+    controller: &mut AppController,
+    mut predicate: impl FnMut(&mut AppController) -> bool,
+) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        controller.poll_background_jobs();
+        if predicate(controller) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    panic!("timed out waiting for background job condition");
+}
 
 #[test]
 fn t_hotkey_prompts_trim_selection_in_waveform_focus() {
@@ -223,6 +241,15 @@ fn shift_c_hotkey_crops_selection_to_new_sample() {
     controller.handle_hotkey(action, FocusContext::Waveform);
 
     let cropped_path = source.root.join("original_crop001.wav");
+    pump_background_jobs_until(&mut controller, |controller| {
+        cropped_path.is_file()
+            && controller
+                .sample_view
+                .wav
+                .loaded_audio
+                .as_ref()
+                .is_some_and(|audio| audio.relative_path == Path::new("original_crop001.wav"))
+    });
     assert!(cropped_path.is_file());
     let original_samples: Vec<f32> = hound::WavReader::open(&wav_path)
         .unwrap()

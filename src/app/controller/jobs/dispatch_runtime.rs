@@ -135,6 +135,28 @@ impl ControllerJobs {
         self.in_progress.update_check = false;
     }
 
+    /// Generate a request id for selection-export jobs.
+    pub(in super::super) fn next_selection_export_request_id(&mut self) -> u64 {
+        let request_id = self.request_counters.next_selection_export_request_id;
+        self.request_counters.next_selection_export_request_id = self
+            .request_counters
+            .next_selection_export_request_id
+            .wrapping_add(1)
+            .max(1);
+        request_id
+    }
+
+    /// Start one non-blocking selection-export job.
+    pub(in super::super) fn begin_selection_export(&self, job: SelectionExportJob) {
+        self.spawn_one_shot_job(
+            true,
+            move || {
+                crate::app::controller::library::selection_export::run_selection_export_job(job)
+            },
+            JobMessage::SelectionExportFinished,
+        );
+    }
+
     /// Start a one-shot audio normalization job.
     pub(in super::super) fn begin_normalization(&mut self, job: NormalizationJob) {
         self.spawn_one_shot_job(

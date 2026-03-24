@@ -20,6 +20,8 @@ mod progress_reporting;
 mod queue_orchestration;
 /// Retry/backoff policy helpers for async gateway and maintenance jobs.
 mod retry_policy;
+/// Background selection-export job DTOs and helpers.
+mod selection_export_types;
 /// Deferred source-db maintenance worker helpers.
 mod source_db_maintenance;
 /// Internal state and constructor DTOs for controller job orchestration.
@@ -68,6 +70,7 @@ use std::{
 pub(crate) use self::file_ops_types::*;
 pub(crate) use self::messages::*;
 pub(crate) use self::queue_orchestration::JobMessageSender;
+pub(crate) use self::selection_export_types::*;
 pub(super) use self::state::ControllerJobsInit;
 
 type TryRecvError = std::sync::mpsc::TryRecvError;

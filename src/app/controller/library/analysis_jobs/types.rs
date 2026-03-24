@@ -61,6 +61,8 @@ pub(crate) enum AnalysisJobMessage {
     EnqueueFinished {
         inserted: usize,
         progress: AnalysisProgress,
+        /// Whether the completion should surface a status toast.
+        announce: bool,
     },
     /// An enqueue job failed.
     EnqueueFailed(String),
@@ -68,6 +70,8 @@ pub(crate) enum AnalysisJobMessage {
     EmbeddingBackfillEnqueueFinished {
         inserted: usize,
         progress: AnalysisProgress,
+        /// Whether the completion should surface a status toast.
+        announce: bool,
     },
     /// Embedding backfill enqueue failed.
     EmbeddingBackfillEnqueueFailed(String),

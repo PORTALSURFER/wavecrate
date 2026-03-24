@@ -4,9 +4,26 @@ use crate::app::state::TriageFlagColumn;
 use crate::app::state::{DragPayload, DragSource, DragTarget};
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::controller::AppControllerNativeRuntimeExt;
+use crate::app_core::state::StatusTone;
 use crate::selection::SelectionRange;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 use tempfile::tempdir;
+
+fn pump_background_jobs_until(
+    controller: &mut AppController,
+    mut predicate: impl FnMut(&mut AppController) -> bool,
+) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        controller.poll_background_jobs();
+        if predicate(controller) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    panic!("timed out waiting for background job condition");
+}
 
 #[test]
 fn waveform_sample_drop_copies_and_registers() {
@@ -99,8 +116,22 @@ fn waveform_selection_drop_to_browser_list_exports_selection_clip() {
         .set_target(DragSource::Browser, DragTarget::BrowserList);
     controller.finish_active_drag();
 
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Busy);
+    pump_background_jobs_until(&mut controller, |controller| {
+        root.join("loop_selection_001.wav").is_file()
+            && controller.ui.status.text.contains("Saved clip")
+    });
     assert!(root.join("loop_selection_001.wav").is_file());
     assert!(controller.ui.status.text.contains("Saved clip"));
+    assert_eq!(
+        controller
+            .sample_view
+            .wav
+            .loaded_audio
+            .as_ref()
+            .map(|audio| &audio.relative_path),
+        Some(&PathBuf::from("loop.wav"))
+    );
 }
 
 #[test]
@@ -124,6 +155,20 @@ fn waveform_selection_native_save_exports_selection_clip() {
 
     controller.apply_native_ui_action(NativeUiAction::SaveWaveformSelectionToBrowser);
 
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Busy);
+    pump_background_jobs_until(&mut controller, |controller| {
+        root.join("loop_selection_001.wav").is_file()
+            && controller.ui.status.text.contains("Saved clip")
+    });
     assert!(root.join("loop_selection_001.wav").is_file());
     assert!(controller.ui.status.text.contains("Saved clip"));
+    assert_eq!(
+        controller
+            .sample_view
+            .wav
+            .loaded_audio
+            .as_ref()
+            .map(|audio| &audio.relative_path),
+        Some(&PathBuf::from("loop.wav"))
+    );
 }

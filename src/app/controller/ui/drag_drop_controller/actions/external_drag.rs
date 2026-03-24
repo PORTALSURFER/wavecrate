@@ -48,7 +48,6 @@ impl DragDropController<'_> {
         if !self.should_launch_external_drag(pointer_outside, pointer_left, Instant::now()) {
             return;
         }
-        self.ui.drag.external_started = true;
         let payload = self.ui.drag.payload.clone();
         let status = match payload {
             Some(DragPayload::Sample {
@@ -69,16 +68,34 @@ impl DragDropController<'_> {
                 self.start_external_drag(&absolutes)
                     .map(|_| format!("Drag {} samples to an external target", samples.len()))
             }
-            Some(DragPayload::Selection { bounds, .. }) => self
-                .export_selection_for_drag(bounds)
-                .and_then(|(absolute, label)| {
-                    self.start_external_drag(&[absolute])?;
-                    Ok(label)
-                }),
+            Some(DragPayload::Selection { bounds, .. }) => {
+                let snapshot = match self.capture_selection_export_snapshot(bounds, None) {
+                    Ok(snapshot) => snapshot,
+                    Err(err) => {
+                        self.reset_drag();
+                        self.set_status(err, StatusTone::Error);
+                        return;
+                    }
+                };
+                let request_id = self.runtime.jobs.next_selection_export_request_id();
+                self.ui.drag.external_started = true;
+                self.ui.drag.pending_external_selection_request_id = Some(request_id);
+                self.runtime.jobs.begin_selection_export(
+                    crate::app::controller::jobs::SelectionExportJob::Clip {
+                        request_id,
+                        snapshot,
+                        destination:
+                            crate::app::controller::jobs::SelectionClipDestination::ExternalDrag,
+                    },
+                );
+                self.set_status("Preparing clip for external drag...", StatusTone::Busy);
+                return;
+            }
             Some(DragPayload::Folder { .. }) => return,
             Some(DragPayload::DropTargetReorder { .. }) => return,
             None => return,
         };
+        self.ui.drag.external_started = true;
         match status {
             Ok(message) => {
                 self.reset_drag();
@@ -95,6 +112,8 @@ impl DragDropController<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sample_sources::{Rating, SampleSource, WavEntry};
+    use tempfile::tempdir;
 
     #[test]
     fn external_drag_arms_and_resets_when_pointer_returns() {
@@ -157,5 +176,65 @@ mod tests {
             false,
             start + DragDropController::EXTERNAL_DRAG_ARM_WINDOW
         ));
+    }
+
+    #[test]
+    fn stale_external_selection_export_completion_does_not_reset_active_drag() {
+        let temp = tempdir().unwrap();
+        let renderer = WaveformRenderer::new(12, 12);
+        let mut controller = AppController::new(renderer, None);
+        let source = SampleSource::new(temp.path().join("source"));
+        std::fs::create_dir_all(&source.root).unwrap();
+        controller.library.sources.push(source.clone());
+        let export_relative = PathBuf::from("one_selection_001.wav");
+        let export_absolute = source.root.join(&export_relative);
+        std::fs::write(&export_absolute, b"wav").unwrap();
+        controller
+            .cache_db(&source)
+            .unwrap()
+            .upsert_file(&export_relative, 3, 1)
+            .unwrap();
+        controller.ui.drag.payload = Some(DragPayload::Selection {
+            source_id: source.id.clone(),
+            relative_path: PathBuf::from("one.wav"),
+            bounds: SelectionRange::new(0.2, 0.8),
+            keep_source_focused: true,
+        });
+        controller.ui.drag.external_started = true;
+        controller.ui.drag.pending_external_selection_request_id = Some(42);
+
+        controller.apply_background_job_message_for_tests(
+            crate::app::controller::jobs::JobMessage::SelectionExportFinished(
+                crate::app::controller::jobs::SelectionExportResult::Clip {
+                    request_id: 41,
+                    result: Ok(crate::app::controller::jobs::SelectionClipExportSuccess {
+                        request_id: 41,
+                        source_id: source.id.clone(),
+                        source_root: source.root.clone(),
+                        entry: WavEntry {
+                            relative_path: export_relative,
+                            file_size: 3,
+                            modified_ns: 1,
+                            content_hash: None,
+                            tag: Rating::NEUTRAL,
+                            looped: false,
+                            locked: false,
+                            missing: false,
+                            last_played_at: None,
+                        },
+                        absolute_path: export_absolute,
+                        destination:
+                            crate::app::controller::jobs::SelectionClipDestination::ExternalDrag,
+                        timings: Default::default(),
+                    }),
+                },
+            ),
+        );
+
+        assert_eq!(
+            controller.ui.drag.pending_external_selection_request_id,
+            Some(42)
+        );
+        assert!(controller.ui.drag.payload.is_some());
     }
 }

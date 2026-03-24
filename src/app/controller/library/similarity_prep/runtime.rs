@@ -104,6 +104,7 @@ impl AppController {
                             analysis_jobs::AnalysisJobMessage::EnqueueFinished {
                                 inserted,
                                 progress,
+                                announce: true,
                             },
                         ));
                     }
@@ -132,6 +133,7 @@ impl AppController {
                             analysis_jobs::AnalysisJobMessage::EmbeddingBackfillEnqueueFinished {
                                 inserted,
                                 progress,
+                                announce: true,
                             },
                         ));
                     } else {
