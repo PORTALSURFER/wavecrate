@@ -26,36 +26,11 @@ pub(crate) fn seek_to(controller: &mut AppController, position: f64) {
 pub(crate) fn seek_waveform_nanos(controller: &mut AppController, position_nanos: u32) {
     let clamped = position_nanos.min(1_000_000_000);
     let normalized = normalized64_from_nanos(clamped);
-    tracing::info!(
-        position_nanos = clamped,
-        normalized,
-        selection_before = ?controller
-            .selection_state
-            .range
-            .range()
-            .or(controller.ui.waveform.selection),
-        cursor_before = ?controller.ui.waveform.cursor,
-        playing_before = controller.is_playing(),
-        "waveform click play immediate seek starting"
-    );
     super::selection::cancel_click_armed_selection_drag(controller);
     clear_selection_for_outside_waveform_seek(controller, normalized);
     seek_to(controller, normalized);
     controller.set_waveform_cursor(normalized as f32);
     controller.focus_waveform();
-    tracing::info!(
-        position_nanos = clamped,
-        selection_after = ?controller
-            .selection_state
-            .range
-            .range()
-            .or(controller.ui.waveform.selection),
-        cursor_after = ?controller.ui.waveform.cursor,
-        playhead_visible = controller.ui.waveform.playhead.visible,
-        playhead_position = controller.ui.waveform.playhead.position,
-        playing_after = controller.is_playing(),
-        "waveform click play immediate seek finished"
-    );
 }
 
 /// Queue a waveform seek request and defer playback restart to frame prep.
@@ -140,25 +115,11 @@ fn clear_selection_for_outside_waveform_seek(controller: &mut AppController, pos
         .range()
         .or(controller.ui.waveform.selection)
     else {
-        tracing::info!(
-            normalized,
-            "waveform click play found no playback selection to clear"
-        );
         return;
     };
     if waveform_selection_contains_position(selection, normalized) {
-        tracing::info!(
-            normalized,
-            selection = ?selection,
-            "waveform click play kept active playback selection"
-        );
         return;
     }
-    tracing::info!(
-        normalized,
-        selection = ?selection,
-        "waveform click play clearing blocking playback selection"
-    );
     super::selection::clear_selection(controller);
 }
 
