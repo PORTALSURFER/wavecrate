@@ -122,6 +122,7 @@ pub(crate) struct ControllerSelectionState {
     pub(crate) edit_range: SelectionState,
     pub(crate) edit_fade_drag: Option<EditFadeDragState>,
     pub(crate) pending_undo: Option<SelectionUndoState>,
+    pub(crate) pending_edit_undo: Option<SelectionUndoState>,
     pub(crate) suppress_autoplay_once: bool,
     /// Fixed beat count used while a smart-scale resize drag recalculates BPM.
     pub(crate) bpm_scale_beats: Option<f32>,
@@ -135,6 +136,7 @@ impl ControllerSelectionState {
             edit_range: SelectionState::new(),
             edit_fade_drag: None,
             pending_undo: None,
+            pending_edit_undo: None,
             suppress_autoplay_once: false,
             bpm_scale_beats: None,
         }

@@ -98,6 +98,7 @@ impl AppController {
         if existing_range == Some(next_range) && waveform_focus_active(self) {
             return;
         }
+        self.begin_selection_undo("Selection");
         self.set_selection_range(next_range);
         self.focus_waveform_context();
     }

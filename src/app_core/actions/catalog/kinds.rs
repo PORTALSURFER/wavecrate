@@ -258,12 +258,16 @@ pub enum GuiActionKind {
     UpdateWaveformSelectionDrag,
     /// Finish an interactive playback-selection drag.
     FinishWaveformSelectionDrag,
+    /// Finish an interactive playback-selection range drag.
+    FinishWaveformSelectionRangeDrag,
     /// Finish an interactive smart-scale playback-selection drag.
     FinishWaveformSelectionSmartScaleDrag,
     /// Begin shifting the playback selection without resizing it.
     BeginWaveformSelectionShift,
     /// Begin shifting the edit selection without resizing it.
     BeginWaveformEditSelectionShift,
+    /// Finish an interactive edit-selection range drag.
+    FinishWaveformEditSelectionDrag,
     /// Clear the active playback selection.
     ClearWaveformSelection,
     /// Clear the active edit selection.
@@ -294,7 +298,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 142] = [
+    pub const ALL: [Self; 144] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -421,9 +425,11 @@ impl GuiActionKind {
         Self::StartWaveformSelectionDrag,
         Self::UpdateWaveformSelectionDrag,
         Self::FinishWaveformSelectionDrag,
+        Self::FinishWaveformSelectionRangeDrag,
         Self::FinishWaveformSelectionSmartScaleDrag,
         Self::BeginWaveformSelectionShift,
         Self::BeginWaveformEditSelectionShift,
+        Self::FinishWaveformEditSelectionDrag,
         Self::ClearWaveformSelection,
         Self::ClearWaveformEditSelection,
         Self::ClearWaveformSelections,

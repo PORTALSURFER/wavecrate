@@ -85,6 +85,9 @@ impl AppController {
                 )
             })
             .unwrap_or_else(|| selection_range_from_micros(start_micros, end_micros));
+        if existing_range != Some(next_range) {
+            self.begin_edit_selection_undo("Edit selection");
+        }
         apply_edit_selection_update(self, existing_range, next_range);
     }
 
@@ -159,6 +162,7 @@ impl AppController {
     /// Clear any temporary edit-fade drag baseline captured for a live handle drag.
     pub fn finish_waveform_edit_fade_drag(&mut self) {
         clear_edit_fade_drag(self);
+        self.commit_edit_selection_undo();
     }
 
     /// Clear waveform edit selection and keep waveform focus active.
@@ -177,6 +181,9 @@ impl AppController {
         };
         let drag_range = edit_selection::prepare_edit_fade_drag_range(self, kind, existing_range);
         let next_range = update(drag_range);
+        if existing_range != next_range {
+            self.begin_edit_selection_undo("Edit selection");
+        }
         apply_edit_selection_update(self, Some(existing_range), next_range);
     }
 }

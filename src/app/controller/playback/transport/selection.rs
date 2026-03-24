@@ -22,6 +22,7 @@ pub(crate) fn start_selection_drag(controller: &mut AppController, position: f32
 pub(crate) fn start_edit_selection_drag(controller: &mut AppController, position: f32) {
     let _ = controller.commit_edit_selection_fades();
     waveform_actions::clear_edit_fade_drag(controller);
+    controller.begin_edit_selection_undo("Edit selection");
     let start = position.clamp(0.0, 1.0);
     let range = controller.selection_state.edit_range.begin_new(start);
     controller.apply_edit_selection(Some(range));
@@ -118,6 +119,7 @@ pub(crate) fn finish_selection_drag(controller: &mut AppController) {
 
 pub(crate) fn finish_edit_selection_drag(controller: &mut AppController) {
     controller.selection_state.edit_range.finish_drag();
+    controller.commit_edit_selection_undo();
 }
 
 pub(crate) fn set_selection_range(controller: &mut AppController, range: SelectionRange) {
@@ -169,11 +171,19 @@ pub(crate) fn clear_selection(controller: &mut AppController) {
 }
 
 pub(crate) fn clear_edit_selection(controller: &mut AppController) {
+    let before = controller
+        .selection_state
+        .edit_range
+        .range()
+        .or(controller.ui.waveform.edit_selection);
     waveform_actions::clear_edit_fade_drag(controller);
     let cleared = controller.selection_state.edit_range.clear();
-    if cleared || controller.ui.waveform.edit_selection.is_some() {
-        controller.apply_edit_selection(None);
+    if !cleared && controller.ui.waveform.edit_selection.is_none() {
+        return;
     }
+    controller.selection_state.pending_edit_undo = None;
+    controller.apply_edit_selection(None);
+    controller.push_edit_selection_undo("Edit selection", before, None);
 }
 
 fn adjust_playback_after_selection_change(controller: &mut AppController) {

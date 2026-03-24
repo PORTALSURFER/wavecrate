@@ -222,6 +222,8 @@ fn waveform_action_queue_does_not_absorb_edit_selection_actions() {
         })
     );
     assert!(!queue.enqueue(&NativeUiAction::FinishWaveformEditFadeDrag));
+    assert!(!queue.enqueue(&NativeUiAction::FinishWaveformSelectionRangeDrag));
+    assert!(!queue.enqueue(&NativeUiAction::FinishWaveformEditSelectionDrag));
     assert!(!queue.enqueue(&NativeUiAction::ClearWaveformEditSelection));
     assert!(!queue.enqueue(&NativeUiAction::ClearWaveformSelections));
     assert!(!queue.has_pending());

@@ -69,14 +69,9 @@ impl AppController {
         if self.selection_state.pending_undo.is_some() {
             return;
         }
-        let before = self
-            .selection_state
-            .range
-            .range()
-            .or(self.ui.waveform.selection);
         self.selection_state.pending_undo = Some(SelectionUndoState {
             label: label.into(),
-            before,
+            before: self.current_selection_undo_range(),
         });
     }
 
@@ -84,11 +79,7 @@ impl AppController {
         let Some(pending) = self.selection_state.pending_undo.take() else {
             return;
         };
-        let after = self
-            .selection_state
-            .range
-            .range()
-            .or(self.ui.waveform.selection);
+        let after = self.current_selection_undo_range();
         self.push_selection_undo(pending.label, pending.before, after);
     }
 
@@ -115,6 +106,65 @@ impl AppController {
                 Ok(UndoExecution::Applied)
             },
         ));
+    }
+
+    pub(crate) fn begin_edit_selection_undo(&mut self, label: impl Into<String>) {
+        if self.selection_state.pending_edit_undo.is_some() {
+            return;
+        }
+        self.selection_state.pending_edit_undo = Some(SelectionUndoState {
+            label: label.into(),
+            before: self.current_edit_selection_undo_range(),
+        });
+    }
+
+    pub(crate) fn commit_edit_selection_undo(&mut self) {
+        let Some(pending) = self.selection_state.pending_edit_undo.take() else {
+            return;
+        };
+        let after = self.current_edit_selection_undo_range();
+        self.push_edit_selection_undo(pending.label, pending.before, after);
+    }
+
+    pub(crate) fn push_edit_selection_undo(
+        &mut self,
+        label: impl Into<String>,
+        before: Option<SelectionRange>,
+        after: Option<SelectionRange>,
+    ) {
+        if before == after {
+            return;
+        }
+        let label = label.into();
+        self.push_undo_entry(UndoEntry::<AppController>::new(
+            label,
+            move |controller| {
+                controller.selection_state.edit_fade_drag = None;
+                controller.selection_state.edit_range.set_range(before);
+                controller.apply_edit_selection(before);
+                Ok(UndoExecution::Applied)
+            },
+            move |controller| {
+                controller.selection_state.edit_fade_drag = None;
+                controller.selection_state.edit_range.set_range(after);
+                controller.apply_edit_selection(after);
+                Ok(UndoExecution::Applied)
+            },
+        ));
+    }
+
+    fn current_selection_undo_range(&self) -> Option<SelectionRange> {
+        self.selection_state
+            .range
+            .range()
+            .or(self.ui.waveform.selection)
+    }
+
+    fn current_edit_selection_undo_range(&self) -> Option<SelectionRange> {
+        self.selection_state
+            .edit_range
+            .range()
+            .or(self.ui.waveform.edit_selection)
     }
 }
 
