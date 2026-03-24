@@ -152,6 +152,12 @@ impl AppController {
             .flatten()
             .filter(|path| !path.as_os_str().is_empty());
         let request_id = self.runtime.jobs.next_selection_export_request_id();
+        self.begin_pending_sample_creation_transaction(
+            crate::app::controller::history::PendingHistoryTransactionKey::SelectionExport {
+                request_id,
+            },
+            "Saved selection clip",
+        );
         self.runtime
             .jobs
             .begin_selection_export(SelectionExportJob::Clip {
@@ -314,6 +320,14 @@ impl AppController {
         &mut self,
         success: SelectionClipExportSuccess,
     ) {
+        let history_key =
+            crate::app::controller::history::PendingHistoryTransactionKey::SelectionExport {
+                request_id: success.request_id,
+            };
+        let history_source_id = success.source_id.clone();
+        let history_relative_path = success.entry.relative_path.clone();
+        let history_absolute_path = success.absolute_path.clone();
+        let history_tag = success.entry.tag;
         self.record_selection_export_timings("clip", &success.entry.relative_path, success.timings);
         let source = SampleSource {
             id: success.source_id.clone(),
@@ -349,6 +363,18 @@ impl AppController {
             SelectionClipDestination::ExternalDrag => {
                 self.finish_external_selection_drag_export(success);
             }
+        }
+        if let Err(err) = self.finish_pending_sample_creation_transaction(
+            &history_key,
+            history_source_id,
+            history_relative_path,
+            history_absolute_path,
+            history_tag,
+        ) {
+            self.set_status(
+                format!("Selection export undo failed: {err}"),
+                StatusTone::Error,
+            );
         }
     }
 

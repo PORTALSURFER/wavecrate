@@ -55,6 +55,18 @@ pub enum GuiCoverageLayer {
     DesktopAiv,
 }
 
+/// Undo/redo transaction policy for one GUI action in the v1 history model.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GuiHistoryPolicy {
+    /// Action is intentionally excluded from transactional history.
+    None,
+    /// Action should commit one synchronous undoable transaction immediately.
+    Immediate,
+    /// Action starts async or IO-backed work and records history on success.
+    Deferred,
+}
+
 /// Host-owned coverage metadata for one `UiAction` variant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct GuiActionCatalogEntry {
@@ -66,6 +78,8 @@ pub struct GuiActionCatalogEntry {
     pub surface: GuiSurface,
     /// Expected effect class for the action.
     pub effect_class: GuiEffectClass,
+    /// Undo/redo transaction policy for the action.
+    pub history_policy: GuiHistoryPolicy,
     /// Coverage layers that must exist for the action.
     pub coverage_layers: &'static [GuiCoverageLayer],
     /// Default fixture or scenario tags to seed targeted suites.

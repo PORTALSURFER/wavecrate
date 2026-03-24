@@ -152,6 +152,11 @@ impl AppController {
                 request_id,
                 result: Err(err),
             } => {
+                self.cancel_pending_history_transaction(
+                    &crate::app::controller::history::PendingHistoryTransactionKey::SelectionExport {
+                        request_id,
+                    },
+                );
                 if self.ui.drag.pending_external_selection_request_id == Some(request_id) {
                     self.drag_drop().reset_drag();
                 }
@@ -168,6 +173,11 @@ impl AppController {
 
     /// Apply one normalization result and refresh the affected browser/waveform state.
     pub(super) fn handle_normalized_message(&mut self, message: NormalizationResult) {
+        let history_key =
+            crate::app::controller::history::PendingHistoryTransactionKey::Normalization {
+                source_id: message.source_id.clone(),
+                relative_path: message.relative_path.clone(),
+            };
         let source = self
             .library
             .sources
@@ -241,9 +251,17 @@ impl AppController {
                         format!("Normalized {}", message.relative_path.display()),
                         StatusTone::Info,
                     );
+                    if let Err(err) = self.finish_pending_sample_overwrite_transaction(&history_key)
+                    {
+                        self.set_status(
+                            format!("Normalization undo failed: {err}"),
+                            StatusTone::Error,
+                        );
+                    }
                 }
             }
             Err(err) => {
+                self.cancel_pending_history_transaction(&history_key);
                 self.set_status(format!("Normalization failed: {err}"), StatusTone::Error);
             }
         }

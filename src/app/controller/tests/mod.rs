@@ -18,6 +18,7 @@ mod external_drop_import;
 mod focus_random;
 mod folders_core;
 mod folders_search;
+mod history_transactions;
 /// Map focus/preview workflow regression tests.
 mod map_view;
 mod missing;

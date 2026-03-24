@@ -88,51 +88,64 @@ impl AppController {
 
     /// Toggle whether a visible browser row is included in the multi-selection set.
     pub fn toggle_browser_row_selection(&mut self, visible_row: usize) {
-        self.apply_browser_selection(visible_row, SelectionAction::Toggle, false);
+        self.record_meaningful_ui_transaction("Toggle browser selection", |controller| {
+            controller.apply_browser_selection(visible_row, SelectionAction::Toggle, false);
+        });
     }
 
     /// Extend the multi-selection range to a visible browser row (replaces the selection set).
     pub fn extend_browser_selection_to_row(&mut self, visible_row: usize) {
-        self.apply_browser_selection(
-            visible_row,
-            SelectionAction::Extend { additive: false },
-            false,
-        );
+        self.record_meaningful_ui_transaction("Extend browser selection", |controller| {
+            controller.apply_browser_selection(
+                visible_row,
+                SelectionAction::Extend { additive: false },
+                false,
+            );
+        });
     }
 
     /// Extend the multi-selection range to a visible browser row (adds to the selection set).
     pub fn add_range_browser_selection(&mut self, visible_row: usize) {
-        self.apply_browser_selection(
-            visible_row,
-            SelectionAction::Extend { additive: true },
-            false,
-        );
+        self.record_meaningful_ui_transaction("Add browser selection range", |controller| {
+            controller.apply_browser_selection(
+                visible_row,
+                SelectionAction::Extend { additive: true },
+                false,
+            );
+        });
     }
 
     /// Toggle the focused sample's inclusion in the browser multi-selection set.
     pub fn toggle_focused_selection(&mut self) {
-        let selected_wav = self.sample_view.wav.selected_wav.clone();
-        let Some(entry_index) = self
-            .ui
-            .browser
-            .selection
-            .selected_visible
-            .and_then(|row| self.visible_browser_index(row))
-            .or_else(|| {
-                selected_wav
-                    .as_deref()
-                    .and_then(|path| self.wav_index_for_path(path))
-            })
-        else {
-            return;
-        };
-        if let Some(row) = self.ui.browser.selection.selected_visible
-            && self.ui.browser.selection.selection_anchor_visible.is_none()
-        {
-            self.ui.browser.selection.selection_anchor_visible = Some(row);
-        }
-        self.toggle_browser_selection(entry_index);
-        self.rebuild_browser_lists();
+        self.record_meaningful_ui_transaction("Toggle browser selection", |controller| {
+            let selected_wav = controller.sample_view.wav.selected_wav.clone();
+            let Some(entry_index) = controller
+                .ui
+                .browser
+                .selection
+                .selected_visible
+                .and_then(|row| controller.visible_browser_index(row))
+                .or_else(|| {
+                    selected_wav
+                        .as_deref()
+                        .and_then(|path| controller.wav_index_for_path(path))
+                })
+            else {
+                return;
+            };
+            if let Some(row) = controller.ui.browser.selection.selected_visible
+                && controller
+                    .ui
+                    .browser
+                    .selection
+                    .selection_anchor_visible
+                    .is_none()
+            {
+                controller.ui.browser.selection.selection_anchor_visible = Some(row);
+            }
+            controller.toggle_browser_selection(entry_index);
+            controller.rebuild_browser_lists();
+        });
     }
 
     /// Clear the multi-selection set.
@@ -147,43 +160,51 @@ impl AppController {
 
     /// Select all visible sample browser rows.
     pub fn select_all_browser_rows(&mut self) {
-        if self.ui.browser.viewport.visible.len() == 0 {
-            return;
-        }
-        self.focus_browser_context();
-        self.ui.browser.selection.autoscroll = false;
-        let previous_indices = self.browser_selected_indices_snapshot();
-        let mut next_indices = Vec::with_capacity(self.ui.browser.viewport.visible.len());
-        let visible = self.ui.browser.viewport.visible.clone();
-        match visible {
-            crate::app::state::VisibleRows::All { total } => {
-                for index in 0..total {
-                    if self.wav_entry(index).is_some() {
-                        next_indices.push(index);
+        self.record_meaningful_ui_transaction("Select all browser rows", |controller| {
+            if controller.ui.browser.viewport.visible.len() == 0 {
+                return;
+            }
+            controller.focus_browser_context();
+            controller.ui.browser.selection.autoscroll = false;
+            let previous_indices = controller.browser_selected_indices_snapshot();
+            let mut next_indices = Vec::with_capacity(controller.ui.browser.viewport.visible.len());
+            let visible = controller.ui.browser.viewport.visible.clone();
+            match visible {
+                crate::app::state::VisibleRows::All { total } => {
+                    for index in 0..total {
+                        if controller.wav_entry(index).is_some() {
+                            next_indices.push(index);
+                        }
+                    }
+                }
+                crate::app::state::VisibleRows::List(rows) => {
+                    for index in rows.iter().copied() {
+                        if controller.wav_entry(index).is_some() {
+                            next_indices.push(index);
+                        }
                     }
                 }
             }
-            crate::app::state::VisibleRows::List(rows) => {
-                for index in rows.iter().copied() {
-                    if self.wav_entry(index).is_some() {
-                        next_indices.push(index);
-                    }
-                }
+            if next_indices != previous_indices {
+                controller.set_browser_selected_indices(next_indices);
             }
-        }
-        if next_indices != previous_indices {
-            self.set_browser_selected_indices(next_indices);
-        }
-        let anchor = self
-            .ui
-            .browser
-            .selection
-            .selection_anchor_visible
-            .or(self.ui.browser.selection.selected_visible)
-            .unwrap_or(0);
-        let max_row = self.ui.browser.viewport.visible.len().saturating_sub(1);
-        self.ui.browser.selection.selection_anchor_visible = Some(anchor.min(max_row));
-        self.rebuild_browser_lists();
+            let anchor = controller
+                .ui
+                .browser
+                .selection
+                .selection_anchor_visible
+                .or(controller.ui.browser.selection.selected_visible)
+                .unwrap_or(0);
+            let max_row = controller
+                .ui
+                .browser
+                .viewport
+                .visible
+                .len()
+                .saturating_sub(1);
+            controller.ui.browser.selection.selection_anchor_visible = Some(anchor.min(max_row));
+            controller.rebuild_browser_lists();
+        });
     }
 
     /// Apply browser selection state for a visible row and optionally commit loading.

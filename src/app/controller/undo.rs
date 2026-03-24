@@ -188,6 +188,7 @@ impl Drop for UndoCleanup {
 }
 
 /// Snapshot pair used by deferred file-backed undo/redo entries.
+#[derive(Clone, Debug)]
 pub(crate) struct OverwriteBackup {
     /// Temporary folder holding before/after snapshots for one edit.
     pub(crate) dir: PathBuf,

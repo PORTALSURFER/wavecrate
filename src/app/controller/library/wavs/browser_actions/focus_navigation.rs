@@ -117,8 +117,10 @@ impl AppController {
         visible_row: usize,
         intent: BrowserFocusIntent,
     ) {
-        let commit_load = matches!(intent, BrowserFocusIntent::Commit);
-        self.apply_browser_selection(visible_row, SelectionAction::Replace, commit_load);
+        self.record_meaningful_ui_transaction("Focus browser row", |controller| {
+            let commit_load = matches!(intent, BrowserFocusIntent::Commit);
+            controller.apply_browser_selection(visible_row, SelectionAction::Replace, commit_load);
+        });
     }
 
     /// Focus a browser row without mutating the multi-selection set.
@@ -170,6 +172,13 @@ impl AppController {
         self.select_wav_by_path_with_rebuild(&path, false);
         self.refresh_browser_selection_markers();
         true
+    }
+
+    /// Commit the focused browser row as one undoable user-intent transaction.
+    pub fn commit_focused_browser_row_action(&mut self) -> bool {
+        self.record_meaningful_ui_transaction("Commit browser row", |controller| {
+            controller.commit_focused_browser_row()
+        })
     }
 
     /// Commit the focused browser row when browser-focused; otherwise toggle transport.

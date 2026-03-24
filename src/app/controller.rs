@@ -6,6 +6,7 @@
 mod formatting;
 /// Deterministic GUI fixture builders used by GUI test scenarios.
 mod gui_fixtures;
+mod history;
 mod library;
 mod playback;
 mod source_watcher;
@@ -35,6 +36,8 @@ use crate::{
 };
 pub(crate) use controller_state::*;
 pub(crate) use gui_fixtures::build_named_gui_fixture_controller;
+#[cfg(test)]
+pub(crate) use history::catalog_history_handler_supported;
 pub(in crate::app::controller) use library::analysis_jobs::AnalysisJobMessage;
 use library::analysis_jobs::AnalysisWorkerPool;
 use open;

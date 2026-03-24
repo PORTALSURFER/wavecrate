@@ -252,11 +252,13 @@ impl AppController {
         match pending.direction {
             UndoDirection::Undo => {
                 let label = pending.entry.label.clone();
+                pending.entry.run_post_undo(self);
                 self.history.undo_stack.push_redo_entry(pending.entry);
                 self.set_status(format!("Undid {label}"), StatusTone::Info);
             }
             UndoDirection::Redo => {
                 let label = pending.entry.label.clone();
+                pending.entry.run_post_redo(self);
                 self.history.undo_stack.restore_undo_entry(pending.entry);
                 self.set_status(format!("Redid {label}"), StatusTone::Info);
             }

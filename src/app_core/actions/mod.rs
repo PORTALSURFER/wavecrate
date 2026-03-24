@@ -7,7 +7,7 @@ mod catalog;
 
 pub use self::catalog::{
     GUI_ACTION_CATALOG, GuiActionCatalogEntry, GuiActionKind, GuiCoverageLayer, GuiEffectClass,
-    GuiSurface, action_catalog_entry, action_catalog_entry_by_id, action_kind,
+    GuiHistoryPolicy, GuiSurface, action_catalog_entry, action_catalog_entry_by_id, action_kind,
     representative_action_for_kind,
 };
 

@@ -87,26 +87,28 @@ impl AppController {
     }
 
     pub(crate) fn focus_folder_row(&mut self, row_index: usize) {
-        self.clear_drop_target_selection();
-        let Some(row) = self.ui.sources.folders.rows.get(row_index).cloned() else {
-            return;
-        };
-        let path = row.path.clone();
-        let snapshot = {
-            let Some(model) = self.current_folder_model_mut() else {
+        self.record_meaningful_ui_transaction("Focus folder row", |controller| {
+            controller.clear_drop_target_selection();
+            let Some(row) = controller.ui.sources.folders.rows.get(row_index).cloned() else {
                 return;
             };
-            if !row.is_root && !model.available.contains(&path) {
-                return;
-            }
-            model.focused = Some(path.clone());
-            model.clone()
-        };
-        self.ui.sources.folders.focused = Some(row_index);
-        self.ui.sources.folders.scroll_to = Some(row_index);
-        self.ui.sources.folders.last_focused_path = Some(path.clone());
-        self.focus_folder_context();
-        self.build_folder_rows(&snapshot);
+            let path = row.path.clone();
+            let snapshot = {
+                let Some(model) = controller.current_folder_model_mut() else {
+                    return;
+                };
+                if !row.is_root && !model.available.contains(&path) {
+                    return;
+                }
+                model.focused = Some(path.clone());
+                model.clone()
+            };
+            controller.ui.sources.folders.focused = Some(row_index);
+            controller.ui.sources.folders.scroll_to = Some(row_index);
+            controller.ui.sources.folders.last_focused_path = Some(path.clone());
+            controller.focus_folder_context();
+            controller.build_folder_rows(&snapshot);
+        });
     }
 
     pub(crate) fn nudge_folder_selection(&mut self, offset: isize, extend: bool) {

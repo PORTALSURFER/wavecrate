@@ -320,7 +320,14 @@ fn apply_browser_native_ui_action(
             controller.focus_browser_row_and_play_action(visible_row)
         }
         NativeUiAction::CommitFocusedBrowserRow => {
-            controller.commit_browser_focus_or_toggle_transport()
+            if matches!(
+                controller.ui.focus.context,
+                crate::app_core::app_api::state::FocusContext::SampleBrowser
+            ) && controller.commit_focused_browser_row_action()
+            {
+                return Ok(());
+            }
+            controller.toggle_play_pause();
         }
         NativeUiAction::ToggleBrowserRowSelection { visible_row } => {
             controller.toggle_browser_row_selection(visible_row)

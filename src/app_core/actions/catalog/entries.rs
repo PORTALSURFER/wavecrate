@@ -1,7 +1,10 @@
 //! Stable GUI action catalog entries and lookup helpers.
 
 use super::super::NativeUiAction;
-use super::{GuiActionCatalogEntry, GuiActionKind, GuiCoverageLayer, GuiEffectClass, GuiSurface};
+use super::{
+    GuiActionCatalogEntry, GuiActionKind, GuiCoverageLayer, GuiEffectClass, GuiHistoryPolicy,
+    GuiSurface,
+};
 
 macro_rules! gui_action_catalog {
     ($(
@@ -22,6 +25,10 @@ macro_rules! gui_action_catalog {
                     action_id: $id,
                     surface: GuiSurface::$surface,
                     effect_class: GuiEffectClass::$effect,
+                    history_policy: gui_history_policy(
+                        GuiActionKind::$kind,
+                        GuiEffectClass::$effect,
+                    ),
                     coverage_layers: &[$(GuiCoverageLayer::$coverage),+],
                     default_fixture_tags: &[$($fixture),*],
                 },
@@ -48,6 +55,41 @@ macro_rules! gui_action_catalog {
     (@match $kind:ident { $($field:ident),+ }) => {
         NativeUiAction::$kind { $($field: _),+ }
     };
+}
+
+const fn gui_history_policy(kind: GuiActionKind, _effect: GuiEffectClass) -> GuiHistoryPolicy {
+    match kind {
+        GuiActionKind::FocusSourceRow
+        | GuiActionKind::SelectSourceRow
+        | GuiActionKind::MoveSourceFocus
+        | GuiActionKind::FocusFolderRow
+        | GuiActionKind::ToggleFocusedFolderSelection
+        | GuiActionKind::MoveFolderFocus
+        | GuiActionKind::MoveBrowserFocus
+        | GuiActionKind::FocusBrowserRow
+        | GuiActionKind::CommitFocusedBrowserRow
+        | GuiActionKind::ToggleBrowserRowSelection
+        | GuiActionKind::ExtendBrowserSelectionToRow
+        | GuiActionKind::AddRangeBrowserSelection
+        | GuiActionKind::ExtendBrowserSelectionFromFocus
+        | GuiActionKind::AddRangeBrowserSelectionFromFocus
+        | GuiActionKind::ToggleFocusedBrowserRowSelection
+        | GuiActionKind::SelectAllBrowserRows
+        | GuiActionKind::FinishWaveformSelectionDrag
+        | GuiActionKind::FinishWaveformSelectionRangeDrag
+        | GuiActionKind::FinishWaveformSelectionSmartScaleDrag
+        | GuiActionKind::FinishWaveformEditSelectionDrag
+        | GuiActionKind::FinishWaveformEditFadeDrag
+        | GuiActionKind::ClearWaveformSelection
+        | GuiActionKind::ClearWaveformEditSelection
+        | GuiActionKind::ClearWaveformSelections
+        | GuiActionKind::SlideWaveformSelection
+        | GuiActionKind::TagBrowserSelection
+        | GuiActionKind::AdjustSelectedBrowserRating => GuiHistoryPolicy::Immediate,
+        GuiActionKind::NormalizeFocusedBrowserSample
+        | GuiActionKind::SaveWaveformSelectionToBrowser => GuiHistoryPolicy::Deferred,
+        _ => GuiHistoryPolicy::None,
+    }
 }
 
 gui_action_catalog!(

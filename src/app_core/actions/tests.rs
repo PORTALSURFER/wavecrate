@@ -89,6 +89,21 @@ fn representative_actions_round_trip_through_kind_matcher() {
     }
 }
 
+#[test]
+fn every_history_enabled_catalog_entry_has_a_transaction_handler() {
+    for entry in GUI_ACTION_CATALOG {
+        assert!(
+            crate::app::controller::catalog_history_handler_supported(
+                entry.kind,
+                entry.history_policy,
+            ),
+            "catalog history policy {:?} for {} has no controller transaction handler",
+            entry.history_policy,
+            entry.action_id
+        );
+    }
+}
+
 fn collect_desktop_aiv_action_ids(
     cases: &[crate::gui_test::GuiAivCase],
     out: &mut BTreeSet<String>,

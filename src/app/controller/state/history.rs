@@ -1,5 +1,6 @@
 //! Undo and navigation history state for the controller.
 
+use crate::app::controller::history::{PendingHistoryTransaction, PendingHistoryTransactionKey};
 use crate::app::controller::undo;
 use crate::sample_sources::SourceId;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -9,6 +10,11 @@ pub(crate) struct ControllerHistoryState {
     pub(crate) undo_stack: undo::UndoStack<super::super::AppController>,
     /// Deferred undo/redo action awaiting filesystem completion.
     pub(crate) pending_undo: Option<undo::DeferredUndo<super::super::AppController>>,
+    /// Async user-intent transactions awaiting successful completion.
+    pub(crate) pending_transactions:
+        HashMap<PendingHistoryTransactionKey, PendingHistoryTransaction>,
+    /// True while history restore is replaying controller state.
+    pub(crate) restoring: bool,
     pub(crate) random_history: RandomHistoryState,
     pub(crate) focus_history: FocusHistoryState,
 }
@@ -18,6 +24,8 @@ impl ControllerHistoryState {
         Self {
             undo_stack: undo::UndoStack::new(undo_limit),
             pending_undo: None,
+            pending_transactions: HashMap::new(),
+            restoring: false,
             random_history: RandomHistoryState::new(),
             focus_history: FocusHistoryState::new(),
         }

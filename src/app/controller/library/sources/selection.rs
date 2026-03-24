@@ -18,7 +18,9 @@ impl AppController {
     /// Change the selected source by index.
     pub fn select_source_by_index(&mut self, index: usize) {
         let id = self.library.sources.get(index).map(|s| s.id.clone());
-        self.select_source(id);
+        self.record_meaningful_ui_transaction("Select source", |controller| {
+            controller.select_source_internal(id, None);
+        });
     }
 
     /// Move source selection up or down by an offset.
@@ -28,8 +30,11 @@ impl AppController {
         }
         let current = self.ui.sources.selected.unwrap_or(0) as isize;
         let target = (current + offset).clamp(0, self.library.sources.len() as isize - 1) as usize;
-        self.select_source_by_index(target);
-        self.focus_sources_context();
+        let id = self.library.sources.get(target).map(|s| s.id.clone());
+        self.record_meaningful_ui_transaction("Select source", |controller| {
+            controller.select_source_internal(id, None);
+            controller.focus_sources_context();
+        });
     }
 
     /// Change the selected source by id and refresh dependent state.

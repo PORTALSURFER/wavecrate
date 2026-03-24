@@ -48,6 +48,8 @@ pub(crate) struct UndoEntry<T> {
     pub(crate) label: String,
     pub(crate) undo: Box<dyn Fn(&mut T) -> UndoResult>,
     pub(crate) redo: Box<dyn Fn(&mut T) -> UndoResult>,
+    post_undo: Option<Box<dyn Fn(&mut T)>>,
+    post_redo: Option<Box<dyn Fn(&mut T)>>,
     _cleanup: Vec<UndoCleanup>,
 }
 
@@ -61,6 +63,8 @@ impl<T> UndoEntry<T> {
             label: label.into(),
             undo: Box::new(undo),
             redo: Box::new(redo),
+            post_undo: None,
+            post_redo: None,
             _cleanup: Vec::new(),
         }
     }
@@ -68,6 +72,30 @@ impl<T> UndoEntry<T> {
     pub(crate) fn with_cleanup_dir(mut self, path: PathBuf) -> Self {
         self._cleanup.push(UndoCleanup::dir(path));
         self
+    }
+
+    /// Attach a completion callback that runs after a deferred or immediate undo succeeds.
+    pub(crate) fn with_post_undo(mut self, callback: impl Fn(&mut T) + 'static) -> Self {
+        self.post_undo = Some(Box::new(callback));
+        self
+    }
+
+    /// Attach a completion callback that runs after a deferred or immediate redo succeeds.
+    pub(crate) fn with_post_redo(mut self, callback: impl Fn(&mut T) + 'static) -> Self {
+        self.post_redo = Some(Box::new(callback));
+        self
+    }
+
+    pub(crate) fn run_post_undo(&self, target: &mut T) {
+        if let Some(callback) = self.post_undo.as_ref() {
+            callback(target);
+        }
+    }
+
+    pub(crate) fn run_post_redo(&self, target: &mut T) {
+        if let Some(callback) = self.post_redo.as_ref() {
+            callback(target);
+        }
     }
 }
 
@@ -102,6 +130,7 @@ impl<T> UndoStack<T> {
         let label = entry.label.clone();
         match (entry.undo)(target) {
             Ok(UndoExecution::Applied) => {
+                entry.run_post_undo(target);
                 self.redo.push_back(entry);
                 Ok(UndoOutcome::Applied(label))
             }
@@ -124,6 +153,7 @@ impl<T> UndoStack<T> {
         let label = entry.label.clone();
         match (entry.redo)(target) {
             Ok(UndoExecution::Applied) => {
+                entry.run_post_redo(target);
                 self.undo.push_back(entry);
                 Ok(UndoOutcome::Applied(label))
             }

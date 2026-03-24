@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::controller::jobs::NormalizationJob;
+use crate::app::controller::undo;
 
 pub(crate) struct BrowserController<'a> {
     controller: &'a mut AppController,
@@ -44,6 +45,16 @@ impl BrowserController<'_> {
         if cfg!(test) {
             return self.normalize_browser_sample_sync(ctx);
         }
+        self.controller.begin_pending_sample_overwrite_transaction(
+            crate::app::controller::history::PendingHistoryTransactionKey::Normalization {
+                source_id: ctx.source.id.clone(),
+                relative_path: ctx.entry.relative_path.clone(),
+            },
+            format!("Normalized {}", ctx.entry.relative_path.display()),
+            ctx.source.id.clone(),
+            ctx.entry.relative_path.clone(),
+            ctx.absolute_path.clone(),
+        )?;
         let job = NormalizationJob {
             source: ctx.source.clone(),
             relative_path: ctx.entry.relative_path.clone(),
@@ -64,6 +75,8 @@ impl BrowserController<'_> {
     }
 
     fn normalize_browser_sample_sync(&mut self, ctx: &TriageSampleContext) -> Result<(), String> {
+        let before = self.capture_meaningful_ui_snapshot();
+        let backup = undo::OverwriteBackup::capture_before(&ctx.absolute_path)?;
         let was_playing = self.is_playing();
         let was_looping = self.ui.waveform.loop_enabled;
         let playhead_position = self.ui.waveform.playhead.position;
@@ -129,6 +142,18 @@ impl BrowserController<'_> {
             format!("Normalized {}", ctx.entry.relative_path.display()),
             StatusTone::Info,
         );
+        backup.capture_after(&ctx.absolute_path)?;
+        let after = self.capture_meaningful_ui_snapshot();
+        let entry = self.selection_edit_undo_entry(
+            format!("Normalized {}", ctx.entry.relative_path.display()),
+            ctx.source.id.clone(),
+            ctx.entry.relative_path.clone(),
+            ctx.absolute_path.clone(),
+            backup,
+        );
+        self.push_undo_entry(AppController::attach_meaningful_ui_restore(
+            entry, before, after,
+        ));
         Ok(())
     }
     pub(crate) fn next_browser_focus_after_delete(&mut self, rows: &[usize]) -> Option<PathBuf> {
