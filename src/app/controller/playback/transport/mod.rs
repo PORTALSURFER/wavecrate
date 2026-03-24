@@ -13,6 +13,7 @@ pub(crate) use playback::{
 };
 pub(crate) use seek::{
     flush_pending_waveform_seek_commit, queue_waveform_seek_nanos, record_play_start, seek_to,
+    seek_waveform_nanos,
 };
 pub(crate) use selection::{
     clear_edit_selection, clear_selection, finish_edit_selection_drag, finish_selection_drag,

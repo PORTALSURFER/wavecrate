@@ -18,6 +18,21 @@ pub(crate) fn seek_to(controller: &mut AppController, position: f64) {
     }
 }
 
+/// Start playback immediately from one exact waveform nanounit position.
+///
+/// This shares the same selection-cleanup semantics as queued click seeks so a
+/// plain waveform click outside the active playback selection does not inherit
+/// that old selection span and collapse into an inaudible one-frame blip.
+pub(crate) fn seek_waveform_nanos(controller: &mut AppController, position_nanos: u32) {
+    let clamped = position_nanos.min(1_000_000_000);
+    let normalized = normalized64_from_nanos(clamped);
+    super::selection::cancel_click_armed_selection_drag(controller);
+    clear_selection_for_outside_waveform_seek(controller, normalized);
+    seek_to(controller, normalized);
+    controller.set_waveform_cursor(normalized as f32);
+    controller.focus_waveform();
+}
+
 /// Queue a waveform seek request and defer playback restart to frame prep.
 pub(crate) fn queue_waveform_seek_nanos(controller: &mut AppController, position_nanos: u32) {
     let clamped = position_nanos.min(1_000_000_000);

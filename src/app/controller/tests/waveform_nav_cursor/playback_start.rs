@@ -201,3 +201,49 @@ fn play_waveform_at_precise_starts_from_clicked_position_over_visible_playhead()
     );
     assert_eq!(controller.ui.waveform.playhead.position, 0.84);
 }
+
+#[test]
+fn play_waveform_at_precise_clears_outside_play_selection_before_starting_audio() {
+    let Some(mut player) = crate::audio::AudioPlayer::playing_for_tests() else {
+        return;
+    };
+    let (mut controller, source) = dummy_controller();
+    let wav_path = source.root.join("click-play-outside-selection.wav");
+    let long_samples = vec![0.1_f32; 240];
+    write_test_wav(&wav_path, &long_samples);
+    let bytes: std::sync::Arc<[u8]> = std::fs::read(&wav_path).expect("wav bytes").into();
+    let duration = 30.0;
+    player.set_audio(bytes.clone(), duration);
+    controller.sample_view.wav.loaded_audio = Some(crate::app::controller::LoadedAudio {
+        source_id: source.id.clone(),
+        root: source.root.clone(),
+        relative_path: "click-play-outside-selection.wav".into(),
+        bytes,
+        duration_seconds: duration,
+        sample_rate: 8,
+    });
+    controller.audio.player = Some(std::rc::Rc::new(std::cell::RefCell::new(player)));
+    let selection = crate::selection::SelectionRange::new(0.2, 0.4);
+    controller.selection_state.range.set_range(Some(selection));
+    controller.apply_selection(Some(selection));
+
+    controller.apply_native_ui_action(NativeUiAction::PlayWaveformAtPrecise {
+        position_nanos: 800_000_000,
+    });
+
+    assert!(controller.is_playing());
+    assert!(controller.selection_state.range.range().is_none());
+    assert!(controller.ui.waveform.selection.is_none());
+    assert_eq!(controller.ui.waveform.playhead.active_span_end, Some(1.0));
+    assert!((controller.ui.waveform.playhead.position - 0.8).abs() < 1.0e-6);
+    let (start, end) = controller
+        .audio
+        .player
+        .as_ref()
+        .expect("player")
+        .borrow()
+        .play_span()
+        .expect("play span");
+    assert!(start > duration * 0.75, "unexpected start span: {start}");
+    assert!((end - duration).abs() < 0.02, "unexpected end span: {end}");
+}

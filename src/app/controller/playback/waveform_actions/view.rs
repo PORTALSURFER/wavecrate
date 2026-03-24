@@ -13,10 +13,7 @@ impl AppController {
 
     /// Seek waveform/playback using an exact nanounit position from UI actions.
     pub fn seek_waveform_nanos(&mut self, position_nanos: u32) {
-        let normalized = normalized64_from_nanos(position_nanos);
-        self.seek_to(normalized);
-        self.set_waveform_cursor(normalized as f32);
-        self.focus_waveform();
+        transport::seek_waveform_nanos(self, position_nanos);
     }
 
     /// Seek waveform/playback using a 0..=1000 milli position from UI actions.
