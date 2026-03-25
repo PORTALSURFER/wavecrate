@@ -1,4 +1,4 @@
-﻿# Allowlist for the Rust file size budget check.
+# Allowlist for the Rust file size budget check.
 #
 # Sempal aims to keep source files under 400 LOC. This allowlist captures the
 # current legacy exceptions within the guardrail scope (`src/`, `tests/`, and
@@ -8,4 +8,14 @@
 #
 # Prefer shrinking or splitting these files over time and delete entries once
 # they fall back under the budget.
+
+# Canonical payload-free GUI action identities stay centralized to preserve one
+# stable declaration-order surface for catalog tooling and representative-action
+# tests. Split only if concrete ownership or correctness pressure appears.
+src/app_core/actions/catalog/kinds.rs
+
+# Playback selection drag/retarget logic and its local unit tests currently form
+# one cohesive transport subdomain. Revisit only if a clearer module boundary
+# emerges than the current gesture/playback coupling.
+src/app/controller/playback/transport/selection.rs
 
