@@ -8,8 +8,12 @@ mod ui;
 use std::path::PathBuf;
 
 use sempal::updater::{
-    APP_NAME, REPO_SLUG, RuntimeIdentity, UpdateChannel, UpdaterRunArgs, apply_update,
+    APP_NAME, ApplyPlan, REPO_SLUG, RuntimeIdentity, UpdateChannel, UpdateError, UpdaterRunArgs,
+    apply_update,
 };
+
+#[cfg(test)]
+mod tests;
 
 fn main() {
     if let Err(err) = try_main() {
@@ -27,7 +31,7 @@ fn try_main() -> Result<(), String> {
 }
 
 fn run_headless(args: UpdaterRunArgs) -> Result<(), String> {
-    let plan = apply_update(args).map_err(|err| err.to_string())?;
+    let plan = run_headless_with(args, apply_update)?;
     eprintln!(
         "Updated {} from {} into {}",
         APP_NAME,
@@ -35,6 +39,13 @@ fn run_headless(args: UpdaterRunArgs) -> Result<(), String> {
         plan.install_dir.display()
     );
     Ok(())
+}
+
+fn run_headless_with(
+    args: UpdaterRunArgs,
+    apply: impl FnOnce(UpdaterRunArgs) -> Result<ApplyPlan, UpdateError>,
+) -> Result<ApplyPlan, String> {
+    apply(args).map_err(|err| err.to_string())
 }
 
 fn parse_args(args: Vec<String>) -> Result<(UpdaterRunArgs, bool), String> {
