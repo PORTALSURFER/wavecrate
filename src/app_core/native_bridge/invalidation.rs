@@ -1,4 +1,6 @@
 use crate::app_core::actions::NativeUiAction;
+#[cfg(test)]
+use crate::app_core::actions::{GuiActionKind, representative_action_for_kind};
 use crate::app_core::app_api::controller_state::{DerivedNodeId, DirtyReason};
 
 /// Return whether an action requires unconditional projection-cache invalidation.
@@ -178,4 +180,18 @@ pub(super) fn classify_dirty_source(
 /// Return whether dirty waveform render inputs require a full image refresh.
 pub(super) fn waveform_render_inputs_require_refresh(reason: Option<DirtyReason>) -> bool {
     !matches!(reason, Some(DirtyReason::WaveformOverlayAction))
+}
+
+/// Resolve whether one catalog action kind prefers targeted invalidation.
+#[cfg(test)]
+pub(crate) fn catalog_prefers_targeted_invalidation(kind: GuiActionKind) -> bool {
+    action_prefers_targeted_invalidation(&representative_action_for_kind(kind))
+}
+
+/// Resolve the dirty source metadata for one catalog action kind.
+#[cfg(test)]
+pub(crate) fn catalog_dirty_source(
+    kind: GuiActionKind,
+) -> Option<(DerivedNodeId, DirtyReason)> {
+    classify_dirty_source(&representative_action_for_kind(kind))
 }

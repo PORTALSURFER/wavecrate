@@ -1,8 +1,10 @@
 use crate::app_core::actions::NativeUiAction;
+#[cfg(test)]
+use crate::app_core::actions::{GuiActionKind, representative_action_for_kind};
 
 /// Interaction classes tracked by native bridge profiling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum InteractionActionClass {
+pub(crate) enum InteractionActionClass {
     /// Wheel-like browser row movement actions.
     Wheel,
     /// Map interaction actions flowing through the bridge.
@@ -134,4 +136,22 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::SetPromptInput { .. }
             | NativeUiAction::ToggleWaveformSliceSelection { .. }
     )
+}
+
+/// Resolve the interaction profile class for one catalog action kind.
+#[cfg(test)]
+pub(crate) fn catalog_interaction_class(kind: GuiActionKind) -> Option<InteractionActionClass> {
+    classify_action_interaction(&representative_action_for_kind(kind))
+}
+
+/// Return whether one catalog action kind should apply immediate waveform preview updates.
+#[cfg(test)]
+pub(crate) fn catalog_is_immediate_waveform_preview_action(kind: GuiActionKind) -> bool {
+    is_immediate_waveform_preview_action(&representative_action_for_kind(kind))
+}
+
+/// Return whether one catalog action kind qualifies for the local model-pull fast path.
+#[cfg(test)]
+pub(crate) fn catalog_uses_local_model_pull_fast_path(kind: GuiActionKind) -> bool {
+    uses_local_model_pull_fast_path(&representative_action_for_kind(kind))
 }

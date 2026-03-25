@@ -1,6 +1,12 @@
 use super::{
-    GUI_ACTION_CATALOG, GuiActionKind, GuiCoverageLayer, action_catalog_entry_by_id, action_kind,
-    representative_action_for_kind,
+    GUI_ACTION_CATALOG, GuiActionKind, GuiCoverageLayer, GuiEffectClass, GuiSurface,
+    action_catalog_entry_by_id, action_kind, representative_action_for_kind,
+};
+use crate::app_core::app_api::controller_state::DerivedNodeId;
+use crate::app_core::native_bridge::{
+    InteractionActionClass, catalog_dirty_source, catalog_interaction_class,
+    catalog_is_immediate_waveform_preview_action, catalog_prefers_targeted_invalidation,
+    catalog_uses_local_model_pull_fast_path,
 };
 use crate::gui_test::{GuiAivAssertion, GuiAivStep, gui_aiv_suite_manifest};
 use std::collections::BTreeSet;
@@ -101,6 +107,95 @@ fn every_history_enabled_catalog_entry_has_a_transaction_handler() {
             entry.history_policy,
             entry.action_id
         );
+    }
+}
+
+#[test]
+fn profiled_interaction_catalog_entries_match_expected_surfaces_and_dirty_sources() {
+    for entry in GUI_ACTION_CATALOG {
+        let Some(class) = catalog_interaction_class(entry.kind) else {
+            continue;
+        };
+        match class {
+            InteractionActionClass::Wheel => {
+                assert_eq!(entry.surface, GuiSurface::Browser);
+                assert_eq!(
+                    catalog_dirty_source(entry.kind).map(|(node, _)| node),
+                    Some(DerivedNodeId::BrowserState),
+                );
+            }
+            InteractionActionClass::MapPanProxy => {
+                assert_eq!(entry.surface, GuiSurface::Map);
+                assert_eq!(
+                    catalog_dirty_source(entry.kind).map(|(node, _)| node),
+                    Some(DerivedNodeId::MapState),
+                );
+            }
+            InteractionActionClass::Waveform => {
+                assert!(
+                    matches!(entry.surface, GuiSurface::Waveform | GuiSurface::Transport),
+                    "waveform-profiled action {} should stay on waveform/transport surfaces",
+                    entry.action_id
+                );
+                assert!(
+                    matches!(
+                        catalog_dirty_source(entry.kind).map(|(node, _)| node),
+                        Some(DerivedNodeId::WaveformState)
+                            | Some(DerivedNodeId::TransportState)
+                            | None
+                    ),
+                    "waveform-profiled action {} should keep waveform/transport/queued dirty semantics",
+                    entry.action_id
+                );
+            }
+            InteractionActionClass::Volume => {
+                assert_eq!(entry.surface, GuiSurface::Transport);
+                assert_eq!(
+                    catalog_dirty_source(entry.kind).map(|(node, _)| node),
+                    Some(DerivedNodeId::TransportState),
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn targeted_invalidation_catalog_entries_stay_on_browser_surface() {
+    for entry in GUI_ACTION_CATALOG {
+        if !catalog_prefers_targeted_invalidation(entry.kind) {
+            continue;
+        }
+        assert_eq!(entry.surface, GuiSurface::Browser);
+        assert_eq!(
+            catalog_dirty_source(entry.kind).map(|(node, _)| node),
+            Some(DerivedNodeId::BrowserState),
+        );
+    }
+}
+
+#[test]
+fn immediate_waveform_preview_catalog_entries_stay_on_waveform_surface() {
+    for entry in GUI_ACTION_CATALOG {
+        if !catalog_is_immediate_waveform_preview_action(entry.kind) {
+            continue;
+        }
+        assert_eq!(entry.surface, GuiSurface::Waveform);
+        if let Some((node, _)) = catalog_dirty_source(entry.kind) {
+            assert_eq!(node, DerivedNodeId::WaveformState);
+        }
+    }
+}
+
+#[test]
+fn local_model_pull_fast_path_catalog_entries_remain_ui_only_actions() {
+    for entry in GUI_ACTION_CATALOG {
+        if !catalog_uses_local_model_pull_fast_path(entry.kind) {
+            continue;
+        }
+        assert!(matches!(
+            entry.effect_class,
+            GuiEffectClass::Projection | GuiEffectClass::StateOnly
+        ));
     }
 }
 
