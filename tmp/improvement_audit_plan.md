@@ -45,7 +45,7 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
 
 ## Ordered Backlog
 
-### 1. [ ] Fix the file-size guardrail blind spot for `vendor/radiant` submodule files
+### 1. [x] Fix the file-size guardrail blind spot for `vendor/radiant` submodule files
 
 - Classification: Bug fix
 - Confidence: High
@@ -67,6 +67,15 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - `bash scripts/check_file_size_budget.sh --all`
   - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `b2ee3235`
+- Assumptions: Keep the full guardrail green by allowlisting the current oversized vendored legacy files explicitly instead of silently excluding the entire nested repo.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
 ### 2. [ ] Resynchronize the stateless handoff docs and active plan status markers
 

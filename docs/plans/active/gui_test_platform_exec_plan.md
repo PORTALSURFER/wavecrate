@@ -40,23 +40,26 @@ Delivered:
 
 ## Phase 3: Desktop AIV Integration
 
-Status: in progress on 2026-03-11
+Status: implemented on 2026-03-25
 
 Delivered so far:
 
 - live PowerShell smoke wrapper that launches Sempal in GUI test mode
 - semantic node resolution through `gui-test-cli resolve-node-target`
 - AIV-driven options/search/tab smoke flow wired to semantic node ids
+- focus-recovery retries plus categorized failure reporting for foreground/window/assertion/step failures
+- prompt, waveform, browser-map, transport-volume, and update-panel desktop coverage in the `desktop-regression` pack
+- per-case manifests/reports/bundles plus top-level `suite-report.json` and `suite-summary.md`
 
-Open issue:
+Known limitation:
 
-- foreground activation can fail on the current Windows setup with `SetForegroundWindow`, so the wrapper is not yet stable enough for CI promotion
+- foreground activation can still fail on the current Windows setup with `SetForegroundWindow`, so desktop AIV remains local-only and is not yet ready for CI promotion
 
-Remaining work:
+Acceptance met in this phase:
 
-1. Add focus-recovery or click-fallback handling for AIV foreground failures.
-2. Expand the smoke wrapper to cover waveform and prompt interactions once focus is reliable.
-3. Export machine-readable pass/fail summaries from the AIV wrapper.
+- focus-recovery handling exists for foreground-sensitive desktop steps
+- desktop regression coverage extends beyond options/search into prompt, waveform, browser-map, and update flows
+- desktop wrapper exports machine-readable per-case and suite summaries
 
 ## Phase 4: CI Promotion
 
@@ -64,8 +67,15 @@ Goal:
 
 - make GUI regression coverage part of normal development gates
 
+Status: partially implemented on 2026-03-25
+
+Delivered so far:
+
+- the semantic GUI contract lane is part of `ci_quick`
+- desktop AIV remains intentionally local-only pending a stable promotion bar
+
 Planned work:
 
-1. Promote the GUI contract lane into `ci_quick`.
-2. Add an opt-in PR smoke lane for AIV once stable.
+1. Define the tiny non-blocking desktop-AIV smoke subset and the evidence threshold for promotion.
+2. Add an opt-in PR smoke lane for desktop AIV only after the focus-recovery subset is repeatably stable.
 3. Track pass/fail and timing artifacts over time.
