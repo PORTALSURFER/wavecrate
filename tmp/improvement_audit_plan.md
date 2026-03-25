@@ -2,7 +2,7 @@
 
 Generated: 2026-03-25
 Observed commit: `efd1bbbd`
-Status: Phase 2 execution is in progress on 2026-03-25. Items 1-5 are complete, and the ambiguity decisions are locked to the user-approved conservative options for this execution pass.
+Status: Phase 2 execution is in progress on 2026-03-25. Items 1-6 are complete, and the ambiguity decisions are locked to the user-approved conservative options for this execution pass.
 
 ## Scope
 
@@ -193,7 +193,7 @@ Status: Phase 2 execution is in progress on 2026-03-25. Items 1-5 are complete, 
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 - Deviation from original plan order: none
 
-### 6. [ ] Split `src/app/controller/tests/drag_drop_drop_targets.rs` into transfer coverage and drop-target-list coverage
+### 6. [x] Split `src/app/controller/tests/drag_drop_drop_targets.rs` into transfer coverage and drop-target-list coverage
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -214,6 +214,15 @@ Status: Phase 2 execution is in progress on 2026-03-25. Items 1-5 are complete, 
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `ac660373`, `2b666fab`
+- Assumptions used: the narrowest useful split is a directory-backed `drag_drop_drop_targets` test module whose root keeps only the tiny `Must` helper while `transfer.rs` owns cross-source transfer/result coverage and `list.rs` owns drop-target panel/reorder behavior; that preserves the existing external module name while removing the oversized flat file.
+- Validation outcome:
+  - `cargo test drag_drop_drop_targets --lib` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` passed for this item's target by removing the drop-target test file from the live violation list; remaining failures are later backlog items
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Deviation from original plan order: none; the split required a tiny follow-up commit to stage the deleted flat module after the new directory-backed test modules landed.
 
 ### 7. [ ] Add one post-deadline playback-age persistence regression test
 
