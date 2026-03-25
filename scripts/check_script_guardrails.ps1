@@ -192,14 +192,12 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $repoDir "src") | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $repoDir "scripts") | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $repoDir "docs") | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "vendor") | Out-Null
 
     Copy-Item (Join-Path $scriptsDir "check_file_size_budget.ps1") (Join-Path $repoDir "scripts/check_file_size_budget.ps1")
     Set-Content -Path (Join-Path $repoDir "src/too_many_lines.rs") -Value @(
-      "fn main() {",
-      "    println!(`"a`");",
-      "    println!(`"b`");",
-      "    println!(`"c`");",
-      "    println!(`"d`");",
+      "fn ok() {",
+      "    println!(`"budget`");",
       "}"
     )
 
@@ -209,7 +207,24 @@ try {
     git -C $repoDir add src/too_many_lines.rs
     git -C $repoDir commit -qm "seed"
 
-    Invoke-ExpectExitCode -Label "file size budget catches over-limit file" -ExpectedCode 1 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_file_size_budget.ps1") -Arguments @("-All", "-Limit", "3")
+    $vendorRepoDir = Join-Path $repoDir "vendor/radiant"
+    New-Item -ItemType Directory -Path $vendorRepoDir | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $vendorRepoDir "src") | Out-Null
+    Set-Content -Path (Join-Path $vendorRepoDir "src/too_many_lines.rs") -Value @(
+      "fn main() {",
+      "    println!(`"a`");",
+      "    println!(`"b`");",
+      "    println!(`"c`");",
+      "    println!(`"d`");",
+      "}"
+    )
+    git -C $vendorRepoDir init -q
+    git -C $vendorRepoDir config user.name "sempal-ci"
+    git -C $vendorRepoDir config user.email "ci@sempal.test"
+    git -C $vendorRepoDir add src/too_many_lines.rs
+    git -C $vendorRepoDir commit -qm "seed"
+
+    Invoke-ExpectExitCode -Label "file size budget catches over-limit nested vendor file" -ExpectedCode 1 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_file_size_budget.ps1") -Arguments @("-All", "-Limit", "3")
     Invoke-ExpectExitCode -Label "file size budget passes under limit" -ExpectedCode 0 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_file_size_budget.ps1") -Arguments @("-All", "-Limit", "10")
   } finally {
     Remove-Item -Recurse -Force $fixtureDir -ErrorAction SilentlyContinue

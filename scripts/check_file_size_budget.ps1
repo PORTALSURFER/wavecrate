@@ -36,7 +36,9 @@ try {
     }
   }
 
-  $scopePaths = @("src", "tests", "vendor/radiant/src")
+  $projectScopePaths = @("src", "tests")
+  $vendorRepoPath = "vendor/radiant"
+  $vendorScopePath = "src"
   $files = New-Object "System.Collections.Generic.HashSet[string]"
 
   function Test-GitCommit([string]$Ref) {
@@ -45,17 +47,80 @@ try {
     return ($LASTEXITCODE -eq 0)
   }
 
-  function Add-GitFileList([string[]]$Lines) {
+  function Test-GitCommitInRepo([string]$RepoPath, [string]$Ref) {
+    if ([string]::IsNullOrWhiteSpace($Ref)) { return $false }
+    git -C $RepoPath rev-parse --verify --quiet "$Ref^{commit}" | Out-Null
+    return ($LASTEXITCODE -eq 0)
+  }
+
+  function Test-GitRepo([string]$RepoPath) {
+    if (-not (Test-Path -LiteralPath $RepoPath -PathType Container)) { return $false }
+    git -C $RepoPath rev-parse --is-inside-work-tree | Out-Null
+    return ($LASTEXITCODE -eq 0)
+  }
+
+  function Add-GitFileList([string[]]$Lines, [string]$Prefix = "") {
     foreach ($line in $Lines) {
       $path = $line.Trim()
       if ([string]::IsNullOrWhiteSpace($path)) { continue }
+      $path = $path.Replace("\", "/")
+      if (-not [string]::IsNullOrWhiteSpace($Prefix)) {
+        $path = ($Prefix.TrimEnd("/", "\") + "/" + $path.TrimStart("/", "\")).Replace("\", "/")
+      }
       if (-not $path.EndsWith(".rs")) { continue }
       [void]$files.Add($path)
     }
   }
 
+  function Add-WorkingTreeFiles([string]$RelativePath) {
+    if (-not (Test-Path -LiteralPath $RelativePath -PathType Container)) { return }
+    $basePath = (Resolve-Path -LiteralPath $RelativePath).Path
+    foreach ($entry in Get-ChildItem -LiteralPath $basePath -Recurse -Filter *.rs -File) {
+      $relative = [System.IO.Path]::GetRelativePath($rootDir, $entry.FullName).Replace("\", "/")
+      [void]$files.Add($relative)
+    }
+  }
+
+  function Get-RepoTrackedFiles([string]$RepoPath, [string]$ScopePath) {
+    if (Test-GitRepo $RepoPath) {
+      return @(git -C $RepoPath ls-files -- $ScopePath)
+    }
+    return @()
+  }
+
+  function Get-RepoChangedFiles([string]$RepoPath, [string]$ScopePath, [string]$BaseRef, [string]$HeadRef) {
+    if (-not (Test-GitRepo $RepoPath)) { return @() }
+
+    $result = @()
+    if (-not [string]::IsNullOrWhiteSpace($BaseRef) -and (Test-GitCommitInRepo $RepoPath $BaseRef) -and (Test-GitCommitInRepo $RepoPath $HeadRef)) {
+      $result += @(git -C $RepoPath diff --name-only --diff-filter=AM "$BaseRef...$HeadRef" -- $ScopePath)
+    } elseif (Test-GitCommitInRepo $RepoPath $HeadRef) {
+      $result += @(git -C $RepoPath show --name-only --pretty=format: $HeadRef -- $ScopePath)
+    }
+
+    $result += @(git -C $RepoPath diff --name-only --diff-filter=AM --cached -- $ScopePath)
+    $result += @(git -C $RepoPath diff --name-only --diff-filter=AM -- $ScopePath)
+    return $result
+  }
+
+  function Test-VendorPointerChanged([string]$BaseRef, [string]$HeadRef) {
+    if (-not (Test-GitRepo $vendorRepoPath)) { return $false }
+    if (-not [string]::IsNullOrWhiteSpace($BaseRef) -and (Test-GitCommit $BaseRef) -and (Test-GitCommit $HeadRef)) {
+      return (@(git diff --name-only --diff-filter=AM "$BaseRef...$HeadRef" -- $vendorRepoPath).Count -gt 0)
+    }
+    if (Test-GitCommit $HeadRef) {
+      return (@(git show --name-only --pretty=format: $HeadRef -- $vendorRepoPath).Count -gt 0)
+    }
+    return $false
+  }
+
   if ($All) {
-    Add-GitFileList (git ls-files -- $scopePaths)
+    Add-GitFileList (git ls-files -- $projectScopePaths)
+    if (Test-GitRepo $vendorRepoPath) {
+      Add-GitFileList (Get-RepoTrackedFiles -RepoPath $vendorRepoPath -ScopePath $vendorScopePath) -Prefix "$vendorRepoPath/"
+    } else {
+      Add-WorkingTreeFiles -RelativePath (Join-Path $vendorRepoPath $vendorScopePath)
+    }
   } else {
     if ([string]::IsNullOrWhiteSpace($Base)) {
       if (Test-GitCommit "origin/main") { $Base = "origin/main" }
@@ -63,13 +128,19 @@ try {
     }
 
     if (-not [string]::IsNullOrWhiteSpace($Base) -and (Test-GitCommit $Base) -and (Test-GitCommit $Head)) {
-      Add-GitFileList (git diff --name-only --diff-filter=AM "$Base...$Head" -- $scopePaths)
+      Add-GitFileList (git diff --name-only --diff-filter=AM "$Base...$Head" -- $projectScopePaths)
     } elseif (Test-GitCommit $Head) {
-      Add-GitFileList (git show --name-only --pretty=format: $Head -- $scopePaths)
+      Add-GitFileList (git show --name-only --pretty=format: $Head -- $projectScopePaths)
     }
 
-    Add-GitFileList (git diff --name-only --diff-filter=AM --cached -- $scopePaths)
-    Add-GitFileList (git diff --name-only --diff-filter=AM -- $scopePaths)
+    Add-GitFileList (git diff --name-only --diff-filter=AM --cached -- $projectScopePaths)
+    Add-GitFileList (git diff --name-only --diff-filter=AM -- $projectScopePaths)
+
+    if (Test-VendorPointerChanged -BaseRef $Base -HeadRef $Head) {
+      Add-GitFileList (Get-RepoTrackedFiles -RepoPath $vendorRepoPath -ScopePath $vendorScopePath) -Prefix "$vendorRepoPath/"
+    } elseif (Test-GitRepo $vendorRepoPath) {
+      Add-GitFileList (Get-RepoChangedFiles -RepoPath $vendorRepoPath -ScopePath $vendorScopePath -BaseRef $Base -HeadRef $Head) -Prefix "$vendorRepoPath/"
+    }
   }
 
   if ($files.Count -eq 0) {

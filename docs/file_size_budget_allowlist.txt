@@ -2,7 +2,7 @@
 #
 # Sempal aims to keep source files under 400 LOC. This allowlist captures the
 # current legacy exceptions within the guardrail scope (`src/`, `tests/`, and
-# `vendor/radiant/src`) that still exceed the budget on 2026-03-16 so the
+# `vendor/radiant/src`) that still exceed the budget on 2026-03-25 so the
 # check can enforce the limit on new or edited files without blocking
 # incremental cleanup work.
 #
@@ -18,4 +18,13 @@ src/app_core/actions/catalog/kinds.rs
 # one cohesive transport subdomain. Revisit only if a clearer module boundary
 # emerges than the current gesture/playback coupling.
 src/app/controller/playback/transport/selection.rs
+
+# Vendored Radiant still contains a small set of oversized legacy modules and
+# contract-heavy test files. Keep them explicit so the repaired budget script
+# can enforce everything else in `vendor/radiant/src`.
+vendor/radiant/src/app/hotkeys.rs
+vendor/radiant/src/app/actions/mod.rs
+vendor/radiant/src/gui_runtime/native_vello/tests/queue_runtime.rs
+vendor/radiant/src/gui_runtime/native_vello/tests/waveform_drag_finish.rs
+vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer/selection_creation.rs
 

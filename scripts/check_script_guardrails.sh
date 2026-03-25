@@ -44,7 +44,7 @@ run_file_size_budget_fixture() {
 
   local repo_dir="$fixture_dir/repo"
   local script_path="$repo_dir/scripts/check_file_size_budget.sh"
-  mkdir -p "$repo_dir/src" "$repo_dir/scripts"
+  mkdir -p "$repo_dir/src" "$repo_dir/scripts" "$repo_dir/vendor"
   cp "scripts/check_file_size_budget.sh" "$script_path"
   chmod +x "$script_path"
 
@@ -52,9 +52,25 @@ run_file_size_budget_fixture() {
   git -C "$fixture_dir/repo" config user.name "sempal-ci"
   git -C "$fixture_dir/repo" config user.email "ci@sempal.test"
 
-  mkdir -p "$fixture_dir/repo/vendor/radiant/src"
   mkdir -p "$fixture_dir/repo/tests"
   cat >"$fixture_dir/repo/src/too_many_lines.rs" <<'EOF'
+fn ok() {
+    println!("budget");
+}
+EOF
+  cat >"$fixture_dir/repo/tests/notes.txt" <<'EOF'
+plain text should not be checked by script
+EOF
+
+  git -C "$fixture_dir/repo" add src/too_many_lines.rs
+  git -C "$fixture_dir/repo" add tests/notes.txt
+  git -C "$fixture_dir/repo" commit -qm "seed"
+
+  mkdir -p "$fixture_dir/repo/vendor/radiant/src"
+  git -C "$fixture_dir/repo/vendor/radiant" init -q
+  git -C "$fixture_dir/repo/vendor/radiant" config user.name "sempal-ci"
+  git -C "$fixture_dir/repo/vendor/radiant" config user.email "ci@sempal.test"
+  cat >"$fixture_dir/repo/vendor/radiant/src/too_many_lines.rs" <<'EOF'
 fn main() {
     println!("a");
     println!("b");
@@ -62,20 +78,11 @@ fn main() {
     println!("d");
 }
 EOF
-  cat >"$fixture_dir/repo/vendor/radiant/src/ok.rs" <<'EOF'
-fn one() {}
-EOF
-  cat >"$fixture_dir/repo/tests/notes.txt" <<'EOF'
-plain text should not be checked by script
-EOF
-
-  git -C "$fixture_dir/repo" add src/too_many_lines.rs
-  git -C "$fixture_dir/repo" add vendor/radiant/src/ok.rs
-  git -C "$fixture_dir/repo" add tests/notes.txt
-  git -C "$fixture_dir/repo" commit -qm "seed"
+  git -C "$fixture_dir/repo/vendor/radiant" add src/too_many_lines.rs
+  git -C "$fixture_dir/repo/vendor/radiant" commit -qm "seed"
 
   run_expect_exit_code \
-    "file-size-budget fixture catches over-limit .rs file" \
+    "file-size-budget fixture catches over-limit nested vendor file" \
     1 \
     "$repo_dir" \
     "$script_path" \

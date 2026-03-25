@@ -25,7 +25,9 @@ HEAD_REF="HEAD"
 CHECK_ALL=0
 COLLECTED_FILE_COUNT=0
 COLLECT_SCOPE=""
-TRACKED_PATHS=(src tests vendor/radiant/src)
+PROJECT_TRACKED_PATHS=(src tests)
+VENDOR_REPO_PATH="vendor/radiant"
+VENDOR_SCOPE_PATH="src"
 
 usage() {
   cat <<'EOF'
@@ -98,6 +100,73 @@ git_has_commit() {
   sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
 }
 
+repo_has_commit() {
+  local repo_path="$1"
+  local ref="$2"
+  [[ -n "$ref" ]] || return 1
+  sempal_git -C "$repo_path" rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1
+}
+
+repo_is_ready() {
+  local repo_path="$1"
+  [[ -d "$repo_path" ]] || return 1
+  sempal_git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1
+}
+
+emit_vendor_working_tree_files() {
+  local vendor_src="$ROOT_DIR/$VENDOR_REPO_PATH/$VENDOR_SCOPE_PATH"
+  [[ -d "$vendor_src" ]] || return 0
+  find "$vendor_src" -type f -name '*.rs' -print \
+    | sed "s#^$ROOT_DIR/##" \
+    | sed 's#\\#/#g'
+}
+
+collect_vendor_files() {
+  local base="$1"
+  local head="$2"
+
+  if ! repo_is_ready "$VENDOR_REPO_PATH"; then
+    emit_vendor_working_tree_files
+    return
+  fi
+
+  if (( CHECK_ALL == 1 )); then
+    sempal_git -C "$VENDOR_REPO_PATH" ls-files -- "$VENDOR_SCOPE_PATH" \
+      | sed "s#^#$VENDOR_REPO_PATH/#"
+    return
+  fi
+
+  local pointer_changed=0
+  if [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
+    if sempal_git diff --name-only --diff-filter=AM "$base...$head" -- "$VENDOR_REPO_PATH" | grep -q .; then
+      pointer_changed=1
+    fi
+  elif git_has_commit "$head"; then
+    if sempal_git show --name-only --pretty=format: "$head" -- "$VENDOR_REPO_PATH" | grep -q .; then
+      pointer_changed=1
+    fi
+  fi
+
+  if (( pointer_changed == 1 )); then
+    sempal_git -C "$VENDOR_REPO_PATH" ls-files -- "$VENDOR_SCOPE_PATH" \
+      | sed "s#^#$VENDOR_REPO_PATH/#"
+    return
+  fi
+
+  if [[ -n "$base" ]] && repo_has_commit "$VENDOR_REPO_PATH" "$base" && repo_has_commit "$VENDOR_REPO_PATH" "$head"; then
+    sempal_git -C "$VENDOR_REPO_PATH" diff --name-only --diff-filter=AM "$base...$head" -- "$VENDOR_SCOPE_PATH" \
+      | sed "s#^#$VENDOR_REPO_PATH/#"
+  elif repo_has_commit "$VENDOR_REPO_PATH" "$head"; then
+    sempal_git -C "$VENDOR_REPO_PATH" show --name-only --pretty=format: "$head" -- "$VENDOR_SCOPE_PATH" \
+      | sed "s#^#$VENDOR_REPO_PATH/#"
+  fi
+
+  sempal_git -C "$VENDOR_REPO_PATH" diff --name-only --diff-filter=AM --cached -- "$VENDOR_SCOPE_PATH" \
+    | sed "s#^#$VENDOR_REPO_PATH/#"
+  sempal_git -C "$VENDOR_REPO_PATH" diff --name-only --diff-filter=AM -- "$VENDOR_SCOPE_PATH" \
+    | sed "s#^#$VENDOR_REPO_PATH/#"
+}
+
 collect_files() {
   local base="$1"
   local head="$2"
@@ -105,18 +174,18 @@ collect_files() {
   local -a rust_files=()
 
   if (( CHECK_ALL == 1 )); then
-    mapfile -t raw_files < <(sempal_git ls-files -- "${TRACKED_PATHS[@]}" || true)
+    mapfile -t raw_files < <(sempal_git ls-files -- "${PROJECT_TRACKED_PATHS[@]}" || true)
     COLLECT_SCOPE="all"
   elif [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
     mapfile -t raw_files < <(
-      sempal_git diff --name-only --diff-filter=AM "$base...$head" -- "${TRACKED_PATHS[@]}" \
+      sempal_git diff --name-only --diff-filter=AM "$base...$head" -- "${PROJECT_TRACKED_PATHS[@]}" \
         || true
     )
     COLLECT_SCOPE="diff(base...head)"
   elif git_has_commit "$head"; then
     # If base isn't available (e.g. first push), fall back to the head commit's file list.
     mapfile -t raw_files < <(
-      sempal_git show --name-only --pretty=format: "$head" -- "${TRACKED_PATHS[@]}" || true
+      sempal_git show --name-only --pretty=format: "$head" -- "${PROJECT_TRACKED_PATHS[@]}" || true
     )
     COLLECT_SCOPE="diff(head)"
   else
@@ -130,15 +199,19 @@ collect_files() {
     local -a staged=()
     local -a unstaged=()
     mapfile -t staged < <(
-      sempal_git diff --name-only --diff-filter=AM --cached -- "${TRACKED_PATHS[@]}" || true
+      sempal_git diff --name-only --diff-filter=AM --cached -- "${PROJECT_TRACKED_PATHS[@]}" || true
     )
     mapfile -t unstaged < <(
-      sempal_git diff --name-only --diff-filter=AM -- "${TRACKED_PATHS[@]}" || true
+      sempal_git diff --name-only --diff-filter=AM -- "${PROJECT_TRACKED_PATHS[@]}" || true
     )
     staged_count="${#staged[@]}"
     unstaged_count="${#unstaged[@]}"
     raw_files+=("${staged[@]}" "${unstaged[@]}")
   fi
+
+  local -a vendor_files=()
+  mapfile -t vendor_files < <(collect_vendor_files "$base" "$head" || true)
+  raw_files+=("${vendor_files[@]}")
 
   local candidate
   for candidate in "${raw_files[@]}"; do
