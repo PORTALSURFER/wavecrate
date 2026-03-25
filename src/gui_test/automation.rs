@@ -102,7 +102,39 @@ fn find_node_recursive<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app_core::actions::{
+        NativeAutomationNodeId, NativeAutomationNodeSnapshot, NativeAutomationRole,
+        NativeGuiAutomationSnapshot,
+    };
     use crate::gui_test::capture_default_bundle;
+    use radiant::app::AutomationBounds;
+    use std::collections::BTreeMap;
+    use tempfile::tempdir;
+
+    fn sample_snapshot() -> NativeGuiAutomationSnapshot {
+        NativeGuiAutomationSnapshot {
+            schema_version: 1,
+            viewport_width: 400,
+            viewport_height: 200,
+            root: NativeAutomationNodeSnapshot {
+                id: NativeAutomationNodeId::new("shell.root"),
+                role: NativeAutomationRole::Root,
+                label: Some(String::from("Root")),
+                bounds: AutomationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 400.0,
+                    height: 200.0,
+                },
+                value: None,
+                enabled: true,
+                selected: false,
+                available_actions: Vec::new(),
+                metadata: BTreeMap::new(),
+                children: Vec::new(),
+            },
+        }
+    }
 
     #[test]
     fn resolve_target_uses_window_relative_center() {
@@ -113,5 +145,41 @@ mod tests {
         assert!(target.center_x > 0.0);
         assert!(target.center_y > 0.0);
         assert_eq!(target.node_id, "shell.root");
+    }
+
+    #[test]
+    fn resolve_target_reports_missing_node() {
+        let err = resolve_automation_target(&sample_snapshot(), "missing.node").unwrap_err();
+        assert!(err.contains("missing automation node missing.node"));
+    }
+
+    #[test]
+    fn read_snapshot_from_artifact_rejects_missing_snapshot_field() {
+        let temp = tempdir().expect("tempdir");
+        let artifact = temp.path().join("artifact.json");
+        std::fs::write(&artifact, r#"{"schema_version":1}"#).expect("write artifact");
+
+        let err = read_automation_snapshot_from_artifact(&artifact).unwrap_err();
+        assert!(err.contains("missing automation_snapshot"));
+    }
+
+    #[test]
+    fn read_snapshot_from_artifact_rejects_malformed_artifact_json() {
+        let temp = tempdir().expect("tempdir");
+        let artifact = temp.path().join("artifact.json");
+        std::fs::write(&artifact, "{not-json").expect("write artifact");
+
+        let err = read_automation_snapshot_from_artifact(&artifact).unwrap_err();
+        assert!(err.contains("parse GUI artifact"));
+    }
+
+    #[test]
+    fn read_snapshot_from_artifact_rejects_malformed_snapshot_payload() {
+        let temp = tempdir().expect("tempdir");
+        let artifact = temp.path().join("artifact.json");
+        std::fs::write(&artifact, r#"{"automation_snapshot":3}"#).expect("write artifact");
+
+        let err = read_automation_snapshot_from_artifact(&artifact).unwrap_err();
+        assert!(err.contains("parse automation snapshot"));
     }
 }

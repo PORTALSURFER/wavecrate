@@ -132,7 +132,7 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Plan order deviation: none
 
-### 4. [ ] Add crash-recovery regression coverage for drop-target copy/move failures after durable journal stages
+### 4. [x] Add crash-recovery regression coverage for drop-target copy/move failures after durable journal stages
 
 - Classification: Test gap
 - Confidence: High
@@ -153,6 +153,14 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `b0ef8c0c`
+- Assumptions: Worker-local tests are the tightest place to pin the post-`TargetDb` and post-`SourceDb` staged recovery contract without widening production visibility.
+- Validation:
+  - `cargo test finalize_failure_keeps --lib -- --test-threads=1`
+  - `cargo test drag_drop_drop_targets --lib -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
 ### 5. [ ] Deepen GUI contract harness tests around scenario assertions and automation target resolution
 
