@@ -96,12 +96,11 @@ pub(crate) fn tag_selected(controller: &mut AppController, target: crate::sample
         if ctx.entry.locked {
             continue;
         }
-        let target_locked = ctx.entry.locked && target == crate::sample_sources::Rating::KEEP_3;
-        match controller.set_sample_tag_and_locked_for_source(
+        let target_locked = target == crate::sample_sources::Rating::KEEP_3;
+        match controller.set_sample_tag_for_source(
             &ctx.source,
             &ctx.entry.relative_path,
             target,
-            target_locked,
             true,
         ) {
             Ok(()) => {
@@ -196,10 +195,10 @@ pub(crate) fn adjust_selected_rating(controller: &mut AppController, delta: i8) 
             continue;
         }
         if current_rating == crate::sample_sources::Rating::KEEP_3 && delta > 0 {
-            match controller.set_sample_locked_for_source(
+            match controller.set_sample_tag_for_source(
                 &ctx.source,
                 &ctx.entry.relative_path,
-                true,
+                current_rating,
                 true,
             ) {
                 Ok(()) => {

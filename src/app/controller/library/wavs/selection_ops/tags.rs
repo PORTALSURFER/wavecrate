@@ -53,6 +53,9 @@ pub(crate) fn set_sample_tag_value(
 }
 
 /// Persist and propagate a rating tag update for a specific source/path.
+///
+/// The top keep state (`KEEP_3`) also promotes the sample into the persistent
+/// locked state so direct tagging and incremental rating use the same keep-lock rule.
 pub(crate) fn set_sample_tag_for_source(
     controller: &mut AppController,
     source: &SampleSource,
@@ -60,11 +63,7 @@ pub(crate) fn set_sample_tag_for_source(
     target_tag: Rating,
     require_present: bool,
 ) -> Result<(), String> {
-    let target_locked = if target_tag == Rating::KEEP_3 {
-        sample_locked_for_source(controller, source, path)?
-    } else {
-        false
-    };
+    let target_locked = target_tag == Rating::KEEP_3;
     set_sample_tag_and_locked_for_source(
         controller,
         source,

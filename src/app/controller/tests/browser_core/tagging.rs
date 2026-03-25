@@ -169,3 +169,40 @@ fn undo_tagging_refocuses_original_sample_under_filter() {
     );
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
 }
+
+#[test]
+fn direct_keep_three_tag_locks_sample_and_blocks_future_tag_changes() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "keep3_direct.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.focus_browser_row_only(0);
+
+    controller.tag_selected(crate::sample_sources::Rating::KEEP_3);
+
+    let entry = controller
+        .wav_entry(0)
+        .expect("locked sample should stay loaded");
+    assert_eq!(entry.tag, crate::sample_sources::Rating::KEEP_3);
+    assert!(entry.locked);
+    assert_eq!(
+        controller
+            .database_for(&source)
+            .unwrap()
+            .locked_for_path(Path::new("keep3_direct.wav"))
+            .unwrap(),
+        Some(true)
+    );
+
+    controller.tag_selected(crate::sample_sources::Rating::NEUTRAL);
+
+    let entry = controller
+        .wav_entry(0)
+        .expect("locked sample should stay loaded");
+    assert_eq!(entry.tag, crate::sample_sources::Rating::KEEP_3);
+    assert!(entry.locked);
+}
