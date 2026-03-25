@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::controller::playback::audio_samples::{crop_samples, decode_samples_from_bytes};
+use std::path::{Path, PathBuf};
 
 /// Decode the loaded audio and crop it to the requested normalized selection bounds.
 pub(super) fn crop_selection_samples(
@@ -20,6 +21,25 @@ pub(super) fn crop_selection_samples(
 /// Build the lightweight content-hash placeholder used before background analysis runs.
 pub(super) fn fast_content_hash(file_size: u64, modified_ns: i64) -> String {
     format!("fast-{}-{}", file_size, modified_ns)
+}
+
+/// Resolve the next available numbered clip-export path under the provided root.
+pub(super) fn next_selection_path_in_dir(root: &Path, original: &Path) -> PathBuf {
+    let parent = original.parent().unwrap_or_else(|| Path::new(""));
+    let stem = original
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("selection");
+    let stem = AppController::strip_selection_suffix(stem);
+    let mut counter = 1u32;
+    loop {
+        let candidate = parent.join(format!("{stem}_selection_{counter:03}.wav"));
+        if !root.join(&candidate).exists() {
+            return candidate;
+        }
+        counter += 1;
+    }
 }
 
 impl AppController {

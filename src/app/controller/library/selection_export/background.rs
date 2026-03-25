@@ -1,6 +1,8 @@
 //! Background selection-export worker implementation and timing capture.
 
-use super::helpers::fast_content_hash;
+use super::background_recording::{
+    next_clip_export_path, record_clip_entry, record_crop_entry, record_slice_batch_entry,
+};
 use super::*;
 use crate::app::controller::jobs::{
     SelectionClipDestination, SelectionClipExportSuccess, SelectionCropExportSuccess,
@@ -8,18 +10,14 @@ use crate::app::controller::jobs::{
     SelectionExportPlaybackState, SelectionExportResult, SelectionExportSnapshot,
     SelectionExportTimings, SelectionSliceBatchExportSnapshot, SelectionSliceBatchExportSuccess,
 };
-use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::library::selection_edits::{
     apply_short_edge_fades_to_clip, next_crop_relative_path,
 };
 use crate::app::controller::playback::audio_samples::{crop_samples, decode_samples_from_bytes};
-use crate::sample_sources::{Rating, SampleSource, SourceDatabase, WavEntry};
-use rusqlite::params;
 use std::borrow::Cow;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::mpsc::Sender;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 /// Run one background selection-export job and return its typed completion payload.
 pub(crate) fn run_selection_export_job(job: SelectionExportJob) -> SelectionExportResult {
@@ -81,19 +79,7 @@ fn run_clip_export_job(
     let mut prepared = prepare_selection_clip(&audio, &snapshot)?;
     let prepare = prepare_started.elapsed();
 
-    let target_relative = match &destination {
-        SelectionClipDestination::Browser {
-            folder_override: Some(folder),
-            ..
-        }
-        | SelectionClipDestination::Folder { folder, .. } => next_selection_path_in_dir(
-            &snapshot.source_root,
-            &folder.join(file_name_hint(&snapshot)),
-        ),
-        SelectionClipDestination::Browser { .. } | SelectionClipDestination::ExternalDrag => {
-            next_selection_path_in_dir(&snapshot.source_root, &snapshot.relative_path)
-        }
-    };
+    let target_relative = next_clip_export_path(&snapshot, &destination);
     let absolute_path = snapshot.source_root.join(&target_relative);
     let write_started = Instant::now();
     write_selection_clip(&absolute_path, &mut prepared, &snapshot)?;
@@ -344,161 +330,4 @@ fn write_slice_batch_clip(
         prepared.sample_rate,
         prepared.channels,
     )
-}
-
-fn record_clip_entry(
-    snapshot: &SelectionExportSnapshot,
-    relative_path: PathBuf,
-) -> Result<WavEntry, String> {
-    let entry = build_written_entry(
-        &snapshot.source_root,
-        relative_path,
-        snapshot.target_tag.unwrap_or(Rating::NEUTRAL),
-        snapshot.looped,
-    )?;
-    let source = sample_source(snapshot);
-    let db = SourceDatabase::open_fast(&source.root)
-        .map_err(|err| format!("Database unavailable: {err}"))?;
-    db.upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)
-        .map_err(|err| format!("Failed to register clip: {err}"))?;
-    if entry.tag != Rating::NEUTRAL {
-        db.set_tag(&entry.relative_path, entry.tag)
-            .map_err(|err| format!("Failed to tag clip: {err}"))?;
-    }
-    if entry.looped {
-        db.set_looped(&entry.relative_path, true)
-            .map_err(|err| format!("Failed to mark clip as looped: {err}"))?;
-    }
-    if let Some(bpm) = snapshot.bpm.filter(|_| entry.looped) {
-        persist_selection_bpm(&source, &entry, bpm)?;
-    }
-    Ok(entry)
-}
-
-fn record_crop_entry(
-    snapshot: &SelectionExportSnapshot,
-    relative_path: PathBuf,
-) -> Result<WavEntry, String> {
-    let mut entry = build_written_entry(
-        &snapshot.source_root,
-        relative_path,
-        snapshot.target_tag.unwrap_or(Rating::NEUTRAL),
-        false,
-    )?;
-    entry.looped = false;
-    entry.tag = snapshot.target_tag.unwrap_or(Rating::NEUTRAL);
-    let source = sample_source(snapshot);
-    let db = SourceDatabase::open_fast(&source.root)
-        .map_err(|err| format!("Database unavailable: {err}"))?;
-    db.upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)
-        .map_err(|err| format!("Failed to sync database entry: {err}"))?;
-    db.set_tag(&entry.relative_path, entry.tag)
-        .map_err(|err| format!("Failed to sync tag: {err}"))?;
-    Ok(entry)
-}
-
-fn record_slice_batch_entry(
-    snapshot: &SelectionSliceBatchExportSnapshot,
-    relative_path: PathBuf,
-) -> Result<WavEntry, String> {
-    let entry = build_written_entry(&snapshot.source_root, relative_path, Rating::NEUTRAL, false)?;
-    let source = SampleSource {
-        id: snapshot.source_id.clone(),
-        root: snapshot.source_root.clone(),
-    };
-    let db = SourceDatabase::open_fast(&source.root)
-        .map_err(|err| format!("Database unavailable: {err}"))?;
-    db.upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)
-        .map_err(|err| format!("Failed to register slice: {err}"))?;
-    Ok(entry)
-}
-
-fn build_written_entry(
-    source_root: &Path,
-    relative_path: PathBuf,
-    tag: Rating,
-    looped: bool,
-) -> Result<WavEntry, String> {
-    let metadata = fs::metadata(source_root.join(&relative_path))
-        .map_err(|err| format!("Failed to read saved clip: {err}"))?;
-    let modified_ns = metadata
-        .modified()
-        .map_err(|err| format!("Missing modified time for clip: {err}"))?
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map_err(|_| "Clip modified time is before epoch".to_string())?
-        .as_nanos() as i64;
-    Ok(WavEntry {
-        relative_path,
-        file_size: metadata.len(),
-        modified_ns,
-        content_hash: None,
-        tag,
-        looped,
-        locked: false,
-        missing: false,
-        last_played_at: None,
-    })
-}
-
-fn persist_selection_bpm(source: &SampleSource, entry: &WavEntry, bpm: f32) -> Result<(), String> {
-    if !bpm.is_finite() || bpm <= 0.0 {
-        return Ok(());
-    }
-    let size = i64::try_from(entry.file_size)
-        .map_err(|_| "Clip size exceeds database limits".to_string())?;
-    let content_hash = fast_content_hash(entry.file_size, entry.modified_ns);
-    let conn = analysis_jobs::open_source_db(&source.root)
-        .map_err(|err| format!("Failed to open analysis database: {err}"))?;
-    let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), &entry.relative_path);
-    conn.execute(
-        "INSERT INTO samples (sample_id, content_hash, size, mtime_ns, duration_seconds, sr_used, analysis_version, bpm)
-         VALUES (?1, ?2, ?3, ?4, NULL, NULL, NULL, ?5)
-         ON CONFLICT(sample_id) DO UPDATE SET
-             content_hash = excluded.content_hash,
-             size = excluded.size,
-             mtime_ns = excluded.mtime_ns,
-             bpm = excluded.bpm",
-        params![
-            sample_id,
-            content_hash,
-            size,
-            entry.modified_ns,
-            bpm as f64
-        ],
-    )
-    .map_err(|err| format!("Failed to store clip BPM: {err}"))?;
-    Ok(())
-}
-
-fn sample_source(snapshot: &SelectionExportSnapshot) -> SampleSource {
-    SampleSource {
-        id: snapshot.source_id.clone(),
-        root: snapshot.source_root.clone(),
-    }
-}
-
-fn file_name_hint(snapshot: &SelectionExportSnapshot) -> PathBuf {
-    snapshot
-        .relative_path
-        .file_name()
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("selection.wav"))
-}
-
-fn next_selection_path_in_dir(root: &Path, original: &Path) -> PathBuf {
-    let parent = original.parent().unwrap_or_else(|| Path::new(""));
-    let stem = original
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .filter(|s| !s.is_empty())
-        .unwrap_or("selection");
-    let stem = AppController::strip_selection_suffix(stem);
-    let mut counter = 1u32;
-    loop {
-        let candidate = parent.join(format!("{stem}_selection_{counter:03}.wav"));
-        if !root.join(&candidate).exists() {
-            return candidate;
-        }
-        counter += 1;
-    }
 }
