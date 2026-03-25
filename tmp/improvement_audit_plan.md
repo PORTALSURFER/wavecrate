@@ -2,7 +2,7 @@
 
 Generated: 2026-03-25
 Observed commit: `efd1bbbd`
-Status: Phase 1 audit rebuilt on 2026-03-25. Awaiting explicit user confirmation before any Phase 2 implementation.
+Status: Phase 2 execution started on 2026-03-25. Item 1 is complete and the ambiguity decisions are locked to the user-approved conservative options for this execution pass.
 
 ## Scope
 
@@ -37,7 +37,7 @@ Status: Phase 1 audit rebuilt on 2026-03-25. Awaiting explicit user confirmation
 
 ## Ordered Backlog
 
-### 1. [ ] Add direct `app_core` controller tests for context-sensitive browser, map, update, and prompt actions
+### 1. [x] Add direct `app_core` controller tests for context-sensitive browser, map, update, and prompt actions
 
 - Classification: Test gap
 - Confidence: High
@@ -59,6 +59,14 @@ Status: Phase 1 audit rebuilt on 2026-03-25. Awaiting explicit user confirmation
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: pending
+- Assumptions used: the seeded GUI fixtures do not provide enough similarity-analysis backing data to prove the ANN-backed "create new similar query" success branch at this seam, so the new tests lock down the deterministic browser-focus commit vs transport fallback, map-to-list transition, existing-query clear, no-focus status, map focus staging, progress cancel, feedback prompt reset, and update action branches instead.
+- Validation outcome:
+  - `cargo test contextual_actions --lib` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Deviation from original plan order: none
 
 ### 2. [ ] Add deferred selection-export history and crop-completion regression coverage
 
@@ -272,6 +280,7 @@ Status: Phase 1 audit rebuilt on 2026-03-25. Awaiting explicit user confirmation
 - Affected files/modules: `src/app_core/actions/catalog/*`, `src/app_core/controller.rs`, `src/app_core/native_bridge/*`, `src/app/controller/history.rs`
 - Risk if guessed incorrectly: either unnecessary architectural churn or continued semantic drift between manual tables.
 - Most conservative provisional assumption: treat the catalog as the canonical metadata surface and add cross-table guard tests first, without attempting a broader redesign.
+- Resolution for this execution (2026-03-25): treat the catalog as canonical metadata and add stronger completeness guards before any broader consolidation.
 
 ### [!] 2. Should intentionally cohesive, canonical modules that exceed the 400-line budget receive narrow documented exceptions or continue to be treated as split candidates?
 
@@ -283,6 +292,7 @@ Status: Phase 1 audit rebuilt on 2026-03-25. Awaiting explicit user confirmation
 - Affected files/modules: `src/app_core/actions/catalog/kinds.rs`, `src/selection/range.rs`, `src/app/controller/playback/transport/selection.rs`, `docs/file_size_budget_allowlist.txt`
 - Risk if guessed incorrectly: low-value mechanical splits, or permanent recurring debt that never becomes explicitly accepted.
 - Most conservative provisional assumption: reject mechanical splits for now, and only use a documented exception if maintainers explicitly decide those files should remain centralized.
+- Resolution for this execution (2026-03-25): treat the 400-line budget as a strong default with rare documented exceptions for clearly cohesive modules.
 
 ### [!] 3. Are higher-level GUI scenario/AIV packs intended to be sufficient coverage for mature map/update/prompt behaviors, or should those flows also have direct controller-seam tests?
 
@@ -294,6 +304,7 @@ Status: Phase 1 audit rebuilt on 2026-03-25. Awaiting explicit user confirmation
 - Affected files/modules: `src/app_core/controller.rs`, `src/app_core/controller/tests/*`, `src/gui_test/packs/*`, `src/gui_test/aiv/packs/cases/*`
 - Risk if guessed incorrectly: either under-testing a key controller seam or investing in redundant low-value tests.
 - Most conservative provisional assumption: add a few direct controller-seam tests for the branch-heavy, focus-sensitive cases and continue relying on GUI packs for broader end-to-end behavior.
+- Resolution for this execution (2026-03-25): keep GUI/AIV packs for end-to-end coverage and add direct controller-seam tests for branch-heavy cases.
 
 ## Rejected Ideas
 
