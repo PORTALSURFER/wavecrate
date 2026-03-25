@@ -60,7 +60,7 @@ Status: Phase 2 execution started on 2026-03-25. Item 1 is complete and the ambi
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-25
-- Commit: pending
+- Commit: `ffa5d5c9`
 - Assumptions used: the seeded GUI fixtures do not provide enough similarity-analysis backing data to prove the ANN-backed "create new similar query" success branch at this seam, so the new tests lock down the deterministic browser-focus commit vs transport fallback, map-to-list transition, existing-query clear, no-focus status, map focus staging, progress cancel, feedback prompt reset, and update action branches instead.
 - Validation outcome:
   - `cargo test contextual_actions --lib` passed
@@ -68,7 +68,7 @@ Status: Phase 2 execution started on 2026-03-25. Item 1 is complete and the ambi
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 - Deviation from original plan order: none
 
-### 2. [ ] Add deferred selection-export history and crop-completion regression coverage
+### 2. [x] Add deferred selection-export history and crop-completion regression coverage
 
 - Classification: Test gap
 - Confidence: High
@@ -91,6 +91,14 @@ Status: Phase 2 execution started on 2026-03-25. Item 1 is complete and the ambi
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: pending
+- Assumptions used: the most stable oracles for this item are pending-transaction lifecycle, deferred undo job creation, and crop-completion playback/focus state; the tests therefore simulate failure/crop-completion messages directly where that keeps the history contract deterministic, and they drive the real queued clip-export success path where the repository already exposes a stable background-job harness.
+- Validation outcome:
+  - `cargo test selection_export_tests --lib` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Deviation from original plan order: none
 
 ### 3. [ ] Split `src/app_core/controller.rs` along its existing dispatch boundaries
 
