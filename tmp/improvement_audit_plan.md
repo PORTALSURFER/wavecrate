@@ -2,7 +2,7 @@
 
 Generated: 2026-03-25
 Observed commit: `efd1bbbd`
-Status: Phase 2 execution is in progress on 2026-03-25. Items 1-8 are complete, and the ambiguity decisions are locked to the user-approved conservative options for this execution pass.
+Status: Phase 2 execution completed on 2026-03-25. Items 1-10 are complete, the ambiguity decisions are locked to the user-approved conservative options for this execution pass, and the full file-size guardrail now passes with two documented cohesive exceptions in `docs/file_size_budget_allowlist.txt`.
 
 ## Scope
 
@@ -282,7 +282,7 @@ Status: Phase 2 execution is in progress on 2026-03-25. Items 1-8 are complete, 
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 - Deviation from original plan order: a tiny prerequisite follow-up split was needed in `src/app/controller/tests/drag_drop_drop_targets/transfer.rs` after the file-budget check revealed the earlier item-6 replacement module still exceeded the limit.
 
-### 9. [ ] Add catalog-to-runtime completeness checks for action semantics before considering wider consolidation
+### 9. [x] Add catalog-to-runtime completeness checks for action semantics before considering wider consolidation
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -305,8 +305,16 @@ Status: Phase 2 execution is in progress on 2026-03-25. Items 1-8 are complete, 
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `5001fde9`
+- Assumptions used: the stable guardrails here are catalog-to-bridge semantic contracts, not a fully unified action model, so the new tests only lock down invariants the repository already documents or strongly implies: profiled interaction classes map to the expected surfaces and dirty sources, targeted invalidation stays on browser actions, immediate waveform-preview actions stay on the waveform surface and only tag waveform dirtiness when they tag a dirty source at all, and local model-pull fast-path actions stay projection/state-only.
+- Validation outcome:
+  - `cargo test app_core::actions::tests --lib` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Deviation from original plan order: none
 
-### 10. [ ] Isolate the history-policy compatibility matcher from `history.rs` without disturbing the snapshot/transaction core
+### 10. [x] Isolate the history-policy compatibility matcher from `history.rs` without disturbing the snapshot/transaction core
 
 - Classification: Refactor / cleanup
 - Confidence: Medium
@@ -328,6 +336,17 @@ Status: Phase 2 execution is in progress on 2026-03-25. Items 1-8 are complete, 
   - `src/app/controller/tests/history_transactions.rs`
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `8c405246`
+- Assumptions used: the catalog matcher remained the primary split target, but the live file had drifted far enough over budget that extracting the pure pending-transaction type block into `history/pending.rs` was also necessary to clear the guardrail without moving snapshot/restore or deferred-history behavior out of `history.rs`; the user-approved file-size exception policy was then applied narrowly by documenting `src/app_core/actions/catalog/kinds.rs` and `src/app/controller/playback/transport/selection.rs` in `docs/file_size_budget_allowlist.txt` instead of mechanically splitting those cohesive modules.
+- Validation outcome:
+  - `cargo test app_core::actions::tests --lib` passed
+  - `cargo test history_transactions --lib` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Deviation from original plan order: none; the implementation stayed after item 9 as planned, but the final guardrail closeout also documented the two approved cohesive file-size exceptions so the repaired full-scan budget and quality-score drift check matched the user-approved policy.
 
 ## Open Questions / Missing Definitions
 
