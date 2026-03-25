@@ -77,7 +77,7 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Plan order deviation: none
 
-### 2. [ ] Resynchronize the stateless handoff docs and active plan status markers
+### 2. [x] Resynchronize the stateless handoff docs and active plan status markers
 
 - Classification: Documentation gap
 - Confidence: High
@@ -97,6 +97,14 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `19455ebb`
+- Assumptions: `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` remain the wake-up authority, while `docs/plans/index.md` is the retained plan catalog.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
 ### 3. [ ] Correct the public release-platform docs to match the live release workflow
 

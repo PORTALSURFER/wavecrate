@@ -15,7 +15,8 @@ Audio sample triage tool built with Rust.
 
 ## Downloads
 
-- Windows binaries are published on GitHub Releases (Windows only for now).
+- GitHub Releases publish Windows, Linux, and macOS assets.
+- Windows is the primary supported release platform today; Linux and macOS assets are also published for the workflow targets in `.github/workflows/release-build.yml`.
 - Publishing a release triggers a workflow that regenerates `CHANGELOG.md` via `git-cliff` and opens a PR (since `main` is protected).
 
 ## Build from source
