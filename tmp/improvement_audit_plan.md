@@ -1,8 +1,8 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-25
-Observed commit: `8056af85`
-Status: Phase 2 execution approved on 2026-03-25; implement items sequentially in ranked order unless blocked.
+Observed commit: `4f448b52`
+Status: Phase 2 execution completed on 2026-03-25; all 10 ranked backlog items are implemented and recorded below.
 
 ## Scope
 
@@ -162,7 +162,7 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Plan order deviation: none
 
-### 5. [ ] Deepen GUI contract harness tests around scenario assertions and automation target resolution
+### 5. [x] Deepen GUI contract harness tests around scenario assertions and automation target resolution
 
 - Classification: Test gap
 - Confidence: High
@@ -183,8 +183,16 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `1e7df3db`
+- Assumptions: Runner-local and automation-local unit tests are the tightest place to expand assertion and artifact error coverage without depending on desktop AIV failures first.
+- Validation:
+  - `cargo test gui_test:: -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
-### 6. [ ] Add explicit Windows/root-path sanitization regression tests across the audio loader and source DB
+### 6. [x] Add explicit Windows/root-path sanitization regression tests across the audio loader and source DB
 
 - Classification: Test gap
 - Confidence: High
@@ -192,10 +200,10 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
 - Effort: S
 - Why it matters: path sanitization is an explicit safety boundary for a Windows-first desktop app, but current tests only pin a subset of the rejected path forms.
 - Evidence:
-  - [audio_loader/stages.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages.rs#L414) rejects `ParentDir`, `RootDir`, and `Prefix(_)`.
-  - [audio_loader/tests.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/tests.rs#L82) only tests parent-dir rejection and normal relative-path acceptance.
+  - [audio_loader/stages/io.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages/io.rs#L125) rejects `ParentDir`, `RootDir`, and `Prefix(_)`.
+  - [audio_loader/tests.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/tests.rs#L90) only tested parent-dir rejection and normal relative-path acceptance before this item landed.
   - [sample_sources/db/util.rs](/C:/dev/sempal/src/sample_sources/db/util.rs#L35) rejects absolute, rooted, and prefixed paths.
-  - [sample_sources/db/util.rs](/C:/dev/sempal/src/sample_sources/db/util.rs#L72) only tests parent-dir, empty, and `.` cleanup.
+  - [sample_sources/db/util.rs](/C:/dev/sempal/src/sample_sources/db/util.rs#L72) only tested parent-dir, empty, and `.` cleanup before this item landed.
 - Recommended change: add targeted regression tests for rooted paths and Windows-style prefixed paths, keeping platform-gated expectations where `Component::Prefix(_)` only exists on Windows.
 - Expected impact: locks down a small but important safety contract at very low cost.
 - Risks / tradeoffs: low; platform-specific assertions need careful `cfg` gating to avoid brittle cross-platform failures.
@@ -205,8 +213,16 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - targeted `cargo test sample_sources::db::util --lib`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `2e7dd60d`
+- Assumptions: `/escape.wav` rejects through different branches on Windows and non-Windows hosts, so the rooted-path expectation needs explicit `cfg` gating instead of one shared error variant.
+- Validation:
+  - `cargo test ensure_safe_relative_path --lib -- --test-threads=1`
+  - `cargo test normalize_relative_path --lib -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
-### 7. [ ] Add direct tests for the updater-helper CLI parser and headless apply path
+### 7. [x] Add direct tests for the updater-helper CLI parser and headless apply path
 
 - Classification: Test gap
 - Confidence: High
@@ -227,8 +243,15 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `ac644615`
+- Assumptions: A tiny injected helper around `run_headless` keeps runtime behavior unchanged while making parser and headless-apply coverage deterministic and network-free.
+- Validation:
+  - `cargo test -p updater-helper -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
-### 8. [ ] Split `src/app/controller/playback/audio_loader/stages.rs` by its existing stage boundaries
+### 8. [x] Split `src/app/controller/playback/audio_loader/stages.rs` by its existing stage boundaries
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -236,8 +259,8 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
 - Effort: M
 - Why it matters: the audio loader already has clear IO/decode/stretch/finalize stage seams, but one over-budget file still owns all of them plus test hooks and path sanitization.
 - Evidence:
-  - [tmp/cleanup_audit_hotspots.md](/C:/dev/sempal/tmp/cleanup_audit_hotspots.md) lists `src/app/controller/playback/audio_loader/stages.rs` at 437 lines.
-  - [audio_loader/stages.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages.rs#L45) `load_audio_inner`, [audio_loader/stages.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages.rs#L78) `load_io_stage`, [audio_loader/stages.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages.rs#L148) `decode_stage`, [audio_loader/stages.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages.rs#L171) `run_stretch_stage`, [audio_loader/stages.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages.rs#L311) `build_transient_result`, [audio_loader/stages.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages.rs#L333) `read_bytes_chunked_with_stale_check`, and [audio_loader/stages.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages.rs#L414) `ensure_safe_relative_path` already reflect separate responsibilities.
+  - [tmp/cleanup_audit_hotspots.md](/C:/dev/sempal/tmp/cleanup_audit_hotspots.md) recorded the pre-split `src/app/controller/playback/audio_loader/stages.rs` hotspot at 437 lines on the observed tree.
+  - The live split now maps those same seams across [stages/mod.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages/mod.rs), [stages/io.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages/io.rs), [stages/decode.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages/decode.rs), [stages/stretch.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages/stretch.rs), and [stages/transients.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages/transients.rs).
 - Recommended change: keep the public loader API stable but extract focused stage helpers/modules for IO/path safety, decode/stretch, and transient/finalize behavior.
 - Expected impact: restores cohesion in a production hot path without changing semantics.
 - Risks / tradeoffs: medium; refactor churn around a worker path needs to preserve stale-request handling exactly.
@@ -248,8 +271,16 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `1e4610c3`
+- Assumptions: Keep `stages` as the stable module surface for callers/tests and move only the internal stage responsibilities behind submodules to avoid behavioral churn.
+- Validation:
+  - `cargo test audio_loader --lib -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` (reported one unrelated pre-existing violation in `src/gui_test/runner.rs: 410`; the split audio-loader modules themselves were no longer budget offenders)
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
-### 9. [ ] Consolidate keep-lock tagging semantics and remove the duplicated direct-tag path
+### 9. [x] Consolidate keep-lock tagging semantics and remove the duplicated direct-tag path
 
 - Classification: Product-definition gap
 - Confidence: Medium
@@ -259,7 +290,7 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
 - Evidence:
   - [tagging/mod.rs](/C:/dev/sempal/src/app/controller/playback/tagging/mod.rs#L82) implements `tag_selected(...)` directly.
   - [tagging/mod.rs](/C:/dev/sempal/src/app/controller/playback/tagging/mod.rs#L96) skips locked entries, yet [tagging/mod.rs](/C:/dev/sempal/src/app/controller/playback/tagging/mod.rs#L99) still computes `target_locked = ctx.entry.locked && target == KEEP_3`, which cannot currently become `true`.
-  - [selection_ops/tags.rs](/C:/dev/sempal/src/app/controller/library/wavs/selection_ops/tags.rs#L56) already has a shared `set_sample_tag_for_source(...)` path that preserves lock state for `KEEP_3`.
+  - [selection_ops/tags.rs](/C:/dev/sempal/src/app/controller/library/wavs/selection_ops/tags.rs#L56) already has a shared `set_sample_tag_for_source(...)` path that both direct-tagging and rating adjustment can use.
   - [rating_logic.rs](/C:/dev/sempal/src/app/controller/tests/rating_logic.rs#L170) covers lock promotion through `adjust_selected_rating(1)`, but not the direct-tagging path.
 - Recommended change: document the clarified rule that direct `KEEP_3` tagging must also lock, route both direct-tag and incremental-rating flows through one helper, and remove the dead branch.
 - Expected impact: makes keep/lock semantics explicit and reduces drift in a safety-sensitive workflow.
@@ -270,8 +301,16 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - targeted browser action tests that exercise direct tag and incremental rating flows
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `6d14d903`
+- Assumptions: Lower keep/trash/neutral targets should preserve the existing “not locked” behavior; only direct promotion into `KEEP_3` was clarified as lock-promoting.
+- Validation:
+  - `cargo test rating_logic --lib -- --test-threads=1`
+  - `cargo test direct_keep_three_tag_locks_sample_and_blocks_future_tag_changes --lib -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
-### 10. [ ] Align CODEOWNERS and historical-path guardrail docs with the current module tree
+### 10. [x] Align CODEOWNERS and historical-path guardrail docs with the current module tree
 
 - Classification: Documentation gap
 - Confidence: High
@@ -291,6 +330,16 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - `powershell -ExecutionPolicy Bypass -File scripts/check_codeowners_coverage.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `4f448b52`
+- Assumptions: `.github/CODEOWNERS` should mirror the current high-level tree and `docs/ARCHITECTURE.md`, even when one owner currently covers all buckets.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_codeowners_coverage.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
 ## Open Questions / Missing Definitions
 

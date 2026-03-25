@@ -59,22 +59,22 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `X:\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: evidence-driven improvement audit execution
-- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-25 evidence-driven ROI-ranked backlog and its sequential execution record for the live tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
-- Current status: Phase 2 execution started on `2026-03-25`; `tmp/improvement_audit_plan.md` is the live source of truth, item 9 is clarified to treat direct `KEEP_3` tagging as lock-promoting, `tmp/cleanup_audit_hotspots.md` remains the broader evidence snapshot, and the full file-size guardrail still passes with two documented cohesive exceptions in `docs/file_size_budget_allowlist.txt`.
+- Program: evidence-driven improvement audit execution closeout
+- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-25 evidence-driven ROI-ranked backlog and completed Phase 2 execution record for the live tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
+- Current status: Phase 2 execution completed on `2026-03-25`; `tmp/improvement_audit_plan.md` is the live source of truth with all 10 backlog items completed, `tmp/cleanup_audit_hotspots.md` remains the broader audit snapshot, and the latest full-scan file-size check still reports one unrelated live violation in `src/gui_test/runner.rs` at 410 lines.
 
 ## Immediate Next Actions
-1. Execute `tmp/improvement_audit_plan.md` sequentially in ranked order, starting with the `vendor/radiant` file-size guardrail blind spot.
-2. Keep `tmp/improvement_audit_plan.md` as the live execution record and decision log for this lane.
+1. Wait for the user to choose the next lane; the audit backlog is complete.
+2. Keep `tmp/improvement_audit_plan.md` as the live audit execution record and decision log for the completed lane.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
-5. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized as execution progresses.
+5. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized when the active lane changes.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; Phase 2 execution started on `2026-03-25`
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; all 10 items completed on `2026-03-25`
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation
