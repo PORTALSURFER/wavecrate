@@ -19,11 +19,12 @@ use `docs/FEATURE_CHECKLIST.md` as the default safe path.
 - Legacy app model/controller: `src/app`
 - Backend-neutral GUI primitive re-exports: `src/gui`
 - Runtime host bridge glue: `src/gui_runtime`
+- GUI contract harness, semantic assertions, and automation-target helpers: `src/gui_test`
 - UI framework, retained layout, input normalization, rendering coordination: `vendor/radiant`
 - Audio playback, I/O, decoding, processing: `src/audio`
 - DSP/feature analysis, similarity tooling, ANN containers: `src/analysis`
 - Sample catalog, scanning, database integration: `src/sample_sources`
-- Selection math and focus helpers: `src/selection.rs`
+- Selection math and focus helpers: `src/selection/`
 - Filesystem paths for app data/caches/settings: `src/app_dirs`
 - Update checking/download/install flow: `src/updater` and `apps/updater-helper`
 - Installer UI: `apps/installer`
@@ -72,11 +73,12 @@ When changing ownership boundaries:
   - `external_drag/` — platform drag-and-drop integrations.
   - `gui` — `radiant` GUI primitive re-exports only; no widget behavior or layout policy lives here.
   - `gui_runtime` — native runtime bridge glue, launch adapters, and snapshot capture helpers.
+  - `gui_test` — semantic GUI contract runner, scenario assertions, and automation-target helpers.
   - `http_client.rs` — HTTP client helpers and request utilities.
   - `issue_gateway` — issue reporting and GitHub issue flow.
   - `logging.rs` — logging setup and tracing helpers.
   - `sample_sources` — sample catalog, scan, and database integration.
-  - `selection.rs` — selection helpers and focus state math.
+  - `selection/` — selection helpers and focus state math.
   - `sqlite_ext.rs` — custom SQLite extension loading and helpers.
   - `updater` — update checking, download, install, and patch flow.
   - `wav_sanitize.rs` — WAV header/corpus sanitization helpers.

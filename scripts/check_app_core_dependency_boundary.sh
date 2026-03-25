@@ -4,8 +4,8 @@
 #
 # Rationale:
 # - `app_core` is intended to remain backend-neutral glue and domain projection logic.
-# - UI runtime and host glue belong in `src/gui_app` and `src/gui_runtime`.
-# - Legacy runtime compatibility belongs in `src/legacy_runtime`.
+# - `crate::gui_runtime::` is the live runtime layer for host glue.
+# - `crate::gui_app::` and `crate::legacy_runtime::` remain historical compatibility tokens that should not leak into new `app_core` code.
 #
 # The check is diff-aware: it inspects only added lines in diffs so existing
 # legacy coupling does not block introducing the rule.
@@ -101,7 +101,7 @@ scan_diff_stream() {
           if (( violations == 0 )); then
             echo "[app_core_boundary] Violations detected ($label):" >&2
             echo "[app_core_boundary] app_core must not take new dependencies on legacy/UI runtime layers." >&2
-            echo "[app_core_boundary] Move code to src/gui_app, src/gui_runtime, or src/legacy_runtime as appropriate." >&2
+            echo "[app_core_boundary] Move code into the current runtime or adapter layer (usually src/gui_runtime or the legacy src/app boundary), or invert the dependency." >&2
             echo "[app_core_boundary] Allowlist (last resort): $ALLOWLIST_PATH" >&2
           fi
           echo " - $current: legacy_runtime: $text" >&2
@@ -111,7 +111,7 @@ scan_diff_stream() {
           if (( violations == 0 )); then
             echo "[app_core_boundary] Violations detected ($label):" >&2
             echo "[app_core_boundary] app_core must not take new dependencies on legacy/UI runtime layers." >&2
-            echo "[app_core_boundary] Move code to src/gui_app, src/gui_runtime, or src/legacy_runtime as appropriate." >&2
+            echo "[app_core_boundary] Move code into the current runtime or adapter layer (usually src/gui_runtime or the legacy src/app boundary), or invert the dependency." >&2
             echo "[app_core_boundary] Allowlist (last resort): $ALLOWLIST_PATH" >&2
           fi
           echo " - $current: gui_app: $text" >&2
@@ -121,7 +121,7 @@ scan_diff_stream() {
           if (( violations == 0 )); then
             echo "[app_core_boundary] Violations detected ($label):" >&2
             echo "[app_core_boundary] app_core must not take new dependencies on legacy/UI runtime layers." >&2
-            echo "[app_core_boundary] Move code to src/gui_app, src/gui_runtime, or src/legacy_runtime as appropriate." >&2
+            echo "[app_core_boundary] Move code into the current runtime or adapter layer (usually src/gui_runtime or the legacy src/app boundary), or invert the dependency." >&2
             echo "[app_core_boundary] Allowlist (last resort): $ALLOWLIST_PATH" >&2
           fi
           echo " - $current: gui_runtime: $text" >&2

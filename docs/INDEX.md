@@ -79,6 +79,10 @@ Agents should optimize for diff-aware checks during iteration, and reserve full 
 
 ## Invariant checks (scripts/check_*.{sh,ps1})
 
+Historical compatibility note:
+- Guardrail references to `src/legacy_runtime/**`, `crate::legacy_runtime::`, and `crate::gui_app::` describe legacy compatibility paths or token checks, not live ownership buckets.
+- Current routing and ownership buckets live in `docs/ARCHITECTURE.md` and `.github/CODEOWNERS`.
+
 | Check | What it enforces | How to fix when it fails |
 | --- | --- | --- |
 | `scripts/check_migration_boundary.sh` | `src/app_core/**` must not reference `crate::app::` except `src/app_core/app_api.rs`. | Move legacy app dependencies behind `app_api` or move code into the legacy layer. |

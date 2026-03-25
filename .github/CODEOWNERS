@@ -14,29 +14,33 @@
 /scripts/ @PORTALSURFER
 /docs/ @PORTALSURFER
 /manual/ @PORTALSURFER
+/apps/ @PORTALSURFER
+/tools/ @PORTALSURFER
 
 # Core application code (by responsibility buckets).
 /src/app_core/ @PORTALSURFER
 /src/app/ @PORTALSURFER
 /src/gui/ @PORTALSURFER
-/src/gui_app/ @PORTALSURFER
 /src/gui_runtime/ @PORTALSURFER
-/src/legacy_runtime/ @PORTALSURFER
+/src/gui_test/ @PORTALSURFER
 /src/audio/ @PORTALSURFER
 /src/analysis/ @PORTALSURFER
 /src/sample_sources/ @PORTALSURFER
+/src/waveform/ @PORTALSURFER
+/src/companion_apps/ @PORTALSURFER
 
-/src/selection.rs @PORTALSURFER
+/src/selection/ @PORTALSURFER
 /src/app_dirs/ @PORTALSURFER
 /src/updater/ @PORTALSURFER
-/src/bin/sempal-updater/ @PORTALSURFER
-/src/bin/sempal-installer/ @PORTALSURFER
+/apps/updater-helper/ @PORTALSURFER
+/apps/installer/ @PORTALSURFER
 /src/logging.rs @PORTALSURFER
 /src/http_client.rs @PORTALSURFER
 /src/issue_gateway/ @PORTALSURFER
 /src/sqlite_ext.rs @PORTALSURFER
 /src/external_clipboard.rs @PORTALSURFER
-/src/external_drag.rs @PORTALSURFER
+/src/external_drag/ @PORTALSURFER
+/src/wav_sanitize.rs @PORTALSURFER
 
 # UI framework (Radiant).
 /vendor/radiant/ @PORTALSURFER

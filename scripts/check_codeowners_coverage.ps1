@@ -43,11 +43,17 @@ try {
     "/scripts/",
     "/docs/",
     "/manual/",
+    "/apps/",
+    "/tools/",
     "/src/app_core/",
     "/src/app/",
+    "/src/analysis/",
+    "/src/audio/",
     "/src/gui/",
-    "/src/gui_app/",
     "/src/gui_runtime/",
+    "/src/gui_test/",
+    "/src/sample_sources/",
+    "/src/selection/",
     "/vendor/radiant/"
   )
 
