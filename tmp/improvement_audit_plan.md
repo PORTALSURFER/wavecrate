@@ -2,7 +2,7 @@
 
 Generated: 2026-03-25
 Observed commit: `efd1bbbd`
-Status: Phase 2 execution started on 2026-03-25. Item 1 is complete and the ambiguity decisions are locked to the user-approved conservative options for this execution pass.
+Status: Phase 2 execution is in progress on 2026-03-25. Items 1-4 are complete, and the ambiguity decisions are locked to the user-approved conservative options for this execution pass.
 
 ## Scope
 
@@ -122,7 +122,7 @@ Status: Phase 2 execution started on 2026-03-25. Item 1 is complete and the ambi
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-25
-- Commit: pending
+- Commit: `67bc57b2`
 - Assumptions used: the safest split keeps transport dispatch, frame preparation, native-controller bootstrapping, and the top-level orchestration in `controller.rs`, while moving the already-isolated browser/source, map, and prompt/update dispatch tables into sibling modules next to the pre-existing waveform action module.
 - Validation outcome:
   - `cargo test app_core::controller::tests --lib` passed
@@ -131,7 +131,7 @@ Status: Phase 2 execution started on 2026-03-25. Item 1 is complete and the ambi
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 - Deviation from original plan order: none
 
-### 4. [ ] Split the selection-export cluster and remove the duplicated clip-name generator
+### 4. [x] Split the selection-export cluster and remove the duplicated clip-name generator
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -154,6 +154,15 @@ Status: Phase 2 execution started on 2026-03-25. Item 1 is complete and the ambi
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `ae72b6bb`, `0f4a6267`
+- Assumptions used: the safest split keeps direct clip-export entry points, queueing, and shared timing instrumentation in `selection_export.rs`, moves UI-thread completion handlers into a sibling `completion.rs` module, moves worker-side naming and entry-registration helpers into `background_recording.rs`, and keeps `AppController::next_selection_path_in_dir` as a thin compatibility shim because the focused clip-export tests already treat it as a stable seam.
+- Validation outcome:
+  - `cargo test selection_export_tests --lib` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` passed for this item's target by removing `src/app/controller/library/selection_export.rs`, `src/app/controller/library/selection_export/background.rs`, and `src/app/controller/library/selection_export/selection_export_tests.rs` from the live violation list; remaining failures are later backlog items
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Deviation from original plan order: none; the implementation landed as two focused commits so the delegated test-only split stayed disjoint from the primary-agent production refactor.
 
 ### 5. [ ] Add direct drop-target apply-result tests for cancelled, no-op, and partial-error status paths
 
