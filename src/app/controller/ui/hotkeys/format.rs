@@ -42,6 +42,7 @@ fn key_label(key: KeyCode) -> &'static str {
         KeyCode::D => "D",
         KeyCode::C => "C",
         KeyCode::A => "A",
+        KeyCode::E => "E",
         KeyCode::H => "H",
         KeyCode::I => "I",
         KeyCode::O => "O",

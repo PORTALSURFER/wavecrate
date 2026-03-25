@@ -75,7 +75,7 @@ impl AppController {
         }
         self.set_status(
             format!(
-                "Detected {} silence slices. Press Enter to export them.",
+                "Detected {} silence slices. Press E to export them.",
                 self.ui.waveform.slices.len()
             ),
             StatusTone::Info,

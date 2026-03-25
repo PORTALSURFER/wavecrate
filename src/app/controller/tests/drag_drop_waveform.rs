@@ -135,7 +135,7 @@ fn waveform_selection_drop_to_browser_list_exports_selection_clip() {
 }
 
 #[test]
-/// Native Enter-equivalent waveform save action should export the current selection.
+/// Native E-equivalent waveform save action should export the current selection.
 fn waveform_selection_native_save_exports_selection_clip() {
     let temp = tempdir().unwrap();
     let root = temp.path().join("source");

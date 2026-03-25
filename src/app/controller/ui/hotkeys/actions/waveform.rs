@@ -39,7 +39,7 @@ pub(super) const CROP_SELECTION_NEW_SAMPLE: HotkeyAction = HotkeyAction {
 pub(super) const SAVE_SELECTION_TO_BROWSER: HotkeyAction = HotkeyAction {
     id: "save-selection-to-browser",
     label: "Save selection/slices to browser",
-    gesture: HotkeyGesture::new(Key::Enter),
+    gesture: HotkeyGesture::new(Key::E),
     scope: WAVEFORM,
     command: HotkeyCommand::SaveSelectionToBrowser,
 };
