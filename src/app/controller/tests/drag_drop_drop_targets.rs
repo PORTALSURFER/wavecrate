@@ -1,7 +1,11 @@
 use super::super::test_support::write_test_wav;
 use super::super::*;
+use crate::app::controller::jobs::{
+    DropTargetTransferKind, DropTargetTransferResult, DropTargetTransferSuccess,
+};
 use crate::app::state::{DragPayload, DragSample, DragSource, DragTarget};
 use crate::app_dirs::ConfigBaseGuard;
+use crate::app_core::state::StatusTone;
 use crate::sample_sources::config::DropTargetConfig;
 use crate::sample_sources::db::DB_FILE_NAME;
 use crate::sample_sources::{Rating, SampleSource, SourceId, WavEntry};
@@ -193,6 +197,41 @@ fn db_entry(
         .must()
         .into_iter()
         .find(|entry| entry.relative_path == PathBuf::from(relative))
+}
+
+fn drop_target_transfer_result(
+    kind: DropTargetTransferKind,
+    target: &SampleSource,
+    transferred: Vec<DropTargetTransferSuccess>,
+    errors: Vec<&str>,
+    cancelled: bool,
+) -> DropTargetTransferResult {
+    DropTargetTransferResult {
+        kind,
+        target_source_id: target.id.clone(),
+        target_label: String::from("dest"),
+        transferred,
+        errors: errors.into_iter().map(String::from).collect(),
+        cancelled,
+    }
+}
+
+fn transferred_sample(
+    source: &SampleSource,
+    source_relative: &str,
+    target_relative: &str,
+) -> DropTargetTransferSuccess {
+    DropTargetTransferSuccess {
+        source_id: source.id.clone(),
+        source_relative: PathBuf::from(source_relative),
+        target_relative: PathBuf::from(target_relative),
+        file_size: 16,
+        modified_ns: 123,
+        tag: Rating::KEEP_1,
+        looped: true,
+        locked: true,
+        last_played_at: Some(42),
+    }
 }
 
 fn lock_db_until_released(
@@ -446,6 +485,91 @@ fn cross_source_drop_target_outside_configured_sources_is_rejected() {
     assert!(source.root.join("one.wav").is_file());
     assert!(!outside.join("one.wav").exists());
     assert!(db_entry(&mut controller, &source, "one.wav").is_some());
+}
+
+#[test]
+fn apply_drop_target_transfer_result_reports_cancelled_statuses() {
+    let temp = tempdir().must();
+    let _guard = ConfigBaseGuard::set(temp.path().to_path_buf());
+    let (mut controller, _source, target, _target_drop) = setup_cross_source_drop_fixture(&temp);
+
+    controller
+        .drag_drop()
+        .apply_drop_target_transfer_result(drop_target_transfer_result(
+            DropTargetTransferKind::Copy,
+            &target,
+            Vec::new(),
+            Vec::new(),
+            true,
+        ));
+    assert_eq!(controller.ui.status.text, "Copy cancelled");
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Warning);
+
+    controller
+        .drag_drop()
+        .apply_drop_target_transfer_result(drop_target_transfer_result(
+            DropTargetTransferKind::Move,
+            &target,
+            Vec::new(),
+            Vec::new(),
+            true,
+        ));
+    assert_eq!(controller.ui.status.text, "Move cancelled");
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Warning);
+}
+
+#[test]
+fn apply_drop_target_transfer_result_reports_noop_statuses() {
+    let temp = tempdir().must();
+    let _guard = ConfigBaseGuard::set(temp.path().to_path_buf());
+    let (mut controller, _source, target, _target_drop) = setup_cross_source_drop_fixture(&temp);
+
+    controller
+        .drag_drop()
+        .apply_drop_target_transfer_result(drop_target_transfer_result(
+            DropTargetTransferKind::Copy,
+            &target,
+            Vec::new(),
+            Vec::new(),
+            false,
+        ));
+    assert_eq!(controller.ui.status.text, "No samples copied");
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Warning);
+
+    controller
+        .drag_drop()
+        .apply_drop_target_transfer_result(drop_target_transfer_result(
+            DropTargetTransferKind::Move,
+            &target,
+            Vec::new(),
+            Vec::new(),
+            false,
+        ));
+    assert_eq!(controller.ui.status.text, "No samples moved");
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Warning);
+}
+
+#[test]
+fn apply_drop_target_transfer_result_reports_partial_errors_with_warning_tone() {
+    let temp = tempdir().must();
+    let _guard = ConfigBaseGuard::set(temp.path().to_path_buf());
+    let (mut controller, source, target, _target_drop) = setup_cross_source_drop_fixture(&temp);
+
+    controller
+        .drag_drop()
+        .apply_drop_target_transfer_result(drop_target_transfer_result(
+            DropTargetTransferKind::Copy,
+            &target,
+            vec![transferred_sample(&source, "one.wav", "dest/one.wav")],
+            vec!["target already contains clip"],
+            false,
+        ));
+
+    assert_eq!(
+        controller.ui.status.text,
+        "Copied 1 sample(s) to dest with 1 error(s)"
+    );
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Warning);
 }
 
 #[test]
