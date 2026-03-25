@@ -2,7 +2,7 @@
 
 Generated: 2026-03-25
 Observed commit: `efd1bbbd`
-Status: Phase 2 execution is in progress on 2026-03-25. Items 1-7 are complete, and the ambiguity decisions are locked to the user-approved conservative options for this execution pass.
+Status: Phase 2 execution is in progress on 2026-03-25. Items 1-8 are complete, and the ambiguity decisions are locked to the user-approved conservative options for this execution pass.
 
 ## Scope
 
@@ -215,14 +215,14 @@ Status: Phase 2 execution is in progress on 2026-03-25. Items 1-7 are complete, 
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Product clarification required: No
 - Completed: 2026-03-25
-- Commit: `ac660373`, `2b666fab`
-- Assumptions used: the narrowest useful split is a directory-backed `drag_drop_drop_targets` test module whose root keeps only the tiny `Must` helper while `transfer.rs` owns cross-source transfer/result coverage and `list.rs` owns drop-target panel/reorder behavior; that preserves the existing external module name while removing the oversized flat file.
+- Commit: `ac660373`, `2b666fab`, `d383294a`
+- Assumptions used: the narrowest useful split is a directory-backed `drag_drop_drop_targets` test module whose root keeps only the tiny `Must` helper while `transfer` owns cross-source transfer/result coverage and `list.rs` owns drop-target panel/reorder behavior; that preserves the existing external module name while removing the oversized flat file.
 - Validation outcome:
   - `cargo test drag_drop_drop_targets --lib` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` passed for this item's target by removing the drop-target test file from the live violation list; remaining failures are later backlog items
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
-- Deviation from original plan order: none; the split required a tiny follow-up commit to stage the deleted flat module after the new directory-backed test modules landed.
+- Deviation from original plan order: none; the split required a tiny follow-up commit to stage the deleted flat module after the new directory-backed test modules landed, and a later directory-backed follow-up split of `transfer.rs` into `transfer/{mod,workflow,apply_result}.rs` when the file-size guardrail showed that the first replacement module still exceeded the budget.
 
 ### 7. [x] Add one post-deadline playback-age persistence regression test
 
@@ -252,7 +252,7 @@ Status: Phase 2 execution is in progress on 2026-03-25. Items 1-7 are complete, 
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 - Deviation from original plan order: none
 
-### 8. [ ] Split `src/app/controller/playback/tests.rs` by behavior family
+### 8. [x] Split `src/app/controller/playback/tests.rs` by behavior family
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -272,6 +272,15 @@ Status: Phase 2 execution is in progress on 2026-03-25. Items 1-7 are complete, 
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `d71561f1`
+- Assumptions used: the smallest stable split is a directory-backed `playback::tests` module where lightweight label/playhead helpers live in `view_helpers.rs`, deferred playback-age coverage lives in `playback_age_tests.rs`, deferred seek coverage lives in `seek_tests.rs`, and the remaining zoom/native waveform behavior stays in `waveform_actions.rs` with its local `seed_waveform_for_zoom` helper.
+- Validation outcome:
+  - `cargo test playback::tests --lib` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` passed for this item's target by removing `src/app/controller/playback/tests.rs` from the live violation list; remaining failures are later backlog items
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Deviation from original plan order: a tiny prerequisite follow-up split was needed in `src/app/controller/tests/drag_drop_drop_targets/transfer.rs` after the file-budget check revealed the earlier item-6 replacement module still exceeded the limit.
 
 ### 9. [ ] Add catalog-to-runtime completeness checks for action semantics before considering wider consolidation
 
