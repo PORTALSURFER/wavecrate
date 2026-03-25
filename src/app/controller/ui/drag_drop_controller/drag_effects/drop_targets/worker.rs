@@ -24,6 +24,9 @@ use std::sync::{
     mpsc::Sender,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Execute a batch of drop-target copy or move requests on the file-op worker.
 pub(super) fn run_drop_target_transfer_task(
     kind: DropTargetTransferKind,

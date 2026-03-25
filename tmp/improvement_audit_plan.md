@@ -106,7 +106,7 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Plan order deviation: none
 
-### 3. [ ] Correct the public release-platform docs to match the live release workflow
+### 3. [x] Correct the public release-platform docs to match the live release workflow
 
 - Classification: Documentation gap
 - Confidence: High
@@ -124,6 +124,13 @@ Status: Phase 2 execution approved on 2026-03-25; implement items sequentially i
   - review [README.md](/C:/dev/sempal/README.md) against [release-build.yml](/C:/dev/sempal/.github/workflows/release-build.yml)
   - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `a1c8b659`
+- Assumptions: Release assets for Linux and macOS are published artifacts, but Windows remains the primary explicitly supported release platform until docs say otherwise.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
 ### 4. [ ] Add crash-recovery regression coverage for drop-target copy/move failures after durable journal stages
 
