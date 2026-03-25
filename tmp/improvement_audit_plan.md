@@ -2,7 +2,7 @@
 
 Generated: 2026-03-25
 Observed commit: `efd1bbbd`
-Status: Phase 2 execution is in progress on 2026-03-25. Items 1-4 are complete, and the ambiguity decisions are locked to the user-approved conservative options for this execution pass.
+Status: Phase 2 execution is in progress on 2026-03-25. Items 1-5 are complete, and the ambiguity decisions are locked to the user-approved conservative options for this execution pass.
 
 ## Scope
 
@@ -164,7 +164,7 @@ Status: Phase 2 execution is in progress on 2026-03-25. Items 1-4 are complete, 
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 - Deviation from original plan order: none; the implementation landed as two focused commits so the delegated test-only split stayed disjoint from the primary-agent production refactor.
 
-### 5. [ ] Add direct drop-target apply-result tests for cancelled, no-op, and partial-error status paths
+### 5. [x] Add direct drop-target apply-result tests for cancelled, no-op, and partial-error status paths
 
 - Classification: Test gap
 - Confidence: High
@@ -184,6 +184,14 @@ Status: Phase 2 execution is in progress on 2026-03-25. Items 1-4 are complete, 
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `ee1b49ef`
+- Assumptions used: the most stable seam for this item is the direct `apply_drop_target_transfer_result` API, so the tests construct synthetic completed results instead of re-driving the worker pipeline; that keeps the assertions pinned to the user-facing status synthesis branches the audit identified.
+- Validation outcome:
+  - `cargo test drag_drop_drop_targets --lib` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Deviation from original plan order: none
 
 ### 6. [ ] Split `src/app/controller/tests/drag_drop_drop_targets.rs` into transfer coverage and drop-target-list coverage
 
