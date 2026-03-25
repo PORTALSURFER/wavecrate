@@ -92,7 +92,7 @@ Status: Phase 2 execution started on 2026-03-25. Item 1 is complete and the ambi
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-25
-- Commit: pending
+- Commit: `a1adae7f`
 - Assumptions used: the most stable oracles for this item are pending-transaction lifecycle, deferred undo job creation, and crop-completion playback/focus state; the tests therefore simulate failure/crop-completion messages directly where that keeps the history contract deterministic, and they drive the real queued clip-export success path where the repository already exposes a stable background-job harness.
 - Validation outcome:
   - `cargo test selection_export_tests --lib` passed
@@ -100,7 +100,7 @@ Status: Phase 2 execution started on 2026-03-25. Item 1 is complete and the ambi
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 - Deviation from original plan order: none
 
-### 3. [ ] Split `src/app_core/controller.rs` along its existing dispatch boundaries
+### 3. [x] Split `src/app_core/controller.rs` along its existing dispatch boundaries
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -121,6 +121,15 @@ Status: Phase 2 execution started on 2026-03-25. Item 1 is complete and the ambi
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: pending
+- Assumptions used: the safest split keeps transport dispatch, frame preparation, native-controller bootstrapping, and the top-level orchestration in `controller.rs`, while moving the already-isolated browser/source, map, and prompt/update dispatch tables into sibling modules next to the pre-existing waveform action module.
+- Validation outcome:
+  - `cargo test app_core::controller::tests --lib` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` passed for this item's target by removing `src/app_core/controller.rs` from the live violation list; remaining failures are the later backlog items
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Deviation from original plan order: none
 
 ### 4. [ ] Split the selection-export cluster and remove the duplicated clip-name generator
 
