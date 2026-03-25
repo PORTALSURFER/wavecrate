@@ -80,6 +80,29 @@ mod tests {
     }
 
     #[test]
+    fn normalize_relative_path_rejects_rooted_path() {
+        let err = normalize_relative_path(Path::new("/escape.wav")).unwrap_err();
+        #[cfg(windows)]
+        assert!(matches!(err, SourceDbError::InvalidRelativePath(_)));
+        #[cfg(not(windows))]
+        assert!(matches!(err, SourceDbError::PathMustBeRelative(_)));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn normalize_relative_path_rejects_windows_drive_prefix() {
+        let err = normalize_relative_path(Path::new(r"C:\escape.wav")).unwrap_err();
+        assert!(matches!(err, SourceDbError::PathMustBeRelative(_)));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn normalize_relative_path_rejects_windows_rooted_path_without_prefix() {
+        let err = normalize_relative_path(Path::new(r"\escape.wav")).unwrap_err();
+        assert!(matches!(err, SourceDbError::InvalidRelativePath(_)));
+    }
+
+    #[test]
     fn normalize_relative_path_rejects_empty_or_curdir_only() {
         let err = normalize_relative_path(Path::new(".")).unwrap_err();
         assert!(matches!(err, SourceDbError::InvalidRelativePath(_)));
