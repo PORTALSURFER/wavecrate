@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-21T09:42:38Z
+Last Updated: 2026-03-25T16:05:00Z
 Updated By: Codex
 
 ## Purpose
@@ -12,22 +12,17 @@ Updated By: Codex
 
 - I am on `next` in `X:\sempal`.
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The active lane is the completed execution record of the refreshed evidence-driven improvement audit.
+- The active lane is a refreshed Phase 1 evidence-driven improvement audit for the current live tree.
 - `tmp/improvement_audit_plan.md` is the current source of truth.
-- The previous completed audit backlog is now historical input only.
-- Backlog item 1 is implemented in local commit `7e6baff1` (`fix(drag-drop): workerize drop target transfers`).
-- Backlog item 2 is implemented in local commit `c6b814d2` (`test(controller): cover folder move branches`).
-- Backlog item 3 is implemented in local commit `91e5c30e` (`test(controller): cover source move apply-result branches`).
-- Backlog item 4 is implemented in commit `d0685aad` (`fix(scripts): harden windows cargo wrapper fallback`) and makes the Windows PowerShell validation wrappers fall back to direct `rustc` plus `tmp/agent_temp` when inherited `sccache` or the default temp dir is unusable.
-- Backlog item 5 is implemented in commit `8b0637d7` (`test(gui): align desktop aiv coverage claims`) and trims `DesktopAiv` catalog claims down to the action IDs actually asserted by the exported desktop-AIV manifests.
-- Backlog item 6 is implemented in commit `78430bfa` (`test(controller): cover audio load routing branches`) and adds controller coverage for stale-vs-matching `AudioLoadResult::Primary` routing, `AudioLoadResult::Transients` routing, transient source/path/cache-token gating, and the non-stretched-only transient cache-update branch.
-- Backlog item 7 is implemented in commit `6b24829d` (`test(waveform): cover symphonia long-file parity`) and adds mono/stereo long-file parity coverage for the Symphonia fallback peak/analysis path; the new tests also exposed and fixed a trailing sentinel peak-bucket bug in the Symphonia EOF truncation path.
-- Backlog item 8 is implemented in commit `6a8c78bd` (`refactor(waveform): share symphonia peak accumulation`) and routes the Symphonia long-file peak/analysis path through the shared `PeakAnalysisAccumulator`; the helper now trims unused estimate buckets on output.
-- Backlog item 9 is implemented in commit `ac746e8e` (`docs: refresh architecture and audit snapshots`) and refreshes the stale architecture/planning docs, regenerates `tmp/cleanup_audit_hotspots.md`, and downgrades `docs/QUALITY_SCORE.md` to match the current degraded guardrail state.
-- Backlog item 10 is implemented in commit `4485f18e` (`refactor(drag-drop): split folder move worker tests`) and splits `src/app/controller/ui/drag_drop_controller/drag_effects/folder_moves.rs` into a documented module portal plus focused worker-test modules under `folder_moves/tests/`.
-- Full-scan guardrails are not fully green right now: `scripts/check_file_size_budget.ps1 --all` still fails on the unrelated over-budget file `src/app/controller/tests/drag_drop_drop_targets.rs:477`.
-- The active follow-up is a dual-lane validation workflow for Windows: `scripts/ci_agent.ps1` is the reliable agent-safe lane in constrained environments, while `scripts/ci_quick.ps1` remains the broader integrated lane for humans when `cargo-nextest.exe` is allowed.
-- `scripts/devcheck.ps1` and `scripts/ci_agent.ps1` are green again in this constrained Windows environment after the wrapper and temp-dir fallbacks landed.
+- The audit was rebuilt on commit `efd1bbbd` on 2026-03-25 and is waiting for explicit user confirmation before any Phase 2 implementation work begins.
+- `tmp/cleanup_audit_hotspots.md` was regenerated during this audit and now reflects the broader 2026-03-25 hotspot snapshot for the live tree.
+- The repo-entry docs are currently aligned enough for handoff: `scripts/check_docs_index.ps1` passed and `scripts/check_markdown_links.ps1` passed during this audit.
+- The full quality-score drift check is currently degraded because `scripts/check_file_size_budget.ps1 --all` still fails while Rust taste invariants are green.
+- The guardrail-scope file-size budget currently fails on nine files: `src/app_core/actions/catalog/kinds.rs`, `src/app_core/controller.rs`, `src/app/controller/history.rs`, `src/app/controller/library/selection_export.rs`, `src/app/controller/library/selection_export/background.rs`, `src/app/controller/library/selection_export/selection_export_tests.rs`, `src/app/controller/playback/tests.rs`, `src/app/controller/playback/transport/selection.rs`, and `src/app/controller/tests/drag_drop_drop_targets.rs`.
+- The broader cleanup hotspot snapshot currently reports 17 over-budget Rust files across the wider scan scope.
+- The strongest new ROI themes are: controller-seam test gaps for native-runtime actions, async selection-export undo/crop coverage gaps, and live file-size-budget debt in `app_core`, selection-export, playback tests, drag-drop tests, and history glue.
+- The dual-lane Windows validation workflow is still the same: `scripts/ci_agent.ps1` is the reliable constrained-environment lane, while `scripts/ci_quick.ps1` remains the broader integrated confirmation lane when `cargo-nextest.exe` is allowed.
+- The PowerShell validation wrappers still need to preserve the direct-`rustc` plus `tmp/agent_temp` fallback path whenever inherited `sccache` or the default temp dir is unusable.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -35,22 +30,19 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Push the completed item 10 and tracker closeout commits, then wait for the user to choose the next lane.
-2. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `docs/plans/active/todo.md`, `docs/plans/index.md`, and this file aligned around the completed audit lane until the user selects a new lane.
+1. Wait for the user to confirm whether to begin sequential Phase 2 implementation from `tmp/improvement_audit_plan.md`.
+2. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `docs/plans/active/todo.md`, `docs/plans/index.md`, and this file aligned around the refreshed audit-planning lane until the user selects the next step.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 5. Use `scripts/ci_agent.ps1` for agent-side validation in this constrained Windows environment, and treat `scripts/ci_quick.ps1` / `scripts/ci_local.ps1` as broader user-run confirmation lanes when `cargo-nextest.exe` is allowed.
 
 ## Work Notes
 
-- Active audit backlog: `tmp/improvement_audit_plan.md` (refreshed 2026-03-18)
-- Previous completed audit backlog: historical content recorded in Git history
+- Active audit backlog: `tmp/improvement_audit_plan.md` (rebuilt 2026-03-25)
+- Current cleanup hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
 - Parked cleanup backlog: `tmp/cleanup_plan.md`
 - Parked perf backlog: `tmp/perf_plan.md`
 - GUI automation/test design: `docs/gui_test_platform.md`
 - GUI automation/test rollout plan: `docs/plans/active/gui_test_platform_exec_plan.md`
-
-
-

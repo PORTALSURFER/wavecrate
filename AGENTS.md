@@ -48,7 +48,7 @@ Write for future selves: be precise, kind, and clear.
 2. Read in order:
    - `docs/README.md`
    - `docs/plans/index.md`
-   - `docs/plans/active/runtime_performance_exec_plan.md`
+   - `tmp/improvement_audit_plan.md`
    - `docs/plans/active/todo.md`
    - `MEMORY.md`
 3. If environment issues are suspected:
@@ -59,23 +59,22 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `X:\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: evidence-driven improvement audit execution
-- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-18 evidence-driven ROI-ranked backlog for the live tree; `docs/TEST.md` and `docs/README.md` still define the dual-lane validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background plans
-- Current status: Phase 2 implementation completed on `2026-03-19`; backlog items 1-10 are committed locally, `tmp/improvement_audit_plan.md` is the live execution tracker, and the Windows PowerShell validation lane now falls back to direct `rustc` plus `tmp/agent_temp` when inherited `sccache` or the default temp dir is unusable.
+- Program: evidence-driven improvement audit planning refresh
+- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-25 evidence-driven ROI-ranked backlog for the live tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
+- Current status: Phase 1 audit planning was rebuilt on `2026-03-25`; `tmp/improvement_audit_plan.md` is the live source of truth, `tmp/cleanup_audit_hotspots.md` was refreshed for current evidence, and the repo is waiting for explicit user confirmation before any Phase 2 implementation begins.
 
 ## Immediate Next Actions
-1. Push the completed item 10 and tracker closeout commits, then wait for the user to choose the next lane.
-2. Keep `tmp/improvement_audit_plan.md` as the live execution tracker for the completed audit backlog, including completion notes, assumptions, validation results, and commit metadata.
-3. Keep the PowerShell validation wrappers on their new direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
-4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
-5. Keep `scripts/ci_quick.ps1` / `scripts/ci_quick.sh` as the broader integrated lane built around `cargo nextest`; the PowerShell wrapper also includes the GUI contract suite.
-6. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized when the active lane changes.
+1. Wait for the user to confirm whether Phase 2 should begin; do not implement backlog items before explicit confirmation.
+2. Keep `tmp/improvement_audit_plan.md` as the live audit backlog and decision record for the current tree.
+3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
+4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
+5. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized when the active lane changes.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; all 10 Phase 2 items are implemented as of `2026-03-19`, with final closeout metadata tracked there
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; rebuilt on `2026-03-25` and awaiting explicit Phase 2 confirmation
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation
