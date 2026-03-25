@@ -2,7 +2,7 @@
 
 Generated: 2026-03-25
 Observed commit: `efd1bbbd`
-Status: Phase 2 execution is in progress on 2026-03-25. Items 1-6 are complete, and the ambiguity decisions are locked to the user-approved conservative options for this execution pass.
+Status: Phase 2 execution is in progress on 2026-03-25. Items 1-7 are complete, and the ambiguity decisions are locked to the user-approved conservative options for this execution pass.
 
 ## Scope
 
@@ -224,7 +224,7 @@ Status: Phase 2 execution is in progress on 2026-03-25. Items 1-6 are complete, 
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 - Deviation from original plan order: none; the split required a tiny follow-up commit to stage the deleted flat module after the new directory-backed test modules landed.
 
-### 7. [ ] Add one post-deadline playback-age persistence regression test
+### 7. [x] Add one post-deadline playback-age persistence regression test
 
 - Classification: Test gap
 - Confidence: Medium-High
@@ -243,6 +243,14 @@ Status: Phase 2 execution is in progress on 2026-03-25. Items 1-6 are complete, 
   - targeted playback-age `cargo test` run
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
 - Product clarification required: No
+- Completed: 2026-03-25
+- Commit: `5f234d1c`
+- Assumptions used: the smallest stable oracle for this seam is the queued playback-age commit payload itself plus the persisted `last_played_at` row value, so the new test drives `record_loaded_audio_playback`, forces the deferred deadline into the past, and asserts queue clearance, DB persistence, and the selected-source row state without trying to over-specify broader browser rendering details.
+- Validation outcome:
+  - `cargo test pending_age_update --lib` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Deviation from original plan order: none
 
 ### 8. [ ] Split `src/app/controller/playback/tests.rs` by behavior family
 
