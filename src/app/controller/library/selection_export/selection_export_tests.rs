@@ -1,5 +1,7 @@
 use super::*;
-use crate::app::controller::jobs::SelectionExportAudioPayload;
+use crate::app::controller::jobs::{
+    JobMessage, SelectionExportAudioPayload, SelectionExportMessage, SelectionExportResult,
+};
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::test_support::write_test_wav;
 use crate::app::state::{ProgressTaskKind, WaveformSliceBatchProfile};
@@ -248,8 +250,8 @@ fn save_waveform_selection_to_browser_exports_narrow_deep_selection() {
 }
 
 #[test]
-/// Successful waveform selection exports should raise one native-shell flash token.
-fn save_waveform_selection_to_browser_records_flash_nonce() {
+/// Queued waveform selection exports should raise one optimistic native-shell flash token.
+fn save_waveform_selection_to_browser_records_flash_nonce_immediately() {
     let temp = tempdir().unwrap();
     let source_root = temp.path().join("source");
     std::fs::create_dir_all(&source_root).unwrap();
@@ -276,15 +278,39 @@ fn save_waveform_selection_to_browser_records_flash_nonce() {
         .expect("selection export should queue");
 
     assert_eq!(controller.ui.status.status_tone, StatusTone::Busy);
-    assert_eq!(controller.ui.waveform.selection_export_flash_nonce, before);
-    pump_background_jobs_until(&mut controller, |controller| {
-        controller.ui.waveform.selection_export_flash_nonce == before + 1
+    assert_eq!(
+        controller.ui.waveform.selection_export_flash_nonce,
+        before + 1
+    );
+    pump_background_jobs_until(&mut controller, |_| {
+        source_root.join("flash_selection_001.wav").is_file()
     });
 
     assert_eq!(
         controller.ui.waveform.selection_export_flash_nonce,
         before + 1
     );
+}
+
+#[test]
+/// Failed queued waveform selection exports should raise one deferred error flash token.
+fn save_waveform_selection_to_browser_records_failure_flash_when_worker_fails() {
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let failure_before = controller.ui.waveform.selection_export_failure_flash_nonce;
+    controller.apply_background_job_message_for_tests(JobMessage::SelectionExport(
+        SelectionExportMessage::Finished(SelectionExportResult::Clip {
+            request_id: 99,
+            result: Err(String::from("Selection export failed")),
+        }),
+    ));
+
+    assert_eq!(
+        controller.ui.waveform.selection_export_failure_flash_nonce,
+        failure_before + 1
+    );
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Error);
+    assert_eq!(controller.ui.status.text, "Selection export failed");
 }
 
 #[test]

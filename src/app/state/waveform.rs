@@ -83,12 +83,18 @@ pub struct WaveformState {
     pub pan_drag_pos: Option<UiPoint>,
     /// Start time for the current waveform copy flash.
     pub copy_flash_at: Option<Instant>,
-    /// Monotonic token incremented after a successful selection export from the waveform.
+    /// Monotonic token incremented when a waveform selection export is queued.
     ///
-    /// Native shells use this as a one-shot event marker so they can trigger
-    /// local blink feedback without depending on wall-clock synchronization
-    /// with controller `Instant` values.
+    /// Native shells use this as a one-shot optimistic event marker so they
+    /// can trigger immediate local blink feedback without depending on
+    /// wall-clock synchronization with controller `Instant` values.
     pub selection_export_flash_nonce: u64,
+    /// Monotonic token incremented when a queued waveform selection export fails.
+    ///
+    /// Native shells use this as a one-shot error event marker so they can
+    /// repaint the selection with a stronger failure color after an optimistic
+    /// submit flash has already been shown.
+    pub selection_export_failure_flash_nonce: u64,
 }
 
 /// Origin of the currently prepared waveform slice batch.
@@ -145,6 +151,7 @@ impl Default for WaveformState {
             pan_drag_pos: None,
             copy_flash_at: None,
             selection_export_flash_nonce: 0,
+            selection_export_failure_flash_nonce: 0,
         }
     }
 }

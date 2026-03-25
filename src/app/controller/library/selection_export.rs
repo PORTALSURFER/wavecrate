@@ -170,6 +170,7 @@ impl AppController {
                     folder_override,
                 },
             });
+        self.record_waveform_selection_export_flash();
         self.set_status("Saving selection clip...", StatusTone::Busy);
         Ok(())
     }
@@ -308,12 +309,21 @@ impl AppController {
             .ok_or_else(|| "Create a selection first".to_string())
     }
 
-    /// Emit one success token so native shells can blink the current selection once.
+    /// Emit one optimistic submit token so native shells can blink the selection immediately.
     fn record_waveform_selection_export_flash(&mut self) {
         self.ui.waveform.selection_export_flash_nonce = self
             .ui
             .waveform
             .selection_export_flash_nonce
+            .wrapping_add(1);
+    }
+
+    /// Emit one failure token so native shells can repaint the selection in an error color.
+    pub(crate) fn record_waveform_selection_export_failure_flash(&mut self) {
+        self.ui.waveform.selection_export_failure_flash_nonce = self
+            .ui
+            .waveform
+            .selection_export_failure_flash_nonce
             .wrapping_add(1);
     }
 
@@ -360,7 +370,6 @@ impl AppController {
                     format!("Saved clip {}", success.entry.relative_path.display()),
                     StatusTone::Info,
                 );
-                self.record_waveform_selection_export_flash();
             }
             SelectionClipDestination::ExternalDrag => {
                 self.finish_external_selection_drag_export(success);

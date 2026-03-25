@@ -169,6 +169,10 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         }),
         waveform_slices: waveform_projection::project_waveform_slice_previews(&controller.ui),
         waveform_selection_export_flash_nonce: controller.ui.waveform.selection_export_flash_nonce,
+        waveform_selection_export_failure_flash_nonce: controller
+            .ui
+            .waveform
+            .selection_export_failure_flash_nonce,
         waveform_edit_selection_milli: waveform_projection::project_waveform_edit_selection_milli(
             &controller.ui,
         ),

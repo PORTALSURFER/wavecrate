@@ -211,6 +211,7 @@ impl AppController {
                 if self.ui.drag.pending_external_selection_request_id == Some(request_id) {
                     self.drag_drop().reset_drag();
                 }
+                self.record_waveform_selection_export_failure_flash();
                 self.set_status(err, StatusTone::Error);
             }
             crate::app::controller::jobs::SelectionExportResult::CropNewSample {
