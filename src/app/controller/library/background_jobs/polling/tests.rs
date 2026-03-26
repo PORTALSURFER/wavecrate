@@ -1,6 +1,7 @@
 use super::*;
 use crate::app::controller::jobs::{
-    ClipboardPasteOutcome, ClipboardPasteResult, FileOpMessage, FileOpResult, FolderScanResult,
+    ActiveRetainedDeleteResolution, ClipboardPasteOutcome, ClipboardPasteResult, FileOpMessage,
+    FileOpResult, FolderScanResult, RetainedDeleteResolutionMode, RetainedDeleteResolutionResult,
     SearchResult, SelectionExportMessage,
 };
 use crate::app::controller::playback::audio_loader::{AudioLoadOutcome, AudioTransientResult};
@@ -245,6 +246,51 @@ fn file_ops_messages_update_progress_and_clear_active_overlay_on_finish() {
     assert!(!controller.runtime.jobs.file_ops_in_progress());
     assert!(!controller.ui.progress.visible);
     assert_eq!(controller.ui.progress.task, None);
+}
+
+#[test]
+fn retained_delete_resolution_result_clears_busy_scope_and_progress() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.show_status_progress(
+        ProgressTaskKind::FileOps,
+        "Restoring retained deletes",
+        1,
+        false,
+    );
+    controller.runtime.active_retained_delete_resolution = Some(ActiveRetainedDeleteResolution {
+        entries: Vec::new(),
+    });
+    let (tx, rx) = channel();
+    controller
+        .runtime
+        .jobs
+        .start_file_ops(rx, Arc::new(AtomicBool::new(false)));
+    drop(tx);
+
+    controller.handle_background_job_message(JobMessage::FileOps(FileOpMessage::Finished(
+        FileOpResult::RetainedDeleteResolution(RetainedDeleteResolutionResult {
+            mode: RetainedDeleteResolutionMode::Restore,
+            resolved: 1,
+            affected_sources: vec![source.id],
+            scan_sources: Vec::new(),
+            failures: Vec::new(),
+            recovery_report: crate::app::controller::library::source_folders::delete_recovery::DeleteRecoveryReport {
+                entries: Vec::new(),
+                retained_entries: Vec::new(),
+                errors: Vec::new(),
+            },
+        }),
+    )));
+
+    assert!(
+        controller
+            .runtime
+            .active_retained_delete_resolution
+            .is_none()
+    );
+    assert!(!controller.runtime.jobs.file_ops_in_progress());
+    assert!(!controller.ui.progress.visible);
 }
 
 #[test]

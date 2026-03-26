@@ -8,6 +8,9 @@ impl BrowserController<'_> {
     pub(super) fn delete_browser_samples_action(&mut self, rows: &[usize]) -> Result<(), String> {
         let next_focus = self.next_browser_focus_after_delete(rows);
         let (contexts, mut last_error) = self.resolve_unique_browser_contexts(rows);
+        if self.warn_if_any_browser_context_busy(&contexts, "deleting") {
+            return Ok(());
+        }
         for ctx in contexts {
             if let Err(err) = self.try_delete_browser_sample_ctx(&ctx) {
                 last_error = Some(err);

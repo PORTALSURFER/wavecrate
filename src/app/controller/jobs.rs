@@ -18,6 +18,8 @@ mod normalization_worker;
 mod progress_reporting;
 /// Bounded job-queue sender/drop policy helpers.
 mod queue_orchestration;
+/// DTOs for explicit retained-delete restore/purge background jobs.
+mod retained_delete_types;
 /// Retry/backoff policy helpers for async gateway and maintenance jobs.
 mod retry_policy;
 /// Background selection-export job DTOs and helpers.
@@ -70,6 +72,7 @@ use std::{
 pub(crate) use self::file_ops_types::*;
 pub(crate) use self::messages::*;
 pub(crate) use self::queue_orchestration::JobMessageSender;
+pub(crate) use self::retained_delete_types::*;
 pub(crate) use self::selection_export_types::*;
 pub(super) use self::state::ControllerJobsInit;
 pub(crate) use self::state::PendingSliceBatchExport;

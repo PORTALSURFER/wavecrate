@@ -1,18 +1,25 @@
 //! Explicit restore and purge flows for retained folder deletes.
 
-use super::restore_merge::{
-    RestoredFileDisposition, RetainedRestoreMergeReport, restore_retained_folder_with_merge,
-};
-use super::{DeleteStagingInfo, purge_deleted_folder};
+use super::run_retained_delete_resolution_job;
 use crate::app::controller::AppController;
 use crate::app::controller::StatusTone;
+use crate::app::controller::jobs::{
+    ActiveRetainedDeleteResolution, RetainedDeleteBusyEntry, RetainedDeleteResolutionEntry,
+    RetainedDeleteResolutionMode, RetainedDeleteResolutionRequest, RetainedDeleteResolutionResult,
+    RetainedDeleteResolutionSource,
+};
 use crate::app::state::{
     FolderActionPrompt, RetainedFolderDeleteEntry as UiRetainedFolderDeleteEntry,
 };
-use crate::sample_sources::{SampleSource, SourceId, WavEntry};
-use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use crate::sample_sources::SourceId;
+use std::collections::HashSet;
+use std::path::Path;
 use tracing::warn;
+
+#[cfg(not(test))]
+use crate::app::controller::jobs::{FileOpMessage, FileOpResult};
+#[cfg(not(test))]
+use std::sync::{Arc, atomic::AtomicBool};
 
 impl AppController {
     /// Open the explicit restore flow for retained folder deletes.
@@ -55,18 +62,23 @@ impl AppController {
         let Some(action) = action else {
             return false;
         };
-        let result = match action {
+        let started = match action {
             FolderActionPrompt::RestoreRetainedDeletes { .. } => {
-                self.resolve_retained_folder_deletes(RetainedDeleteResolution::Restore)
+                self.begin_retained_delete_resolution(RetainedDeleteResolutionMode::Restore)
             }
             FolderActionPrompt::PurgeRetainedDeletes { .. } => {
-                self.resolve_retained_folder_deletes(RetainedDeleteResolution::Purge)
+                self.begin_retained_delete_resolution(RetainedDeleteResolutionMode::Purge)
             }
             FolderActionPrompt::Rename { .. } => return false,
         };
-        self.ui.sources.folders.pending_action = None;
-        if let Err(err) = result {
-            self.set_status(err, StatusTone::Error);
+        match started {
+            Ok(true) => {
+                self.ui.sources.folders.pending_action = None;
+            }
+            Ok(false) => {}
+            Err(err) => {
+                self.set_status(err, StatusTone::Error);
+            }
         }
         true
     }
@@ -82,221 +94,199 @@ impl AppController {
         }
     }
 
-    fn resolve_retained_folder_deletes(
+    fn begin_retained_delete_resolution(
         &mut self,
-        resolution: RetainedDeleteResolution,
-    ) -> Result<(), String> {
-        let retained_entries = self
-            .ui
-            .sources
-            .folders
-            .delete_recovery
-            .retained_entries
-            .clone();
-        if retained_entries.is_empty() {
-            return Ok(());
+        mode: RetainedDeleteResolutionMode,
+    ) -> Result<bool, String> {
+        if self.runtime.jobs.file_ops_in_progress() {
+            self.set_status(
+                "Another file operation is already running",
+                StatusTone::Warning,
+            );
+            return Ok(false);
         }
-        let mut affected_sources = HashSet::new();
-        let mut scan_sources = HashSet::new();
-        let mut resolved = 0usize;
-        let mut failures = Vec::new();
-        for entry in &retained_entries {
-            let result = match resolution {
-                RetainedDeleteResolution::Restore => {
-                    self.restore_retained_folder_delete(entry, &mut scan_sources)
-                }
-                RetainedDeleteResolution::Purge => self.purge_retained_folder_delete(entry),
-            };
-            match result {
-                Ok(source_id) => {
-                    affected_sources.insert(source_id);
-                    resolved += 1;
-                }
-                Err(err) => failures.push(format!(
-                    "{} ({}): {err}",
-                    entry.source_label,
-                    entry.relative_path.display()
-                )),
+        let request = self.retained_delete_resolution_request(mode);
+        if request.entries.is_empty() {
+            return Ok(false);
+        }
+        self.runtime.active_retained_delete_resolution =
+            Some(ActiveRetainedDeleteResolution::from_request(&request));
+        self.ui.sources.folders.delete_recovery.in_progress = true;
+        self.show_status_progress(
+            crate::app::state::ProgressTaskKind::FileOps,
+            mode.progress_title(),
+            request.entries.len(),
+            false,
+        );
+        self.update_progress_detail(mode.progress_title());
+
+        #[cfg(test)]
+        {
+            let result = run_retained_delete_resolution_job(request, None);
+            self.apply_retained_delete_resolution_result(result);
+            if self.ui.progress.task == Some(crate::app::state::ProgressTaskKind::FileOps) {
+                self.clear_progress();
             }
         }
-        for source_id in &scan_sources {
+
+        #[cfg(not(test))]
+        {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let cancel = Arc::new(AtomicBool::new(false));
+            self.runtime.jobs.start_file_ops(rx, cancel);
+            std::thread::spawn(move || {
+                let result = run_retained_delete_resolution_job(request, Some(&tx));
+                let _ = tx.send(FileOpMessage::Finished(
+                    FileOpResult::RetainedDeleteResolution(result),
+                ));
+            });
+        }
+        Ok(true)
+    }
+
+    fn retained_delete_resolution_request(
+        &self,
+        mode: RetainedDeleteResolutionMode,
+    ) -> RetainedDeleteResolutionRequest {
+        RetainedDeleteResolutionRequest {
+            mode,
+            sources: self
+                .library
+                .sources
+                .iter()
+                .map(|source| RetainedDeleteResolutionSource {
+                    source_id: source.id.clone(),
+                    source_root: source.root.clone(),
+                })
+                .collect(),
+            entries: self
+                .ui
+                .sources
+                .folders
+                .delete_recovery
+                .retained_entries
+                .iter()
+                .map(retained_delete_resolution_entry)
+                .collect(),
+        }
+    }
+
+    pub(crate) fn apply_retained_delete_resolution_result(
+        &mut self,
+        result: RetainedDeleteResolutionResult,
+    ) {
+        self.runtime.active_retained_delete_resolution = None;
+        let affected_sources: HashSet<SourceId> = result.affected_sources.iter().cloned().collect();
+        let recovery_errors = self.apply_folder_delete_recovery_state(result.recovery_report);
+        for source_id in &result.scan_sources {
             self.request_hard_sync_for_source(source_id);
         }
-        self.refresh_folder_delete_recovery_state();
         self.refresh_recovered_sources(&affected_sources);
-        if !failures.is_empty() {
-            for error in &failures {
-                warn!(error = %error, "Retained folder delete resolution error");
-            }
+        for error in &result.failures {
+            warn!(error = %error, "Retained folder delete resolution error");
         }
+        for error in &recovery_errors {
+            warn!(error = %error, "Delete recovery error");
+        }
+        let error_count = result.failures.len() + recovery_errors.len();
         self.set_status(
-            status_message(resolution, resolved, failures.len()),
-            if failures.is_empty() {
+            status_message(result.mode, result.resolved, error_count),
+            if error_count == 0 {
                 StatusTone::Info
             } else {
                 StatusTone::Warning
             },
         );
-        Ok(())
     }
 
+    pub(crate) fn warn_if_retained_delete_path_busy(
+        &mut self,
+        source_id: &SourceId,
+        relative_path: &Path,
+        action: &str,
+    ) -> bool {
+        let Some(entry) = self
+            .retained_delete_busy_entry(source_id, relative_path)
+            .cloned()
+        else {
+            return false;
+        };
+        self.set_status(
+            format!(
+                "Recovery is still {} {} in {}; wait before {} {}",
+                entry.mode.busy_verb(),
+                entry.relative_path.display(),
+                entry.source_label,
+                action,
+                relative_path.display()
+            ),
+            StatusTone::Warning,
+        );
+        true
+    }
+
+    fn retained_delete_busy_entry(
+        &self,
+        source_id: &SourceId,
+        relative_path: &Path,
+    ) -> Option<&RetainedDeleteBusyEntry> {
+        self.runtime
+            .active_retained_delete_resolution
+            .as_ref()?
+            .entries
+            .iter()
+            .find(|entry| &entry.source_id == source_id && entry.contains_path(relative_path))
+    }
+
+    #[cfg(test)]
     fn restore_retained_folder_delete(
         &mut self,
         entry: &UiRetainedFolderDeleteEntry,
         scan_sources: &mut HashSet<SourceId>,
     ) -> Result<SourceId, String> {
-        let source = self.retained_delete_source(entry);
-        let staging_root = source.root.join(super::DELETE_STAGING_DIR);
-        let absolute = source.root.join(&entry.relative_path);
-        let staged = DeleteStagingInfo {
-            id: entry.id.clone(),
-            original_relative: entry.relative_path.clone(),
-            staged_relative: entry.staged_relative.clone(),
-            staged_absolute: staging_root.join(&entry.staged_relative),
+        let request = RetainedDeleteResolutionRequest {
+            mode: RetainedDeleteResolutionMode::Restore,
+            sources: vec![RetainedDeleteResolutionSource {
+                source_id: entry.source_id.clone(),
+                source_root: entry.source_root.clone(),
+            }],
+            entries: vec![retained_delete_resolution_entry(entry)],
         };
-        let existing_entries =
-            self.snapshot_existing_restore_entries(&source, &entry.deleted_entries)?;
-        let merge =
-            restore_retained_folder_with_merge(&staged, &source.root, &absolute, &staging_root)?;
-        self.apply_retained_restore_db_entries(
-            &source,
-            &entry.deleted_entries,
-            &existing_entries,
-            &merge,
-        )?;
-        if entry.deleted_entries.is_empty() || merge.had_conflicts {
-            scan_sources.insert(source.id.clone());
+        let result = run_retained_delete_resolution_job(request, None);
+        if let Some(err) = result.failures.into_iter().next() {
+            return Err(err);
         }
-        Ok(source.id)
-    }
-
-    fn purge_retained_folder_delete(
-        &mut self,
-        entry: &UiRetainedFolderDeleteEntry,
-    ) -> Result<SourceId, String> {
-        let source = self.retained_delete_source(entry);
-        let staging_root = source.root.join(super::DELETE_STAGING_DIR);
-        let staged = DeleteStagingInfo {
-            id: entry.id.clone(),
-            original_relative: entry.relative_path.clone(),
-            staged_relative: entry.staged_relative.clone(),
-            staged_absolute: staging_root.join(&entry.staged_relative),
-        };
-        purge_deleted_folder(&staged, &staging_root)?;
-        Ok(source.id)
-    }
-
-    fn retained_delete_source(&self, entry: &UiRetainedFolderDeleteEntry) -> SampleSource {
-        self.library
-            .sources
+        if result
+            .scan_sources
             .iter()
-            .find(|source| source.id == entry.source_id)
-            .cloned()
-            .unwrap_or_else(|| {
-                SampleSource::new_with_id(entry.source_id.clone(), entry.source_root.clone())
-            })
-    }
-
-    fn snapshot_existing_restore_entries(
-        &self,
-        source: &SampleSource,
-        deleted_entries: &[WavEntry],
-    ) -> Result<HashMap<PathBuf, WavEntry>, String> {
-        if deleted_entries.is_empty() {
-            return Ok(HashMap::new());
-        }
-        let db = source
-            .open_db()
-            .map_err(|err| format!("Database unavailable: {err}"))?;
-        let mut rows = HashMap::new();
-        for entry in deleted_entries {
-            if let Some(current) = db
-                .entry_for_path(&entry.relative_path)
-                .map_err(|err| format!("Failed to read existing restore metadata: {err}"))?
-            {
-                rows.insert(entry.relative_path.clone(), current);
-            }
-        }
-        Ok(rows)
-    }
-
-    fn apply_retained_restore_db_entries(
-        &mut self,
-        source: &SampleSource,
-        deleted_entries: &[WavEntry],
-        existing_entries: &HashMap<PathBuf, WavEntry>,
-        merge: &RetainedRestoreMergeReport,
-    ) -> Result<(), String> {
-        if deleted_entries.is_empty() {
-            return Ok(());
-        }
-        let mut restore_rows = relocated_existing_entries(existing_entries, merge);
-        restore_rows.extend(restored_deleted_entries(
-            deleted_entries,
-            existing_entries,
-            merge,
-        )?);
-        self.restore_folder_entries_in_db(source, &restore_rows)
-    }
-}
-
-#[derive(Clone, Copy)]
-enum RetainedDeleteResolution {
-    Restore,
-    Purge,
-}
-
-fn relocated_existing_entries(
-    existing_entries: &HashMap<PathBuf, WavEntry>,
-    merge: &RetainedRestoreMergeReport,
-) -> Vec<WavEntry> {
-    let mut rows = Vec::new();
-    for relocation in &merge.existing_relocations {
-        if let Some(existing) = existing_entries.get(&relocation.original_relative) {
-            let mut relocated = existing.clone();
-            relocated.relative_path = relocation.relocated_relative.clone();
-            rows.push(relocated);
-        }
-    }
-    rows
-}
-
-fn restored_deleted_entries(
-    deleted_entries: &[WavEntry],
-    existing_entries: &HashMap<PathBuf, WavEntry>,
-    merge: &RetainedRestoreMergeReport,
-) -> Result<Vec<WavEntry>, String> {
-    let mut rows = Vec::new();
-    for deleted in deleted_entries {
-        let record = merge
-            .restored_record_for(&deleted.relative_path)
-            .ok_or_else(|| {
-                format!(
-                    "Missing retained restore result for {}",
-                    deleted.relative_path.display()
-                )
-            })?;
-        if matches!(record.disposition, RestoredFileDisposition::ReusedExisting)
-            && existing_entries.contains_key(&deleted.relative_path)
+            .any(|source_id| source_id == &entry.source_id)
         {
-            continue;
+            scan_sources.insert(entry.source_id.clone());
         }
-        let mut restored = deleted.clone();
-        restored.relative_path = record.final_relative.clone();
-        rows.push(restored);
+        Ok(entry.source_id.clone())
     }
-    Ok(rows)
+}
+
+fn retained_delete_resolution_entry(
+    entry: &UiRetainedFolderDeleteEntry,
+) -> RetainedDeleteResolutionEntry {
+    RetainedDeleteResolutionEntry {
+        id: entry.id.clone(),
+        source_id: entry.source_id.clone(),
+        source_root: entry.source_root.clone(),
+        source_label: entry.source_label.clone(),
+        relative_path: entry.relative_path.clone(),
+        staged_relative: entry.staged_relative.clone(),
+        deleted_entries: entry.deleted_entries.clone(),
+    }
 }
 
 fn status_message(
-    resolution: RetainedDeleteResolution,
+    resolution: RetainedDeleteResolutionMode,
     resolved: usize,
     failures: usize,
 ) -> String {
-    let label = match resolution {
-        RetainedDeleteResolution::Restore => "Restored",
-        RetainedDeleteResolution::Purge => "Purged",
-    };
+    let label = resolution.status_label();
     if failures == 0 {
         return format!("{label} {resolved} retained folder delete(s)");
     }

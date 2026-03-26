@@ -9,6 +9,9 @@ impl AppController {
             self.set_status("Select a source first", StatusTone::Info);
             return;
         };
+        if self.warn_if_retained_delete_path_busy(&source.id, relative_folder, "opening") {
+            return;
+        }
         let absolute = source.root.join(relative_folder);
         if !absolute.exists() {
             self.set_status(
@@ -87,6 +90,14 @@ impl AppController {
         let Some(FolderActionPrompt::Rename { target, name }) = action else {
             return false;
         };
+        let Some(source) = self.current_source() else {
+            self.set_status("Select a source first", StatusTone::Info);
+            return true;
+        };
+        if self.warn_if_retained_delete_path_busy(&source.id, &target, "renaming") {
+            self.ui.sources.folders.rename_focus_requested = true;
+            return true;
+        }
         match self.rename_folder(&target, &name) {
             Ok(()) => {
                 self.ui.sources.folders.pending_action = None;

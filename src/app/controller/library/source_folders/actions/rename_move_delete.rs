@@ -11,6 +11,13 @@ impl AppController {
             self.set_status("Focus a folder to delete it", StatusTone::Info);
             return;
         };
+        let Some(source) = self.current_source() else {
+            self.set_status("Select a source first", StatusTone::Info);
+            return;
+        };
+        if self.warn_if_retained_delete_path_busy(&source.id, &target, "deleting") {
+            return;
+        }
         if target.as_os_str().is_empty() {
             self.set_status("Root folder cannot be deleted", StatusTone::Info);
             return;
@@ -30,6 +37,9 @@ impl AppController {
         let source = self
             .current_source()
             .ok_or_else(|| "Select a source first".to_string())?;
+        if self.warn_if_retained_delete_path_busy(&source.id, target, "renaming") {
+            return Err("Folder is busy with retained delete recovery".to_string());
+        }
         if target == new_relative {
             return Ok(());
         }

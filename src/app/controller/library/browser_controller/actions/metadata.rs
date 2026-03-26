@@ -167,6 +167,10 @@ impl BrowserController<'_> {
         row: usize,
         new_name: &str,
     ) -> Result<(), String> {
+        let ctx = self.resolve_browser_sample(row)?;
+        if self.warn_if_any_browser_context_busy(std::slice::from_ref(&ctx), "renaming") {
+            return Ok(());
+        }
         let result = self.try_rename_browser_sample(row, new_name);
         if let Err(err) = &result {
             self.set_status(err.clone(), StatusTone::Error);

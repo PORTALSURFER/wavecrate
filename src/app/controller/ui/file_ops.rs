@@ -15,6 +15,9 @@ impl AppController {
     pub(crate) fn apply_file_op_result(&mut self, result: FileOpResult) {
         match result {
             FileOpResult::ClipboardPaste(result) => self.apply_clipboard_paste_result(result),
+            FileOpResult::RetainedDeleteResolution(result) => {
+                self.apply_retained_delete_resolution_result(result);
+            }
             FileOpResult::DropTargetTransfer(result) => {
                 self.drag_drop().apply_drop_target_transfer_result(result);
             }

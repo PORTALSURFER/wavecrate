@@ -21,6 +21,8 @@ pub(crate) enum FileOpMessage {
 pub(crate) enum FileOpResult {
     /// Clipboard paste or import results.
     ClipboardPaste(ClipboardPasteResult),
+    /// Explicit retained-delete restore/purge results.
+    RetainedDeleteResolution(RetainedDeleteResolutionResult),
     /// Drop-target copy or move results.
     DropTargetTransfer(DropTargetTransferResult),
     /// Source move results from drag/drop actions.

@@ -11,6 +11,9 @@ impl AppController {
         source: &SampleSource,
         relative_path: &Path,
     ) -> Result<(), String> {
+        if self.warn_if_retained_delete_path_busy(&source.id, relative_path, "loading") {
+            return Ok(());
+        }
         let is_refresh = self.sample_view.wav.loaded_wav.as_deref() == Some(relative_path);
         if self.sample_view.wav.selected_wav.as_deref() != Some(relative_path) {
             self.sample_view.wav.selected_wav = Some(relative_path.to_path_buf());

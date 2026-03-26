@@ -42,6 +42,13 @@ impl BrowserController<'_> {
         &mut self,
         ctx: &TriageSampleContext,
     ) -> Result<(), String> {
+        if self.controller.warn_if_retained_delete_path_busy(
+            &ctx.source.id,
+            &ctx.entry.relative_path,
+            "normalizing",
+        ) {
+            return Ok(());
+        }
         if cfg!(test) {
             return self.normalize_browser_sample_sync(ctx);
         }
@@ -183,6 +190,13 @@ impl BrowserController<'_> {
         &mut self,
         ctx: &TriageSampleContext,
     ) -> Result<(), String> {
+        if self.controller.warn_if_retained_delete_path_busy(
+            &ctx.source.id,
+            &ctx.entry.relative_path,
+            "deleting",
+        ) {
+            return Ok(());
+        }
         std::fs::remove_file(&ctx.absolute_path)
             .map_err(|err| format!("Failed to delete file: {err}"))?;
         let db = self
@@ -221,6 +235,13 @@ impl BrowserController<'_> {
         new_name: &str,
     ) -> Result<(), String> {
         let ctx = self.resolve_browser_sample(row)?;
+        if self.controller.warn_if_retained_delete_path_busy(
+            &ctx.source.id,
+            &ctx.entry.relative_path,
+            "renaming",
+        ) {
+            return Ok(());
+        }
         let tag = self.sample_tag_for(&ctx.source, &ctx.entry.relative_path)?;
         let full_name = self.name_with_preserved_extension(&ctx.entry.relative_path, new_name)?;
         let new_relative = self.validate_new_sample_name_in_parent(
@@ -318,5 +339,31 @@ impl BrowserController<'_> {
             return Err(err);
         }
         Ok((file_size, modified_ns))
+    }
+
+    pub(super) fn warn_if_any_browser_context_busy(
+        &mut self,
+        contexts: &[TriageSampleContext],
+        action: &str,
+    ) -> bool {
+        let Some(ctx) = contexts.iter().find(|ctx| {
+            self.controller
+                .runtime
+                .active_retained_delete_resolution
+                .as_ref()
+                .is_some_and(|active| {
+                    active.entries.iter().any(|entry| {
+                        entry.source_id == ctx.source.id
+                            && entry.contains_path(&ctx.entry.relative_path)
+                    })
+                })
+        }) else {
+            return false;
+        };
+        self.controller.warn_if_retained_delete_path_busy(
+            &ctx.source.id,
+            &ctx.entry.relative_path,
+            action,
+        )
     }
 }

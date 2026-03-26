@@ -47,12 +47,9 @@ impl AppController {
 
     /// Apply staged delete recovery results to UI state and cached data.
     pub(crate) fn apply_folder_delete_recovery_report(&mut self, report: DeleteRecoveryReport) {
-        self.ui.sources.folders.delete_recovery.in_progress = false;
         let (summary, errors) = RecoverySummary::from_report(self, report);
-        let status_message = summary.status_message(errors.len());
-        self.ui.sources.folders.delete_recovery.entries = summary.ui_entries;
-        self.ui.sources.folders.delete_recovery.retained_entries = summary.retained_entries;
-        if let Some((message, tone)) = status_message {
+        self.apply_recovery_summary(&summary);
+        if let Some((message, tone)) = summary.status_message(errors.len()) {
             self.set_status(message, tone);
         }
         for error in &errors {
@@ -94,17 +91,29 @@ impl AppController {
 
     pub(super) fn refresh_folder_delete_recovery_state(&mut self) {
         let report = recover_staged_deletes(&self.library.sources.clone());
-        let (summary, errors) = RecoverySummary::from_report(self, report);
-        self.ui.sources.folders.delete_recovery.in_progress = false;
-        self.ui.sources.folders.delete_recovery.entries = summary.ui_entries;
-        self.ui.sources.folders.delete_recovery.retained_entries = summary.retained_entries;
+        let errors = self.apply_folder_delete_recovery_state(report);
         for error in &errors {
             warn!(error = %error, "Delete recovery error");
         }
     }
+
+    pub(super) fn apply_folder_delete_recovery_state(
+        &mut self,
+        report: DeleteRecoveryReport,
+    ) -> Vec<String> {
+        let (summary, errors) = RecoverySummary::from_report(self, report);
+        self.apply_recovery_summary(&summary);
+        errors
+    }
+
+    fn apply_recovery_summary(&mut self, summary: &RecoverySummary) {
+        self.ui.sources.folders.delete_recovery.in_progress = false;
+        self.ui.sources.folders.delete_recovery.entries = summary.ui_entries.clone();
+        self.ui.sources.folders.delete_recovery.retained_entries = summary.retained_entries.clone();
+    }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct RecoverySummary {
     ui_entries: Vec<UiDeleteRecoveryEntry>,
     retained_entries: Vec<UiRetainedFolderDeleteEntry>,

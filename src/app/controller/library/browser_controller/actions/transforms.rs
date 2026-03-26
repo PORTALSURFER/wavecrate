@@ -14,6 +14,9 @@ impl BrowserController<'_> {
         rows: &[usize],
     ) -> Result<(), String> {
         let (contexts, mut last_error) = self.resolve_unique_browser_contexts(rows);
+        if self.warn_if_any_browser_context_busy(&contexts, "normalizing") {
+            return Ok(());
+        }
         for ctx in contexts {
             if let Err(err) = self.try_normalize_browser_sample_ctx(&ctx) {
                 last_error = Some(err);

@@ -11,6 +11,7 @@ mod controller_apply;
 mod journal;
 mod recovery;
 mod restore_merge;
+mod retained_resolution;
 mod retained_restore;
 
 /// Folder name used to stage pending deletes inside a source root.
@@ -25,3 +26,4 @@ pub(crate) use recovery::{
     DeleteRecoveryAction, DeleteRecoveryEntry, DeleteRecoveryReport, DeleteRecoveryStatus,
     RetainedDeleteEntry, recover_staged_deletes,
 };
+pub(crate) use retained_resolution::run_retained_delete_resolution_job;
