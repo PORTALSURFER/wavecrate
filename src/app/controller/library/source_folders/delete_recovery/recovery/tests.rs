@@ -1,6 +1,6 @@
 use super::*;
 use crate::app::controller::library::source_folders::delete_recovery::{
-    DeleteRecoveryAction, DeleteRecoveryStatus, mark_delete_db_committed, stage_folder_for_delete,
+    DeleteRecoveryAction, DeleteRecoveryStatus, mark_delete_retained, stage_folder_for_delete,
 };
 use crate::sample_sources::SampleSource;
 use std::fs;
@@ -62,22 +62,45 @@ fn recover_treats_missing_staged_folder_as_already_restored() -> Result<(), Stri
 }
 
 #[test]
-fn recover_finalizes_db_committed_entry() -> Result<(), String> {
+fn recover_keeps_deleted_entry_staged() -> Result<(), String> {
     let (_temp, source) = sample_source();
     let original = source.root.join("gone");
     fs::create_dir_all(&original).unwrap();
     let staging_root = source.root.join(DELETE_STAGING_DIR);
     let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"))?;
-    mark_delete_db_committed(&staging_root, &staged.id)?;
+    mark_delete_retained(&staging_root, &staged.id)?;
 
     let report = recover_staged_deletes(std::slice::from_ref(&source));
 
     assert!(!original.exists());
+    assert!(staged.staged_absolute.exists());
+    assert!(staging_root.exists());
+    assert!(report.entries.is_empty());
+    Ok(())
+}
+
+#[test]
+fn recover_cleans_retained_entry_when_folder_was_already_restored() -> Result<(), String> {
+    let (_temp, source) = sample_source();
+    let original = source.root.join("gone");
+    fs::create_dir_all(&original).unwrap();
+    let staging_root = source.root.join(DELETE_STAGING_DIR);
+    let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"))?;
+    mark_delete_retained(&staging_root, &staged.id)?;
+    fs::rename(&staged.staged_absolute, &original).unwrap();
+
+    let report = recover_staged_deletes(std::slice::from_ref(&source));
+
+    assert!(original.is_dir());
     assert!(!staging_root.exists());
     assert_recovery(
         &report.entries[0],
-        DeleteRecoveryAction::Finalize,
+        DeleteRecoveryAction::Restore,
         DeleteRecoveryStatus::Completed,
+    );
+    assert_eq!(
+        report.entries[0].detail.as_deref(),
+        Some("Already restored")
     );
     Ok(())
 }

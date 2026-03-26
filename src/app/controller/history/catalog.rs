@@ -42,6 +42,7 @@ pub(crate) const fn catalog_history_handler_supported(
                 | GuiActionKind::SlideWaveformSelection
                 | GuiActionKind::TagBrowserSelection
                 | GuiActionKind::AdjustSelectedBrowserRating
+                | GuiActionKind::DeleteFocusedFolder
         ),
         GuiHistoryPolicy::Deferred => matches!(
             kind,

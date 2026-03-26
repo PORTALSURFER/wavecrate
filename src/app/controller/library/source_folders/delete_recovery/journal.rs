@@ -1,8 +1,8 @@
 //! Journal-backed staging helpers for folder-delete crash recovery.
 //!
-//! The on-disk journal records the delete lifecycle as `Intent -> Staged -> DbCommitted`.
+//! The on-disk journal records the delete lifecycle as `Intent -> Staged -> Deleted`.
 //! Recovery uses that contract to decide whether a folder should be restored back into the
-//! source tree or finalized from the staging area after a crash.
+//! source tree after a crash or retained inside the app-owned trash area.
 
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -19,8 +19,9 @@ pub(crate) enum DeleteJournalStage {
     Intent,
     /// Folder data has been moved into the staging area.
     Staged,
-    /// Database state was committed, so recovery may finalize the staged folder.
-    DbCommitted,
+    /// Database state was committed, so the staged folder now represents an app-owned delete.
+    #[serde(alias = "db_committed")]
+    Deleted,
 }
 
 /// Metadata for a folder staged for deletion.
@@ -89,14 +90,72 @@ pub(crate) fn stage_folder_for_delete(
     })
 }
 
-/// Mark a staged delete as safe to finalize after DB updates.
-pub(crate) fn mark_delete_db_committed(staging_root: &Path, id: &str) -> Result<(), String> {
-    update_journal_stage(staging_root, id, DeleteJournalStage::DbCommitted)
+/// Mark a staged delete as a retained app-owned delete after DB updates succeed.
+pub(crate) fn mark_delete_retained(staging_root: &Path, id: &str) -> Result<(), String> {
+    update_journal_stage(staging_root, id, DeleteJournalStage::Deleted)
 }
 
 /// Remove a journal entry after a staged delete is resolved.
 pub(crate) fn remove_delete_entry(staging_root: &Path, id: &str) -> Result<(), String> {
     remove_entry(staging_root, id)
+}
+
+/// Restore a retained staged folder into the source tree and remove its journal entry.
+pub(crate) fn restore_deleted_folder(
+    info: &DeleteStagingInfo,
+    absolute: &Path,
+    staging_root: &Path,
+) -> Result<(), String> {
+    if let Some(parent) = absolute.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            format!(
+                "Failed to prepare restore destination {}: {err}",
+                parent.display()
+            )
+        })?;
+    }
+    fs::rename(&info.staged_absolute, absolute).map_err(|err| {
+        format!(
+            "Failed to restore deleted folder {}: {err}",
+            info.original_relative.display()
+        )
+    })?;
+    remove_entry(staging_root, &info.id)?;
+    cleanup_staging_root(staging_root);
+    Ok(())
+}
+
+/// Re-stage a restored folder back into the retained delete area for redo.
+pub(crate) fn restage_deleted_folder(
+    absolute: &Path,
+    staging_root: &Path,
+    info: &DeleteStagingInfo,
+) -> Result<(), String> {
+    let entry = DeleteJournalEntry {
+        id: info.id.clone(),
+        original_relative: info.original_relative.to_string_lossy().to_string(),
+        staged_relative: info.staged_relative.to_string_lossy().to_string(),
+        stage: DeleteJournalStage::Intent,
+        created_at: now_epoch_seconds()?,
+    };
+    ensure_staging_parent(&info.staged_absolute, staging_root)?;
+    insert_entry(staging_root, entry)?;
+    if let Err(err) = fs::rename(absolute, &info.staged_absolute) {
+        let _ = remove_entry(staging_root, &info.id);
+        return Err(format!(
+            "Failed to re-stage deleted folder {}: {err}",
+            info.original_relative.display()
+        ));
+    }
+    if let Err(err) = update_journal_stage(staging_root, &info.id, DeleteJournalStage::Staged) {
+        let _ = fs::rename(&info.staged_absolute, absolute);
+        let _ = remove_entry(staging_root, &info.id);
+        return Err(format!(
+            "Failed to record restored folder delete staging for {}: {err}",
+            info.original_relative.display()
+        ));
+    }
+    Ok(())
 }
 
 /// Roll back a staged folder delete, restoring the folder and journal state.

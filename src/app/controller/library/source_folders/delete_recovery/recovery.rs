@@ -2,7 +2,7 @@
 //!
 //! Recovery walks each source-local staging directory and applies the journal contract:
 //! - `Intent` or `Staged` means the original folder should exist after recovery
-//! - `DbCommitted` means the staged folder can be finalized
+//! - `Deleted` means the staged folder should remain retained as app-owned trash
 //! - staged folders that exist without journal entries are conservatively restored
 use super::DELETE_STAGING_DIR;
 use super::journal::{
@@ -97,14 +97,15 @@ fn recover_journaled_entries(
     report: &mut DeleteRecoveryReport,
 ) {
     for entry in journal.entries.clone() {
-        let result = recover_journaled_entry(source, staging_root, &entry);
-        report.entries.push(result.report_entry);
-        if result.remove_from_journal
-            && let Err(err) = remove_entry(staging_root, &entry.id)
-        {
-            report
-                .errors
-                .push(format!("Failed to update delete journal: {err}"));
+        if let Some(result) = recover_journaled_entry(source, staging_root, &entry) {
+            report.entries.push(result.report_entry);
+            if result.remove_from_journal
+                && let Err(err) = remove_entry(staging_root, &entry.id)
+            {
+                report
+                    .errors
+                    .push(format!("Failed to update delete journal: {err}"));
+            }
         }
     }
 }
@@ -136,15 +137,14 @@ fn recover_journaled_entry(
     source: &SampleSource,
     staging_root: &Path,
     entry: &DeleteJournalEntry,
-) -> JournaledRecovery {
+) -> Option<JournaledRecovery> {
     let original_relative = PathBuf::from(entry.original_relative.clone());
     let staged = staging_root.join(&entry.staged_relative);
     let original = source.root.join(&original_relative);
     let (action, outcome) = match entry.stage {
-        DeleteJournalStage::DbCommitted => (
-            DeleteRecoveryAction::Finalize,
-            finalize_staged_folder(&staged),
-        ),
+        DeleteJournalStage::Deleted => {
+            return recover_retained_delete(source, &original_relative, &staged, &original);
+        }
         DeleteJournalStage::Intent | DeleteJournalStage::Staged => {
             let outcome = if !staged.exists() && original.exists() {
                 Ok(Some("Already restored".into()))
@@ -155,10 +155,10 @@ fn recover_journaled_entry(
         }
     };
     let remove_from_journal = outcome.is_ok();
-    JournaledRecovery {
+    Some(JournaledRecovery {
         report_entry: recovery_entry(source, original_relative, action, outcome),
         remove_from_journal,
-    }
+    })
 }
 
 fn recovery_entry(
@@ -181,14 +181,6 @@ fn recovery_entry(
     }
 }
 
-fn finalize_staged_folder(staged: &Path) -> Result<Option<String>, String> {
-    if !staged.exists() {
-        return Ok(Some("Already finalized".into()));
-    }
-    fs::remove_dir_all(staged).map_err(|err| format!("Failed to delete staged folder: {err}"))?;
-    Ok(None)
-}
-
 fn restore_staged_folder(staged: &Path, original: &Path) -> Result<Option<String>, String> {
     if !staged.exists() {
         return Err("Staged folder missing".into());
@@ -199,6 +191,41 @@ fn restore_staged_folder(staged: &Path, original: &Path) -> Result<Option<String
     }
     fs::rename(staged, &target).map_err(|err| format!("Failed to restore folder: {err}"))?;
     Ok(detail)
+}
+
+fn recover_retained_delete(
+    source: &SampleSource,
+    original_relative: &Path,
+    staged: &Path,
+    original: &Path,
+) -> Option<JournaledRecovery> {
+    if staged.exists() && !original.exists() {
+        return None;
+    }
+    if !staged.exists() && original.exists() {
+        return Some(JournaledRecovery {
+            report_entry: recovery_entry(
+                source,
+                original_relative.to_path_buf(),
+                DeleteRecoveryAction::Restore,
+                Ok(Some("Already restored".into())),
+            ),
+            remove_from_journal: true,
+        });
+    }
+    Some(JournaledRecovery {
+        report_entry: recovery_entry(
+            source,
+            original_relative.to_path_buf(),
+            DeleteRecoveryAction::Restore,
+            Err(format!(
+                "Retained delete state is inconsistent (original exists: {}, staged exists: {})",
+                original.exists(),
+                staged.exists()
+            )),
+        ),
+        remove_from_journal: false,
+    })
 }
 
 fn unique_restore_path(original: &Path) -> (PathBuf, Option<String>) {

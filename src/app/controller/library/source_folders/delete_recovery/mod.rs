@@ -2,7 +2,7 @@
 //!
 //! This module keeps three responsibilities separate:
 //! - `journal`: stage/journal persistence and rollback helpers used by delete flows
-//! - `recovery`: startup reconciliation that decides whether to restore or finalize
+//! - `recovery`: startup reconciliation that decides whether to restore or retain deletes
 //! - `controller_apply`: UI/cache application of recovery reports once work finishes
 
 mod controller_apply;
@@ -13,8 +13,8 @@ mod recovery;
 pub(crate) const DELETE_STAGING_DIR: &str = ".sempal_delete_staging";
 
 pub(crate) use journal::{
-    cleanup_staging_root, mark_delete_db_committed, remove_delete_entry, rollback_staged_folder,
-    stage_folder_for_delete,
+    DeleteStagingInfo, cleanup_staging_root, mark_delete_retained, restage_deleted_folder,
+    restore_deleted_folder, rollback_staged_folder, stage_folder_for_delete,
 };
 pub(crate) use recovery::{
     DeleteRecoveryAction, DeleteRecoveryEntry, DeleteRecoveryReport, DeleteRecoveryStatus,

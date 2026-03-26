@@ -79,6 +79,67 @@ fn deleting_folder_removes_wavs() -> Result<(), String> {
 
     controller.delete_focused_folder();
 
+    let staging_root = source.root.join(delete_recovery::DELETE_STAGING_DIR);
+    assert!(!target.exists());
+    assert!(staging_root.exists());
+    assert_eq!(controller.wav_entries_len(), 0);
+    assert!(
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .all(|row| row.path != PathBuf::from("gone"))
+    );
+    Ok(())
+}
+
+#[test]
+fn deleting_folder_supports_undo_and_redo() -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    let target = source.root.join("gone");
+    let sample = target.join("sample.wav");
+    std::fs::create_dir_all(&target).unwrap();
+    write_test_wav(&sample, &[0.0, 0.2]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "gone/sample.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+    if let Some(index) = controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .position(|row| row.path == PathBuf::from("gone"))
+    {
+        controller.focus_folder_row(index);
+    }
+
+    controller.delete_focused_folder();
+    assert!(!target.exists());
+
+    controller.undo();
+    assert!(target.exists());
+    assert!(sample.is_file());
+    assert_eq!(controller.wav_entries_len(), 1);
+    assert!(
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .any(|row| row.path == PathBuf::from("gone"))
+    );
+
+    controller.redo();
     assert!(!target.exists());
     assert_eq!(controller.wav_entries_len(), 0);
     assert!(
@@ -183,7 +244,7 @@ fn staged_delete_recovery_restores_after_crash() -> Result<(), String> {
 }
 
 #[test]
-fn staged_delete_recovery_finalizes_after_db_commit_crash() -> Result<(), String> {
+fn staged_delete_recovery_retains_deleted_folder_after_db_commit_crash() -> Result<(), String> {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -217,12 +278,9 @@ fn staged_delete_recovery_finalizes_after_db_commit_crash() -> Result<(), String
 
     let report = delete_recovery::recover_staged_deletes(std::slice::from_ref(&source));
 
-    assert!(!staging_root.exists());
     assert!(!target.exists());
-    assert!(report.entries.iter().any(|entry| {
-        entry.action == delete_recovery::DeleteRecoveryAction::Finalize
-            && entry.status == delete_recovery::DeleteRecoveryStatus::Completed
-    }));
+    assert!(staging_root.exists());
+    assert!(report.entries.is_empty());
     Ok(())
 }
 

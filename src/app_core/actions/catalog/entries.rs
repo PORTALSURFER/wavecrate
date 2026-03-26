@@ -85,7 +85,8 @@ const fn gui_history_policy(kind: GuiActionKind, _effect: GuiEffectClass) -> Gui
         | GuiActionKind::ClearWaveformSelections
         | GuiActionKind::SlideWaveformSelection
         | GuiActionKind::TagBrowserSelection
-        | GuiActionKind::AdjustSelectedBrowserRating => GuiHistoryPolicy::Immediate,
+        | GuiActionKind::AdjustSelectedBrowserRating
+        | GuiActionKind::DeleteFocusedFolder => GuiHistoryPolicy::Immediate,
         GuiActionKind::NormalizeFocusedBrowserSample
         | GuiActionKind::SaveWaveformSelectionToBrowser => GuiHistoryPolicy::Deferred,
         _ => GuiHistoryPolicy::None,
