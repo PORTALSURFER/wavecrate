@@ -39,7 +39,10 @@ mod tests;
 /// Waveform action behavior tests.
 mod waveform_action_tests;
 
-pub(crate) use bpm_policy::{bpm_min_selection_seconds, selection_meets_bpm_min_for_playback};
+pub(crate) use bpm_policy::{
+    bpm_min_selection_seconds, selection_meets_bpm_min_for_playback,
+    snap_waveform_delta_to_bpm_step, snap_waveform_micros_to_bpm_anchor, waveform_bpm_snap_step,
+};
 use formatting::{format_selection_duration, format_timestamp_hms_ms};
 
 #[cfg(test)]

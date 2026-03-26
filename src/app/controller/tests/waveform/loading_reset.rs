@@ -35,11 +35,13 @@ fn removing_selected_source_clears_waveform_view() {
     controller
         .load_waveform_for_selection(&source, Path::new("one.wav"))
         .unwrap();
+    controller.ui.waveform.last_bpm_grid_origin = 0.42;
 
     controller.remove_source(0);
 
     assert!(controller.ui.waveform.image.is_none());
     assert!(controller.ui.waveform.selection.is_none());
+    assert_eq!(controller.ui.waveform.last_bpm_grid_origin, 0.0);
     assert!(controller.sample_view.wav.loaded_audio.is_none());
     assert!(controller.sample_view.wav.loaded_wav.is_none());
 }
@@ -55,6 +57,7 @@ fn switching_sources_resets_waveform_state() {
     controller
         .load_waveform_for_selection(&first, Path::new("a.wav"))
         .unwrap();
+    controller.ui.waveform.last_bpm_grid_origin = 0.37;
 
     let second_dir = tempdir().unwrap();
     let second_root = second_dir.path().join("second");
@@ -67,6 +70,7 @@ fn switching_sources_resets_waveform_state() {
 
     assert!(controller.ui.waveform.image.is_none());
     assert!(controller.ui.waveform.notice.is_none());
+    assert_eq!(controller.ui.waveform.last_bpm_grid_origin, 0.0);
     assert!(controller.sample_view.wav.loaded_audio.is_none());
 }
 
@@ -89,6 +93,7 @@ fn pruning_missing_selection_clears_waveform_view() {
 
     assert!(controller.ui.waveform.image.is_none());
     assert!(controller.ui.waveform.selection.is_none());
+    assert_eq!(controller.ui.waveform.last_bpm_grid_origin, 0.0);
     assert!(controller.sample_view.wav.loaded_audio.is_none());
     assert!(controller.sample_view.wav.loaded_wav.is_none());
 }

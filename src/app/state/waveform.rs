@@ -21,6 +21,13 @@ pub struct WaveformState {
     pub cursor: Option<f32>,
     /// Current selection range.
     pub selection: Option<SelectionRange>,
+    /// Persisted playback-selection start used to anchor BPM grid rendering.
+    ///
+    /// This value is sample-local and survives selection clears so the BPM
+    /// grid can remain aligned to the last established playmark origin until a
+    /// new selection start replaces it. `0.0` represents the sample start
+    /// before any playmark selection has been established.
+    pub last_bpm_grid_origin: f32,
     /// Cached selection duration label.
     pub selection_duration: Option<String>,
     /// Optional edit selection range used for destructive edits (normalized 0-1).
@@ -119,6 +126,7 @@ impl Default for WaveformState {
             last_start_marker: None,
             cursor: None,
             selection: None,
+            last_bpm_grid_origin: 0.0,
             selection_duration: None,
             edit_selection: None,
             slices: Vec::new(),

@@ -238,6 +238,7 @@ impl AppController {
         self.sample_view.wav.loaded_audio = None;
         self.sample_view.wav.loaded_wav = None;
         self.set_ui_loaded_wav(None);
+        self.ui.waveform.last_bpm_grid_origin = 0.0;
         self.stop_playback_if_active();
         self.clear_waveform_selection();
         self.set_status(

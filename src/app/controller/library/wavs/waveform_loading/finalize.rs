@@ -32,6 +32,7 @@ impl AppController {
         if !preserve_selections {
             self.ui.waveform.view = WaveformView::default();
             self.ui.waveform.cursor = Some(0.0);
+            self.ui.waveform.last_bpm_grid_origin = 0.0;
             self.clear_waveform_selection();
         }
         self.ui.waveform.notice = None;
@@ -145,6 +146,7 @@ impl AppController {
         self.projected_waveform_image = None;
         self.ui.waveform.playhead = PlayheadState::default();
         self.ui.waveform.selection = None;
+        self.ui.waveform.last_bpm_grid_origin = 0.0;
         self.ui.waveform.selection_duration = None;
         self.ui.waveform.edit_selection = None;
         self.selection_state.range.clear();

@@ -3,6 +3,9 @@ use super::*;
 /// Update the active playback selection and its cached duration label.
 pub(crate) fn apply_selection(controller: &mut AppController, range: Option<SelectionRange>) {
     let label = range.and_then(|selection| selection_duration_label(controller, selection));
+    if let Some(selection) = range {
+        controller.ui.waveform.last_bpm_grid_origin = selection.start();
+    }
     controller.ui.waveform.selection = range;
     controller.ui.waveform.selection_duration = label;
 }

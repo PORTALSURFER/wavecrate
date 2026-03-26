@@ -15,6 +15,7 @@ pub(crate) fn clear_waveform_view(controller: &mut AppController) {
     controller.ui.waveform.last_start_marker = None;
     controller.ui.waveform.cursor = None;
     controller.ui.waveform.selection = None;
+    controller.ui.waveform.last_bpm_grid_origin = 0.0;
     controller.ui.waveform.selection_duration = None;
     controller.ui.waveform.edit_selection = None;
     controller.clear_waveform_slices();

@@ -72,6 +72,7 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
         view_start_nanos: normalized64_to_nanos(ui.waveform.view.start),
         view_end_nanos: normalized64_to_nanos(ui.waveform.view.end),
         beat_step_micros: project_waveform_beat_step_micros(controller),
+        bpm_grid_origin_micros: project_waveform_bpm_grid_origin_micros(ui),
         loop_enabled: ui.waveform.loop_enabled,
         tempo_label: ui.waveform.bpm_value.map(|bpm| format!("{bpm:.1} BPM")),
         zoom_label: Some(format!("{zoom_percent:.0}%")),
@@ -125,6 +126,17 @@ fn project_waveform_beat_step_micros(controller: &AppController) -> Option<u32> 
     let normalized_step = 60.0 / bpm / duration;
     (normalized_step.is_finite() && normalized_step > 0.0)
         .then_some(normalized_to_micros(normalized_step))
+}
+
+/// Project the active or persisted BPM grid origin into normalized micro space.
+fn project_waveform_bpm_grid_origin_micros(ui: &UiState) -> u32 {
+    let origin = ui
+        .waveform
+        .selection
+        .map(|selection| selection.start())
+        .unwrap_or(ui.waveform.last_bpm_grid_origin)
+        .clamp(0.0, 1.0);
+    normalized_to_micros(origin)
 }
 
 /// Reuse or rebuild the projected waveform raster payload for the native model.

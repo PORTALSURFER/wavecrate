@@ -285,28 +285,7 @@ fn playhead_inside_selection(playhead: f32, selection: SelectionRange) -> bool {
 }
 
 fn bpm_snap_step(controller: &AppController) -> Option<f32> {
-    if !controller.ui.waveform.bpm_snap_enabled {
-        return None;
-    }
-    let bpm = controller.ui.waveform.bpm_value?;
-    if !bpm.is_finite() || bpm <= 0.0 {
-        return None;
-    }
-    let duration = controller
-        .sample_view
-        .wav
-        .loaded_audio
-        .as_ref()
-        .map(|audio| audio.duration_seconds)?;
-    if !duration.is_finite() || duration <= 0.0 {
-        return None;
-    }
-    let step = 60.0 / bpm / duration;
-    if step.is_finite() && step > 0.0 {
-        Some(step)
-    } else {
-        None
-    }
+    super::super::waveform_bpm_snap_step(controller)
 }
 
 fn clear_too_small_bpm_selection(controller: &mut AppController) {

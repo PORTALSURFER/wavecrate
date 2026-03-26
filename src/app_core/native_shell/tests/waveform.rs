@@ -30,6 +30,7 @@ fn waveform_projection_exposes_tempo_and_zoom_labels() {
     assert_eq!(projected.tempo_label.as_deref(), Some("128.0 BPM"));
     assert_eq!(projected.zoom_label.as_deref(), Some("200%"));
     assert_eq!(projected.beat_step_micros, Some(117_188));
+    assert_eq!(projected.bpm_grid_origin_micros, 0);
     assert!(projected.waveform_image.is_none());
 }
 
@@ -102,6 +103,17 @@ fn waveform_projection_preserves_selection_micro_precision() {
 
     assert_eq!(selection.start_micros, 500_400);
     assert_eq!(selection.end_micros, 500_600);
+    assert_eq!(projected.bpm_grid_origin_micros, 500_400);
+}
+
+#[test]
+fn waveform_projection_falls_back_to_persisted_bpm_grid_origin_without_selection() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.last_bpm_grid_origin = 0.375;
+
+    let projected = project_waveform_model(&mut controller);
+
+    assert_eq!(projected.bpm_grid_origin_micros, 375_000);
 }
 
 /// Waveform chrome projection should mirror loop/channel/toggle state into native labels.

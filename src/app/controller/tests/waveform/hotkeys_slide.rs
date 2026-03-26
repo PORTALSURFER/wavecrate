@@ -68,6 +68,6 @@ fn arrow_hotkey_slides_ui_playback_selection_and_snaps_translation_to_bpm_grid()
         .waveform
         .selection
         .expect("selection should remain active");
-    assert!((range.start() - 0.375).abs() < 1.0e-6);
-    assert!((range.end() - 0.575).abs() < 1.0e-6);
+    assert!((range.start() - 0.45).abs() < 1.0e-6);
+    assert!((range.end() - 0.65).abs() < 1.0e-6);
 }

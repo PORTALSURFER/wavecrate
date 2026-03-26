@@ -58,23 +58,7 @@ impl WaveformController<'_> {
     }
 
     pub(crate) fn bpm_snap_step(&self) -> Option<f32> {
-        if !self.ui.waveform.bpm_snap_enabled {
-            return None;
-        }
-        let bpm = self.ui.waveform.bpm_value?;
-        if !bpm.is_finite() || bpm <= 0.0 {
-            return None;
-        }
-        let duration = self.loaded_audio_duration_seconds()?;
-        if !duration.is_finite() || duration <= 0.0 {
-            return None;
-        }
-        let step = 60.0 / bpm / duration;
-        if step.is_finite() && step > 0.0 {
-            Some(step)
-        } else {
-            None
-        }
+        crate::app::controller::playback::waveform_bpm_snap_step(self)
     }
 
     pub(crate) fn selection_min_width(&self) -> f64 {

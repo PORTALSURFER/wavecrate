@@ -145,7 +145,13 @@ fn slide_selection_delta(
     let clamped_start = requested_start.clamp(0.0, (1.0 - width).max(0.0));
     let snapped_start = bpm_snap_step
         .filter(|step| step.is_finite() && *step > 0.0)
-        .map(|step| ((clamped_start / step).round() * step).clamp(0.0, (1.0 - width).max(0.0)))
+        .map(|step| {
+            let snapped_delta = crate::app::controller::playback::snap_waveform_delta_to_bpm_step(
+                clamped_start - selection.start(),
+                step,
+            );
+            (selection.start() + snapped_delta).clamp(0.0, (1.0 - width).max(0.0))
+        })
         .unwrap_or(clamped_start);
     snapped_start - selection.start()
 }
@@ -169,9 +175,9 @@ mod tests {
 
         let delta = slide_selection_delta(selection, 1, Some(0.125));
 
-        assert!((delta - 0.175).abs() < 1.0e-6);
+        assert!((delta - 0.25).abs() < 1.0e-6);
         let shifted = selection.shift(delta);
-        assert!((shifted.start() - 0.375).abs() < 1.0e-6);
+        assert!((shifted.start() - 0.45).abs() < 1.0e-6);
         assert!((shifted.width() - selection.width()).abs() < 1.0e-6);
     }
 }

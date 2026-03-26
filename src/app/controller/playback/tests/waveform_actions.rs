@@ -215,8 +215,34 @@ fn set_waveform_selection_range_milli_snaps_resize_endpoint_when_bpm_snap_enable
     let updated = controller.ui.waveform.selection;
     assert!(updated.is_some());
     let updated = updated.unwrap_or(range);
-    assert!((updated.start() - 0.375).abs() < 0.001);
+    assert!((updated.start() - 0.3).abs() < 0.001);
     assert!((updated.end() - 0.8).abs() < 0.001);
+}
+
+#[test]
+fn set_waveform_selection_range_milli_snaps_new_selection_from_exact_anchor_when_bpm_enabled() {
+    let (mut controller, source) = test_support::dummy_controller();
+    controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
+        source_id: source.id.clone(),
+        root: source.root.clone(),
+        relative_path: PathBuf::from("snap_new_selection.wav"),
+        bytes: Vec::new().into(),
+        duration_seconds: 4.0,
+        sample_rate: 48_000,
+    });
+    controller.ui.waveform.bpm_snap_enabled = true;
+    controller.ui.waveform.bpm_value = Some(120.0);
+
+    controller.set_waveform_selection_range_milli(310, 440);
+
+    let updated = controller
+        .ui
+        .waveform
+        .selection
+        .expect("selection should be created");
+    assert!((updated.start() - 0.31).abs() < 0.001);
+    assert!((updated.end() - 0.435).abs() < 0.001);
+    assert!((controller.ui.waveform.last_bpm_grid_origin - 0.31).abs() < 1.0e-6);
 }
 
 #[test]
@@ -308,8 +334,8 @@ fn set_waveform_selection_range_milli_snaps_translated_range_when_bpm_snap_enabl
     let updated = controller.ui.waveform.selection;
     assert!(updated.is_some());
     let updated = updated.unwrap_or(range);
-    assert!((updated.start() - 0.25).abs() < 0.001);
-    assert!((updated.end() - 0.45).abs() < 0.001);
+    assert!((updated.start() - 0.2).abs() < 0.001);
+    assert!((updated.end() - 0.4).abs() < 0.001);
 }
 
 /// Clearing edit selection via native helper should clear edit state and preserve focus.
@@ -345,4 +371,16 @@ fn clear_waveform_marks_with_focus_clears_playback_and_edit_selection() {
     assert!(controller.ui.waveform.selection.is_none());
     assert!(controller.selection_state.edit_range.range().is_none());
     assert!(controller.ui.waveform.edit_selection.is_none());
+}
+
+#[test]
+fn apply_selection_updates_persisted_bpm_grid_origin_and_clear_preserves_it() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let selection = SelectionRange::new(0.31, 0.56);
+
+    controller.apply_selection(Some(selection));
+    controller.clear_waveform_selection_with_focus();
+
+    assert!((controller.ui.waveform.last_bpm_grid_origin - 0.31).abs() < 1.0e-6);
+    assert!(controller.ui.waveform.selection.is_none());
 }
