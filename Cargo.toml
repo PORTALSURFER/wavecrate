@@ -125,6 +125,7 @@ libc = "0.2.176"
 
 [dev-dependencies]
 criterion = "0.8.1"
+filetime = "0.2.26"
 
 [build-dependencies]
 embed-resource = "3.0"

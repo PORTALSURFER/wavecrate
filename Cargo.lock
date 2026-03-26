@@ -4520,6 +4520,7 @@ dependencies = [
  "directories",
  "ed25519-dalek",
  "embed-resource",
+ "filetime",
  "fuzzy-matcher",
  "hdbscan",
  "hnsw_rs",

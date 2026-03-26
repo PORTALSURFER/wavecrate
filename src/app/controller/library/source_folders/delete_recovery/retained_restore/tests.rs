@@ -4,6 +4,7 @@ use crate::app::controller::library::source_folders::delete_recovery::{
 use crate::app::controller::test_support::{dummy_controller, write_test_wav};
 use crate::app::state::RetainedFolderDeleteEntry as UiRetainedFolderDeleteEntry;
 use crate::sample_sources::{Rating, WavEntry};
+use filetime::{FileTime, set_file_mtime};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -93,6 +94,58 @@ fn retained_restore_preserves_older_existing_metadata_on_timestamped_backup() ->
 }
 
 #[test]
+fn retained_restore_equal_timestamps_prefers_existing_file_and_recovers_staged_copy(
+) -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    let deleted_entries = vec![entry("Pack/kick.wav", Rating::KEEP_3, 11)];
+    let original = source.root.join("Pack");
+    fs::create_dir_all(&original).unwrap();
+    write_test_wav(&original.join("kick.wav"), &[0.0, 0.2]);
+    let staging_root = source.root.join(DELETE_STAGING_DIR);
+    let staged = stage_folder_for_delete(
+        &original,
+        &staging_root,
+        Path::new("Pack"),
+        &deleted_entries,
+    )?;
+    let staged_path = staged.staged_absolute.join("kick.wav");
+
+    fs::create_dir_all(&original).unwrap();
+    let canonical_path = original.join("kick.wav");
+    write_test_wav(&canonical_path, &[0.3, -0.3]);
+    let expected_staged = fs::read(&staged_path).unwrap();
+    let expected_existing = fs::read(&canonical_path).unwrap();
+    set_shared_modified_time(&staged_path, &canonical_path)?;
+    controller
+        .restore_folder_entries_in_db(&source, &[entry("Pack/kick.wav", Rating::TRASH_1, 99)])?;
+
+    let ui_entry = retained_entry(&source, &staged, deleted_entries.clone());
+    let mut scan_sources = HashSet::new();
+    controller.restore_retained_folder_delete(&ui_entry, &mut scan_sources)?;
+
+    let db = source.open_db().map_err(|err| err.to_string())?;
+    let canonical = db
+        .entry_for_path(Path::new("Pack/kick.wav"))
+        .map_err(|err| err.to_string())?
+        .ok_or_else(|| "Missing canonical restored DB entry".to_string())?;
+    assert_eq!(canonical.tag, Rating::TRASH_1);
+    assert_eq!(canonical.last_played_at, Some(99));
+    assert_eq!(fs::read(&canonical_path).unwrap(), expected_existing);
+    assert!(scan_sources.contains(&source.id));
+
+    let recovered_path = find_timestamped_backup(&source.root.join("Pack"), "kick.recovered-")?;
+    let recovered_entry = db
+        .entry_for_path(&recovered_path)
+        .map_err(|err| err.to_string())?
+        .ok_or_else(|| "Missing recovered conflict DB entry".to_string())?;
+    assert_eq!(recovered_entry.tag, Rating::KEEP_3);
+    assert_eq!(recovered_entry.last_played_at, Some(11));
+    assert_eq!(fs::read(source.root.join(&recovered_path)).unwrap(), expected_staged);
+    Ok(())
+}
+
+#[test]
 fn retained_restore_after_restart_does_not_create_undo_history() -> Result<(), String> {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
@@ -163,4 +216,10 @@ fn find_timestamped_backup(folder: &Path, prefix: &str) -> Result<PathBuf, Strin
         .find(|entry| entry.file_name().to_string_lossy().starts_with(prefix))
         .ok_or_else(|| format!("Missing timestamped backup with prefix {prefix}"))?;
     Ok(PathBuf::from("Pack").join(entry.file_name()))
+}
+
+fn set_shared_modified_time(left: &Path, right: &Path) -> Result<(), String> {
+    let modified = FileTime::from_unix_time(1_700_000_000, 123_456_789);
+    set_file_mtime(left, modified).map_err(|err| err.to_string())?;
+    set_file_mtime(right, modified).map_err(|err| err.to_string())
 }
