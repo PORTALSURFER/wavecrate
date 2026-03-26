@@ -30,6 +30,9 @@ impl AppController {
             self.apply_pending_browser_rename();
             return true;
         }
+        if self.apply_pending_folder_delete_recovery_prompt() {
+            return true;
+        }
         if self.apply_pending_folder_rename() {
             return true;
         }
@@ -43,6 +46,14 @@ impl AppController {
         }
         if self.has_pending_browser_rename() {
             self.cancel_browser_rename();
+            return true;
+        }
+        if matches!(
+            self.ui.sources.folders.pending_action,
+            Some(crate::app::state::FolderActionPrompt::RestoreRetainedDeletes { .. })
+                | Some(crate::app::state::FolderActionPrompt::PurgeRetainedDeletes { .. })
+        ) {
+            self.cancel_folder_delete_recovery_prompt();
             return true;
         }
         if self.has_pending_new_folder_creation() {

@@ -61,12 +61,27 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
             can_create_folder_at_root: source_selected || !has_sources,
             can_rename_folder: can_manage_folder,
             can_delete_folder: can_manage_folder,
+            can_restore_retained_deletes: !ui
+                .sources
+                .folders
+                .delete_recovery
+                .retained_entries
+                .is_empty()
+                && !ui.sources.folders.delete_recovery.in_progress,
+            can_purge_retained_deletes: !ui
+                .sources
+                .folders
+                .delete_recovery
+                .retained_entries
+                .is_empty()
+                && !ui.sources.folders.delete_recovery.in_progress,
             can_clear_recovery_log: !ui.sources.folders.delete_recovery.entries.is_empty()
                 && !ui.sources.folders.delete_recovery.in_progress,
         },
         folder_recovery: FolderRecoveryModel {
             in_progress: ui.sources.folders.delete_recovery.in_progress,
             entry_count: ui.sources.folders.delete_recovery.entries.len(),
+            retained_count: ui.sources.folders.delete_recovery.retained_entries.len(),
         },
     }
 }

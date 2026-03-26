@@ -281,6 +281,14 @@ fn staged_delete_recovery_retains_deleted_folder_after_db_commit_crash() -> Resu
     assert!(!target.exists());
     assert!(staging_root.exists());
     assert!(report.entries.is_empty());
+    assert_eq!(report.retained_entries.len(), 1);
+    let retained = &report.retained_entries[0];
+    assert_eq!(retained.original_relative, PathBuf::from("gone"));
+    assert_eq!(retained.deleted_entries.len(), 1);
+    assert_eq!(
+        retained.deleted_entries[0].relative_path,
+        PathBuf::from("gone/sample.wav")
+    );
     Ok(())
 }
 

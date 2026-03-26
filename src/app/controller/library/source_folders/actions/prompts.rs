@@ -105,7 +105,7 @@ impl AppController {
             return true;
         }
         let message = format!(
-            "Delete {} and all files inside it? You can undo this later.",
+            "Delete {} and all files inside it? You can restore it later from Recovery.",
             target.display()
         );
         matches!(

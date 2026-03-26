@@ -71,6 +71,12 @@ pub(super) fn apply_browser_native_ui_action(
         }
         NativeUiAction::StartFolderRename => controller.start_folder_rename(),
         NativeUiAction::DeleteFocusedFolder => controller.delete_focused_folder(),
+        NativeUiAction::RestoreRetainedFolderDeletes => {
+            controller.start_restore_retained_folder_deletes()
+        }
+        NativeUiAction::PurgeRetainedFolderDeletes => {
+            controller.start_purge_retained_folder_deletes()
+        }
         NativeUiAction::ClearFolderDeleteRecoveryLog => {
             controller.clear_folder_delete_recovery_log()
         }

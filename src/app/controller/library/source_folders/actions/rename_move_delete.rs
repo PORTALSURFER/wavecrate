@@ -70,7 +70,8 @@ impl AppController {
         let next_focus = self.next_folder_focus_after_delete(target);
         let entries = self.folder_entries(target);
         let staging_root = source.root.join(delete_recovery::DELETE_STAGING_DIR);
-        let staged = delete_recovery::stage_folder_for_delete(&absolute, &staging_root, target)?;
+        let staged =
+            delete_recovery::stage_folder_for_delete(&absolute, &staging_root, target, &entries)?;
         #[cfg(test)]
         if self.runtime.fail_after_folder_delete_stage {
             self.runtime.fail_after_folder_delete_stage = false;
@@ -88,8 +89,13 @@ impl AppController {
             .map(|_| false);
         }
         if let Err(err) = self.remove_folder_entries_from_db(&source, &entries) {
-            return delete_recovery::rollback_staged_folder(&staged, &absolute, &staging_root, &err)
-                .map(|_| false);
+            return delete_recovery::rollback_staged_folder(
+                &staged,
+                &absolute,
+                &staging_root,
+                &err,
+            )
+            .map(|_| false);
         }
         delete_recovery::mark_delete_retained(&staging_root, &staged.id)?;
         self.apply_deleted_folder_state(&source, target, next_focus.as_deref(), &entries);
@@ -191,7 +197,7 @@ impl AppController {
                 staged.original_relative.display()
             ));
         }
-        delete_recovery::restage_deleted_folder(&absolute, staging_root, staged)?;
+        delete_recovery::restage_deleted_folder(&absolute, staging_root, staged, entries)?;
         if let Err(err) = self.remove_folder_entries_from_db(source, entries) {
             return delete_recovery::rollback_staged_folder(staged, &absolute, staging_root, &err);
         }
@@ -224,7 +230,7 @@ impl AppController {
             .map_err(|err| format!("Failed to save folder delete: {err}"))
     }
 
-    fn restore_folder_entries_in_db(
+    pub(crate) fn restore_folder_entries_in_db(
         &mut self,
         source: &SampleSource,
         entries: &[WavEntry],
@@ -239,15 +245,29 @@ impl AppController {
             .write_batch()
             .map_err(|err| format!("Failed to start database update: {err}"))?;
         for entry in entries {
-            batch
-                .upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)
-                .map_err(|err| format!("Failed to restore database row: {err}"))?;
+            if let Some(content_hash) = entry.content_hash.as_deref() {
+                batch
+                    .upsert_file_with_hash(
+                        &entry.relative_path,
+                        entry.file_size,
+                        entry.modified_ns,
+                        content_hash,
+                    )
+                    .map_err(|err| format!("Failed to restore database row: {err}"))?;
+            } else {
+                batch
+                    .upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)
+                    .map_err(|err| format!("Failed to restore database row: {err}"))?;
+            }
             batch
                 .set_tag(&entry.relative_path, entry.tag)
                 .map_err(|err| format!("Failed to restore tag: {err}"))?;
             batch
                 .set_looped(&entry.relative_path, entry.looped)
                 .map_err(|err| format!("Failed to restore loop marker: {err}"))?;
+            batch
+                .set_locked(&entry.relative_path, entry.locked)
+                .map_err(|err| format!("Failed to restore keep lock: {err}"))?;
             if let Some(last_played_at) = entry.last_played_at {
                 batch
                     .set_last_played_at(&entry.relative_path, last_played_at)

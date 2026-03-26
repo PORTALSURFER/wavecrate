@@ -1,4 +1,4 @@
-use crate::sample_sources::SourceId;
+use crate::sample_sources::{SourceId, WavEntry};
 use std::path::PathBuf;
 
 /// Sidebar list of sample sources.
@@ -69,6 +69,8 @@ pub struct FolderDeleteRecoveryUiState {
     pub in_progress: bool,
     /// Entries reported by the last recovery run.
     pub entries: Vec<FolderDeleteRecoveryEntry>,
+    /// Retained folder deletes that can still be restored or purged explicitly.
+    pub retained_entries: Vec<RetainedFolderDeleteEntry>,
 }
 
 /// Display entry for a recovered staged delete.
@@ -84,6 +86,25 @@ pub struct FolderDeleteRecoveryEntry {
     pub status: FolderDeleteRecoveryStatus,
     /// Optional extra detail for the UI.
     pub detail: Option<String>,
+}
+
+/// Recoverable retained folder delete stored in the app-owned staging area.
+#[derive(Clone, Debug)]
+pub struct RetainedFolderDeleteEntry {
+    /// Stable journal identifier for the retained delete.
+    pub id: String,
+    /// Source identifier that owns the retained delete.
+    pub source_id: SourceId,
+    /// Source root path that owns the retained delete.
+    pub source_root: PathBuf,
+    /// Display label for the source in the UI.
+    pub source_label: String,
+    /// Original folder path relative to the source root.
+    pub relative_path: PathBuf,
+    /// Relative path of the staged folder inside `.sempal_delete_staging`.
+    pub staged_relative: PathBuf,
+    /// Snapshot of deleted wav metadata used to restore DB state after restart.
+    pub deleted_entries: Vec<WavEntry>,
 }
 
 /// Recovery action taken for a staged delete.
@@ -158,6 +179,16 @@ pub enum FolderActionPrompt {
         target: PathBuf,
         /// New folder name.
         name: String,
+    },
+    /// Confirm restoring all retained folder deletes currently tracked in Recovery.
+    RestoreRetainedDeletes {
+        /// Number of retained folder deletes that will be restored.
+        entry_count: usize,
+    },
+    /// Confirm purging all retained folder deletes currently tracked in Recovery.
+    PurgeRetainedDeletes {
+        /// Number of retained folder deletes that will be purged permanently.
+        entry_count: usize,
     },
 }
 

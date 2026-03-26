@@ -96,6 +96,9 @@ pub type FolderDeleteRecoveryStatus = app_state::FolderDeleteRecoveryStatus;
 /// Recovery row entry for staged folder delete.
 pub type FolderDeleteRecoveryEntry = app_state::FolderDeleteRecoveryEntry;
 
+/// Recoverable retained folder delete entry projected from startup recovery.
+pub type RetainedFolderDeleteEntry = app_state::RetainedFolderDeleteEntry;
+
 #[cfg(test)]
 mod tests {
     use super::{BrowserTagTarget, NativeBrowserTagTarget};

@@ -90,6 +90,10 @@ pub enum GuiActionKind {
     StartFolderRename,
     /// Delete the focused folder.
     DeleteFocusedFolder,
+    /// Start the explicit restore flow for retained folder deletes.
+    RestoreRetainedFolderDeletes,
+    /// Start the explicit purge flow for retained folder deletes.
+    PurgeRetainedFolderDeletes,
     /// Clear the folder-delete recovery log.
     ClearFolderDeleteRecoveryLog,
     /// Move browser focus by a relative row delta.
@@ -306,7 +310,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 148] = [
+    pub const ALL: [Self; 150] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -349,6 +353,8 @@ impl GuiActionKind {
         Self::StartNewFolderAtRoot,
         Self::StartFolderRename,
         Self::DeleteFocusedFolder,
+        Self::RestoreRetainedFolderDeletes,
+        Self::PurgeRetainedFolderDeletes,
         Self::ClearFolderDeleteRecoveryLog,
         Self::MoveBrowserFocus,
         Self::SetBrowserViewStart,

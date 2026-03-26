@@ -13,10 +13,11 @@ mod recovery;
 pub(crate) const DELETE_STAGING_DIR: &str = ".sempal_delete_staging";
 
 pub(crate) use journal::{
-    DeleteStagingInfo, cleanup_staging_root, mark_delete_retained, restage_deleted_folder,
-    restore_deleted_folder, rollback_staged_folder, stage_folder_for_delete,
+    DeleteStagingInfo, cleanup_staging_root, mark_delete_retained, purge_deleted_folder,
+    restage_deleted_folder, restore_deleted_folder, rollback_staged_folder,
+    stage_folder_for_delete,
 };
 pub(crate) use recovery::{
     DeleteRecoveryAction, DeleteRecoveryEntry, DeleteRecoveryReport, DeleteRecoveryStatus,
-    recover_staged_deletes,
+    RetainedDeleteEntry, recover_staged_deletes,
 };

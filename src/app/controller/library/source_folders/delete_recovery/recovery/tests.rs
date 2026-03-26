@@ -25,7 +25,7 @@ fn recover_restores_intent_entry_when_staged_folder_exists() -> Result<(), Strin
     let original = source.root.join("gone");
     fs::create_dir_all(&original).unwrap();
     let staging_root = source.root.join(DELETE_STAGING_DIR);
-    let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"))?;
+    let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"), &[])?;
     update_entry_stage(&staging_root, &staged.id, DeleteJournalStage::Intent)?;
 
     let report = recover_staged_deletes(std::slice::from_ref(&source));
@@ -46,7 +46,7 @@ fn recover_treats_missing_staged_folder_as_already_restored() -> Result<(), Stri
     let original = source.root.join("gone");
     fs::create_dir_all(&original).unwrap();
     let staging_root = source.root.join(DELETE_STAGING_DIR);
-    let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"))?;
+    let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"), &[])?;
     update_entry_stage(&staging_root, &staged.id, DeleteJournalStage::Intent)?;
     fs::rename(&staged.staged_absolute, &original).unwrap();
 
@@ -67,7 +67,13 @@ fn recover_keeps_deleted_entry_staged() -> Result<(), String> {
     let original = source.root.join("gone");
     fs::create_dir_all(&original).unwrap();
     let staging_root = source.root.join(DELETE_STAGING_DIR);
-    let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"))?;
+    let deleted_entries = vec![sample_entry("gone/kick.wav")];
+    let staged = stage_folder_for_delete(
+        &original,
+        &staging_root,
+        Path::new("gone"),
+        &deleted_entries,
+    )?;
     mark_delete_retained(&staging_root, &staged.id)?;
 
     let report = recover_staged_deletes(std::slice::from_ref(&source));
@@ -76,6 +82,34 @@ fn recover_keeps_deleted_entry_staged() -> Result<(), String> {
     assert!(staged.staged_absolute.exists());
     assert!(staging_root.exists());
     assert!(report.entries.is_empty());
+    assert_eq!(report.retained_entries.len(), 1);
+    let retained = &report.retained_entries[0];
+    assert_eq!(retained.original_relative, Path::new("gone"));
+    assert_eq!(retained.deleted_entries.len(), 1);
+    assert_eq!(
+        retained.deleted_entries[0].relative_path,
+        deleted_entries[0].relative_path
+    );
+    assert_eq!(
+        retained.deleted_entries[0].content_hash.as_deref(),
+        deleted_entries[0].content_hash.as_deref()
+    );
+    assert_eq!(
+        retained.deleted_entries[0].tag.val(),
+        deleted_entries[0].tag.val()
+    );
+    assert_eq!(
+        retained.deleted_entries[0].looped,
+        deleted_entries[0].looped
+    );
+    assert_eq!(
+        retained.deleted_entries[0].locked,
+        deleted_entries[0].locked
+    );
+    assert_eq!(
+        retained.deleted_entries[0].last_played_at,
+        deleted_entries[0].last_played_at
+    );
     Ok(())
 }
 
@@ -85,7 +119,7 @@ fn recover_cleans_retained_entry_when_folder_was_already_restored() -> Result<()
     let original = source.root.join("gone");
     fs::create_dir_all(&original).unwrap();
     let staging_root = source.root.join(DELETE_STAGING_DIR);
-    let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"))?;
+    let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"), &[])?;
     mark_delete_retained(&staging_root, &staged.id)?;
     fs::rename(&staged.staged_absolute, &original).unwrap();
 
@@ -129,7 +163,7 @@ fn recover_uses_restore_suffix_when_original_exists() -> Result<(), String> {
     let original = source.root.join("gone");
     fs::create_dir_all(&original).unwrap();
     let staging_root = source.root.join(DELETE_STAGING_DIR);
-    let _staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"))?;
+    let _staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"), &[])?;
     fs::create_dir_all(&original).unwrap();
 
     let report = recover_staged_deletes(std::slice::from_ref(&source));
@@ -150,7 +184,7 @@ fn recover_reports_failed_restore_when_staged_folder_is_missing() -> Result<(), 
     let original = source.root.join("gone");
     fs::create_dir_all(&original).unwrap();
     let staging_root = source.root.join(DELETE_STAGING_DIR);
-    let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"))?;
+    let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"), &[])?;
     fs::remove_dir_all(&staged.staged_absolute).unwrap();
 
     let report = recover_staged_deletes(std::slice::from_ref(&source));
@@ -174,6 +208,20 @@ fn sample_source() -> (tempfile::TempDir, SampleSource) {
     let root = dir.path().join("source");
     fs::create_dir_all(&root).unwrap();
     (dir, SampleSource::new(root))
+}
+
+fn sample_entry(relative_path: &str) -> crate::sample_sources::WavEntry {
+    crate::sample_sources::WavEntry {
+        relative_path: relative_path.into(),
+        file_size: 1024,
+        modified_ns: 123,
+        content_hash: Some("abc123".into()),
+        tag: crate::sample_sources::Rating::KEEP_1,
+        looped: true,
+        locked: true,
+        missing: false,
+        last_played_at: Some(456),
+    }
 }
 
 fn assert_recovery(

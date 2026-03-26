@@ -33,11 +33,15 @@ Each journal row moves through these stages:
 - If an `Intent` / `Staged` entry has no staged folder but the original folder is
   already present, recovery records `Already restored` and removes the journal row.
 - Journaled `Deleted` entries remain in staging when the original folder is still
-  absent, preserving the app-owned trash state across restarts.
+  absent, preserving the app-owned trash state across restarts and surfacing the
+  folder in Recovery for explicit restore or purge.
 - If a `Deleted` entry has no staged folder but the original folder is already
   present, recovery records `Already restored` and removes the journal row.
 - Staged folders without journal rows are conservatively restored.
 - Restore collisions are resolved by appending `.restored-N` to the folder name.
+- `Deleted` journal rows also persist the deleted wav metadata snapshot so an
+  explicit restore after restart can reconstruct the source database state, not
+  just move the folder back on disk.
 
 ## Module ownership
 
@@ -46,4 +50,4 @@ Each journal row moves through these stages:
 - `recovery.rs`
   - startup restore/retain policy and the recovery matrix tests
 - `controller_apply.rs`
-  - `AppController` startup kick-off and UI/cache application of the report
+  - `AppController` startup kick-off, Recovery UI state, and explicit restore/purge actions

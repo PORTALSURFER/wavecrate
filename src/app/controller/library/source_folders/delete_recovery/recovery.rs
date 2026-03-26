@@ -8,7 +8,7 @@ use super::DELETE_STAGING_DIR;
 use super::journal::{
     DeleteJournal, DeleteJournalEntry, DeleteJournalStage, load_journal, remove_entry,
 };
-use crate::sample_sources::{SampleSource, SourceId};
+use crate::sample_sources::{SampleSource, SourceId, WavEntry};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -48,11 +48,30 @@ pub(crate) struct DeleteRecoveryEntry {
     pub(crate) detail: Option<String>,
 }
 
+/// Retained staged delete that remains recoverable after startup reconciliation.
+#[derive(Debug, Clone)]
+pub(crate) struct RetainedDeleteEntry {
+    /// Stable journal identifier for the retained delete.
+    pub(crate) id: String,
+    /// Source identifier that owns the retained delete.
+    pub(crate) source_id: SourceId,
+    /// Source root for restore or purge follow-up work.
+    pub(crate) source_root: PathBuf,
+    /// Original relative folder path within the source.
+    pub(crate) original_relative: PathBuf,
+    /// Relative staged path inside `.sempal_delete_staging`.
+    pub(crate) staged_relative: PathBuf,
+    /// Deleted wav metadata snapshot used to reconstruct DB state after restart.
+    pub(crate) deleted_entries: Vec<WavEntry>,
+}
+
 /// Summary of staged delete recovery across all sources.
 #[derive(Debug, Default)]
 pub(crate) struct DeleteRecoveryReport {
     /// Per-folder recovery outcomes.
     pub(crate) entries: Vec<DeleteRecoveryEntry>,
+    /// Retained deletes that remain available for explicit restore or purge.
+    pub(crate) retained_entries: Vec<RetainedDeleteEntry>,
     /// Non-fatal errors encountered during recovery.
     pub(crate) errors: Vec<String>,
 }
@@ -97,15 +116,21 @@ fn recover_journaled_entries(
     report: &mut DeleteRecoveryReport,
 ) {
     for entry in journal.entries.clone() {
-        if let Some(result) = recover_journaled_entry(source, staging_root, &entry) {
-            report.entries.push(result.report_entry);
-            if result.remove_from_journal
-                && let Err(err) = remove_entry(staging_root, &entry.id)
-            {
-                report
-                    .errors
-                    .push(format!("Failed to update delete journal: {err}"));
+        match recover_journaled_entry(source, staging_root, &entry) {
+            Some(JournaledRecoveryOutcome::Completed(result)) => {
+                report.entries.push(result.report_entry);
+                if result.remove_from_journal
+                    && let Err(err) = remove_entry(staging_root, &entry.id)
+                {
+                    report
+                        .errors
+                        .push(format!("Failed to update delete journal: {err}"));
+                }
             }
+            Some(JournaledRecoveryOutcome::Retained(result)) => {
+                report.retained_entries.push(result.retained_entry);
+            }
+            None => {}
         }
     }
 }
@@ -133,17 +158,26 @@ struct JournaledRecovery {
     remove_from_journal: bool,
 }
 
+struct RetainedRecovery {
+    retained_entry: RetainedDeleteEntry,
+}
+
+enum JournaledRecoveryOutcome {
+    Completed(JournaledRecovery),
+    Retained(RetainedRecovery),
+}
+
 fn recover_journaled_entry(
     source: &SampleSource,
     staging_root: &Path,
     entry: &DeleteJournalEntry,
-) -> Option<JournaledRecovery> {
+) -> Option<JournaledRecoveryOutcome> {
     let original_relative = PathBuf::from(entry.original_relative.clone());
     let staged = staging_root.join(&entry.staged_relative);
     let original = source.root.join(&original_relative);
     let (action, outcome) = match entry.stage {
         DeleteJournalStage::Deleted => {
-            return recover_retained_delete(source, &original_relative, &staged, &original);
+            return recover_retained_delete(source, &original_relative, &staged, &original, entry);
         }
         DeleteJournalStage::Intent | DeleteJournalStage::Staged => {
             let outcome = if !staged.exists() && original.exists() {
@@ -155,10 +189,10 @@ fn recover_journaled_entry(
         }
     };
     let remove_from_journal = outcome.is_ok();
-    Some(JournaledRecovery {
+    Some(JournaledRecoveryOutcome::Completed(JournaledRecovery {
         report_entry: recovery_entry(source, original_relative, action, outcome),
         remove_from_journal,
-    })
+    }))
 }
 
 fn recovery_entry(
@@ -198,12 +232,22 @@ fn recover_retained_delete(
     original_relative: &Path,
     staged: &Path,
     original: &Path,
-) -> Option<JournaledRecovery> {
+    entry: &DeleteJournalEntry,
+) -> Option<JournaledRecoveryOutcome> {
     if staged.exists() && !original.exists() {
-        return None;
+        return Some(JournaledRecoveryOutcome::Retained(RetainedRecovery {
+            retained_entry: RetainedDeleteEntry {
+                id: entry.id.clone(),
+                source_id: source.id.clone(),
+                source_root: source.root.clone(),
+                original_relative: original_relative.to_path_buf(),
+                staged_relative: PathBuf::from(entry.staged_relative.clone()),
+                deleted_entries: entry.deleted_entries.clone(),
+            },
+        }));
     }
     if !staged.exists() && original.exists() {
-        return Some(JournaledRecovery {
+        return Some(JournaledRecoveryOutcome::Completed(JournaledRecovery {
             report_entry: recovery_entry(
                 source,
                 original_relative.to_path_buf(),
@@ -211,9 +255,9 @@ fn recover_retained_delete(
                 Ok(Some("Already restored".into())),
             ),
             remove_from_journal: true,
-        });
+        }));
     }
-    Some(JournaledRecovery {
+    Some(JournaledRecoveryOutcome::Completed(JournaledRecovery {
         report_entry: recovery_entry(
             source,
             original_relative.to_path_buf(),
@@ -225,7 +269,7 @@ fn recover_retained_delete(
             )),
         ),
         remove_from_journal: false,
-    })
+    }))
 }
 
 fn unique_restore_path(original: &Path) -> (PathBuf, Option<String>) {

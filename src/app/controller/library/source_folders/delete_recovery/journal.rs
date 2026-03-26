@@ -4,6 +4,7 @@
 //! Recovery uses that contract to decide whether a folder should be restored back into the
 //! source tree after a crash or retained inside the app-owned trash area.
 
+use crate::sample_sources::WavEntry;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -43,6 +44,8 @@ pub(super) struct DeleteJournalEntry {
     pub(super) id: String,
     pub(super) original_relative: String,
     pub(super) staged_relative: String,
+    #[serde(default)]
+    pub(super) deleted_entries: Vec<WavEntry>,
     pub(super) stage: DeleteJournalStage,
     pub(super) created_at: i64,
 }
@@ -58,6 +61,7 @@ pub(crate) fn stage_folder_for_delete(
     absolute: &Path,
     staging_root: &Path,
     relative: &Path,
+    deleted_entries: &[WavEntry],
 ) -> Result<DeleteStagingInfo, String> {
     let staged_relative = unique_staging_relative(staging_root, relative);
     let staged_absolute = staging_root.join(&staged_relative);
@@ -69,6 +73,7 @@ pub(crate) fn stage_folder_for_delete(
             id: id.clone(),
             original_relative: relative.to_string_lossy().to_string(),
             staged_relative: staged_relative.to_string_lossy().to_string(),
+            deleted_entries: deleted_entries.to_vec(),
             stage: DeleteJournalStage::Intent,
             created_at: now_epoch_seconds()?,
         },
@@ -98,6 +103,24 @@ pub(crate) fn mark_delete_retained(staging_root: &Path, id: &str) -> Result<(), 
 /// Remove a journal entry after a staged delete is resolved.
 pub(crate) fn remove_delete_entry(staging_root: &Path, id: &str) -> Result<(), String> {
     remove_entry(staging_root, id)
+}
+
+/// Permanently remove a retained staged folder and clear its journal entry.
+pub(crate) fn purge_deleted_folder(
+    info: &DeleteStagingInfo,
+    staging_root: &Path,
+) -> Result<(), String> {
+    if info.staged_absolute.exists() {
+        fs::remove_dir_all(&info.staged_absolute).map_err(|err| {
+            format!(
+                "Failed to purge deleted folder {}: {err}",
+                info.original_relative.display()
+            )
+        })?;
+    }
+    remove_entry(staging_root, &info.id)?;
+    cleanup_staging_root(staging_root);
+    Ok(())
 }
 
 /// Restore a retained staged folder into the source tree and remove its journal entry.
@@ -130,11 +153,13 @@ pub(crate) fn restage_deleted_folder(
     absolute: &Path,
     staging_root: &Path,
     info: &DeleteStagingInfo,
+    deleted_entries: &[WavEntry],
 ) -> Result<(), String> {
     let entry = DeleteJournalEntry {
         id: info.id.clone(),
         original_relative: info.original_relative.to_string_lossy().to_string(),
         staged_relative: info.staged_relative.to_string_lossy().to_string(),
+        deleted_entries: deleted_entries.to_vec(),
         stage: DeleteJournalStage::Intent,
         created_at: now_epoch_seconds()?,
     };

@@ -42,6 +42,40 @@ pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             input_error,
         };
     }
+    if let Some(FolderActionPrompt::RestoreRetainedDeletes { entry_count }) =
+        ui.sources.folders.pending_action.clone()
+    {
+        return ConfirmPromptModel {
+            visible: true,
+            kind: Some(ConfirmPromptKind::RestoreRetainedFolderDeletes),
+            title: String::from("Restore retained deletes"),
+            message: format!("Restore {entry_count} retained folder delete(s) from Recovery?"),
+            confirm_label: String::from("Restore"),
+            cancel_label: String::from("Cancel"),
+            target_label: None,
+            input_value: None,
+            input_placeholder: None,
+            input_error: None,
+        };
+    }
+    if let Some(FolderActionPrompt::PurgeRetainedDeletes { entry_count }) =
+        ui.sources.folders.pending_action.clone()
+    {
+        return ConfirmPromptModel {
+            visible: true,
+            kind: Some(ConfirmPromptKind::PurgeRetainedFolderDeletes),
+            title: String::from("Purge retained deletes"),
+            message: format!(
+                "Permanently purge {entry_count} retained folder delete(s) from Recovery?"
+            ),
+            confirm_label: String::from("Purge"),
+            cancel_label: String::from("Cancel"),
+            target_label: None,
+            input_value: None,
+            input_placeholder: None,
+            input_error: None,
+        };
+    }
     if let Some(new_folder) = ui.sources.folders.new_folder.as_ref() {
         let target_label = if new_folder.parent.as_os_str().is_empty() {
             String::from("source root")
