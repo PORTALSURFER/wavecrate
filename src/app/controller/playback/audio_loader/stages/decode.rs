@@ -1,6 +1,9 @@
 use super::super::{AudioLoadError, AudioLoadJob};
 use crate::waveform::{DecodedWaveform, WaveformRenderer};
-use std::{sync::{Arc, atomic::AtomicU64}, time::Instant};
+use std::{
+    sync::{Arc, atomic::AtomicU64},
+    time::Instant,
+};
 
 use super::super::telemetry::{
     StaleDropStage, audio_loader_telemetry_enabled, record_decode_duration, stale_and_record,

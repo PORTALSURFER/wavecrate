@@ -101,8 +101,7 @@ fn ensure_safe_relative_path_rejects_rooted_path() {
 #[cfg(windows)]
 #[test]
 fn ensure_safe_relative_path_rejects_windows_drive_prefix() {
-    let err =
-        super::stages::ensure_safe_relative_path(Path::new(r"C:\escape.wav")).unwrap_err();
+    let err = super::stages::ensure_safe_relative_path(Path::new(r"C:\escape.wav")).unwrap_err();
     assert!(matches!(err, super::AudioLoadError::Failed(_)));
 }
 

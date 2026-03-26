@@ -36,8 +36,7 @@ pub(super) fn snap_waveform_selection_range_micros(
         start =
             snap_waveform_endpoint_to_bpm_anchor(start, existing_start, step, preserve_view_edge);
     } else if start == existing_start {
-        end =
-            snap_waveform_endpoint_to_bpm_anchor(end, existing_start, step, preserve_view_edge);
+        end = snap_waveform_endpoint_to_bpm_anchor(end, existing_start, step, preserve_view_edge);
     } else if end == existing_end {
         start = snap_waveform_endpoint_to_bpm_anchor(start, existing_end, step, preserve_view_edge);
     }
@@ -128,8 +127,7 @@ fn snap_translated_waveform_selection_range_to_global_grid(
 ) -> (u32, u32) {
     let width = existing_end_micros.saturating_sub(existing_start_micros);
     let max_start = 1_000_000u32.saturating_sub(width);
-    let snapped_start =
-        snap_waveform_micros_to_bpm_anchor(start_micros, 0, step).min(max_start);
+    let snapped_start = snap_waveform_micros_to_bpm_anchor(start_micros, 0, step).min(max_start);
     let snapped_end = snapped_start.saturating_add(width).min(1_000_000);
     (snapped_start, snapped_end)
 }

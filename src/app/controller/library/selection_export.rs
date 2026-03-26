@@ -332,7 +332,6 @@ impl AppController {
             timings.total.as_micros()
         );
     }
-
 }
 
 #[cfg(test)]

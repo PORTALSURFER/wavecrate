@@ -1,5 +1,5 @@
-use super::IoStageOutput;
 use super::super::{AudioLoadError, AudioLoadJob};
+use super::IoStageOutput;
 use crate::app::controller::playback::audio_cache::FileMetadata;
 use std::{
     fs,

@@ -1,6 +1,6 @@
 use super::*;
-use crate::app_dirs::ConfigBaseGuard;
 use crate::app_core::state::StatusTone;
+use crate::app_dirs::ConfigBaseGuard;
 use tempfile::tempdir;
 
 #[test]

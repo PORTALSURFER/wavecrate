@@ -58,7 +58,12 @@ fn flush_pending_age_update_commit_persists_last_played_after_deadline() {
     controller.flush_pending_age_update_commit();
 
     assert!(!controller.has_pending_age_update_commit());
-    assert!(controller.runtime.pending_age_update_commit_not_before.is_none());
+    assert!(
+        controller
+            .runtime
+            .pending_age_update_commit_not_before
+            .is_none()
+    );
     assert_eq!(
         controller
             .database_for(&source)

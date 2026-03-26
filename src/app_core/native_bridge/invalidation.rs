@@ -190,8 +190,6 @@ pub(crate) fn catalog_prefers_targeted_invalidation(kind: GuiActionKind) -> bool
 
 /// Resolve the dirty source metadata for one catalog action kind.
 #[cfg(test)]
-pub(crate) fn catalog_dirty_source(
-    kind: GuiActionKind,
-) -> Option<(DerivedNodeId, DirtyReason)> {
+pub(crate) fn catalog_dirty_source(kind: GuiActionKind) -> Option<(DerivedNodeId, DirtyReason)> {
     classify_dirty_source(&representative_action_for_kind(kind))
 }

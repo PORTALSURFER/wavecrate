@@ -151,7 +151,12 @@ fn save_waveform_selection_to_browser_success_finishes_pending_history_and_suppo
 
     controller.undo();
 
-    match controller.history.pending_undo.as_ref().map(|pending| &pending.job) {
+    match controller
+        .history
+        .pending_undo
+        .as_ref()
+        .map(|pending| &pending.job)
+    {
         Some(UndoFileJob::RemoveSample {
             source_id,
             relative_path,
@@ -221,7 +226,8 @@ fn selection_export_failure_cancels_pending_history_without_leaving_undo_state()
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
     let mut controller = AppController::new(renderer, None);
     let history_key = PendingHistoryTransactionKey::SelectionExport { request_id: 99 };
-    controller.begin_pending_sample_creation_transaction(history_key.clone(), "Saved selection clip");
+    controller
+        .begin_pending_sample_creation_transaction(history_key.clone(), "Saved selection clip");
 
     controller.apply_background_job_message_for_tests(JobMessage::SelectionExport(
         SelectionExportMessage::Finished(SelectionExportResult::Clip {
@@ -237,7 +243,12 @@ fn selection_export_failure_cancels_pending_history_without_leaving_undo_state()
 
     assert!(controller.history.pending_undo.is_none());
     assert_eq!(controller.ui.status.text, "Nothing to undo");
-    assert!(!controller.history.pending_transactions.contains_key(&history_key));
+    assert!(
+        !controller
+            .history
+            .pending_transactions
+            .contains_key(&history_key)
+    );
 }
 
 #[test]
@@ -258,8 +269,11 @@ fn apply_selection_crop_export_success_restores_focus_playback_and_undo_state() 
     controller
         .load_waveform_for_selection(&source, Path::new("clip.wav"))
         .unwrap();
-    controller
-        .set_wav_entries_for_tests(vec![written_entry(&source_root, Path::new("clip.wav"), Rating::NEUTRAL)]);
+    controller.set_wav_entries_for_tests(vec![written_entry(
+        &source_root,
+        Path::new("clip.wav"),
+        Rating::NEUTRAL,
+    )]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
     controller.ui.focus.context = FocusContext::SampleBrowser;
@@ -306,7 +320,12 @@ fn apply_selection_crop_export_success_restores_focus_playback_and_undo_state() 
 
     controller.undo();
 
-    match controller.history.pending_undo.as_ref().map(|pending| &pending.job) {
+    match controller
+        .history
+        .pending_undo
+        .as_ref()
+        .map(|pending| &pending.job)
+    {
         Some(UndoFileJob::RemoveSample {
             source_id,
             relative_path,

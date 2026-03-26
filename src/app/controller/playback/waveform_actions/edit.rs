@@ -69,14 +69,13 @@ impl AppController {
         preserve_view_edge: bool,
     ) {
         let existing_range = current_edit_selection(self);
-        let (start_micros, end_micros) =
-            selection_updates::snap_edit_selection_range_micros(
-                self,
-                start_micros,
-                end_micros,
-                existing_range,
-                preserve_view_edge,
-            );
+        let (start_micros, end_micros) = selection_updates::snap_edit_selection_range_micros(
+            self,
+            start_micros,
+            end_micros,
+            existing_range,
+            preserve_view_edge,
+        );
         let next_range = existing_range
             .map(|existing| {
                 edit_selection::update_edit_selection_range_from_micros(

@@ -232,8 +232,8 @@ fn step_label(step: &GuiScenarioStep) -> String {
 mod tests {
     use super::*;
     use crate::app_core::actions::{
-        GUI_ACTION_CATALOG, NativeAutomationNodeId, NativeAutomationRole,
-        NativeAutomationNodeSnapshot, NativeGuiAutomationSnapshot,
+        GUI_ACTION_CATALOG, NativeAutomationNodeId, NativeAutomationNodeSnapshot,
+        NativeAutomationRole, NativeGuiAutomationSnapshot,
     };
     use crate::gui_test::{GuiAssertion, GuiScenario, GuiScenarioStep};
     use radiant::app::AutomationBounds;

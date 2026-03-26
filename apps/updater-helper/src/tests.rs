@@ -33,7 +33,10 @@ fn assert_defaults(args: &UpdaterRunArgs) {
         args.identity.platform,
         default_platform().expect("supported test platform")
     );
-    assert_eq!(args.identity.arch, default_arch().expect("supported test arch"));
+    assert_eq!(
+        args.identity.arch,
+        default_arch().expect("supported test arch")
+    );
     assert_eq!(args.install_dir, sample_install_dir());
     assert!(args.relaunch);
     assert_eq!(args.requested_tag, None);

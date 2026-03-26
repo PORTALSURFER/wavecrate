@@ -1,7 +1,5 @@
 use super::*;
-use crate::app::state::{
-    IssueTokenStatus, ProgressOverlayState, ProgressTaskKind, SimilarQuery,
-};
+use crate::app::state::{IssueTokenStatus, ProgressOverlayState, ProgressTaskKind, SimilarQuery};
 use crate::app_core::controller::build_named_gui_fixture_controller;
 use std::path::Path;
 
@@ -197,7 +195,11 @@ fn apply_native_dismiss_update_clears_available_release_state() {
         assert!(controller.ui.update.available_url.is_none());
         assert!(controller.ui.update.available_published_at.is_none());
         assert_eq!(
-            controller.ui.update.last_seen_nightly_published_at.as_deref(),
+            controller
+                .ui
+                .update
+                .last_seen_nightly_published_at
+                .as_deref(),
             Some("2026-03-11T12:00:00Z")
         );
     });

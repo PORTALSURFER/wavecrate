@@ -21,9 +21,10 @@ pub(super) fn next_clip_export_path(
             folder_override: Some(folder),
             ..
         }
-        | SelectionClipDestination::Folder { folder, .. } => {
-            next_selection_path_in_dir(&snapshot.source_root, &folder.join(file_name_hint(snapshot)))
-        }
+        | SelectionClipDestination::Folder { folder, .. } => next_selection_path_in_dir(
+            &snapshot.source_root,
+            &folder.join(file_name_hint(snapshot)),
+        ),
         SelectionClipDestination::Browser { .. } | SelectionClipDestination::ExternalDrag => {
             next_selection_path_in_dir(&snapshot.source_root, &snapshot.relative_path)
         }

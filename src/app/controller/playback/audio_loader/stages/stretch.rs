@@ -1,5 +1,5 @@
-use super::StretchStageOutput;
 use super::super::{AudioLoadError, AudioLoadJob};
+use super::StretchStageOutput;
 use crate::waveform::{DecodedWaveform, WaveformRenderer};
 use std::{
     mem::size_of,

@@ -31,16 +31,14 @@ mod reducer;
 mod runtime_projection;
 
 #[cfg(test)]
-use self::projection_cache::build_waveform_projection_key;
-#[cfg(test)]
 pub(crate) use self::action_classification::{
     InteractionActionClass, catalog_interaction_class,
     catalog_is_immediate_waveform_preview_action, catalog_uses_local_model_pull_fast_path,
 };
 #[cfg(test)]
-pub(crate) use self::invalidation::{
-    catalog_dirty_source, catalog_prefers_targeted_invalidation,
-};
+pub(crate) use self::invalidation::{catalog_dirty_source, catalog_prefers_targeted_invalidation};
+#[cfg(test)]
+use self::projection_cache::build_waveform_projection_key;
 use self::{
     metrics::{bridge_profiling_enabled, maybe_log_bridge_profile, trace_frame_result},
     pending_waveform::{

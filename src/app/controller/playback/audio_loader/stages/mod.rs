@@ -1,4 +1,6 @@
-use super::{AudioLoadError, AudioLoadJob, AudioLoadOutcome, AudioTransientResult, PendingTransientCompute};
+use super::{
+    AudioLoadError, AudioLoadJob, AudioLoadOutcome, AudioTransientResult, PendingTransientCompute,
+};
 #[cfg(test)]
 use crate::waveform::DecodedWaveform;
 use crate::waveform::WaveformRenderer;

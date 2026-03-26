@@ -5,11 +5,11 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use tempfile::TempDir;
 
-use super::super::transactions::sample_move_metadata;
-use super::super::transactions::register_drop_target_target_entry;
 use super::super::super::move_transaction::{
     move_sample_file, prepare_staged_copy, prepare_staged_move,
 };
+use super::super::transactions::register_drop_target_target_entry;
+use super::super::transactions::sample_move_metadata;
 
 struct DropTargetRecoveryFixture {
     _temp: TempDir,
@@ -35,7 +35,11 @@ impl DropTargetRecoveryFixture {
         std::fs::write(&source_absolute, [0u8; 16]).unwrap();
         let metadata = std::fs::metadata(&source_absolute).unwrap();
         source_db
-            .upsert_file(&source_relative, metadata.len(), modified_ns(&source_absolute))
+            .upsert_file(
+                &source_relative,
+                metadata.len(),
+                modified_ns(&source_absolute),
+            )
             .unwrap();
         source_db.set_tag(&source_relative, Rating::KEEP_1).unwrap();
         source_db.set_looped(&source_relative, true).unwrap();
@@ -84,7 +88,10 @@ fn assert_target_metadata(
     target_relative: &Path,
     metadata: DroppedSampleMetadata,
 ) {
-    assert_eq!(db.tag_for_path(target_relative).unwrap(), Some(metadata.tag));
+    assert_eq!(
+        db.tag_for_path(target_relative).unwrap(),
+        Some(metadata.tag)
+    );
     assert_eq!(
         db.looped_for_path(target_relative).unwrap(),
         Some(metadata.looped)
@@ -136,8 +143,8 @@ fn copy_finalize_failure_keeps_target_db_stage_until_reconcile() {
     .unwrap();
     std::fs::create_dir_all(&prepared.target_absolute).unwrap();
 
-    let finalize_err = move_sample_file(&prepared.staged_absolute, &prepared.target_absolute)
-        .unwrap_err();
+    let finalize_err =
+        move_sample_file(&prepared.staged_absolute, &prepared.target_absolute).unwrap_err();
     assert!(finalize_err.contains("Failed to move file"));
 
     let entry = journal_entry(&fixture.target_db);
@@ -180,7 +187,10 @@ fn move_finalize_failure_keeps_source_db_stage_until_reconcile() {
         metadata,
     )
     .unwrap();
-    fixture.source_db.remove_file(&fixture.source_relative).unwrap();
+    fixture
+        .source_db
+        .remove_file(&fixture.source_relative)
+        .unwrap();
     file_ops_journal::update_stage(
         &fixture.target_db,
         &prepared.op_id,
@@ -191,8 +201,8 @@ fn move_finalize_failure_keeps_source_db_stage_until_reconcile() {
     .unwrap();
     std::fs::create_dir_all(&prepared.target_absolute).unwrap();
 
-    let finalize_err = move_sample_file(&prepared.staged_absolute, &prepared.target_absolute)
-        .unwrap_err();
+    let finalize_err =
+        move_sample_file(&prepared.staged_absolute, &prepared.target_absolute).unwrap_err();
     assert!(finalize_err.contains("Failed to move file"));
 
     let entry = journal_entry(&fixture.target_db);

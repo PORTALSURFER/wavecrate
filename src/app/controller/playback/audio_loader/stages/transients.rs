@@ -1,6 +1,4 @@
-use super::super::{
-    AudioLoadOutcome, AudioTransientResult, PendingTransientCompute,
-};
+use super::super::{AudioLoadOutcome, AudioTransientResult, PendingTransientCompute};
 use crate::app::controller::playback::audio_cache::FileMetadata;
 use crate::waveform::DecodedWaveform;
 use std::{

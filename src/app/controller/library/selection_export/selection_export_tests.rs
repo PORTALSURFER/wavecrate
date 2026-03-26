@@ -1,10 +1,10 @@
 use super::*;
+use crate::app::controller::history::PendingHistoryTransactionKey;
 use crate::app::controller::jobs::{
     FileOpResult, JobMessage, SelectionCropExportSuccess, SelectionExportAudioPayload,
     SelectionExportMessage, SelectionExportPlaybackState, SelectionExportResult,
     SelectionExportTimings, UndoFileJob, UndoFileOpResult, UndoFileOutcome,
 };
-use crate::app::controller::history::PendingHistoryTransactionKey;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::test_support::write_test_wav;
 use crate::app::state::{FocusContext, ProgressTaskKind, WaveformSliceBatchProfile};
@@ -58,5 +58,5 @@ fn written_entry(root: &Path, relative_path: &Path, tag: Rating) -> WavEntry {
 
 mod audio_payload_tests;
 mod clip_export_tests;
-mod waveform_selection_export_tests;
 mod slice_batch_export_tests;
+mod waveform_selection_export_tests;

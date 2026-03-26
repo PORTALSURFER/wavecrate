@@ -39,10 +39,10 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::app_core::actions::{NativeAppModel, NativeUiAction};
 use crate::{audio::AudioPlayer, waveform::WaveformRenderer};
-use tracing::{error, info};
 use browser_actions::apply_browser_native_ui_action;
 use map_actions::apply_map_native_ui_action;
 use prompt_update_actions::apply_prompt_and_update_native_ui_action;
+use tracing::{error, info};
 use waveform_actions::apply_waveform_native_ui_action;
 
 /// Build a configured migration-facing controller for native runtime hosts.

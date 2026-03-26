@@ -1,8 +1,8 @@
 use super::super::super::*;
 use crate::app::state::{DragPayload, DragSource, DragTarget};
 use crate::app_dirs::ConfigBaseGuard;
-use crate::sample_sources::config::DropTargetConfig;
 use crate::sample_sources::SampleSource;
+use crate::sample_sources::config::DropTargetConfig;
 use std::path::PathBuf;
 use tempfile::tempdir;
 
