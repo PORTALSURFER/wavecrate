@@ -68,6 +68,30 @@ impl SourceDatabase {
         )
     }
 
+    /// Fetch one tracked wav entry by relative path.
+    pub fn entry_for_path(
+        &self,
+        path: &std::path::Path,
+    ) -> Result<Option<WavEntry>, SourceDbError> {
+        if !crate::sample_sources::is_supported_audio(path) {
+            return Ok(None);
+        }
+        let path_str = super::super::normalize_relative_path(path)?;
+        let filter = supported_audio_filter();
+        let sql = format!(
+            "SELECT {WAV_FILE_SELECT_COLUMNS}
+             FROM wav_files
+             WHERE {filter} AND path = ?1"
+        );
+        let mut rows = collect_wav_entries(
+            self,
+            &sql,
+            rusqlite::params![path_str],
+            "Skipping wav row with invalid relative path during single-path lookup",
+        )?;
+        Ok(rows.pop())
+    }
+
     /// Fetch tracked wav files filtered by tag.
     pub fn list_files_by_tag(&self, tag: Rating) -> Result<Vec<WavEntry>, SourceDbError> {
         let filter = supported_audio_filter();

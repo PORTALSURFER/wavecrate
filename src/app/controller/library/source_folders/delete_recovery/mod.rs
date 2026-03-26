@@ -4,10 +4,14 @@
 //! - `journal`: stage/journal persistence and rollback helpers used by delete flows
 //! - `recovery`: startup reconciliation that decides whether to restore or retain deletes
 //! - `controller_apply`: UI/cache application of recovery reports once work finishes
+//! - `retained_restore`: explicit restore/purge flows for retained deletes
+//! - `restore_merge`: conflict-aware merge policy for explicit retained restores
 
 mod controller_apply;
 mod journal;
 mod recovery;
+mod restore_merge;
+mod retained_restore;
 
 /// Folder name used to stage pending deletes inside a source root.
 pub(crate) const DELETE_STAGING_DIR: &str = ".sempal_delete_staging";
