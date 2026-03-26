@@ -102,6 +102,20 @@ fn search_query_actions_stay_on_full_model_pull_preparation() {
     assert!(bridge.controller.has_dirty_derived_nodes());
 }
 
+/// Toggling random navigation should refresh browser chrome in the same action cycle.
+#[test]
+fn random_navigation_toggle_updates_projected_browser_actions_immediately() {
+    let mut bridge = test_bridge(16);
+
+    let initial = bridge.project_model();
+    assert!(!initial.browser_actions.random_navigation_enabled);
+
+    bridge.on_action(NativeUiAction::ToggleRandomNavigationMode);
+
+    let updated = bridge.project_model();
+    assert!(updated.browser_actions.random_navigation_enabled);
+}
+
 /// Manual browser viewport actions must refresh the projected row window
 /// immediately so wheel/scrollbar input updates both the semantic snapshot and
 /// the rendered browser list in the same interaction.

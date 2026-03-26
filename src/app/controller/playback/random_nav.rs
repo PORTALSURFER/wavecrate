@@ -55,6 +55,7 @@ pub(crate) fn play_previous_random_sample(controller: &mut AppController) {
 pub(crate) fn toggle_random_navigation_mode(controller: &mut AppController) {
     controller.ui.browser.search.random_navigation_mode =
         !controller.ui.browser.search.random_navigation_mode;
+    controller.mark_browser_search_projection_revision_dirty();
     if controller.ui.browser.search.random_navigation_mode {
         mark_current_random_navigation_focus(controller);
         controller.set_status_message(StatusMessage::custom(
