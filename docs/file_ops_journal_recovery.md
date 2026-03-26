@@ -40,6 +40,9 @@ but reconcile still trusts the observed filesystem state first.
 - If the target file does not exist, recovery removes any stale target DB row.
 - For moves, if the source file is gone and the target exists, recovery removes
   the stale source DB row.
+- If move recovery still needs to clean the source DB row but the source root is
+  unavailable at replay time, recovery keeps the journal row and retries later
+  instead of treating the operation as complete.
 - For moves, if the source file still exists and the target does not, recovery
   leaves the source DB row intact and treats the operation as not finalized.
 

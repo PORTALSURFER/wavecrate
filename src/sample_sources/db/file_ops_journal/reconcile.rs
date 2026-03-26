@@ -3,7 +3,7 @@ use std::time::UNIX_EPOCH;
 
 use super::super::SourceDatabase;
 use super::FileOpJournalEntry;
-use super::entry::FileOpKind;
+use super::entry::{FileOpKind, FileOpStage};
 use super::store::{list_entries, remove_entry};
 
 /// Summary of reconciliation work performed for pending file ops.
@@ -143,6 +143,13 @@ fn reconcile_source_entry(
         return Ok(());
     };
     if !source_root.is_dir() {
+        if should_defer_source_cleanup(entry, target_exists) {
+            return Err(format!(
+                "Deferred move recovery for {} until source root is available: {}",
+                entry.id,
+                source_root.display()
+            ));
+        }
         return Ok(());
     }
     let source_absolute = source_root.join(source_relative);
@@ -163,6 +170,10 @@ fn reconcile_source_entry(
         );
     }
     Ok(())
+}
+
+fn should_defer_source_cleanup(entry: &FileOpJournalEntry, target_exists: bool) -> bool {
+    target_exists && entry.stage != FileOpStage::SourceDb
 }
 
 fn file_metadata(path: &Path) -> Result<(u64, i64), String> {

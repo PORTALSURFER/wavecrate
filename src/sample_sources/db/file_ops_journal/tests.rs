@@ -5,6 +5,8 @@ use tempfile::TempDir;
 
 use crate::sample_sources::{Rating, SourceDatabase};
 
+mod offline_source_retry;
+
 struct MoveRecoveryFixture {
     _temp: TempDir,
     source_root: PathBuf,
