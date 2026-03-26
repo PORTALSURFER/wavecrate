@@ -202,6 +202,7 @@ impl AppController {
         self.ui.waveform.slice_mode_enabled = enabled;
         if !enabled {
             self.ui.waveform.selected_slices.clear();
+            self.ui.waveform.slice_review = Default::default();
         }
     }
 

@@ -278,10 +278,34 @@ fn apply_native_waveform_option_actions_update_waveform_state() {
     controller.ui.waveform.selected_slices.clear();
     controller.apply_native_ui_action(NativeUiAction::ToggleWaveformSliceSelection { index: 1 });
     assert_eq!(controller.ui.waveform.selected_slices, vec![1]);
+    controller.start_slice_review();
+    controller.apply_native_ui_action(NativeUiAction::MoveWaveformSliceFocus { delta: 1 });
+    assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(1));
+    controller.apply_native_ui_action(NativeUiAction::ToggleFocusedWaveformSliceExportMark);
+    assert_eq!(controller.ui.waveform.slice_review.marked_indices, vec![1]);
 
     controller.apply_native_ui_action(NativeUiAction::SetSliceModeEnabled { enabled: false });
     assert!(!controller.ui.waveform.slice_mode_enabled);
     assert!(controller.ui.waveform.selected_slices.is_empty());
+    assert_eq!(
+        controller.ui.waveform.slice_review,
+        crate::app::state::WaveformSliceReviewState::default()
+    );
+}
+
+#[test]
+fn handle_escape_exits_slice_review_before_clearing_slice_batch() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.ui.waveform.slices = vec![
+        crate::selection::SelectionRange::new(0.1, 0.2),
+        crate::selection::SelectionRange::new(0.3, 0.4),
+    ];
+    controller.start_slice_review();
+
+    controller.apply_native_ui_action(NativeUiAction::HandleEscape);
+
+    assert!(!controller.ui.waveform.slice_review.active);
+    assert_eq!(controller.ui.waveform.slices.len(), 2);
 }
 
 #[test]

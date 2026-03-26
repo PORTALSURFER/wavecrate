@@ -29,7 +29,7 @@ use crate::app::controller::jobs::{
 use crate::app::controller::playback::audio_samples::write_wav;
 
 impl AppController {
-    /// Save the current waveform selection or accepted slices into the browser.
+    /// Save the current waveform selection or marked slice batch into the browser.
     ///
     /// This shares the same export path used by waveform drag-drop so keyboard and
     /// pointer workflows produce identical files and status updates.

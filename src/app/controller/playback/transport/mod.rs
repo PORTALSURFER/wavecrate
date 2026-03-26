@@ -23,3 +23,32 @@ pub(crate) use selection::{
     update_edit_selection_drag, update_selection_drag,
 };
 pub(crate) use volume::{commit_volume_setting, flush_pending_volume_setting, set_volume_live};
+
+const MIN_AUDITION_SELECTION_WIDTH: f32 = 1.0e-6;
+
+/// Return the focused review slice range when keyboard slice review is active.
+pub(crate) fn slice_review_audition_range(controller: &AppController) -> Option<SelectionRange> {
+    controller
+        .slice_review_active()
+        .then(|| controller.focused_slice_review_range())
+        .flatten()
+        .filter(|range| !range.is_empty())
+}
+
+/// Return the playback span that should drive audition and looping behavior.
+///
+/// Slice review takes priority so `Space` and loop playback can audition short
+/// silence-split slices without mutating the normal waveform selection. When
+/// review is inactive, the controller falls back to the established playback
+/// selection rules and BPM minimum guard.
+pub(crate) fn playback_audition_selection(controller: &AppController) -> Option<SelectionRange> {
+    slice_review_audition_range(controller).or_else(|| {
+        controller
+            .selection_state
+            .range
+            .range()
+            .or(controller.ui.waveform.selection)
+            .filter(|range| range.width() > MIN_AUDITION_SELECTION_WIDTH)
+            .filter(|range| super::selection_meets_bpm_min_for_playback(controller, *range))
+    })
+}

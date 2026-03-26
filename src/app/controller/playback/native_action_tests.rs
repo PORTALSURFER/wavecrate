@@ -59,3 +59,26 @@ fn native_waveform_selection_update_retargets_loop_playback_after_cycle() {
     assert!((controller.ui.waveform.playhead.position - 0.2).abs() < 1e-6);
     assert!(controller.audio.pending_loop_retarget.is_none());
 }
+
+#[test]
+fn play_from_start_auditions_focused_review_slice_without_selection() {
+    let Some(mut controller) = setup_native_looping_controller(SelectionRange::new(0.1, 0.4))
+    else {
+        return;
+    };
+    controller.selection_state.range.set_range(None);
+    controller.apply_selection(None);
+    controller.ui.waveform.slices = vec![
+        SelectionRange::new(0.05, 0.1),
+        SelectionRange::new(0.42, 0.48),
+    ];
+    controller.start_slice_review();
+    controller.move_slice_review_focus(1);
+
+    controller.apply_native_ui_action(NativeUiAction::PlayFromStart);
+
+    assert!(controller.selection_state.range.range().is_none());
+    assert!(controller.ui.waveform.selection.is_none());
+    assert!((controller.ui.waveform.playhead.position - 0.42).abs() < 1e-6);
+    assert_eq!(controller.ui.waveform.playhead.active_span_end, Some(0.48));
+}

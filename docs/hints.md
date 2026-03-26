@@ -6,7 +6,7 @@
 - Selection nudge: Use arrow keys to nudge a selection and keep timing tight.
 - BPM snapping: Turn on BPM snap to align selections to the beat grid.
 - Transient snapping: Enable transient snap to grab onsets when slicing samples.
-- Silence split: Click Silence Split, preview the detected slices, then press E to export `_silence_split_###.wav` samples.
+- Silence split: Click Silence Split, then use Left/Right to review slices, Space to audition, A to mark, and E to export only the marked `_silence_split_###.wav` samples.
 - Batch triage: Multi-select samples to apply keep/trash tags in one action.
 - Collect from selection: Use selection export to save a clip without leaving the waveform view.
 - Search samples: Press F to focus the search box and filter the browser list.

@@ -50,6 +50,17 @@ pub(super) fn apply_waveform_native_ui_action(
             controller.toggle_slice_selection(index);
             controller.focus_waveform_context();
         }
+        NativeUiAction::MoveWaveformSliceFocus { delta } => {
+            if !controller.move_slice_review_focus(delta) {
+                controller.slide_selection_range(delta.into());
+            }
+        }
+        NativeUiAction::ToggleFocusedWaveformSliceExportMark => {
+            if let Err(err) = controller.toggle_focused_slice_export_mark() {
+                controller.set_status(err, StatusTone::Info);
+            }
+            controller.focus_waveform_context();
+        }
         NativeUiAction::SeekWaveformPrecise { position_nanos } => {
             controller.queue_waveform_seek_nanos(position_nanos)
         }

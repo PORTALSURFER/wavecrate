@@ -106,3 +106,88 @@ fn save_waveform_slices_to_browser_ignores_duplicate_submit_while_running() {
             .is_none()
     });
 }
+
+#[test]
+fn active_slice_review_requires_marks_before_export() {
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(source_root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+
+    let wav_path = source_root.join("clip.wav");
+    write_test_wav(&wav_path, &[0.1, 0.2, 0.3, 0.4, 0.5, 0.6]);
+    controller
+        .load_waveform_for_selection(&source, Path::new("clip.wav"))
+        .unwrap();
+    controller.ui.waveform.slices = vec![
+        SelectionRange::new(0.0, 0.34),
+        SelectionRange::new(0.34, 0.67),
+    ];
+    controller.start_slice_review();
+
+    controller.save_waveform_selection_or_slices_to_browser_action(true);
+
+    assert_eq!(controller.ui.status.text, "Mark slices to export first");
+    assert!(
+        controller
+            .runtime
+            .jobs
+            .pending_slice_batch_export()
+            .is_none()
+    );
+}
+
+#[test]
+fn slice_review_exports_only_marked_slices() {
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(source_root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+
+    let wav_path = source_root.join("clip.wav");
+    write_test_wav(&wav_path, &[0.1, 0.2, 0.3, 0.4, 0.5, 0.6]);
+    controller
+        .load_waveform_for_selection(&source, Path::new("clip.wav"))
+        .unwrap();
+    controller.ui.waveform.slices = vec![
+        SelectionRange::new(0.0, 0.34),
+        SelectionRange::new(0.34, 0.67),
+        SelectionRange::new(0.67, 1.0),
+    ];
+    controller.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::SilenceSplit;
+    controller.start_slice_review();
+    controller.move_slice_review_focus(1);
+    controller.toggle_focused_slice_export_mark().unwrap();
+    controller.move_slice_review_focus(1);
+    controller.toggle_focused_slice_export_mark().unwrap();
+
+    controller
+        .save_waveform_selection_or_slices_to_browser(true)
+        .expect("marked slice batch should queue");
+
+    pump_background_jobs_until(&mut controller, |controller| {
+        controller
+            .runtime
+            .jobs
+            .pending_slice_batch_export()
+            .is_none()
+            && source_root.join("clip_silence_split_002.wav").is_file()
+    });
+
+    assert_eq!(controller.ui.status.text, "Saved 2 slices");
+    assert!(source_root.join("clip_silence_split_001.wav").is_file());
+    assert!(source_root.join("clip_silence_split_002.wav").is_file());
+    assert!(!source_root.join("clip_silence_split_003.wav").exists());
+}

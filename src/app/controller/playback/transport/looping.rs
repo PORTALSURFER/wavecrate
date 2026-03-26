@@ -194,13 +194,7 @@ fn loop_restart_start_override(controller: &AppController, progress: Option<f32>
 
 /// Return true when a valid playback selection should drive loop restart position.
 fn has_loop_playback_selection(controller: &AppController) -> bool {
-    controller
-        .selection_state
-        .range
-        .range()
-        .or(controller.ui.waveform.selection)
-        .filter(|range| super::super::selection_meets_bpm_min_for_playback(controller, *range))
-        .is_some()
+    super::playback_audition_selection(controller).is_some()
 }
 
 #[cfg(test)]

@@ -85,6 +85,9 @@ pub(crate) fn stop_playback_if_active(controller: &mut AppController) -> bool {
 }
 
 pub(crate) fn handle_escape(controller: &mut AppController) {
+    if controller.exit_slice_review() {
+        return;
+    }
     if controller.cancel_edit_selection_fades() {
         return;
     }
@@ -153,13 +156,7 @@ fn current_playhead_position(controller: &AppController) -> Option<f32> {
 /// selection start rather than the file head so repeated `Space` presses respect
 /// the marked play range.
 fn play_from_start_position(controller: &AppController) -> f32 {
-    controller
-        .selection_state
-        .range
-        .range()
-        .or(controller.ui.waveform.selection)
-        .filter(|range| range.width() > 0.0)
-        .filter(|range| super::super::selection_meets_bpm_min_for_playback(controller, *range))
+    super::playback_audition_selection(controller)
         .map(|range| range.start())
         .unwrap_or(0.0)
 }

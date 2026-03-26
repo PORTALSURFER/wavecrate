@@ -114,13 +114,7 @@ fn configure_player_for_playback(controller: &AppController, player: &Rc<RefCell
 }
 
 fn playback_selection(controller: &AppController) -> Option<SelectionRange> {
-    controller
-        .selection_state
-        .range
-        .range()
-        .or(controller.ui.waveform.selection)
-        .filter(|range| range.width() > super::PLAYBACK_SELECTION_MIN_WIDTH)
-        .filter(|range| super::super::selection_meets_bpm_min_for_playback(controller, *range))
+    crate::app::controller::playback::transport::playback_audition_selection(controller)
 }
 
 fn audition_span(

@@ -230,6 +230,10 @@ pub enum GuiActionKind {
     SetSliceModeEnabled,
     /// Toggle selection for one previewed waveform slice.
     ToggleWaveformSliceSelection,
+    /// Move the focused review slice by one signed step.
+    MoveWaveformSliceFocus,
+    /// Toggle export marking for the focused review slice.
+    ToggleFocusedWaveformSliceExportMark,
     /// Set transport volume.
     SetVolume,
     /// Commit the current volume setting after an interactive edit.
@@ -310,7 +314,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 150] = [
+    pub const ALL: [Self; 152] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -423,6 +427,8 @@ impl GuiActionKind {
         Self::ToggleBpmSnap,
         Self::SetSliceModeEnabled,
         Self::ToggleWaveformSliceSelection,
+        Self::MoveWaveformSliceFocus,
+        Self::ToggleFocusedWaveformSliceExportMark,
         Self::SetVolume,
         Self::CommitVolumeSetting,
         Self::SeekWaveformPrecise,

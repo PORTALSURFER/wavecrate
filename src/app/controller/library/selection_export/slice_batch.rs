@@ -66,11 +66,12 @@ impl AppController {
         if self.ui.waveform.slices.is_empty() {
             return Err("No slices to export".to_string());
         }
+        let slices = self.waveform_slice_export_ranges()?;
         Ok(SelectionSliceBatchExportSnapshot {
             source_id: audio.source_id.clone(),
             source_root: audio.root.clone(),
             relative_path: audio.relative_path.clone(),
-            slices: self.ui.waveform.slices.clone(),
+            slices,
             profile: self.ui.waveform.slice_batch_profile,
             audio: build_selection_export_audio_payload(
                 self.sample_view.waveform.decoded.as_ref(),

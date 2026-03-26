@@ -38,6 +38,8 @@ pub struct WaveformState {
     pub slice_batch_profile: WaveformSliceBatchProfile,
     /// Indices of slice ranges currently selected for edits.
     pub selected_slices: Vec<usize>,
+    /// Keyboard-first review state for previewed waveform slices.
+    pub slice_review: WaveformSliceReviewState,
     /// When true, waveform drags paint slice ranges instead of selection.
     pub slice_mode_enabled: bool,
     /// Label showing the hovered time position.
@@ -117,6 +119,21 @@ pub enum WaveformSliceBatchProfile {
     SilenceSplit,
 }
 
+/// Keyboard-oriented review state for previewed waveform slices.
+///
+/// Slice review intentionally stays separate from `selected_slices`: edit
+/// selection still powers merge/delete flows, while review focus and export
+/// marks drive fast audition/export decisions after silence splitting.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct WaveformSliceReviewState {
+    /// Whether keyboard slice review mode is currently active.
+    pub active: bool,
+    /// Zero-based index of the slice currently focused for audition.
+    pub focused_index: Option<usize>,
+    /// Zero-based slice indices explicitly marked for export.
+    pub marked_indices: Vec<usize>,
+}
+
 impl Default for WaveformState {
     fn default() -> Self {
         Self {
@@ -132,6 +149,7 @@ impl Default for WaveformState {
             slices: Vec::new(),
             slice_batch_profile: WaveformSliceBatchProfile::Manual,
             selected_slices: Vec::new(),
+            slice_review: WaveformSliceReviewState::default(),
             slice_mode_enabled: false,
             hover_time_label: None,
             channel_view: WaveformChannelView::Mono,
@@ -265,5 +283,8 @@ mod tests {
         assert!(state.image.is_none());
         assert!(state.waveform_image_signature.is_none());
         assert_eq!(state.slice_batch_profile, WaveformSliceBatchProfile::Manual);
+        assert!(!state.slice_review.active);
+        assert!(state.slice_review.focused_index.is_none());
+        assert!(state.slice_review.marked_indices.is_empty());
     }
 }

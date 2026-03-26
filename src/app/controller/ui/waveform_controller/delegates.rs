@@ -57,6 +57,13 @@ impl AppController {
         self.waveform().scroll_waveform_view(center);
     }
 
+    pub(crate) fn ensure_selection_visible_in_view(
+        &mut self,
+        selection: crate::selection::SelectionRange,
+    ) {
+        self.waveform().ensure_selection_visible_in_view(selection);
+    }
+
     pub(crate) fn zoom_waveform_to_selection(&mut self) {
         self.waveform().zoom_to_selection();
     }

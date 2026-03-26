@@ -65,6 +65,8 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::DeleteSelectedSliceMarkers
         | NativeUiAction::DetectWaveformSilenceSlices
         | NativeUiAction::ToggleWaveformSliceSelection { .. }
+        | NativeUiAction::MoveWaveformSliceFocus { .. }
+        | NativeUiAction::ToggleFocusedWaveformSliceExportMark
         | NativeUiAction::AlignWaveformStartToMarker
         | NativeUiAction::DeleteLoadedWaveformSample
         | NativeUiAction::SlideWaveformSelection { .. }
@@ -107,6 +109,8 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
             | NativeUiAction::FinishWaveformSelectionSmartScaleDrag
             | NativeUiAction::FinishWaveformEditSelectionDrag
             | NativeUiAction::ToggleWaveformSliceSelection { .. }
+            | NativeUiAction::MoveWaveformSliceFocus { .. }
+            | NativeUiAction::ToggleFocusedWaveformSliceExportMark
             | NativeUiAction::ClearWaveformSelection
             | NativeUiAction::ClearWaveformEditSelection
             | NativeUiAction::ClearWaveformSelections
@@ -135,6 +139,8 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::CloseOptionsPanel
             | NativeUiAction::SetPromptInput { .. }
             | NativeUiAction::ToggleWaveformSliceSelection { .. }
+            | NativeUiAction::MoveWaveformSliceFocus { .. }
+            | NativeUiAction::ToggleFocusedWaveformSliceExportMark
     )
 }
 

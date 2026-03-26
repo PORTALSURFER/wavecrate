@@ -206,6 +206,8 @@ pub(super) fn project_waveform_slice_previews(
                 normalized_to_micros(slice.end()),
             ),
             selected: ui.waveform.selected_slices.contains(&index),
+            focused: ui.waveform.slice_review.focused_index == Some(index),
+            marked_for_export: ui.waveform.slice_review.marked_indices.contains(&index),
         })
         .collect()
 }

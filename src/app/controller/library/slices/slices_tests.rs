@@ -153,6 +153,44 @@ fn detect_waveform_slices_ignores_transient_settings() {
     );
     assert!(controller.ui.waveform.slice_mode_enabled);
     assert!(controller.ui.waveform.selected_slices.is_empty());
+    assert!(controller.ui.waveform.slice_review.active);
+    assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(0));
+    assert!(
+        controller
+            .ui
+            .waveform
+            .slice_review
+            .marked_indices
+            .is_empty()
+    );
+    assert!(controller.ui.status.text.contains("Space audition"));
+}
+
+#[test]
+fn slice_review_navigation_and_marking_use_dedicated_state() {
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    controller.ui.waveform.slices = vec![
+        SelectionRange::new(0.0, 0.2),
+        SelectionRange::new(0.3, 0.4),
+        SelectionRange::new(0.6, 0.8),
+    ];
+
+    assert!(controller.start_slice_review());
+    assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(0));
+
+    assert!(controller.move_slice_review_focus(1));
+    assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(1));
+
+    let marked = controller.toggle_focused_slice_export_mark().unwrap();
+    assert!(marked);
+    assert_eq!(controller.ui.waveform.slice_review.marked_indices, vec![1]);
+    assert!(controller.ui.waveform.selected_slices.is_empty());
+
+    assert!(controller.exit_slice_review());
+    assert!(!controller.ui.waveform.slice_review.active);
+    assert!(controller.ui.waveform.slice_review.focused_index.is_none());
+    assert_eq!(controller.ui.waveform.slice_review.marked_indices, vec![1]);
 }
 
 #[test]
