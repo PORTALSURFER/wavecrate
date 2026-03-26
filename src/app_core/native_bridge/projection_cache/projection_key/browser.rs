@@ -15,6 +15,7 @@ pub(super) fn build_browser_frame_projection_key(
         browser_selected_paths_len: controller.ui.browser.selection.selected_paths.len(),
         browser_search_revision: controller.ui.projection_revisions.browser_search,
         browser_search_busy: controller.ui.browser.search.search_busy,
+        browser_similarity_filtered: controller.ui.browser.search.similar_query.is_some(),
         browser_sort: encode_browser_sort(controller.ui.browser.search.sort),
         browser_tab: encode_browser_tab(controller.ui.browser.active_tab),
         browser_similarity_follow_loaded: controller

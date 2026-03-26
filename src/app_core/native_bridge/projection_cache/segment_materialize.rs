@@ -98,6 +98,7 @@ fn apply_browser_frame(model: &mut NativeAppModel, frame: NativeBrowserPanelMode
     model.browser.active_rating_filters = frame.active_rating_filters;
     model.browser.search_placeholder = frame.search_placeholder;
     model.browser.busy = frame.busy;
+    model.browser.similarity_filtered = frame.similarity_filtered;
     model.browser.sort_label = frame.sort_label;
     model.browser.active_tab_label = frame.active_tab_label;
     model.browser.focused_sample_label = frame.focused_sample_label;

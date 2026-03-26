@@ -193,13 +193,24 @@ fn toggle_find_similar_focused_sample(controller: &mut AppController) {
     ) {
         controller.ui.browser.active_tab = crate::app_core::state::SampleBrowserTab::List;
     }
-    if controller.ui.browser.search.similar_query.is_some() {
-        controller.clear_similar_filter();
-    } else if let Some(row) = controller.focused_browser_row() {
-        if let Err(err) = controller.find_similar_for_visible_row(row) {
-            controller.set_status(format!("Find similar failed: {err}"), StatusTone::Error);
-        }
-    } else {
+    let Some(row) = controller.focused_browser_row() else {
         controller.set_status("Focus a sample to find similar", StatusTone::Info);
+        return;
+    };
+    let focused_sample_id = controller.sample_id_for_visible_row(row).ok();
+    let query_matches_focus = controller
+        .ui
+        .browser
+        .search
+        .similar_query
+        .as_ref()
+        .zip(focused_sample_id.as_deref())
+        .is_some_and(|(query, focused_sample_id)| query.sample_id == focused_sample_id);
+    if query_matches_focus {
+        controller.clear_similar_filter();
+        return;
+    }
+    if let Err(err) = controller.find_similar_for_visible_row(row) {
+        controller.set_status(format!("Find similar failed: {err}"), StatusTone::Error);
     }
 }

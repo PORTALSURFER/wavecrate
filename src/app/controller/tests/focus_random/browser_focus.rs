@@ -57,9 +57,12 @@ fn find_similar_from_map_switches_to_browser_list() {
     let (mut controller, source) = dummy_controller();
     prepare_browser_sample(&mut controller, &source, "map.wav");
     controller.focus_browser_row(0);
+    let focused_sample_id = controller
+        .sample_id_for_visible_row(0)
+        .expect("focused row sample id");
     controller.ui.browser.active_tab = SampleBrowserTab::Map;
     controller.ui.browser.search.similar_query = Some(crate::app::state::SimilarQuery {
-        sample_id: "test::map.wav".to_string(),
+        sample_id: focused_sample_id,
         label: "map.wav".to_string(),
         indices: vec![0],
         scores: vec![1.0],

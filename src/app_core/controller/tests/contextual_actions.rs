@@ -58,7 +58,13 @@ fn apply_native_commit_focused_browser_row_falls_back_to_transport_outside_brows
 #[test]
 fn apply_native_toggle_find_similar_switches_map_to_list_before_clearing_query() {
     with_fixture_controller("map", |controller| {
-        controller.ui.browser.search.similar_query = Some(dummy_similar_query());
+        controller.focus_browser_row_only(0);
+        controller.ui.browser.search.similar_query = Some(SimilarQuery {
+            sample_id: controller
+                .sample_id_for_visible_row(0)
+                .expect("focused row sample id"),
+            ..dummy_similar_query()
+        });
 
         controller.apply_native_ui_action(NativeUiAction::ToggleFindSimilarFocusedSample);
 
@@ -70,7 +76,13 @@ fn apply_native_toggle_find_similar_switches_map_to_list_before_clearing_query()
 #[test]
 fn apply_native_toggle_find_similar_clears_existing_query() {
     with_fixture_controller("browser", |controller| {
-        controller.ui.browser.search.similar_query = Some(dummy_similar_query());
+        controller.focus_browser_row_only(0);
+        controller.ui.browser.search.similar_query = Some(SimilarQuery {
+            sample_id: controller
+                .sample_id_for_visible_row(0)
+                .expect("focused row sample id"),
+            ..dummy_similar_query()
+        });
 
         controller.apply_native_ui_action(NativeUiAction::ToggleFindSimilarFocusedSample);
 

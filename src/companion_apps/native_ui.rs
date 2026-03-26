@@ -120,6 +120,7 @@ pub fn standard_browser_panel(config: CompanionBrowserPanelConfig) -> BrowserPan
         active_rating_filters: [false; 8],
         search_placeholder: config.search_placeholder,
         busy: config.busy,
+        similarity_filtered: false,
         sort_label: config.sort_label,
         active_tab_label: config.active_tab_label,
         focused_sample_label: config.focused_sample_label,
@@ -203,6 +204,7 @@ mod tests {
         assert!(panel.autoscroll);
         assert_eq!(panel.view_start_row, 0);
         assert_eq!(panel.active_rating_filters, [false; 8]);
+        assert!(!panel.similarity_filtered);
         assert_eq!(panel.sort_label.as_deref(), Some("custom"));
     }
 }

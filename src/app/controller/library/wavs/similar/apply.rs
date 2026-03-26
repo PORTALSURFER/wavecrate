@@ -5,6 +5,9 @@ pub(crate) fn apply_similarity_query(controller: &mut AppController, query: Simi
     controller.ui.browser.search.similar_query = Some(query);
     controller.ui.browser.search.sort = SampleBrowserSort::Similarity;
     controller.ui.browser.search.similarity_sort_follow_loaded = false;
+    controller.ui.browser.selection.autoscroll = true;
+    controller.ui.browser.viewport.view_window_start = 0;
+    controller.ui.browser.viewport.render_window_start = 0;
     if !controller.ui.browser.search.search_query.is_empty() {
         controller.mark_browser_search_projection_revision_dirty();
     }
@@ -40,6 +43,9 @@ mod tests {
         controller.ui.browser.search.search_focus_requested = true;
         controller.ui.browser.search.sort = SampleBrowserSort::ListOrder;
         controller.ui.browser.search.similarity_sort_follow_loaded = true;
+        controller.ui.browser.selection.autoscroll = false;
+        controller.ui.browser.viewport.view_window_start = 17;
+        controller.ui.browser.viewport.render_window_start = 9;
         let query = SimilarQuery {
             sample_id: "sample-id".to_string(),
             label: "Sample".to_string(),
@@ -56,6 +62,9 @@ mod tests {
         assert!(!controller.ui.browser.search.similarity_sort_follow_loaded);
         assert!(controller.ui.browser.search.search_query.is_empty());
         assert!(!controller.ui.browser.search.search_focus_requested);
+        assert!(controller.ui.browser.selection.autoscroll);
+        assert_eq!(controller.ui.browser.viewport.view_window_start, 0);
+        assert_eq!(controller.ui.browser.viewport.render_window_start, 0);
         assert_eq!(applied.anchor_index, Some(2));
     }
 }

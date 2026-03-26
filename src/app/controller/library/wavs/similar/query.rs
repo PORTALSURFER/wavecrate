@@ -120,6 +120,7 @@ pub(crate) fn build_similarity_query_for_loaded_sample(
     }
     let label = view_model::sample_display_label(&loaded_path);
     let anchor_index = controller.wav_index_for_path(&loaded_path);
+    let (indices, scores) = ensure_anchor_similarity_result(indices, scores, anchor_index);
     Ok(SimilarQuery {
         sample_id,
         label: format!("Loaded: {label}"),
@@ -189,12 +190,15 @@ fn build_similar_query_from_resolved(
     label_builder: impl FnOnce(&Path) -> String,
     anchor_override: Option<usize>,
 ) -> SimilarQuery {
+    let anchor_index = resolve_anchor_index(controller, &resolved.relative_path, anchor_override);
+    let (indices, scores) =
+        ensure_anchor_similarity_result(resolved.indices, resolved.scores, anchor_index);
     SimilarQuery {
         sample_id: resolved.sample_id,
         label: label_builder(&resolved.relative_path),
-        indices: resolved.indices,
-        scores: resolved.scores,
-        anchor_index: resolve_anchor_index(controller, &resolved.relative_path, anchor_override),
+        indices,
+        scores,
+        anchor_index,
     }
 }
 
@@ -204,6 +208,31 @@ fn resolve_anchor_index(
     anchor_override: Option<usize>,
 ) -> Option<usize> {
     anchor_override.or_else(|| controller.wav_index_for_path(relative_path))
+}
+
+/// Ensure the anchor sample remains present in similarity results with self-similarity.
+fn ensure_anchor_similarity_result(
+    mut indices: Vec<usize>,
+    mut scores: Vec<f32>,
+    anchor_index: Option<usize>,
+) -> (Vec<usize>, Vec<f32>) {
+    let Some(anchor_index) = anchor_index else {
+        return (indices, scores);
+    };
+    let Some(existing_position) = indices.iter().position(|index| *index == anchor_index) else {
+        indices.insert(0, anchor_index);
+        scores.insert(0, 1.0);
+        return (indices, scores);
+    };
+    if existing_position != 0 {
+        indices.remove(existing_position);
+        scores.remove(existing_position);
+        indices.insert(0, anchor_index);
+        scores.insert(0, 1.0);
+    } else if let Some(anchor_score) = scores.get_mut(0) {
+        *anchor_score = 1.0;
+    }
+    (indices, scores)
 }
 
 #[cfg(test)]
@@ -219,5 +248,21 @@ mod tests {
         )]);
         let anchor = resolve_anchor_index(&mut controller, Path::new("a.wav"), Some(7));
         assert_eq!(anchor, Some(7));
+    }
+
+    #[test]
+    fn ensure_anchor_similarity_result_inserts_missing_anchor_at_front() {
+        let (indices, scores) =
+            ensure_anchor_similarity_result(vec![3, 5], vec![0.7, 0.4], Some(2));
+        assert_eq!(indices, vec![2, 3, 5]);
+        assert_eq!(scores, vec![1.0, 0.7, 0.4]);
+    }
+
+    #[test]
+    fn ensure_anchor_similarity_result_moves_existing_anchor_to_front() {
+        let (indices, scores) =
+            ensure_anchor_similarity_result(vec![3, 2, 5], vec![0.7, 0.98, 0.4], Some(2));
+        assert_eq!(indices, vec![2, 3, 5]);
+        assert_eq!(scores, vec![1.0, 0.7, 0.4]);
     }
 }

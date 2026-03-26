@@ -42,6 +42,7 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         controller.ui.browser.search.search_focus_requested,
     ));
     let busy = controller.ui.browser.search.search_busy;
+    let similarity_filtered = controller.ui.browser.search.similar_query.is_some();
     let sort_label = Some(
         super::browser_sort_label(SampleBrowserSort::from(controller.ui.browser.search.sort))
             .to_owned(),
@@ -63,6 +64,7 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         active_rating_filters,
         search_placeholder,
         busy,
+        similarity_filtered,
         sort_label,
         active_tab_label,
         focused_sample_label,
