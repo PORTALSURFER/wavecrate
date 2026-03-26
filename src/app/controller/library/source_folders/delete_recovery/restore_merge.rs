@@ -5,7 +5,6 @@
 //! tree file-by-file, reuses exact matches, and preserves both copies when contents differ.
 
 use super::DeleteStagingInfo;
-use super::journal::remove_entry;
 use std::path::{Path, PathBuf};
 
 #[path = "restore_merge/ops.rs"]
@@ -74,11 +73,17 @@ pub(crate) fn restore_retained_folder_with_merge(
     absolute: &Path,
     staging_root: &Path,
 ) -> Result<RetainedRestoreMergeReport, String> {
-    let stamp = ops::utc_conflict_stamp()?;
-    restore_retained_folder_with_merge_at(info, source_root, absolute, staging_root, &stamp)
+    let stamp = new_restore_stamp()?;
+    restore_retained_folder_with_merge_with_stamp(info, source_root, absolute, staging_root, &stamp)
 }
 
-fn restore_retained_folder_with_merge_at(
+/// Create one stable timestamp stamp for a retained-restore conflict-resolution run.
+pub(crate) fn new_restore_stamp() -> Result<String, String> {
+    ops::utc_conflict_stamp()
+}
+
+/// Restore one retained delete using a caller-provided conflict stamp.
+pub(crate) fn restore_retained_folder_with_merge_with_stamp(
     info: &DeleteStagingInfo,
     source_root: &Path,
     absolute: &Path,
@@ -100,7 +105,6 @@ fn restore_retained_folder_with_merge_at(
         stamp,
         &mut report,
     )?;
-    remove_entry(staging_root, &info.id)?;
     super::cleanup_staging_root(staging_root);
     Ok(report)
 }

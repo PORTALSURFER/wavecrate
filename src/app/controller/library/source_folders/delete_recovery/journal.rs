@@ -1,6 +1,7 @@
 //! Journal-backed staging helpers for folder-delete crash recovery.
 //!
-//! The on-disk journal records the delete lifecycle as `Intent -> Staged -> Deleted`.
+//! The on-disk journal records the delete lifecycle as
+//! `Intent -> Staged -> Deleted -> RestorePendingDb`.
 //! Recovery uses that contract to decide whether a folder should be restored back into the
 //! source tree after a crash or retained inside the app-owned trash area.
 
@@ -23,6 +24,8 @@ pub(crate) enum DeleteJournalStage {
     /// Database state was committed, so the staged folder now represents an app-owned delete.
     #[serde(alias = "db_committed")]
     Deleted,
+    /// Filesystem restore started and DB metadata replay still needs durable completion.
+    RestorePendingDb,
 }
 
 /// Metadata for a folder staged for deletion.
@@ -47,6 +50,8 @@ pub(super) struct DeleteJournalEntry {
     #[serde(default)]
     pub(super) deleted_entries: Vec<WavEntry>,
     pub(super) stage: DeleteJournalStage,
+    #[serde(default)]
+    pub(super) restore_stamp: Option<String>,
     pub(super) created_at: i64,
 }
 
@@ -75,6 +80,7 @@ pub(crate) fn stage_folder_for_delete(
             staged_relative: staged_relative.to_string_lossy().to_string(),
             deleted_entries: deleted_entries.to_vec(),
             stage: DeleteJournalStage::Intent,
+            restore_stamp: None,
             created_at: now_epoch_seconds()?,
         },
     )?;
@@ -98,6 +104,18 @@ pub(crate) fn stage_folder_for_delete(
 /// Mark a staged delete as a retained app-owned delete after DB updates succeed.
 pub(crate) fn mark_delete_retained(staging_root: &Path, id: &str) -> Result<(), String> {
     update_journal_stage(staging_root, id, DeleteJournalStage::Deleted)
+}
+
+/// Mark a retained delete as actively restoring so restart recovery can finish DB replay.
+pub(crate) fn mark_delete_restore_pending_db(
+    staging_root: &Path,
+    id: &str,
+    stamp: &str,
+) -> Result<(), String> {
+    update_entry(staging_root, id, |entry| {
+        entry.stage = DeleteJournalStage::RestorePendingDb;
+        entry.restore_stamp = Some(stamp.to_string());
+    })
 }
 
 /// Remove a journal entry after a staged delete is resolved.
@@ -161,6 +179,7 @@ pub(crate) fn restage_deleted_folder(
         staged_relative: info.staged_relative.to_string_lossy().to_string(),
         deleted_entries: deleted_entries.to_vec(),
         stage: DeleteJournalStage::Intent,
+        restore_stamp: None,
         created_at: now_epoch_seconds()?,
     };
     ensure_staging_parent(&info.staged_absolute, staging_root)?;
@@ -247,14 +266,12 @@ fn update_journal_stage(
     id: &str,
     stage: DeleteJournalStage,
 ) -> Result<(), String> {
-    let mut journal = load_journal(staging_root)?;
-    let entry = journal
-        .entries
-        .iter_mut()
-        .find(|entry| entry.id == id)
-        .ok_or_else(|| "Delete journal entry missing".to_string())?;
-    entry.stage = stage;
-    save_journal(staging_root, &journal)
+    update_entry(staging_root, id, |entry| {
+        entry.stage = stage;
+        if !matches!(stage, DeleteJournalStage::RestorePendingDb) {
+            entry.restore_stamp = None;
+        }
+    })
 }
 
 fn insert_entry(staging_root: &Path, entry: DeleteJournalEntry) -> Result<(), String> {
@@ -267,6 +284,21 @@ fn insert_entry(staging_root: &Path, entry: DeleteJournalEntry) -> Result<(), St
         return Err("Delete journal entry already exists".into());
     }
     journal.entries.push(entry);
+    save_journal(staging_root, &journal)
+}
+
+fn update_entry(
+    staging_root: &Path,
+    id: &str,
+    mutate: impl FnOnce(&mut DeleteJournalEntry),
+) -> Result<(), String> {
+    let mut journal = load_journal(staging_root)?;
+    let entry = journal
+        .entries
+        .iter_mut()
+        .find(|entry| entry.id == id)
+        .ok_or_else(|| "Delete journal entry missing".to_string())?;
+    mutate(entry);
     save_journal(staging_root, &journal)
 }
 

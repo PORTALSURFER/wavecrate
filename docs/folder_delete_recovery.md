@@ -26,6 +26,9 @@ Each journal row moves through these stages:
 - `Deleted`
   - Database updates completed and the delete is logically committed.
   - Recovery expectation: retain the staged folder in `.sempal_delete_staging` until an explicit restore or purge path resolves it.
+- `RestorePendingDb`
+  - Explicit retained restore started and may already have moved files back into the source tree, but database metadata replay is not durably finished yet.
+  - Recovery expectation: finish any remaining merge work, then rebuild DB metadata from the retained delete snapshot before clearing the journal row.
 
 ## Recovery rules
 
@@ -52,6 +55,10 @@ Each journal row moves through these stages:
   explicit restore after restart can reconstruct the source database state when
   the staged file becomes canonical again, while exact-match reuse preserves any
   newer metadata already attached to the existing canonical file.
+- Explicit retained restore now keeps durable journal state until both the
+  filesystem merge and metadata replay complete, so restart recovery can finish
+  the operation if the app crashes after files move but before DB state is
+  rebuilt.
 - Explicit restore or purge after restart is a best-effort recovery action, not
   a resurrection of the prior-session undo/redo stack.
 

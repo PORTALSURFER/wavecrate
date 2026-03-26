@@ -17,7 +17,7 @@ fn retained_restore_reuses_identical_existing_file() -> Result<(), String> {
     fs::create_dir_all(&original).unwrap();
     fs::write(original.join("kick.wav"), b"same").unwrap();
 
-    let report = restore_retained_folder_with_merge_at(
+    let report = restore_retained_folder_with_merge_with_stamp(
         &staged,
         &root,
         &original,
@@ -35,7 +35,7 @@ fn retained_restore_reuses_identical_existing_file() -> Result<(), String> {
     );
     assert!(!report.had_conflicts);
     assert_eq!(fs::read(original.join("kick.wav")).unwrap(), b"same");
-    assert!(!staging_root.exists());
+    assert!(staging_root.exists());
     Ok(())
 }
 
@@ -51,7 +51,7 @@ fn retained_restore_keeps_newer_existing_file_and_timestamps_staged_copy() -> Re
     fs::create_dir_all(&original).unwrap();
     fs::write(original.join("kick.wav"), b"newer-existing").unwrap();
 
-    let report = restore_retained_folder_with_merge_at(
+    let report = restore_retained_folder_with_merge_with_stamp(
         &staged,
         &root,
         &original,
@@ -92,7 +92,7 @@ fn retained_restore_replaces_older_existing_file_when_staged_copy_is_newer() -> 
     fs::create_dir_all(&original).unwrap();
     fs::rename(&older_file, original.join("kick.wav")).unwrap();
 
-    let report = restore_retained_folder_with_merge_at(
+    let report = restore_retained_folder_with_merge_with_stamp(
         &staged,
         &root,
         &original,
