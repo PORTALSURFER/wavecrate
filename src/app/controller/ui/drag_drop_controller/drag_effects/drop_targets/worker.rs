@@ -247,15 +247,10 @@ fn load_dropped_sample_metadata(
     relative_path: &Path,
 ) -> Result<DroppedSampleMetadata, String> {
     let metadata = load_sample_move_metadata(db, relative_path)?;
-    let locked = match db.locked_for_path(relative_path) {
-        Ok(Some(locked)) => locked,
-        Ok(None) => return Err("Sample not found in database".to_string()),
-        Err(err) => return Err(format!("Failed to read database: {err}")),
-    };
     Ok(DroppedSampleMetadata {
         tag: metadata.tag,
         looped: metadata.looped,
-        locked,
+        locked: metadata.locked,
         last_played_at: metadata.last_played_at,
     })
 }

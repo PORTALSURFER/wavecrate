@@ -11,6 +11,7 @@ use super::super::util::{map_sql_error, parse_relative_path_from_db};
 /// Apply additive column migrations needed by older source databases.
 pub(super) fn apply_optional_migrations(connection: &Connection) -> Result<(), SourceDbError> {
     ensure_wav_files_optional_columns(connection)?;
+    ensure_file_ops_journal_optional_columns(connection)?;
     ensure_analysis_jobs_optional_columns(connection)?;
     ensure_samples_optional_columns(connection)?;
     Ok(())
@@ -163,6 +164,19 @@ fn ensure_analysis_jobs_optional_columns(connection: &Connection) -> Result<(), 
                      ELSE relative_path
                  END
                  WHERE relative_path = '' OR relative_path IS NULL",
+                [],
+            )
+            .map_err(map_sql_error)?;
+    }
+    Ok(())
+}
+
+fn ensure_file_ops_journal_optional_columns(connection: &Connection) -> Result<(), SourceDbError> {
+    let columns = table_columns(connection, "file_ops_journal")?;
+    if !columns.contains("locked") {
+        connection
+            .execute(
+                "ALTER TABLE file_ops_journal ADD COLUMN locked INTEGER",
                 [],
             )
             .map_err(map_sql_error)?;

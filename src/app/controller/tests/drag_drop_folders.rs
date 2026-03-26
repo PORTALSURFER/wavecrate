@@ -349,6 +349,7 @@ fn apply_folder_move_result_remaps_folder_state_and_focuses_destination() {
                 modified_ns: 0,
                 tag: crate::sample_sources::Rating::NEUTRAL,
                 looped: false,
+                locked: false,
                 last_played_at: None,
             }],
             errors: Vec::new(),

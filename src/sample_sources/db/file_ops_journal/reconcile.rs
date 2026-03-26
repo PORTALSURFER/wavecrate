@@ -117,6 +117,11 @@ fn reconcile_target_entry(
                 .set_looped(&entry.target_relative, looped)
                 .map_err(|err| err.to_string())?;
         }
+        if let Some(locked) = entry.locked {
+            batch
+                .set_locked(&entry.target_relative, locked)
+                .map_err(|err| err.to_string())?;
+        }
         if let Some(last_played_at) = entry.last_played_at {
             batch
                 .set_last_played_at(&entry.target_relative, last_played_at)

@@ -11,6 +11,7 @@ pub(super) fn sample_move_metadata(metadata: DroppedSampleMetadata) -> SampleMov
     SampleMoveMetadata {
         tag: metadata.tag,
         looped: metadata.looped,
+        locked: metadata.locked,
         last_played_at: metadata.last_played_at,
     }
 }

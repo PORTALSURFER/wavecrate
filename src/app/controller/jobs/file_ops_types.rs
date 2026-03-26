@@ -207,6 +207,8 @@ pub(crate) struct SourceMoveSuccess {
     pub(crate) tag: crate::sample_sources::Rating,
     /// Loop marker state.
     pub(crate) looped: bool,
+    /// Keep/lock marker state.
+    pub(crate) locked: bool,
     /// Last played timestamp, if any.
     pub(crate) last_played_at: Option<i64>,
 }
@@ -235,6 +237,8 @@ pub(crate) struct FolderEntryMove {
     pub(crate) tag: crate::sample_sources::Rating,
     /// Loop marker state.
     pub(crate) looped: bool,
+    /// Keep/lock marker state.
+    pub(crate) locked: bool,
     /// Last played timestamp, if any.
     pub(crate) last_played_at: Option<i64>,
 }

@@ -34,6 +34,7 @@ impl MoveRecoveryFixture {
         source_db.upsert_file(&source_relative, 16, 1).unwrap();
         source_db.set_tag(&source_relative, Rating::KEEP_1).unwrap();
         source_db.set_looped(&source_relative, true).unwrap();
+        source_db.set_locked(&source_relative, true).unwrap();
         source_db.set_last_played_at(&source_relative, 123).unwrap();
         let target_relative = PathBuf::from("moved.wav");
         let staged_relative = staged_relative_for_target(&target_relative, "test").unwrap();
@@ -46,6 +47,7 @@ impl MoveRecoveryFixture {
                 staged_relative: staged_relative.clone(),
                 tag: Rating::KEEP_1,
                 looped: true,
+                locked: true,
                 last_played_at: Some(123),
             },
         )
@@ -127,6 +129,13 @@ fn assert_target_metadata_preserved(fixture: &MoveRecoveryFixture) {
     assert_eq!(
         fixture
             .target_db
+            .locked_for_path(&fixture.target_relative)
+            .unwrap(),
+        Some(true)
+    );
+    assert_eq!(
+        fixture
+            .target_db
             .last_played_at_for_path(&fixture.target_relative)
             .unwrap(),
         Some(123)
@@ -173,6 +182,7 @@ fn reconcile_same_source_move_from_staged_file() {
     db.upsert_file(&source_relative, 16, 1).unwrap();
     db.set_tag(&source_relative, Rating::KEEP_1).unwrap();
     db.set_looped(&source_relative, true).unwrap();
+    db.set_locked(&source_relative, true).unwrap();
     db.set_last_played_at(&source_relative, 123).unwrap();
     let target_relative = PathBuf::from("moved.wav");
     let staged_relative = staged_relative_for_target(&target_relative, "test").unwrap();
@@ -182,12 +192,13 @@ fn reconcile_same_source_move_from_staged_file() {
             source_root: source_root.clone(),
             source_relative: source_relative.clone(),
             target_relative: target_relative.clone(),
-            staged_relative: staged_relative.clone(),
-            tag: Rating::KEEP_1,
-            looped: true,
-            last_played_at: Some(123),
-        },
-    )
+                staged_relative: staged_relative.clone(),
+                tag: Rating::KEEP_1,
+                looped: true,
+                locked: true,
+                last_played_at: Some(123),
+            },
+        )
     .unwrap();
     insert_entry(&db, &entry).unwrap();
     let staged_absolute = source_root.join(&staged_relative);
@@ -204,6 +215,7 @@ fn reconcile_same_source_move_from_staged_file() {
         Some(Rating::KEEP_1)
     );
     assert_eq!(db.looped_for_path(&target_relative).unwrap(), Some(true));
+    assert_eq!(db.locked_for_path(&target_relative).unwrap(), Some(true));
     assert_eq!(
         db.last_played_at_for_path(&target_relative).unwrap(),
         Some(123)
@@ -226,6 +238,7 @@ fn reconcile_copy_from_staged_file() {
         target_relative.clone(),
         staged_relative.clone(),
         Rating::KEEP_1,
+        true,
         true,
         Some(123),
     )
@@ -251,6 +264,10 @@ fn reconcile_copy_from_staged_file() {
     );
     assert_eq!(
         target_db.looped_for_path(&target_relative).unwrap(),
+        Some(true)
+    );
+    assert_eq!(
+        target_db.locked_for_path(&target_relative).unwrap(),
         Some(true)
     );
     assert_eq!(
@@ -295,6 +312,10 @@ fn reconcile_source_db_stage_is_idempotent_after_move_completion() {
     fixture
         .target_db
         .set_looped(&fixture.target_relative, true)
+        .unwrap();
+    fixture
+        .target_db
+        .set_locked(&fixture.target_relative, true)
         .unwrap();
     fixture
         .target_db
@@ -360,10 +381,11 @@ fn reconcile_reports_and_drops_malformed_journal_rows() {
         .connection
         .execute(
             "INSERT INTO file_ops_journal (
-                id, op_type, stage, source_root, source_relative, target_relative,
-                staged_relative, file_size, modified_ns, tag, looped, last_played_at, created_at
-             )
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                 id, op_type, stage, source_root, source_relative, target_relative,
+                 staged_relative, file_size, modified_ns, tag, looped, locked, last_played_at,
+                 created_at
+              )
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 "bad-row",
                 "move",
@@ -372,6 +394,7 @@ fn reconcile_reports_and_drops_malformed_journal_rows() {
                 Option::<String>::None,
                 "/absolute.wav",
                 Option::<String>::None,
+                Option::<i64>::None,
                 Option::<i64>::None,
                 Option::<i64>::None,
                 Option::<i64>::None,

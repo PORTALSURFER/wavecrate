@@ -146,6 +146,7 @@ mod tests {
             staged_relative,
             Rating::NEUTRAL,
             false,
+            false,
             None,
         )
         .unwrap();
@@ -186,6 +187,7 @@ mod tests {
             relative.clone(),
             staged_relative.clone(),
             Rating::NEUTRAL,
+            false,
             false,
             None,
         )

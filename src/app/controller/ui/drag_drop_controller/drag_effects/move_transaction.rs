@@ -12,6 +12,8 @@ pub(super) struct SampleMoveMetadata {
     pub(super) tag: Rating,
     /// Loop marker state persisted for the sample.
     pub(super) looped: bool,
+    /// Keep-lock state persisted for top-kept samples.
+    pub(super) locked: bool,
     /// Last played timestamp, if any.
     pub(super) last_played_at: Option<i64>,
 }
@@ -63,12 +65,18 @@ pub(super) fn load_sample_move_metadata(
         Ok(None) => return Err("Sample not found in database".to_string()),
         Err(err) => return Err(format!("Failed to read database: {err}")),
     };
+    let locked = match db.locked_for_path(relative_path) {
+        Ok(Some(locked)) => locked,
+        Ok(None) => return Err("Sample not found in database".to_string()),
+        Err(err) => return Err(format!("Failed to read database: {err}")),
+    };
     let last_played_at = db
         .last_played_at_for_path(relative_path)
         .map_err(|err| format!("Failed to read database: {err}"))?;
     Ok(SampleMoveMetadata {
         tag,
         looped,
+        locked,
         last_played_at,
     })
 }
@@ -90,6 +98,7 @@ pub(super) fn prepare_staged_copy(
         staged_relative.clone(),
         metadata.tag,
         metadata.looped,
+        metadata.locked,
         metadata.last_played_at,
     )
     .map_err(|err| format!("Failed to stage copy journal: {err}"))?;
@@ -158,6 +167,7 @@ pub(super) fn prepare_staged_move(
             staged_relative: staged_relative.clone(),
             tag: metadata.tag,
             looped: metadata.looped,
+            locked: metadata.locked,
             last_played_at: metadata.last_played_at,
         },
     )

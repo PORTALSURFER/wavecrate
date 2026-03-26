@@ -55,10 +55,11 @@ pub(crate) fn insert_entry(
     db.connection
         .execute(
             "INSERT INTO file_ops_journal (
-                id, op_type, stage, source_root, source_relative, target_relative,
-                staged_relative, file_size, modified_ns, tag, looped, last_played_at, created_at
+                 id, op_type, stage, source_root, source_relative, target_relative,
+                 staged_relative, file_size, modified_ns, tag, looped, locked, last_played_at,
+                 created_at
              )
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 entry.id,
                 entry.kind.as_str(),
@@ -74,6 +75,7 @@ pub(crate) fn insert_entry(
                 entry.modified_ns,
                 entry.tag.map(|tag| tag.as_i64()),
                 entry.looped.map(|looped| if looped { 1i64 } else { 0i64 }),
+                entry.locked.map(|locked| if locked { 1i64 } else { 0i64 }),
                 entry.last_played_at,
                 entry.created_at,
             ],
@@ -122,7 +124,8 @@ pub(crate) fn list_entries(db: &SourceDatabase) -> Result<ListedJournalEntries, 
         .connection
         .prepare(
             "SELECT id, op_type, stage, source_root, source_relative, target_relative,
-                    staged_relative, file_size, modified_ns, tag, looped, last_played_at, created_at
+                    staged_relative, file_size, modified_ns, tag, looped, locked, last_played_at,
+                    created_at
              FROM file_ops_journal",
         )
         .map_err(map_sql_error)?;
@@ -202,11 +205,15 @@ fn decode_journal_row(
         .get::<_, Option<i64>>(10)
         .map_err(|err| malformed_column_error(Some(id.as_str()), "looped", err))?
         .map(|flag| flag != 0);
+    let locked = row
+        .get::<_, Option<i64>>(11)
+        .map_err(|err| malformed_column_error(Some(id.as_str()), "locked", err))?
+        .map(|flag| flag != 0);
     let last_played_at: Option<i64> = row
-        .get(11)
+        .get(12)
         .map_err(|err| malformed_column_error(Some(id.as_str()), "last_played_at", err))?;
     let created_at: i64 = row
-        .get(12)
+        .get(13)
         .map_err(|err| malformed_column_error(Some(id.as_str()), "created_at", err))?;
     let source_relative =
         parse_optional_relative_path_column(id.as_str(), "source_relative", source_relative_raw)?;
@@ -226,6 +233,7 @@ fn decode_journal_row(
         modified_ns,
         tag,
         looped,
+        locked,
         last_played_at,
         created_at,
     })

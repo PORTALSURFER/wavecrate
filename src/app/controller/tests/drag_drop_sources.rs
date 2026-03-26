@@ -97,6 +97,7 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
                 modified_ns: 1,
                 tag: Rating::KEEP_1,
                 looped: true,
+                locked: true,
                 last_played_at: Some(42),
             }],
             errors: vec!["secondary move failed".into()],

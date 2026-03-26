@@ -66,6 +66,11 @@ pub(super) fn setup_folder_move_fixture() -> (tempfile::TempDir, SampleSource, P
     batch
         .set_tag(Path::new("old/one.wav"), Rating::KEEP_1)
         .must();
+    batch.set_looped(Path::new("old/one.wav"), true).must();
+    batch.set_locked(Path::new("old/one.wav"), true).must();
+    batch
+        .set_last_played_at(Path::new("old/one.wav"), 42)
+        .must();
     batch.commit().must();
     (temp, source, source_root)
 }

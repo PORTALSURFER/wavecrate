@@ -112,6 +112,15 @@ impl FolderSampleMoveTransaction<'_> {
             );
             return false;
         }
+        if let Err(err) = batch.set_locked(&self.request.target_relative, self.metadata.locked) {
+            report_staged_move_failure(
+                errors,
+                self.db,
+                &self.prepared,
+                format!("Failed to copy keep lock: {err}"),
+            );
+            return false;
+        }
         if let Some(last_played_at) = self.metadata.last_played_at
             && let Err(err) =
                 batch.set_last_played_at(&self.request.target_relative, last_played_at)
@@ -176,6 +185,7 @@ impl FolderSampleMoveTransaction<'_> {
             modified_ns: self.prepared.modified_ns,
             tag: self.metadata.tag,
             looped: self.metadata.looped,
+            locked: self.metadata.locked,
             last_played_at: self.metadata.last_played_at,
         }
     }

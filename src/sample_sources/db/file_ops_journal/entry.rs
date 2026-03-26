@@ -86,6 +86,7 @@ pub(crate) struct FileOpJournalEntry {
     pub(crate) modified_ns: Option<i64>,
     pub(crate) tag: Option<Rating>,
     pub(crate) looped: Option<bool>,
+    pub(crate) locked: Option<bool>,
     pub(crate) last_played_at: Option<i64>,
     pub(crate) created_at: i64,
 }
@@ -99,6 +100,7 @@ pub(crate) struct MoveJournalEntryInit {
     pub(crate) staged_relative: PathBuf,
     pub(crate) tag: Rating,
     pub(crate) looped: bool,
+    pub(crate) locked: bool,
     pub(crate) last_played_at: Option<i64>,
 }
 
@@ -117,6 +119,7 @@ impl FileOpJournalEntry {
             modified_ns: None,
             tag: Some(init.tag),
             looped: Some(init.looped),
+            locked: Some(init.locked),
             last_played_at: init.last_played_at,
             created_at: now_epoch_seconds()?,
         })
@@ -129,6 +132,7 @@ impl FileOpJournalEntry {
         staged_relative: PathBuf,
         tag: Rating,
         looped: bool,
+        locked: bool,
         last_played_at: Option<i64>,
     ) -> Result<Self, SourceDbError> {
         Ok(Self {
@@ -143,6 +147,7 @@ impl FileOpJournalEntry {
             modified_ns: None,
             tag: Some(tag),
             looped: Some(looped),
+            locked: Some(locked),
             last_played_at,
             created_at: now_epoch_seconds()?,
         })

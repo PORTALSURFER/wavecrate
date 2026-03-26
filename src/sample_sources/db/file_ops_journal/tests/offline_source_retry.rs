@@ -20,6 +20,7 @@ fn reconcile_target_db_stage_defers_until_source_root_returns() {
         source_db.upsert_file(&source_relative, 16, 1).unwrap();
         source_db.set_tag(&source_relative, Rating::KEEP_1).unwrap();
         source_db.set_looped(&source_relative, true).unwrap();
+        source_db.set_locked(&source_relative, true).unwrap();
         source_db.set_last_played_at(&source_relative, 123).unwrap();
     }
 
@@ -35,6 +36,7 @@ fn reconcile_target_db_stage_defers_until_source_root_returns() {
             staged_relative: staged_relative_for_target(&target_relative, "test").unwrap(),
             tag: Rating::KEEP_1,
             looped: true,
+            locked: true,
             last_played_at: Some(123),
         },
     )
@@ -87,6 +89,10 @@ fn reconcile_target_db_stage_defers_until_source_root_returns() {
     );
     assert_eq!(
         target_db.looped_for_path(&target_relative).unwrap(),
+        Some(true)
+    );
+    assert_eq!(
+        target_db.locked_for_path(&target_relative).unwrap(),
         Some(true)
     );
     assert_eq!(

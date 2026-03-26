@@ -72,7 +72,7 @@ impl AppController {
                 content_hash: None,
                 tag: entry.tag,
                 looped: entry.looped,
-                locked: false,
+                locked: entry.locked,
                 missing: false,
                 last_played_at: entry.last_played_at,
             },

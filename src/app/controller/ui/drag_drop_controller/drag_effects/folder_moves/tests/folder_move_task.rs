@@ -26,6 +26,19 @@ fn folder_move_updates_db_entries() {
         db.tag_for_path(Path::new("dest/old/one.wav")).must(),
         Some(Rating::KEEP_1)
     );
+    assert_eq!(
+        db.looped_for_path(Path::new("dest/old/one.wav")).must(),
+        Some(true)
+    );
+    assert_eq!(
+        db.locked_for_path(Path::new("dest/old/one.wav")).must(),
+        Some(true)
+    );
+    assert_eq!(
+        db.last_played_at_for_path(Path::new("dest/old/one.wav"))
+            .must(),
+        Some(42)
+    );
 }
 
 #[test]
@@ -47,6 +60,7 @@ fn folder_move_cancelled_before_processing_keeps_source_unchanged() {
         db.tag_for_path(Path::new("old/one.wav")).must(),
         Some(Rating::KEEP_1)
     );
+    assert_eq!(db.locked_for_path(Path::new("old/one.wav")).must(), Some(true));
 }
 
 #[test]
@@ -93,6 +107,7 @@ fn folder_move_rejects_existing_destination_folder() {
         db.tag_for_path(Path::new("old/one.wav")).must(),
         Some(Rating::KEEP_1)
     );
+    assert_eq!(db.locked_for_path(Path::new("old/one.wav")).must(), Some(true));
 }
 
 #[test]
@@ -114,6 +129,8 @@ fn folder_move_db_write_failure_rolls_back_source_and_db_state() {
             || err.contains("Failed to drop old entry")
             || err.contains("Failed to register moved file")
             || err.contains("Failed to copy tag")
+            || err.contains("Failed to copy loop marker")
+            || err.contains("Failed to copy keep lock")
             || err.contains("Failed to copy playback age")
             || err.contains("Failed to save folder move")
     }));
@@ -124,6 +141,7 @@ fn folder_move_db_write_failure_rolls_back_source_and_db_state() {
         db.tag_for_path(Path::new("old/one.wav")).must(),
         Some(Rating::KEEP_1)
     );
+    assert_eq!(db.locked_for_path(Path::new("old/one.wav")).must(), Some(true));
     assert!(
         db.tag_for_path(Path::new("dest/old/one.wav"))
             .must()

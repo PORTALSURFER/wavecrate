@@ -239,6 +239,16 @@ fn rewrite_entry(
     batch.set_tag(&updated_path, entry.tag).map_err(|err| {
         rollback_and_error_result(request, prepared, format!("Failed to copy tag: {err}"))
     })?;
+    batch
+        .set_looped(&updated_path, entry.looped)
+        .map_err(|err| {
+            rollback_and_error_result(request, prepared, format!("Failed to copy loop marker: {err}"))
+        })?;
+    batch
+        .set_locked(&updated_path, entry.locked)
+        .map_err(|err| {
+            rollback_and_error_result(request, prepared, format!("Failed to copy keep lock: {err}"))
+        })?;
     if let Some(last_played_at) = entry.last_played_at {
         batch
             .set_last_played_at(&updated_path, last_played_at)
@@ -257,6 +267,7 @@ fn rewrite_entry(
         modified_ns: entry.modified_ns,
         tag: entry.tag,
         looped: entry.looped,
+        locked: entry.locked,
         last_played_at: entry.last_played_at,
     })
 }

@@ -220,6 +220,12 @@ mod tests {
         write_test_wav(&target_root.join("one.wav"), &[0.0, 0.2, -0.2]);
         let source_db = SourceDatabase::open(&source_root).unwrap();
         source_db.upsert_file(Path::new("one.wav"), 3, 1).unwrap();
+        source_db.set_tag(Path::new("one.wav"), crate::sample_sources::Rating::KEEP_1).unwrap();
+        source_db.set_looped(Path::new("one.wav"), true).unwrap();
+        source_db.set_locked(Path::new("one.wav"), true).unwrap();
+        source_db
+            .set_last_played_at(Path::new("one.wav"), 42)
+            .unwrap();
         let cancel = Arc::new(AtomicBool::new(false));
 
         let result = run_source_move_task(
@@ -240,8 +246,30 @@ mod tests {
             result.moved[0].target_relative,
             PathBuf::from("one_move001.wav")
         );
+        assert!(result.moved[0].looped);
+        assert!(result.moved[0].locked);
+        assert_eq!(result.moved[0].last_played_at, Some(42));
         assert!(target_root.join("one_move001.wav").is_file());
         assert!(!source_root.join("one.wav").exists());
+        let target_db = SourceDatabase::open(&target_root).unwrap();
+        assert_eq!(
+            target_db
+                .tag_for_path(Path::new("one_move001.wav"))
+                .unwrap(),
+            Some(crate::sample_sources::Rating::KEEP_1)
+        );
+        assert_eq!(
+            target_db
+                .looped_for_path(Path::new("one_move001.wav"))
+                .unwrap(),
+            Some(true)
+        );
+        assert_eq!(
+            target_db
+                .locked_for_path(Path::new("one_move001.wav"))
+                .unwrap(),
+            Some(true)
+        );
     }
 
     #[test]

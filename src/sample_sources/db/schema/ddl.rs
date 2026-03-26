@@ -138,6 +138,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         modified_ns INTEGER,
         tag INTEGER,
         looped INTEGER,
+        locked INTEGER,
         last_played_at INTEGER,
         created_at INTEGER NOT NULL
     );";

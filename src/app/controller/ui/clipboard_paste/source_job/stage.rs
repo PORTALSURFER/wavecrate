@@ -21,6 +21,7 @@ pub(super) fn stage_source_copy(
         prepared.staged_relative.clone(),
         Rating::NEUTRAL,
         false,
+        false,
         None,
     ) {
         Ok(entry) => entry,
