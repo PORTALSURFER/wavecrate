@@ -92,6 +92,40 @@ fn retained_restore_preserves_older_existing_metadata_on_timestamped_backup() ->
     Ok(())
 }
 
+#[test]
+fn retained_restore_after_restart_does_not_create_undo_history() -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    let deleted_entries = vec![entry("Pack/kick.wav", Rating::KEEP_3, 11)];
+    let original = source.root.join("Pack");
+    fs::create_dir_all(&original).unwrap();
+    write_test_wav(&original.join("kick.wav"), &[0.0, 0.2]);
+    let staging_root = source.root.join(DELETE_STAGING_DIR);
+    let staged = stage_folder_for_delete(
+        &original,
+        &staging_root,
+        Path::new("Pack"),
+        &deleted_entries,
+    )?;
+    let ui_entry = retained_entry(&source, &staged, deleted_entries);
+    controller
+        .ui
+        .sources
+        .folders
+        .delete_recovery
+        .retained_entries = vec![ui_entry];
+
+    controller.start_restore_retained_folder_deletes();
+    assert!(controller.apply_pending_folder_delete_recovery_prompt());
+    assert!(source.root.join("Pack/kick.wav").is_file());
+
+    controller.undo();
+
+    assert_eq!(controller.ui.status.text, "Nothing to undo");
+    assert!(source.root.join("Pack/kick.wav").is_file());
+    Ok(())
+}
+
 fn retained_entry(
     source: &crate::sample_sources::SampleSource,
     staged: &DeleteStagingInfo,

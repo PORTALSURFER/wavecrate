@@ -125,11 +125,13 @@ When an action occurs, the user should be able to infer its cause without ambigu
 
 ### 7a. universal undo / redo
 
-All meaningful actions within sempal must be reversible via a deeply integrated undo/redo system.
+All meaningful actions within a live sempal session must be reversible via a
+deeply integrated undo/redo system.
 
 * undo and redo constitute first-class interaction primitives, not auxiliary safeguards
 * the system should actively encourage experimentation by guaranteeing reversibility
-* undo/redo semantics must apply uniformly across editing operations, metadata changes, and curation workflows
+* undo/redo semantics must apply uniformly across editing operations, metadata changes, and curation workflows performed in the current session
+* crash recovery after restart is a best-effort data-preservation path and is not required to reconstruct prior-session undo/redo history
 
 This principle obviates the need for most confirmation dialogs: reversibility is the primary mechanism of safety and trust.
 

@@ -25,7 +25,7 @@ Each journal row moves through these stages:
   - Recovery expectation: restore the staged folder back into the source tree.
 - `Deleted`
   - Database updates completed and the delete is logically committed.
-  - Recovery expectation: retain the staged folder in `.sempal_delete_staging` until an explicit undo or purge path resolves it.
+  - Recovery expectation: retain the staged folder in `.sempal_delete_staging` until an explicit restore or purge path resolves it.
 
 ## Recovery rules
 
@@ -52,6 +52,8 @@ Each journal row moves through these stages:
   explicit restore after restart can reconstruct the source database state when
   the staged file becomes canonical again, while exact-match reuse preserves any
   newer metadata already attached to the existing canonical file.
+- Explicit restore or purge after restart is a best-effort recovery action, not
+  a resurrection of the prior-session undo/redo stack.
 
 ## Module ownership
 
