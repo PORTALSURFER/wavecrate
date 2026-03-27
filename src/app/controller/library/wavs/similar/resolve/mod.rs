@@ -9,8 +9,8 @@ mod repository;
 
 pub(crate) use ranking::{cosine_similarity, is_effectively_silent, normalize_l2, rerank_with_dsp};
 pub(crate) use repository::{
-    load_embedding_for_sample, load_light_dsp_for_sample, load_rms_for_sample, open_source_db_for_id,
-    resolve_sample_id_for_visible_row,
+    load_embedding_for_sample, load_light_dsp_for_sample, load_rms_for_sample,
+    open_source_db_for_id, resolve_sample_id_for_visible_row,
 };
 
 /// Ranked similarity matches resolved for one query sample.

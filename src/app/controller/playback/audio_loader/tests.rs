@@ -10,7 +10,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tempfile::NamedTempFile;
 
-fn render_spec() -> crate::app::controller::library::wavs::waveform_rendering::InitialWaveformRenderSpec {
+fn render_spec()
+-> crate::app::controller::library::wavs::waveform_rendering::InitialWaveformRenderSpec {
     crate::app::controller::library::wavs::waveform_rendering::InitialWaveformRenderSpec {
         size: [16, 16],
         channel_view: crate::waveform::WaveformChannelView::Mono,

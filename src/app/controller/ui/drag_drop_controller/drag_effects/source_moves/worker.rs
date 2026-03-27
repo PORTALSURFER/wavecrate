@@ -220,7 +220,9 @@ mod tests {
         write_test_wav(&target_root.join("one.wav"), &[0.0, 0.2, -0.2]);
         let source_db = SourceDatabase::open(&source_root).unwrap();
         source_db.upsert_file(Path::new("one.wav"), 3, 1).unwrap();
-        source_db.set_tag(Path::new("one.wav"), crate::sample_sources::Rating::KEEP_1).unwrap();
+        source_db
+            .set_tag(Path::new("one.wav"), crate::sample_sources::Rating::KEEP_1)
+            .unwrap();
         source_db.set_looped(Path::new("one.wav"), true).unwrap();
         source_db.set_locked(Path::new("one.wav"), true).unwrap();
         source_db

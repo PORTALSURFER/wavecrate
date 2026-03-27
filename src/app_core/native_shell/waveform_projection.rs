@@ -54,6 +54,7 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
         slices: project_waveform_slice_previews(ui),
         selection_export_flash_nonce: ui.waveform.selection_export_flash_nonce,
         selection_export_failure_flash_nonce: ui.waveform.selection_export_failure_flash_nonce,
+        edit_selection_apply_flash_nonce: ui.waveform.edit_selection_apply_flash_nonce,
         edit_selection_milli: project_waveform_edit_selection_milli(ui),
         edit_fade_in_end_milli: fade_overlay.fade_in_end_milli,
         edit_fade_in_end_micros: fade_overlay.fade_in_end_micros,

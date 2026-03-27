@@ -49,6 +49,21 @@ fn apply_native_waveform_trim_routes_to_controller_behavior() {
 }
 
 #[test]
+fn apply_native_waveform_commit_edit_fades_routes_to_controller_behavior() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.set_edit_selection_range(
+        crate::selection::SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.2),
+    );
+    controller.apply_native_ui_action(NativeUiAction::CommitWaveformEditFades);
+
+    assert!(
+        controller.ui.status.text.contains("Load a sample to edit it"),
+        "status was {:?}",
+        controller.ui.status.text
+    );
+}
+
+#[test]
 fn apply_native_waveform_silence_slice_detect_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.apply_native_ui_action(NativeUiAction::DetectWaveformSilenceSlices);

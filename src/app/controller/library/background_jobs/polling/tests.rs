@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::controller::jobs::{
     ActiveRetainedDeleteResolution, ClipboardPasteOutcome, ClipboardPasteResult, FileOpMessage,
-    FileOpResult, FolderScanResult, FocusedSimilarityPaths, FocusedSimilarityResult,
+    FileOpResult, FocusedSimilarityPaths, FocusedSimilarityResult, FolderScanResult,
     LoadedSimilarityQueryResult, RetainedDeleteResolutionMode, RetainedDeleteResolutionResult,
     SearchResult, SelectionExportMessage,
 };
@@ -11,7 +11,9 @@ use crate::app::controller::state::audio::PendingAudio;
 use crate::app::controller::test_support::{
     dummy_controller, prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
 };
-use crate::app::state::{ProgressTaskKind, SampleBrowserSort, SimilarQuery, TriageFlagColumn, VisibleRows};
+use crate::app::state::{
+    ProgressTaskKind, SampleBrowserSort, SimilarQuery, TriageFlagColumn, VisibleRows,
+};
 use crate::sample_sources::Rating;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -468,7 +470,12 @@ fn focused_similarity_message_ignores_stale_result_then_applies_matching_highlig
         },
     ));
 
-    assert!(controller.runtime.pending_focused_similarity_query.is_some());
+    assert!(
+        controller
+            .runtime
+            .pending_focused_similarity_query
+            .is_some()
+    );
     assert!(controller.ui.browser.search.focused_similarity.is_none());
 
     controller.apply_background_job_message_for_tests(JobMessage::FocusedSimilarityLoaded(
@@ -485,7 +492,12 @@ fn focused_similarity_message_ignores_stale_result_then_applies_matching_highlig
         },
     ));
 
-    assert!(controller.runtime.pending_focused_similarity_query.is_none());
+    assert!(
+        controller
+            .runtime
+            .pending_focused_similarity_query
+            .is_none()
+    );
     let highlight = controller
         .ui
         .browser

@@ -37,11 +37,6 @@ impl AppController {
         &mut self,
         keep_source_focused: bool,
     ) -> Result<(), String> {
-        match self.commit_edit_selection_fades() {
-            Ok(true) => return Ok(()),
-            Ok(false) => {}
-            Err(err) => return Err(err),
-        }
         if !self.ui.waveform.slices.is_empty() {
             self.start_waveform_slice_batch_export()?;
             return Ok(());

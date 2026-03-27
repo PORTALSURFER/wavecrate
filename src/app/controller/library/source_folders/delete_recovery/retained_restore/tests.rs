@@ -94,8 +94,8 @@ fn retained_restore_preserves_older_existing_metadata_on_timestamped_backup() ->
 }
 
 #[test]
-fn retained_restore_equal_timestamps_prefers_existing_file_and_recovers_staged_copy(
-) -> Result<(), String> {
+fn retained_restore_equal_timestamps_prefers_existing_file_and_recovers_staged_copy()
+-> Result<(), String> {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     let deleted_entries = vec![entry("Pack/kick.wav", Rating::KEEP_3, 11)];
@@ -141,7 +141,10 @@ fn retained_restore_equal_timestamps_prefers_existing_file_and_recovers_staged_c
         .ok_or_else(|| "Missing recovered conflict DB entry".to_string())?;
     assert_eq!(recovered_entry.tag, Rating::KEEP_3);
     assert_eq!(recovered_entry.last_played_at, Some(11));
-    assert_eq!(fs::read(source.root.join(&recovered_path)).unwrap(), expected_staged);
+    assert_eq!(
+        fs::read(source.root.join(&recovered_path)).unwrap(),
+        expected_staged
+    );
     Ok(())
 }
 

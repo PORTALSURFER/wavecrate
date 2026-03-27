@@ -364,7 +364,12 @@ fn commit_focus_flush_queues_async_similarity_query_without_immediate_highlight(
     controller.flush_pending_focused_similarity_highlight_refresh();
 
     assert!(controller.runtime.pending_similarity_refresh.is_none());
-    assert!(controller.runtime.pending_focused_similarity_query.is_some());
+    assert!(
+        controller
+            .runtime
+            .pending_focused_similarity_query
+            .is_some()
+    );
     assert!(controller.ui.browser.search.focused_similarity.is_none());
 }
 

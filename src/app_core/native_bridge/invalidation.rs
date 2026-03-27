@@ -111,6 +111,7 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::AdjustWaveformBpm { .. }
         | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
         | NativeUiAction::FinishWaveformSelectionSmartScaleDrag
+        | NativeUiAction::CommitWaveformEditFades
         | NativeUiAction::CropWaveformSelection
         | NativeUiAction::CropWaveformSelectionToNewSample
         | NativeUiAction::TrimWaveformSelection => Some((

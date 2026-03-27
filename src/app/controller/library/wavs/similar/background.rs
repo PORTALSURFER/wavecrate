@@ -151,7 +151,8 @@ pub(crate) fn queue_loaded_similarity_query_refresh(
 pub(crate) fn compute_focused_similarity(
     job: FocusedSimilarityJob,
 ) -> Result<Option<FocusedSimilarityPaths>, String> {
-    let mut conn = crate::app::controller::library::analysis_jobs::open_source_db(&job.source_root)?;
+    let mut conn =
+        crate::app::controller::library::analysis_jobs::open_source_db(&job.source_root)?;
     maybe_enqueue_full_analysis_for_request(
         &mut conn,
         &job.sample_id,
@@ -163,8 +164,11 @@ pub(crate) fn compute_focused_similarity(
     {
         return Err("Selected sample is effectively silent".to_string());
     }
-    let neighbours =
-        crate::analysis::ann_index::find_similar(&conn, &job.sample_id, SIMILAR_RE_RANK_CANDIDATES)?;
+    let neighbours = crate::analysis::ann_index::find_similar(
+        &conn,
+        &job.sample_id,
+        SIMILAR_RE_RANK_CANDIDATES,
+    )?;
     let query_embedding = load_embedding_for_sample(&conn, &job.sample_id)?;
     let query_dsp = load_light_dsp_for_sample(&conn, &job.sample_id)?;
     let ranked = rerank_with_dsp(
@@ -195,8 +199,10 @@ pub(crate) fn compute_loaded_similarity_query(
     job: LoadedSimilarityQueryJob,
 ) -> Result<SimilarQuery, String> {
     let conn = crate::app::controller::library::analysis_jobs::open_source_db(&job.source_root)?;
-    let sample_id =
-        crate::app::controller::library::analysis_jobs::build_sample_id(job.source_id.as_str(), &job.relative_path);
+    let sample_id = crate::app::controller::library::analysis_jobs::build_sample_id(
+        job.source_id.as_str(),
+        &job.relative_path,
+    );
     let query_embedding = load_embedding_for_sample(&conn, &sample_id)?
         .ok_or_else(|| "Similarity data missing for the loaded sample".to_string())?;
     let query_dsp = load_light_dsp_for_sample(&conn, &sample_id)?;

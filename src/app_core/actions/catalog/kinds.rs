@@ -124,6 +124,8 @@ pub enum GuiActionKind {
     CommitFocusedBrowserRow,
     /// Save the current waveform selection back to the browser/sample metadata.
     SaveWaveformSelectionToBrowser,
+    /// Commit preview edit fades for the active waveform edit selection.
+    CommitWaveformEditFades,
     /// Detect silence-separated waveform slices and preview them for export.
     DetectWaveformSilenceSlices,
     /// Toggle selection on one browser row.
@@ -332,7 +334,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 161] = [
+    pub const ALL: [Self; 162] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -392,6 +394,7 @@ impl GuiActionKind {
         Self::FocusBrowserRow,
         Self::CommitFocusedBrowserRow,
         Self::SaveWaveformSelectionToBrowser,
+        Self::CommitWaveformEditFades,
         Self::DetectWaveformSilenceSlices,
         Self::ToggleBrowserRowSelection,
         Self::ExtendBrowserSelectionToRow,

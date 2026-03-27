@@ -60,7 +60,10 @@ fn folder_move_cancelled_before_processing_keeps_source_unchanged() {
         db.tag_for_path(Path::new("old/one.wav")).must(),
         Some(Rating::KEEP_1)
     );
-    assert_eq!(db.locked_for_path(Path::new("old/one.wav")).must(), Some(true));
+    assert_eq!(
+        db.locked_for_path(Path::new("old/one.wav")).must(),
+        Some(true)
+    );
 }
 
 #[test]
@@ -107,7 +110,10 @@ fn folder_move_rejects_existing_destination_folder() {
         db.tag_for_path(Path::new("old/one.wav")).must(),
         Some(Rating::KEEP_1)
     );
-    assert_eq!(db.locked_for_path(Path::new("old/one.wav")).must(), Some(true));
+    assert_eq!(
+        db.locked_for_path(Path::new("old/one.wav")).must(),
+        Some(true)
+    );
 }
 
 #[test]
@@ -141,7 +147,10 @@ fn folder_move_db_write_failure_rolls_back_source_and_db_state() {
         db.tag_for_path(Path::new("old/one.wav")).must(),
         Some(Rating::KEEP_1)
     );
-    assert_eq!(db.locked_for_path(Path::new("old/one.wav")).must(), Some(true));
+    assert_eq!(
+        db.locked_for_path(Path::new("old/one.wav")).must(),
+        Some(true)
+    );
     assert!(
         db.tag_for_path(Path::new("dest/old/one.wav"))
             .must()

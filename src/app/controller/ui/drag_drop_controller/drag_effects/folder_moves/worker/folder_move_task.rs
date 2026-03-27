@@ -242,12 +242,20 @@ fn rewrite_entry(
     batch
         .set_looped(&updated_path, entry.looped)
         .map_err(|err| {
-            rollback_and_error_result(request, prepared, format!("Failed to copy loop marker: {err}"))
+            rollback_and_error_result(
+                request,
+                prepared,
+                format!("Failed to copy loop marker: {err}"),
+            )
         })?;
     batch
         .set_locked(&updated_path, entry.locked)
         .map_err(|err| {
-            rollback_and_error_result(request, prepared, format!("Failed to copy keep lock: {err}"))
+            rollback_and_error_result(
+                request,
+                prepared,
+                format!("Failed to copy keep lock: {err}"),
+            )
         })?;
     if let Some(last_played_at) = entry.last_played_at {
         batch

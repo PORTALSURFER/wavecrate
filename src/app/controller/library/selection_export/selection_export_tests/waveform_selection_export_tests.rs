@@ -102,6 +102,58 @@ fn save_waveform_selection_to_browser_records_flash_nonce_immediately() {
 }
 
 #[test]
+fn save_waveform_selection_to_browser_does_not_commit_pending_edit_fades() {
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(source_root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+
+    let wav_path = source_root.join("pending_edit.wav");
+    write_test_wav(&wav_path, &[0.1, 0.2, 0.3, 0.4]);
+    controller
+        .load_waveform_for_selection(&source, Path::new("pending_edit.wav"))
+        .unwrap();
+    let selection = SelectionRange::new(0.25, 0.75);
+    controller.selection_state.range.set_range(Some(selection));
+    controller.ui.waveform.selection = Some(selection);
+    controller.set_edit_selection_range(selection.with_fade_out(0.5, 0.0));
+
+    let export_before = controller.ui.waveform.selection_export_flash_nonce;
+    let apply_before = controller.ui.waveform.edit_selection_apply_flash_nonce;
+
+    controller
+        .save_waveform_selection_to_browser(true)
+        .expect("selection export should queue");
+
+    assert_eq!(
+        controller.ui.waveform.selection_export_flash_nonce,
+        export_before + 1
+    );
+    assert_eq!(
+        controller.ui.waveform.edit_selection_apply_flash_nonce,
+        apply_before
+    );
+    assert!(
+        controller
+            .ui
+            .waveform
+            .edit_selection
+            .is_some_and(|selection| selection.has_edit_effects())
+    );
+
+    pump_background_jobs_until(&mut controller, |_| {
+        source_root.join("pending_edit_selection_001.wav").is_file()
+    });
+    assert!(source_root.join("pending_edit_selection_001.wav").is_file());
+}
+
+#[test]
 fn save_waveform_selection_to_browser_success_finishes_pending_history_and_supports_undo() {
     let temp = tempdir().unwrap();
     let source_root = temp.path().join("source");

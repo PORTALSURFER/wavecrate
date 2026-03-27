@@ -175,10 +175,7 @@ fn ensure_file_ops_journal_optional_columns(connection: &Connection) -> Result<(
     let columns = table_columns(connection, "file_ops_journal")?;
     if !columns.contains("locked") {
         connection
-            .execute(
-                "ALTER TABLE file_ops_journal ADD COLUMN locked INTEGER",
-                [],
-            )
+            .execute("ALTER TABLE file_ops_journal ADD COLUMN locked INTEGER", [])
             .map_err(map_sql_error)?;
     }
     Ok(())

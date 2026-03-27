@@ -3,7 +3,7 @@ use super::{
     WAVEFORM_RENDER_SUPERSAMPLE_X, WaveformRenderMeta, reuse, waveform_image_to_native_rgba,
 };
 use crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH;
-use crate::waveform::{DecodedWaveform, WaveformRenderer, WaveformRenderViewport};
+use crate::waveform::{DecodedWaveform, WaveformRenderViewport, WaveformRenderer};
 
 fn min_view_width_for_frames(frame_count: usize, width_px: u32) -> f64 {
     if frame_count == 0 {

@@ -1,8 +1,8 @@
 use super::*;
-use crate::app::controller::playback::audio_cache::FileMetadata;
 use crate::app::controller::library::wavs::waveform_rendering::{
     InitialWaveformRenderSpec, PreparedWaveformVisual, prepare_initial_waveform_visual,
 };
+use crate::app::controller::playback::audio_cache::FileMetadata;
 use crate::gui::types::ImageRgba;
 use crate::waveform::{DecodedWaveform, WaveformRenderer};
 use std::{
@@ -194,15 +194,13 @@ pub(crate) fn spawn_audio_loader(
                             cache_token: outcome.decoded.cache_token,
                             decoded: Arc::clone(&outcome.decoded),
                             render_spec: job.render_spec,
-                            known_transients: outcome
-                                .transients
-                                .as_ref()
-                                .map(Arc::clone)
-                                .or_else(|| {
+                            known_transients: outcome.transients.as_ref().map(Arc::clone).or_else(
+                                || {
                                     job.prepared
                                         .as_ref()
                                         .map(|prepared| Arc::clone(&prepared.transients))
-                                }),
+                                },
+                            ),
                             stretched: outcome.stretched,
                         });
                     let _ = result_tx.send(AudioLoadResult::Primary {
@@ -212,8 +210,11 @@ pub(crate) fn spawn_audio_loader(
                         result,
                     });
                     if let Some(transient_compute) = transient_compute
-                        && let Some(transients_result) =
-                            build_visual_result(&renderer, transient_compute, &latest_request_id_worker)
+                        && let Some(transients_result) = build_visual_result(
+                            &renderer,
+                            transient_compute,
+                            &latest_request_id_worker,
+                        )
                     {
                         let _ = result_tx.send(AudioLoadResult::Visual(transients_result));
                     }
@@ -298,17 +299,17 @@ fn build_visual_result(
         Some(transients) => transients,
         None => {
             let result = build_transient_result(
-            PendingTransientCompute {
-                request_id: pending.request_id,
-                source_id: pending.source_id.clone(),
-                relative_path: pending.relative_path.clone(),
-                metadata: pending.metadata,
-                cache_token: pending.cache_token,
-                decoded: Arc::clone(&pending.decoded),
-                stretched: pending.stretched,
-            },
-            latest_request_id,
-        )?;
+                PendingTransientCompute {
+                    request_id: pending.request_id,
+                    source_id: pending.source_id.clone(),
+                    relative_path: pending.relative_path.clone(),
+                    metadata: pending.metadata,
+                    cache_token: pending.cache_token,
+                    decoded: Arc::clone(&pending.decoded),
+                    stretched: pending.stretched,
+                },
+                latest_request_id,
+            )?;
             result.transients
         }
     };

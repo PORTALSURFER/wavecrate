@@ -68,6 +68,7 @@ impl AppController {
                 let cleared = selection.clear_fades().with_gain(1.0);
                 self.selection_state.edit_range.set_range(Some(cleared));
                 self.apply_edit_selection(Some(cleared));
+                self.record_edit_selection_apply_flash();
                 Ok(true)
             }
             Err(err) => {
@@ -89,6 +90,15 @@ impl AppController {
         self.selection_state.edit_range.set_range(Some(cleared));
         self.apply_edit_selection(Some(cleared));
         true
+    }
+
+    /// Emit one success token so native shells can flash the edit selection.
+    fn record_edit_selection_apply_flash(&mut self) {
+        self.ui.waveform.edit_selection_apply_flash_nonce = self
+            .ui
+            .waveform
+            .edit_selection_apply_flash_nonce
+            .wrapping_add(1);
     }
 
     /// Crop the loaded sample to the active selection range and refresh caches/exports.

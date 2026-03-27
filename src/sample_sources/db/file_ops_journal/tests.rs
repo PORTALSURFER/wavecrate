@@ -192,13 +192,13 @@ fn reconcile_same_source_move_from_staged_file() {
             source_root: source_root.clone(),
             source_relative: source_relative.clone(),
             target_relative: target_relative.clone(),
-                staged_relative: staged_relative.clone(),
-                tag: Rating::KEEP_1,
-                looped: true,
-                locked: true,
-                last_played_at: Some(123),
-            },
-        )
+            staged_relative: staged_relative.clone(),
+            tag: Rating::KEEP_1,
+            looped: true,
+            locked: true,
+            last_played_at: Some(123),
+        },
+    )
     .unwrap();
     insert_entry(&db, &entry).unwrap();
     let staged_absolute = source_root.join(&staged_relative);

@@ -156,6 +156,9 @@ pub(super) fn apply_waveform_native_ui_action(
         NativeUiAction::SaveWaveformSelectionToBrowser => {
             controller.save_waveform_selection_or_slices_to_browser_action(true)
         }
+        NativeUiAction::CommitWaveformEditFades => {
+            let _ = controller.commit_edit_selection_fades();
+        }
         NativeUiAction::DetectWaveformSilenceSlices => {
             controller.detect_waveform_silence_slices_action();
         }

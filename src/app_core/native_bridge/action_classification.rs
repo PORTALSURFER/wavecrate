@@ -70,6 +70,7 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::AlignWaveformStartToMarker
         | NativeUiAction::DeleteLoadedWaveformSample
         | NativeUiAction::SlideWaveformSelection { .. }
+        | NativeUiAction::CommitWaveformEditFades
         | NativeUiAction::ToggleTransientMarkers
         | NativeUiAction::ToggleBpmSnap
         | NativeUiAction::ZoomWaveform { .. }

@@ -104,6 +104,12 @@ pub struct WaveformState {
     /// repaint the selection with a stronger failure color after an optimistic
     /// submit flash has already been shown.
     pub selection_export_failure_flash_nonce: u64,
+    /// Monotonic token incremented when preview edit fades are committed.
+    ///
+    /// Native shells use this as a one-shot success event marker so they can
+    /// briefly brighten the edit-selection overlay when fade application
+    /// succeeds without relying on synchronized wall-clock timestamps.
+    pub edit_selection_apply_flash_nonce: u64,
 }
 
 /// Origin of the currently prepared waveform slice batch.
@@ -178,6 +184,7 @@ impl Default for WaveformState {
             copy_flash_at: None,
             selection_export_flash_nonce: 0,
             selection_export_failure_flash_nonce: 0,
+            edit_selection_apply_flash_nonce: 0,
         }
     }
 }
