@@ -8,6 +8,7 @@ use crate::app_core::actions::NativeUiAction;
 use crate::app_core::controller::AppControllerNativeRuntimeExt;
 use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 #[test]
 fn focus_hotkey_does_not_autoplay_browser_sample() {
@@ -342,6 +343,29 @@ fn commit_focus_debounces_similarity_refresh_flush() {
     assert!(controller.runtime.pending_similarity_refresh.is_some());
     controller.flush_pending_focused_similarity_highlight_refresh();
     assert!(controller.runtime.pending_similarity_refresh.is_some());
+}
+
+#[test]
+fn commit_focus_flush_queues_async_similarity_query_without_immediate_highlight() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.sample_view.wav.selected_wav = Some(PathBuf::from("one.wav"));
+    controller.defer_focused_similarity_highlight_refresh(
+        controller.selected_sample_id().expect("selected sample id"),
+        PathBuf::from("one.wav"),
+        Some(0),
+    );
+    controller.runtime.pending_similarity_refresh_not_before =
+        Some(Instant::now() - Duration::from_millis(1));
+
+    controller.flush_pending_focused_similarity_highlight_refresh();
+
+    assert!(controller.runtime.pending_similarity_refresh.is_none());
+    assert!(controller.runtime.pending_focused_similarity_query.is_some());
+    assert!(controller.ui.browser.search.focused_similarity.is_none());
 }
 
 #[test]

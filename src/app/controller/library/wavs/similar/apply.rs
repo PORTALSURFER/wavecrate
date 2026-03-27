@@ -2,6 +2,7 @@ use super::*;
 use crate::app::state::{SampleBrowserSort, SimilarQuery};
 
 pub(crate) fn apply_similarity_query(controller: &mut AppController, query: SimilarQuery) {
+    controller.runtime.pending_loaded_similarity_query = None;
     controller.ui.browser.search.similar_query = Some(query);
     controller.ui.browser.search.sort = SampleBrowserSort::Similarity;
     controller.ui.browser.search.similarity_sort_follow_loaded = false;
@@ -17,6 +18,7 @@ pub(crate) fn apply_similarity_query(controller: &mut AppController, query: Simi
 }
 
 pub(crate) fn clear_similar_filter(controller: &mut AppController) {
+    controller.runtime.pending_loaded_similarity_query = None;
     if controller.ui.browser.search.similar_query.take().is_some() {
         controller.ui.browser.search.sort = SampleBrowserSort::ListOrder;
         controller.ui.browser.search.similarity_sort_follow_loaded = false;
@@ -25,6 +27,7 @@ pub(crate) fn clear_similar_filter(controller: &mut AppController) {
 }
 
 pub(crate) fn disable_similarity_sort(controller: &mut AppController) {
+    controller.runtime.pending_loaded_similarity_query = None;
     controller.ui.browser.search.sort = SampleBrowserSort::ListOrder;
     controller.ui.browser.search.similarity_sort_follow_loaded = false;
     controller.ui.browser.search.similar_query = None;

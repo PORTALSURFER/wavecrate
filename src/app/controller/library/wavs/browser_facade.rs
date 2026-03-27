@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::controller::jobs::LoadedSimilarityQueryResult;
 use std::path::Path;
 
 impl AppController {
@@ -92,7 +93,7 @@ impl AppController {
 
     /// Refresh similarity-sort state for the loaded sample, disabling sort on failure.
     pub(crate) fn refresh_similarity_sort_for_loaded_sample(&mut self) {
-        if let Err(err) = similar::refresh_similarity_sort_for_loaded(self) {
+        if let Err(err) = similar::queue_loaded_similarity_query_refresh(self) {
             similar::disable_similarity_sort(self);
             self.set_status(err, StatusTone::Warning);
         }
@@ -101,6 +102,51 @@ impl AppController {
     /// Sort the browser by similarity to the loaded sample.
     pub fn enable_loaded_similarity_sort(&mut self) -> Result<(), String> {
         similar::enable_loaded_similarity_sort(self)
+    }
+
+    /// Apply one async follow-loaded similarity query if it still matches the active waveform.
+    pub(crate) fn handle_loaded_similarity_query_built(
+        &mut self,
+        result: LoadedSimilarityQueryResult,
+    ) {
+        let Some(pending) = self.runtime.pending_loaded_similarity_query.as_ref() else {
+            return;
+        };
+        if pending.request_id != result.request_id
+            || pending.source_id != result.source_id
+            || pending.relative_path != result.relative_path
+        {
+            return;
+        }
+        self.runtime.pending_loaded_similarity_query = None;
+        let still_loaded = self
+            .sample_view
+            .wav
+            .loaded_audio
+            .as_ref()
+            .is_some_and(|audio| {
+                audio.source_id == result.source_id && audio.relative_path == result.relative_path
+            });
+        if !still_loaded
+            || !self.ui.browser.search.similarity_sort_follow_loaded
+            || self.ui.browser.search.sort != SampleBrowserSort::Similarity
+        {
+            return;
+        }
+        match result.result {
+            Ok(query) => {
+                self.ui.browser.search.similar_query = Some(query);
+                if self.should_dispatch_browser_search_async() {
+                    self.dispatch_search_job();
+                } else {
+                    self.rebuild_browser_lists();
+                }
+            }
+            Err(err) => {
+                similar::disable_similarity_sort(self);
+                self.set_status(err, StatusTone::Warning);
+            }
+        }
     }
 
     /// Disable similarity-based sorting and restore list order.

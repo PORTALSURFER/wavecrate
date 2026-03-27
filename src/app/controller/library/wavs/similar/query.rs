@@ -211,7 +211,7 @@ fn resolve_anchor_index(
 }
 
 /// Ensure the anchor sample remains present in similarity results with self-similarity.
-fn ensure_anchor_similarity_result(
+pub(super) fn ensure_anchor_similarity_result(
     mut indices: Vec<usize>,
     mut scores: Vec<f32>,
     anchor_index: Option<usize>,

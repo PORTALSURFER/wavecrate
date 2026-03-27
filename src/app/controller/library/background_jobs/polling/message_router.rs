@@ -29,6 +29,12 @@ impl AppController {
             JobMessage::AnalysisFailuresLoaded(message) => {
                 self.handle_analysis_failures_loaded_message(message)
             }
+            JobMessage::FocusedSimilarityLoaded(message) => {
+                similarity::handle_focused_similarity_loaded(self, message);
+            }
+            JobMessage::LoadedSimilarityQueryBuilt(message) => {
+                similarity::handle_loaded_similarity_query_built(self, message);
+            }
             JobMessage::UmapBuilt(message) => self.handle_umap_built_message(message),
             JobMessage::UmapClustersBuilt(message) => {
                 self.handle_umap_clusters_built_message(message)

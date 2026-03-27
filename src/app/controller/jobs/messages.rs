@@ -15,6 +15,8 @@ pub(crate) enum JobMessage {
     FileOps(FileOpMessage),
     Analysis(AnalysisJobMessage),
     AnalysisFailuresLoaded(AnalysisFailuresResult),
+    FocusedSimilarityLoaded(FocusedSimilarityResult),
+    LoadedSimilarityQueryBuilt(LoadedSimilarityQueryResult),
     UmapBuilt(UmapBuildResult),
     UmapClustersBuilt(UmapClusterBuildResult),
     SimilarityPrepared(SimilarityPrepResult),
@@ -172,6 +174,45 @@ pub(crate) struct SimilarityPrepOutcome {
 pub(crate) struct SimilarityPrepResult {
     pub(crate) source_id: SourceId,
     pub(crate) result: Result<SimilarityPrepOutcome, String>,
+}
+
+/// Path-based similarity highlight payload computed off the controller thread.
+#[derive(Debug)]
+pub(crate) struct FocusedSimilarityPaths {
+    /// Stable sample identifier for the focused anchor sample.
+    pub(crate) sample_id: String,
+    /// Candidate relative paths in descending similarity order.
+    pub(crate) paths: Vec<PathBuf>,
+    /// Similarity scores aligned to [`Self::paths`].
+    pub(crate) scores: Vec<f32>,
+    /// Focused entry index captured when the request was queued.
+    pub(crate) anchor_index: Option<usize>,
+}
+
+/// Async result for one focused-similarity highlight refresh request.
+#[derive(Debug)]
+pub(crate) struct FocusedSimilarityResult {
+    /// Monotonic request identifier used to discard stale async results.
+    pub(crate) request_id: u64,
+    /// Source that owned the focused selection when the request started.
+    pub(crate) source_id: SourceId,
+    /// Focused relative path expected to still be selected on apply.
+    pub(crate) relative_path: PathBuf,
+    /// Computed highlight payload or the terminal error.
+    pub(crate) result: Result<Option<FocusedSimilarityPaths>, String>,
+}
+
+/// Async result for one follow-loaded similarity query build request.
+#[derive(Debug)]
+pub(crate) struct LoadedSimilarityQueryResult {
+    /// Monotonic request identifier used to discard stale async results.
+    pub(crate) request_id: u64,
+    /// Source that owned the loaded sample when the request started.
+    pub(crate) source_id: SourceId,
+    /// Loaded relative path expected to still be active on apply.
+    pub(crate) relative_path: PathBuf,
+    /// Similarity query payload or the terminal error.
+    pub(crate) result: Result<crate::app::state::SimilarQuery, String>,
 }
 
 #[derive(Debug)]

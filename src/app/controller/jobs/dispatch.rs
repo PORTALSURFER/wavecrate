@@ -134,6 +134,17 @@ impl ControllerJobs {
         request_id
     }
 
+    /// Generate a request id for controller-owned similarity query jobs.
+    pub(in super::super) fn next_similarity_request_id(&mut self) -> u64 {
+        let request_id = self.request_counters.next_similarity_request_id;
+        self.request_counters.next_similarity_request_id = self
+            .request_counters
+            .next_similarity_request_id
+            .wrapping_add(1)
+            .max(1);
+        request_id
+    }
+
     /// Queue one audio-load job after publishing the latest request id for staleness checks.
     pub(in super::super) fn send_audio_job(&self, job: AudioLoadJob) -> Result<(), ()> {
         self.audio_loader.publish_latest_request_id(job.request_id);

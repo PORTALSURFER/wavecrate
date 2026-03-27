@@ -83,6 +83,12 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) pending_similarity_refresh: Option<PendingFocusedSimilarityRefresh>,
     /// Earliest frame time when deferred focused-similarity refresh may run.
     pub(crate) pending_similarity_refresh_not_before: Option<Instant>,
+    /// Active async focused-similarity highlight computation awaiting apply.
+    pub(crate) pending_focused_similarity_query: Option<PendingFocusedSimilarityQuery>,
+    /// Active async follow-loaded similarity query computation awaiting apply.
+    pub(crate) pending_loaded_similarity_query: Option<PendingLoadedSimilarityQuery>,
+    /// Cached selected-source analysis progress metadata for progress-overlay updates.
+    pub(crate) analysis_progress_ui: AnalysisProgressUiCache,
     /// Pending duration/long-mark metadata write moved out of waveform load hot path.
     pub(crate) pending_loaded_duration_metadata: Option<PendingLoadedDurationMetadata>,
     /// Earliest frame time when deferred duration metadata persistence may run.
@@ -145,6 +151,9 @@ impl ControllerRuntimeState {
             pending_age_update_commit_not_before: None,
             pending_similarity_refresh: None,
             pending_similarity_refresh_not_before: None,
+            pending_focused_similarity_query: None,
+            pending_loaded_similarity_query: None,
+            analysis_progress_ui: AnalysisProgressUiCache::default(),
             pending_loaded_duration_metadata: None,
             pending_loaded_duration_metadata_not_before: None,
             pending_waveform_seek_nanos: None,
@@ -193,6 +202,43 @@ pub(crate) struct PendingFocusedSimilarityRefresh {
     pub(crate) relative_path: PathBuf,
     /// Optional absolute entry index for the focused row.
     pub(crate) anchor_index: Option<usize>,
+}
+
+/// In-flight focused-similarity highlight query owned by a background worker.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingFocusedSimilarityQuery {
+    /// Monotonic request identifier used to drop stale async results.
+    pub(crate) request_id: u64,
+    /// Source that owned the focused sample when the query started.
+    pub(crate) source_id: SourceId,
+    /// Focused relative wav path expected to still be selected on apply.
+    pub(crate) relative_path: PathBuf,
+}
+
+/// In-flight follow-loaded similarity query owned by a background worker.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingLoadedSimilarityQuery {
+    /// Monotonic request identifier used to drop stale async results.
+    pub(crate) request_id: u64,
+    /// Source that owned the loaded sample when the query started.
+    pub(crate) source_id: SourceId,
+    /// Loaded relative wav path expected to still be active on apply.
+    pub(crate) relative_path: PathBuf,
+}
+
+/// Cached selected-source analysis progress data reused across controller frames.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct AnalysisProgressUiCache {
+    /// Source id that owns the cached progress snapshot.
+    pub(crate) source_id: Option<SourceId>,
+    /// Last source-scoped progress snapshot used for the overlay.
+    pub(crate) scoped_progress: Option<analysis_jobs::AnalysisProgress>,
+    /// When the scoped progress snapshot was last refreshed from a worker or DB.
+    pub(crate) scoped_progress_refreshed_at: Option<Instant>,
+    /// Last snapshot of running jobs shown in the overlay.
+    pub(crate) running_jobs: Vec<crate::app::state::RunningJobSnapshot>,
+    /// When the running-job snapshot list was last refreshed from the DB.
+    pub(crate) running_jobs_refreshed_at: Option<Instant>,
 }
 
 /// Deferred source-analysis metadata write queued after waveform load completes.

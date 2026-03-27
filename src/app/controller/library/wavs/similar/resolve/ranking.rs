@@ -76,7 +76,7 @@ pub(crate) fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 }
 
 /// Return whether an RMS feature should be treated as silent.
-pub(super) fn is_effectively_silent(rms: f32) -> bool {
+pub(crate) fn is_effectively_silent(rms: f32) -> bool {
     !rms.is_finite() || rms <= DUPLICATE_RMS_MIN
 }
 

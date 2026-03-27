@@ -25,6 +25,7 @@ pub(super) struct JobRequestCounters {
     pub(crate) next_audio_request_id: u64,
     pub(crate) next_recording_waveform_request_id: u64,
     pub(crate) next_folder_scan_request_id: u64,
+    pub(crate) next_similarity_request_id: u64,
     pub(crate) next_selection_export_request_id: u64,
 }
 
@@ -35,6 +36,7 @@ impl Default for JobRequestCounters {
             next_audio_request_id: 1,
             next_recording_waveform_request_id: 1,
             next_folder_scan_request_id: 1,
+            next_similarity_request_id: 1,
             next_selection_export_request_id: 1,
         }
     }

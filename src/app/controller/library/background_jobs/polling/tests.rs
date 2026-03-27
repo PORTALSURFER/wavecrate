@@ -1,15 +1,17 @@
 use super::*;
 use crate::app::controller::jobs::{
     ActiveRetainedDeleteResolution, ClipboardPasteOutcome, ClipboardPasteResult, FileOpMessage,
-    FileOpResult, FolderScanResult, RetainedDeleteResolutionMode, RetainedDeleteResolutionResult,
+    FileOpResult, FolderScanResult, FocusedSimilarityPaths, FocusedSimilarityResult,
+    LoadedSimilarityQueryResult, RetainedDeleteResolutionMode, RetainedDeleteResolutionResult,
     SearchResult, SelectionExportMessage,
 };
 use crate::app::controller::playback::audio_loader::{AudioLoadOutcome, AudioTransientResult};
+use crate::app::controller::state::audio::LoadedAudio;
 use crate::app::controller::state::audio::PendingAudio;
 use crate::app::controller::test_support::{
     dummy_controller, prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
 };
-use crate::app::state::{ProgressTaskKind, TriageFlagColumn, VisibleRows};
+use crate::app::state::{ProgressTaskKind, SampleBrowserSort, SimilarQuery, TriageFlagColumn, VisibleRows};
 use crate::sample_sources::Rating;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -434,4 +436,165 @@ fn audio_transients_message_routes_to_loaded_waveform_state() {
         controller.ui.waveform.transient_cache_token,
         Some(cache_token)
     );
+}
+
+#[test]
+fn focused_similarity_message_ignores_stale_result_then_applies_matching_highlight() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+    ]);
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.sample_view.wav.selected_wav = Some(PathBuf::from("one.wav"));
+    controller.runtime.pending_focused_similarity_query = Some(
+        crate::app::controller::state::runtime::PendingFocusedSimilarityQuery {
+            request_id: 7,
+            source_id: source.id.clone(),
+            relative_path: PathBuf::from("one.wav"),
+        },
+    );
+
+    controller.apply_background_job_message_for_tests(JobMessage::FocusedSimilarityLoaded(
+        FocusedSimilarityResult {
+            request_id: 8,
+            source_id: source.id.clone(),
+            relative_path: PathBuf::from("one.wav"),
+            result: Ok(Some(FocusedSimilarityPaths {
+                sample_id: format!("{}::one.wav", source.id.as_str()),
+                paths: vec![PathBuf::from("two.wav")],
+                scores: vec![0.98],
+                anchor_index: Some(0),
+            })),
+        },
+    ));
+
+    assert!(controller.runtime.pending_focused_similarity_query.is_some());
+    assert!(controller.ui.browser.search.focused_similarity.is_none());
+
+    controller.apply_background_job_message_for_tests(JobMessage::FocusedSimilarityLoaded(
+        FocusedSimilarityResult {
+            request_id: 7,
+            source_id: source.id.clone(),
+            relative_path: PathBuf::from("one.wav"),
+            result: Ok(Some(FocusedSimilarityPaths {
+                sample_id: format!("{}::one.wav", source.id.as_str()),
+                paths: vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")],
+                scores: vec![0.99, 0.98],
+                anchor_index: Some(0),
+            })),
+        },
+    ));
+
+    assert!(controller.runtime.pending_focused_similarity_query.is_none());
+    let highlight = controller
+        .ui
+        .browser
+        .search
+        .focused_similarity
+        .as_ref()
+        .expect("focused similarity");
+    assert_eq!(highlight.indices, vec![1]);
+    assert_eq!(highlight.scores, vec![0.98]);
+    assert_eq!(highlight.anchor_index, Some(0));
+}
+
+#[test]
+fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_query() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+    ]);
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.ui.browser.search.sort = SampleBrowserSort::Similarity;
+    controller.ui.browser.search.similarity_sort_follow_loaded = true;
+    controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
+        source_id: source.id.clone(),
+        root: source.root.clone(),
+        relative_path: PathBuf::from("one.wav"),
+        bytes: Arc::from(Vec::<u8>::new()),
+        duration_seconds: 1.0,
+        sample_rate: 44_100,
+    });
+    controller.runtime.pending_loaded_similarity_query = Some(
+        crate::app::controller::state::runtime::PendingLoadedSimilarityQuery {
+            request_id: 7,
+            source_id: source.id.clone(),
+            relative_path: PathBuf::from("one.wav"),
+        },
+    );
+
+    controller.apply_background_job_message_for_tests(JobMessage::LoadedSimilarityQueryBuilt(
+        LoadedSimilarityQueryResult {
+            request_id: 8,
+            source_id: source.id.clone(),
+            relative_path: PathBuf::from("one.wav"),
+            result: Ok(SimilarQuery {
+                sample_id: format!("{}::one.wav", source.id.as_str()),
+                label: "Loaded: one.wav".to_string(),
+                indices: vec![0, 1],
+                scores: vec![1.0, 0.8],
+                anchor_index: Some(0),
+            }),
+        },
+    ));
+
+    assert!(controller.runtime.pending_loaded_similarity_query.is_some());
+    assert!(controller.ui.browser.search.similar_query.is_none());
+
+    controller.apply_background_job_message_for_tests(JobMessage::LoadedSimilarityQueryBuilt(
+        LoadedSimilarityQueryResult {
+            request_id: 7,
+            source_id: source.id.clone(),
+            relative_path: PathBuf::from("one.wav"),
+            result: Ok(SimilarQuery {
+                sample_id: format!("{}::one.wav", source.id.as_str()),
+                label: "Loaded: one.wav".to_string(),
+                indices: vec![0, 1],
+                scores: vec![1.0, 0.8],
+                anchor_index: Some(0),
+            }),
+        },
+    ));
+
+    assert!(controller.runtime.pending_loaded_similarity_query.is_none());
+    let query = controller
+        .ui
+        .browser
+        .search
+        .similar_query
+        .as_ref()
+        .expect("similarity query");
+    assert_eq!(query.indices, vec![0, 1]);
+    assert_eq!(query.anchor_index, Some(0));
+}
+
+#[test]
+fn poll_background_jobs_limits_messages_per_pass() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    let sender = controller.runtime.jobs.message_sender();
+    for _ in 0..(MAX_BACKGROUND_MESSAGES_PER_POLL + 2) {
+        sender
+            .send(JobMessage::Analysis(AnalysisJobMessage::Progress {
+                source_id: Some(source.id.clone()),
+                progress: crate::app::controller::library::analysis_jobs::AnalysisProgress {
+                    pending: 2,
+                    running: 1,
+                    done: 3,
+                    failed: 0,
+                    samples_total: 5,
+                    samples_pending_or_running: 2,
+                },
+            }))
+            .expect("queue analysis progress");
+    }
+
+    controller.poll_background_jobs();
+
+    let mut remaining = 0usize;
+    while controller.runtime.jobs.try_recv_message().is_ok() {
+        remaining += 1;
+    }
+    assert_eq!(remaining, 2);
 }

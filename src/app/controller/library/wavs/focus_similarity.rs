@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::controller::jobs::FocusedSimilarityResult;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -12,18 +13,8 @@ impl AppController {
     pub(crate) fn clear_focused_similarity_highlight(&mut self) {
         self.runtime.pending_similarity_refresh = None;
         self.runtime.pending_similarity_refresh_not_before = None;
+        self.runtime.pending_focused_similarity_query = None;
         self.ui.browser.search.focused_similarity = None;
-    }
-
-    /// Refresh near-duplicate highlights for the focused sample.
-    pub(crate) fn refresh_focused_similarity_highlight(
-        &mut self,
-        sample_id: &str,
-        anchor_index: Option<usize>,
-    ) {
-        self.ui.browser.search.focused_similarity =
-            similar::build_focused_similarity_highlight(self, sample_id, anchor_index)
-                .unwrap_or_default();
     }
 
     /// Queue a focused-similarity highlight refresh for frame-time execution.
@@ -60,11 +51,40 @@ impl AppController {
         if self.sample_view.wav.selected_wav.as_deref() != Some(pending.relative_path.as_path()) {
             return;
         }
-        self.refresh_focused_similarity_highlight(&pending.sample_id, pending.anchor_index);
+        similar::queue_focused_similarity_highlight_refresh(self, pending);
     }
 
     /// Return true when a focused-similarity refresh is queued.
     pub(crate) fn has_pending_focused_similarity_highlight_refresh(&self) -> bool {
         self.runtime.pending_similarity_refresh.is_some()
+            || self.runtime.pending_focused_similarity_query.is_some()
+    }
+
+    /// Apply one async focused-similarity result if it still matches the active selection.
+    pub(crate) fn handle_focused_similarity_loaded(&mut self, result: FocusedSimilarityResult) {
+        let Some(pending) = self.runtime.pending_focused_similarity_query.as_ref() else {
+            return;
+        };
+        if pending.request_id != result.request_id
+            || pending.source_id != result.source_id
+            || pending.relative_path != result.relative_path
+        {
+            return;
+        }
+        self.runtime.pending_focused_similarity_query = None;
+        if self.sample_view.wav.selected_wav.as_deref() != Some(result.relative_path.as_path()) {
+            return;
+        }
+        self.ui.browser.search.focused_similarity = result.result.ok().and_then(|payload| {
+            payload.and_then(|payload| {
+                similar::focused_similarity_from_paths(
+                    payload.sample_id,
+                    payload.paths,
+                    payload.scores,
+                    payload.anchor_index,
+                    |path| self.wav_index_for_path(path),
+                )
+            })
+        });
     }
 }

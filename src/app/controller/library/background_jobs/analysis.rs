@@ -2,7 +2,12 @@ use super::super::analysis_jobs::{self, RunningJobInfo};
 use super::*;
 use crate::app::state::ProgressTaskKind;
 use crate::app::state::RunningJobSnapshot;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+/// Minimum interval between controller-thread refreshes of selected-source progress.
+const SCOPED_ANALYSIS_PROGRESS_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
+/// Minimum interval between controller-thread refreshes of running-job snapshots.
+const RUNNING_JOB_SNAPSHOT_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
 
 /// Apply background analysis worker events to progress UI and follow-up queues.
 pub(crate) fn handle_analysis_message(controller: &mut AppController, message: AnalysisJobMessage) {
@@ -50,6 +55,7 @@ fn handle_analysis_progress_message(
     if should_ignore_analysis_progress(controller, source_id.as_ref()) {
         return;
     }
+    cache_selected_source_progress(controller, source_id.as_ref(), progress);
     let selected_source = controller.selection_state.ctx.selected_source.clone();
     let progress = resolve_scoped_analysis_progress(
         controller,
@@ -96,9 +102,14 @@ fn resolve_scoped_analysis_progress(
     let Some(source) = controller.current_source() else {
         return progress;
     };
-    if selected_source_matches_current_source(selected_source, &source.id)
-        && let Ok(scoped) = analysis_jobs::current_progress_for_source(&source)
-    {
+    if !selected_source_matches_current_source(selected_source, &source.id) {
+        return progress;
+    }
+    if let Some(scoped) = cached_scoped_analysis_progress(controller, &source.id) {
+        return scoped;
+    }
+    if let Ok(scoped) = analysis_jobs::current_progress_for_source(&source) {
+        store_scoped_analysis_progress(controller, source.id.clone(), scoped);
         return scoped;
     }
     progress
@@ -173,7 +184,7 @@ fn update_analysis_progress_ui(
     );
     let samples_completed = progress.samples_completed();
     let samples_total = progress.samples_total;
-    let running_jobs = current_source_running_job_snapshots(controller);
+    let running_jobs = current_source_running_job_snapshots(controller, progress.running > 0);
     controller.ui.progress.set_analysis_snapshot(Some(
         crate::app::state::AnalysisProgressSnapshot {
             pending: progress.pending,
@@ -214,14 +225,85 @@ fn analysis_progress_detail(
     detail
 }
 
-fn current_source_running_job_snapshots(controller: &mut AppController) -> Vec<RunningJobSnapshot> {
+fn cache_selected_source_progress(
+    controller: &mut AppController,
+    source_id: Option<&SourceId>,
+    progress: analysis_jobs::AnalysisProgress,
+) {
+    let Some(source_id) = source_id else {
+        return;
+    };
+    if controller.selection_state.ctx.selected_source.as_ref() != Some(source_id) {
+        return;
+    }
+    store_scoped_analysis_progress(controller, source_id.clone(), progress);
+}
+
+fn cached_scoped_analysis_progress(
+    controller: &mut AppController,
+    source_id: &SourceId,
+) -> Option<analysis_jobs::AnalysisProgress> {
+    let cache = cache_for_selected_source(controller, source_id);
+    if cache
+        .scoped_progress_refreshed_at
+        .is_some_and(|updated| updated.elapsed() < SCOPED_ANALYSIS_PROGRESS_REFRESH_INTERVAL)
+    {
+        return cache.scoped_progress;
+    }
+    None
+}
+
+fn store_scoped_analysis_progress(
+    controller: &mut AppController,
+    source_id: SourceId,
+    progress: analysis_jobs::AnalysisProgress,
+) {
+    let cache = cache_for_selected_source(controller, &source_id);
+    cache.source_id = Some(source_id);
+    cache.scoped_progress = Some(progress);
+    cache.scoped_progress_refreshed_at = Some(Instant::now());
+}
+
+fn current_source_running_job_snapshots(
+    controller: &mut AppController,
+    include_running_jobs: bool,
+) -> Vec<RunningJobSnapshot> {
     let Some(source) = controller.current_source() else {
         return Vec::new();
     };
-    analysis_jobs::current_running_jobs_for_source(&source, 3)
+    let cache = cache_for_selected_source(controller, &source.id);
+    if !include_running_jobs {
+        cache.running_jobs.clear();
+        cache.running_jobs_refreshed_at = Some(Instant::now());
+        return Vec::new();
+    }
+    if cache
+        .running_jobs_refreshed_at
+        .is_some_and(|updated| updated.elapsed() < RUNNING_JOB_SNAPSHOT_REFRESH_INTERVAL)
+    {
+        return cache.running_jobs.clone();
+    }
+    let running_jobs = analysis_jobs::current_running_jobs_for_source(&source, 3)
         .ok()
         .map(build_running_job_snapshots)
-        .unwrap_or_default()
+        .unwrap_or_default();
+    cache.running_jobs = running_jobs.clone();
+    cache.running_jobs_refreshed_at = Some(Instant::now());
+    running_jobs
+}
+
+fn cache_for_selected_source<'a>(
+    controller: &'a mut AppController,
+    source_id: &SourceId,
+) -> &'a mut crate::app::controller::state::runtime::AnalysisProgressUiCache {
+    let cache = &mut controller.runtime.analysis_progress_ui;
+    if cache.source_id.as_ref() != Some(source_id) {
+        *cache = crate::app::controller::state::runtime::AnalysisProgressUiCache {
+            source_id: Some(source_id.clone()),
+            ..Default::default()
+        };
+    }
+    cache
 }
 
 fn build_running_job_snapshots(jobs: Vec<RunningJobInfo>) -> Vec<RunningJobSnapshot> {

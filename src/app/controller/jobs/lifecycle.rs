@@ -126,7 +126,7 @@ impl ControllerJobs {
     }
 
     /// Spawn a one-shot background task that always emits one controller job message.
-    pub(super) fn spawn_one_shot_job<Output: Send + 'static>(
+    pub(in super::super) fn spawn_one_shot_job<Output: Send + 'static>(
         &self,
         request_repaint: bool,
         run: impl FnOnce() -> Output + Send + 'static,
@@ -143,7 +143,7 @@ impl ControllerJobs {
     }
 
     /// Spawn a one-shot background task that may or may not emit a controller job message.
-    pub(super) fn spawn_optional_one_shot_job(
+    pub(in super::super) fn spawn_optional_one_shot_job(
         &self,
         request_repaint: bool,
         run: impl FnOnce() -> Option<JobMessage> + Send + 'static,
@@ -158,6 +158,11 @@ impl ControllerJobs {
                 }
             }
         });
+    }
+
+    /// Trigger one repaint for queued work that still has messages left to apply.
+    pub(in super::super) fn request_repaint(&self) {
+        self.repaint_signal.request_repaint();
     }
 }
 

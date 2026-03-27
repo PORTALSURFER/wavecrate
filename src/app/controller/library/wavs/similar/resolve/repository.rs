@@ -90,7 +90,7 @@ pub(crate) fn load_light_dsp_for_sample(
 }
 
 /// Load the RMS feature value used for duplicate/silence filtering.
-pub(super) fn load_rms_for_sample(
+pub(crate) fn load_rms_for_sample(
     conn: &rusqlite::Connection,
     sample_id: &str,
 ) -> Result<Option<f32>, String> {

@@ -1,8 +1,10 @@
 use super::*;
 use crate::app::state::FocusedSimilarity;
 use crate::app::view_model;
+use std::path::PathBuf;
 
 mod apply;
+mod background;
 mod query;
 mod resolve;
 
@@ -65,18 +67,17 @@ pub(crate) fn clear_similar_filter(controller: &mut AppController) {
     apply::clear_similar_filter(controller);
 }
 
-/// Build the near-duplicate highlight set for a focused sample id.
-pub(crate) fn build_focused_similarity_highlight(
+pub(crate) fn queue_focused_similarity_highlight_refresh(
     controller: &mut AppController,
-    sample_id: &str,
-    anchor_index: Option<usize>,
-) -> Result<Option<FocusedSimilarity>, String> {
-    let resolved = resolve::resolve_similarity_for_sample_id(
-        controller,
-        sample_id,
-        Some(DUPLICATE_SCORE_THRESHOLD),
-    )?;
-    Ok(focused_similarity_from_resolved(resolved, anchor_index))
+    pending: crate::app::controller::state::runtime::PendingFocusedSimilarityRefresh,
+) {
+    background::queue_focused_similarity_highlight_refresh(controller, pending);
+}
+
+pub(crate) fn queue_loaded_similarity_query_refresh(
+    controller: &mut AppController,
+) -> Result<(), String> {
+    background::queue_loaded_similarity_query_refresh(controller)
 }
 
 fn apply_similarity_for_sample_id(
@@ -109,14 +110,41 @@ pub(crate) fn find_similar_for_audio_path(
 }
 
 pub(crate) fn enable_loaded_similarity_sort(controller: &mut AppController) -> Result<(), String> {
-    let query = query::build_similarity_query_for_loaded_sample(controller)?;
-    apply::apply_similarity_query(controller, query);
     controller.ui.browser.search.similarity_sort_follow_loaded = true;
-    Ok(())
+    background::queue_loaded_similarity_query_refresh(controller)
 }
 
 pub(crate) fn disable_similarity_sort(controller: &mut AppController) {
     apply::disable_similarity_sort(controller);
+}
+
+pub(crate) fn focused_similarity_from_paths(
+    sample_id: String,
+    paths: Vec<PathBuf>,
+    scores: Vec<f32>,
+    anchor_index: Option<usize>,
+    mut resolve_index: impl FnMut(&Path) -> Option<usize>,
+) -> Option<FocusedSimilarity> {
+    let mut indices = Vec::new();
+    let mut mapped_scores = Vec::new();
+    for (path, score) in paths.into_iter().zip(scores.into_iter()) {
+        if let Some(index) = resolve_index(&path) {
+            if anchor_index == Some(index) {
+                continue;
+            }
+            indices.push(index);
+            mapped_scores.push(score);
+        }
+    }
+    if indices.is_empty() {
+        return None;
+    }
+    Some(FocusedSimilarity {
+        sample_id,
+        indices,
+        scores: mapped_scores,
+        anchor_index,
+    })
 }
 
 fn focused_similarity_from_resolved(
@@ -145,24 +173,6 @@ fn focused_similarity_from_resolved(
         scores,
         anchor_index,
     })
-}
-
-pub(crate) fn refresh_similarity_sort_for_loaded(
-    controller: &mut AppController,
-) -> Result<(), String> {
-    if !controller.ui.browser.search.similarity_sort_follow_loaded {
-        return Ok(());
-    }
-    if controller.ui.browser.search.sort != SampleBrowserSort::Similarity {
-        return Ok(());
-    }
-    if controller.ui.browser.search.similar_query.is_some() {
-        return Ok(());
-    }
-    let query = query::build_similarity_query_for_loaded_sample(controller)?;
-    controller.ui.browser.search.similar_query = Some(query);
-    controller.rebuild_browser_lists();
-    Ok(())
 }
 
 #[cfg(test)]
