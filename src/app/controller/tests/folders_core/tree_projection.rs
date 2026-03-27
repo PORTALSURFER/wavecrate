@@ -130,6 +130,115 @@ fn collapsing_leaf_folder_focuses_parent_row() -> Result<(), String> {
 }
 
 #[test]
+fn nudge_folder_focus_moves_through_visible_rows() -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    let nested = source.root.join("drums").join("kicks");
+    std::fs::create_dir_all(&nested).unwrap();
+    write_test_wav(&nested.join("tight.wav"), &[0.2, -0.2]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "drums/kicks/tight.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+
+    controller.nudge_folder_focus_action(1);
+    let focused = controller
+        .ui
+        .sources
+        .folders
+        .focused
+        .expect("focused folder row after first move");
+    assert_eq!(controller.ui.sources.folders.rows[focused].path, PathBuf::from(""));
+
+    controller.nudge_folder_focus_action(1);
+    let focused = controller
+        .ui
+        .sources
+        .folders
+        .focused
+        .expect("focused folder row after second move");
+    assert_eq!(
+        controller.ui.sources.folders.rows[focused].path,
+        PathBuf::from("drums")
+    );
+
+    controller.nudge_folder_focus_action(1);
+    let focused = controller
+        .ui
+        .sources
+        .folders
+        .focused
+        .expect("focused folder row after third move");
+    assert_eq!(
+        controller.ui.sources.folders.rows[focused].path,
+        PathBuf::from("drums/kicks")
+    );
+
+    controller.nudge_folder_focus_action(-1);
+    let focused = controller
+        .ui
+        .sources
+        .folders
+        .focused
+        .expect("focused folder row after moving back up");
+    assert_eq!(
+        controller.ui.sources.folders.rows[focused].path,
+        PathBuf::from("drums")
+    );
+    Ok(())
+}
+
+#[test]
+fn nudge_folder_focus_skips_collapsed_descendants() -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    let nested = source.root.join("drums").join("kicks");
+    std::fs::create_dir_all(&nested).unwrap();
+    write_test_wav(&nested.join("tight.wav"), &[0.2, -0.2]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "drums/kicks/tight.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+
+    let drums = folder_row_index(&controller, "drums");
+    controller.toggle_folder_expanded(drums);
+    controller.nudge_folder_focus_action(1);
+    controller.nudge_folder_focus_action(1);
+
+    let focused = controller
+        .ui
+        .sources
+        .folders
+        .focused
+        .expect("focused folder row after moving through collapsed tree");
+    assert_eq!(
+        controller.ui.sources.folders.rows[focused].path,
+        PathBuf::from("drums")
+    );
+
+    controller.nudge_folder_focus_action(1);
+    let focused = controller
+        .ui
+        .sources
+        .folders
+        .focused
+        .expect("focused folder row after clamped move");
+    assert_eq!(
+        controller.ui.sources.folders.rows[focused].path,
+        PathBuf::from("drums")
+    );
+    Ok(())
+}
+
+#[test]
 fn activating_expandable_folder_row_expands_then_collapses_it() -> Result<(), String> {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
