@@ -16,14 +16,20 @@ impl AppController {
             let Some(row) = controller.ui.sources.folders.rows.get(row_index).cloned() else {
                 return;
             };
-            let Some(activation) = controller.prepare_folder_row_activation(&row) else {
+            let repeat_click = controller.repeat_folder_row_click(row_index);
+            let Some(activation) = controller.prepare_folder_row_activation(&row, repeat_click)
+            else {
                 return;
             };
             controller.finish_folder_row_activation(row_index, activation);
         });
     }
 
-    fn prepare_folder_row_activation(&mut self, row: &FolderRowView) -> Option<FolderActivation> {
+    fn prepare_folder_row_activation(
+        &mut self,
+        row: &FolderRowView,
+        repeat_click: bool,
+    ) -> Option<FolderActivation> {
         let path = row.path.clone();
         let model = self.current_folder_model_mut()?;
         if !row.is_root && !model.available.contains(&path) {
@@ -31,7 +37,7 @@ impl AppController {
         }
         let selection_changed = apply_activation_selection(model, row, &path);
         model.focused = Some(path.clone());
-        if should_toggle_folder_on_activation(model, row) {
+        if should_toggle_folder_on_activation(model, row, repeat_click) {
             toggle_expanded_path(&mut model.expanded, &path);
         }
         Some(FolderActivation {
@@ -39,6 +45,14 @@ impl AppController {
             snapshot: model.clone(),
             selection_changed,
         })
+    }
+
+    fn repeat_folder_row_click(&self, row_index: usize) -> bool {
+        self.ui.sources.folders.focused == Some(row_index)
+            && matches!(
+                self.ui.focus.context,
+                crate::app::state::FocusContext::SourceFolders
+            )
     }
 
     fn finish_folder_row_activation(&mut self, row_index: usize, activation: FolderActivation) {
@@ -65,8 +79,15 @@ fn apply_activation_selection(
     }
 }
 
-fn should_toggle_folder_on_activation(model: &FolderBrowserModel, row: &FolderRowView) -> bool {
-    row.has_children && !row.is_root && model.search_query.trim().is_empty()
+fn should_toggle_folder_on_activation(
+    model: &FolderBrowserModel,
+    row: &FolderRowView,
+    repeat_click: bool,
+) -> bool {
+    row.has_children
+        && !row.is_root
+        && model.search_query.trim().is_empty()
+        && (!row.expanded || repeat_click)
 }
 
 fn toggle_expanded_path(expanded: &mut std::collections::BTreeSet<PathBuf>, path: &Path) {
