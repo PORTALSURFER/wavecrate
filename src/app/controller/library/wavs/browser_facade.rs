@@ -193,7 +193,11 @@ impl AppController {
                 root: source.root.clone(),
             })
             .ok_or_else(|| format!("Unknown source for sample_id: {sample_id}"))?;
-        self.load_waveform_for_selection(&source, &relative_path)
+        if self.selection_state.ctx.selected_source.as_ref() != Some(&source.id) {
+            self.select_source(Some(source.id.clone()));
+        }
+        self.sample_view.wav.selected_wav = Some(relative_path.clone());
+        self.queue_audio_load_for(&source, &relative_path, AudioLoadIntent::Selection, None)
     }
 
     /// Select a wav by absolute index into the full wav list.

@@ -230,11 +230,12 @@ impl AppController {
             let preserved_view = self.ui.waveform.view;
             self.sample_view.wav.loaded_wav = None;
             self.set_ui_loaded_wav(None);
-            if let Err(err) = self.load_waveform_for_selection(source, relative_path) {
+            if let Err(err) =
+                self.queue_audio_load_for(source, relative_path, AudioLoadIntent::Selection, None)
+            {
                 self.set_status(err, StatusTone::Warning);
             } else {
                 self.ui.waveform.view = preserved_view;
-                self.refresh_waveform_image();
             }
         }
     }

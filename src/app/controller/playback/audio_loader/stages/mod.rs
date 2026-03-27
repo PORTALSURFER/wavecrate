@@ -1,6 +1,7 @@
 use super::{
     AudioLoadError, AudioLoadJob, AudioLoadOutcome, AudioTransientResult, PendingTransientCompute,
 };
+use crate::app::controller::playback::persistent_waveform_cache::load_persistent_waveform_cache_entry;
 #[cfg(test)]
 use crate::waveform::DecodedWaveform;
 use crate::waveform::WaveformRenderer;
@@ -28,6 +29,22 @@ pub(super) fn load_audio_inner(
     let Some(io_stage) = io::load_io_stage(job, latest_request_id)? else {
         return Ok(None);
     };
+
+    if job.stretch_ratio.is_none()
+        && let Some(hit) = load_persistent_waveform_cache_entry(
+            &job.source_id,
+            &job.relative_path,
+            io_stage.metadata,
+        )
+    {
+        return Ok(Some(transients::finalize_stage(
+            hit.decoded,
+            Arc::<[u8]>::from(io_stage.bytes),
+            io_stage.metadata,
+            Some(hit.transients),
+            false,
+        )));
+    }
 
     let Some(decoded) = decode::decode_stage(renderer, job, latest_request_id, &io_stage.bytes)?
     else {
@@ -57,6 +74,7 @@ pub(super) fn load_audio_inner(
         stretch_output.decoded,
         stretch_output.bytes,
         io_stage.metadata,
+        None,
         stretch_output.stretched,
     )))
 }

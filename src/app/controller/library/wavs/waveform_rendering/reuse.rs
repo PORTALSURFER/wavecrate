@@ -109,6 +109,31 @@ impl AppController {
         self.sample_view.waveform.render_meta = Some(meta);
     }
 
+    /// Store a pre-rendered waveform image and projected RGBA payload from a worker result.
+    pub(in crate::app::controller::library::wavs) fn store_prepared_waveform_image(
+        &mut self,
+        image: Option<WaveformImage>,
+        projected_image: Option<Arc<crate::gui::types::ImageRgba>>,
+        meta: Option<WaveformRenderMeta>,
+    ) {
+        let signature = image.as_ref().and_then(|image| {
+            (image.size[0] > 0 && image.size[1] > 0).then(|| {
+                let signature = self.runtime.next_waveform_image_signature;
+                self.runtime.next_waveform_image_signature = self
+                    .runtime
+                    .next_waveform_image_signature
+                    .wrapping_add(1)
+                    .max(1);
+                signature
+            })
+        });
+        self.ui.waveform.image = image;
+        self.ui.waveform.waveform_image_signature = signature;
+        self.projected_waveform_image_signature = signature;
+        self.projected_waveform_image = projected_image;
+        self.sample_view.waveform.render_meta = meta;
+    }
+
     /// Reuse a previous waveform image by translating unchanged pixels and rendering only the edge strip.
     pub(super) fn translate_waveform_image_if_possible(
         &self,

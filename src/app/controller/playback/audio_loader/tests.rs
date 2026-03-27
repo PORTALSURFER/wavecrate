@@ -10,6 +10,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tempfile::NamedTempFile;
 
+fn render_spec() -> crate::app::controller::library::wavs::waveform_rendering::InitialWaveformRenderSpec {
+    crate::app::controller::library::wavs::waveform_rendering::InitialWaveformRenderSpec {
+        size: [16, 16],
+        channel_view: crate::waveform::WaveformChannelView::Mono,
+    }
+}
+
 fn test_job(request_id: u64, relative_path: &str) -> AudioLoadJob {
     AudioLoadJob {
         request_id,
@@ -17,6 +24,8 @@ fn test_job(request_id: u64, relative_path: &str) -> AudioLoadJob {
         root: PathBuf::from("/tmp"),
         relative_path: PathBuf::from(relative_path),
         stretch_ratio: None,
+        render_spec: render_spec(),
+        prepared: None,
     }
 }
 
@@ -32,6 +41,8 @@ fn test_job_with_root(
         root: root.to_path_buf(),
         relative_path: relative_path.to_path_buf(),
         stretch_ratio,
+        render_spec: render_spec(),
+        prepared: None,
     }
 }
 
@@ -216,6 +227,8 @@ fn run_stretch_stage_drops_result_when_request_turns_stale_after_stretch() {
         root: PathBuf::from("/tmp"),
         relative_path: PathBuf::from("stretch.wav"),
         stretch_ratio: Some(1.25),
+        render_spec: render_spec(),
+        prepared: None,
     };
 
     let result = super::stages::run_stretch_stage_for_test(

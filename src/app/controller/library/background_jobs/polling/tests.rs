@@ -38,6 +38,7 @@ fn decode_audio_outcome(
         decoded,
         bytes,
         metadata,
+        transients: None,
         stretched: false,
     }
 }
@@ -329,7 +330,7 @@ fn selection_export_progress_message_updates_status_bar_progress() {
 }
 
 #[test]
-/// Primary audio completions should ignore stale requests and only clear loading for the match.
+/// Primary audio completions should ignore stale requests and keep loading active until visuals arrive.
 fn audio_primary_message_ignores_stale_completion_then_applies_matching_result() {
     let (mut controller, source) =
         prepare_with_source_and_wav_entries(vec![sample_entry("match.wav", Rating::NEUTRAL)]);
@@ -374,7 +375,10 @@ fn audio_primary_message_ignores_stale_completion_then_applies_matching_result()
     ));
 
     assert!(controller.runtime.jobs.pending_audio().is_none());
-    assert!(controller.ui.waveform.loading.is_none());
+    assert_eq!(
+        controller.ui.waveform.loading.as_deref(),
+        Some(relative_path)
+    );
     assert_eq!(
         controller.sample_view.wav.loaded_wav.as_deref(),
         Some(relative_path)

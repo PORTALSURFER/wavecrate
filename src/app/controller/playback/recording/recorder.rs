@@ -88,7 +88,12 @@ pub(crate) fn stop_recording(
         controller.sample_view.wav.loaded_audio = None;
         controller.sample_view.wav.loaded_wav = None;
         controller.set_ui_loaded_wav(None);
-        if let Err(err) = controller.load_waveform_for_selection(&source, &relative_path) {
+        if let Err(err) = controller.queue_audio_load_for(
+            &source,
+            &relative_path,
+            AudioLoadIntent::Selection,
+            None,
+        ) {
             controller.set_status(
                 format!("Recorded {} (load failed: {err})", relative_path.display()),
                 StatusTone::Warning,

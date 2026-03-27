@@ -13,7 +13,15 @@ use crate::{
     gui_test::GuiFixtureBridge,
     gui_test::trace_event_for_action,
 };
-use std::time::Instant;
+use std::{
+    thread,
+    time::{Duration, Instant},
+};
+
+/// Maximum time an in-process GUI scenario assertion waits for async state to settle.
+const SCENARIO_ASSERT_TIMEOUT: Duration = Duration::from_millis(300);
+/// Poll interval used while waiting for background-driven GUI state.
+const SCENARIO_ASSERT_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// Capture a deterministic automation bundle from the default bridge fixture.
 pub fn capture_default_bundle(config: &GuiTestModeConfig) -> Result<GuiTestArtifactBundle, String> {
@@ -61,8 +69,16 @@ pub fn run_scenario(
                 trace.push(trace_event_for_action(action));
             }
             GuiScenarioStep::Assert { assertion } => {
-                let snapshot = current_snapshot(config, &mut bridge);
-                if let Err(err) = assert_scenario_state(&snapshot, &trace, assertion) {
+                let deadline = Instant::now() + SCENARIO_ASSERT_TIMEOUT;
+                let failure_message = loop {
+                    let snapshot = current_snapshot(config, &mut bridge);
+                    match assert_scenario_state(&snapshot, &trace, assertion) {
+                        Ok(()) => break None,
+                        Err(err) if Instant::now() >= deadline => break Some(err),
+                        Err(_) => thread::sleep(SCENARIO_ASSERT_POLL_INTERVAL),
+                    }
+                };
+                if let Some(err) = failure_message {
                     failure = Some(err);
                     timings.push(GuiStepTimingSample {
                         label: step_label(step),

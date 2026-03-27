@@ -196,14 +196,13 @@ fn focus_browser_row_and_play_queues_latest_preview_for_unloaded_sample() {
         Some(Path::new("two.wav"))
     );
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    assert_eq!(controller.sample_view.wav.loaded_wav, None);
+    assert_eq!(controller.ui.loaded_wav, None);
     assert_eq!(
-        controller.sample_view.wav.loaded_wav.as_deref(),
-        Some(Path::new("one.wav"))
+        controller.ui.waveform.loading.as_deref(),
+        Some(Path::new("two.wav"))
     );
-    assert_eq!(
-        controller.ui.loaded_wav.as_deref(),
-        Some(Path::new("one.wav"))
-    );
+    assert!(controller.ui.waveform.image.is_none());
     assert_eq!(
         controller
             .runtime

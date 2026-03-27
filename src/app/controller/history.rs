@@ -211,7 +211,12 @@ impl AppController {
                 }
 
                 if let Some(path) = snapshot.loaded_wav.clone() {
-                    let _ = controller.load_waveform_for_selection(&source, &path);
+                    let _ = controller.queue_audio_load_for(
+                        &source,
+                        &path,
+                        AudioLoadIntent::Selection,
+                        None,
+                    );
                 }
             } else {
                 controller.rebuild_browser_lists();

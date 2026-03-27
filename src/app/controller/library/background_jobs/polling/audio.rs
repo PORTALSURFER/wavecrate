@@ -62,7 +62,6 @@ impl AppController {
                     return;
                 }
                 self.runtime.jobs.set_pending_audio(None);
-                self.ui.waveform.loading = None;
                 match result {
                     Ok(outcome) => self.handle_audio_loaded(pending, outcome),
                     Err(err) => self.handle_audio_load_error(pending, err),
@@ -70,6 +69,9 @@ impl AppController {
             }
             AudioLoadResult::Transients(result) => {
                 self.handle_audio_transients_loaded(result);
+            }
+            AudioLoadResult::Visual(result) => {
+                self.handle_audio_visual_loaded(result);
             }
         }
     }

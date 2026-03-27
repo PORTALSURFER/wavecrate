@@ -1,5 +1,9 @@
 use super::*;
 use crate::app::controller::playback::audio_cache::FileMetadata;
+use crate::app::controller::library::wavs::waveform_rendering::{
+    InitialWaveformRenderSpec, PreparedWaveformVisual, prepare_initial_waveform_visual,
+};
+use crate::gui::types::ImageRgba;
 use crate::waveform::{DecodedWaveform, WaveformRenderer};
 use std::{
     path::PathBuf,
@@ -32,6 +36,18 @@ pub(crate) struct AudioLoadJob {
     pub root: PathBuf,
     pub relative_path: PathBuf,
     pub stretch_ratio: Option<f64>,
+    pub render_spec: InitialWaveformRenderSpec,
+    pub prepared: Option<PreparedAudioLoad>,
+}
+
+#[derive(Clone, Debug)]
+/// Fully prepared in-memory audio payload queued back through the worker path.
+pub(crate) struct PreparedAudioLoad {
+    pub metadata: FileMetadata,
+    pub decoded: Arc<DecodedWaveform>,
+    pub bytes: Arc<[u8]>,
+    pub transients: Arc<[f32]>,
+    pub stretched: bool,
 }
 
 #[derive(Debug)]
@@ -39,6 +55,22 @@ pub(crate) struct AudioLoadOutcome {
     pub decoded: Arc<DecodedWaveform>,
     pub bytes: Arc<[u8]>,
     pub metadata: FileMetadata,
+    pub transients: Option<Arc<[f32]>>,
+    pub stretched: bool,
+}
+
+#[derive(Debug)]
+/// Deferred initial waveform visual payload produced off the controller thread.
+pub(crate) struct AudioVisualResult {
+    pub request_id: u64,
+    pub source_id: SourceId,
+    pub relative_path: PathBuf,
+    pub metadata: FileMetadata,
+    pub cache_token: u64,
+    pub transients: Arc<[f32]>,
+    pub image: Option<crate::waveform::WaveformImage>,
+    pub projected_image: Option<Arc<ImageRgba>>,
+    pub render_meta: Option<crate::app::controller::library::wavs::WaveformRenderMeta>,
     pub stretched: bool,
 }
 
@@ -70,10 +102,25 @@ pub(crate) enum AudioLoadResult {
         result: Result<AudioLoadOutcome, AudioLoadError>,
     },
     Transients(AudioTransientResult),
+    Visual(AudioVisualResult),
 }
 
 #[derive(Clone)]
-/// Inputs required to compute deferred transient markers after primary load delivery.
+/// Inputs required to compute deferred waveform visuals after primary delivery.
+struct PendingVisualCompute {
+    request_id: u64,
+    source_id: SourceId,
+    relative_path: PathBuf,
+    metadata: FileMetadata,
+    cache_token: u64,
+    decoded: Arc<DecodedWaveform>,
+    render_spec: InitialWaveformRenderSpec,
+    known_transients: Option<Arc<[f32]>>,
+    stretched: bool,
+}
+
+#[derive(Clone)]
+/// Inputs required to compute transient markers before visual preparation.
 struct PendingTransientCompute {
     request_id: u64,
     source_id: SourceId,
@@ -139,13 +186,23 @@ pub(crate) fn spawn_audio_loader(
                     }
                     record_job_completion(result.is_ok());
                     let transient_compute =
-                        result.as_ref().ok().map(|outcome| PendingTransientCompute {
+                        result.as_ref().ok().map(|outcome| PendingVisualCompute {
                             request_id: job.request_id,
                             source_id: job.source_id.clone(),
                             relative_path: job.relative_path.clone(),
                             metadata: outcome.metadata,
                             cache_token: outcome.decoded.cache_token,
                             decoded: Arc::clone(&outcome.decoded),
+                            render_spec: job.render_spec,
+                            known_transients: outcome
+                                .transients
+                                .as_ref()
+                                .map(Arc::clone)
+                                .or_else(|| {
+                                    job.prepared
+                                        .as_ref()
+                                        .map(|prepared| Arc::clone(&prepared.transients))
+                                }),
                             stretched: outcome.stretched,
                         });
                     let _ = result_tx.send(AudioLoadResult::Primary {
@@ -156,9 +213,9 @@ pub(crate) fn spawn_audio_loader(
                     });
                     if let Some(transient_compute) = transient_compute
                         && let Some(transients_result) =
-                            build_transient_result(transient_compute, &latest_request_id_worker)
+                            build_visual_result(&renderer, transient_compute, &latest_request_id_worker)
                     {
-                        let _ = result_tx.send(AudioLoadResult::Transients(transients_result));
+                        let _ = result_tx.send(AudioLoadResult::Visual(transients_result));
                     }
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
@@ -207,10 +264,83 @@ fn load_audio(
     if stale_and_record(job.request_id, latest_request_id, StaleDropStage::Dispatch) {
         return AudioLoadExecution::DroppedStale;
     }
-    let result = load_audio_inner(renderer, job, latest_request_id);
+    let result = load_audio_primary(renderer, job, latest_request_id);
     match result {
         Ok(Some(outcome)) => AudioLoadExecution::Completed(Ok(outcome)),
         Ok(None) => AudioLoadExecution::DroppedStale,
         Err(err) => AudioLoadExecution::Completed(Err(err)),
     }
+}
+
+fn load_audio_primary(
+    renderer: &WaveformRenderer,
+    job: &AudioLoadJob,
+    latest_request_id: &AtomicU64,
+) -> Result<Option<AudioLoadOutcome>, AudioLoadError> {
+    if let Some(prepared) = job.prepared.as_ref() {
+        return Ok(Some(AudioLoadOutcome {
+            decoded: Arc::clone(&prepared.decoded),
+            bytes: Arc::clone(&prepared.bytes),
+            metadata: prepared.metadata,
+            transients: Some(Arc::clone(&prepared.transients)),
+            stretched: prepared.stretched,
+        }));
+    }
+    load_audio_inner(renderer, job, latest_request_id)
+}
+
+fn build_visual_result(
+    renderer: &WaveformRenderer,
+    pending: PendingVisualCompute,
+    latest_request_id: &AtomicU64,
+) -> Option<AudioVisualResult> {
+    let transients = match pending.known_transients {
+        Some(transients) => transients,
+        None => {
+            let result = build_transient_result(
+            PendingTransientCompute {
+                request_id: pending.request_id,
+                source_id: pending.source_id.clone(),
+                relative_path: pending.relative_path.clone(),
+                metadata: pending.metadata,
+                cache_token: pending.cache_token,
+                decoded: Arc::clone(&pending.decoded),
+                stretched: pending.stretched,
+            },
+            latest_request_id,
+        )?;
+            result.transients
+        }
+    };
+    if stale_and_record(
+        pending.request_id,
+        latest_request_id,
+        StaleDropStage::PostTransients,
+    ) {
+        return None;
+    }
+    let PreparedWaveformVisual {
+        image,
+        projected_image,
+        render_meta,
+    } = prepare_initial_waveform_visual(renderer, pending.decoded.as_ref(), pending.render_spec);
+    if stale_and_record(
+        pending.request_id,
+        latest_request_id,
+        StaleDropStage::PreSend,
+    ) {
+        return None;
+    }
+    Some(AudioVisualResult {
+        request_id: pending.request_id,
+        source_id: pending.source_id,
+        relative_path: pending.relative_path,
+        metadata: pending.metadata,
+        cache_token: pending.cache_token,
+        transients,
+        image,
+        projected_image,
+        render_meta,
+        stretched: pending.stretched,
+    })
 }

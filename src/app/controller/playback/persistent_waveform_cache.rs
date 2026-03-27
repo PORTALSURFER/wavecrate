@@ -131,27 +131,7 @@ impl AppController {
         relative_path: &Path,
         metadata: FileMetadata,
     ) -> Option<PersistentWaveformHit> {
-        let path = cache_file_path(source_id, relative_path, metadata).ok()?;
-        let bytes = std::fs::read(&path).ok()?;
-        let entry: PersistentWaveformEntry = match bincode::deserialize(&bytes) {
-            Ok(entry) => entry,
-            Err(err) => {
-                tracing::warn!(
-                    "Failed to decode persistent waveform cache {}: {err}",
-                    path.display()
-                );
-                let _ = std::fs::remove_file(&path);
-                return None;
-            }
-        };
-        if entry.version != CACHE_VERSION {
-            let _ = std::fs::remove_file(&path);
-            return None;
-        }
-        Some(PersistentWaveformHit {
-            decoded: Arc::new(entry.decoded.into_decoded()),
-            transients: Arc::from(entry.transients),
-        })
+        load_persistent_waveform_cache_entry(source_id, relative_path, metadata)
     }
 
     /// Persist one decoded waveform payload for future app sessions.
@@ -163,41 +143,7 @@ impl AppController {
         decoded: &Arc<DecodedWaveform>,
         transients: &Arc<[f32]>,
     ) {
-        let path = match cache_file_path(source_id, relative_path, metadata) {
-            Ok(path) => path,
-            Err(err) => {
-                tracing::warn!(
-                    "Failed to resolve waveform cache path for {}: {err}",
-                    relative_path.display()
-                );
-                return;
-            }
-        };
-        let entry = PersistentWaveformEntry {
-            version: CACHE_VERSION,
-            decoded: PersistentDecodedWaveform::from_decoded(decoded),
-            transients: transients.as_ref().to_vec(),
-        };
-        let bytes = match bincode::serialize(&entry) {
-            Ok(bytes) => bytes,
-            Err(err) => {
-                tracing::warn!(
-                    "Failed to encode waveform cache entry {}: {err}",
-                    relative_path.display()
-                );
-                return;
-            }
-        };
-        if let Err(err) = write_cache_file(&path, &bytes) {
-            tracing::warn!("Failed to write waveform cache {}: {err}", path.display());
-            return;
-        }
-        if let Err(err) = cleanup_stale_cache_files(&path) {
-            tracing::warn!(
-                "Failed to prune stale waveform cache files in {}: {err}",
-                path.display()
-            );
-        }
+        persist_waveform_cache_entry(source_id, relative_path, metadata, decoded, transients)
     }
 
     /// Remove all persistent cache entries for one waveform path.
@@ -219,6 +165,80 @@ impl AppController {
                 dir.display()
             );
         }
+    }
+}
+
+/// Load one persistent waveform cache entry without requiring controller access.
+pub(crate) fn load_persistent_waveform_cache_entry(
+    source_id: &SourceId,
+    relative_path: &Path,
+    metadata: FileMetadata,
+) -> Option<PersistentWaveformHit> {
+    let path = cache_file_path(source_id, relative_path, metadata).ok()?;
+    let bytes = std::fs::read(&path).ok()?;
+    let entry: PersistentWaveformEntry = match bincode::deserialize(&bytes) {
+        Ok(entry) => entry,
+        Err(err) => {
+            tracing::warn!(
+                "Failed to decode persistent waveform cache {}: {err}",
+                path.display()
+            );
+            let _ = std::fs::remove_file(&path);
+            return None;
+        }
+    };
+    if entry.version != CACHE_VERSION {
+        let _ = std::fs::remove_file(&path);
+        return None;
+    }
+    Some(PersistentWaveformHit {
+        decoded: Arc::new(entry.decoded.into_decoded()),
+        transients: Arc::from(entry.transients),
+    })
+}
+
+/// Persist one waveform cache entry without requiring controller access.
+pub(crate) fn persist_waveform_cache_entry(
+    source_id: &SourceId,
+    relative_path: &Path,
+    metadata: FileMetadata,
+    decoded: &Arc<DecodedWaveform>,
+    transients: &Arc<[f32]>,
+) {
+    let path = match cache_file_path(source_id, relative_path, metadata) {
+        Ok(path) => path,
+        Err(err) => {
+            tracing::warn!(
+                "Failed to resolve waveform cache path for {}: {err}",
+                relative_path.display()
+            );
+            return;
+        }
+    };
+    let entry = PersistentWaveformEntry {
+        version: CACHE_VERSION,
+        decoded: PersistentDecodedWaveform::from_decoded(decoded),
+        transients: transients.as_ref().to_vec(),
+    };
+    let bytes = match bincode::serialize(&entry) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            tracing::warn!(
+                "Failed to encode waveform cache entry {}: {err}",
+                relative_path.display()
+            );
+            return;
+        }
+    };
+    if let Err(err) = write_cache_file(&path, &bytes) {
+        tracing::warn!("Failed to write waveform cache {}: {err}", path.display());
+        return;
+    }
+    if let Err(err) = cleanup_stale_cache_files(&path) {
+        tracing::warn!(
+            "Failed to prune stale waveform cache files in {}: {err}",
+            path.display()
+        );
     }
 }
 

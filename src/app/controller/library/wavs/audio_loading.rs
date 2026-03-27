@@ -1,15 +1,18 @@
 use super::*;
 use crate::app::controller::playback::audio_cache::CacheKey;
-use crate::app::controller::playback::audio_loader::AudioTransientResult;
+use crate::app::controller::playback::audio_loader::{
+    AudioTransientResult, AudioVisualResult, PreparedAudioLoad,
+};
+use crate::app::controller::playback::persistent_waveform_cache::persist_waveform_cache_entry;
 use std::path::Path;
 use std::sync::Arc;
+use std::thread;
 
 impl AppController {
-    /// Queue background audio loading for browser-preview playback without clearing waveform UI.
+    /// Queue background audio loading for browser-preview playback.
     ///
-    /// This path keeps Up/Down browser navigation responsive by avoiding the
-    /// heavier selection-load path on the input hot loop. The newest preview
-    /// request wins because stale worker completions are dropped by request id.
+    /// The waveform panel now clears immediately for every new selection, but
+    /// playback still waits for the newest background result only.
     pub(crate) fn queue_browser_preview_audio_load(
         &mut self,
         source: &SampleSource,
@@ -36,32 +39,12 @@ impl AppController {
                 .set_pending_playback(Some(pending_playback));
             return Ok(());
         }
-        let request_id = self.runtime.jobs.next_audio_request_id();
-        let pending = PendingAudio {
-            request_id,
-            source_id: source.id.clone(),
-            root: source.root.clone(),
-            relative_path: relative_path.to_path_buf(),
-            intent: AudioLoadIntent::Selection,
-        };
-        let job = AudioLoadJob {
-            request_id,
-            source_id: source.id.clone(),
-            root: source.root.clone(),
-            relative_path: relative_path.to_path_buf(),
-            stretch_ratio: self.stretch_ratio_for_sample(relative_path),
-        };
-        self.stop_playback_if_active();
-        self.runtime.jobs.set_pending_audio(Some(pending));
-        self.runtime
-            .jobs
-            .set_pending_playback(Some(pending_playback));
-        if self.runtime.jobs.send_audio_job(job).is_err() {
-            self.runtime.jobs.set_pending_audio(None);
-            self.runtime.jobs.set_pending_playback(None);
-            return Err("Failed to queue browser preview audio load".to_string());
-        }
-        Ok(())
+        self.queue_audio_load_for(
+            source,
+            relative_path,
+            AudioLoadIntent::Selection,
+            Some(pending_playback),
+        )
     }
 
     pub(crate) fn handle_audio_loaded(&mut self, pending: PendingAudio, outcome: AudioLoadOutcome) {
@@ -69,46 +52,15 @@ impl AppController {
             id: pending.source_id.clone(),
             root: pending.root.clone(),
         };
-        let (decoded, bytes, stretched) = if outcome.stretched {
-            (outcome.decoded, outcome.bytes, true)
-        } else {
-            match self.prepare_loaded_audio(
-                &pending.relative_path,
-                Some(outcome.decoded),
-                outcome.bytes,
-                pending.intent,
-            ) {
-                Ok(result) => result,
-                Err(err) => {
-                    self.runtime.jobs.set_pending_playback(None);
-                    self.set_status(err, StatusTone::Error);
-                    return;
-                }
-            }
-        };
-        let duration_seconds = decoded.duration_seconds;
-        let sample_rate = decoded.sample_rate;
-        let cache_key = CacheKey::new(&source.id, &pending.relative_path);
-        if !stretched {
-            self.audio.cache.insert(
-                cache_key,
-                outcome.metadata,
-                decoded.clone(),
-                bytes.clone(),
-                std::sync::Arc::from([]),
-            );
-        }
-        let preserve_selections =
-            self.sample_view.wav.loaded_wav.as_deref() == Some(&pending.relative_path);
-        if let Err(err) = self.finish_waveform_load_shared(FinishWaveformLoadShared {
-            source: &source,
-            relative_path: &pending.relative_path,
-            decoded,
-            bytes,
-            intent: pending.intent,
-            preserve_selections,
-            transients: Some(std::sync::Arc::from([])),
-        }) {
+        let duration_seconds = outcome.decoded.duration_seconds;
+        let sample_rate = outcome.decoded.sample_rate;
+        if let Err(err) = self.apply_loaded_audio_primary(
+            &source,
+            &pending.relative_path,
+            outcome.decoded,
+            outcome.bytes,
+            pending.intent,
+        ) {
             self.runtime.jobs.set_pending_playback(None);
             self.set_status(err, StatusTone::Error);
             return;
@@ -122,8 +74,8 @@ impl AppController {
         self.maybe_trigger_pending_playback();
     }
 
-    /// Apply deferred transient markers if they still match the active loaded waveform.
-    pub(crate) fn handle_audio_transients_loaded(&mut self, result: AudioTransientResult) {
+    /// Apply deferred waveform visuals if they still match the active loaded waveform.
+    pub(crate) fn handle_audio_visual_loaded(&mut self, result: AudioVisualResult) {
         let Some(loaded_audio) = self.sample_view.wav.loaded_audio.as_ref() else {
             return;
         };
@@ -132,29 +84,62 @@ impl AppController {
         {
             return;
         }
+        let loaded_bytes = Arc::clone(&loaded_audio.bytes);
         let Some(decoded) = self.sample_view.waveform.decoded.as_ref() else {
             return;
         };
         if decoded.cache_token != result.cache_token {
             return;
         }
+        let decoded = Arc::clone(decoded);
         self.ui.waveform.transients = result.transients.clone();
         self.ui.waveform.transient_cache_token = Some(result.cache_token);
+        self.store_prepared_waveform_image(
+            result.image,
+            result.projected_image,
+            result.render_meta,
+        );
+        self.ui.waveform.loading = None;
         if !result.stretched {
             let key = CacheKey::new(&result.source_id, &result.relative_path);
-            self.audio
-                .cache
-                .update_transients(&key, result.metadata, result.transients.clone());
-            if let Some(decoded) = self.sample_view.waveform.decoded.as_ref() {
-                self.persist_waveform_cache(
-                    &result.source_id,
-                    &result.relative_path,
-                    result.metadata,
-                    decoded,
-                    &result.transients,
+            self.audio.cache.insert(
+                key,
+                result.metadata,
+                Arc::clone(&decoded),
+                loaded_bytes,
+                result.transients.clone(),
+            );
+            let source_id = result.source_id.clone();
+            let relative_path = result.relative_path.clone();
+            let metadata = result.metadata;
+            let decoded = Arc::clone(&decoded);
+            let transients = result.transients.clone();
+            thread::spawn(move || {
+                persist_waveform_cache_entry(
+                    &source_id,
+                    &relative_path,
+                    metadata,
+                    &decoded,
+                    &transients,
                 );
-            }
+            });
         }
+    }
+
+    /// Compatibility path for transient-only updates that do not include image payloads.
+    pub(crate) fn handle_audio_transients_loaded(&mut self, result: AudioTransientResult) {
+        self.handle_audio_visual_loaded(AudioVisualResult {
+            request_id: result.request_id,
+            source_id: result.source_id,
+            relative_path: result.relative_path,
+            metadata: result.metadata,
+            cache_token: result.cache_token,
+            transients: result.transients,
+            image: None,
+            projected_image: None,
+            render_meta: None,
+            stretched: result.stretched,
+        });
     }
 
     pub(crate) fn handle_audio_load_error(&mut self, pending: PendingAudio, error: AudioLoadError) {
@@ -184,6 +169,7 @@ impl AppController {
                 self.set_status(msg, StatusTone::Error);
             }
         }
+        self.ui.waveform.loading = None;
     }
 
     pub(crate) fn maybe_trigger_pending_playback(&mut self) {
@@ -224,6 +210,8 @@ impl AppController {
             root: source.root.clone(),
             relative_path: relative_path.to_path_buf(),
             stretch_ratio,
+            render_spec: self.initial_waveform_render_spec(),
+            prepared: None,
         };
         self.runtime.jobs.set_pending_audio(None);
         self.runtime.jobs.set_pending_playback(pending_playback);
@@ -235,6 +223,8 @@ impl AppController {
         self.sample_view.waveform.render_meta = None;
         self.sample_view.waveform.decoded = None;
         self.ui.waveform.image = None;
+        self.ui.waveform.transients = Arc::from([]);
+        self.ui.waveform.transient_cache_token = None;
         self.sample_view.wav.loaded_audio = None;
         self.sample_view.wav.loaded_wav = None;
         self.set_ui_loaded_wav(None);
@@ -245,8 +235,7 @@ impl AppController {
             format!("Loading {}", relative_path.display()),
             StatusTone::Busy,
         );
-        if self.try_use_cached_audio(source, relative_path, intent)? {
-            self.maybe_trigger_pending_playback();
+        if self.try_queue_cached_audio_load(source, relative_path, intent)? {
             return Ok(());
         }
         if self.runtime.jobs.send_audio_job(job).is_err() {
@@ -257,6 +246,55 @@ impl AppController {
         }
         self.runtime.jobs.set_pending_audio(Some(pending));
         Ok(())
+    }
+
+    pub(crate) fn try_queue_cached_audio_load(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+        intent: AudioLoadIntent,
+    ) -> Result<bool, String> {
+        if matches!(intent, AudioLoadIntent::Selection)
+            && self.stretch_ratio_for_sample(relative_path).is_some()
+        {
+            return Ok(false);
+        }
+        let metadata = match self.current_file_metadata(source, relative_path) {
+            Ok(meta) => meta,
+            Err(_) => return Ok(false),
+        };
+        let key = CacheKey::new(&source.id, relative_path);
+        let Some(hit) = self.audio.cache.get(&key, metadata) else {
+            return Ok(false);
+        };
+        let request_id = self.runtime.jobs.next_audio_request_id();
+        let pending = PendingAudio {
+            request_id,
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: relative_path.to_path_buf(),
+            intent,
+        };
+        let job = AudioLoadJob {
+            request_id,
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: relative_path.to_path_buf(),
+            stretch_ratio: None,
+            render_spec: self.initial_waveform_render_spec(),
+            prepared: Some(PreparedAudioLoad {
+                metadata,
+                decoded: hit.decoded,
+                bytes: hit.bytes,
+                transients: hit.transients,
+                stretched: false,
+            }),
+        };
+        if self.runtime.jobs.send_audio_job(job).is_err() {
+            return Err("Failed to queue cached audio load".to_string());
+        }
+        self.runtime.jobs.set_pending_audio(Some(pending));
+        Ok(true)
     }
 
     pub(crate) fn try_use_cached_audio(
@@ -300,15 +338,13 @@ impl AppController {
             );
             let duration_seconds = hit.decoded.duration_seconds;
             let sample_rate = hit.decoded.sample_rate;
-            let preserve_selections =
-                self.sample_view.wav.loaded_wav.as_deref() == Some(relative_path);
             self.finish_waveform_load_shared(FinishWaveformLoadShared {
                 source,
                 relative_path,
                 decoded: hit.decoded,
                 bytes,
                 intent,
-                preserve_selections,
+                preserve_selections: false,
                 transients: Some(hit.transients),
             })?;
             let message = Self::loaded_status_text(relative_path, duration_seconds, sample_rate);
@@ -320,14 +356,13 @@ impl AppController {
         };
         let duration_seconds = hit.decoded.duration_seconds;
         let sample_rate = hit.decoded.sample_rate;
-        let preserve_selections = self.sample_view.wav.loaded_wav.as_deref() == Some(relative_path);
         self.finish_waveform_load_shared(FinishWaveformLoadShared {
             source,
             relative_path,
             decoded: hit.decoded,
             bytes: hit.bytes,
             intent,
-            preserve_selections,
+            preserve_selections: false,
             transients: Some(hit.transients),
         })?;
         let message = Self::loaded_status_text(relative_path, duration_seconds, sample_rate);
@@ -336,5 +371,37 @@ impl AppController {
             self.refresh_similarity_sort_for_loaded_sample();
         }
         Ok(true)
+    }
+
+    fn apply_loaded_audio_primary(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+        decoded: Arc<DecodedWaveform>,
+        bytes: Arc<[u8]>,
+        intent: AudioLoadIntent,
+    ) -> Result<(), String> {
+        let duration_seconds = decoded.duration_seconds;
+        let sample_rate = decoded.sample_rate;
+        self.sample_view.waveform.decoded = Some(decoded);
+        self.sample_view.wav.loaded_wav = Some(relative_path.to_path_buf());
+        self.set_ui_loaded_wav(Some(relative_path.to_path_buf()));
+        self.sync_loaded_audio(source, relative_path, duration_seconds, sample_rate, bytes)?;
+        self.ui.waveform.notice = None;
+        if matches!(intent, AudioLoadIntent::Selection) {
+            self.apply_loaded_sample_bpm(relative_path);
+            self.apply_loaded_sample_loop_marker(source, relative_path);
+            self.refresh_similarity_sort_for_loaded_sample();
+        }
+        Ok(())
+    }
+
+    fn initial_waveform_render_spec(
+        &self,
+    ) -> crate::app::controller::library::wavs::waveform_rendering::InitialWaveformRenderSpec {
+        crate::app::controller::library::wavs::waveform_rendering::InitialWaveformRenderSpec {
+            size: self.sample_view.waveform.size,
+            channel_view: self.ui.waveform.channel_view,
+        }
     }
 }

@@ -17,6 +17,7 @@ pub(super) fn finalize_stage(
     decoded: Arc<DecodedWaveform>,
     bytes: Arc<[u8]>,
     metadata: FileMetadata,
+    transients: Option<Arc<[f32]>>,
     stretched: bool,
 ) -> AudioLoadOutcome {
     record_output_bytes(bytes.len());
@@ -30,6 +31,7 @@ pub(super) fn finalize_stage(
         decoded,
         bytes,
         metadata,
+        transients,
         stretched,
     }
 }

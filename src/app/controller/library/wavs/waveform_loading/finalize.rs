@@ -59,7 +59,7 @@ impl AppController {
         self.selection_state.edit_range.clear();
     }
 
-    fn sync_loaded_audio(
+    pub(in crate::app::controller::library::wavs) fn sync_loaded_audio(
         &mut self,
         source: &SampleSource,
         relative_path: &Path,
@@ -94,7 +94,10 @@ impl AppController {
     }
 
     /// Apply cached source BPM metadata to waveform controls when locks allow updates.
-    fn apply_loaded_sample_bpm(&mut self, relative_path: &Path) {
+    pub(in crate::app::controller::library::wavs) fn apply_loaded_sample_bpm(
+        &mut self,
+        relative_path: &Path,
+    ) {
         if self.ui.waveform.bpm_lock_enabled || self.ui.waveform.bpm_stretch_enabled {
             return;
         }
@@ -103,7 +106,11 @@ impl AppController {
         }
     }
 
-    fn apply_loaded_sample_loop_marker(&mut self, source: &SampleSource, relative_path: &Path) {
+    pub(in crate::app::controller::library::wavs) fn apply_loaded_sample_loop_marker(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+    ) {
         if self.ui.waveform.loop_lock_enabled {
             return;
         }

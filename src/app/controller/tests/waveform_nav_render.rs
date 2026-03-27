@@ -242,6 +242,13 @@ fn waveform_rerenders_after_same_length_edit() {
 
     write_test_wav(&path, &[1.0, -1.0, 1.0, -1.0]);
     controller.refresh_waveform_for_sample(&source, Path::new("edit.wav"));
+    for _ in 0..50 {
+        controller.poll_background_jobs();
+        if controller.ui.waveform.loading.is_none() && controller.ui.waveform.image.is_some() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
     let after = controller
         .ui
         .waveform
@@ -343,7 +350,9 @@ fn loading_flag_clears_after_audio_load() {
 
     for _ in 0..50 {
         controller.poll_background_jobs();
-        if controller.sample_view.wav.loaded_wav.as_deref() == Some(rel.as_path()) {
+        if controller.sample_view.wav.loaded_wav.as_deref() == Some(rel.as_path())
+            && controller.ui.waveform.loading.is_none()
+        {
             break;
         }
         thread::sleep(Duration::from_millis(10));
