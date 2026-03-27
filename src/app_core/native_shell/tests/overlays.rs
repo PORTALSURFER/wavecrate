@@ -37,9 +37,9 @@ fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
     assert_eq!(projected.kind, Some(ConfirmPromptKind::BrowserRename));
 }
 
-/// Inline folder creation state should project into the shared confirm prompt model.
+/// Inline folder creation should stay out of the modal confirm prompt.
 #[test]
-fn confirm_prompt_projects_folder_create_inline_state() {
+fn inline_folder_create_does_not_project_confirm_prompt() {
     let mut ui = UiState::default();
     ui.sources.folders.new_folder = Some(InlineFolderCreation {
         parent: std::path::PathBuf::from("drums"),
@@ -47,23 +47,108 @@ fn confirm_prompt_projects_folder_create_inline_state() {
         focus_requested: true,
     });
     let projected = project_confirm_prompt_model(&ui);
-    assert!(projected.visible);
-    assert_eq!(projected.kind, Some(ConfirmPromptKind::FolderCreate));
-    assert_eq!(projected.confirm_label, "Create");
-    assert_eq!(projected.input_value.as_deref(), Some("kicks"));
-    assert_eq!(
-        projected.input_placeholder.as_deref(),
-        Some("New folder name")
-    );
+    assert!(!projected.visible);
+    assert_eq!(projected.kind, None);
 }
 
-/// Folder-create projection should surface duplicate-name and separator validation errors.
+/// Folder-create projection should insert a stable inline draft row with validation state.
 #[test]
-fn confirm_prompt_projects_folder_create_validation_errors() {
+fn inline_folder_create_projects_draft_row_and_validation() {
     let mut ui = UiState::default();
+    ui.sources.selected = Some(0);
+    ui.sources.folders.rows.push(FolderRowView {
+        path: std::path::PathBuf::new(),
+        name: String::from("Root"),
+        depth: 0,
+        has_children: true,
+        expanded: true,
+        selected: false,
+        negated: false,
+        hotkey: None,
+        is_root: true,
+        root_filter_mode: None,
+    });
+    ui.sources.folders.rows.push(FolderRowView {
+        path: std::path::PathBuf::from("drums"),
+        name: String::from("drums"),
+        depth: 1,
+        has_children: true,
+        expanded: true,
+        selected: false,
+        negated: false,
+        hotkey: None,
+        is_root: false,
+        root_filter_mode: None,
+    });
     ui.sources.folders.rows.push(FolderRowView {
         path: std::path::PathBuf::from("drums/existing"),
         name: String::from("existing"),
+        depth: 2,
+        has_children: false,
+        expanded: false,
+        selected: false,
+        negated: false,
+        hotkey: None,
+        is_root: false,
+        root_filter_mode: None,
+    });
+    ui.sources.folders.focused = Some(1);
+    ui.sources.folders.new_folder = Some(InlineFolderCreation {
+        parent: std::path::PathBuf::from("drums"),
+        name: String::from("existing"),
+        focus_requested: true,
+    });
+    let projected = project_sources_model(&ui);
+    let draft = projected
+        .folder_rows
+        .iter()
+        .find(|row| row.kind == FolderRowKind::CreateDraft)
+        .expect("inline draft row should be projected");
+    assert_eq!(projected.focused_folder_row, Some(1));
+    assert_eq!(draft.depth, 2);
+    assert_eq!(draft.input_value.as_deref(), Some("existing"));
+    assert_eq!(draft.input_placeholder.as_deref(), Some("New folder name"));
+    assert_eq!(
+        draft.input_error.as_deref(),
+        Some("Folder already exists: drums/existing")
+    );
+    assert_eq!(projected.folder_rows[2].kind, FolderRowKind::CreateDraft);
+
+    if let Some(new_folder) = ui.sources.folders.new_folder.as_mut() {
+        new_folder.name = String::from("bad/name");
+    }
+    let projected = project_sources_model(&ui);
+    let draft = projected
+        .folder_rows
+        .iter()
+        .find(|row| row.kind == FolderRowKind::CreateDraft)
+        .expect("inline draft row should still be projected");
+    assert_eq!(
+        draft.input_error.as_deref(),
+        Some("Folder name cannot contain path separators")
+    );
+}
+
+/// Root-level folder creation should insert the draft row directly below the root row.
+#[test]
+fn root_inline_folder_create_inserts_after_root_row() {
+    let mut ui = UiState::default();
+    ui.sources.selected = Some(0);
+    ui.sources.folders.rows.push(FolderRowView {
+        path: std::path::PathBuf::new(),
+        name: String::from("Root"),
+        depth: 0,
+        has_children: true,
+        expanded: true,
+        selected: false,
+        negated: false,
+        hotkey: None,
+        is_root: true,
+        root_filter_mode: None,
+    });
+    ui.sources.folders.rows.push(FolderRowView {
+        path: std::path::PathBuf::from("drums"),
+        name: String::from("drums"),
         depth: 1,
         has_children: false,
         expanded: false,
@@ -74,24 +159,15 @@ fn confirm_prompt_projects_folder_create_validation_errors() {
         root_filter_mode: None,
     });
     ui.sources.folders.new_folder = Some(InlineFolderCreation {
-        parent: std::path::PathBuf::from("drums"),
-        name: String::from("existing"),
+        parent: std::path::PathBuf::new(),
+        name: String::from("fresh"),
         focus_requested: true,
     });
-    let projected = project_confirm_prompt_model(&ui);
-    assert_eq!(
-        projected.input_error.as_deref(),
-        Some("Folder already exists: drums/existing")
-    );
 
-    if let Some(new_folder) = ui.sources.folders.new_folder.as_mut() {
-        new_folder.name = String::from("bad/name");
-    }
-    let projected = project_confirm_prompt_model(&ui);
-    assert_eq!(
-        projected.input_error.as_deref(),
-        Some("Folder name cannot contain path separators")
-    );
+    let projected = project_sources_model(&ui);
+
+    assert_eq!(projected.folder_rows[1].kind, FolderRowKind::CreateDraft);
+    assert_eq!(projected.folder_rows[1].depth, 1);
 }
 
 /// Folder-rename projection should surface duplicate-name and separator validation errors.

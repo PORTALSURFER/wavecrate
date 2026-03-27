@@ -63,6 +63,7 @@ const fn gui_history_policy(kind: GuiActionKind, _effect: GuiEffectClass) -> Gui
         | GuiActionKind::SelectSourceRow
         | GuiActionKind::MoveSourceFocus
         | GuiActionKind::FocusFolderRow
+        | GuiActionKind::ActivateFolderRow
         | GuiActionKind::ToggleFocusedFolderSelection
         | GuiActionKind::MoveFolderFocus
         | GuiActionKind::MoveBrowserFocus
@@ -130,13 +131,19 @@ gui_action_catalog!(
     RemoveSourceRow { index } => { id: "remove_source_row", surface: Sources, effect: Destructive, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::RemoveSourceRow { index: 0 } },
     RemoveDeadLinksForSourceRow { index } => { id: "remove_dead_links_for_source_row", surface: Sources, effect: Destructive, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::RemoveDeadLinksForSourceRow { index: 0 } },
     FocusFolderRow { index } => { id: "focus_folder_row", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::FocusFolderRow { index: 0 } },
+    ActivateFolderRow { index } => { id: "activate_folder_row", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::ActivateFolderRow { index: 0 } },
     ToggleFolderRowExpanded { index } => { id: "toggle_folder_row_expanded", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::ToggleFolderRowExpanded { index: 0 } },
     ExpandFocusedFolder {} => { id: "expand_focused_folder", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::ExpandFocusedFolder },
     CollapseFocusedFolder {} => { id: "collapse_focused_folder", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::CollapseFocusedFolder },
     ToggleFocusedFolderSelection {} => { id: "toggle_focused_folder_selection", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::ToggleFocusedFolderSelection },
     MoveFolderFocus { delta } => { id: "move_folder_focus", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::MoveFolderFocus { delta: 1 } },
     StartNewFolder {} => { id: "start_new_folder", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::StartNewFolder },
+    StartNewFolderAtFolderRow { index } => { id: "start_new_folder_at_folder_row", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::StartNewFolderAtFolderRow { index: 0 } },
     StartNewFolderAtRoot {} => { id: "start_new_folder_at_root", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::StartNewFolderAtRoot },
+    FocusFolderCreateInput {} => { id: "focus_folder_create_input", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::FocusFolderCreateInput },
+    SetFolderCreateInput { value } => { id: "set_folder_create_input", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::SetFolderCreateInput { value: String::from("drums") } },
+    ConfirmFolderCreate {} => { id: "confirm_folder_create", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::ConfirmFolderCreate },
+    CancelFolderCreate {} => { id: "cancel_folder_create", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::CancelFolderCreate },
     StartFolderRename {} => { id: "start_folder_rename", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::StartFolderRename },
     DeleteFocusedFolder {} => { id: "delete_focused_folder", surface: Sources, effect: Destructive, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::DeleteFocusedFolder },
     RestoreRetainedFolderDeletes {} => { id: "restore_retained_folder_deletes", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources", "prompt"], sample: NativeUiAction::RestoreRetainedFolderDeletes },

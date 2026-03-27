@@ -57,6 +57,7 @@ pub(super) fn apply_browser_native_ui_action(
             }
         }
         NativeUiAction::FocusFolderRow { index } => controller.replace_folder_selection(index),
+        NativeUiAction::ActivateFolderRow { index } => controller.activate_folder_row(index),
         NativeUiAction::ToggleFolderRowExpanded { index } => {
             controller.toggle_folder_expanded(index)
         }
@@ -67,6 +68,9 @@ pub(super) fn apply_browser_native_ui_action(
         }
         NativeUiAction::MoveFolderFocus { delta } => controller.nudge_folder_focus_action(delta),
         NativeUiAction::StartNewFolder => controller.start_new_folder(),
+        NativeUiAction::StartNewFolderAtFolderRow { index } => {
+            controller.start_new_folder_at_folder_row(index)
+        }
         NativeUiAction::StartNewFolderAtRoot => {
             if controller.current_source().is_none() {
                 controller.add_source_via_dialog();
@@ -74,6 +78,7 @@ pub(super) fn apply_browser_native_ui_action(
                 controller.start_new_folder_at_root();
             }
         }
+        NativeUiAction::FocusFolderCreateInput => controller.focus_new_folder_creation_input(),
         NativeUiAction::StartFolderRename => controller.start_folder_rename(),
         NativeUiAction::DeleteFocusedFolder => controller.delete_focused_folder(),
         NativeUiAction::RestoreRetainedFolderDeletes => {

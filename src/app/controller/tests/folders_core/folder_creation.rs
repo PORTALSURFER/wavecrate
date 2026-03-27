@@ -126,6 +126,37 @@ fn start_new_folder_uses_focused_parent() {
 }
 
 #[test]
+fn start_new_folder_at_folder_row_uses_explicit_parent() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    let folder = source.root.join("clips");
+    std::fs::create_dir_all(&folder).unwrap();
+    write_test_wav(&folder.join("clip.wav"), &[0.2, -0.2]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "clips/clip.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+    let folder_index = controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .position(|row| row.path == PathBuf::from("clips"))
+        .unwrap();
+
+    controller.start_new_folder_at_folder_row(folder_index);
+
+    let new_folder = controller.ui.sources.folders.new_folder.as_ref().unwrap();
+    assert_eq!(new_folder.parent, PathBuf::from("clips"));
+    assert_eq!(controller.ui.sources.folders.focused, Some(folder_index));
+}
+
+#[test]
 fn start_new_folder_clears_search_query() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
@@ -152,4 +183,43 @@ fn cancelling_new_folder_creation_clears_state() {
     controller.cancel_new_folder_creation();
 
     assert!(controller.ui.sources.folders.new_folder.is_none());
+}
+
+#[test]
+fn applying_new_folder_creation_focuses_created_folder() -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.refresh_folder_browser_for_tests();
+    controller.start_new_folder_at_root();
+    assert!(controller.set_new_folder_creation_input(String::from("Created")));
+
+    assert!(controller.apply_pending_new_folder_creation());
+
+    assert!(source.root.join("Created").is_dir());
+    let focused = controller.ui.sources.folders.focused.expect("focused row");
+    assert_eq!(
+        controller.ui.sources.folders.rows[focused].path,
+        PathBuf::from("Created")
+    );
+    assert!(controller.ui.sources.folders.new_folder.is_none());
+    Ok(())
+}
+
+#[test]
+fn applying_duplicate_new_folder_creation_keeps_draft_open() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    std::fs::create_dir_all(source.root.join("existing")).unwrap();
+    controller.refresh_folder_browser_for_tests();
+    controller.start_new_folder_at_root();
+    assert!(controller.set_new_folder_creation_input(String::from("existing")));
+
+    assert!(controller.apply_pending_new_folder_creation());
+
+    let draft = controller.ui.sources.folders.new_folder.as_ref().unwrap();
+    assert_eq!(draft.name, "existing");
+    assert!(draft.focus_requested);
+    assert!(controller.ui.status.text.contains("Folder already exists"));
 }

@@ -78,6 +78,8 @@ pub enum GuiActionKind {
     RemoveDeadLinksForSourceRow,
     /// Focus one folder row directly.
     FocusFolderRow,
+    /// Activate one folder row using the default row-click behavior.
+    ActivateFolderRow,
     /// Toggle expansion for one folder row directly.
     ToggleFolderRowExpanded,
     /// Expand the currently focused folder row.
@@ -90,8 +92,18 @@ pub enum GuiActionKind {
     MoveFolderFocus,
     /// Start creating a new folder under the current parent.
     StartNewFolder,
+    /// Start creating a new folder under one explicit folder row.
+    StartNewFolderAtFolderRow,
     /// Start creating a new folder at the source root.
     StartNewFolderAtRoot,
+    /// Focus the active inline folder-create input.
+    FocusFolderCreateInput,
+    /// Set the active inline folder-create input text.
+    SetFolderCreateInput,
+    /// Confirm the active inline folder-create draft.
+    ConfirmFolderCreate,
+    /// Cancel the active inline folder-create draft.
+    CancelFolderCreate,
     /// Start renaming the focused folder.
     StartFolderRename,
     /// Delete the focused folder.
@@ -320,7 +332,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 155] = [
+    pub const ALL: [Self; 161] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -357,13 +369,19 @@ impl GuiActionKind {
         Self::RemoveSourceRow,
         Self::RemoveDeadLinksForSourceRow,
         Self::FocusFolderRow,
+        Self::ActivateFolderRow,
         Self::ToggleFolderRowExpanded,
         Self::ExpandFocusedFolder,
         Self::CollapseFocusedFolder,
         Self::ToggleFocusedFolderSelection,
         Self::MoveFolderFocus,
         Self::StartNewFolder,
+        Self::StartNewFolderAtFolderRow,
         Self::StartNewFolderAtRoot,
+        Self::FocusFolderCreateInput,
+        Self::SetFolderCreateInput,
+        Self::ConfirmFolderCreate,
+        Self::CancelFolderCreate,
         Self::StartFolderRename,
         Self::DeleteFocusedFolder,
         Self::RestoreRetainedFolderDeletes,

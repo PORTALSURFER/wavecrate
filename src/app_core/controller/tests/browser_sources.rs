@@ -59,6 +59,58 @@ fn focus_folder_row_action_replaces_folder_selection() {
 }
 
 #[test]
+/// Native folder-row activation should keep selection behavior and toggle expansion for folders.
+fn activate_folder_row_action_selects_and_toggles_expansion() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let dir = tempdir().unwrap();
+    let source_root = dir.path().join("source");
+    let folder_path = PathBuf::from("drums");
+    let nested_path = folder_path.join("kicks");
+    std::fs::create_dir_all(source_root.join(&nested_path)).unwrap();
+    controller.add_source_from_path(source_root).unwrap();
+    controller.select_source_by_index(0);
+    controller.refresh_folder_browser_for_tests();
+
+    let row_index = controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .position(|row| row.path == folder_path)
+        .expect("failed to locate folder row index");
+    controller.toggle_folder_expanded(row_index);
+    let row_index = controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .position(|row| row.path == folder_path)
+        .expect("failed to relocate folder row index");
+
+    controller.apply_native_ui_action(NativeUiAction::ActivateFolderRow { index: row_index });
+
+    let selected = controller
+        .folder_selection_for_filter()
+        .cloned()
+        .unwrap_or_default();
+    assert_eq!(
+        selected,
+        [folder_path.clone()].into_iter().collect::<BTreeSet<_>>()
+    );
+    assert!(
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .any(|row| row.path == nested_path)
+    );
+}
+
+#[test]
 /// Native source-row reload action should route to the targeted source index.
 fn reload_source_row_action_selects_target_source() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);

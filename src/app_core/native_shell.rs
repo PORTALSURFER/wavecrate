@@ -9,6 +9,8 @@ use super::controller::{
     ProjectedMapPointCacheEntry, ProjectedMapPointsCacheKey, ProjectedSelectedPathsLookup,
     UmapPointQuery,
 };
+#[cfg(test)]
+use crate::app_core::actions::NativeFolderRowKind as FolderRowKind;
 use crate::app_core::actions::{
     NativeAppModel as AppModel, NativeBrowserActionsModel as BrowserActionsModel,
     NativeBrowserChromeModel as BrowserChromeModel, NativeBrowserPanelModel as BrowserPanelModel,

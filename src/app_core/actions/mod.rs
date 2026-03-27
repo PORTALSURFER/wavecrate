@@ -80,6 +80,9 @@ pub type NativeFolderRecoveryModel = radiant::app::FolderRecoveryModel;
 /// Native runtime folder row model.
 pub type NativeFolderRowModel = radiant::app::FolderRowModel;
 
+/// Native runtime folder row kind.
+pub type NativeFolderRowKind = radiant::app::FolderRowKind;
+
 /// Native runtime map panel model.
 pub type NativeMapPanelModel = radiant::app::MapPanelModel;
 

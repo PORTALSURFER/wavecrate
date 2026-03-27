@@ -76,26 +76,6 @@ pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
             input_error: None,
         };
     }
-    if let Some(new_folder) = ui.sources.folders.new_folder.as_ref() {
-        let target_label = if new_folder.parent.as_os_str().is_empty() {
-            String::from("source root")
-        } else {
-            display_relative_folder_path(&new_folder.parent)
-        };
-        let input_error = folder_create_validation_error(ui, &new_folder.parent, &new_folder.name);
-        return ConfirmPromptModel {
-            visible: true,
-            kind: Some(ConfirmPromptKind::FolderCreate),
-            title: String::from("Create folder"),
-            message: String::from("Create a new folder at the selected location."),
-            confirm_label: String::from("Create"),
-            cancel_label: String::from("Cancel"),
-            target_label: Some(target_label),
-            input_value: Some(new_folder.name.clone()),
-            input_placeholder: Some(String::from("New folder name")),
-            input_error,
-        };
-    }
     if let Some(prompt) = ui.waveform.pending_destructive.clone() {
         return ConfirmPromptModel {
             visible: true,
@@ -154,23 +134,6 @@ fn folder_exists_in_rows(ui: &UiState, relative_path: &Path) -> bool {
         .rows
         .iter()
         .any(|row| row.path == relative_path)
-}
-
-/// Validate inline folder-create input against naming and duplicate-path constraints.
-fn folder_create_validation_error(ui: &UiState, parent: &Path, name: &str) -> Option<String> {
-    let normalized = match normalize_folder_name_input(name) {
-        Ok(normalized) => normalized,
-        Err(err) => return Some(err),
-    };
-    let relative = if parent.as_os_str().is_empty() {
-        PathBuf::from(&normalized)
-    } else {
-        parent.join(&normalized)
-    };
-    folder_exists_in_rows(ui, &relative).then_some(format!(
-        "Folder already exists: {}",
-        display_relative_folder_path(&relative)
-    ))
 }
 
 /// Validate folder-rename input against naming and duplicate-path constraints.

@@ -128,3 +128,119 @@ fn collapsing_leaf_folder_focuses_parent_row() -> Result<(), String> {
     );
     Ok(())
 }
+
+#[test]
+fn activating_expandable_folder_row_expands_then_collapses_it() -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    let nested = source.root.join("drums").join("kicks");
+    std::fs::create_dir_all(&nested).unwrap();
+    write_test_wav(&nested.join("tight.wav"), &[0.2, -0.2]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "drums/kicks/tight.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+
+    let drums = folder_row_index(&controller, "drums");
+    controller.toggle_folder_expanded(drums);
+    let drums = folder_row_index(&controller, "drums");
+    controller.activate_folder_row(drums);
+    assert!(
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .any(|row| row.path == PathBuf::from("drums/kicks"))
+    );
+
+    let drums = folder_row_index(&controller, "drums");
+    controller.activate_folder_row(drums);
+    assert!(
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .all(|row| row.path != PathBuf::from("drums/kicks"))
+    );
+    Ok(())
+}
+
+#[test]
+fn activating_leaf_folder_row_keeps_tree_projection_unchanged() -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    let nested = source.root.join("drums").join("kicks");
+    std::fs::create_dir_all(&nested).unwrap();
+    write_test_wav(&nested.join("tight.wav"), &[0.2, -0.2]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "drums/kicks/tight.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+
+    let before: Vec<PathBuf> = controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .map(|row| row.path.clone())
+        .collect();
+    let kicks = folder_row_index(&controller, "drums/kicks");
+    controller.activate_folder_row(kicks);
+
+    let after: Vec<PathBuf> = controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .map(|row| row.path.clone())
+        .collect();
+    assert_eq!(after, before);
+    Ok(())
+}
+
+#[test]
+fn activating_folder_search_result_does_not_toggle_expansion() -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    let nested = source.root.join("drums").join("kicks");
+    std::fs::create_dir_all(&nested).unwrap();
+    write_test_wav(&nested.join("tight.wav"), &[0.2, -0.2]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "drums/kicks/tight.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+
+    controller.set_folder_search(String::from("drum"));
+    let drums = folder_row_index(&controller, "drums");
+    controller.activate_folder_row(drums);
+    controller.set_folder_search(String::new());
+
+    assert!(
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .any(|row| row.path == PathBuf::from("drums/kicks"))
+    );
+    Ok(())
+}

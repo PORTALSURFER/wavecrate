@@ -1,23 +1,26 @@
 //! Source/folder sidebar projection helpers.
 
 use super::*;
+use std::path::{Path, PathBuf};
 
 /// Project source/folder panel data for the native sidebar.
 pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
-    let focused_folder = ui
+    let source_selected = ui.sources.selected.is_some();
+    let has_sources = !ui.sources.rows.is_empty();
+    let can_manage_folder = ui
         .sources
         .folders
         .focused
-        .and_then(|index| ui.sources.folders.rows.get(index).cloned());
-    let source_selected = ui.sources.selected.is_some();
-    let has_sources = !ui.sources.rows.is_empty();
-    let can_manage_folder = focused_folder.as_ref().is_some_and(|row| !row.is_root);
+        .and_then(|index| ui.sources.folders.rows.get(index))
+        .is_some_and(|row| !row.is_root);
+    let projected_folder_rows = project_folder_rows(ui);
+    let focused_folder_row = projected_focused_folder_row(ui, &projected_folder_rows);
     SourcesPanelModel {
         header: format!("Sources ({})", ui.sources.rows.len()),
         search_query: ui.sources.folders.search_query.clone(),
         folder_search_query: ui.sources.folders.search_query.clone(),
         selected_row: ui.sources.selected,
-        focused_folder_row: ui.sources.folders.focused,
+        focused_folder_row,
         rows: ui
             .sources
             .rows
@@ -34,28 +37,7 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
                 )
             })
             .collect(),
-        folder_rows: ui
-            .sources
-            .folders
-            .rows
-            .iter()
-            .enumerate()
-            .map(|(row_index, row)| {
-                FolderRowModel::new(
-                    row.name.clone(),
-                    row.path.display().to_string(),
-                    row.depth,
-                    row.selected,
-                    ui.sources
-                        .folders
-                        .focused
-                        .is_some_and(|focused| focused == row_index),
-                    row.is_root,
-                    row.has_children,
-                    row.expanded,
-                )
-            })
-            .collect(),
+        folder_rows: projected_folder_rows,
         folder_actions: FolderActionsModel {
             can_create_folder: source_selected,
             can_create_folder_at_root: source_selected || !has_sources,
@@ -84,4 +66,110 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
             retained_count: ui.sources.folders.delete_recovery.retained_entries.len(),
         },
     }
+}
+
+fn project_folder_rows(ui: &UiState) -> Vec<FolderRowModel> {
+    let mut projected: Vec<FolderRowModel> = ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .enumerate()
+        .map(|(row_index, row)| {
+            FolderRowModel::new(
+                row.name.clone(),
+                row.path.display().to_string(),
+                row.depth,
+                row.selected,
+                ui.sources
+                    .folders
+                    .focused
+                    .is_some_and(|focused| focused == row_index),
+                row.is_root,
+                row.has_children,
+                row.expanded,
+            )
+            .with_source_index(row_index)
+        })
+        .collect();
+    if let Some(new_folder) = ui.sources.folders.new_folder.as_ref()
+        && let Some((insert_index, draft_depth)) =
+            inline_folder_draft_location(ui, &new_folder.parent)
+    {
+        projected.insert(
+            insert_index,
+            FolderRowModel::create_draft(
+                draft_depth,
+                new_folder.name.clone(),
+                String::from("New folder name"),
+                folder_create_validation_error(ui, &new_folder.parent, &new_folder.name),
+                new_folder.focus_requested,
+            ),
+        );
+    }
+    projected
+}
+
+fn projected_focused_folder_row(ui: &UiState, projected_rows: &[FolderRowModel]) -> Option<usize> {
+    let focused = ui.sources.folders.focused?;
+    projected_rows
+        .iter()
+        .position(|row| row.source_index == Some(focused))
+}
+
+fn inline_folder_draft_location(ui: &UiState, parent: &Path) -> Option<(usize, usize)> {
+    if parent.as_os_str().is_empty() {
+        let root_index = ui.sources.folders.rows.iter().position(|row| row.is_root)?;
+        return Some((root_index + 1, 1));
+    }
+    let parent_index = ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .position(|row| row.path == parent)?;
+    let parent_depth = ui.sources.folders.rows.get(parent_index)?.depth;
+    Some((parent_index + 1, parent_depth + 1))
+}
+
+fn normalize_folder_name_input(name: &str) -> Result<String, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err(String::from("Folder name cannot be empty"));
+    }
+    if trimmed == "." || trimmed == ".." {
+        return Err(String::from("Folder name is invalid"));
+    }
+    if trimmed.contains(['/', '\\']) {
+        return Err(String::from("Folder name cannot contain path separators"));
+    }
+    Ok(trimmed.to_string())
+}
+
+fn display_relative_folder_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn folder_exists_in_rows(ui: &UiState, relative_path: &Path) -> bool {
+    ui.sources
+        .folders
+        .rows
+        .iter()
+        .any(|row| row.path == relative_path)
+}
+
+fn folder_create_validation_error(ui: &UiState, parent: &Path, name: &str) -> Option<String> {
+    let normalized = match normalize_folder_name_input(name) {
+        Ok(normalized) => normalized,
+        Err(err) => return Some(err),
+    };
+    let relative = if parent.as_os_str().is_empty() {
+        PathBuf::from(&normalized)
+    } else {
+        parent.join(&normalized)
+    };
+    folder_exists_in_rows(ui, &relative).then_some(format!(
+        "Folder already exists: {}",
+        display_relative_folder_path(&relative)
+    ))
 }

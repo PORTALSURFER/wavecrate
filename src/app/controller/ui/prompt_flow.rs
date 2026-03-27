@@ -6,10 +6,7 @@ impl AppController {
         if self.set_browser_rename_input(value.clone()) {
             return;
         }
-        if self.set_folder_rename_input(value.clone()) {
-            return;
-        }
-        self.set_new_folder_creation_input(value);
+        let _ = self.set_folder_rename_input(value);
     }
 
     /// Confirm active prompt action while tolerating no-op outcomes.
@@ -36,7 +33,7 @@ impl AppController {
         if self.apply_pending_folder_rename() {
             return true;
         }
-        self.apply_pending_new_folder_creation()
+        false
     }
 
     pub(crate) fn cancel_active_prompt(&mut self) -> bool {
@@ -54,10 +51,6 @@ impl AppController {
                 | Some(crate::app::state::FolderActionPrompt::PurgeRetainedDeletes { .. })
         ) {
             self.cancel_folder_delete_recovery_prompt();
-            return true;
-        }
-        if self.has_pending_new_folder_creation() {
-            self.cancel_new_folder_creation();
             return true;
         }
         if self.has_pending_folder_rename() {

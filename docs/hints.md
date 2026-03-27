@@ -1,6 +1,7 @@
 # Hint of the Day Catalog
 
 - Drag-drop folders: Drop a folder onto Sources to add it to the library.
+- Folder tree: Click a folder row to expand or collapse it; Left and Right also collapse or expand the focused folder.
 - Quick zoom: Use the mouse wheel to zoom; hold Shift to pan horizontally.
 - Loop from selection: Enable loop to keep playback inside the current selection.
 - Selection nudge: Use arrow keys to nudge a selection and keep timing tight.

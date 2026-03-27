@@ -10,16 +10,29 @@ impl AppController {
             self.set_status("Add a source before creating folders", StatusTone::Info);
             return;
         }
-        let parent = self.focused_folder_path().unwrap_or_default();
-        self.begin_inline_folder_creation(parent);
+        self.start_new_folder_at_parent(self.focused_folder_path().unwrap_or_default());
     }
 
-    pub(crate) fn start_new_folder_at_root(&mut self) {
+    /// Start inline folder creation under one explicit relative parent path.
+    pub(crate) fn start_new_folder_at_parent(&mut self, parent: PathBuf) {
         if self.current_source().is_none() {
             self.set_status("Add a source before creating folders", StatusTone::Info);
             return;
         }
-        self.begin_inline_folder_creation(PathBuf::new());
+        self.begin_inline_folder_creation(parent);
+    }
+
+    /// Start inline folder creation from one folder row in the controller-owned folder list.
+    pub(crate) fn start_new_folder_at_folder_row(&mut self, row_index: usize) {
+        let Some(row) = self.ui.sources.folders.rows.get(row_index) else {
+            self.set_status("Focus a folder to create inside it", StatusTone::Info);
+            return;
+        };
+        self.start_new_folder_at_parent(row.path.clone());
+    }
+
+    pub(crate) fn start_new_folder_at_root(&mut self) {
+        self.start_new_folder_at_parent(PathBuf::new());
     }
 
     fn begin_inline_folder_creation(&mut self, parent: PathBuf) {
@@ -55,6 +68,15 @@ impl AppController {
         self.ui.sources.folders.new_folder = None;
     }
 
+    /// Keep the active inline folder-create draft focused in the folder browser.
+    pub(crate) fn focus_new_folder_creation_input(&mut self) {
+        let Some(new_folder) = self.ui.sources.folders.new_folder.as_mut() else {
+            return;
+        };
+        new_folder.focus_requested = true;
+        self.focus_folder_context();
+    }
+
     pub(crate) fn set_new_folder_creation_input(&mut self, value: String) -> bool {
         let Some(new_folder) = self.ui.sources.folders.new_folder.as_mut() else {
             return false;
@@ -77,6 +99,7 @@ impl AppController {
                 self.ui.sources.folders.new_folder = None;
             }
             Err(err) => {
+                self.refresh_folder_browser();
                 if let Some(new_folder) = self.ui.sources.folders.new_folder.as_mut() {
                     new_folder.focus_requested = true;
                 }

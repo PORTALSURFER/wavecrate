@@ -135,6 +135,13 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::FocusBrowserSearch
             | NativeUiAction::BlurBrowserSearch
             | NativeUiAction::FocusFolderSearch
+            | NativeUiAction::StartNewFolder
+            | NativeUiAction::StartNewFolderAtFolderRow { .. }
+            | NativeUiAction::StartNewFolderAtRoot
+            | NativeUiAction::FocusFolderCreateInput
+            | NativeUiAction::SetFolderCreateInput { .. }
+            | NativeUiAction::ConfirmFolderCreate
+            | NativeUiAction::CancelFolderCreate
             | NativeUiAction::OpenOptionsMenu
             | NativeUiAction::CloseOptionsPanel
             | NativeUiAction::SetPromptInput { .. }
