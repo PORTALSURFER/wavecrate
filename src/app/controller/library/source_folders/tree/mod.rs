@@ -1,6 +1,9 @@
 //! Folder-browser orchestration across retained state, scan refresh, and row projection.
 
 use super::*;
+use std::time::Duration;
+
+const SHOW_ALL_FOLDERS_SCAN_MAX_AGE: Duration = Duration::from_secs(10);
 
 mod model;
 mod projection;
@@ -21,19 +24,45 @@ impl AppController {
         };
         let pending_load = self.runtime.jobs.wav_load_pending_for(&source.id);
         let empty_entries = self.wav_entries_len() == 0;
-        let (cached_available, cached_disk) = {
+        let (cached_available, cached_available_show_all_folders, cached_disk) = {
             let model = self
                 .ui_cache
                 .folders
                 .models
                 .entry(source_id.clone())
                 .or_default();
-            (model.available.clone(), model.disk_folders.clone())
+            (
+                model.available.clone(),
+                model.available_show_all_folders,
+                model.disk_folders.clone(),
+            )
         };
+        self.request_folder_browser_disk_scan_if_needed(
+            &source_id,
+            &source.root,
+            SHOW_ALL_FOLDERS_SCAN_MAX_AGE,
+        );
+        let show_all_folders = self
+            .ui_cache
+            .folders
+            .models
+            .get(&source_id)
+            .map(|model| model.show_all_folders)
+            .unwrap_or(true);
         let mut available = self.collect_folders(&source.root, false);
-        available.extend(cached_disk);
-        let reuse_available = empty_entries && !cached_available.is_empty() && available.is_empty();
-        if reuse_available || (pending_load && empty_entries && available.is_empty()) {
+        if show_all_folders {
+            available.extend(cached_disk);
+        }
+        let reuse_available = empty_entries
+            && !cached_available.is_empty()
+            && available.is_empty()
+            && cached_available_show_all_folders == show_all_folders;
+        if reuse_available
+            || (pending_load
+                && empty_entries
+                && available.is_empty()
+                && cached_available_show_all_folders == show_all_folders)
+        {
             available = cached_available;
         }
         let snapshot = {
@@ -50,6 +79,7 @@ impl AppController {
                 .hotkeys
                 .retain(|_, path| model::is_root_path(path) || source.root.join(path).is_dir());
             model.available = available;
+            model.available_show_all_folders = model.show_all_folders;
             for path in model.manual_folders.iter().cloned() {
                 model.available.insert(path);
             }

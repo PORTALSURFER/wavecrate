@@ -10,6 +10,46 @@ use std::time::{Duration, Instant};
 const AUTO_SYNC_INTERVAL: Duration = Duration::from_secs(10);
 
 impl AppController {
+    /// Queue a disk scan when the active source needs an updated empty-folder snapshot.
+    pub(super) fn request_folder_browser_disk_scan_if_needed(
+        &mut self,
+        source_id: &SourceId,
+        source_root: &Path,
+        max_age: Duration,
+    ) {
+        let now = Instant::now();
+        let pending_source = self.runtime.jobs.pending_folder_scan_source();
+        if let Some(pending_source) = pending_source.as_ref()
+            && pending_source != source_id
+            && let Some(model) = self.ui_cache.folders.models.get_mut(pending_source)
+        {
+            model.disk_refresh_in_progress = false;
+        }
+        let should_request = {
+            let model = self
+                .ui_cache
+                .folders
+                .models
+                .entry(source_id.clone())
+                .or_default();
+            model.show_all_folders
+                && model
+                    .last_disk_refresh
+                    .is_none_or(|last| now.duration_since(last) >= max_age)
+                && !model.disk_refresh_in_progress
+        };
+        if !should_request {
+            return;
+        }
+        if let Some(model) = self.ui_cache.folders.models.get_mut(source_id) {
+            model.disk_refresh_in_progress = true;
+        }
+        self.runtime
+            .jobs
+            .request_folder_scan(source_id.clone(), source_root.to_path_buf());
+        self.request_auto_quick_sync_if_due(AUTO_SYNC_INTERVAL);
+    }
+
     /// Apply a completed disk scan result to the folder browser cache.
     pub(crate) fn apply_folder_scan_result(
         &mut self,
@@ -57,52 +97,25 @@ impl AppController {
         let Some(source_id) = self.selection_state.ctx.selected_source.clone() else {
             return;
         };
-        let now = Instant::now();
-        let needs_refresh = {
-            let model = self
-                .ui_cache
-                .folders
-                .models
-                .entry(source_id.clone())
-                .or_default();
-            model
-                .last_disk_refresh
-                .is_none_or(|last| now.duration_since(last) >= max_age)
+        let Some(source) = self.current_source() else {
+            return;
         };
-        let pending_source = self.runtime.jobs.pending_folder_scan_source();
-        if let Some(pending_source) = pending_source.as_ref()
-            && pending_source != &source_id
-            && let Some(model) = self.ui_cache.folders.models.get_mut(pending_source)
-        {
-            model.disk_refresh_in_progress = false;
+        let should_refresh = self
+            .ui_cache
+            .folders
+            .models
+            .get(&source_id)
+            .map(|model| {
+                model.show_all_folders
+                    && model
+                        .last_disk_refresh
+                        .is_none_or(|last| Instant::now().duration_since(last) >= max_age)
+            })
+            .unwrap_or(true);
+        self.request_folder_browser_disk_scan_if_needed(&source_id, &source.root, max_age);
+        if should_refresh {
+            self.refresh_folder_browser();
         }
-        if needs_refresh {
-            let should_request = {
-                let model = self
-                    .ui_cache
-                    .folders
-                    .models
-                    .entry(source_id.clone())
-                    .or_default();
-                !model.disk_refresh_in_progress
-            };
-            if should_request {
-                if let Some(source) = self.current_source() {
-                    let model = self
-                        .ui_cache
-                        .folders
-                        .models
-                        .entry(source_id.clone())
-                        .or_default();
-                    model.disk_refresh_in_progress = true;
-                    self.runtime
-                        .jobs
-                        .request_folder_scan(source_id.clone(), source.root.clone());
-                }
-                self.refresh_folder_browser();
-            }
-        }
-        self.request_auto_quick_sync_if_due(AUTO_SYNC_INTERVAL);
     }
 }
 

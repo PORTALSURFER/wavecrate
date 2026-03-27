@@ -10,7 +10,7 @@ pub(super) fn is_root_path(path: &Path) -> bool {
 }
 
 /// Cached state for the folder browser within a source.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(crate) struct FolderBrowserModel {
     /// Currently selected folder paths.
     pub(crate) selected: BTreeSet<PathBuf>,
@@ -22,12 +22,16 @@ pub(crate) struct FolderBrowserModel {
     pub(crate) focused: Option<PathBuf>,
     /// Paths available for display in the folder browser.
     pub(crate) available: BTreeSet<PathBuf>,
+    /// Visibility mode used when `available` was last projected.
+    pub(crate) available_show_all_folders: bool,
     /// Anchor path used for shift-selection.
     pub(crate) selection_anchor: Option<PathBuf>,
     /// User-created folders that may not contain samples yet.
     pub(crate) manual_folders: BTreeSet<PathBuf>,
     /// Current search query for filtering folder rows.
     pub(crate) search_query: String,
+    /// Whether the tree should include folders discovered on disk without WAVs.
+    pub(crate) show_all_folders: bool,
     /// Most recent time a disk scan completed.
     pub(crate) last_disk_refresh: Option<Instant>,
     /// Cached folder paths discovered from disk scans.
@@ -38,6 +42,28 @@ pub(crate) struct FolderBrowserModel {
     pub(crate) hotkeys: BTreeMap<u8, PathBuf>,
     /// Root selection filter mode.
     pub(crate) root_filter_mode: crate::app::state::RootFolderFilterMode,
+}
+
+impl Default for FolderBrowserModel {
+    fn default() -> Self {
+        Self {
+            selected: BTreeSet::new(),
+            negated: BTreeSet::new(),
+            expanded: BTreeSet::new(),
+            focused: None,
+            available: BTreeSet::new(),
+            available_show_all_folders: true,
+            selection_anchor: None,
+            manual_folders: BTreeSet::new(),
+            search_query: String::new(),
+            show_all_folders: true,
+            last_disk_refresh: None,
+            disk_folders: BTreeSet::new(),
+            disk_refresh_in_progress: false,
+            hotkeys: BTreeMap::new(),
+            root_filter_mode: crate::app::state::RootFolderFilterMode::default(),
+        }
+    }
 }
 
 impl FolderBrowserModel {

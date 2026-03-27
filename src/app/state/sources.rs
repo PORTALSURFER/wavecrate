@@ -36,7 +36,7 @@ pub struct SourceRowView {
 }
 
 /// UI state for browsing folders within the active source.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct FolderBrowserUiState {
     /// Render rows for the folder tree.
     pub rows: Vec<FolderRowView>,
@@ -48,6 +48,8 @@ pub struct FolderBrowserUiState {
     pub last_focused_path: Option<PathBuf>,
     /// Active search query.
     pub search_query: String,
+    /// Whether the tree should include folders without any WAV-backed samples.
+    pub show_all_folders: bool,
     /// Whether search focus is requested.
     pub search_focus_requested: bool,
     /// Whether rename focus is requested.
@@ -60,6 +62,25 @@ pub struct FolderBrowserUiState {
     pub header_height: f32,
     /// Delete recovery queue state for staged folder deletes.
     pub delete_recovery: FolderDeleteRecoveryUiState,
+}
+
+impl Default for FolderBrowserUiState {
+    fn default() -> Self {
+        Self {
+            rows: Vec::new(),
+            focused: None,
+            scroll_to: None,
+            last_focused_path: None,
+            search_query: String::new(),
+            show_all_folders: true,
+            search_focus_requested: false,
+            rename_focus_requested: false,
+            pending_action: None,
+            new_folder: None,
+            header_height: 0.0,
+            delete_recovery: FolderDeleteRecoveryUiState::default(),
+        }
+    }
 }
 
 /// UI state for staged delete recovery.

@@ -23,6 +23,7 @@ pub(super) fn apply_browser_native_ui_action(
         NativeUiAction::BlurBrowserSearch => controller.blur_browser_search(),
         NativeUiAction::FocusFolderSearch => controller.focus_folder_search(),
         NativeUiAction::SetFolderSearch { query } => controller.set_folder_search(query),
+        NativeUiAction::ToggleShowAllFolders => controller.toggle_show_all_folders(),
         NativeUiAction::FocusSourceRow { index } => {
             controller.select_source_by_index(index);
             controller.focus_sources_context();
@@ -78,7 +79,7 @@ pub(super) fn apply_browser_native_ui_action(
                 controller.start_new_folder_at_root();
             }
         }
-        NativeUiAction::FocusFolderCreateInput => controller.focus_new_folder_creation_input(),
+        NativeUiAction::FocusFolderCreateInput => controller.focus_inline_folder_edit_input(),
         NativeUiAction::StartFolderRename => controller.start_folder_rename(),
         NativeUiAction::DeleteFocusedFolder => controller.delete_focused_folder(),
         NativeUiAction::RestoreRetainedFolderDeletes => {

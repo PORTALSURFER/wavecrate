@@ -64,6 +64,7 @@ const fn gui_history_policy(kind: GuiActionKind, _effect: GuiEffectClass) -> Gui
         | GuiActionKind::MoveSourceFocus
         | GuiActionKind::FocusFolderRow
         | GuiActionKind::ActivateFolderRow
+        | GuiActionKind::ToggleShowAllFolders
         | GuiActionKind::ToggleFocusedFolderSelection
         | GuiActionKind::MoveFolderFocus
         | GuiActionKind::MoveBrowserFocus
@@ -117,6 +118,7 @@ gui_action_catalog!(
     OpenTrashFolder {} => { id: "open_trash_folder", surface: Options, effect: IoJob, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["options"], sample: NativeUiAction::OpenTrashFolder },
     FocusFolderSearch {} => { id: "focus_folder_search", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::FocusFolderSearch },
     SetFolderSearch { query } => { id: "set_folder_search", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::SetFolderSearch { query: String::from("drums") } },
+    ToggleShowAllFolders {} => { id: "toggle_show_all_folders", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::ToggleShowAllFolders },
     FocusSourceRow { index } => { id: "focus_source_row", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::FocusSourceRow { index: 0 } },
     SelectSourceRow { index } => { id: "select_source_row", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::SelectSourceRow { index: 0 } },
     MoveSourceFocus { delta } => { id: "move_source_focus", surface: Sources, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["sources"], sample: NativeUiAction::MoveSourceFocus { delta: 1 } },

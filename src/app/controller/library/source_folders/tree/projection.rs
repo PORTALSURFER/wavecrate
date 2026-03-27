@@ -11,6 +11,7 @@ use std::sync::atomic::AtomicBool;
 impl AppController {
     pub(crate) fn build_folder_rows(&mut self, model: &FolderBrowserModel) {
         self.set_ui_folder_search_query(model.search_query.clone());
+        self.ui.sources.folders.show_all_folders = model.show_all_folders;
         let hotkey_lookup: BTreeMap<PathBuf, u8> = model
             .hotkeys
             .iter()

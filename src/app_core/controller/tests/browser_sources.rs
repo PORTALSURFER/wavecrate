@@ -1,5 +1,22 @@
 use super::*;
 
+fn browser_test_sample_entry(
+    name: &str,
+    tag: crate::sample_sources::Rating,
+) -> crate::sample_sources::WavEntry {
+    crate::sample_sources::WavEntry {
+        relative_path: PathBuf::from(name),
+        file_size: 0,
+        modified_ns: 0,
+        content_hash: None,
+        tag,
+        looped: false,
+        locked: false,
+        missing: false,
+        last_played_at: None,
+    }
+}
+
 #[test]
 fn apply_native_browser_normalize_routes_to_hotkey_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
@@ -248,6 +265,49 @@ fn focus_folder_panel_preserves_existing_folder_selection() {
     );
     assert_eq!(controller.ui.sources.folders.focused, focused_before);
     assert_eq!(controller.ui.focus.context, FocusContext::SourceFolders);
+}
+
+#[test]
+/// Native folder-visibility toggle should switch between all folders and WAV-backed folders.
+fn toggle_show_all_folders_action_updates_folder_tree_mode() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let dir = tempdir().unwrap();
+    let source_root = dir.path().join("source");
+    std::fs::create_dir_all(source_root.join("drums/empty")).unwrap();
+    std::fs::create_dir_all(source_root.join("drums/kicks")).unwrap();
+    controller.add_source_from_path(source_root.clone()).unwrap();
+    controller.select_source_by_index(0);
+    controller.set_wav_entries_for_tests(vec![browser_test_sample_entry(
+        "drums/kicks/tight.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+
+    assert!(controller.ui.sources.folders.show_all_folders);
+    assert!(
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .any(|row| row.path == PathBuf::from("drums/empty"))
+    );
+
+    controller.apply_native_ui_action(NativeUiAction::ToggleShowAllFolders);
+
+    assert!(!controller.ui.sources.folders.show_all_folders);
+    assert!(
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .all(|row| row.path != PathBuf::from("drums/empty"))
+    );
 }
 
 #[test]

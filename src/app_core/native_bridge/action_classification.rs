@@ -136,6 +136,7 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::FocusBrowserSearch
             | NativeUiAction::BlurBrowserSearch
             | NativeUiAction::FocusFolderSearch
+            | NativeUiAction::ToggleShowAllFolders
             | NativeUiAction::StartNewFolder
             | NativeUiAction::StartNewFolderAtFolderRow { .. }
             | NativeUiAction::StartNewFolderAtRoot
@@ -143,6 +144,7 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::SetFolderCreateInput { .. }
             | NativeUiAction::ConfirmFolderCreate
             | NativeUiAction::CancelFolderCreate
+            | NativeUiAction::StartFolderRename
             | NativeUiAction::OpenOptionsMenu
             | NativeUiAction::CloseOptionsPanel
             | NativeUiAction::SetPromptInput { .. }

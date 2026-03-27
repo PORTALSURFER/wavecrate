@@ -58,6 +58,7 @@ impl AppController {
         self.remap_folder_state(target, &new_relative);
         self.remap_manual_folders(target, &new_relative);
         self.refresh_folder_browser();
+        self.focus_folder_by_path(&new_relative);
         self.set_status(
             format!("Renamed folder to {}", new_relative.display()),
             StatusTone::Info,
@@ -311,7 +312,7 @@ impl AppController {
             self.ui.sources.folders.scroll_to = None;
         }
         self.ui.sources.folders.pending_action = None;
-        self.ui.sources.folders.new_folder = None;
+        self.ui.sources.folders.inline_edit = None;
     }
 
     fn next_folder_focus_after_delete(&self, target: &Path) -> Option<PathBuf> {

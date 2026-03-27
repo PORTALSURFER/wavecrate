@@ -35,6 +35,8 @@ pub(crate) struct FolderHistorySnapshot {
     pub manual_folders: BTreeSet<PathBuf>,
     /// Assigned hotkey slots for folder jumps.
     pub hotkeys: BTreeMap<u8, PathBuf>,
+    /// Whether empty folders discovered on disk stay visible in the tree.
+    pub show_all_folders: bool,
     /// Root selection filter mode.
     pub root_filter_mode: RootFolderFilterMode,
 }
@@ -124,6 +126,7 @@ impl AppController {
                 selection_anchor: model.selection_anchor.clone(),
                 manual_folders: model.manual_folders.clone(),
                 hotkeys: model.hotkeys.clone(),
+                show_all_folders: model.show_all_folders,
                 root_filter_mode: model.root_filter_mode,
             });
 
@@ -185,6 +188,7 @@ impl AppController {
                     model.selection_anchor = folder_state.selection_anchor.clone();
                     model.manual_folders = folder_state.manual_folders.clone();
                     model.hotkeys = folder_state.hotkeys.clone();
+                    model.show_all_folders = folder_state.show_all_folders;
                     model.root_filter_mode = folder_state.root_filter_mode;
                 }
             }

@@ -19,6 +19,8 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
         header: format!("Sources ({})", ui.sources.rows.len()),
         search_query: ui.sources.folders.search_query.clone(),
         folder_search_query: ui.sources.folders.search_query.clone(),
+        show_all_folders: ui.sources.folders.show_all_folders,
+        can_toggle_show_all_folders: source_selected,
         selected_row: ui.sources.selected,
         focused_folder_row,
         rows: ui

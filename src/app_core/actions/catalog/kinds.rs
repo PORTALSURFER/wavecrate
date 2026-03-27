@@ -50,6 +50,8 @@ pub enum GuiActionKind {
     FocusFolderSearch,
     /// Set the sources folder-search query.
     SetFolderSearch,
+    /// Toggle whether the folder tree shows all on-disk folders.
+    ToggleShowAllFolders,
     /// Focus one source row directly and activate the sources list section.
     FocusSourceRow,
     /// Select one source row directly.
@@ -334,7 +336,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 162] = [
+    pub const ALL: [Self; 163] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -357,6 +359,7 @@ impl GuiActionKind {
         Self::OpenTrashFolder,
         Self::FocusFolderSearch,
         Self::SetFolderSearch,
+        Self::ToggleShowAllFolders,
         Self::FocusSourceRow,
         Self::SelectSourceRow,
         Self::MoveSourceFocus,
