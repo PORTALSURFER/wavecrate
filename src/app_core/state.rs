@@ -60,7 +60,7 @@ pub type StatusTone = app_state::StatusTone;
 /// Pending inline sample rename prompt.
 pub type SampleBrowserActionPrompt = app_state::SampleBrowserActionPrompt;
 
-/// Pending inline folder rename/create prompt.
+/// Pending modal folder action prompt.
 pub type FolderActionPrompt = app_state::FolderActionPrompt;
 
 /// Unified drag target used by migration-facing drag/drop projections.
@@ -84,8 +84,11 @@ pub type RootFolderFilterMode = app_state::RootFolderFilterMode;
 /// Folder row view projection for migration-facing renderer models.
 pub type FolderRowView = app_state::FolderRowView;
 
-/// Inline folder creation prompt state.
-pub type InlineFolderCreation = app_state::InlineFolderCreation;
+/// Inline folder create/rename draft state.
+pub type InlineFolderEdit = app_state::InlineFolderEdit;
+
+/// Inline folder draft kind metadata.
+pub type InlineFolderEditKind = app_state::InlineFolderEditKind;
 
 /// Recovery action for staged folder delete.
 pub type FolderDeleteRecoveryAction = app_state::FolderDeleteRecoveryAction;

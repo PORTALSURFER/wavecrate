@@ -94,20 +94,48 @@ fn project_folder_rows(ui: &UiState) -> Vec<FolderRowModel> {
             .with_source_index(row_index)
         })
         .collect();
-    if let Some(new_folder) = ui.sources.folders.new_folder.as_ref()
-        && let Some((insert_index, draft_depth)) =
-            inline_folder_draft_location(ui, &new_folder.parent)
-    {
-        projected.insert(
-            insert_index,
-            FolderRowModel::create_draft(
-                draft_depth,
-                new_folder.name.clone(),
-                String::from("New folder name"),
-                folder_create_validation_error(ui, &new_folder.parent, &new_folder.name),
-                new_folder.focus_requested,
-            ),
-        );
+    if let Some(edit) = ui.sources.folders.inline_edit.as_ref() {
+        match &edit.kind {
+            InlineFolderEditKind::Create { parent } => {
+                if let Some((insert_index, draft_depth)) = inline_folder_draft_location(ui, parent) {
+                    projected.insert(
+                        insert_index,
+                        inline_folder_draft_row(
+                            FolderRowKind::CreateDraft,
+                            draft_depth,
+                            edit.name.clone(),
+                            String::from("New folder name"),
+                            folder_create_validation_error(ui, parent, &edit.name),
+                            edit.focus_requested,
+                            edit.select_all_on_focus_requested,
+                            None,
+                        ),
+                    );
+                }
+            }
+            InlineFolderEditKind::Rename { target } => {
+                if let Some(target_index) = ui
+                    .sources
+                    .folders
+                    .rows
+                    .iter()
+                    .position(|row| row.path == *target)
+                    && let Some(row) = ui.sources.folders.rows.get(target_index)
+                    && let Some(projected_row) = projected.get_mut(target_index)
+                {
+                    *projected_row = inline_folder_draft_row(
+                        FolderRowKind::RenameDraft,
+                        row.depth,
+                        edit.name.clone(),
+                        String::from("Folder name"),
+                        folder_rename_validation_error(ui, target, &edit.name),
+                        edit.focus_requested,
+                        edit.select_all_on_focus_requested,
+                        Some(target_index),
+                    );
+                }
+            }
+        }
     }
     projected
 }
@@ -132,6 +160,35 @@ fn inline_folder_draft_location(ui: &UiState, parent: &Path) -> Option<(usize, u
         .position(|row| row.path == parent)?;
     let parent_depth = ui.sources.folders.rows.get(parent_index)?.depth;
     Some((parent_index + 1, parent_depth + 1))
+}
+
+fn inline_folder_draft_row(
+    kind: FolderRowKind,
+    depth: usize,
+    input_value: String,
+    input_placeholder: String,
+    input_error: Option<String>,
+    input_focused: bool,
+    select_all_on_focus: bool,
+    source_index: Option<usize>,
+) -> FolderRowModel {
+    FolderRowModel {
+        label: String::new(),
+        detail: String::new(),
+        depth,
+        selected: false,
+        focused: false,
+        is_root: false,
+        has_children: false,
+        expanded: false,
+        kind,
+        source_index,
+        input_value: Some(input_value),
+        input_placeholder: Some(input_placeholder),
+        input_error,
+        input_focused,
+        select_all_on_focus,
+    }
 }
 
 fn normalize_folder_name_input(name: &str) -> Result<String, String> {
@@ -174,4 +231,32 @@ fn folder_create_validation_error(ui: &UiState, parent: &Path, name: &str) -> Op
         "Folder already exists: {}",
         display_relative_folder_path(&relative)
     ))
+}
+
+fn folder_rename_validation_error(ui: &UiState, target: &Path, name: &str) -> Option<String> {
+    let normalized = match normalize_folder_name_input(name) {
+        Ok(normalized) => normalized,
+        Err(err) => return Some(err),
+    };
+    let renamed = folder_with_name(target, &normalized);
+    if renamed == target {
+        return None;
+    }
+    folder_exists_in_rows(ui, &renamed).then_some(format!(
+        "Folder already exists: {}",
+        display_relative_folder_path(&renamed)
+    ))
+}
+
+fn folder_with_name(target: &Path, name: &str) -> PathBuf {
+    target.parent().map_or_else(
+        || PathBuf::from(name),
+        |parent| {
+            if parent.as_os_str().is_empty() {
+                PathBuf::from(name)
+            } else {
+                parent.join(name)
+            }
+        },
+    )
 }

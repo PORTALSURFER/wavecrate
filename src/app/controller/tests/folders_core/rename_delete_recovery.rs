@@ -2,6 +2,7 @@ use super::support::*;
 use crate::app::controller::jobs::{
     ActiveRetainedDeleteResolution, RetainedDeleteBusyEntry, RetainedDeleteResolutionMode,
 };
+use crate::app::state::{InlineFolderEdit, InlineFolderEditKind};
 
 #[test]
 fn renaming_folder_updates_entries_and_tree() -> Result<(), String> {
@@ -39,19 +40,99 @@ fn renaming_folder_updates_entries_and_tree() -> Result<(), String> {
 }
 
 #[test]
-fn cancelling_folder_rename_clears_prompt() {
+fn start_folder_rename_creates_inline_edit_with_select_all() -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    let folder = source.root.join("folder");
+    std::fs::create_dir_all(&folder).unwrap();
+    controller.refresh_folder_browser_for_tests();
+    let focus_row = controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .position(|row| row.path == PathBuf::from("folder"))
+        .unwrap();
+    controller.focus_folder_row(focus_row);
+
+    controller.start_folder_rename();
+
+    let draft = controller.ui.sources.folders.inline_edit.as_ref().unwrap();
+    assert!(matches!(
+        draft.kind,
+        InlineFolderEditKind::Rename { ref target } if target == &PathBuf::from("folder")
+    ));
+    assert_eq!(draft.name, "folder");
+    assert!(draft.focus_requested);
+    assert!(draft.select_all_on_focus_requested);
+    Ok(())
+}
+
+#[test]
+fn start_folder_rename_rejects_root_folder() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.refresh_folder_browser_for_tests();
+    controller.focus_folder_row(0);
+
+    controller.start_folder_rename();
+
+    assert!(controller.ui.sources.folders.inline_edit.is_none());
+    assert_eq!(controller.ui.status.status_tone, crate::app::state::StatusTone::Info);
+    assert!(controller.ui.status.text.contains("Root folder cannot be renamed"));
+}
+
+#[test]
+fn cancelling_folder_rename_clears_inline_edit() {
     let (mut controller, _source) = dummy_controller();
-    controller.ui.sources.folders.pending_action =
-        Some(crate::app::state::FolderActionPrompt::Rename {
+    controller.ui.sources.folders.inline_edit = Some(InlineFolderEdit {
+        kind: InlineFolderEditKind::Rename {
             target: PathBuf::from("folder"),
-            name: "folder".into(),
-        });
-    controller.ui.sources.folders.rename_focus_requested = true;
+        },
+        name: "folder".into(),
+        focus_requested: true,
+        select_all_on_focus_requested: true,
+    });
 
     controller.cancel_folder_rename();
 
-    assert!(controller.ui.sources.folders.pending_action.is_none());
-    assert!(!controller.ui.sources.folders.rename_focus_requested);
+    assert!(controller.ui.sources.folders.inline_edit.is_none());
+}
+
+#[test]
+fn applying_pending_folder_rename_updates_tree_and_focus() -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    let folder = source.root.join("old");
+    std::fs::create_dir_all(&folder).unwrap();
+    write_test_wav(&folder.join("clip.wav"), &[0.1, -0.1]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "old/clip.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+    controller.ui.sources.folders.inline_edit = Some(InlineFolderEdit {
+        kind: InlineFolderEditKind::Rename {
+            target: PathBuf::from("old"),
+        },
+        name: "new".into(),
+        focus_requested: true,
+        select_all_on_focus_requested: true,
+    });
+
+    assert!(controller.apply_pending_folder_rename());
+
+    assert!(controller.ui.sources.folders.inline_edit.is_none());
+    let focused = controller.ui.sources.folders.focused.expect("focused row after rename");
+    assert_eq!(controller.ui.sources.folders.rows[focused].path, PathBuf::from("new"));
+    assert!(source.root.join("new/clip.wav").is_file());
+    Ok(())
 }
 
 #[test]
@@ -392,7 +473,7 @@ fn deleting_folder_warns_when_retained_recovery_is_processing_the_folder() -> Re
 }
 
 #[test]
-fn confirming_folder_rename_warns_when_retained_recovery_is_processing_the_folder() {
+fn applying_pending_folder_rename_warns_when_retained_recovery_is_processing_the_folder() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -406,11 +487,14 @@ fn confirming_folder_rename_warns_when_retained_recovery_is_processing_the_folde
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
     controller.refresh_folder_browser_for_tests();
-    controller.ui.sources.folders.pending_action =
-        Some(crate::app::state::FolderActionPrompt::Rename {
+    controller.ui.sources.folders.inline_edit = Some(InlineFolderEdit {
+        kind: InlineFolderEditKind::Rename {
             target: PathBuf::from("old"),
-            name: "new".into(),
-        });
+        },
+        name: "new".into(),
+        focus_requested: true,
+        select_all_on_focus_requested: true,
+    });
     controller.runtime.active_retained_delete_resolution = Some(ActiveRetainedDeleteResolution {
         entries: vec![RetainedDeleteBusyEntry {
             mode: RetainedDeleteResolutionMode::Restore,
@@ -420,9 +504,9 @@ fn confirming_folder_rename_warns_when_retained_recovery_is_processing_the_folde
         }],
     });
 
-    assert!(controller.confirm_active_prompt());
+    assert!(controller.apply_pending_folder_rename());
 
-    assert!(controller.ui.sources.folders.pending_action.is_some());
+    assert!(controller.ui.sources.folders.inline_edit.is_some());
     assert!(target.exists());
     assert!(!source.root.join("new").exists());
     assert_eq!(

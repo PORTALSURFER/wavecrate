@@ -1,5 +1,5 @@
 use super::*;
-use crate::app_core::state::InlineFolderCreation;
+use crate::app_core::state::{InlineFolderEdit, InlineFolderEditKind};
 
 /// Async revision-bus updates must invalidate the retained projection key on first pull.
 #[test]
@@ -139,10 +139,13 @@ fn set_browser_view_start_action_refreshes_projected_model_immediately() {
 #[test]
 fn set_folder_create_input_action_refreshes_projected_model_immediately() {
     let mut bridge = test_bridge(16);
-    bridge.controller.ui.sources.folders.new_folder = Some(InlineFolderCreation {
-        parent: PathBuf::new(),
+    bridge.controller.ui.sources.folders.inline_edit = Some(InlineFolderEdit {
+        kind: InlineFolderEditKind::Create {
+            parent: PathBuf::new(),
+        },
         name: String::new(),
         focus_requested: true,
+        select_all_on_focus_requested: false,
     });
     bridge
         .controller
@@ -190,10 +193,13 @@ fn set_folder_create_input_action_refreshes_projected_model_immediately() {
 #[test]
 fn cancel_folder_create_action_refreshes_projected_model_immediately() {
     let mut bridge = test_bridge(16);
-    bridge.controller.ui.sources.folders.new_folder = Some(InlineFolderCreation {
-        parent: PathBuf::new(),
+    bridge.controller.ui.sources.folders.inline_edit = Some(InlineFolderEdit {
+        kind: InlineFolderEditKind::Create {
+            parent: PathBuf::new(),
+        },
         name: String::from("drums"),
         focus_requested: true,
+        select_all_on_focus_requested: false,
     });
     bridge
         .controller
@@ -233,6 +239,61 @@ fn cancel_folder_create_action_refreshes_projected_model_immediately() {
             .iter()
             .all(|row| row.kind != crate::app_core::actions::NativeFolderRowKind::CreateDraft)
     );
+}
+
+/// Starting folder rename should immediately project an inline rename row.
+#[test]
+fn start_folder_rename_action_refreshes_projected_model_immediately() {
+    let mut bridge = test_bridge(16);
+    bridge
+        .controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .push(crate::app::state::FolderRowView {
+            path: PathBuf::new(),
+            name: String::from("Root"),
+            depth: 0,
+            has_children: true,
+            expanded: true,
+            selected: false,
+            negated: false,
+            hotkey: None,
+            is_root: true,
+            root_filter_mode: Some(crate::app::state::RootFolderFilterMode::AllDescendants),
+        });
+    bridge
+        .controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .push(crate::app::state::FolderRowView {
+            path: PathBuf::from("drums"),
+            name: String::from("drums"),
+            depth: 1,
+            has_children: false,
+            expanded: false,
+            selected: true,
+            negated: false,
+            hotkey: None,
+            is_root: false,
+            root_filter_mode: None,
+        });
+    bridge.controller.ui.sources.folders.focused = Some(1);
+
+    bridge.on_action(NativeUiAction::StartFolderRename);
+
+    let updated = bridge.project_model();
+    let draft = updated
+        .sources
+        .folder_rows
+        .iter()
+        .find(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::RenameDraft)
+        .expect("folder rename draft should be projected");
+    assert_eq!(draft.input_value.as_deref(), Some("drums"));
+    assert!(draft.select_all_on_focus);
 }
 
 /// Focus-only browser actions should preserve the current manual viewport start

@@ -1,4 +1,5 @@
 use super::support::*;
+use crate::app::state::{InlineFolderEdit, InlineFolderEditKind};
 
 #[test]
 fn creating_folder_tracks_manual_entry() -> Result<(), String> {
@@ -89,8 +90,11 @@ fn start_new_folder_at_root_sets_root_parent() {
 
     controller.start_new_folder_at_root();
 
-    let new_folder = controller.ui.sources.folders.new_folder.as_ref().unwrap();
-    assert!(new_folder.parent.as_os_str().is_empty());
+    let draft = controller.ui.sources.folders.inline_edit.as_ref().unwrap();
+    assert!(matches!(
+        draft.kind,
+        InlineFolderEditKind::Create { ref parent } if parent.as_os_str().is_empty()
+    ));
 }
 
 #[test]
@@ -120,9 +124,12 @@ fn start_new_folder_uses_focused_parent() {
     controller.focus_folder_row(folder_index);
     controller.start_new_folder();
 
-    let new_folder = controller.ui.sources.folders.new_folder.as_ref().unwrap();
-    assert_eq!(new_folder.parent, PathBuf::from("clips"));
-    assert!(new_folder.focus_requested);
+    let draft = controller.ui.sources.folders.inline_edit.as_ref().unwrap();
+    assert!(matches!(
+        draft.kind,
+        InlineFolderEditKind::Create { ref parent } if parent == &PathBuf::from("clips")
+    ));
+    assert!(draft.focus_requested);
 }
 
 #[test]
@@ -151,8 +158,11 @@ fn start_new_folder_at_folder_row_uses_explicit_parent() {
 
     controller.start_new_folder_at_folder_row(folder_index);
 
-    let new_folder = controller.ui.sources.folders.new_folder.as_ref().unwrap();
-    assert_eq!(new_folder.parent, PathBuf::from("clips"));
+    let draft = controller.ui.sources.folders.inline_edit.as_ref().unwrap();
+    assert!(matches!(
+        draft.kind,
+        InlineFolderEditKind::Create { ref parent } if parent == &PathBuf::from("clips")
+    ));
     assert_eq!(controller.ui.sources.folders.focused, Some(folder_index));
 }
 
@@ -168,21 +178,24 @@ fn start_new_folder_clears_search_query() {
     controller.start_new_folder();
 
     assert!(controller.ui.sources.folders.search_query.is_empty());
-    assert!(controller.ui.sources.folders.new_folder.is_some());
+    assert!(controller.ui.sources.folders.inline_edit.is_some());
 }
 
 #[test]
 fn cancelling_new_folder_creation_clears_state() {
     let (mut controller, _) = dummy_controller();
-    controller.ui.sources.folders.new_folder = Some(crate::app::state::InlineFolderCreation {
-        parent: PathBuf::new(),
+    controller.ui.sources.folders.inline_edit = Some(InlineFolderEdit {
+        kind: InlineFolderEditKind::Create {
+            parent: PathBuf::new(),
+        },
         name: "temp".into(),
         focus_requested: false,
+        select_all_on_focus_requested: false,
     });
 
     controller.cancel_new_folder_creation();
 
-    assert!(controller.ui.sources.folders.new_folder.is_none());
+    assert!(controller.ui.sources.folders.inline_edit.is_none());
 }
 
 #[test]
@@ -202,7 +215,7 @@ fn applying_new_folder_creation_focuses_created_folder() -> Result<(), String> {
         controller.ui.sources.folders.rows[focused].path,
         PathBuf::from("Created")
     );
-    assert!(controller.ui.sources.folders.new_folder.is_none());
+    assert!(controller.ui.sources.folders.inline_edit.is_none());
     Ok(())
 }
 
@@ -218,7 +231,7 @@ fn applying_duplicate_new_folder_creation_keeps_draft_open() {
 
     assert!(controller.apply_pending_new_folder_creation());
 
-    let draft = controller.ui.sources.folders.new_folder.as_ref().unwrap();
+    let draft = controller.ui.sources.folders.inline_edit.as_ref().unwrap();
     assert_eq!(draft.name, "existing");
     assert!(draft.focus_requested);
     assert!(controller.ui.status.text.contains("Folder already exists"));

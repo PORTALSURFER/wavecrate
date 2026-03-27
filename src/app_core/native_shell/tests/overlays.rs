@@ -41,10 +41,13 @@ fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
 #[test]
 fn inline_folder_create_does_not_project_confirm_prompt() {
     let mut ui = UiState::default();
-    ui.sources.folders.new_folder = Some(InlineFolderCreation {
-        parent: std::path::PathBuf::from("drums"),
+    ui.sources.folders.inline_edit = Some(InlineFolderEdit {
+        kind: InlineFolderEditKind::Create {
+            parent: std::path::PathBuf::from("drums"),
+        },
         name: String::from("kicks"),
         focus_requested: true,
+        select_all_on_focus_requested: false,
     });
     let projected = project_confirm_prompt_model(&ui);
     assert!(!projected.visible);
@@ -93,10 +96,13 @@ fn inline_folder_create_projects_draft_row_and_validation() {
         root_filter_mode: None,
     });
     ui.sources.folders.focused = Some(1);
-    ui.sources.folders.new_folder = Some(InlineFolderCreation {
-        parent: std::path::PathBuf::from("drums"),
+    ui.sources.folders.inline_edit = Some(InlineFolderEdit {
+        kind: InlineFolderEditKind::Create {
+            parent: std::path::PathBuf::from("drums"),
+        },
         name: String::from("existing"),
         focus_requested: true,
+        select_all_on_focus_requested: false,
     });
     let projected = project_sources_model(&ui);
     let draft = projected
@@ -114,8 +120,8 @@ fn inline_folder_create_projects_draft_row_and_validation() {
     );
     assert_eq!(projected.folder_rows[2].kind, FolderRowKind::CreateDraft);
 
-    if let Some(new_folder) = ui.sources.folders.new_folder.as_mut() {
-        new_folder.name = String::from("bad/name");
+    if let Some(edit) = ui.sources.folders.inline_edit.as_mut() {
+        edit.name = String::from("bad/name");
     }
     let projected = project_sources_model(&ui);
     let draft = projected
@@ -158,10 +164,13 @@ fn root_inline_folder_create_inserts_after_root_row() {
         is_root: false,
         root_filter_mode: None,
     });
-    ui.sources.folders.new_folder = Some(InlineFolderCreation {
-        parent: std::path::PathBuf::new(),
+    ui.sources.folders.inline_edit = Some(InlineFolderEdit {
+        kind: InlineFolderEditKind::Create {
+            parent: std::path::PathBuf::new(),
+        },
         name: String::from("fresh"),
         focus_requested: true,
+        select_all_on_focus_requested: false,
     });
 
     let projected = project_sources_model(&ui);
@@ -170,9 +179,9 @@ fn root_inline_folder_create_inserts_after_root_row() {
     assert_eq!(projected.folder_rows[1].depth, 1);
 }
 
-/// Folder-rename projection should surface duplicate-name and separator validation errors.
+/// Inline folder rename should replace the existing row and surface validation errors.
 #[test]
-fn confirm_prompt_projects_folder_rename_validation_errors() {
+fn inline_folder_rename_projects_inline_row_and_validation() {
     let mut ui = UiState::default();
     ui.sources.folders.rows.push(FolderRowView {
         path: std::path::PathBuf::from("drums"),
@@ -198,23 +207,37 @@ fn confirm_prompt_projects_folder_rename_validation_errors() {
         is_root: false,
         root_filter_mode: None,
     });
-    ui.sources.folders.pending_action = Some(FolderActionPrompt::Rename {
-        target: std::path::PathBuf::from("drums"),
+    ui.sources.folders.focused = Some(0);
+    ui.sources.folders.inline_edit = Some(InlineFolderEdit {
+        kind: InlineFolderEditKind::Rename {
+            target: std::path::PathBuf::from("drums"),
+        },
         name: String::from("kicks"),
+        focus_requested: true,
+        select_all_on_focus_requested: true,
     });
-    let projected = project_confirm_prompt_model(&ui);
+    let projected = project_sources_model(&ui);
+    assert_eq!(projected.focused_folder_row, Some(0));
+    let draft = &projected.folder_rows[0];
+    assert_eq!(draft.kind, FolderRowKind::RenameDraft);
     assert_eq!(
-        projected.input_error.as_deref(),
+        draft.input_error.as_deref(),
         Some("Folder already exists: kicks")
     );
+    assert_eq!(draft.input_value.as_deref(), Some("kicks"));
+    assert_eq!(draft.input_placeholder.as_deref(), Some("Folder name"));
+    assert!(draft.input_focused);
+    assert!(draft.select_all_on_focus);
+    assert_eq!(draft.source_index, Some(0));
 
-    ui.sources.folders.pending_action = Some(FolderActionPrompt::Rename {
-        target: std::path::PathBuf::from("drums"),
-        name: String::from("../bad"),
-    });
-    let projected = project_confirm_prompt_model(&ui);
+    if let Some(edit) = ui.sources.folders.inline_edit.as_mut() {
+        edit.name = String::from("../bad");
+        edit.select_all_on_focus_requested = false;
+    }
+    let projected = project_sources_model(&ui);
+    let draft = &projected.folder_rows[0];
     assert_eq!(
-        projected.input_error.as_deref(),
+        draft.input_error.as_deref(),
         Some("Folder name cannot contain path separators")
     );
 }

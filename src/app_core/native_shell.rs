@@ -9,7 +9,6 @@ use super::controller::{
     ProjectedMapPointCacheEntry, ProjectedMapPointsCacheKey, ProjectedSelectedPathsLookup,
     UmapPointQuery,
 };
-#[cfg(test)]
 use crate::app_core::actions::NativeFolderRowKind as FolderRowKind;
 use crate::app_core::actions::{
     NativeAppModel as AppModel, NativeBrowserActionsModel as BrowserActionsModel,
@@ -33,12 +32,12 @@ use crate::app_core::app_api::state::FocusContext;
 #[cfg(test)]
 use crate::app_core::state::{
     DestructiveEditPrompt, DestructiveSelectionEdit, FolderDeleteRecoveryAction,
-    FolderDeleteRecoveryEntry, FolderDeleteRecoveryStatus, FolderRowView, InlineFolderCreation,
+    FolderDeleteRecoveryEntry, FolderDeleteRecoveryStatus, FolderRowView, InlineFolderEdit,
 };
 use crate::app_core::state::{
-    DragTarget, FolderActionPrompt, MapBounds, MapPoint, MapQueryBounds, MapRenderMode,
-    SampleBrowserActionPrompt, SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, UiState,
-    UpdateStatus,
+    DragTarget, FolderActionPrompt, InlineFolderEditKind, MapBounds, MapPoint, MapQueryBounds,
+    MapRenderMode, SampleBrowserActionPrompt, SampleBrowserSort, SampleBrowserTab,
+    TriageFlagColumn, UiState, UpdateStatus,
 };
 use crate::app_core::ui::{MAX_RENDERED_BROWSER_ROWS, MAX_RENDERED_MAP_POINTS};
 use crate::gui::types::ImageRgba;

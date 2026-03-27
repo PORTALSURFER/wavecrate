@@ -69,7 +69,6 @@ impl AppController {
             FolderActionPrompt::PurgeRetainedDeletes { .. } => {
                 self.begin_retained_delete_resolution(RetainedDeleteResolutionMode::Purge)
             }
-            FolderActionPrompt::Rename { .. } => return false,
         };
         match started {
             Ok(true) => {

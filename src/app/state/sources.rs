@@ -52,12 +52,10 @@ pub struct FolderBrowserUiState {
     pub show_all_folders: bool,
     /// Whether search focus is requested.
     pub search_focus_requested: bool,
-    /// Whether rename focus is requested.
-    pub rename_focus_requested: bool,
     /// Pending folder action prompt.
     pub pending_action: Option<FolderActionPrompt>,
-    /// Inline folder creation state.
-    pub new_folder: Option<InlineFolderCreation>,
+    /// Inline folder edit state for create or rename flows.
+    pub inline_edit: Option<InlineFolderEdit>,
     /// Cached header height for the folder browser section.
     pub header_height: f32,
     /// Delete recovery queue state for staged folder deletes.
@@ -74,9 +72,8 @@ impl Default for FolderBrowserUiState {
             search_query: String::new(),
             show_all_folders: true,
             search_focus_requested: false,
-            rename_focus_requested: false,
             pending_action: None,
-            new_folder: None,
+            inline_edit: None,
             header_height: 0.0,
             delete_recovery: FolderDeleteRecoveryUiState::default(),
         }
@@ -194,13 +191,6 @@ pub struct FolderRowView {
 /// Pending inline action for the folder browser.
 #[derive(Clone, Debug)]
 pub enum FolderActionPrompt {
-    /// Rename the target folder.
-    Rename {
-        /// Folder path to rename.
-        target: PathBuf,
-        /// New folder name.
-        name: String,
-    },
     /// Confirm restoring all retained folder deletes currently tracked in Recovery.
     RestoreRetainedDeletes {
         /// Number of retained folder deletes that will be restored.
@@ -213,15 +203,32 @@ pub enum FolderActionPrompt {
     },
 }
 
-/// Inline editor state for a pending folder creation.
+/// Kind of inline folder edit currently shown in the folder tree.
 #[derive(Clone, Debug)]
-pub struct InlineFolderCreation {
-    /// Parent folder path.
-    pub parent: PathBuf,
-    /// New folder name.
+pub enum InlineFolderEditKind {
+    /// Create one new folder under the provided parent path.
+    Create {
+        /// Parent folder path.
+        parent: PathBuf,
+    },
+    /// Rename one existing folder in place.
+    Rename {
+        /// Folder path to rename.
+        target: PathBuf,
+    },
+}
+
+/// Inline editor state for a pending folder create or rename action.
+#[derive(Clone, Debug)]
+pub struct InlineFolderEdit {
+    /// Stable path context describing the active inline folder action.
+    pub kind: InlineFolderEditKind,
+    /// Current folder-name input value.
     pub name: String,
     /// Whether the input should be focused.
     pub focus_requested: bool,
+    /// Whether the next input activation should select all text once.
+    pub select_all_on_focus_requested: bool,
 }
 
 /// Sidebar list of configured drop targets.

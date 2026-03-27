@@ -8,6 +8,7 @@ use crate::app::state::ProgressTaskKind;
 use crate::sample_sources::scanner::{ChangedSample, ScanError, ScanStats};
 use crate::sample_sources::{ScanMode, SourceId};
 use std::collections::HashMap;
+use std::path::Path;
 use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -60,9 +61,13 @@ fn changed_sample(relative_path: &str) -> ChangedSample {
 fn changed_scan_refreshes_selected_source_and_enqueues_follow_up_analysis() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
     controller.cache_db(&source).expect("cache db");
     let wav_path = source.root.join("kick.wav");
     write_test_wav(&wav_path, &[0.1, -0.1, 0.2, -0.2]);
+    controller
+        .ensure_sample_db_entry(&source, Path::new("kick.wav"))
+        .expect("sample db entry");
     controller
         .ui_cache
         .browser
@@ -121,6 +126,9 @@ fn unchanged_scan_backfills_when_similarity_prep_is_idle() {
     controller.cache_db(&source).expect("cache db");
     let wav_path = source.root.join("snare.wav");
     write_test_wav(&wav_path, &[0.3, -0.3, 0.2, -0.2]);
+    controller
+        .ensure_sample_db_entry(&source, Path::new("snare.wav"))
+        .expect("sample db entry");
 
     handle_scan_finished(
         &mut controller,

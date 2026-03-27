@@ -12,17 +12,20 @@ fn projection_cache_key_changes_when_browser_view_window_changes() {
 }
 
 #[test]
-/// Folder-create draft mutations must invalidate the retained app-model key.
-fn projection_cache_key_changes_when_folder_create_input_changes() {
+/// Inline folder draft mutations must invalidate the retained app-model key.
+fn projection_cache_key_changes_when_inline_folder_input_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
-    controller.ui.sources.folders.new_folder = Some(crate::app_core::state::InlineFolderCreation {
-        parent: std::path::PathBuf::new(),
+    controller.ui.sources.folders.inline_edit = Some(crate::app_core::state::InlineFolderEdit {
+        kind: crate::app_core::state::InlineFolderEditKind::Create {
+            parent: std::path::PathBuf::new(),
+        },
         name: String::new(),
         focus_requested: true,
+        select_all_on_focus_requested: false,
     });
     let first = build_projection_cache_key(&controller);
 
-    if let Some(draft) = controller.ui.sources.folders.new_folder.as_mut() {
+    if let Some(draft) = controller.ui.sources.folders.inline_edit.as_mut() {
         draft.name = String::from("drums");
     }
     let second = build_projection_cache_key(&controller);

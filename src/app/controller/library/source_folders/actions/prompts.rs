@@ -1,5 +1,4 @@
 use super::*;
-use crate::app::state::FolderActionPrompt;
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::path::Path;
 
@@ -32,83 +31,6 @@ impl AppController {
         {
             self.set_status(err, StatusTone::Error);
         }
-    }
-
-    pub(crate) fn start_folder_rename(&mut self) {
-        let Some(target) = self.focused_folder_path() else {
-            self.set_status("Focus a folder to rename it", StatusTone::Info);
-            return;
-        };
-        if target.as_os_str().is_empty() {
-            self.set_status("Root folder cannot be renamed", StatusTone::Info);
-            return;
-        }
-        let default = target
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(str::to_string)
-            .unwrap_or_else(|| target.to_string_lossy().into_owned());
-        self.focus_folder_context();
-        self.cancel_new_folder_creation();
-        self.ui.sources.folders.pending_action = Some(FolderActionPrompt::Rename {
-            target,
-            name: default,
-        });
-        self.ui.sources.folders.rename_focus_requested = true;
-    }
-
-    pub(crate) fn cancel_folder_rename(&mut self) {
-        if matches!(
-            self.ui.sources.folders.pending_action,
-            Some(FolderActionPrompt::Rename { .. })
-        ) {
-            self.ui.sources.folders.pending_action = None;
-            self.ui.sources.folders.rename_focus_requested = false;
-        }
-    }
-
-    pub(crate) fn set_folder_rename_input(&mut self, value: String) -> bool {
-        let Some(FolderActionPrompt::Rename { name, .. }) =
-            self.ui.sources.folders.pending_action.as_mut()
-        else {
-            return false;
-        };
-        *name = value;
-        self.ui.sources.folders.rename_focus_requested = true;
-        true
-    }
-
-    pub(crate) fn has_pending_folder_rename(&self) -> bool {
-        matches!(
-            self.ui.sources.folders.pending_action,
-            Some(FolderActionPrompt::Rename { .. })
-        )
-    }
-
-    pub(crate) fn apply_pending_folder_rename(&mut self) -> bool {
-        let action = self.ui.sources.folders.pending_action.clone();
-        let Some(FolderActionPrompt::Rename { target, name }) = action else {
-            return false;
-        };
-        let Some(source) = self.current_source() else {
-            self.set_status("Select a source first", StatusTone::Info);
-            return true;
-        };
-        if self.warn_if_retained_delete_path_busy(&source.id, &target, "renaming") {
-            self.ui.sources.folders.rename_focus_requested = true;
-            return true;
-        }
-        match self.rename_folder(&target, &name) {
-            Ok(()) => {
-                self.ui.sources.folders.pending_action = None;
-                self.ui.sources.folders.rename_focus_requested = false;
-            }
-            Err(err) => {
-                self.ui.sources.folders.rename_focus_requested = true;
-                self.set_status(err, StatusTone::Error);
-            }
-        }
-        true
     }
 
     pub(crate) fn confirm_folder_delete(&self, target: &Path) -> bool {

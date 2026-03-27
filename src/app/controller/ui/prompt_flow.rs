@@ -1,12 +1,11 @@
 use super::*;
 
 impl AppController {
-    /// Apply prompt input to the active prompt slot (browser rename, folder rename, or new folder).
+    /// Apply prompt input to the active modal prompt slot.
     pub fn set_active_prompt_input(&mut self, value: String) {
         if self.set_browser_rename_input(value.clone()) {
             return;
         }
-        let _ = self.set_folder_rename_input(value);
     }
 
     /// Confirm active prompt action while tolerating no-op outcomes.
@@ -30,9 +29,6 @@ impl AppController {
         if self.apply_pending_folder_delete_recovery_prompt() {
             return true;
         }
-        if self.apply_pending_folder_rename() {
-            return true;
-        }
         false
     }
 
@@ -51,10 +47,6 @@ impl AppController {
                 | Some(crate::app::state::FolderActionPrompt::PurgeRetainedDeletes { .. })
         ) {
             self.cancel_folder_delete_recovery_prompt();
-            return true;
-        }
-        if self.has_pending_folder_rename() {
-            self.cancel_folder_rename();
             return true;
         }
         false

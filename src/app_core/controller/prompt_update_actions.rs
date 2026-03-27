@@ -11,14 +11,14 @@ pub(super) fn apply_prompt_and_update_native_ui_action(
     match action {
         NativeUiAction::SetPromptInput { value } => controller.set_active_prompt_input(value),
         NativeUiAction::SetFolderCreateInput { value } => {
-            controller.set_new_folder_creation_input(value);
+            controller.set_inline_folder_edit_input(value);
         }
         NativeUiAction::ConfirmPrompt => controller.confirm_active_prompt_action(),
         NativeUiAction::ConfirmFolderCreate => {
-            controller.apply_pending_new_folder_creation();
+            controller.apply_active_inline_folder_edit();
         }
         NativeUiAction::CancelPrompt => controller.cancel_active_prompt_action(),
-        NativeUiAction::CancelFolderCreate => controller.cancel_new_folder_creation(),
+        NativeUiAction::CancelFolderCreate => controller.cancel_inline_folder_edit(),
         NativeUiAction::CancelProgress => controller.request_progress_cancel(),
         NativeUiAction::ToggleHotkeyOverlay => {
             controller.ui.hotkeys.overlay_visible = !controller.ui.hotkeys.overlay_visible

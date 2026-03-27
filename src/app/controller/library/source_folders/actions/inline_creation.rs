@@ -1,6 +1,6 @@
 use super::ops;
 use super::*;
-use crate::app::state::InlineFolderCreation;
+use crate::app::state::{InlineFolderEdit, InlineFolderEditKind};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -35,19 +35,59 @@ impl AppController {
         self.start_new_folder_at_parent(PathBuf::new());
     }
 
+    pub(crate) fn start_folder_rename(&mut self) {
+        let Some(target) = self.focused_folder_path() else {
+            self.set_status("Focus a folder to rename it", StatusTone::Info);
+            return;
+        };
+        if target.as_os_str().is_empty() {
+            self.set_status("Root folder cannot be renamed", StatusTone::Info);
+            return;
+        }
+        let name = target
+            .file_name()
+            .and_then(|segment| segment.to_str())
+            .map(str::to_string)
+            .unwrap_or_else(|| target.to_string_lossy().into_owned());
+        self.begin_inline_folder_rename(target, name);
+    }
+
     fn begin_inline_folder_creation(&mut self, parent: PathBuf) {
         self.focus_folder_context();
-        self.cancel_folder_rename();
-        self.cancel_new_folder_creation();
+        self.cancel_inline_folder_edit();
         if !self.ui.sources.folders.search_query.trim().is_empty() {
             self.set_folder_search(String::new());
         }
         self.ensure_folder_expanded_for_creation(&parent);
-        self.ui.sources.folders.new_folder = Some(InlineFolderCreation {
-            parent: parent.clone(),
+        self.ui.sources.folders.inline_edit = Some(InlineFolderEdit {
+            kind: InlineFolderEditKind::Create {
+                parent: parent.clone(),
+            },
             name: String::new(),
             focus_requested: true,
+            select_all_on_focus_requested: false,
         });
+        self.focus_folder_parent_row(&parent);
+    }
+
+    fn begin_inline_folder_rename(&mut self, target: PathBuf, name: String) {
+        self.focus_folder_context();
+        self.cancel_inline_folder_edit();
+        self.ui.sources.folders.inline_edit = Some(InlineFolderEdit {
+            kind: InlineFolderEditKind::Rename {
+                target: target.clone(),
+            },
+            name,
+            focus_requested: true,
+            select_all_on_focus_requested: true,
+        });
+        self.focus_folder_by_path(&target);
+        if let Some(index) = self.ui.sources.folders.focused {
+            self.ui.sources.folders.scroll_to = Some(index);
+        }
+    }
+
+    fn focus_folder_parent_row(&mut self, parent: &Path) {
         let focus_index = if parent.as_os_str().is_empty() {
             Some(0)
         } else {
@@ -64,49 +104,151 @@ impl AppController {
         }
     }
 
+    pub(crate) fn cancel_inline_folder_edit(&mut self) {
+        self.ui.sources.folders.inline_edit = None;
+    }
+
     pub(crate) fn cancel_new_folder_creation(&mut self) {
-        self.ui.sources.folders.new_folder = None;
+        if self.has_pending_new_folder_creation() {
+            self.cancel_inline_folder_edit();
+        }
+    }
+
+    pub(crate) fn cancel_folder_rename(&mut self) {
+        if self.has_pending_folder_rename() {
+            self.cancel_inline_folder_edit();
+        }
     }
 
     /// Keep the active inline folder-create draft focused in the folder browser.
     pub(crate) fn focus_new_folder_creation_input(&mut self) {
-        let Some(new_folder) = self.ui.sources.folders.new_folder.as_mut() else {
+        if !self.has_pending_new_folder_creation() {
+            return;
+        }
+        self.focus_inline_folder_edit_input();
+    }
+
+    /// Keep the active inline folder-rename draft focused in the folder browser.
+    pub(crate) fn focus_folder_rename_input(&mut self) {
+        if !self.has_pending_folder_rename() {
+            return;
+        }
+        self.focus_inline_folder_edit_input();
+    }
+
+    pub(crate) fn focus_inline_folder_edit_input(&mut self) {
+        let Some(edit) = self.ui.sources.folders.inline_edit.as_mut() else {
             return;
         };
-        new_folder.focus_requested = true;
+        edit.focus_requested = true;
         self.focus_folder_context();
     }
 
     pub(crate) fn set_new_folder_creation_input(&mut self, value: String) -> bool {
-        let Some(new_folder) = self.ui.sources.folders.new_folder.as_mut() else {
+        if !self.has_pending_new_folder_creation() {
+            return false;
+        }
+        self.set_inline_folder_edit_input(value)
+    }
+
+    pub(crate) fn set_folder_rename_input(&mut self, value: String) -> bool {
+        if !self.has_pending_folder_rename() {
+            return false;
+        }
+        self.set_inline_folder_edit_input(value)
+    }
+
+    pub(crate) fn set_inline_folder_edit_input(&mut self, value: String) -> bool {
+        let Some(edit) = self.ui.sources.folders.inline_edit.as_mut() else {
             return false;
         };
-        new_folder.name = value;
-        new_folder.focus_requested = true;
+        edit.name = value;
+        edit.focus_requested = true;
+        edit.select_all_on_focus_requested = false;
         true
     }
 
     pub(crate) fn has_pending_new_folder_creation(&self) -> bool {
-        self.ui.sources.folders.new_folder.is_some()
+        matches!(
+            self.ui.sources.folders.inline_edit,
+            Some(InlineFolderEdit {
+                kind: InlineFolderEditKind::Create { .. },
+                ..
+            })
+        )
+    }
+
+    pub(crate) fn has_pending_folder_rename(&self) -> bool {
+        matches!(
+            self.ui.sources.folders.inline_edit,
+            Some(InlineFolderEdit {
+                kind: InlineFolderEditKind::Rename { .. },
+                ..
+            })
+        )
     }
 
     pub(crate) fn apply_pending_new_folder_creation(&mut self) -> bool {
-        let Some(new_folder) = self.ui.sources.folders.new_folder.clone() else {
+        let Some(edit) = self.ui.sources.folders.inline_edit.clone() else {
             return false;
         };
-        match self.create_folder(&new_folder.parent, &new_folder.name) {
+        let InlineFolderEditKind::Create { parent } = edit.kind else {
+            return false;
+        };
+        match self.create_folder(&parent, &edit.name) {
             Ok(()) => {
-                self.ui.sources.folders.new_folder = None;
+                self.cancel_inline_folder_edit();
             }
             Err(err) => {
                 self.refresh_folder_browser();
-                if let Some(new_folder) = self.ui.sources.folders.new_folder.as_mut() {
-                    new_folder.focus_requested = true;
+                if let Some(edit) = self.ui.sources.folders.inline_edit.as_mut() {
+                    edit.focus_requested = true;
+                    edit.select_all_on_focus_requested = false;
                 }
                 self.set_status(err, StatusTone::Error);
             }
         }
         true
+    }
+
+    pub(crate) fn apply_pending_folder_rename(&mut self) -> bool {
+        let Some(edit) = self.ui.sources.folders.inline_edit.clone() else {
+            return false;
+        };
+        let InlineFolderEditKind::Rename { target } = edit.kind else {
+            return false;
+        };
+        let Some(source) = self.current_source() else {
+            self.set_status("Select a source first", StatusTone::Info);
+            return true;
+        };
+        if self.warn_if_retained_delete_path_busy(&source.id, &target, "renaming") {
+            if let Some(edit) = self.ui.sources.folders.inline_edit.as_mut() {
+                edit.focus_requested = true;
+                edit.select_all_on_focus_requested = false;
+            }
+            return true;
+        }
+        match self.rename_folder(&target, &edit.name) {
+            Ok(()) => {
+                self.cancel_inline_folder_edit();
+            }
+            Err(err) => {
+                if let Some(edit) = self.ui.sources.folders.inline_edit.as_mut() {
+                    edit.focus_requested = true;
+                    edit.select_all_on_focus_requested = false;
+                }
+                self.set_status(err, StatusTone::Error);
+            }
+        }
+        true
+    }
+
+    pub(crate) fn apply_active_inline_folder_edit(&mut self) -> bool {
+        if self.has_pending_new_folder_creation() {
+            return self.apply_pending_new_folder_creation();
+        }
+        self.apply_pending_folder_rename()
     }
 
     fn ensure_folder_expanded_for_creation(&mut self, parent: &Path) {
@@ -136,8 +278,7 @@ impl AppController {
         if destination.exists() {
             return Err(format!("Folder already exists: {}", relative.display()));
         }
-        fs::create_dir_all(&destination)
-            .map_err(|err| format!("Failed to create folder: {err}"))?;
+        fs::create_dir_all(&destination).map_err(|err| format!("Failed to create folder: {err}"))?;
         self.update_manual_folders(|set| {
             set.insert(relative.clone());
         });

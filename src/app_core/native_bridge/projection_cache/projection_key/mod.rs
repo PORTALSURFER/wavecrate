@@ -24,9 +24,12 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         folder_rows_len: non_segment_static_key.folder_rows_len,
         folder_focused: non_segment_static_key.folder_focused,
         folder_search_revision: non_segment_static_key.folder_search_revision,
-        folder_create_parent_hash: non_segment_static_key.folder_create_parent_hash,
-        folder_create_name_hash: non_segment_static_key.folder_create_name_hash,
-        folder_create_focus_requested: non_segment_static_key.folder_create_focus_requested,
+        folder_inline_kind: non_segment_static_key.folder_inline_kind,
+        folder_inline_path_hash: non_segment_static_key.folder_inline_path_hash,
+        folder_inline_name_hash: non_segment_static_key.folder_inline_name_hash,
+        folder_inline_focus_requested: non_segment_static_key.folder_inline_focus_requested,
+        folder_inline_select_all_on_focus: non_segment_static_key
+            .folder_inline_select_all_on_focus,
         browser_visible_len: browser_frame_key.browser_visible_len,
         browser_visible_rows_revision: browser_rows_key.browser_visible_rows_revision,
         browser_selected_visible: browser_frame_key.browser_selected_visible,
@@ -46,7 +49,7 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         progress_total: controller.ui.progress.total,
         prompt_active: controller.ui.browser.pending_action.is_some()
             || controller.ui.sources.folders.pending_action.is_some()
-            || controller.ui.sources.folders.new_folder.is_some()
+            || controller.ui.sources.folders.inline_edit.is_some()
             || controller.ui.waveform.pending_destructive.is_some(),
         drag_active: controller.ui.drag.payload.is_some(),
         options_panel_visible: options_panel.visible,
