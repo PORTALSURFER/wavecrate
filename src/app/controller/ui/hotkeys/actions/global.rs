@@ -54,7 +54,7 @@ pub(super) const FOCUS_LOADED_SAMPLE: HotkeyAction = HotkeyAction {
 pub(super) const FIND_SIMILAR: HotkeyAction = HotkeyAction {
     id: "find-similar",
     label: "Toggle find similar",
-    gesture: HotkeyGesture::with_shift(Key::F),
+    gesture: HotkeyGesture::new(Key::S),
     scope: GLOBAL,
     command: HotkeyCommand::FindSimilarFocusedSample,
 };

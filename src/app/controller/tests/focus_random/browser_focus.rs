@@ -45,8 +45,8 @@ fn find_similar_hotkey_is_registered() {
         action.scope,
         hotkeys::HotkeyScope::Focus(FocusContext::SampleBrowser)
     );
-    assert_eq!(action.gesture.first.key, KeyCode::F);
-    assert!(action.gesture.first.shift);
+    assert_eq!(action.gesture.first.key, KeyCode::S);
+    assert!(!action.gesture.first.shift);
     assert!(!action.gesture.first.command);
     assert!(!action.gesture.first.alt);
     assert!(action.gesture.chord.is_none());

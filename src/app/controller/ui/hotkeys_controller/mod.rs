@@ -1,5 +1,5 @@
-use crate::app::controller::AppController;
 use crate::app::controller::ui::hotkeys::HotkeyAction;
+use crate::app::controller::AppController;
 use crate::app::state::FocusContext;
 use crate::app_core::controller::AppControllerNativeRuntimeExt;
 
@@ -53,12 +53,42 @@ mod tests {
         load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry,
     };
     use crate::app::controller::ui::hotkeys;
+    use crate::app::state::SimilarQuery;
+    use crate::app_core::controller::build_named_gui_fixture_controller;
     use crate::sample_sources::Rating;
     use crate::selection::SelectionRange;
+    use crate::waveform::WaveformRenderer;
     use std::path::Path;
 
     fn action_for(predicate: impl Fn(&radiant::app::UiAction) -> bool) -> HotkeyAction {
         hotkeys::find_action(predicate).expect("missing hotkey action")
+    }
+
+    fn sample_name(sample_id: &str) -> &str {
+        sample_id
+            .rsplit_once("::")
+            .map_or(sample_id, |(_, sample_name)| sample_name)
+    }
+
+    fn seed_similarity_query_with_different_focus(
+        controller: &mut AppController,
+    ) -> (String, String) {
+        controller.focus_browser_row_only(0);
+        let anchor_sample_id = controller
+            .sample_id_for_visible_row(0)
+            .expect("anchor sample id");
+        controller.ui.browser.search.similar_query = Some(SimilarQuery {
+            sample_id: anchor_sample_id.clone(),
+            label: String::from("kick_one.wav"),
+            indices: vec![0],
+            scores: vec![1.0],
+            anchor_index: Some(0),
+        });
+        controller.focus_browser_row_only(1);
+        let focused_sample_id = controller
+            .sample_id_for_visible_row(1)
+            .expect("focused sample id");
+        (anchor_sample_id, focused_sample_id)
     }
 
     #[test]
@@ -179,6 +209,59 @@ mod tests {
         assert_eq!(
             controller.sample_view.wav.selected_wav.as_deref(),
             Some(Path::new("two.wav"))
+        );
+    }
+
+    #[test]
+    fn browser_similarity_hotkey_matches_native_toggle_behavior_when_focus_changes() {
+        let action = action_for(|action| {
+            matches!(
+                action,
+                radiant::app::UiAction::ToggleFindSimilarFocusedSample
+            )
+        });
+        let mut hotkey_bundle =
+            build_named_gui_fixture_controller(WaveformRenderer::new(16, 16), "browser")
+                .expect("browser fixture");
+        let mut native_bundle =
+            build_named_gui_fixture_controller(WaveformRenderer::new(16, 16), "browser")
+                .expect("browser fixture");
+
+        seed_similarity_query_with_different_focus(&mut hotkey_bundle.controller);
+        seed_similarity_query_with_different_focus(&mut native_bundle.controller);
+
+        hotkey_bundle
+            .controller
+            .handle_hotkey(action.clone(), FocusContext::SampleBrowser);
+        native_bundle
+            .controller
+            .apply_native_ui_action(action.action);
+
+        let hotkey_query = hotkey_bundle
+            .controller
+            .ui
+            .browser
+            .search
+            .similar_query
+            .as_ref()
+            .map(|query| sample_name(&query.sample_id).to_string());
+        let native_query = native_bundle
+            .controller
+            .ui
+            .browser
+            .search
+            .similar_query
+            .as_ref()
+            .map(|query| sample_name(&query.sample_id).to_string());
+
+        assert!(
+            hotkey_query.is_some(),
+            "hotkey should not clear a mismatched anchor"
+        );
+        assert_eq!(hotkey_query, native_query);
+        assert_eq!(
+            hotkey_bundle.controller.ui.browser.active_tab,
+            native_bundle.controller.ui.browser.active_tab
         );
     }
 }
