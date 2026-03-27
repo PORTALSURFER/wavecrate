@@ -1,4 +1,5 @@
 use super::*;
+use crate::app_core::state::InlineFolderCreation;
 
 /// Async revision-bus updates must invalidate the retained projection key on first pull.
 #[test]
@@ -132,6 +133,106 @@ fn set_browser_view_start_action_refreshes_projected_model_immediately() {
 
     let updated = bridge.project_model();
     assert_eq!(updated.browser.view_start_row, 1);
+}
+
+/// Folder-create input updates must refresh the projected draft text immediately.
+#[test]
+fn set_folder_create_input_action_refreshes_projected_model_immediately() {
+    let mut bridge = test_bridge(16);
+    bridge.controller.ui.sources.folders.new_folder = Some(InlineFolderCreation {
+        parent: PathBuf::new(),
+        name: String::new(),
+        focus_requested: true,
+    });
+    bridge
+        .controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .push(crate::app::state::FolderRowView {
+            path: PathBuf::new(),
+            name: String::from("Root"),
+            depth: 0,
+            has_children: true,
+            expanded: true,
+            selected: false,
+            negated: false,
+            hotkey: None,
+            is_root: true,
+            root_filter_mode: Some(crate::app::state::RootFolderFilterMode::AllDescendants),
+        });
+
+    let initial = bridge.project_model();
+    let initial_draft = initial
+        .sources
+        .folder_rows
+        .iter()
+        .find(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::CreateDraft)
+        .expect("folder create draft should be projected");
+    assert_eq!(initial_draft.input_value.as_deref(), Some(""));
+
+    bridge.on_action(NativeUiAction::SetFolderCreateInput {
+        value: String::from("drums"),
+    });
+
+    let updated = bridge.project_model();
+    let updated_draft = updated
+        .sources
+        .folder_rows
+        .iter()
+        .find(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::CreateDraft)
+        .expect("folder create draft should still be projected");
+    assert_eq!(updated_draft.input_value.as_deref(), Some("drums"));
+}
+
+/// Canceling folder-create should remove the draft from the next projected model immediately.
+#[test]
+fn cancel_folder_create_action_refreshes_projected_model_immediately() {
+    let mut bridge = test_bridge(16);
+    bridge.controller.ui.sources.folders.new_folder = Some(InlineFolderCreation {
+        parent: PathBuf::new(),
+        name: String::from("drums"),
+        focus_requested: true,
+    });
+    bridge
+        .controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .push(crate::app::state::FolderRowView {
+            path: PathBuf::new(),
+            name: String::from("Root"),
+            depth: 0,
+            has_children: true,
+            expanded: true,
+            selected: false,
+            negated: false,
+            hotkey: None,
+            is_root: true,
+            root_filter_mode: Some(crate::app::state::RootFolderFilterMode::AllDescendants),
+        });
+
+    let initial = bridge.project_model();
+    assert!(
+        initial
+            .sources
+            .folder_rows
+            .iter()
+            .any(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::CreateDraft)
+    );
+
+    bridge.on_action(NativeUiAction::CancelFolderCreate);
+
+    let updated = bridge.project_model();
+    assert!(
+        updated
+            .sources
+            .folder_rows
+            .iter()
+            .all(|row| row.kind != crate::app_core::actions::NativeFolderRowKind::CreateDraft)
+    );
 }
 
 /// Focus-only browser actions should preserve the current manual viewport start
