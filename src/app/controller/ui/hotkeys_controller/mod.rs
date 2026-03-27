@@ -155,4 +155,30 @@ mod tests {
 
         assert_eq!(controller.ui.browser.selection.selected_paths, before);
     }
+
+    #[test]
+    fn browser_focus_move_hotkey_moves_the_selected_row() {
+        let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+            sample_entry("one.wav", Rating::NEUTRAL),
+            sample_entry("two.wav", Rating::NEUTRAL),
+        ]);
+        controller.focus_browser_row_only(0);
+
+        controller.handle_hotkey(
+            action_for(|action| {
+                matches!(
+                    action,
+                    radiant::app::UiAction::MoveBrowserFocus { delta: 1 }
+                )
+            }),
+            FocusContext::SampleBrowser,
+        );
+
+        assert_eq!(controller.ui.focus.context, FocusContext::SampleBrowser);
+        assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+        assert_eq!(
+            controller.sample_view.wav.selected_wav.as_deref(),
+            Some(Path::new("two.wav"))
+        );
+    }
 }
