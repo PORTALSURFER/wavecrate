@@ -78,6 +78,12 @@ pub enum GuiActionKind {
     RemoveDeadLinksForSourceRow,
     /// Focus one folder row directly.
     FocusFolderRow,
+    /// Toggle expansion for one folder row directly.
+    ToggleFolderRowExpanded,
+    /// Expand the currently focused folder row.
+    ExpandFocusedFolder,
+    /// Collapse the currently focused folder row or focus its parent.
+    CollapseFocusedFolder,
     /// Toggle selection for the currently focused folder row.
     ToggleFocusedFolderSelection,
     /// Move folder focus by a relative delta.
@@ -314,7 +320,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 152] = [
+    pub const ALL: [Self; 155] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -351,6 +357,9 @@ impl GuiActionKind {
         Self::RemoveSourceRow,
         Self::RemoveDeadLinksForSourceRow,
         Self::FocusFolderRow,
+        Self::ToggleFolderRowExpanded,
+        Self::ExpandFocusedFolder,
+        Self::CollapseFocusedFolder,
         Self::ToggleFocusedFolderSelection,
         Self::MoveFolderFocus,
         Self::StartNewFolder,

@@ -61,11 +61,10 @@ impl AppController {
                 .retain(|path| model::is_root_path(path) || model.available.contains(path));
             model.expanded.retain(|path| model.available.contains(path));
             if model.expanded.is_empty() {
-                for dir in model
-                    .available
-                    .iter()
-                    .filter(|path| path.parent().is_none())
-                {
+                for dir in model.available.iter().filter(|path| {
+                    path.parent()
+                        .is_none_or(|parent| parent.as_os_str().is_empty())
+                }) {
                     model.expanded.insert(dir.clone());
                 }
             }

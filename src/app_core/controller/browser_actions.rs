@@ -57,6 +57,11 @@ pub(super) fn apply_browser_native_ui_action(
             }
         }
         NativeUiAction::FocusFolderRow { index } => controller.replace_folder_selection(index),
+        NativeUiAction::ToggleFolderRowExpanded { index } => {
+            controller.toggle_folder_expanded(index)
+        }
+        NativeUiAction::ExpandFocusedFolder => controller.expand_focused_folder(),
+        NativeUiAction::CollapseFocusedFolder => controller.collapse_focused_folder(),
         NativeUiAction::ToggleFocusedFolderSelection => {
             controller.toggle_focused_folder_selection()
         }

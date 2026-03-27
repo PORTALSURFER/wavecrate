@@ -18,6 +18,7 @@ impl AppController {
             .collect();
         let tree = self.build_folder_tree(&model.available);
         let searching = !model.search_query.trim().is_empty();
+        let has_source = self.selection_state.ctx.selected_source.is_some();
         let mut folder_rows = Vec::new();
         let expanded = if searching {
             model.available.clone()
@@ -26,7 +27,7 @@ impl AppController {
         };
         Self::flatten_folder_tree(
             Path::new(""),
-            0,
+            usize::from(has_source),
             &tree,
             model,
             &expanded,
@@ -37,12 +38,12 @@ impl AppController {
             folder_rows = self.filter_folder_rows(folder_rows, &model.search_query);
         }
         let mut rows = Vec::new();
-        if self.selection_state.ctx.selected_source.is_some() && !searching {
+        if has_source && !searching {
             let has_children = !folder_rows.is_empty();
             let hotkey = hotkey_lookup.get(Path::new("")).copied();
             rows.push(FolderRowView {
                 path: PathBuf::new(),
-                name: ".".into(),
+                name: String::from("Root"),
                 depth: 0,
                 has_children,
                 expanded: true,
