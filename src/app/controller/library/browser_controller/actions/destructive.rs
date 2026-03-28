@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashSet;
 
 impl BrowserController<'_> {
     pub(super) fn delete_browser_sample_action(&mut self, row: usize) -> Result<(), String> {
@@ -11,6 +12,14 @@ impl BrowserController<'_> {
         if self.warn_if_any_browser_context_busy(&contexts, "deleting") {
             return Ok(());
         }
+        let deleted_paths: HashSet<_> = contexts
+            .iter()
+            .map(|ctx| ctx.entry.relative_path.clone())
+            .collect();
+        crate::app::controller::library::wavs::schedule_similarity_filter_rebuild_after_delete(
+            self,
+            &deleted_paths,
+        );
         for ctx in contexts {
             if let Err(err) = self.try_delete_browser_sample_ctx(&ctx) {
                 last_error = Some(err);

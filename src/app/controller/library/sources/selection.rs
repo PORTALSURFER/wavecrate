@@ -112,6 +112,7 @@ impl AppController {
         }
         self.selection_state.ctx.selected_source = id;
         self.sample_view.wav.selected_wav = None;
+        self.runtime.pending_similarity_filter_rebuild = None;
         self.clear_focused_similarity_highlight();
         self.clear_waveform_view();
         self.ui.map.bounds = None;
@@ -144,6 +145,7 @@ impl AppController {
     pub(super) fn clear_wavs(&mut self) {
         self.wav_entries.clear();
         self.sample_view.wav.selected_wav = None;
+        self.runtime.pending_similarity_filter_rebuild = None;
         self.clear_focused_similarity_highlight();
         self.ui.browser = SampleBrowserState::default();
         self.ui.sources.folders = FolderBrowserUiState::default();

@@ -1,13 +1,64 @@
 use super::super::super::test_support::{
     prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
 };
+use crate::analysis::vector::encode_f32_le_blob;
 use crate::app::controller::jobs::{
     ActiveRetainedDeleteResolution, RetainedDeleteBusyEntry, RetainedDeleteResolutionMode,
 };
+use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::ui::hotkeys;
 use crate::app::state::FocusContext;
 use crate::sample_sources::Rating;
+use rusqlite::params;
 use std::path::{Path, PathBuf};
+
+fn normalize_embedding(values: &mut [f32]) {
+    let norm = values.iter().map(|value| value * value).sum::<f32>().sqrt();
+    if norm > 0.0 {
+        for value in values {
+            *value /= norm;
+        }
+    }
+}
+
+fn insert_similarity_embedding(
+    source: &crate::sample_sources::SampleSource,
+    relative_path: &str,
+    x: f32,
+    y: f32,
+) {
+    let conn = crate::sample_sources::SourceDatabase::open_connection(&source.root)
+        .expect("open source DB");
+    let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), Path::new(relative_path));
+    let mut embedding = vec![0.0_f32; crate::analysis::similarity::SIMILARITY_DIM];
+    embedding[0] = x;
+    embedding[1] = y;
+    normalize_embedding(&mut embedding);
+    let blob = encode_f32_le_blob(&embedding);
+    conn.execute(
+        "DELETE FROM embeddings WHERE sample_id = ?1 AND model_id = ?2",
+        params![sample_id, crate::analysis::similarity::SIMILARITY_MODEL_ID,],
+    )
+    .expect("clear old embedding");
+    conn.execute(
+        "INSERT INTO embeddings (sample_id, model_id, dim, dtype, l2_normed, vec, created_at)
+         VALUES (?1, ?2, ?3, 'f32', 1, ?4, 0)",
+        params![
+            sample_id,
+            crate::analysis::similarity::SIMILARITY_MODEL_ID,
+            crate::analysis::similarity::SIMILARITY_DIM as i64,
+            blob,
+        ],
+    )
+    .expect("insert embedding");
+    crate::analysis::rebuild_ann_index(&conn).expect("rebuild ann index");
+}
+
+fn visible_browser_paths(controller: &mut crate::app::controller::AppController) -> Vec<PathBuf> {
+    (0..controller.visible_browser_len())
+        .filter_map(|row| controller.browser_path_for_visible(row))
+        .collect()
+}
 
 #[test]
 fn hotkey_tagging_applies_to_all_selected_rows() {
@@ -107,6 +158,80 @@ fn delete_actions_apply_to_all_selected_rows() {
     assert!(!source.root.join("one.wav").exists());
     assert!(!source.root.join("two.wav").exists());
     assert!(!source.root.join("three.wav").exists());
+}
+
+#[test]
+fn deleting_similarity_result_recomputes_filter_from_same_anchor() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("anchor.wav", Rating::NEUTRAL),
+        sample_entry("close.wav", Rating::NEUTRAL),
+        sample_entry("far.wav", Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("anchor.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("close.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("far.wav"), &[0.0, 0.1]);
+    insert_similarity_embedding(&source, "anchor.wav", 1.0, 0.0);
+    insert_similarity_embedding(&source, "close.wav", 0.9, 0.1);
+    insert_similarity_embedding(&source, "far.wav", 0.7, 0.3);
+
+    controller.find_similar_for_visible_row(0).unwrap();
+
+    controller.delete_browser_samples(&[1]).unwrap();
+
+    let query = controller
+        .ui
+        .browser
+        .search
+        .similar_query
+        .as_ref()
+        .expect("recomputed similarity query");
+    assert_eq!(
+        query.sample_id,
+        analysis_jobs::build_sample_id(source.id.as_str(), Path::new("anchor.wav"))
+    );
+    assert_eq!(
+        visible_browser_paths(&mut controller),
+        vec![PathBuf::from("anchor.wav"), PathBuf::from("far.wav")]
+    );
+}
+
+#[test]
+fn deleting_similarity_anchor_promotes_next_best_survivor() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("anchor.wav", Rating::NEUTRAL),
+        sample_entry("close.wav", Rating::NEUTRAL),
+        sample_entry("far.wav", Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("anchor.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("close.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("far.wav"), &[0.0, 0.1]);
+    insert_similarity_embedding(&source, "anchor.wav", 1.0, 0.0);
+    insert_similarity_embedding(&source, "close.wav", 0.9, 0.1);
+    insert_similarity_embedding(&source, "far.wav", 0.7, 0.3);
+
+    controller.find_similar_for_visible_row(0).unwrap();
+
+    controller.delete_browser_samples(&[0]).unwrap();
+
+    let query = controller
+        .ui
+        .browser
+        .search
+        .similar_query
+        .as_ref()
+        .expect("recomputed similarity query");
+    assert_eq!(
+        query.sample_id,
+        analysis_jobs::build_sample_id(source.id.as_str(), Path::new("close.wav"))
+    );
+    assert_eq!(
+        visible_browser_paths(&mut controller),
+        vec![PathBuf::from("close.wav"), PathBuf::from("far.wav")]
+    );
+    assert_eq!(
+        controller.focused_browser_path().as_deref(),
+        Some(Path::new("close.wav"))
+    );
 }
 
 #[test]

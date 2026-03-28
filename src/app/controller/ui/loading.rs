@@ -175,6 +175,7 @@ impl AppController {
             format!("{prefix} {} wav files{suffix}", self.wav_entries.total),
             StatusTone::Info,
         );
+        crate::app::controller::library::wavs::apply_pending_similarity_filter_rebuild(self);
         if let Some(source_id) = source_id.as_ref() {
             self.maybe_refresh_source_db_in_background(source_id, from_cache);
         }

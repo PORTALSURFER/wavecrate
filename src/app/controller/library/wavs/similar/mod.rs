@@ -1,6 +1,7 @@
 use super::*;
 use crate::app::state::FocusedSimilarity;
 use crate::app::view_model;
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 mod apply;
@@ -65,6 +66,21 @@ pub(crate) fn find_similar_for_sample_id(
 
 pub(crate) fn clear_similar_filter(controller: &mut AppController) {
     apply::clear_similar_filter(controller);
+}
+
+pub(crate) fn cancel_pending_similarity_filter_rebuild(controller: &mut AppController) {
+    apply::cancel_pending_similarity_filter_rebuild(controller);
+}
+
+pub(crate) fn schedule_similarity_filter_rebuild_after_delete(
+    controller: &mut AppController,
+    deleted_paths: &HashSet<PathBuf>,
+) {
+    apply::schedule_similarity_filter_rebuild_after_delete(controller, deleted_paths);
+}
+
+pub(crate) fn apply_pending_similarity_filter_rebuild(controller: &mut AppController) {
+    apply::apply_pending_similarity_filter_rebuild(controller);
 }
 
 pub(crate) fn queue_focused_similarity_highlight_refresh(

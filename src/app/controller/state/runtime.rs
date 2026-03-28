@@ -89,6 +89,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) pending_focused_similarity_query: Option<PendingFocusedSimilarityQuery>,
     /// Active async follow-loaded similarity query computation awaiting apply.
     pub(crate) pending_loaded_similarity_query: Option<PendingLoadedSimilarityQuery>,
+    /// Pending manual similarity-filter rebuild scheduled after destructive wav mutations.
+    pub(crate) pending_similarity_filter_rebuild: Option<PendingSimilarityFilterRebuild>,
     /// Cached selected-source analysis progress metadata for progress-overlay updates.
     pub(crate) analysis_progress_ui: AnalysisProgressUiCache,
     /// Pending duration/long-mark metadata write moved out of waveform load hot path.
@@ -155,6 +157,7 @@ impl ControllerRuntimeState {
             pending_similarity_refresh_not_before: None,
             pending_focused_similarity_query: None,
             pending_loaded_similarity_query: None,
+            pending_similarity_filter_rebuild: None,
             analysis_progress_ui: AnalysisProgressUiCache::default(),
             pending_loaded_duration_metadata: None,
             pending_loaded_duration_metadata_not_before: None,
@@ -226,6 +229,15 @@ pub(crate) struct PendingLoadedSimilarityQuery {
     pub(crate) source_id: SourceId,
     /// Loaded relative wav path expected to still be active on apply.
     pub(crate) relative_path: PathBuf,
+}
+
+/// Pending manual similarity-filter rebuild waiting for wav-entry reload to finish.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingSimilarityFilterRebuild {
+    /// Source that owned the similarity filter when it was scheduled.
+    pub(crate) source_id: SourceId,
+    /// Relative path that should anchor the rebuilt similarity filter.
+    pub(crate) anchor_relative_path: PathBuf,
 }
 
 /// Cached selected-source analysis progress data reused across controller frames.

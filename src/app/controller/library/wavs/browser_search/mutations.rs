@@ -14,6 +14,7 @@ fn refresh_browser_search_results(controller: &mut AppController) {
 
 pub(crate) fn set_browser_filter(controller: &mut AppController, filter: TriageFlagFilter) {
     if controller.ui.browser.search.filter != filter {
+        crate::app::controller::library::wavs::cancel_pending_similarity_filter_rebuild(controller);
         controller.ui.browser.search.filter = filter;
         controller.mark_browser_search_projection_revision_dirty();
         refresh_browser_search_results(controller);
@@ -41,6 +42,7 @@ pub(crate) fn set_browser_rating_filter(controller: &mut AppController, level: i
         changed = true;
     }
     if changed {
+        crate::app::controller::library::wavs::cancel_pending_similarity_filter_rebuild(controller);
         controller.mark_browser_search_projection_revision_dirty();
         refresh_browser_search_results(controller);
     }
@@ -58,6 +60,7 @@ fn replace_browser_rating_filter(
         return;
     }
     controller.ui.browser.search.rating_filter = next_filter;
+    crate::app::controller::library::wavs::cancel_pending_similarity_filter_rebuild(controller);
     controller.mark_browser_search_projection_revision_dirty();
     refresh_browser_search_results(controller);
 }
@@ -93,6 +96,7 @@ pub(crate) fn clear_browser_rating_filter(controller: &mut AppController) {
     if controller.ui.browser.search.rating_filter.is_empty() {
         return;
     }
+    crate::app::controller::library::wavs::cancel_pending_similarity_filter_rebuild(controller);
     controller.ui.browser.search.rating_filter.clear();
     controller.mark_browser_search_projection_revision_dirty();
     refresh_browser_search_results(controller);
@@ -100,6 +104,7 @@ pub(crate) fn clear_browser_rating_filter(controller: &mut AppController) {
 
 pub(crate) fn set_browser_sort(controller: &mut AppController, sort: SampleBrowserSort) {
     if controller.ui.browser.search.sort != sort {
+        crate::app::controller::library::wavs::cancel_pending_similarity_filter_rebuild(controller);
         controller.ui.browser.search.sort = sort;
         if sort != SampleBrowserSort::Similarity {
             controller.ui.browser.search.similarity_sort_follow_loaded = false;
@@ -132,6 +137,7 @@ pub(crate) fn set_browser_search(controller: &mut AppController, query: impl Int
     if controller.ui.browser.search.search_query == query {
         return;
     }
+    crate::app::controller::library::wavs::cancel_pending_similarity_filter_rebuild(controller);
     controller.ui.browser.search.search_query = query;
     controller.mark_browser_search_projection_revision_dirty();
     controller.ui.browser.search.similar_query = None;

@@ -38,6 +38,10 @@ pub(crate) use browser_pipeline::BrowserPipelineCache;
 pub(crate) use browser_search::BrowserSearchCache;
 #[cfg(test)]
 pub(crate) use browser_search::with_browser_async_pipeline_enabled_for_tests;
+pub(crate) use similar::{
+    apply_pending_similarity_filter_rebuild, cancel_pending_similarity_filter_rebuild,
+    schedule_similarity_filter_rebuild_after_delete,
+};
 pub(crate) use waveform_loading::FinishWaveformLoadShared;
 pub(crate) use waveform_rendering::WaveformRenderMeta;
 
