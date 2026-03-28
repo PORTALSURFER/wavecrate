@@ -146,6 +146,7 @@ impl BrowserController<'_> {
             }
         }
         if updated > 0 {
+            self.mark_browser_row_metadata_projection_revision_dirty();
             let label = format_bpm_label(bpm);
             let sample_label = if updated == 1 { "sample" } else { "samples" };
             self.set_status(

@@ -260,5 +260,6 @@ pub(crate) fn set_sample_looped_for_source(
     {
         entry.looped = looped;
     }
+    controller.mark_browser_row_metadata_projection_revision_dirty();
     Ok(())
 }

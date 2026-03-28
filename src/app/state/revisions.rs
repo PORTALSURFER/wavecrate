@@ -13,6 +13,8 @@ pub struct UiProjectionRevisions {
     pub folder_search: u64,
     /// Browser-search query revision.
     pub browser_search: u64,
+    /// Browser-row inline metadata revision.
+    pub browser_row_metadata: u64,
     /// Map selection sample id revision.
     pub map_selection: u64,
     /// Map hovered sample id revision.

@@ -41,6 +41,7 @@ pub(super) fn build_browser_rows_projection_key(
         browser_render_window_start: controller.ui.browser.viewport.render_window_start,
         browser_selected_paths_len: controller.ui.browser.selection.selected_paths.len(),
         browser_selected_paths_revision: controller.ui.browser.selection.selected_paths_revision,
+        browser_row_metadata_revision: controller.ui.projection_revisions.browser_row_metadata,
         browser_tab: encode_browser_tab(controller.ui.browser.active_tab),
     }
 }

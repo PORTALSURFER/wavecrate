@@ -1,6 +1,18 @@
 use super::*;
 use crate::app_core::state::{InlineFolderEdit, InlineFolderEditKind};
 
+fn browser_row_bucket_label(
+    model: &crate::app_core::actions::NativeAppModel,
+    row_label: &str,
+) -> Option<String> {
+    model
+        .browser
+        .rows
+        .iter()
+        .find(|row| row.label == row_label)
+        .and_then(|row| row.bucket_label.clone())
+}
+
 /// Async revision-bus updates must invalidate the retained projection key on first pull.
 #[test]
 fn bridge_reprojects_after_async_loaded_wav_revision_change() {
@@ -115,6 +127,67 @@ fn random_navigation_toggle_updates_projected_browser_actions_immediately() {
 
     let updated = bridge.project_model();
     assert!(updated.browser_actions.random_navigation_enabled);
+}
+
+/// Loop-toggle metadata writes should refresh the visible browser badge in the
+/// same projection cycle for the loaded waveform sample.
+#[test]
+fn toggle_loop_playback_refreshes_loaded_sample_loop_badge_immediately() {
+    let bundle = crate::app_core::controller::build_named_gui_fixture_controller(
+        WaveformRenderer::new(16, 16),
+        "waveform",
+    )
+    .expect("waveform fixture");
+    let _sandbox_guards = bundle.sandbox_guards;
+    let mut bridge =
+        crate::app_core::native_bridge::new_native_bridge_with_controller(bundle.controller);
+
+    let initial = bridge.project_model();
+    assert_eq!(browser_row_bucket_label(&initial, "kick_one"), None);
+
+    bridge.on_action(NativeUiAction::ToggleLoopPlayback);
+
+    let enabled = bridge.project_model();
+    let enabled_label = browser_row_bucket_label(&enabled, "kick_one")
+        .expect("loop toggle should project a browser-row badge");
+    assert!(
+        enabled_label.contains("LOOP"),
+        "expected LOOP in projected badge, got {enabled_label:?}"
+    );
+
+    bridge.on_action(NativeUiAction::ToggleLoopPlayback);
+
+    let disabled = bridge.project_model();
+    let disabled_label = browser_row_bucket_label(&disabled, "kick_one");
+    assert!(
+        disabled_label
+            .as_deref()
+            .is_none_or(|label| !label.contains("LOOP")),
+        "expected LOOP to be removed, got {disabled_label:?}"
+    );
+}
+
+/// Enabling loop should project persisted BPM metadata alongside the new loop badge.
+#[test]
+fn toggle_loop_playback_refreshes_loaded_sample_bpm_and_loop_badges_immediately() {
+    let bundle = crate::app_core::controller::build_named_gui_fixture_controller(
+        WaveformRenderer::new(16, 16),
+        "waveform",
+    )
+    .expect("waveform fixture");
+    let _sandbox_guards = bundle.sandbox_guards;
+    let mut controller = bundle.controller;
+    controller.ui.waveform.bpm_value = Some(128.0);
+    controller.ui.waveform.bpm_input = String::from("128");
+    let mut bridge = crate::app_core::native_bridge::new_native_bridge_with_controller(controller);
+
+    bridge.on_action(NativeUiAction::ToggleLoopPlayback);
+
+    let projected = bridge.project_model();
+    assert_eq!(
+        browser_row_bucket_label(&projected, "kick_one"),
+        Some(String::from("128 BPM · LOOP"))
+    );
 }
 
 /// Manual browser viewport actions must refresh the projected row window

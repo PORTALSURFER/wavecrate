@@ -38,18 +38,20 @@ impl ProjectionRevisionDirtyMask {
     pub(crate) const FOLDER_SEARCH: u16 = 1 << 1;
     /// Browser-search query revision is dirty.
     pub(crate) const BROWSER_SEARCH: u16 = 1 << 2;
+    /// Browser-row inline metadata revision is dirty.
+    pub(crate) const BROWSER_ROW_METADATA: u16 = 1 << 3;
     /// Map selection revision is dirty.
-    pub(crate) const MAP_SELECTION: u16 = 1 << 3;
+    pub(crate) const MAP_SELECTION: u16 = 1 << 4;
     /// Map hover revision is dirty.
-    pub(crate) const MAP_HOVER: u16 = 1 << 4;
+    pub(crate) const MAP_HOVER: u16 = 1 << 5;
     /// Map dataset identity revision is dirty.
-    pub(crate) const MAP_DATASET: u16 = 1 << 5;
+    pub(crate) const MAP_DATASET: u16 = 1 << 6;
     /// Map query-bounds revision is dirty.
-    pub(crate) const MAP_QUERY: u16 = 1 << 6;
+    pub(crate) const MAP_QUERY: u16 = 1 << 7;
     /// Update panel revision is dirty.
-    pub(crate) const UPDATE: u16 = 1 << 7;
+    pub(crate) const UPDATE: u16 = 1 << 8;
     /// Loaded wav path revision is dirty.
-    pub(crate) const LOADED_WAV: u16 = 1 << 8;
+    pub(crate) const LOADED_WAV: u16 = 1 << 9;
 }
 
 pub(crate) struct ControllerRuntimeState {

@@ -26,6 +26,11 @@ impl AppController {
         self.mark_projection_revision_dirty(ProjectionRevisionDirtyMask::BROWSER_SEARCH);
     }
 
+    /// Mark browser-row inline metadata projection revisions dirty.
+    pub(crate) fn mark_browser_row_metadata_projection_revision_dirty(&mut self) {
+        self.mark_projection_revision_dirty(ProjectionRevisionDirtyMask::BROWSER_ROW_METADATA);
+    }
+
     /// Mark map-selection projection revisions dirty.
     pub(crate) fn mark_map_selection_projection_revision_dirty(&mut self) {
         self.mark_projection_revision_dirty(ProjectionRevisionDirtyMask::MAP_SELECTION);
@@ -89,6 +94,9 @@ impl AppController {
         if (dirty & ProjectionRevisionDirtyMask::BROWSER_SEARCH) != 0 {
             UiProjectionRevisions::bump(&mut revisions.browser_search);
         }
+        if (dirty & ProjectionRevisionDirtyMask::BROWSER_ROW_METADATA) != 0 {
+            UiProjectionRevisions::bump(&mut revisions.browser_row_metadata);
+        }
         if (dirty & ProjectionRevisionDirtyMask::MAP_SELECTION) != 0 {
             UiProjectionRevisions::bump(&mut revisions.map_selection);
         }
@@ -144,6 +152,26 @@ mod tests {
         assert_eq!(
             controller.ui.projection_revisions.folder_search,
             before.folder_search.wrapping_add(1)
+        );
+    }
+
+    #[test]
+    /// Browser-row metadata revision should bump independently from browser search state.
+    fn revision_bus_bumps_browser_row_metadata_without_touching_search_revision() {
+        let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        let before = controller.ui.projection_revisions;
+
+        controller.mark_browser_row_metadata_projection_revision_dirty();
+        let changed = controller.refresh_projection_revision_bus();
+
+        assert!(changed);
+        assert_eq!(
+            controller.ui.projection_revisions.browser_row_metadata,
+            before.browser_row_metadata.wrapping_add(1)
+        );
+        assert_eq!(
+            controller.ui.projection_revisions.browser_search,
+            before.browser_search
         );
     }
 

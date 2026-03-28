@@ -28,8 +28,7 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         folder_inline_path_hash: non_segment_static_key.folder_inline_path_hash,
         folder_inline_name_hash: non_segment_static_key.folder_inline_name_hash,
         folder_inline_focus_requested: non_segment_static_key.folder_inline_focus_requested,
-        folder_inline_select_all_on_focus: non_segment_static_key
-            .folder_inline_select_all_on_focus,
+        folder_inline_select_all_on_focus: non_segment_static_key.folder_inline_select_all_on_focus,
         browser_visible_len: browser_frame_key.browser_visible_len,
         browser_visible_rows_revision: browser_rows_key.browser_visible_rows_revision,
         browser_selected_visible: browser_frame_key.browser_selected_visible,
@@ -39,6 +38,7 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         browser_render_window_start: browser_rows_key.browser_render_window_start,
         browser_selected_paths_len: browser_frame_key.browser_selected_paths_len,
         browser_selected_paths_revision: browser_rows_key.browser_selected_paths_revision,
+        browser_row_metadata_revision: browser_rows_key.browser_row_metadata_revision,
         browser_search_revision: browser_frame_key.browser_search_revision,
         browser_similarity_filtered: browser_frame_key.browser_similarity_filtered,
         browser_filter: encode_browser_filter(controller.ui.browser.search.filter),
