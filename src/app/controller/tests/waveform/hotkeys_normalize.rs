@@ -127,7 +127,10 @@ fn enter_hotkey_commits_edit_fades_without_exporting() {
 
     controller.handle_hotkey(action, FocusContext::Waveform);
 
-    assert_eq!(controller.ui.waveform.selection_export_flash_nonce, export_before);
+    assert_eq!(
+        controller.ui.waveform.selection_export_flash_nonce,
+        export_before
+    );
     assert_eq!(
         controller.ui.waveform.edit_selection_apply_flash_nonce,
         apply_before + 1

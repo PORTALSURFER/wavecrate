@@ -45,17 +45,13 @@ pub(super) fn insert_folder(selected: &mut BTreeSet<PathBuf>, path: &Path, has_c
 
 pub(super) fn apply_root_selection(model: &mut FolderBrowserModel, mode: FolderSelectMode) -> bool {
     let before = model.selected.clone();
-    let before_mode = model.root_filter_mode;
     let root_path = PathBuf::new();
     match mode {
         FolderSelectMode::Replace => {
-            if model.selected.contains(&root_path) {
-                model.root_filter_mode = model.root_filter_mode.toggle();
-            } else {
+            if !model.selected.contains(&root_path) {
                 model.selected.clear();
                 model.selected.insert(root_path.clone());
                 model.selection_anchor = Some(root_path.clone());
-                model.root_filter_mode = crate::app::state::RootFolderFilterMode::AllDescendants;
             }
         }
         FolderSelectMode::Toggle => {
@@ -69,14 +65,13 @@ pub(super) fn apply_root_selection(model: &mut FolderBrowserModel, mode: FolderS
                 if model.selection_anchor.is_none() {
                     model.selection_anchor = Some(root_path.clone());
                 }
-                model.root_filter_mode = crate::app::state::RootFolderFilterMode::AllDescendants;
             }
         }
     }
     if model.selected.is_empty() {
         model.selection_anchor = None;
     }
-    let changed = before != model.selected || before_mode != model.root_filter_mode;
+    let changed = before != model.selected;
     if changed {
         model.focused = Some(root_path);
     }
@@ -150,20 +145,20 @@ mod tests {
     }
 
     #[test]
-    fn apply_root_selection_toggles_root_mode_on_repeat_replace() {
+    fn apply_root_selection_keeps_file_scope_mode_on_repeat_replace() {
         let mut model = FolderBrowserModel::default();
 
         assert!(apply_root_selection(&mut model, FolderSelectMode::Replace));
         assert_eq!(
-            model.root_filter_mode,
-            crate::app::state::RootFolderFilterMode::AllDescendants
+            model.file_scope_mode,
+            crate::app::state::FolderFileScopeMode::DirectOnly
         );
         assert_eq!(model.selected, BTreeSet::from([PathBuf::new()]));
 
-        assert!(apply_root_selection(&mut model, FolderSelectMode::Replace));
+        assert!(!apply_root_selection(&mut model, FolderSelectMode::Replace));
         assert_eq!(
-            model.root_filter_mode,
-            crate::app::state::RootFolderFilterMode::RootOnly
+            model.file_scope_mode,
+            crate::app::state::FolderFileScopeMode::DirectOnly
         );
         assert_eq!(model.selected, BTreeSet::from([PathBuf::new()]));
     }

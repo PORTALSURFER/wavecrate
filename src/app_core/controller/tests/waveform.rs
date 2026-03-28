@@ -57,7 +57,11 @@ fn apply_native_waveform_commit_edit_fades_routes_to_controller_behavior() {
     controller.apply_native_ui_action(NativeUiAction::CommitWaveformEditFades);
 
     assert!(
-        controller.ui.status.text.contains("Load a sample to edit it"),
+        controller
+            .ui
+            .status
+            .text
+            .contains("Load a sample to edit it"),
         "status was {:?}",
         controller.ui.status.text
     );
@@ -273,6 +277,9 @@ fn apply_native_waveform_option_actions_update_waveform_state() {
 
     controller.apply_native_ui_action(NativeUiAction::SetBpmSnapEnabled { enabled: true });
     assert!(controller.ui.waveform.bpm_snap_enabled);
+
+    controller.apply_native_ui_action(NativeUiAction::SetRelativeBpmGridEnabled { enabled: true });
+    assert!(controller.ui.waveform.relative_bpm_grid_enabled);
 
     controller.apply_native_ui_action(NativeUiAction::SetTransientSnapEnabled { enabled: true });
     assert!(controller.ui.waveform.transient_snap_enabled);

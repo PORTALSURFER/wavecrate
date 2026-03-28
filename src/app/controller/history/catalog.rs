@@ -22,6 +22,7 @@ pub(crate) const fn catalog_history_handler_supported(
                 | GuiActionKind::ActivateFolderRow
                 | GuiActionKind::ToggleFocusedFolderSelection
                 | GuiActionKind::ToggleShowAllFolders
+                | GuiActionKind::ToggleFolderFlattenedView
                 | GuiActionKind::MoveFolderFocus
                 | GuiActionKind::MoveBrowserFocus
                 | GuiActionKind::FocusBrowserRow

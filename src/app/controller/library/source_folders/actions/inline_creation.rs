@@ -278,7 +278,8 @@ impl AppController {
         if destination.exists() {
             return Err(format!("Folder already exists: {}", relative.display()));
         }
-        fs::create_dir_all(&destination).map_err(|err| format!("Failed to create folder: {err}"))?;
+        fs::create_dir_all(&destination)
+            .map_err(|err| format!("Failed to create folder: {err}"))?;
         self.update_manual_folders(|set| {
             set.insert(relative.clone());
         });

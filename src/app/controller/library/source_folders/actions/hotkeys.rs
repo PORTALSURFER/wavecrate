@@ -1,6 +1,6 @@
 use super::ops;
 use super::*;
-use crate::app::state::{DragSample, FocusContext};
+use crate::app::state::FocusContext;
 use std::path::{Path, PathBuf};
 
 impl AppController {
@@ -99,39 +99,6 @@ impl AppController {
         Some(FolderHotkeyTarget::Ready { source, folder })
     }
 
-    fn browser_selection_rows_for_folder_move(&mut self) -> Vec<usize> {
-        let selected_paths = self.ui.browser.selection.selected_paths.clone();
-        let mut rows: Vec<usize> = selected_paths
-            .iter()
-            .filter_map(|path| self.visible_row_for_path(path))
-            .collect();
-        if rows.is_empty()
-            && let Some(row) = self.focused_browser_row()
-        {
-            rows.push(row);
-        }
-        rows.sort_unstable();
-        rows.dedup();
-        rows
-    }
-
-    fn samples_for_folder_move(
-        &mut self,
-        source: &SampleSource,
-        rows: &[usize],
-    ) -> Vec<DragSample> {
-        rows.iter()
-            .filter_map(|row| {
-                let entry_index = self.ui.browser.viewport.visible.get(*row)?;
-                let entry = self.wav_entry(entry_index)?;
-                Some(DragSample {
-                    source_id: source.id.clone(),
-                    relative_path: entry.relative_path.clone(),
-                })
-            })
-            .collect()
-    }
-
     fn next_focus_path_after_folder_move(&mut self, rows: &[usize]) -> Option<PathBuf> {
         if rows.is_empty() || self.ui.browser.viewport.visible.len() == 0 {
             return None;
@@ -166,12 +133,12 @@ impl AppController {
     }
 
     fn run_folder_hotkey_move(&mut self, source: &SampleSource, folder: &Path) {
-        let rows = self.browser_selection_rows_for_folder_move();
+        let rows = self.browser_selection_rows_for_drag_samples();
         if rows.is_empty() {
             self.set_status("Select samples to move to a folder", StatusTone::Info);
             return;
         }
-        let samples = self.samples_for_folder_move(source, &rows);
+        let samples = self.drag_samples_for_browser_rows(source, &rows);
         if samples.is_empty() {
             self.set_status("No samples available for folder move", StatusTone::Warning);
             return;

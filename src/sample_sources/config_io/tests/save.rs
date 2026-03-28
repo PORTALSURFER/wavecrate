@@ -183,6 +183,7 @@ fn settings_round_trip_preserves_fields() {
                 destructive_yolo_mode: true,
                 waveform_channel_view: WaveformChannelView::SplitStereo,
                 bpm_snap_enabled: true,
+                relative_bpm_grid_enabled: true,
                 bpm_lock_enabled: true,
                 bpm_stretch_enabled: true,
                 bpm_value: 123.0,
@@ -295,6 +296,10 @@ fn settings_round_trip_preserves_fields() {
     assert_eq!(
         round_trip.core.controls.bpm_snap_enabled,
         cfg.core.controls.bpm_snap_enabled
+    );
+    assert_eq!(
+        round_trip.core.controls.relative_bpm_grid_enabled,
+        cfg.core.controls.relative_bpm_grid_enabled
     );
     assert_eq!(
         round_trip.core.controls.bpm_lock_enabled,

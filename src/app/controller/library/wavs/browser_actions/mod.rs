@@ -6,6 +6,7 @@
 
 use super::*;
 
+mod drag_payload;
 mod focus_navigation;
 mod row_actions;
 mod selection;

@@ -154,7 +154,7 @@ mod tests {
             similar_query: None,
             folder_selection: None,
             folder_negated: None,
-            root_mode: crate::app::state::RootFolderFilterMode::AllDescendants,
+            file_scope_mode: crate::app::state::FolderFileScopeMode::AllDescendants,
         }
     }
 }

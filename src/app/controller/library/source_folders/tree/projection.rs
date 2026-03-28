@@ -12,6 +12,8 @@ impl AppController {
     pub(crate) fn build_folder_rows(&mut self, model: &FolderBrowserModel) {
         self.set_ui_folder_search_query(model.search_query.clone());
         self.ui.sources.folders.show_all_folders = model.show_all_folders;
+        self.ui.sources.folders.flattened_view =
+            model.file_scope_mode == crate::app::state::FolderFileScopeMode::AllDescendants;
         let hotkey_lookup: BTreeMap<PathBuf, u8> = model
             .hotkeys
             .iter()
@@ -52,7 +54,7 @@ impl AppController {
                 negated: model.negated.contains(Path::new("")),
                 hotkey,
                 is_root: true,
-                root_filter_mode: Some(model.root_filter_mode),
+                file_scope_mode: Some(model.file_scope_mode),
             });
         }
         rows.extend(folder_rows);
@@ -158,7 +160,7 @@ impl AppController {
                 negated,
                 hotkey,
                 is_root: false,
-                root_filter_mode: None,
+                file_scope_mode: None,
             };
             rows.push(row);
             if has_children && is_expanded {

@@ -79,7 +79,7 @@ pub type DestructiveSelectionEdit = app_state::DestructiveSelectionEdit;
 pub type DestructiveEditPrompt = app_state::DestructiveEditPrompt;
 
 /// Folder-filter scope for source root traversal.
-pub type RootFolderFilterMode = app_state::RootFolderFilterMode;
+pub type FolderFileScopeMode = app_state::FolderFileScopeMode;
 
 /// Folder row view projection for migration-facing renderer models.
 pub type FolderRowView = app_state::FolderRowView;

@@ -69,7 +69,7 @@ fn inline_folder_create_projects_draft_row_and_validation() {
         negated: false,
         hotkey: None,
         is_root: true,
-        root_filter_mode: None,
+        file_scope_mode: None,
     });
     ui.sources.folders.rows.push(FolderRowView {
         path: std::path::PathBuf::from("drums"),
@@ -81,7 +81,7 @@ fn inline_folder_create_projects_draft_row_and_validation() {
         negated: false,
         hotkey: None,
         is_root: false,
-        root_filter_mode: None,
+        file_scope_mode: None,
     });
     ui.sources.folders.rows.push(FolderRowView {
         path: std::path::PathBuf::from("drums/existing"),
@@ -93,7 +93,7 @@ fn inline_folder_create_projects_draft_row_and_validation() {
         negated: false,
         hotkey: None,
         is_root: false,
-        root_filter_mode: None,
+        file_scope_mode: None,
     });
     ui.sources.folders.focused = Some(1);
     ui.sources.folders.inline_edit = Some(InlineFolderEdit {
@@ -150,7 +150,7 @@ fn root_inline_folder_create_inserts_after_root_row() {
         negated: false,
         hotkey: None,
         is_root: true,
-        root_filter_mode: None,
+        file_scope_mode: None,
     });
     ui.sources.folders.rows.push(FolderRowView {
         path: std::path::PathBuf::from("drums"),
@@ -162,7 +162,7 @@ fn root_inline_folder_create_inserts_after_root_row() {
         negated: false,
         hotkey: None,
         is_root: false,
-        root_filter_mode: None,
+        file_scope_mode: None,
     });
     ui.sources.folders.inline_edit = Some(InlineFolderEdit {
         kind: InlineFolderEditKind::Create {
@@ -193,7 +193,7 @@ fn inline_folder_rename_projects_inline_row_and_validation() {
         negated: false,
         hotkey: None,
         is_root: false,
-        root_filter_mode: None,
+        file_scope_mode: None,
     });
     ui.sources.folders.rows.push(FolderRowView {
         path: std::path::PathBuf::from("kicks"),
@@ -205,7 +205,7 @@ fn inline_folder_rename_projects_inline_row_and_validation() {
         negated: false,
         hotkey: None,
         is_root: false,
-        root_filter_mode: None,
+        file_scope_mode: None,
     });
     ui.sources.folders.focused = Some(0);
     ui.sources.folders.inline_edit = Some(InlineFolderEdit {
@@ -262,6 +262,38 @@ fn progress_overlay_projection_preserves_cancel_state() {
     assert_eq!(projected.total, 9);
 }
 
+/// Drag overlay projection should carry the cursor anchor while a drag is active.
+#[test]
+fn drag_overlay_projection_includes_pointer_anchor_for_active_drag() {
+    let mut ui = UiState::default();
+    ui.drag.payload = Some(crate::app::state::DragPayload::Sample {
+        source_id: crate::sample_sources::SourceId::from_string("source"),
+        relative_path: std::path::PathBuf::from("kick.wav"),
+    });
+    ui.drag.label = String::from("kick");
+    ui.drag.position = Some(crate::app::state::UiPoint::new(24.4, 96.7));
+
+    let projected = project_drag_overlay_model(&ui);
+
+    assert!(projected.active);
+    assert_eq!(projected.label, "kick");
+    assert_eq!(projected.pointer_x, Some(24));
+    assert_eq!(projected.pointer_y, Some(97));
+}
+
+/// Drag overlay projection should clear the floating chip anchor when no drag is active.
+#[test]
+fn drag_overlay_projection_clears_pointer_anchor_without_active_drag() {
+    let mut ui = UiState::default();
+    ui.drag.position = Some(crate::app::state::UiPoint::new(24.4, 96.7));
+
+    let projected = project_drag_overlay_model(&ui);
+
+    assert!(!projected.active);
+    assert_eq!(projected.pointer_x, None);
+    assert_eq!(projected.pointer_y, None);
+}
+
 /// Destructive folder actions should require focus on a non-root folder row.
 #[test]
 fn folder_actions_require_non_root_focus_for_destructive_actions() {
@@ -277,7 +309,7 @@ fn folder_actions_require_non_root_focus_for_destructive_actions() {
         negated: false,
         hotkey: None,
         is_root: true,
-        root_filter_mode: None,
+        file_scope_mode: None,
     });
     ui.sources.folders.focused = Some(0);
     let projected = project_sources_model(&ui);
@@ -296,7 +328,7 @@ fn folder_actions_require_non_root_focus_for_destructive_actions() {
         negated: false,
         hotkey: None,
         is_root: false,
-        root_filter_mode: None,
+        file_scope_mode: None,
     });
     ui.sources.folders.focused = Some(1);
     let projected = project_sources_model(&ui);

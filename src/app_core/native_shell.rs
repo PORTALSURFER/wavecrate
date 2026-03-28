@@ -241,6 +241,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         ),
         waveform_normalized_audition_enabled: controller.ui.waveform.normalized_audition_enabled,
         waveform_bpm_snap_enabled: controller.ui.waveform.bpm_snap_enabled,
+        waveform_relative_bpm_grid_enabled: controller.ui.waveform.relative_bpm_grid_enabled,
         waveform_transient_snap_enabled: controller.ui.waveform.transient_snap_enabled,
         waveform_transient_markers_enabled: controller.ui.waveform.transient_markers_enabled,
         waveform_slice_mode_enabled: controller.ui.waveform.slice_mode_enabled,
@@ -312,12 +313,37 @@ pub(crate) fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
         ) => false,
         _ => !matches!(active_target, DragTarget::None),
     };
+    let (pointer_x, pointer_y) = ui
+        .drag
+        .position
+        .map(native_drag_overlay_pointer_anchor)
+        .unwrap_or((None, None));
     DragOverlayModel {
         active,
         label: ui.drag.label.clone(),
         target_label,
         valid_target,
+        pointer_x,
+        pointer_y,
     }
+}
+
+/// Convert the retained drag cursor position into native overlay anchor coordinates.
+fn native_drag_overlay_pointer_anchor(
+    position: crate::app::state::UiPoint,
+) -> (Option<u16>, Option<u16>) {
+    (
+        native_drag_overlay_pointer_component(position.x),
+        native_drag_overlay_pointer_component(position.y),
+    )
+}
+
+/// Clamp one floating drag-chip coordinate into the native overlay wire format.
+fn native_drag_overlay_pointer_component(value: f32) -> Option<u16> {
+    if !value.is_finite() {
+        return None;
+    }
+    Some(value.round().clamp(0.0, f32::from(u16::MAX)) as u16)
 }
 
 #[cfg(test)]

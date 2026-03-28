@@ -21,6 +21,8 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
         folder_search_query: ui.sources.folders.search_query.clone(),
         show_all_folders: ui.sources.folders.show_all_folders,
         can_toggle_show_all_folders: source_selected,
+        flattened_view: ui.sources.folders.flattened_view,
+        can_toggle_flattened_view: source_selected,
         selected_row: ui.sources.selected,
         focused_folder_row,
         rows: ui
@@ -97,7 +99,8 @@ fn project_folder_rows(ui: &UiState) -> Vec<FolderRowModel> {
     if let Some(edit) = ui.sources.folders.inline_edit.as_ref() {
         match &edit.kind {
             InlineFolderEditKind::Create { parent } => {
-                if let Some((insert_index, draft_depth)) = inline_folder_draft_location(ui, parent) {
+                if let Some((insert_index, draft_depth)) = inline_folder_draft_location(ui, parent)
+                {
                     projected.insert(
                         insert_index,
                         inline_folder_draft_row(

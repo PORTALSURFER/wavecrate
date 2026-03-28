@@ -236,7 +236,7 @@ fn set_folder_create_input_action_refreshes_projected_model_immediately() {
             negated: false,
             hotkey: None,
             is_root: true,
-            root_filter_mode: Some(crate::app::state::RootFolderFilterMode::AllDescendants),
+            file_scope_mode: Some(crate::app::state::FolderFileScopeMode::AllDescendants),
         });
 
     let initial = bridge.project_model();
@@ -290,7 +290,7 @@ fn cancel_folder_create_action_refreshes_projected_model_immediately() {
             negated: false,
             hotkey: None,
             is_root: true,
-            root_filter_mode: Some(crate::app::state::RootFolderFilterMode::AllDescendants),
+            file_scope_mode: Some(crate::app::state::FolderFileScopeMode::AllDescendants),
         });
 
     let initial = bridge.project_model();
@@ -334,7 +334,7 @@ fn start_folder_rename_action_refreshes_projected_model_immediately() {
             negated: false,
             hotkey: None,
             is_root: true,
-            root_filter_mode: Some(crate::app::state::RootFolderFilterMode::AllDescendants),
+            file_scope_mode: Some(crate::app::state::FolderFileScopeMode::AllDescendants),
         });
     bridge
         .controller
@@ -352,7 +352,7 @@ fn start_folder_rename_action_refreshes_projected_model_immediately() {
             negated: false,
             hotkey: None,
             is_root: false,
-            root_filter_mode: None,
+            file_scope_mode: None,
         });
     bridge.controller.ui.sources.folders.focused = Some(1);
 

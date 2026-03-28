@@ -52,6 +52,8 @@ pub enum GuiActionKind {
     SetFolderSearch,
     /// Toggle whether the folder tree shows all on-disk folders.
     ToggleShowAllFolders,
+    /// Toggle whether folder filtering includes descendant files.
+    ToggleFolderFlattenedView,
     /// Focus one source row directly and activate the sources list section.
     FocusSourceRow,
     /// Select one source row directly.
@@ -132,6 +134,12 @@ pub enum GuiActionKind {
     DetectWaveformSilenceSlices,
     /// Toggle selection on one browser row.
     ToggleBrowserRowSelection,
+    /// Start dragging one browser sample or the active browser multi-selection.
+    StartBrowserSampleDrag,
+    /// Update an in-progress browser sample drag gesture.
+    UpdateBrowserSampleDrag,
+    /// Finish an interactive browser sample drag.
+    FinishBrowserSampleDrag,
     /// Extend browser selection through one row.
     ExtendBrowserSelectionToRow,
     /// Add a contiguous browser-row range to the current selection.
@@ -236,6 +244,8 @@ pub enum GuiActionKind {
     SetNormalizedAuditionEnabled,
     /// Enable or disable BPM snap behavior.
     SetBpmSnapEnabled,
+    /// Enable or disable selection-relative BPM grid anchoring.
+    SetRelativeBpmGridEnabled,
     /// Adjust BPM by a relative amount.
     AdjustWaveformBpm,
     /// Set BPM to an explicit value.
@@ -336,7 +346,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 163] = [
+    pub const ALL: [Self; 168] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -360,6 +370,7 @@ impl GuiActionKind {
         Self::FocusFolderSearch,
         Self::SetFolderSearch,
         Self::ToggleShowAllFolders,
+        Self::ToggleFolderFlattenedView,
         Self::FocusSourceRow,
         Self::SelectSourceRow,
         Self::MoveSourceFocus,
@@ -400,6 +411,9 @@ impl GuiActionKind {
         Self::CommitWaveformEditFades,
         Self::DetectWaveformSilenceSlices,
         Self::ToggleBrowserRowSelection,
+        Self::StartBrowserSampleDrag,
+        Self::UpdateBrowserSampleDrag,
+        Self::FinishBrowserSampleDrag,
         Self::ExtendBrowserSelectionToRow,
         Self::AddRangeBrowserSelection,
         Self::ExtendBrowserSelectionFromFocus,
@@ -452,6 +466,7 @@ impl GuiActionKind {
         Self::SetWaveformChannelView,
         Self::SetNormalizedAuditionEnabled,
         Self::SetBpmSnapEnabled,
+        Self::SetRelativeBpmGridEnabled,
         Self::AdjustWaveformBpm,
         Self::SetWaveformBpmValue,
         Self::SetTransientSnapEnabled,

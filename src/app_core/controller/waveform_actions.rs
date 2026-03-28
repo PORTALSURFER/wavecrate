@@ -30,6 +30,9 @@ pub(super) fn apply_waveform_native_ui_action(
             controller.set_bpm_value(f32::from(value_tenths) / 10.0);
         }
         NativeUiAction::SetBpmSnapEnabled { enabled } => controller.set_bpm_snap_enabled(enabled),
+        NativeUiAction::SetRelativeBpmGridEnabled { enabled } => {
+            controller.set_relative_bpm_grid_enabled(enabled)
+        }
         NativeUiAction::SetTransientSnapEnabled { enabled } => {
             controller.set_transient_snap_enabled(enabled)
         }

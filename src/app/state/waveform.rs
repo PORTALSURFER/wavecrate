@@ -48,6 +48,11 @@ pub struct WaveformState {
     pub channel_view: WaveformChannelView,
     /// When true, selection edits snap to beat-sized steps using the bpm value.
     pub bpm_snap_enabled: bool,
+    /// When true, playback BPM grids and selection snapping anchor to the playmark selection.
+    ///
+    /// When false, the BPM grid and playback-selection snapping use the sample
+    /// start (`0.0`) as their global anchor.
+    pub relative_bpm_grid_enabled: bool,
     /// When true, loaded BPM metadata will not override the current BPM value.
     pub bpm_lock_enabled: bool,
     /// When true, loaded samples with BPM metadata are time-stretched to match the current BPM.
@@ -160,6 +165,7 @@ impl Default for WaveformState {
             hover_time_label: None,
             channel_view: WaveformChannelView::Mono,
             bpm_snap_enabled: false,
+            relative_bpm_grid_enabled: false,
             bpm_lock_enabled: false,
             bpm_stretch_enabled: false,
             bpm_input: "142".to_string(),

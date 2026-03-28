@@ -196,19 +196,19 @@ mod tests {
     }
 
     #[test]
-    /// Worker folder acceptance cache must invalidate when root-mode semantics change.
-    fn folder_filter_hash_changes_with_root_mode() {
+    /// Worker folder acceptance cache must invalidate when file-scope semantics change.
+    fn folder_filter_hash_changes_with_file_scope_mode() {
         let mut all = make_search_job("q", "root");
         all.folder_selection = Some(BTreeSet::from([PathBuf::from("")]));
-        all.root_mode = crate::app::state::RootFolderFilterMode::AllDescendants;
+        all.file_scope_mode = crate::app::state::FolderFileScopeMode::AllDescendants;
 
-        let mut root_only = make_search_job("q", "root");
-        root_only.folder_selection = Some(BTreeSet::from([PathBuf::from("")]));
-        root_only.root_mode = crate::app::state::RootFolderFilterMode::RootOnly;
+        let mut direct_only = make_search_job("q", "root");
+        direct_only.folder_selection = Some(BTreeSet::from([PathBuf::from("")]));
+        direct_only.file_scope_mode = crate::app::state::FolderFileScopeMode::DirectOnly;
 
         assert_ne!(
             folder_filter_hash_for_job(&all),
-            folder_filter_hash_for_job(&root_only)
+            folder_filter_hash_for_job(&direct_only)
         );
     }
 
@@ -235,7 +235,7 @@ mod tests {
             similar_query: None,
             folder_selection: None,
             folder_negated: None,
-            root_mode: crate::app::state::RootFolderFilterMode::AllDescendants,
+            file_scope_mode: crate::app::state::FolderFileScopeMode::AllDescendants,
         }
     }
 }

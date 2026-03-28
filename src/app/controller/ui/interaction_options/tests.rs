@@ -14,6 +14,18 @@ fn normalized_audition_setter_syncs_ui_when_settings_already_match() {
 }
 
 #[test]
+fn relative_bpm_grid_setter_syncs_ui_when_settings_already_match() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.settings.controls.relative_bpm_grid_enabled = true;
+    controller.ui.waveform.relative_bpm_grid_enabled = false;
+
+    controller.set_relative_bpm_grid_enabled(true);
+
+    assert!(controller.settings.controls.relative_bpm_grid_enabled);
+    assert!(controller.ui.waveform.relative_bpm_grid_enabled);
+}
+
+#[test]
 fn channel_view_setter_syncs_ui_when_settings_already_match() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.settings.controls.waveform_channel_view = WaveformChannelView::SplitStereo;

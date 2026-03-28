@@ -64,7 +64,7 @@ fn folder_filter_visible_rows_match_sync_pipeline() {
         FolderBrowserModel {
             selected: BTreeSet::from([PathBuf::from(""), PathBuf::from("drums")]),
             negated: BTreeSet::from([PathBuf::from("hits")]),
-            root_filter_mode: crate::app::state::RootFolderFilterMode::RootOnly,
+            file_scope_mode: crate::app::state::FolderFileScopeMode::DirectOnly,
             ..FolderBrowserModel::default()
         },
     );
@@ -80,14 +80,14 @@ fn folder_filter_visible_rows_match_sync_pipeline() {
     let job = SearchJob {
         folder_selection: Some(BTreeSet::from([PathBuf::from(""), PathBuf::from("drums")])),
         folder_negated: Some(BTreeSet::from([PathBuf::from("hits")])),
-        root_mode: crate::app::state::RootFolderFilterMode::RootOnly,
+        file_scope_mode: crate::app::state::FolderFileScopeMode::DirectOnly,
         ..make_search_job(&source, "")
     };
     let queue = SearchJobQueue::new();
     queue.send(SearchJob {
         folder_selection: Some(BTreeSet::from([PathBuf::from(""), PathBuf::from("drums")])),
         folder_negated: Some(BTreeSet::from([PathBuf::from("hits")])),
-        root_mode: crate::app::state::RootFolderFilterMode::RootOnly,
+        file_scope_mode: crate::app::state::FolderFileScopeMode::DirectOnly,
         ..make_search_job(&source, "")
     });
     let generation = queue
@@ -163,6 +163,6 @@ fn make_search_job(source: &crate::sample_sources::SampleSource, query: &str) ->
         similar_query: None,
         folder_selection: None,
         folder_negated: None,
-        root_mode: crate::app::state::RootFolderFilterMode::AllDescendants,
+        file_scope_mode: crate::app::state::FolderFileScopeMode::AllDescendants,
     }
 }

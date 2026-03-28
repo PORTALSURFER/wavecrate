@@ -4,6 +4,12 @@ use super::super::test_support::{
 use super::super::*;
 use std::path::PathBuf;
 
+fn visible_browser_paths(controller: &mut AppController) -> Vec<PathBuf> {
+    (0..controller.visible_browser_len())
+        .filter_map(|row| controller.browser_path_for_visible(row))
+        .collect()
+}
+
 #[test]
 fn undo_redo_browser_selection_transaction() {
     let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
@@ -78,4 +84,41 @@ fn undo_redo_folder_selection_transaction() {
 
     controller.redo();
     assert!(controller.selected_folder_paths().is_empty());
+}
+
+#[test]
+fn undo_redo_folder_flattened_view_transaction() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("root.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("sub/child.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    std::fs::create_dir_all(source.root.join("sub")).unwrap();
+    controller.refresh_folder_browser_for_tests();
+
+    controller.replace_folder_selection(0);
+    assert_eq!(
+        visible_browser_paths(&mut controller),
+        vec![PathBuf::from("root.wav")]
+    );
+
+    controller.toggle_folder_flattened_view();
+    assert!(controller.ui.sources.folders.flattened_view);
+    assert_eq!(
+        visible_browser_paths(&mut controller),
+        vec![PathBuf::from("root.wav"), PathBuf::from("sub/child.wav")]
+    );
+
+    controller.undo();
+    assert!(!controller.ui.sources.folders.flattened_view);
+    assert_eq!(
+        visible_browser_paths(&mut controller),
+        vec![PathBuf::from("root.wav")]
+    );
+
+    controller.redo();
+    assert!(controller.ui.sources.folders.flattened_view);
+    assert_eq!(
+        visible_browser_paths(&mut controller),
+        vec![PathBuf::from("root.wav"), PathBuf::from("sub/child.wav")]
+    );
 }

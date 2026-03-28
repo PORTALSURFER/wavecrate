@@ -88,8 +88,17 @@ fn start_folder_rename_rejects_root_folder() {
     controller.start_folder_rename();
 
     assert!(controller.ui.sources.folders.inline_edit.is_none());
-    assert_eq!(controller.ui.status.status_tone, crate::app::state::StatusTone::Info);
-    assert!(controller.ui.status.text.contains("Root folder cannot be renamed"));
+    assert_eq!(
+        controller.ui.status.status_tone,
+        crate::app::state::StatusTone::Info
+    );
+    assert!(
+        controller
+            .ui
+            .status
+            .text
+            .contains("Root folder cannot be renamed")
+    );
 }
 
 #[test]
@@ -136,8 +145,16 @@ fn applying_pending_folder_rename_updates_tree_and_focus() -> Result<(), String>
     assert!(controller.apply_pending_folder_rename());
 
     assert!(controller.ui.sources.folders.inline_edit.is_none());
-    let focused = controller.ui.sources.folders.focused.expect("focused row after rename");
-    assert_eq!(controller.ui.sources.folders.rows[focused].path, PathBuf::from("new"));
+    let focused = controller
+        .ui
+        .sources
+        .folders
+        .focused
+        .expect("focused row after rename");
+    assert_eq!(
+        controller.ui.sources.folders.rows[focused].path,
+        PathBuf::from("new")
+    );
     assert!(source.root.join("new/clip.wav").is_file());
     Ok(())
 }

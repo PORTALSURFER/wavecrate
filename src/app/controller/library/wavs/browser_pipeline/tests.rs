@@ -2,7 +2,7 @@ use super::base_stage::ensure_base_stage;
 use super::folder_stage::ensure_folder_acceptance_stage;
 use super::*;
 use crate::app::controller::test_support::prepare_with_source_and_wav_entries;
-use crate::app::state::{RootFolderFilterMode, SampleBrowserSort, VisibleRows};
+use crate::app::state::{FolderFileScopeMode, SampleBrowserSort, VisibleRows};
 use crate::sample_sources::Rating;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -37,11 +37,11 @@ fn folder_stage_acceptance_matches_root_and_negated_filters() {
     let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
     let selection = BTreeSet::from([PathBuf::from(""), PathBuf::from("drums")]);
     let negated = BTreeSet::from([PathBuf::from("hits")]);
-    let root_mode = RootFolderFilterMode::RootOnly;
+    let file_scope_mode = FolderFileScopeMode::DirectOnly;
     let folder_hash = crate::app::controller::library::source_folders::folder_filter_fingerprint(
         Some(&selection),
         Some(&negated),
-        root_mode,
+        file_scope_mode,
     );
 
     ensure_base_stage(&mut controller);
@@ -49,7 +49,7 @@ fn folder_stage_acceptance_matches_root_and_negated_filters() {
         &mut controller,
         Some(&selection),
         Some(&negated),
-        root_mode,
+        file_scope_mode,
         folder_hash,
         true,
     );

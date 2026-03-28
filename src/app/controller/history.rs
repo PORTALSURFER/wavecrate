@@ -8,7 +8,7 @@ mod catalog;
 mod pending;
 
 use super::*;
-use crate::app::state::{RootFolderFilterMode, WaveformView};
+use crate::app::state::{FolderFileScopeMode, WaveformView};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]
@@ -37,8 +37,8 @@ pub(crate) struct FolderHistorySnapshot {
     pub hotkeys: BTreeMap<u8, PathBuf>,
     /// Whether empty folders discovered on disk stay visible in the tree.
     pub show_all_folders: bool,
-    /// Root selection filter mode.
-    pub root_filter_mode: RootFolderFilterMode,
+    /// Folder file-scope mode used by browser filtering.
+    pub file_scope_mode: FolderFileScopeMode,
 }
 
 /// Reversible subset of controller state that represents meaningful UI context.
@@ -127,7 +127,7 @@ impl AppController {
                 manual_folders: model.manual_folders.clone(),
                 hotkeys: model.hotkeys.clone(),
                 show_all_folders: model.show_all_folders,
-                root_filter_mode: model.root_filter_mode,
+                file_scope_mode: model.file_scope_mode,
             });
 
         MeaningfulUiSnapshot {
@@ -189,7 +189,7 @@ impl AppController {
                     model.manual_folders = folder_state.manual_folders.clone();
                     model.hotkeys = folder_state.hotkeys.clone();
                     model.show_all_folders = folder_state.show_all_folders;
-                    model.root_filter_mode = folder_state.root_filter_mode;
+                    model.file_scope_mode = folder_state.file_scope_mode;
                 }
             }
 

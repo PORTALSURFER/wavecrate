@@ -131,6 +131,9 @@ fn project_waveform_beat_step_micros(controller: &AppController) -> Option<u32> 
 
 /// Project the active or persisted BPM grid origin into normalized micro space.
 fn project_waveform_bpm_grid_origin_micros(ui: &UiState) -> u32 {
+    if !ui.waveform.relative_bpm_grid_enabled {
+        return 0;
+    }
     let origin = ui
         .waveform
         .selection
@@ -177,6 +180,7 @@ pub(crate) fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel
         channel_view: project_waveform_channel_view_model(ui.waveform.channel_view),
         normalized_audition_enabled: ui.waveform.normalized_audition_enabled,
         bpm_snap_enabled: ui.waveform.bpm_snap_enabled,
+        relative_bpm_grid_enabled: ui.waveform.relative_bpm_grid_enabled,
         transient_snap_enabled: ui.waveform.transient_snap_enabled,
         transient_markers_enabled: ui.waveform.transient_markers_enabled,
         slice_mode_enabled: ui.waveform.slice_mode_enabled,

@@ -5,6 +5,7 @@
 
 use super::AppController;
 use crate::app_core::actions::NativeUiAction;
+use crate::app_core::app_api::state::{DragSource, DragTarget, UiPoint};
 use crate::app_core::state::StatusTone;
 
 /// Try to dispatch browser-and-sources native actions.
@@ -24,6 +25,7 @@ pub(super) fn apply_browser_native_ui_action(
         NativeUiAction::FocusFolderSearch => controller.focus_folder_search(),
         NativeUiAction::SetFolderSearch { query } => controller.set_folder_search(query),
         NativeUiAction::ToggleShowAllFolders => controller.toggle_show_all_folders(),
+        NativeUiAction::ToggleFolderFlattenedView => controller.toggle_folder_flattened_view(),
         NativeUiAction::FocusSourceRow { index } => {
             controller.select_source_by_index(index);
             controller.focus_sources_context();
@@ -141,6 +143,30 @@ pub(super) fn apply_browser_native_ui_action(
         NativeUiAction::ToggleBrowserRowSelection { visible_row } => {
             controller.toggle_browser_row_selection(visible_row)
         }
+        NativeUiAction::StartBrowserSampleDrag {
+            visible_row,
+            pointer_x,
+            pointer_y,
+        } => controller
+            .start_browser_sample_drag_action(visible_row, native_drag_point(pointer_x, pointer_y)),
+        NativeUiAction::UpdateBrowserSampleDrag {
+            pointer_x,
+            pointer_y,
+            hovered_folder_row,
+            over_folder_panel,
+            shift_down,
+            alt_down,
+        } => {
+            let target = folder_drag_target(controller, hovered_folder_row, over_folder_panel);
+            controller.update_active_drag(
+                native_drag_point(pointer_x, pointer_y),
+                DragSource::Browser,
+                target,
+                shift_down,
+                alt_down,
+            );
+        }
+        NativeUiAction::FinishBrowserSampleDrag => controller.finish_active_drag(),
         NativeUiAction::ExtendBrowserSelectionToRow { visible_row } => {
             controller.extend_browser_selection_to_row(visible_row)
         }
@@ -197,6 +223,25 @@ pub(super) fn apply_browser_native_ui_action(
     Ok(())
 }
 
+fn folder_drag_target(
+    controller: &mut AppController,
+    hovered_folder_row: Option<usize>,
+    over_folder_panel: bool,
+) -> DragTarget {
+    if let Some(folder_row) = hovered_folder_row
+        && let Some(row) = controller.ui.sources.folders.rows.get(folder_row)
+    {
+        return DragTarget::FolderPanel {
+            folder: Some(row.path.clone()),
+        };
+    }
+    if over_folder_panel {
+        DragTarget::FolderPanel { folder: None }
+    } else {
+        DragTarget::None
+    }
+}
+
 fn toggle_find_similar_focused_sample(controller: &mut AppController) {
     if matches!(
         controller.ui.browser.active_tab,
@@ -224,4 +269,9 @@ fn toggle_find_similar_focused_sample(controller: &mut AppController) {
     if let Err(err) = controller.find_similar_for_visible_row(row) {
         controller.set_status(format!("Find similar failed: {err}"), StatusTone::Error);
     }
+}
+
+/// Convert native action pointer coordinates into controller UI points.
+fn native_drag_point(pointer_x: u16, pointer_y: u16) -> UiPoint {
+    UiPoint::new(f32::from(pointer_x), f32::from(pointer_y))
 }

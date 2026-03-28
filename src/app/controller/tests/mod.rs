@@ -9,6 +9,7 @@ mod browser_core;
 mod browser_inline_tags;
 mod browser_selection;
 mod common;
+mod drag_drop_browser;
 mod drag_drop_drop_targets;
 mod drag_drop_folders;
 mod drag_drop_sources;

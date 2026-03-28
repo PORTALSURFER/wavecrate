@@ -124,6 +124,20 @@ impl AppController {
         }
     }
 
+    /// Enable/disable selection-relative BPM grid anchoring and persist the setting.
+    pub fn set_relative_bpm_grid_enabled(&mut self, enabled: bool) {
+        let settings_match = self.settings.controls.relative_bpm_grid_enabled == enabled;
+        let ui_match = self.ui.waveform.relative_bpm_grid_enabled == enabled;
+        if settings_match && ui_match {
+            return;
+        }
+        self.settings.controls.relative_bpm_grid_enabled = enabled;
+        self.ui.waveform.relative_bpm_grid_enabled = enabled;
+        if !settings_match {
+            self.persist_controls();
+        }
+    }
+
     /// Enable/disable BPM auto-override lock and persist the setting.
     pub fn set_bpm_lock_enabled(&mut self, enabled: bool) {
         if self.settings.controls.bpm_lock_enabled == enabled {

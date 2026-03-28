@@ -66,6 +66,8 @@ impl AppController {
         };
         self.ui.waveform.channel_view = self.settings.controls.waveform_channel_view;
         self.ui.waveform.bpm_snap_enabled = self.settings.controls.bpm_snap_enabled;
+        self.ui.waveform.relative_bpm_grid_enabled =
+            self.settings.controls.relative_bpm_grid_enabled;
         self.ui.waveform.bpm_lock_enabled = self.settings.controls.bpm_lock_enabled;
         self.ui.waveform.bpm_stretch_enabled = self.settings.controls.bpm_stretch_enabled;
         self.ui.waveform.bpm_value = normalize_bpm_value(self.settings.controls.bpm_value);

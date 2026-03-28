@@ -58,6 +58,9 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
             | NativeUiAction::SetBrowserViewStart { .. }
             | NativeUiAction::FocusBrowserRow { .. }
             | NativeUiAction::ToggleBrowserRowSelection { .. }
+            | NativeUiAction::StartBrowserSampleDrag { .. }
+            | NativeUiAction::UpdateBrowserSampleDrag { .. }
+            | NativeUiAction::FinishBrowserSampleDrag
             | NativeUiAction::ExtendBrowserSelectionToRow { .. }
             | NativeUiAction::AddRangeBrowserSelection { .. }
             | NativeUiAction::ExtendBrowserSelectionFromFocus { .. }
@@ -123,6 +126,9 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::FocusBrowserRow { .. }
         | NativeUiAction::CommitFocusedBrowserRow
         | NativeUiAction::ToggleBrowserRowSelection { .. }
+        | NativeUiAction::StartBrowserSampleDrag { .. }
+        | NativeUiAction::UpdateBrowserSampleDrag { .. }
+        | NativeUiAction::FinishBrowserSampleDrag
         | NativeUiAction::ExtendBrowserSelectionToRow { .. }
         | NativeUiAction::AddRangeBrowserSelection { .. }
         | NativeUiAction::ExtendBrowserSelectionFromFocus { .. }

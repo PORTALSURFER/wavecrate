@@ -111,7 +111,7 @@ fn build_folder_accepts(
                 .map(|entry| Some(Path::new(entry.relative_path.as_ref()))),
             job.folder_selection.as_ref(),
             job.folder_negated.as_ref(),
-            job.root_mode,
+            job.file_scope_mode,
         ),
     )
 }
@@ -121,7 +121,7 @@ pub(super) fn folder_filter_hash_for_job(job: &SearchJob) -> u64 {
     crate::app::controller::library::source_folders::folder_filter_fingerprint(
         job.folder_selection.as_ref(),
         job.folder_negated.as_ref(),
-        job.root_mode,
+        job.file_scope_mode,
     )
 }
 
@@ -217,7 +217,7 @@ mod tests {
             similar_query: None,
             folder_selection: Some(BTreeSet::from([PathBuf::from("group")])),
             folder_negated: None,
-            root_mode: crate::app::state::RootFolderFilterMode::AllDescendants,
+            file_scope_mode: crate::app::state::FolderFileScopeMode::AllDescendants,
         }
     }
 }

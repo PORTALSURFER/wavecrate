@@ -152,7 +152,10 @@ fn nudge_folder_focus_moves_through_visible_rows() -> Result<(), String> {
         .folders
         .focused
         .expect("focused folder row after first move");
-    assert_eq!(controller.ui.sources.folders.rows[focused].path, PathBuf::from(""));
+    assert_eq!(
+        controller.ui.sources.folders.rows[focused].path,
+        PathBuf::from("")
+    );
 
     controller.nudge_folder_focus_action(1);
     let focused = controller

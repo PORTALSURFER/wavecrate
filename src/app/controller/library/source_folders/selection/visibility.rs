@@ -20,7 +20,11 @@ impl AppController {
             } else {
                 let mut model = FolderBrowserModel::default();
                 model.show_all_folders = !model.show_all_folders;
-                controller.ui_cache.folders.models.insert(source_id.clone(), model);
+                controller
+                    .ui_cache
+                    .folders
+                    .models
+                    .insert(source_id.clone(), model);
             }
             controller.refresh_folder_browser();
             let selection_changed = controller
@@ -34,6 +38,28 @@ impl AppController {
             if selection_changed {
                 controller.rebuild_browser_lists();
             }
+        });
+    }
+
+    /// Toggle whether folder filtering includes descendant files.
+    pub(crate) fn toggle_folder_flattened_view(&mut self) {
+        self.record_meaningful_ui_transaction("Toggle folder flattened view", |controller| {
+            let Some(source_id) = controller.selected_source_id() else {
+                return;
+            };
+            if let Some(model) = controller.ui_cache.folders.models.get_mut(&source_id) {
+                model.file_scope_mode = model.file_scope_mode.toggle();
+            } else {
+                let mut model = FolderBrowserModel::default();
+                model.file_scope_mode = model.file_scope_mode.toggle();
+                controller
+                    .ui_cache
+                    .folders
+                    .models
+                    .insert(source_id.clone(), model);
+            }
+            controller.refresh_folder_browser();
+            controller.rebuild_browser_lists();
         });
     }
 }

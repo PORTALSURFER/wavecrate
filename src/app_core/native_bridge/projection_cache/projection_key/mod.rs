@@ -91,6 +91,7 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         waveform_channel_view: waveform_key.waveform_channel_view,
         waveform_normalized_audition_enabled: waveform_key.waveform_normalized_audition_enabled,
         waveform_bpm_snap_enabled: waveform_key.waveform_bpm_snap_enabled,
+        waveform_relative_bpm_grid_enabled: waveform_key.waveform_relative_bpm_grid_enabled,
         waveform_transient_snap_enabled: waveform_key.waveform_transient_snap_enabled,
         waveform_transient_markers_enabled: waveform_key.waveform_transient_markers_enabled,
         waveform_slice_mode_enabled: waveform_key.waveform_slice_mode_enabled,

@@ -54,9 +54,7 @@ impl AppController {
         let similar_query = self.ui.browser.search.similar_query.clone();
         let folder_selection = self.folder_selection_for_filter().cloned();
         let folder_negated = self.folder_negation_for_filter().cloned();
-        let root_mode = self
-            .root_folder_filter_mode_for_filter()
-            .unwrap_or_default();
+        let file_scope_mode = self.folder_file_scope_mode_for_filter().unwrap_or_default();
 
         self.mark_browser_search_projection_revision_dirty();
         self.ui.browser.search.search_busy = true;
@@ -73,7 +71,7 @@ impl AppController {
                 similar_query,
                 folder_selection,
                 folder_negated,
-                root_mode,
+                file_scope_mode,
             });
     }
 }

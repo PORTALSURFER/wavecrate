@@ -96,6 +96,7 @@ fn waveform_projection_includes_edit_fade_handles() {
 #[test]
 fn waveform_projection_preserves_selection_micro_precision() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.relative_bpm_grid_enabled = true;
     controller.ui.waveform.selection = Some(crate::selection::SelectionRange::new(0.5004, 0.5006));
 
     let projected = project_waveform_model(&mut controller);
@@ -109,11 +110,24 @@ fn waveform_projection_preserves_selection_micro_precision() {
 #[test]
 fn waveform_projection_falls_back_to_persisted_bpm_grid_origin_without_selection() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.relative_bpm_grid_enabled = true;
     controller.ui.waveform.last_bpm_grid_origin = 0.375;
 
     let projected = project_waveform_model(&mut controller);
 
     assert_eq!(projected.bpm_grid_origin_micros, 375_000);
+}
+
+#[test]
+fn waveform_projection_keeps_global_bpm_grid_origin_at_zero() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.relative_bpm_grid_enabled = false;
+    controller.ui.waveform.last_bpm_grid_origin = 0.375;
+    controller.ui.waveform.selection = Some(crate::selection::SelectionRange::new(0.5004, 0.5006));
+
+    let projected = project_waveform_model(&mut controller);
+
+    assert_eq!(projected.bpm_grid_origin_micros, 0);
 }
 
 /// Waveform chrome projection should mirror loop/channel/toggle state into native labels.
@@ -130,6 +144,7 @@ fn waveform_chrome_projection_reflects_loop_hint() {
     );
     assert!(!projected.normalized_audition_enabled);
     assert!(!projected.bpm_snap_enabled);
+    assert!(!projected.relative_bpm_grid_enabled);
     assert!(!projected.transient_snap_enabled);
     assert!(projected.transient_markers_enabled);
     assert!(!projected.slice_mode_enabled);
@@ -138,6 +153,7 @@ fn waveform_chrome_projection_reflects_loop_hint() {
     ui.waveform.channel_view = crate::waveform::WaveformChannelView::SplitStereo;
     ui.waveform.normalized_audition_enabled = true;
     ui.waveform.bpm_snap_enabled = true;
+    ui.waveform.relative_bpm_grid_enabled = true;
     ui.waveform.transient_snap_enabled = true;
     ui.waveform.transient_markers_enabled = false;
     ui.waveform.slice_mode_enabled = true;
@@ -149,6 +165,7 @@ fn waveform_chrome_projection_reflects_loop_hint() {
     );
     assert!(projected.normalized_audition_enabled);
     assert!(projected.bpm_snap_enabled);
+    assert!(projected.relative_bpm_grid_enabled);
     assert!(projected.transient_snap_enabled);
     assert!(!projected.transient_markers_enabled);
     assert!(projected.slice_mode_enabled);

@@ -19,24 +19,24 @@ pub(crate) fn build_visible_rows(
     let rating_filter_hash = helpers::hash_value(&rating_filter);
     let folder_selection = controller.folder_selection_for_filter().cloned();
     let folder_negated = controller.folder_negation_for_filter().cloned();
-    let root_mode = controller
-        .root_folder_filter_mode_for_filter()
+    let file_scope_mode = controller
+        .folder_file_scope_mode_for_filter()
         .unwrap_or_default();
     let folder_hash = crate::app::controller::library::source_folders::folder_filter_fingerprint(
         folder_selection.as_ref(),
         folder_negated.as_ref(),
-        root_mode,
+        file_scope_mode,
     );
     let has_folder_filters = crate::app::controller::library::source_folders::folder_filters_active(
         folder_selection.as_ref(),
         folder_negated.as_ref(),
-        root_mode,
+        file_scope_mode,
     );
     ensure_folder_acceptance_stage(
         controller,
         folder_selection.as_ref(),
         folder_negated.as_ref(),
-        root_mode,
+        file_scope_mode,
         folder_hash,
         has_folder_filters,
     );

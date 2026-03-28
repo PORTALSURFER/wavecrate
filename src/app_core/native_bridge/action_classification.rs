@@ -73,6 +73,7 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::CommitWaveformEditFades
         | NativeUiAction::ToggleTransientMarkers
         | NativeUiAction::ToggleBpmSnap
+        | NativeUiAction::SetRelativeBpmGridEnabled { .. }
         | NativeUiAction::ZoomWaveform { .. }
         | NativeUiAction::ZoomWaveformToSelection
         | NativeUiAction::ZoomWaveformFull => Some(InteractionActionClass::Waveform),
@@ -137,6 +138,7 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::BlurBrowserSearch
             | NativeUiAction::FocusFolderSearch
             | NativeUiAction::ToggleShowAllFolders
+            | NativeUiAction::ToggleFolderFlattenedView
             | NativeUiAction::StartNewFolder
             | NativeUiAction::StartNewFolderAtFolderRow { .. }
             | NativeUiAction::StartNewFolderAtRoot

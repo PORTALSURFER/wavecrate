@@ -5,7 +5,7 @@ pub(super) fn ensure_folder_acceptance_stage(
     controller: &mut AppController,
     folder_selection: Option<&std::collections::BTreeSet<std::path::PathBuf>>,
     folder_negated: Option<&std::collections::BTreeSet<std::path::PathBuf>>,
-    root_mode: crate::app::state::RootFolderFilterMode,
+    file_scope_mode: crate::app::state::FolderFileScopeMode,
     folder_hash: u64,
     has_folder_filters: bool,
 ) {
@@ -42,7 +42,7 @@ pub(super) fn ensure_folder_acceptance_stage(
             relative_paths.iter().map(|path| path.as_deref()),
             folder_selection,
             folder_negated,
-            root_mode,
+            file_scope_mode,
         )
     } else {
         vec![true; entries_len]

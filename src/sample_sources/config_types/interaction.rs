@@ -35,8 +35,9 @@ impl Display for TooltipMode {
 /// Config keys: `invert_waveform_scroll`, `waveform_scroll_speed`,
 /// `wheel_zoom_factor`, `keyboard_zoom_factor`, `anti_clip_fade_enabled`,
 /// `anti_clip_fade_ms`, `auto_edge_fades_on_selection_exports`, `destructive_yolo_mode`,
-/// `waveform_channel_view`, `bpm_snap_enabled`, `bpm_lock_enabled`, `bpm_stretch_enabled`,
-/// `bpm_value`, `transient_markers_enabled`, `transient_snap_enabled`,
+/// `waveform_channel_view`, `bpm_snap_enabled`, `relative_bpm_grid_enabled`,
+/// `bpm_lock_enabled`, `bpm_stretch_enabled`, `bpm_value`,
+/// `transient_markers_enabled`, `transient_snap_enabled`,
 /// `input_monitoring_enabled`, `normalized_audition_enabled`, `loop_lock_enabled`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InteractionOptions {
@@ -70,6 +71,9 @@ pub struct InteractionOptions {
     /// Enable BPM snapping for selections and cursor moves.
     #[serde(default = "default_false")]
     pub bpm_snap_enabled: bool,
+    /// Anchor playback BPM grids and snapping to the current playmark selection.
+    #[serde(default = "default_false")]
+    pub relative_bpm_grid_enabled: bool,
     /// Lock BPM input to the detected value.
     #[serde(default = "default_false")]
     pub bpm_lock_enabled: bool,
@@ -115,6 +119,7 @@ impl Default for InteractionOptions {
             destructive_yolo_mode: false,
             waveform_channel_view: WaveformChannelView::Mono,
             bpm_snap_enabled: default_false(),
+            relative_bpm_grid_enabled: default_false(),
             bpm_lock_enabled: default_false(),
             bpm_stretch_enabled: default_false(),
             bpm_value: default_bpm_value(),

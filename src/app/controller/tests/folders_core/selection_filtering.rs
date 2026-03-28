@@ -1,7 +1,7 @@
 use super::support::*;
 
 #[test]
-fn selecting_root_filters_to_root_files() -> Result<(), String> {
+fn selecting_root_uses_direct_only_until_flattened_view_is_enabled() -> Result<(), String> {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -34,20 +34,67 @@ fn selecting_root_filters_to_root_files() -> Result<(), String> {
     controller.replace_folder_selection(0);
     assert_eq!(
         visible_paths(&mut controller),
-        vec![PathBuf::from("root.wav"), PathBuf::from("rooted/clip.wav")]
+        vec![PathBuf::from("root.wav")]
     );
     assert_eq!(controller.ui.sources.folders.focused, Some(0));
+    assert!(!controller.ui.sources.folders.flattened_view);
+
+    controller.toggle_folder_flattened_view();
+    assert_eq!(
+        visible_paths(&mut controller),
+        vec![PathBuf::from("root.wav"), PathBuf::from("rooted/clip.wav")]
+    );
+    assert!(controller.ui.sources.folders.flattened_view);
 
     controller.replace_folder_selection(0);
     assert_eq!(
         visible_paths(&mut controller),
-        vec![PathBuf::from("root.wav")]
+        vec![PathBuf::from("root.wav"), PathBuf::from("rooted/clip.wav")]
     );
+    Ok(())
+}
 
-    controller.toggle_folder_row_selection(folder_index);
+#[test]
+fn selecting_non_root_folder_includes_descendants_only_when_flattened() -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    std::fs::create_dir_all(source.root.join("drums/kicks")).unwrap();
+    std::fs::create_dir_all(source.root.join("bass")).unwrap();
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("drums/root.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry(
+            "drums/kicks/deep.wav",
+            crate::sample_sources::Rating::NEUTRAL,
+        ),
+        sample_entry("bass/sub.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+
+    let drums_index = controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .position(|row| row.path == PathBuf::from("drums"))
+        .unwrap();
+
+    controller.replace_folder_selection(drums_index);
     assert_eq!(
         visible_paths(&mut controller),
-        vec![PathBuf::from("root.wav"), PathBuf::from("rooted/clip.wav")]
+        vec![PathBuf::from("drums/root.wav")]
+    );
+
+    controller.toggle_folder_flattened_view();
+    assert_eq!(
+        visible_paths(&mut controller),
+        vec![
+            PathBuf::from("drums/root.wav"),
+            PathBuf::from("drums/kicks/deep.wav"),
+        ]
     );
     Ok(())
 }
@@ -115,6 +162,52 @@ fn negated_folder_hides_samples() -> Result<(), String> {
     assert_eq!(
         visible_paths(&mut controller),
         vec![PathBuf::from("b/two.wav")]
+    );
+    Ok(())
+}
+
+#[test]
+fn negated_folder_respects_flattened_view_scope() -> Result<(), String> {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    std::fs::create_dir_all(source.root.join("drums/kicks")).unwrap();
+    std::fs::create_dir_all(source.root.join("bass")).unwrap();
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("drums/root.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry(
+            "drums/kicks/deep.wav",
+            crate::sample_sources::Rating::NEUTRAL,
+        ),
+        sample_entry("bass/sub.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+
+    let drums_index = controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .position(|row| row.path == PathBuf::from("drums"))
+        .unwrap();
+    controller.toggle_folder_row_negation(drums_index);
+
+    assert_eq!(
+        visible_paths(&mut controller),
+        vec![
+            PathBuf::from("drums/kicks/deep.wav"),
+            PathBuf::from("bass/sub.wav"),
+        ]
+    );
+
+    controller.toggle_folder_flattened_view();
+
+    assert_eq!(
+        visible_paths(&mut controller),
+        vec![PathBuf::from("bass/sub.wav")]
     );
     Ok(())
 }

@@ -23,8 +23,12 @@ pub(super) fn build_non_segment_static_projection_key(
             Some(InlineFolderEditKind::Rename { .. }) => 2,
         },
         folder_inline_path_hash: folder_inline.map(|draft| match &draft.kind {
-            InlineFolderEditKind::Create { parent } => hash_path_for_projection_key(parent.as_path()),
-            InlineFolderEditKind::Rename { target } => hash_path_for_projection_key(target.as_path()),
+            InlineFolderEditKind::Create { parent } => {
+                hash_path_for_projection_key(parent.as_path())
+            }
+            InlineFolderEditKind::Rename { target } => {
+                hash_path_for_projection_key(target.as_path())
+            }
         }),
         folder_inline_name_hash: folder_inline
             .map(|draft| hash_string_for_projection_key(draft.name.as_str())),

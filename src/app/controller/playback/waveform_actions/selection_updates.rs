@@ -12,33 +12,56 @@ pub(super) fn snap_waveform_selection_range_micros(
 ) -> (u32, u32) {
     let mut start = start_micros.min(1_000_000);
     let mut end = end_micros.min(1_000_000);
+    let relative_grid_enabled = controller.ui.waveform.relative_bpm_grid_enabled;
     let Some(step) = waveform_bpm_snap_step(controller) else {
         return (start, end);
     };
     let Some(existing) = existing_range else {
-        end = snap_waveform_endpoint_to_bpm_anchor(end, start, step, preserve_view_edge);
+        end = if relative_grid_enabled {
+            snap_waveform_endpoint_to_bpm_anchor(end, start, step, preserve_view_edge)
+        } else {
+            snap_waveform_endpoint_to_global_bpm_grid(end, step, preserve_view_edge)
+        };
         return (start, end);
     };
     let existing_start = normalized_to_micros(existing.start());
     let existing_end = normalized_to_micros(existing.end());
     if translated_waveform_selection_range(start, end, existing_start, existing_end) {
-        return snap_translated_waveform_selection_range(
-            start,
-            end,
-            existing_start,
-            existing_end,
-            step,
-        );
+        return if relative_grid_enabled {
+            snap_translated_waveform_selection_range(start, end, existing_start, existing_end, step)
+        } else {
+            snap_translated_waveform_selection_range_to_global_grid(
+                start,
+                existing_start,
+                existing_end,
+                step,
+            )
+        };
     }
     if start == existing_end {
-        end = snap_waveform_endpoint_to_bpm_anchor(end, existing_end, step, preserve_view_edge);
+        end = if relative_grid_enabled {
+            snap_waveform_endpoint_to_bpm_anchor(end, existing_end, step, preserve_view_edge)
+        } else {
+            snap_waveform_endpoint_to_global_bpm_grid(end, step, preserve_view_edge)
+        };
     } else if end == existing_start {
-        start =
-            snap_waveform_endpoint_to_bpm_anchor(start, existing_start, step, preserve_view_edge);
+        start = if relative_grid_enabled {
+            snap_waveform_endpoint_to_bpm_anchor(start, existing_start, step, preserve_view_edge)
+        } else {
+            snap_waveform_endpoint_to_global_bpm_grid(start, step, preserve_view_edge)
+        };
     } else if start == existing_start {
-        end = snap_waveform_endpoint_to_bpm_anchor(end, existing_start, step, preserve_view_edge);
+        end = if relative_grid_enabled {
+            snap_waveform_endpoint_to_bpm_anchor(end, existing_start, step, preserve_view_edge)
+        } else {
+            snap_waveform_endpoint_to_global_bpm_grid(end, step, preserve_view_edge)
+        };
     } else if end == existing_end {
-        start = snap_waveform_endpoint_to_bpm_anchor(start, existing_end, step, preserve_view_edge);
+        start = if relative_grid_enabled {
+            snap_waveform_endpoint_to_bpm_anchor(start, existing_end, step, preserve_view_edge)
+        } else {
+            snap_waveform_endpoint_to_global_bpm_grid(start, step, preserve_view_edge)
+        };
     }
     (start, end)
 }

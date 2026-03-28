@@ -50,6 +50,8 @@ pub struct FolderBrowserUiState {
     pub search_query: String,
     /// Whether the tree should include folders without any WAV-backed samples.
     pub show_all_folders: bool,
+    /// Whether folder filtering includes descendant files in a flattened list.
+    pub flattened_view: bool,
     /// Whether search focus is requested.
     pub search_focus_requested: bool,
     /// Pending folder action prompt.
@@ -71,6 +73,7 @@ impl Default for FolderBrowserUiState {
             last_focused_path: None,
             search_query: String::new(),
             show_all_folders: false,
+            flattened_view: false,
             search_focus_requested: false,
             pending_action: None,
             inline_edit: None,
@@ -143,22 +146,22 @@ pub enum FolderDeleteRecoveryStatus {
     Failed,
 }
 
-/// Root selection behavior for the folder browser.
+/// Folder file-scope behavior for the browser filter.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum RootFolderFilterMode {
-    /// Root selection includes all descendants.
+pub enum FolderFileScopeMode {
+    /// Show only files whose immediate parent is the selected folder.
     #[default]
+    DirectOnly,
+    /// Show files from the selected folder and all descendant folders.
     AllDescendants,
-    /// Root selection includes only files at the source root.
-    RootOnly,
 }
 
-impl RootFolderFilterMode {
-    /// Toggle between showing all descendants and root-only results.
+impl FolderFileScopeMode {
+    /// Toggle between direct-only and descendant-flattened folder matching.
     pub(crate) fn toggle(self) -> Self {
         match self {
-            Self::AllDescendants => Self::RootOnly,
-            Self::RootOnly => Self::AllDescendants,
+            Self::DirectOnly => Self::AllDescendants,
+            Self::AllDescendants => Self::DirectOnly,
         }
     }
 }
@@ -184,8 +187,8 @@ pub struct FolderRowView {
     pub hotkey: Option<u8>,
     /// Whether this row represents the root.
     pub is_root: bool,
-    /// Root filter mode when this row represents the root.
-    pub root_filter_mode: Option<RootFolderFilterMode>,
+    /// Folder file-scope mode when this row represents the root.
+    pub file_scope_mode: Option<FolderFileScopeMode>,
 }
 
 /// Pending inline action for the folder browser.

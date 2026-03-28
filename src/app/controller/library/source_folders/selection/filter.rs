@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::app::state::RootFolderFilterMode;
+use crate::app::state::FolderFileScopeMode;
 use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 
@@ -13,14 +13,14 @@ impl AppController {
             .map(|model| &model.selected)
     }
 
-    /// Read the active root filter mode for the current source.
-    pub(crate) fn root_folder_filter_mode_for_filter(&self) -> Option<RootFolderFilterMode> {
+    /// Read the active folder file-scope mode for the current source.
+    pub(crate) fn folder_file_scope_mode_for_filter(&self) -> Option<FolderFileScopeMode> {
         let id = self.selection_state.ctx.selected_source.as_ref()?;
         self.ui_cache
             .folders
             .models
             .get(id)
-            .map(|model| model.root_filter_mode)
+            .map(|model| model.file_scope_mode)
     }
 
     pub(crate) fn folder_negation_for_filter(&self) -> Option<&BTreeSet<PathBuf>> {
@@ -35,10 +35,8 @@ impl AppController {
     pub(crate) fn folder_filter_accepts(&self, relative_path: &Path) -> bool {
         let selection = self.folder_selection_for_filter();
         let negated = self.folder_negation_for_filter();
-        let root_mode = self
-            .root_folder_filter_mode_for_filter()
-            .unwrap_or_default();
-        folder_filter_accepts(relative_path, selection, negated, root_mode)
+        let file_scope_mode = self.folder_file_scope_mode_for_filter().unwrap_or_default();
+        folder_filter_accepts(relative_path, selection, negated, file_scope_mode)
     }
 }
 
@@ -46,40 +44,23 @@ pub(crate) fn folder_filter_accepts(
     relative_path: &Path,
     selection: Option<&BTreeSet<PathBuf>>,
     negated: Option<&BTreeSet<PathBuf>>,
-    root_mode: RootFolderFilterMode,
+    file_scope_mode: FolderFileScopeMode,
 ) -> bool {
     let has_selection = selection.is_some_and(|set| !set.is_empty());
     if has_selection {
         let selection = selection.expect("checked above");
-        let root_selected = selection.contains(Path::new(""));
-        let selected = if root_selected {
-            match root_mode {
-                RootFolderFilterMode::AllDescendants => true,
-                RootFolderFilterMode::RootOnly => {
-                    let in_root = relative_path
-                        .parent()
-                        .unwrap_or(Path::new(""))
-                        .as_os_str()
-                        .is_empty();
-                    let in_selected_folder = selection
-                        .iter()
-                        .filter(|folder| !folder.as_os_str().is_empty())
-                        .any(|folder| relative_path.starts_with(folder));
-                    in_root || in_selected_folder
-                }
-            }
-        } else {
-            selection
-                .iter()
-                .filter(|folder| !folder.as_os_str().is_empty())
-                .any(|folder| relative_path.starts_with(folder))
-        };
+        let selected = selection
+            .iter()
+            .any(|folder| relative_path_matches_scope(relative_path, folder, file_scope_mode));
         if !selected {
             return false;
         }
     }
     let excluded = negated
-        .map(|set| is_negated_relative_path(relative_path, set))
+        .map(|set| {
+            set.iter()
+                .any(|folder| relative_path_matches_scope(relative_path, folder, file_scope_mode))
+        })
         .unwrap_or(false);
     !excluded
 }
@@ -88,9 +69,9 @@ pub(crate) fn folder_filter_accepts(
 pub(crate) fn folder_filter_fingerprint(
     selection: Option<&BTreeSet<PathBuf>>,
     negated: Option<&BTreeSet<PathBuf>>,
-    root_mode: RootFolderFilterMode,
+    file_scope_mode: FolderFileScopeMode,
 ) -> u64 {
-    hash_value(&(selection, negated, root_mode_key(root_mode)))
+    hash_value(&(selection, negated, file_scope_mode_key(file_scope_mode)))
 }
 
 /// Build folder-filter acceptance values for a path stream in source order.
@@ -98,13 +79,14 @@ pub(crate) fn build_folder_filter_acceptance_map<'a>(
     relative_paths: impl IntoIterator<Item = Option<&'a Path>>,
     selection: Option<&BTreeSet<PathBuf>>,
     negated: Option<&BTreeSet<PathBuf>>,
-    root_mode: RootFolderFilterMode,
+    file_scope_mode: FolderFileScopeMode,
 ) -> Vec<bool> {
     relative_paths
         .into_iter()
         .map(|relative_path| {
-            relative_path
-                .is_some_and(|path| folder_filter_accepts(path, selection, negated, root_mode))
+            relative_path.is_some_and(|path| {
+                folder_filter_accepts(path, selection, negated, file_scope_mode)
+            })
         })
         .collect()
 }
@@ -113,7 +95,7 @@ pub(crate) fn build_folder_filter_acceptance_map<'a>(
 pub(crate) fn folder_filters_active(
     selection: Option<&BTreeSet<PathBuf>>,
     negated: Option<&BTreeSet<PathBuf>>,
-    root_mode: RootFolderFilterMode,
+    file_scope_mode: FolderFileScopeMode,
 ) -> bool {
     let has_negation = negated.is_some_and(|set| !set.is_empty());
     if has_negation {
@@ -126,33 +108,31 @@ pub(crate) fn folder_filters_active(
         return false;
     }
     let root_selected = selection.contains(Path::new(""));
-    if root_selected && root_mode == RootFolderFilterMode::AllDescendants {
+    if root_selected && file_scope_mode == FolderFileScopeMode::AllDescendants {
         return false;
     }
     true
 }
 
-fn is_negated_relative_path(relative_path: &Path, negated: &BTreeSet<PathBuf>) -> bool {
-    if negated.is_empty() {
-        return false;
-    }
-    let root_negated = negated.contains(Path::new(""));
-    if root_negated {
-        let parent = relative_path.parent().unwrap_or(Path::new(""));
-        if parent.as_os_str().is_empty() {
-            return true;
+fn relative_path_matches_scope(
+    relative_path: &Path,
+    folder: &Path,
+    file_scope_mode: FolderFileScopeMode,
+) -> bool {
+    match file_scope_mode {
+        FolderFileScopeMode::DirectOnly => {
+            relative_path.parent().unwrap_or(Path::new("")) == folder
+        }
+        FolderFileScopeMode::AllDescendants => {
+            folder.as_os_str().is_empty() || relative_path.starts_with(folder)
         }
     }
-    negated
-        .iter()
-        .filter(|folder| !folder.as_os_str().is_empty())
-        .any(|folder| relative_path.starts_with(folder))
 }
 
-fn root_mode_key(mode: RootFolderFilterMode) -> u8 {
+fn file_scope_mode_key(mode: FolderFileScopeMode) -> u8 {
     match mode {
-        RootFolderFilterMode::AllDescendants => 0,
-        RootFolderFilterMode::RootOnly => 1,
+        FolderFileScopeMode::DirectOnly => 0,
+        FolderFileScopeMode::AllDescendants => 1,
     }
 }
 
@@ -167,15 +147,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn folder_filter_fingerprint_changes_with_root_mode() {
+    fn folder_filter_fingerprint_changes_with_file_scope_mode() {
         let selection = BTreeSet::from([PathBuf::from("")]);
 
-        let all =
-            folder_filter_fingerprint(Some(&selection), None, RootFolderFilterMode::AllDescendants);
-        let root_only =
-            folder_filter_fingerprint(Some(&selection), None, RootFolderFilterMode::RootOnly);
+        let direct_only =
+            folder_filter_fingerprint(Some(&selection), None, FolderFileScopeMode::DirectOnly);
+        let all_descendants =
+            folder_filter_fingerprint(Some(&selection), None, FolderFileScopeMode::AllDescendants);
 
-        assert_ne!(all, root_only);
+        assert_ne!(direct_only, all_descendants);
     }
 
     #[test]
@@ -193,9 +173,28 @@ mod tests {
             paths,
             Some(&selection),
             Some(&negated),
-            RootFolderFilterMode::RootOnly,
+            FolderFileScopeMode::DirectOnly,
         );
 
         assert_eq!(accepts, vec![true, true, false, false]);
+    }
+
+    #[test]
+    fn build_folder_filter_acceptance_map_includes_descendants_when_flattened() {
+        let selection = BTreeSet::from([PathBuf::from("drums")]);
+        let paths = [
+            Some(Path::new("drums/root.wav")),
+            Some(Path::new("drums/kicks/deep.wav")),
+            Some(Path::new("bass/sub.wav")),
+        ];
+
+        let accepts = build_folder_filter_acceptance_map(
+            paths,
+            Some(&selection),
+            None,
+            FolderFileScopeMode::AllDescendants,
+        );
+
+        assert_eq!(accepts, vec![true, true, false]);
     }
 }

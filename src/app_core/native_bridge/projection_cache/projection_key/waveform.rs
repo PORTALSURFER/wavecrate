@@ -39,6 +39,7 @@ pub(super) fn build_waveform_projection_key(
         waveform_channel_view: encode_waveform_channel_view(controller),
         waveform_normalized_audition_enabled: controller.ui.waveform.normalized_audition_enabled,
         waveform_bpm_snap_enabled: controller.ui.waveform.bpm_snap_enabled,
+        waveform_relative_bpm_grid_enabled: controller.ui.waveform.relative_bpm_grid_enabled,
         waveform_transient_snap_enabled: controller.ui.waveform.transient_snap_enabled,
         waveform_transient_markers_enabled: controller.ui.waveform.transient_markers_enabled,
         waveform_slice_mode_enabled: controller.ui.waveform.slice_mode_enabled,

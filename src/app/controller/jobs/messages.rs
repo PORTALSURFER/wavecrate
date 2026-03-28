@@ -46,7 +46,7 @@ pub(crate) struct SearchJob {
     pub(crate) similar_query: Option<crate::app::state::SimilarQuery>,
     pub(crate) folder_selection: Option<BTreeSet<PathBuf>>,
     pub(crate) folder_negated: Option<BTreeSet<PathBuf>>,
-    pub(crate) root_mode: crate::app::state::RootFolderFilterMode,
+    pub(crate) file_scope_mode: crate::app::state::FolderFileScopeMode,
 }
 
 #[derive(Debug)]

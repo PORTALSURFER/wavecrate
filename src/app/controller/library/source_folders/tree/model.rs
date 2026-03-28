@@ -40,8 +40,8 @@ pub(crate) struct FolderBrowserModel {
     pub(crate) disk_refresh_in_progress: bool,
     /// Assigned hotkey slots mapped to folder paths.
     pub(crate) hotkeys: BTreeMap<u8, PathBuf>,
-    /// Root selection filter mode.
-    pub(crate) root_filter_mode: crate::app::state::RootFolderFilterMode,
+    /// Folder file-scope mode for browser filtering.
+    pub(crate) file_scope_mode: crate::app::state::FolderFileScopeMode,
 }
 
 impl Default for FolderBrowserModel {
@@ -61,7 +61,7 @@ impl Default for FolderBrowserModel {
             disk_folders: BTreeSet::new(),
             disk_refresh_in_progress: false,
             hotkeys: BTreeMap::new(),
-            root_filter_mode: crate::app::state::RootFolderFilterMode::default(),
+            file_scope_mode: crate::app::state::FolderFileScopeMode::default(),
         }
     }
 }
