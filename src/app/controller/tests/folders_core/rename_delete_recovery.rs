@@ -46,6 +46,13 @@ fn start_folder_rename_creates_inline_edit_with_select_all() -> Result<(), Strin
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
     let folder = source.root.join("folder");
     std::fs::create_dir_all(&folder).unwrap();
+    write_test_wav(&folder.join("clip.wav"), &[0.1, -0.1]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "folder/clip.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
     controller.refresh_folder_browser_for_tests();
     let focus_row = controller
         .ui

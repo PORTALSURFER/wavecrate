@@ -1,7 +1,7 @@
 use super::support::*;
 
 #[test]
-fn folder_browser_defaults_to_showing_empty_disk_folders() -> Result<(), String> {
+fn folder_browser_defaults_to_hiding_empty_disk_folders() -> Result<(), String> {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -19,7 +19,7 @@ fn folder_browser_defaults_to_showing_empty_disk_folders() -> Result<(), String>
 
     controller.refresh_folder_browser_for_tests();
 
-    assert!(controller.ui.sources.folders.show_all_folders);
+    assert!(!controller.ui.sources.folders.show_all_folders);
     assert!(
         controller
             .ui
@@ -27,13 +27,13 @@ fn folder_browser_defaults_to_showing_empty_disk_folders() -> Result<(), String>
             .folders
             .rows
             .iter()
-            .any(|row| row.path == PathBuf::from("drums/empty"))
+            .all(|row| row.path != PathBuf::from("drums/empty"))
     );
     Ok(())
 }
 
 #[test]
-fn toggling_folder_visibility_hides_and_restores_empty_folders() -> Result<(), String> {
+fn toggling_folder_visibility_shows_and_rehides_empty_folders() -> Result<(), String> {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -52,7 +52,7 @@ fn toggling_folder_visibility_hides_and_restores_empty_folders() -> Result<(), S
 
     controller.toggle_show_all_folders();
 
-    assert!(!controller.ui.sources.folders.show_all_folders);
+    assert!(controller.ui.sources.folders.show_all_folders);
     assert!(
         controller
             .ui
@@ -60,7 +60,7 @@ fn toggling_folder_visibility_hides_and_restores_empty_folders() -> Result<(), S
             .folders
             .rows
             .iter()
-            .all(|row| row.path != PathBuf::from("drums/empty"))
+            .any(|row| row.path == PathBuf::from("drums/empty"))
     );
     assert!(
         controller
@@ -74,7 +74,7 @@ fn toggling_folder_visibility_hides_and_restores_empty_folders() -> Result<(), S
 
     controller.toggle_show_all_folders();
 
-    assert!(controller.ui.sources.folders.show_all_folders);
+    assert!(!controller.ui.sources.folders.show_all_folders);
     assert!(
         controller
             .ui
@@ -82,7 +82,7 @@ fn toggling_folder_visibility_hides_and_restores_empty_folders() -> Result<(), S
             .folders
             .rows
             .iter()
-            .any(|row| row.path == PathBuf::from("drums/empty"))
+            .all(|row| row.path != PathBuf::from("drums/empty"))
     );
     Ok(())
 }

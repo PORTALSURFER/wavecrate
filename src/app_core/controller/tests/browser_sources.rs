@@ -17,6 +17,20 @@ fn browser_test_sample_entry(
     }
 }
 
+fn browser_test_write_wav(path: &std::path::Path, samples: &[f32]) {
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: 8,
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
+    };
+    let mut writer = hound::WavWriter::create(path, spec).expect("create wav fixture");
+    for sample in samples {
+        writer.write_sample(*sample).expect("write wav sample");
+    }
+    writer.finalize().expect("finalize wav fixture");
+}
+
 #[test]
 fn apply_native_browser_normalize_routes_to_hotkey_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
@@ -46,11 +60,24 @@ fn focus_folder_row_action_replaces_folder_selection() {
     if let Err(err) = std::fs::create_dir_all(source_root.join(&folder_path)) {
         panic!("failed to create folder fixture: {err}");
     }
+    let sample_path = source_root.join(folder_path.join("clip.wav"));
+    if let Some(parent) = sample_path.parent()
+        && let Err(err) = std::fs::create_dir_all(parent)
+    {
+        panic!("failed to create sample fixture directory: {err}");
+    }
+    browser_test_write_wav(&sample_path, &[0.1, -0.1]);
 
     if let Err(err) = controller.add_source_from_path(source_root) {
         panic!("failed to add source from path: {err}");
     }
     controller.select_source_by_index(0);
+    controller.set_wav_entries_for_tests(vec![browser_test_sample_entry(
+        "drums/clip.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
     controller.refresh_folder_browser_for_tests();
 
     let row_index = match controller
@@ -84,8 +111,15 @@ fn activate_folder_row_action_selects_and_toggles_expansion() {
     let folder_path = PathBuf::from("drums");
     let nested_path = folder_path.join("kicks");
     std::fs::create_dir_all(source_root.join(&nested_path)).unwrap();
+    browser_test_write_wav(&source_root.join(nested_path.join("tight.wav")), &[0.1, -0.1]);
     controller.add_source_from_path(source_root).unwrap();
     controller.select_source_by_index(0);
+    controller.set_wav_entries_for_tests(vec![browser_test_sample_entry(
+        "drums/kicks/tight.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
     controller.refresh_folder_browser_for_tests();
 
     let row_index = controller
@@ -235,8 +269,15 @@ fn focus_folder_panel_preserves_existing_folder_selection() {
     let source_root = dir.path().join("source");
     let folder_path = PathBuf::from("drums");
     std::fs::create_dir_all(source_root.join(&folder_path)).unwrap();
+    browser_test_write_wav(&source_root.join(folder_path.join("clip.wav")), &[0.1, -0.1]);
     controller.add_source_from_path(source_root).unwrap();
     controller.select_source_by_index(0);
+    controller.set_wav_entries_for_tests(vec![browser_test_sample_entry(
+        "drums/clip.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
     controller.refresh_folder_browser_for_tests();
     let row_index = controller
         .ui
@@ -275,7 +316,9 @@ fn toggle_show_all_folders_action_updates_folder_tree_mode() {
     let source_root = dir.path().join("source");
     std::fs::create_dir_all(source_root.join("drums/empty")).unwrap();
     std::fs::create_dir_all(source_root.join("drums/kicks")).unwrap();
-    controller.add_source_from_path(source_root.clone()).unwrap();
+    controller
+        .add_source_from_path(source_root.clone())
+        .unwrap();
     controller.select_source_by_index(0);
     controller.set_wav_entries_for_tests(vec![browser_test_sample_entry(
         "drums/kicks/tight.wav",
@@ -284,19 +327,6 @@ fn toggle_show_all_folders_action_updates_folder_tree_mode() {
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
     controller.refresh_folder_browser_for_tests();
-
-    assert!(controller.ui.sources.folders.show_all_folders);
-    assert!(
-        controller
-            .ui
-            .sources
-            .folders
-            .rows
-            .iter()
-            .any(|row| row.path == PathBuf::from("drums/empty"))
-    );
-
-    controller.apply_native_ui_action(NativeUiAction::ToggleShowAllFolders);
 
     assert!(!controller.ui.sources.folders.show_all_folders);
     assert!(
@@ -307,6 +337,19 @@ fn toggle_show_all_folders_action_updates_folder_tree_mode() {
             .rows
             .iter()
             .all(|row| row.path != PathBuf::from("drums/empty"))
+    );
+
+    controller.apply_native_ui_action(NativeUiAction::ToggleShowAllFolders);
+
+    assert!(controller.ui.sources.folders.show_all_folders);
+    assert!(
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .any(|row| row.path == PathBuf::from("drums/empty"))
     );
 }
 

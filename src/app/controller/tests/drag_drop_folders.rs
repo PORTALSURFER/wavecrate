@@ -324,6 +324,7 @@ fn apply_folder_move_result_remaps_folder_state_and_focuses_destination() {
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
     controller.refresh_folder_browser_for_tests();
+    controller.toggle_show_all_folders();
 
     {
         let model = controller.current_folder_model_mut().unwrap();

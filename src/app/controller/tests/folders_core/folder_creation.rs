@@ -38,7 +38,7 @@ fn folder_browser_includes_root_entry() {
 }
 
 #[test]
-fn folder_browser_lists_empty_folders() {
+fn folder_browser_hides_empty_folders_by_default() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -53,7 +53,7 @@ fn folder_browser_lists_empty_folders() {
             .folders
             .rows
             .iter()
-            .any(|row| row.path == PathBuf::from("empty"))
+            .all(|row| row.path != PathBuf::from("empty"))
     );
 }
 

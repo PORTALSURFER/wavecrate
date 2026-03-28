@@ -70,7 +70,7 @@ impl Default for FolderBrowserUiState {
             scroll_to: None,
             last_focused_path: None,
             search_query: String::new(),
-            show_all_folders: true,
+            show_all_folders: false,
             search_focus_requested: false,
             pending_action: None,
             inline_edit: None,
