@@ -5,6 +5,24 @@ use crate::selection::SelectionEdge;
 use rusqlite::params;
 use std::path::Path;
 
+fn bpm_snapped_controller_with_selection(selection: SelectionRange) -> AppController {
+    let (mut controller, source) = dummy_controller();
+    let samples = vec![0.0; 32];
+    load_waveform_selection(
+        &mut controller,
+        &source,
+        "selection_snap_override.wav",
+        &samples,
+        selection,
+    );
+    controller.selection_state.range.set_range(Some(selection));
+    controller.apply_selection(Some(selection));
+    controller.set_bpm_snap_enabled(true);
+    controller.set_bpm_value(120.0);
+    controller.ui.waveform.bpm_input = "120".to_string();
+    controller
+}
+
 #[test]
 fn alt_drag_scales_selection_and_recalculates_bpm() {
     let (mut controller, source) = dummy_controller();
@@ -172,6 +190,53 @@ fn shift_resizedrag_overrides_bpm_snapping() {
 
     let updated = controller.ui.waveform.selection.unwrap();
     assert_eq!(updated, SelectionRange::new(0.0, 0.73));
+}
+
+#[test]
+fn snap_override_keeps_create_drag_free_when_bpm_snap_is_enabled() {
+    let (mut controller, source) = dummy_controller();
+    let samples = vec![0.0; 32];
+    load_waveform_selection(
+        &mut controller,
+        &source,
+        "free_create_drag.wav",
+        &samples,
+        SelectionRange::new(0.0, 1.0),
+    );
+    controller.set_bpm_snap_enabled(true);
+    controller.set_bpm_value(120.0);
+    controller.ui.waveform.bpm_input = "120".to_string();
+
+    controller.set_waveform_selection_range_micros_with_drag_policy(310_000, 440_000, true, false);
+
+    assert_eq!(
+        controller.ui.waveform.selection,
+        Some(SelectionRange::new(0.31, 0.44))
+    );
+}
+
+#[test]
+fn snap_override_keeps_resize_drag_free_when_bpm_snap_is_enabled() {
+    let mut controller = bpm_snapped_controller_with_selection(SelectionRange::new(0.0, 0.5));
+
+    controller.set_waveform_selection_range_micros_with_drag_policy(0, 730_000, true, false);
+
+    assert_eq!(
+        controller.ui.waveform.selection,
+        Some(SelectionRange::new(0.0, 0.73))
+    );
+}
+
+#[test]
+fn snap_override_keeps_translated_drag_free_when_bpm_snap_is_enabled() {
+    let mut controller = bpm_snapped_controller_with_selection(SelectionRange::new(0.2, 0.4));
+
+    controller.set_waveform_selection_range_micros_with_drag_policy(260_000, 460_000, true, false);
+
+    assert_eq!(
+        controller.ui.waveform.selection,
+        Some(SelectionRange::new(0.26, 0.46))
+    );
 }
 
 #[test]

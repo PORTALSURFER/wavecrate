@@ -205,6 +205,27 @@ fn waveform_action_queue_keeps_smart_scale_selection_as_view_action() {
     );
 }
 
+#[test]
+fn waveform_action_queue_preserves_selection_snap_override() {
+    let mut queue = PendingWaveformActions::default();
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformSelectionRange {
+        start_micros: 120_000,
+        end_micros: 640_000,
+        snap_override: true,
+        preserve_view_edge: false,
+    }));
+
+    assert_eq!(
+        queue.selection_action(),
+        Some(NativeUiAction::SetWaveformSelectionRange {
+            start_micros: 120_000,
+            end_micros: 640_000,
+            snap_override: true,
+            preserve_view_edge: false,
+        })
+    );
+}
+
 /// Edit-selection actions are applied immediately and must not be coalesced.
 #[test]
 fn waveform_action_queue_does_not_absorb_edit_selection_actions() {

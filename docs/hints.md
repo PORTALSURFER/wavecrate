@@ -6,6 +6,7 @@
 - Loop from selection: Enable loop to keep playback inside the current selection.
 - Selection nudge: Use arrow keys to nudge a selection and keep timing tight.
 - BPM snapping: Turn on BPM snap to align selections to the beat grid.
+- Hold Alt while dragging a playback selection to bypass BPM snapping until you release Alt again.
 - Transient snapping: Enable transient snap to grab onsets when slicing samples.
 - Silence split: Click Silence Split, then use Left/Right to review slices, Space to audition, A to mark, and E to export only the marked `_silence_split_###.wav` samples.
 - Batch triage: Multi-select samples to apply keep/trash tags in one action.
