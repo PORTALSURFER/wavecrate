@@ -8,10 +8,14 @@ pub(super) fn snap_waveform_selection_range_micros(
     start_micros: u32,
     end_micros: u32,
     existing_range: Option<SelectionRange>,
+    snap_override: bool,
     preserve_view_edge: bool,
 ) -> (u32, u32) {
     let mut start = start_micros.min(1_000_000);
     let mut end = end_micros.min(1_000_000);
+    if snap_override {
+        return (start, end);
+    }
     let relative_grid_enabled = controller.ui.waveform.relative_bpm_grid_enabled;
     let Some(step) = waveform_bpm_snap_step(controller) else {
         return (start, end);

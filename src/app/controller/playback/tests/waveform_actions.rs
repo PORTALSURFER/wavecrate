@@ -138,6 +138,7 @@ fn native_waveform_selection_update_does_not_snap_to_visible_playhead() {
     controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
         start_micros: 300_000,
         end_micros: 350_000,
+        snap_override: false,
         preserve_view_edge: false,
     });
 
@@ -358,7 +359,7 @@ fn set_waveform_selection_range_milli_preserves_left_view_edge_when_requested() 
     controller.selection_state.range.set_range(Some(range));
     controller.ui.waveform.selection = Some(range);
 
-    controller.set_waveform_selection_range_milli_with_edge_policy(500, 180, true);
+    controller.set_waveform_selection_range_milli_with_drag_policy(500, 180, false, true);
 
     let updated = controller
         .ui

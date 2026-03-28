@@ -51,32 +51,36 @@ impl AppController {
 
     /// Set waveform selection range using 0..=1000 milli positions from UI actions.
     pub fn set_waveform_selection_range_milli(&mut self, start_milli: u16, end_milli: u16) {
-        self.set_waveform_selection_range_micros_with_edge_policy(
+        self.set_waveform_selection_range_micros_with_drag_policy(
             micros_from_milli(start_milli),
             micros_from_milli(end_milli),
+            false,
             false,
         );
     }
 
-    /// Set waveform selection range from UI milli positions with optional view-edge pinning.
-    pub(crate) fn set_waveform_selection_range_milli_with_edge_policy(
+    /// Set waveform selection range from UI milli positions with drag-specific snap policies.
+    pub(crate) fn set_waveform_selection_range_milli_with_drag_policy(
         &mut self,
         start_milli: u16,
         end_milli: u16,
+        snap_override: bool,
         preserve_view_edge: bool,
     ) {
-        self.set_waveform_selection_range_micros_with_edge_policy(
+        self.set_waveform_selection_range_micros_with_drag_policy(
             micros_from_milli(start_milli),
             micros_from_milli(end_milli),
+            snap_override,
             preserve_view_edge,
         );
     }
 
-    /// Set waveform selection range from UI micro positions with optional view-edge pinning.
-    pub(crate) fn set_waveform_selection_range_micros_with_edge_policy(
+    /// Set waveform selection range from UI micro positions with drag-specific snap policies.
+    pub(crate) fn set_waveform_selection_range_micros_with_drag_policy(
         &mut self,
         start_micros: u32,
         end_micros: u32,
+        snap_override: bool,
         preserve_view_edge: bool,
     ) {
         // Fresh create-drags keep any old selection visible until motion begins,
@@ -92,6 +96,7 @@ impl AppController {
             start_micros,
             end_micros,
             existing_range,
+            snap_override,
             preserve_view_edge,
         );
         let next_range = selection_range_from_micros(start_micros, end_micros);

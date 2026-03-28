@@ -119,6 +119,7 @@ fn apply_native_waveform_selection_range_finish_commits_one_undo_step() {
     controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
         start_micros: 200_000,
         end_micros: 700_000,
+        snap_override: false,
         preserve_view_edge: false,
     });
     controller.apply_native_ui_action(NativeUiAction::FinishWaveformSelectionRangeDrag);
@@ -214,6 +215,7 @@ fn no_op_waveform_selection_range_drag_does_not_create_undo_entry() {
     controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
         start_micros: 200_000,
         end_micros: 600_000,
+        snap_override: false,
         preserve_view_edge: false,
     });
     controller.apply_native_ui_action(NativeUiAction::FinishWaveformSelectionRangeDrag);

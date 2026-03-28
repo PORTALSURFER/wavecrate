@@ -44,6 +44,8 @@ pub(super) struct PendingWaveformActions {
     pub(super) selection_range_micros: Option<(u32, u32)>,
     /// Whether the queued selection range should preserve an out-of-bounds view edge.
     pub(super) selection_preserve_view_edge: bool,
+    /// Whether the queued selection range should bypass BPM snapping.
+    pub(super) selection_snap_override: bool,
     /// Whether the queued selection range should recompute BPM from a 4-beat span.
     pub(super) selection_smart_scale: bool,
     /// Whether selection should be cleared when no range override is queued.
@@ -95,10 +97,12 @@ impl PendingWaveformActions {
             NativeUiAction::SetWaveformSelectionRange {
                 start_micros,
                 end_micros,
+                snap_override,
                 preserve_view_edge,
             } => {
                 self.selection_range_micros = Some((*start_micros, *end_micros));
                 self.selection_preserve_view_edge = *preserve_view_edge;
+                self.selection_snap_override = *snap_override;
                 self.selection_smart_scale = false;
                 self.clear_selection = false;
                 true
@@ -109,6 +113,7 @@ impl PendingWaveformActions {
             } => {
                 self.selection_range_micros = Some((*start_micros, *end_micros));
                 self.selection_preserve_view_edge = false;
+                self.selection_snap_override = false;
                 self.selection_smart_scale = true;
                 self.clear_selection = false;
                 true
@@ -116,6 +121,7 @@ impl PendingWaveformActions {
             NativeUiAction::ClearWaveformSelection => {
                 self.selection_range_micros = None;
                 self.selection_preserve_view_edge = false;
+                self.selection_snap_override = false;
                 self.selection_smart_scale = false;
                 self.clear_selection = true;
                 true
@@ -221,6 +227,7 @@ impl PendingWaveformActions {
                 NativeUiAction::SetWaveformSelectionRange {
                     start_micros,
                     end_micros,
+                    snap_override: self.selection_snap_override,
                     preserve_view_edge: self.selection_preserve_view_edge,
                 }
             });

@@ -43,6 +43,7 @@ fn native_waveform_selection_update_retargets_loop_playback_after_cycle() {
     controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
         start_micros: 200_000,
         end_micros: 600_000,
+        snap_override: false,
         preserve_view_edge: false,
     });
 

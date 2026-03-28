@@ -60,6 +60,7 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
     assert!(queue.enqueue(&NativeUiAction::SetWaveformSelectionRange {
         start_micros: 120_000,
         end_micros: 640_000,
+        snap_override: false,
         preserve_view_edge: false,
     }));
     assert!(queue.enqueue(&NativeUiAction::SetWaveformViewCenter {
@@ -87,6 +88,7 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
             NativeUiAction::SetWaveformSelectionRange {
                 start_micros: 120_000,
                 end_micros: 640_000,
+                snap_override: false,
                 preserve_view_edge: false,
             },
             NativeUiAction::SetWaveformViewCenter {
@@ -175,6 +177,7 @@ fn waveform_action_queue_selection_range_overrides_clear() {
     assert!(queue.enqueue(&NativeUiAction::SetWaveformSelectionRange {
         start_micros: 120_000,
         end_micros: 400_000,
+        snap_override: false,
         preserve_view_edge: false,
     }));
     assert!(!queue.clear_selection);

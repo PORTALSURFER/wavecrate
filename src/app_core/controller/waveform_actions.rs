@@ -83,10 +83,12 @@ pub(super) fn apply_waveform_native_ui_action(
         NativeUiAction::SetWaveformSelectionRange {
             start_micros,
             end_micros,
+            snap_override,
             preserve_view_edge,
-        } => controller.set_waveform_selection_range_micros_with_edge_policy(
+        } => controller.set_waveform_selection_range_micros_with_drag_policy(
             start_micros,
             end_micros,
+            snap_override,
             preserve_view_edge,
         ),
         NativeUiAction::SetWaveformSelectionRangeSmartScale {
