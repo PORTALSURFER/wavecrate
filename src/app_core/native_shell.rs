@@ -212,6 +212,12 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         waveform_view_end_micros: waveform_projection::normalized64_to_micros(
             controller.ui.waveform.view.end,
         ),
+        waveform_view_start_nanos: waveform_projection::normalized64_to_nanos(
+            controller.ui.waveform.view.start,
+        ),
+        waveform_view_end_nanos: waveform_projection::normalized64_to_nanos(
+            controller.ui.waveform.view.end,
+        ),
         waveform_tempo_label: controller
             .ui
             .waveform
