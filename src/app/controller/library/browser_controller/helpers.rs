@@ -212,23 +212,6 @@ impl BrowserController<'_> {
         Ok(())
     }
 
-    pub(crate) fn try_remove_dead_link_browser_sample_ctx(
-        &mut self,
-        ctx: &TriageSampleContext,
-    ) -> Result<(), String> {
-        let db = self
-            .database_for(&ctx.source)
-            .map_err(|err| format!("Database unavailable: {err}"))?;
-        db.remove_file(&ctx.entry.relative_path)
-            .map_err(|err| format!("Failed to drop database row: {err}"))?;
-        self.prune_cached_sample(&ctx.source, &ctx.entry.relative_path);
-        self.set_status(
-            format!("Removed dead link {}", ctx.entry.relative_path.display()),
-            StatusTone::Info,
-        );
-        Ok(())
-    }
-
     pub(crate) fn try_rename_browser_sample(
         &mut self,
         row: usize,

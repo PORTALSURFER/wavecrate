@@ -1,4 +1,4 @@
-use super::super::test_support::dummy_controller;
+use super::super::test_support::{dummy_controller, sample_entry};
 use super::super::*;
 use crate::sample_sources::SourceDatabase;
 use std::collections::HashMap;
@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
 #[test]
-fn selecting_missing_sample_sets_waveform_notice() {
+fn selecting_legacy_missing_sample_prunes_it_and_sets_waveform_notice() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -14,7 +14,7 @@ fn selecting_missing_sample_sets_waveform_notice() {
         relative_path: PathBuf::from("one.wav"),
         file_size: 1,
         modified_ns: 1,
-        content_hash: None,
+        content_hash: Some(String::from("hash-one")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
         locked: false,
@@ -35,10 +35,17 @@ fn selecting_missing_sample_sets_waveform_notice() {
             .is_some_and(|msg| msg.contains("one.wav"))
     );
     assert!(controller.sample_view.wav.loaded_audio.is_none());
+    assert!(
+        controller
+            .wav_index_for_path(Path::new("one.wav"))
+            .is_none()
+    );
+    let db = controller.database_for(&source).unwrap();
+    assert!(db.entry_for_path(Path::new("one.wav")).unwrap().is_none());
 }
 
 #[test]
-fn read_failure_marks_sample_missing() {
+fn read_failure_prunes_sample_row() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -47,7 +54,7 @@ fn read_failure_marks_sample_missing() {
         relative_path: rel.clone(),
         file_size: 1,
         modified_ns: 1,
-        content_hash: None,
+        content_hash: Some(String::from("hash-gone")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
         locked: false,
@@ -61,20 +68,14 @@ fn read_failure_marks_sample_missing() {
         .load_waveform_for_selection(&source, &rel)
         .unwrap_err();
     assert!(err.contains("Failed to read"));
-    assert!(controller.sample_missing(&source.id, &rel));
-    assert!(controller.wav_entry(0).unwrap().missing);
-    assert!(
-        controller
-            .library
-            .missing
-            .wavs
-            .get(&source.id)
-            .is_some_and(|set| set.contains(&rel))
-    );
+    assert!(controller.wav_index_for_path(&rel).is_none());
+    assert_eq!(controller.visible_browser_len(), 0);
+    let db = controller.database_for(&source).unwrap();
+    assert!(db.entry_for_path(&rel).unwrap().is_none());
 }
 
 #[test]
-fn apply_wav_entries_updates_missing_lookup() {
+fn apply_wav_entries_clears_file_missing_lookup_for_present_sources() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -84,58 +85,18 @@ fn apply_wav_entries_updates_missing_lookup() {
         .analysis_failures
         .insert(source.id.clone(), HashMap::new());
     controller.cache_db(&source).unwrap();
-    let db = controller.database_for(&source).unwrap();
-    let mut batch = db.write_batch().unwrap();
-    batch
-        .upsert_file_with_hash_and_tag(
-            Path::new("alive.wav"),
-            1,
-            1,
-            "h1",
-            crate::sample_sources::Rating::NEUTRAL,
-            false,
-        )
-        .unwrap();
-    batch
-        .upsert_file_with_hash_and_tag(
-            Path::new("gone.wav"),
-            1,
-            1,
-            "h2",
-            crate::sample_sources::Rating::NEUTRAL,
-            true,
-        )
-        .unwrap();
-    batch.commit().unwrap();
-    let entries = vec![
-        WavEntry {
-            relative_path: PathBuf::from("alive.wav"),
-            file_size: 1,
-            modified_ns: 1,
-            content_hash: None,
-            tag: crate::sample_sources::Rating::NEUTRAL,
-            looped: false,
-            locked: false,
-            missing: false,
-            last_played_at: None,
-        },
-        WavEntry {
-            relative_path: PathBuf::from("gone.wav"),
-            file_size: 1,
-            modified_ns: 1,
-            content_hash: None,
-            tag: crate::sample_sources::Rating::NEUTRAL,
-            looped: false,
-            locked: false,
-            missing: true,
-            last_played_at: None,
-        },
-    ];
+    controller.library.missing.wavs.insert(
+        source.id.clone(),
+        [PathBuf::from("gone.wav")].into_iter().collect(),
+    );
 
     controller.apply_wav_entries_with_params(
         crate::app::controller::ui::loading::ApplyWavEntriesParams {
-            entries,
-            total: 2,
+            entries: vec![sample_entry(
+                "alive.wav",
+                crate::sample_sources::Rating::NEUTRAL,
+            )],
+            total: 1,
             page_size: controller.wav_entries.page_size,
             page_index: 0,
             from_cache: true,
@@ -144,88 +105,11 @@ fn apply_wav_entries_updates_missing_lookup() {
         },
     );
 
-    assert!(
-        controller
-            .library
-            .missing
-            .wavs
-            .get(&source.id)
-            .is_some_and(|set| set.contains(&PathBuf::from("gone.wav")))
-    );
-    assert!(
-        !controller
-            .library
-            .missing
-            .wavs
-            .get(&source.id)
-            .is_some_and(|set| set.contains(&PathBuf::from("alive.wav")))
-    );
+    assert!(!controller.library.missing.wavs.contains_key(&source.id));
 }
 
 #[test]
-fn remove_dead_links_rebuilds_missing_state() -> Result<(), String> {
-    let temp = tempdir().unwrap();
-    let root = temp.path().join("source");
-    std::fs::create_dir_all(&root).unwrap();
-    let renderer = WaveformRenderer::new(10, 10);
-    let mut controller = AppController::new(renderer, None);
-    let source = SampleSource::new(root.clone());
-    controller.library.sources.push(source.clone());
-    controller.selection_state.ctx.selected_source = Some(source.id.clone());
-    controller.cache_db(&source).unwrap();
-    controller
-        .ui_cache
-        .browser
-        .analysis_failures
-        .insert(source.id.clone(), HashMap::new());
-
-    let db = SourceDatabase::open(&root).unwrap();
-    db.upsert_file(Path::new("alive.wav"), 1, 1).unwrap();
-    db.upsert_file(Path::new("gone.wav"), 1, 1).unwrap();
-    db.set_missing(Path::new("gone.wav"), true).unwrap();
-
-    let entries = db.list_files().unwrap();
-    controller.apply_wav_entries_with_params(
-        crate::app::controller::ui::loading::ApplyWavEntriesParams {
-            entries,
-            total: 2,
-            page_size: controller.wav_entries.page_size,
-            page_index: 0,
-            from_cache: true,
-            source_id: Some(source.id.clone()),
-            elapsed: None,
-        },
-    );
-
-    let removed = controller.remove_dead_links_for_source_entries(&source)?;
-    assert_eq!(removed, 1);
-
-    let remaining = db
-        .list_files()
-        .unwrap()
-        .iter()
-        .map(|entry| entry.relative_path.clone())
-        .collect::<Vec<_>>();
-    assert_eq!(remaining, vec![PathBuf::from("alive.wav")]);
-    assert!(
-        !controller
-            .library
-            .missing
-            .wavs
-            .get(&source.id)
-            .is_some_and(|set| set.contains(&PathBuf::from("gone.wav")))
-    );
-    let entries = controller.wav_entries.pages.get(&0).expect("entries");
-    assert!(
-        entries
-            .iter()
-            .all(|entry| entry.relative_path != PathBuf::from("gone.wav"))
-    );
-    Ok(())
-}
-
-#[test]
-fn mark_missing_updates_cache_db_and_missing_set_when_inactive() {
+fn prune_missing_sample_removes_cache_and_db_entry_when_inactive() {
     let temp = tempdir().unwrap();
     let root = temp.path().join("source");
     let other_root = temp.path().join("other");
@@ -241,7 +125,18 @@ fn mark_missing_updates_cache_db_and_missing_set_when_inactive() {
     controller.cache_db(&source).unwrap();
 
     let db = SourceDatabase::open(&root).unwrap();
-    db.upsert_file(Path::new("one.wav"), 1, 1).unwrap();
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .upsert_file_with_hash_and_tag(
+            Path::new("one.wav"),
+            1,
+            1,
+            "hash-one",
+            crate::sample_sources::Rating::KEEP_1,
+            false,
+        )
+        .unwrap();
+    batch.commit().unwrap();
     let mut cache = WavEntriesState::new(1, controller.wav_entries.page_size);
     cache.insert_page(
         0,
@@ -249,8 +144,8 @@ fn mark_missing_updates_cache_db_and_missing_set_when_inactive() {
             relative_path: PathBuf::from("one.wav"),
             file_size: 1,
             modified_ns: 1,
-            content_hash: None,
-            tag: crate::sample_sources::Rating::NEUTRAL,
+            content_hash: Some(String::from("hash-one")),
+            tag: crate::sample_sources::Rating::KEEP_1,
             looped: false,
             locked: false,
             missing: false,
@@ -263,34 +158,29 @@ fn mark_missing_updates_cache_db_and_missing_set_when_inactive() {
         .entries
         .insert(source.id.clone(), cache);
 
-    controller.mark_sample_missing(&source, Path::new("one.wav"));
-
-    let db_entries = db.list_files().unwrap();
     assert!(
-        db_entries
-            .iter()
-            .any(|entry| entry.relative_path == PathBuf::from("one.wav") && entry.missing)
+        controller
+            .prune_missing_sample(&source, Path::new("one.wav"))
+            .unwrap()
     );
+
+    assert!(db.entry_for_path(Path::new("one.wav")).unwrap().is_none());
     assert!(
         controller
             .cache
             .wav
             .entries
             .get(&source.id)
-            .is_some_and(|entries| entries.entry(0).is_some_and(|entry| entry.missing))
+            .is_some_and(|entries| entries.pages.is_empty())
     );
-    assert!(
-        controller
-            .library
-            .missing
-            .wavs
-            .get(&source.id)
-            .is_some_and(|set| set.contains(&PathBuf::from("one.wav")))
-    );
+    let pending = db.list_pending_renames().unwrap();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].relative_path, PathBuf::from("one.wav"));
+    assert_eq!(pending[0].tag, crate::sample_sources::Rating::KEEP_1);
 }
 
 #[test]
-fn mark_missing_updates_db_and_missing_set_without_cache() {
+fn prune_missing_sample_removes_db_entry_without_cache() {
     let temp = tempdir().unwrap();
     let root = temp.path().join("source");
     let other_root = temp.path().join("other");
@@ -306,23 +196,26 @@ fn mark_missing_updates_db_and_missing_set_without_cache() {
     controller.cache_db(&source).unwrap();
 
     let db = SourceDatabase::open(&root).unwrap();
-    db.upsert_file(Path::new("ghost.wav"), 1, 1).unwrap();
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .upsert_file_with_hash_and_tag(
+            Path::new("ghost.wav"),
+            1,
+            1,
+            "hash-ghost",
+            crate::sample_sources::Rating::NEUTRAL,
+            false,
+        )
+        .unwrap();
+    batch.commit().unwrap();
 
-    controller.mark_sample_missing(&source, Path::new("ghost.wav"));
-
-    let db_entries = db.list_files().unwrap();
-    assert!(
-        db_entries
-            .iter()
-            .any(|entry| entry.relative_path == PathBuf::from("ghost.wav") && entry.missing)
-    );
-    assert!(!controller.cache.wav.entries.contains_key(&source.id));
     assert!(
         controller
-            .library
-            .missing
-            .wavs
-            .get(&source.id)
-            .is_some_and(|set| set.contains(&PathBuf::from("ghost.wav")))
+            .prune_missing_sample(&source, Path::new("ghost.wav"))
+            .unwrap()
     );
+
+    assert!(db.entry_for_path(Path::new("ghost.wav")).unwrap().is_none());
+    assert!(!controller.cache.wav.entries.contains_key(&source.id));
+    assert!(controller.sample_missing(&source.id, Path::new("ghost.wav")));
 }

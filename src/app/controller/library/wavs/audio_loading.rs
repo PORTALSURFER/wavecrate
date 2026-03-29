@@ -161,7 +161,7 @@ impl AppController {
         }
         match error {
             AudioLoadError::Missing(msg) => {
-                self.mark_sample_missing(&source, &pending.relative_path);
+                let _ = self.prune_missing_sample(&source, &pending.relative_path);
                 self.show_missing_waveform_notice(&pending.relative_path);
                 self.set_status(msg, StatusTone::Warning);
             }

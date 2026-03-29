@@ -68,8 +68,6 @@ pub enum GuiActionKind {
     OpenFocusedSourceFolder,
     /// Remove the currently focused source row from the library list.
     RemoveFocusedSourceRow,
-    /// Remove dead links associated with the currently focused source row.
-    RemoveDeadLinksForFocusedSourceRow,
     /// Reload the focused source row.
     ReloadSourceRow,
     /// Force a hard sync on the focused source row.
@@ -78,8 +76,6 @@ pub enum GuiActionKind {
     OpenSourceFolderRow,
     /// Remove the focused source row from the library list.
     RemoveSourceRow,
-    /// Remove dead links associated with the focused source row.
-    RemoveDeadLinksForSourceRow,
     /// Focus one folder row directly.
     FocusFolderRow,
     /// Activate one folder row using the default row-click behavior.
@@ -356,7 +352,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 173] = [
+    pub const ALL: [Self; 171] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -388,12 +384,10 @@ impl GuiActionKind {
         Self::HardSyncFocusedSourceRow,
         Self::OpenFocusedSourceFolder,
         Self::RemoveFocusedSourceRow,
-        Self::RemoveDeadLinksForFocusedSourceRow,
         Self::ReloadSourceRow,
         Self::HardSyncSourceRow,
         Self::OpenSourceFolderRow,
         Self::RemoveSourceRow,
-        Self::RemoveDeadLinksForSourceRow,
         Self::FocusFolderRow,
         Self::ActivateFolderRow,
         Self::ToggleFolderRowExpanded,

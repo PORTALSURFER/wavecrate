@@ -128,6 +128,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         file_size: u64,
         modified_ns: i64,
     ) -> Result<(), SourceDbError> {
+        self.clear_pending_rename_for_live_path(relative_path)?;
         execute_wav_upsert(
             &self.tx,
             WavFileWriteSpec {
@@ -148,6 +149,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         file_size: u64,
         modified_ns: i64,
     ) -> Result<(), SourceDbError> {
+        self.clear_pending_rename_for_live_path(relative_path)?;
         execute_wav_upsert(
             &self.tx,
             WavFileWriteSpec {
@@ -169,6 +171,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         modified_ns: i64,
         content_hash: &str,
     ) -> Result<(), SourceDbError> {
+        self.clear_pending_rename_for_live_path(relative_path)?;
         execute_wav_upsert(
             &self.tx,
             WavFileWriteSpec {
@@ -192,6 +195,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         tag: Rating,
         missing: bool,
     ) -> Result<(), SourceDbError> {
+        self.clear_pending_rename_for_live_path(relative_path)?;
         execute_wav_upsert(
             &self.tx,
             WavFileWriteSpec {

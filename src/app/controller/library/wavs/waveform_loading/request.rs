@@ -38,7 +38,7 @@ impl AppController {
         let metadata = match self.current_file_metadata(source, relative_path) {
             Ok(meta) => meta,
             Err(err) => {
-                self.mark_sample_missing(source, relative_path);
+                let _ = self.prune_missing_sample(source, relative_path);
                 self.show_missing_waveform_notice(relative_path);
                 return Err(err);
             }
@@ -46,7 +46,7 @@ impl AppController {
         let bytes = match self.read_waveform_bytes(source, relative_path) {
             Ok(bytes) => bytes,
             Err(err) => {
-                self.mark_sample_missing(source, relative_path);
+                let _ = self.prune_missing_sample(source, relative_path);
                 self.show_missing_waveform_notice(relative_path);
                 return Err(err);
             }

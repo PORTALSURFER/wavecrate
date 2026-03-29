@@ -41,7 +41,6 @@ pub(crate) trait BrowserActions {
     fn rename_browser_sample(&mut self, row: usize, new_name: &str) -> Result<(), String>;
     fn delete_browser_sample(&mut self, row: usize) -> Result<(), String>;
     fn delete_browser_samples(&mut self, rows: &[usize]) -> Result<(), String>;
-    fn remove_dead_link_browser_samples(&mut self, rows: &[usize]) -> Result<(), String>;
 }
 
 impl BrowserActions for BrowserController<'_> {
@@ -107,9 +106,5 @@ impl BrowserActions for BrowserController<'_> {
 
     fn delete_browser_samples(&mut self, rows: &[usize]) -> Result<(), String> {
         self.delete_browser_samples_action(rows)
-    }
-
-    fn remove_dead_link_browser_samples(&mut self, rows: &[usize]) -> Result<(), String> {
-        self.remove_dead_link_browser_samples_action(rows)
     }
 }

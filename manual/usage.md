@@ -39,12 +39,12 @@ description: How to set up Sempal, triage samples, edit waveforms, and manage so
 
 ## Manage sources
 - Click **+** or drop a folder to add. Sempal creates/uses `.sempal_samples.db` and loads `.wav` entries.
-- Right-click a source row: **Quick sync**, **Hard sync (full rescan)**, **Remove dead links**, **Prepare similarity search**, similarity prep options, **Open in file explorer**, **Remap source...**, **Remove source**. Add new files outside Sempal? Run a sync.
+- Right-click a source row: **Quick sync**, **Hard sync (full rescan)**, **Prepare similarity search**, similarity prep options, **Open in file explorer**, **Remap source...**, **Remove source**. Add new files outside Sempal? Run a sync.
 - Selecting any row loads the waveform and (by default) starts playback. Missing sources are prefixed with `!`. Similarity prep starts automatically after adding a source.
 - Use the **Folders** tree to filter which subfolders appear in the Samples list. Drag samples onto folders to move files on disk.
 
 ## Browse and triage
-- Filter chips (All/Keep/Trash/Untagged) change the visible list. Rows show number columns and right-edge keep/trash markers; missing files show `!`.
+- Filter chips (All/Keep/Trash/Untagged) change the visible list. Rows show number columns and right-edge keep/trash markers.
 - Search box performs fuzzy matching within the current filter; clear to restore the full list.
 - Dice button in the browser toolbar: click 🎲 to play a random visible sample; **Shift + click** toggles sticky random navigation (same as `Alt + R`).
 - Selection basics: click to focus; **Shift + click** extends; **Ctrl/Cmd + click** toggles multi-select while keeping focus. **Up/Down** moves focus; **Shift + Up/Down** extends. Toggle **Alt + R** to lock random navigation so **Down** plays random visible samples and **Up** steps backward through random history.

@@ -6,6 +6,8 @@ use thiserror::Error;
 
 /// Persistent file operation journal for crash recovery.
 pub mod file_ops_journal;
+/// Private rename-recovery metadata retained after immediate file pruning.
+mod pending_renames;
 /// Read-only database queries for sample sources.
 pub mod read;
 /// SQLite schema management for sample source databases.
@@ -18,6 +20,7 @@ pub mod util;
 
 mod rating_tests;
 
+pub(crate) use pending_renames::PendingRenameEntry;
 pub use util::normalize_relative_path;
 
 /// Hidden filename used for per-source databases.

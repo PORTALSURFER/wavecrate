@@ -141,12 +141,26 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         locked INTEGER,
         last_played_at INTEGER,
         created_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS pending_wav_renames (
+        path TEXT PRIMARY KEY,
+        file_size INTEGER NOT NULL,
+        modified_ns INTEGER NOT NULL,
+        content_hash TEXT,
+        tag INTEGER NOT NULL,
+        looped INTEGER NOT NULL,
+        locked INTEGER NOT NULL,
+        last_played_at INTEGER
     );";
 
 const INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS idx_wav_files_missing
          ON wav_files(path) WHERE missing != 0;
      CREATE INDEX IF NOT EXISTS idx_wav_files_extension
          ON wav_files(extension);
+     CREATE INDEX IF NOT EXISTS idx_pending_wav_renames_hash
+         ON pending_wav_renames (content_hash);
+     CREATE INDEX IF NOT EXISTS idx_pending_wav_renames_facts
+         ON pending_wav_renames (file_size, modified_ns);
      CREATE INDEX IF NOT EXISTS idx_analysis_jobs_source_job_status_created
          ON analysis_jobs (source_id, job_type, status, created_at);
      CREATE INDEX IF NOT EXISTS idx_analysis_jobs_job_status

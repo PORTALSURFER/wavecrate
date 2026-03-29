@@ -20,18 +20,15 @@ pub(crate) fn sample_metadata_for_changed_samples(
 
 pub(crate) fn stage_samples_for_source(
     source: &crate::sample_sources::SampleSource,
-    include_missing_entries: bool,
+    _include_missing_entries: bool,
 ) -> Result<Vec<db::SampleMetadata>, String> {
     let source_db =
         crate::sample_sources::SourceDatabase::open(&source.root).map_err(|err| err.to_string())?;
-    let mut entries = source_db.list_files().map_err(|err| err.to_string())?;
-    if !include_missing_entries {
-        entries.retain(|entry| !entry.missing);
-    }
+    let entries = source_db.list_files().map_err(|err| err.to_string())?;
     if entries.is_empty() {
         return Ok(Vec::new());
     }
-    Ok(stage_samples_from_entries(source, &source_db, &entries))
+    stage_samples_from_entries(source, &source_db, &entries)
 }
 
 fn sample_metadata_from_entry(
@@ -60,18 +57,25 @@ fn stage_samples_from_entries(
     source: &crate::sample_sources::SampleSource,
     source_db: &crate::sample_sources::SourceDatabase,
     entries: &[crate::sample_sources::WavEntry],
-) -> Vec<db::SampleMetadata> {
+) -> Result<Vec<db::SampleMetadata>, String> {
     let mut staged_samples = Vec::with_capacity(entries.len());
     for entry in entries {
         let absolute = source.root.join(&entry.relative_path);
         if !absolute.exists() {
-            if !entry.missing {
-                let _ = source_db.set_missing(&entry.relative_path, true);
+            if let Some(db_entry) = source_db
+                .entry_for_path(&entry.relative_path)
+                .map_err(|err| err.to_string())?
+            {
+                let mut batch = source_db.write_batch().map_err(|err| err.to_string())?;
+                batch
+                    .stage_pending_rename(&db_entry)
+                    .map_err(|err| err.to_string())?;
+                batch
+                    .remove_file(&entry.relative_path)
+                    .map_err(|err| err.to_string())?;
+                batch.commit().map_err(|err| err.to_string())?;
             }
             continue;
-        }
-        if entry.missing {
-            let _ = source_db.set_missing(&entry.relative_path, false);
         }
         if let Some(metadata) = sample_metadata_from_entry(
             source.id.as_str(),
@@ -83,5 +87,5 @@ fn stage_samples_from_entries(
             staged_samples.push(metadata);
         }
     }
-    staged_samples
+    Ok(staged_samples)
 }

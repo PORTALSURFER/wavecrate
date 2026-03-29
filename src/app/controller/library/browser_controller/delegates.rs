@@ -81,16 +81,6 @@ impl AppController {
         self.browser().delete_browser_samples(rows)
     }
 
-    /// Remove dead-link browser rows (missing samples) from the library without deleting files.
-    pub fn remove_dead_link_browser_sample(&mut self, row: usize) -> Result<(), String> {
-        self.browser().remove_dead_link_browser_samples(&[row])
-    }
-
-    /// Remove dead-link browser rows (missing samples) from the library without deleting files.
-    pub fn remove_dead_link_browser_samples(&mut self, rows: &[usize]) -> Result<(), String> {
-        self.browser().remove_dead_link_browser_samples(rows)
-    }
-
     pub(crate) fn resolve_browser_sample(
         &mut self,
         row: usize,

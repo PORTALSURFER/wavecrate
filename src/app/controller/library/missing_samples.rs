@@ -1,86 +1,71 @@
 use super::*;
-use std::collections::HashSet;
 use std::path::Path;
 
 impl AppController {
     pub(crate) fn sync_missing_from_db(&mut self, source_id: &SourceId) {
-        let Some(source) = self
-            .library
-            .sources
-            .iter()
-            .find(|source| &source.id == source_id)
-            .cloned()
-        else {
-            return;
-        };
-        let db = match self.database_for(&source) {
-            Ok(db) => db,
-            Err(_) => return,
-        };
-        if let Ok(paths) = db.list_missing_paths() {
+        if self.library.missing.sources.contains(source_id) {
             self.library
                 .missing
                 .wavs
-                .insert(source_id.clone(), paths.into_iter().collect());
+                .entry(source_id.clone())
+                .or_default();
+        } else {
+            self.library.missing.wavs.remove(source_id);
         }
     }
 
     pub(crate) fn rebuild_missing_lookup_for_source(&mut self, source_id: &SourceId) {
-        let mut missing = HashSet::new();
-        if let Some(cache) = self.cache.wav.entries.get(source_id) {
-            for page in cache.pages.values() {
-                for entry in page {
-                    if entry.missing {
-                        missing.insert(entry.relative_path.clone());
-                    }
-                }
-            }
-        } else if self.selection_state.ctx.selected_source.as_ref() == Some(source_id) {
-            for page in self.wav_entries.pages.values() {
-                for entry in page {
-                    if entry.missing {
-                        missing.insert(entry.relative_path.clone());
-                    }
-                }
-            }
+        if self.library.missing.sources.contains(source_id) {
+            self.library
+                .missing
+                .wavs
+                .entry(source_id.clone())
+                .or_default();
+        } else {
+            self.library.missing.wavs.remove(source_id);
         }
-        self.library.missing.wavs.insert(source_id.clone(), missing);
     }
 
-    pub(crate) fn mark_sample_missing(&mut self, source: &SampleSource, relative_path: &Path) {
-        match self.database_for(source) {
-            Ok(db) => {
-                let _ = db.set_missing(relative_path, true);
-            }
+    /// Remove one missing sample row from the source DB and clear any cached UI state.
+    pub(crate) fn prune_missing_sample(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+    ) -> Result<bool, String> {
+        let db = match self.database_for(source) {
+            Ok(db) => db,
             Err(SourceDbError::InvalidRoot(_)) => {
                 self.mark_source_missing(&source.id, "Source folder missing");
+                return Ok(false);
             }
-            Err(err) => {
-                self.set_status(
-                    format!("Failed to update missing flag: {err}"),
-                    StatusTone::Warning,
-                );
-            }
-        }
-        if let Some(cache) = self.cache.wav.entries.get_mut(&source.id)
-            && let Some(index) = cache.lookup.get(relative_path).copied()
-            && let Some(entry) = cache.entry_mut(index)
+            Err(err) => return Err(format!("Failed to prune missing sample: {err}")),
+        };
+        if let Some(entry) = db
+            .entry_for_path(relative_path)
+            .map_err(|err| format!("Failed to load missing sample entry: {err}"))?
         {
-            entry.missing = true;
+            let mut batch = db
+                .write_batch()
+                .map_err(|err| format!("Failed to start missing-sample prune: {err}"))?;
+            batch
+                .stage_pending_rename(&entry)
+                .map_err(|err| format!("Failed to retain missing sample metadata: {err}"))?;
+            batch
+                .remove_file(relative_path)
+                .map_err(|err| format!("Failed to drop missing sample row: {err}"))?;
+            batch
+                .commit()
+                .map_err(|err| format!("Failed to save missing-sample prune: {err}"))?;
         }
-        if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id)
-            && let Some(index) = self.wav_index_for_path(relative_path)
-            && let Some(entry) = self.wav_entries.entry_mut(index)
-        {
-            entry.missing = true;
-        }
-        self.library
-            .missing
-            .wavs
-            .entry(source.id.clone())
-            .or_default()
-            .insert(relative_path.to_path_buf());
-        self.invalidate_cached_audio(&source.id, relative_path);
+        self.prune_cached_sample(source, relative_path);
+        Ok(true)
+    }
+
+    /// Show a transient waveform notice after the selected sample vanishes on disk.
+    pub(crate) fn show_missing_waveform_notice(&mut self, relative_path: &Path) {
+        let message = format!("File missing: {}", relative_path.display());
+        self.clear_waveform_view();
+        self.ui.waveform.notice = Some(message);
     }
 
     /// Check whether a sample is considered missing (tests only).
@@ -101,103 +86,31 @@ impl AppController {
         {
             return entry.missing;
         }
-        if let Some(set) = self.library.missing.wavs.get(source_id) {
-            return set.contains(relative_path);
-        }
-        if let Some(source) = self
+        let Some(source) = self
             .library
             .sources
             .iter()
-            .find(|s| &s.id == source_id)
+            .find(|source| &source.id == source_id)
             .cloned()
-        {
-            if let Err(err) = self.ensure_missing_lookup_for_source(&source) {
-                self.set_status(err, StatusTone::Warning);
-                return true;
-            }
-            if let Some(set) = self.library.missing.wavs.get(source_id) {
-                return set.contains(relative_path);
-            }
-        }
-        false
-    }
-
-    fn ensure_missing_lookup_for_source(&mut self, source: &SampleSource) -> Result<(), String> {
-        if self.library.missing.wavs.contains_key(&source.id) {
-            return Ok(());
-        }
-        if self.library.missing.sources.contains(&source.id) {
-            self.library
-                .missing
-                .wavs
-                .entry(source.id.clone())
-                .or_default();
-            return Ok(());
-        }
-        let db = match self.database_for(source) {
-            Ok(db) => db,
-            Err(err) => {
-                if matches!(err, SourceDbError::InvalidRoot(_)) {
-                    self.mark_source_missing(&source.id, "Source folder missing");
-                }
-                return Err(err.to_string());
-            }
+        else {
+            return false;
         };
-        let paths = db
-            .list_missing_paths()
-            .map_err(|err| format!("Failed to read missing files: {err}"))?;
-        self.library
-            .missing
-            .wavs
-            .insert(source.id.clone(), paths.into_iter().collect());
-        Ok(())
-    }
-
-    pub(crate) fn show_missing_waveform_notice(&mut self, relative_path: &Path) {
-        let message = format!("File missing: {}", relative_path.display());
-        self.clear_waveform_view();
-        self.ui.waveform.notice = Some(message);
-    }
-
-    pub(crate) fn remove_dead_links_for_source_entries(
-        &mut self,
-        source: &SampleSource,
-    ) -> Result<usize, String> {
-        if self.library.missing.sources.contains(&source.id) {
-            return Err("Source folder missing; remap source before removing dead links".into());
-        }
-        self.ensure_missing_lookup_for_source(source)?;
-        let mut missing_paths: Vec<PathBuf> = self
-            .library
-            .missing
-            .wavs
-            .get(&source.id)
-            .map(|paths| paths.iter().cloned().collect())
-            .unwrap_or_default();
-        if missing_paths.is_empty()
-            && self.selection_state.ctx.selected_source.as_ref() == Some(&source.id)
-        {
-            for page in self.wav_entries.pages.values() {
-                for entry in page {
-                    if entry.missing {
-                        missing_paths.push(entry.relative_path.clone());
-                    }
-                }
+        match self.database_for(&source) {
+            Ok(db) => db
+                .entry_for_path(relative_path)
+                .map(|entry| entry.is_none_or(|entry| entry.missing))
+                .unwrap_or(true),
+            Err(SourceDbError::InvalidRoot(_)) => {
+                self.mark_source_missing(source_id, "Source folder missing");
+                true
             }
-            missing_paths.sort();
-            missing_paths.dedup();
+            Err(err) => {
+                self.set_status(
+                    format!("Failed to inspect missing sample: {err}"),
+                    StatusTone::Warning,
+                );
+                true
+            }
         }
-        if missing_paths.is_empty() {
-            return Ok(0);
-        }
-        let db = self
-            .database_for(source)
-            .map_err(|err| format!("Database unavailable: {err}"))?;
-        for path in &missing_paths {
-            db.remove_file(path)
-                .map_err(|err| format!("Failed to drop database row: {err}"))?;
-            self.prune_cached_sample(source, path);
-        }
-        Ok(missing_paths.len())
     }
 }

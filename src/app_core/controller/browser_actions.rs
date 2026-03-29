@@ -54,11 +54,6 @@ pub(super) fn apply_browser_native_ui_action(
                 controller.remove_source(index);
             }
         }
-        NativeUiAction::RemoveDeadLinksForFocusedSourceRow => {
-            if let Some(index) = controller.ui.sources.selected {
-                controller.remove_dead_links_for_source(index);
-            }
-        }
         NativeUiAction::FocusFolderRow { index } => controller.replace_folder_selection(index),
         NativeUiAction::ActivateFolderRow { index } => controller.activate_folder_row(index),
         NativeUiAction::ToggleFolderRowExpanded { index } => {
@@ -103,9 +98,6 @@ pub(super) fn apply_browser_native_ui_action(
         }
         NativeUiAction::OpenSourceFolderRow { index } => controller.open_source_folder(index),
         NativeUiAction::RemoveSourceRow { index } => controller.remove_source(index),
-        NativeUiAction::RemoveDeadLinksForSourceRow { index } => {
-            controller.remove_dead_links_for_source(index)
-        }
         NativeUiAction::OpenAddSourceDialog => controller.add_source_via_dialog(),
         NativeUiAction::OpenOptionsMenu => controller.open_options_panel(),
         NativeUiAction::CloseOptionsPanel => controller.close_options_panel(),

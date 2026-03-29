@@ -70,6 +70,13 @@ pub(super) fn apply_diff(
                     context.stats.renames_reconciled += 1;
                     return Ok(());
                 }
+                if let Some(entry) = batch.take_pending_rename_by_hash(&hash)? {
+                    apply_rename(batch, &path, &facts, &hash, entry.into_wav_entry())?;
+                    context.stats.updated += 1;
+                    context.stats.renames_reconciled += 1;
+                    context.stats.hashes_computed += 1;
+                    return Ok(());
+                }
                 batch.upsert_file_with_hash(&path, facts.size, facts.modified_ns, &hash)?;
                 context.stats.added += 1;
                 context.stats.content_changed += 1;
@@ -85,6 +92,15 @@ pub(super) fn apply_diff(
                     take_rename_candidate_by_facts(db, context, facts.size, facts.modified_ns)?
                 {
                     apply_rename_without_hash(batch, &path, &facts, entry)?;
+                    context.stats.updated += 1;
+                    context.stats.renames_reconciled += 1;
+                    context.stats.hashes_pending += 1;
+                    return Ok(());
+                }
+                if let Some(entry) =
+                    batch.take_pending_rename_by_facts(facts.size, facts.modified_ns)?
+                {
+                    apply_rename_without_hash(batch, &path, &facts, entry.into_wav_entry())?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
                     context.stats.hashes_pending += 1;
@@ -106,19 +122,11 @@ pub(super) fn mark_missing(
     mode: ScanMode,
 ) -> Result<(), ScanError> {
     for leftover in existing.values() {
-        match mode {
-            ScanMode::Quick => {
-                if leftover.missing {
-                    continue;
-                }
-                batch.set_missing(&leftover.relative_path, true)?;
-                stats.missing += 1;
-            }
-            ScanMode::Hard => {
-                batch.remove_file(&leftover.relative_path)?;
-                stats.missing += 1;
-            }
+        if mode == ScanMode::Quick {
+            batch.stage_pending_rename(leftover)?;
         }
+        batch.remove_file(&leftover.relative_path)?;
+        stats.missing += 1;
     }
     Ok(())
 }

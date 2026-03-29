@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::sample_sources::SourceDatabase;
-use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
+use crate::sample_sources::db::{PendingRenameEntry, SourceWriteBatch, WavEntry};
 
 use super::scan::{ScanError, ScanStats};
 use super::scan_fs::{compute_content_hash, ensure_root_dir, read_facts};
@@ -18,24 +18,29 @@ pub(super) fn deep_hash_scan(
         .into_iter()
         .map(|entry| (entry.relative_path.clone(), entry))
         .collect();
+    let pending_entries = db.list_pending_renames()?;
     let mut stats = ScanStats::default();
     let mut batch = db.write_batch()?;
     let mut present_by_hash = HashMap::new();
-    let mut missing_by_hash = HashMap::new();
+    let mut pending_by_hash = HashMap::new();
 
     for entry in entries_by_path.values() {
         let Some(hash) = entry.content_hash.as_deref() else {
             continue;
         };
-        let target_map = if entry.missing {
-            &mut missing_by_hash
-        } else {
-            &mut present_by_hash
-        };
-        target_map
+        present_by_hash
             .entry(hash.to_string())
             .or_insert_with(Vec::new)
             .push(entry.relative_path.clone());
+    }
+    for entry in pending_entries {
+        let Some(hash) = entry.content_hash.as_deref() else {
+            continue;
+        };
+        pending_by_hash
+            .entry(hash.to_string())
+            .or_insert_with(Vec::new)
+            .push(entry);
     }
 
     for entry in entries_by_path.values_mut() {
@@ -68,7 +73,7 @@ pub(super) fn deep_hash_scan(
         &mut batch,
         &entries_by_path,
         &present_by_hash,
-        &missing_by_hash,
+        &pending_by_hash,
     )?;
 
     batch.commit()?;
@@ -79,11 +84,11 @@ fn reconcile_missing_renames(
     batch: &mut SourceWriteBatch<'_>,
     entries_by_path: &HashMap<PathBuf, WavEntry>,
     present_by_hash: &HashMap<String, Vec<PathBuf>>,
-    missing_by_hash: &HashMap<String, Vec<PathBuf>>,
+    pending_by_hash: &HashMap<String, Vec<PendingRenameEntry>>,
 ) -> Result<usize, ScanError> {
     let mut reconciled = 0;
-    for (hash, missing_paths) in missing_by_hash {
-        if missing_paths.len() != 1 {
+    for (hash, pending_entries) in pending_by_hash {
+        if pending_entries.len() != 1 {
             continue;
         }
         let Some(present_paths) = present_by_hash.get(hash) else {
@@ -92,18 +97,15 @@ fn reconcile_missing_renames(
         if present_paths.len() != 1 {
             continue;
         }
-        let missing_path = &missing_paths[0];
+        let pending_entry = &pending_entries[0];
         let present_path = &present_paths[0];
-        if missing_path == present_path {
+        if pending_entry.relative_path == *present_path {
             continue;
         }
-        let Some(missing_entry) = entries_by_path.get(missing_path) else {
-            continue;
-        };
         let Some(present_entry) = entries_by_path.get(present_path) else {
             continue;
         };
-        apply_deep_rename(batch, present_entry, missing_entry, hash)?;
+        apply_deep_rename(batch, present_entry, pending_entry, hash)?;
         reconciled += 1;
     }
     Ok(reconciled)
@@ -112,25 +114,25 @@ fn reconcile_missing_renames(
 fn apply_deep_rename(
     batch: &mut SourceWriteBatch<'_>,
     present_entry: &WavEntry,
-    missing_entry: &WavEntry,
+    pending_entry: &PendingRenameEntry,
     hash: &str,
 ) -> Result<(), ScanError> {
-    batch.remove_file(&missing_entry.relative_path)?;
+    batch.clear_pending_rename(&pending_entry.relative_path)?;
     batch.upsert_file_with_hash_and_tag(
         &present_entry.relative_path,
         present_entry.file_size,
         present_entry.modified_ns,
         hash,
-        missing_entry.tag,
+        pending_entry.tag,
         false,
     )?;
-    if missing_entry.looped {
-        batch.set_looped(&present_entry.relative_path, missing_entry.looped)?;
+    if pending_entry.looped {
+        batch.set_looped(&present_entry.relative_path, pending_entry.looped)?;
     }
-    if missing_entry.locked {
-        batch.set_locked(&present_entry.relative_path, missing_entry.locked)?;
+    if pending_entry.locked {
+        batch.set_locked(&present_entry.relative_path, pending_entry.locked)?;
     }
-    if let Some(last_played_at) = missing_entry.last_played_at {
+    if let Some(last_played_at) = pending_entry.last_played_at {
         batch.set_last_played_at(&present_entry.relative_path, last_played_at)?;
     }
     Ok(())

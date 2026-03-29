@@ -116,9 +116,6 @@ impl AppController {
             let Some(entry) = self.wav_entry(entry_index) else {
                 continue;
             };
-            if entry.missing {
-                continue;
-            }
             changed_samples.push(crate::sample_sources::scanner::ChangedSample {
                 relative_path: entry.relative_path.clone(),
                 file_size: entry.file_size,

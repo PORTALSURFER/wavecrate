@@ -132,6 +132,32 @@ impl AppController {
             self.wav_entries.lookup.clear();
         }
         self.wav_entries.insert_page(page_index, entries);
+        if let Some(id) = source_id.as_ref() {
+            let legacy_missing_paths = self
+                .wav_entries
+                .pages
+                .get(&page_index)
+                .map(|page| {
+                    page.iter()
+                        .filter(|entry| entry.missing)
+                        .map(|entry| entry.relative_path.clone())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if !legacy_missing_paths.is_empty()
+                && let Some(source) = self
+                    .library
+                    .sources
+                    .iter()
+                    .find(|source| &source.id == id)
+                    .cloned()
+            {
+                for path in legacy_missing_paths {
+                    let _ = self.prune_missing_sample(&source, &path);
+                }
+                return;
+            }
+        }
         self.sync_after_wav_entries_changed();
         let mut pending_applied = false;
         if let Some(path) = self.runtime.jobs.take_pending_select_path() {

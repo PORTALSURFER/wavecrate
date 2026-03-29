@@ -175,6 +175,9 @@ fn select_wav_known_index_with_options(
         .map(|entry| entry.missing)
         .unwrap_or(false);
     if missing {
+        if let Some(source) = controller.current_source() {
+            let _ = controller.prune_missing_sample(&source, &path);
+        }
         controller.show_missing_waveform_notice(&path);
         controller.set_status(
             format!("File missing: {}", path.display()),

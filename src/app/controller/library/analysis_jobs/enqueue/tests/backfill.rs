@@ -12,14 +12,6 @@ fn backfill_enqueues_when_source_has_no_features() {
             ("Pack/c.wav", "hc"),
         ],
     );
-    let source_db = SourceDatabase::open(&env.source.root).unwrap();
-    let entries = source_db.list_files().unwrap();
-    assert_eq!(entries.len(), 3);
-    for entry in &entries {
-        if entry.missing {
-            source_db.set_missing(&entry.relative_path, false).unwrap();
-        }
-    }
 
     let db = SourceDatabase::open(&env.source.root).unwrap();
     let mut batch = db.write_batch().unwrap();
@@ -173,7 +165,7 @@ fn hard_sync_skips_failed_jobs_but_force_requeue_restores() {
 }
 
 #[test]
-fn missing_features_skips_missing_files_and_marks_them() {
+fn missing_features_skips_missing_files_and_prunes_them() {
     let env = TestEnv::new();
     env.create_files(&["Pack/a.wav"]);
     seed_source_db(
@@ -194,12 +186,12 @@ fn missing_features_skips_missing_files_and_marks_them() {
     assert_eq!(pending, 1);
 
     let source_db = SourceDatabase::open(&env.source.root).unwrap();
-    let entries = source_db.list_files().unwrap();
-    let missing_entry = entries
-        .iter()
-        .find(|entry| entry.relative_path == Path::new("Pack/missing.wav"))
-        .unwrap();
-    assert!(missing_entry.missing);
+    assert!(
+        source_db
+            .entry_for_path(Path::new("Pack/missing.wav"))
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]

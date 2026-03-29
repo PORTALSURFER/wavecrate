@@ -25,7 +25,6 @@ pub(crate) fn current_running_jobs(
              FROM analysis_jobs aj
              JOIN wav_files wf
               ON wf.path = aj.relative_path
-              AND wf.missing = 0
              WHERE aj.job_type = ?1
                AND aj.status = 'running'
              ORDER BY aj.running_at IS NULL, aj.running_at ASC
@@ -61,20 +60,17 @@ fn current_progress_for_job_type(
              FROM analysis_jobs aj
              JOIN wav_files wf
                ON wf.path = aj.relative_path
-              AND wf.missing = 0
              WHERE aj.job_type = ?1
              GROUP BY aj.status",
             "SELECT COUNT(DISTINCT aj.sample_id)
              FROM analysis_jobs aj
              JOIN wav_files wf
                ON wf.path = aj.relative_path
-              AND wf.missing = 0
              WHERE aj.job_type = ?1",
             "SELECT COUNT(DISTINCT aj.sample_id)
              FROM analysis_jobs aj
              JOIN wav_files wf
                ON wf.path = aj.relative_path
-              AND wf.missing = 0
              WHERE aj.job_type = ?1
                AND aj.status IN ('pending','running')",
         )

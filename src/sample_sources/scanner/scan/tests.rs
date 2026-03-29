@@ -25,7 +25,7 @@ fn set_file_times(path: &Path, seconds: i64, nanos: i64) {
 }
 
 #[test]
-fn scan_add_update_mark_missing() {
+fn scan_add_update_and_prune_missing() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("one.wav");
     std::fs::write(&file_path, b"one").unwrap();
@@ -48,19 +48,19 @@ fn scan_add_update_mark_missing() {
     std::fs::remove_file(&file_path).unwrap();
     let third = scan_once(&db).unwrap();
     assert_eq!(third.missing, 1);
-    let rows = db.list_files().unwrap();
-    assert_eq!(rows.len(), 1);
-    assert!(rows[0].missing);
+    assert!(db.list_files().unwrap().is_empty());
     let fourth = scan_once(&db).unwrap();
     assert_eq!(fourth.missing, 0);
+    assert!(db.list_files().unwrap().is_empty());
 
     std::fs::write(&file_path, b"one").unwrap();
     let fifth = scan_once(&db).unwrap();
-    assert_eq!(fifth.added, 0);
-    assert_eq!(fifth.updated, 1);
+    assert_eq!(fifth.added, 1);
+    assert_eq!(fifth.updated, 0);
     assert_eq!(fifth.content_changed, 1);
     assert_eq!(fifth.changed_samples.len(), 1);
     let rows = db.list_files().unwrap();
+    assert_eq!(rows.len(), 1);
     assert!(!rows[0].missing);
 }
 
@@ -136,12 +136,10 @@ fn hard_rescan_prunes_missing_rows() {
 
     std::fs::remove_file(&file_path).unwrap();
     scan_once(&db).unwrap();
-    let rows = db.list_files().unwrap();
-    assert_eq!(rows.len(), 1);
-    assert!(rows[0].missing);
+    assert!(db.list_files().unwrap().is_empty());
 
     let stats = hard_rescan(&db).unwrap();
-    assert_eq!(stats.missing, 1);
+    assert_eq!(stats.missing, 0);
     let rows = db.list_files().unwrap();
     assert!(rows.is_empty());
 }
@@ -285,23 +283,16 @@ fn quick_scan_avoids_ambiguous_large_rename() {
     assert_eq!(stats.missing, 2);
 
     let rows = db.list_files().unwrap();
-    assert_eq!(rows.len(), 3);
-    let mut keep_row = None;
-    let mut new_row = None;
-    for row in &rows {
-        if row.relative_path == Path::new("one.wav") {
-            keep_row = Some(row);
-        }
-        if row.relative_path == Path::new("three.wav") {
-            new_row = Some(row);
-        }
-    }
-    let keep_row = keep_row.unwrap();
-    let new_row = new_row.unwrap();
-    assert!(keep_row.missing);
-    assert_eq!(keep_row.tag, Rating::KEEP_1);
-    assert!(!new_row.missing);
-    assert_eq!(new_row.tag, Rating::NEUTRAL);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].relative_path, Path::new("three.wav"));
+    assert_eq!(rows[0].tag, Rating::NEUTRAL);
+    let pending = db.list_pending_renames().unwrap();
+    assert_eq!(pending.len(), 2);
+    assert!(
+        pending
+            .iter()
+            .any(|entry| entry.relative_path == Path::new("one.wav") && entry.tag == Rating::KEEP_1)
+    );
 }
 
 #[test]
@@ -318,7 +309,7 @@ fn hard_rescan_prunes_missing_files_with_tags() {
     scan_once(&db).unwrap();
 
     let stats = hard_rescan(&db).unwrap();
-    assert_eq!(stats.missing, 1);
+    assert_eq!(stats.missing, 0);
     let rows = db.list_files().unwrap();
     assert!(rows.is_empty());
 }

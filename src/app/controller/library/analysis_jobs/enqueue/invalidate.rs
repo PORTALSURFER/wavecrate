@@ -130,7 +130,7 @@ pub(crate) fn fetch_failed_backfill_jobs(
         .prepare(
             "SELECT j.sample_id
              FROM analysis_jobs j
-             JOIN wav_files w ON w.path = j.relative_path AND w.missing = 0
+             JOIN wav_files w ON w.path = j.relative_path
              WHERE j.job_type = ?1
                AND j.status = 'failed'
                AND j.source_id = ?2",

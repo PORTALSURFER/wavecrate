@@ -2,10 +2,10 @@ use super::super::super::test_support::{
     dummy_controller, load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry,
     write_test_wav,
 };
-use super::super::common::visible_indices;
 use crate::app::controller::library::selection_export::SelectionClipExportRequest;
 use crate::app_core::controller::AppController;
 use crate::sample_sources::SampleSource;
+use crate::sample_sources::SourceDatabase;
 use crate::selection::SelectionRange;
 use crate::waveform::WaveformRenderer;
 use hound::WavReader;
@@ -94,75 +94,44 @@ fn browser_normalize_resumes_playback_when_playing() {
 }
 
 #[test]
-fn browser_remove_dead_links_prunes_missing_rows() -> Result<(), String> {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source.clone());
-
-    write_test_wav(&source.root.join("alive.wav"), &[0.0, 0.1, -0.1]);
-    let mut dead = sample_entry("gone.wav", crate::sample_sources::Rating::NEUTRAL);
-    dead.missing = true;
-    controller.set_wav_entries_for_tests(vec![
-        sample_entry("alive.wav", crate::sample_sources::Rating::NEUTRAL),
-        dead,
-    ]);
-    controller.rebuild_wav_lookup();
-    controller.rebuild_browser_lists();
-
-    let visible = visible_indices(&controller);
-    let missing_row = visible
-        .iter()
-        .enumerate()
-        .find_map(|(row, &idx)| {
-            controller
-                .wav_entry(idx)
-                .filter(|entry| entry.relative_path == PathBuf::from("gone.wav"))
-                .map(|_| row)
-        })
-        .expect("missing row present");
-
-    controller.remove_dead_link_browser_samples(&[missing_row])?;
-
-    assert_eq!(controller.visible_browser_len(), 1);
-    let remaining_idx = visible_indices(&controller)[0];
-    let remaining = controller
-        .wav_entry(remaining_idx)
-        .expect("remaining entry");
-    assert_eq!(remaining.relative_path, PathBuf::from("alive.wav"));
-    assert!(!controller.sample_missing(&source.id, Path::new("alive.wav")));
-    assert!(
-        controller
-            .wav_index_for_path(Path::new("gone.wav"))
-            .is_none()
-    );
-    Ok(())
-}
-
-#[test]
-fn removing_dead_links_for_source_prunes_missing_entries() -> Result<(), String> {
+fn pruning_missing_browser_sample_keeps_remaining_rows_visible() -> Result<(), String> {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.cache_db(&source).unwrap();
 
     write_test_wav(&source.root.join("alive.wav"), &[0.0, 0.1, -0.1]);
-    let mut dead = sample_entry("gone.wav", crate::sample_sources::Rating::NEUTRAL);
-    dead.missing = true;
+    let db = SourceDatabase::open(&source.root).unwrap();
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .upsert_file_with_hash_and_tag(
+            Path::new("alive.wav"),
+            1,
+            1,
+            "hash-alive",
+            crate::sample_sources::Rating::NEUTRAL,
+            false,
+        )
+        .unwrap();
+    batch
+        .upsert_file_with_hash_and_tag(
+            Path::new("gone.wav"),
+            1,
+            1,
+            "hash-gone",
+            crate::sample_sources::Rating::NEUTRAL,
+            false,
+        )
+        .unwrap();
+    batch.commit().unwrap();
     controller.set_wav_entries_for_tests(vec![
         sample_entry("alive.wav", crate::sample_sources::Rating::NEUTRAL),
-        dead,
+        sample_entry("gone.wav", crate::sample_sources::Rating::NEUTRAL),
     ]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
-    let mut missing = std::collections::HashSet::new();
-    missing.insert(PathBuf::from("gone.wav"));
-    controller
-        .library
-        .missing
-        .wavs
-        .insert(source.id.clone(), missing);
 
-    let removed = controller.remove_dead_links_for_source_entries(&source)?;
+    controller.prune_missing_sample(&source, Path::new("gone.wav"))?;
 
-    assert_eq!(removed, 1);
     assert_eq!(controller.wav_entries_len(), 1);
     assert!(
         controller
@@ -176,6 +145,7 @@ fn removing_dead_links_for_source_prunes_missing_entries() -> Result<(), String>
             .lookup
             .contains_key(Path::new("gone.wav"))
     );
+    assert!(db.entry_for_path(Path::new("gone.wav")).unwrap().is_none());
     Ok(())
 }
 
