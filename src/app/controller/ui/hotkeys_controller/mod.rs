@@ -50,7 +50,7 @@ impl AppController {
 mod tests {
     use super::*;
     use crate::app::controller::test_support::{
-        load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry,
+        load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
     };
     use crate::app::controller::ui::hotkeys;
     use crate::app::state::SimilarQuery;
@@ -58,7 +58,7 @@ mod tests {
     use crate::sample_sources::Rating;
     use crate::selection::SelectionRange;
     use crate::waveform::WaveformRenderer;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     fn action_for(predicate: impl Fn(&radiant::app::UiAction) -> bool) -> HotkeyAction {
         hotkeys::find_action(predicate).expect("missing hotkey action")
@@ -162,6 +162,63 @@ mod tests {
             controller.sample_view.wav.selected_wav.as_deref(),
             Some(Path::new("two.wav"))
         );
+    }
+
+    #[test]
+    fn compare_anchor_hotkey_sets_focused_sample_anchor() {
+        let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+            sample_entry("one.wav", Rating::NEUTRAL),
+            sample_entry("two.wav", Rating::NEUTRAL),
+        ]);
+        controller.focus_browser_row_only(1);
+
+        controller.handle_hotkey(
+            action_for(|action| {
+                matches!(
+                    action,
+                    radiant::app::UiAction::SetCompareAnchorFromFocusedBrowserSample
+                )
+            }),
+            FocusContext::SampleBrowser,
+        );
+
+        assert_eq!(
+            controller.ui.waveform.compare_anchor_label.as_deref(),
+            Some("two")
+        );
+        assert_eq!(
+            controller.sample_view.wav.compare_anchor.as_ref().map(|anchor| anchor.relative_path.as_path()),
+            Some(Path::new("two.wav"))
+        );
+    }
+
+    #[test]
+    fn compare_anchor_play_hotkey_routes_global_compare_replay() {
+        let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+            sample_entry("anchor.wav", Rating::NEUTRAL),
+            sample_entry("current.wav", Rating::NEUTRAL),
+        ]);
+        write_test_wav(&source.root.join("anchor.wav"), &[0.0, 0.1]);
+        write_test_wav(&source.root.join("current.wav"), &[0.0, -0.1]);
+        controller.focus_browser_row_only(0);
+        controller.set_compare_anchor_from_focused_browser_sample();
+        controller.focus_browser_row_only(1);
+        controller.runtime.jobs.pending_audio = None;
+        controller.runtime.jobs.pending_playback = None;
+
+        controller.handle_hotkey(
+            action_for(|action| matches!(action, radiant::app::UiAction::PlayCompareAnchor)),
+            FocusContext::Waveform,
+        );
+
+        let pending = controller
+            .runtime
+            .jobs
+            .pending_playback
+            .as_ref()
+            .expect("compare replay should queue");
+        assert_eq!(pending.relative_path, PathBuf::from("anchor.wav"));
+        assert!(pending.force_loaded_audio);
     }
 
     #[test]

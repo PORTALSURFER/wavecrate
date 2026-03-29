@@ -117,6 +117,8 @@ pub(crate) struct PendingPlayback {
     pub(crate) relative_path: PathBuf,
     pub(crate) looped: bool,
     pub(crate) start_override: Option<f64>,
+    /// When true, playback should use the freshly loaded audio even if browser focus points elsewhere.
+    pub(crate) force_loaded_audio: bool,
 }
 
 /// Deferred loop-span retarget applied once the current loop cycle completes.

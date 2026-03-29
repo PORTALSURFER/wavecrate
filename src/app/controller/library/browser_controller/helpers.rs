@@ -137,6 +137,7 @@ impl BrowserController<'_> {
                     relative_path: ctx.entry.relative_path.clone(),
                     looped: was_looping,
                     start_override,
+                    force_loaded_audio: false,
                 }));
         }
 
@@ -293,6 +294,7 @@ impl BrowserController<'_> {
                     relative_path: updated_path.clone(),
                     looped: was_looping,
                     start_override,
+                    force_loaded_audio: false,
                 }));
         }
 

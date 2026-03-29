@@ -9,10 +9,18 @@ use crate::waveform::{DecodedWaveform, WaveformRenderer};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+/// Stable compare-anchor identity used by replay playback.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CompareAnchorSample {
+    pub(crate) source_id: SourceId,
+    pub(crate) relative_path: PathBuf,
+}
+
 pub(crate) struct WavSelectionState {
     pub(crate) selected_wav: Option<PathBuf>,
     pub(crate) loaded_wav: Option<PathBuf>,
     pub(crate) loaded_audio: Option<LoadedAudio>,
+    pub(crate) compare_anchor: Option<CompareAnchorSample>,
 }
 
 impl WavSelectionState {
@@ -21,6 +29,7 @@ impl WavSelectionState {
             selected_wav: None,
             loaded_wav: None,
             loaded_audio: None,
+            compare_anchor: None,
         }
     }
 }

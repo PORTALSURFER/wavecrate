@@ -112,6 +112,7 @@ impl AppController {
                     relative_path: success.entry.relative_path.clone(),
                     looped: success.playback.was_looping,
                     start_override: success.playback.start_override,
+                    force_loaded_audio: false,
                 }));
         }
         self.focus_waveform();

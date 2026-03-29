@@ -18,6 +18,7 @@ mod playback_age;
 pub(crate) mod recording;
 
 mod browser_nav;
+mod compare_anchor;
 mod formatting;
 mod player;
 mod playhead_trail;
@@ -43,6 +44,7 @@ pub(crate) use bpm_policy::{
     bpm_min_selection_seconds, selection_meets_bpm_min_for_playback,
     snap_waveform_delta_to_bpm_step, snap_waveform_micros_to_bpm_anchor, waveform_bpm_snap_step,
 };
+pub(crate) use compare_anchor::play_loaded_audio_for_path;
 use formatting::{format_selection_duration, format_timestamp_hms_ms};
 
 #[cfg(test)]

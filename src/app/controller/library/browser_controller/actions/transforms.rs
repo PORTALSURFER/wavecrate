@@ -93,6 +93,7 @@ impl BrowserController<'_> {
                         relative_path: path.clone(),
                         looped: was_looping,
                         start_override,
+                        force_loaded_audio: false,
                     }));
                 self.selection_state.suppress_autoplay_once = true;
             }

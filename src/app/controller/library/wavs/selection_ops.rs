@@ -221,6 +221,7 @@ fn select_wav_known_index_with_options(
                 relative_path: path.clone(),
                 looped: selection_looped,
                 start_override: None,
+                force_loaded_audio: false,
             })
         } else {
             None

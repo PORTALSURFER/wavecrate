@@ -301,6 +301,7 @@ impl AppController {
                                 relative_path: message.relative_path.clone(),
                                 looped: was_looping,
                                 start_override,
+                                force_loaded_audio: false,
                             }));
                     }
 

@@ -211,6 +211,7 @@ fn apply_transport_native_ui_action(
             controller.seek_waveform_nanos(position_nanos);
         }
         NativeUiAction::ToggleTransport => controller.toggle_play_pause(),
+        NativeUiAction::PlayCompareAnchor => controller.play_compare_anchor(),
         NativeUiAction::HandleEscape => controller.handle_escape(),
         NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
         NativeUiAction::ToggleLoopLock => controller.toggle_loop_lock(),

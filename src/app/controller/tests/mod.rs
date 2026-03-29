@@ -8,6 +8,7 @@ mod browser_core;
 /// Browser-row inline metadata regression tests.
 mod browser_inline_tags;
 mod browser_selection;
+mod compare_anchor;
 mod common;
 mod drag_drop_browser;
 mod drag_drop_drop_targets;

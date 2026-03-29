@@ -24,6 +24,7 @@ impl AppController {
             relative_path: relative_path.to_path_buf(),
             looped,
             start_override: None,
+            force_loaded_audio: false,
         };
         if self
             .runtime
@@ -183,7 +184,18 @@ impl AppController {
             return;
         }
         self.runtime.jobs.set_pending_playback(None);
-        if let Err(err) = self.play_audio(pending.looped, pending.start_override) {
+        let playback = if pending.force_loaded_audio {
+            crate::app::controller::playback::play_loaded_audio_for_path(
+                self,
+                &pending.source_id,
+                &pending.relative_path,
+                pending.looped,
+                pending.start_override,
+            )
+        } else {
+            self.play_audio(pending.looped, pending.start_override)
+        };
+        if let Err(err) = playback {
             self.set_status(err, StatusTone::Error);
         }
     }

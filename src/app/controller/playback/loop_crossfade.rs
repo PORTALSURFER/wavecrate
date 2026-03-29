@@ -56,6 +56,7 @@ impl AppController {
                     relative_path: new_relative.clone(),
                     looped: was_looping,
                     start_override,
+                    force_loaded_audio: false,
                 }));
             // Suppress the default autoplay to avoid double-trigger or reset to start.
             self.selection_state.suppress_autoplay_once = true;

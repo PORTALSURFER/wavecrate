@@ -12,6 +12,8 @@ pub enum GuiActionKind {
     MoveColumn,
     /// Toggle transport playback on or off.
     ToggleTransport,
+    /// Replay the stored compare-anchor sample without changing browser focus.
+    PlayCompareAnchor,
     /// Start playback from the beginning of the current sample or loop.
     PlayFromStart,
     /// Start playback from the current playhead position.
@@ -120,6 +122,8 @@ pub enum GuiActionKind {
     SetBrowserViewStart,
     /// Focus one browser row directly.
     FocusBrowserRow,
+    /// Store the focused browser sample as the compare-anchor reference.
+    SetCompareAnchorFromFocusedBrowserSample,
     /// Commit the currently focused browser row.
     CommitFocusedBrowserRow,
     /// Save the current waveform selection back to the browser/sample metadata.
@@ -358,10 +362,11 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 174] = [
+    pub const ALL: [Self; 176] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
+        Self::PlayCompareAnchor,
         Self::PlayFromStart,
         Self::PlayFromCurrentPlayhead,
         Self::PlayFromWaveformCursor,
@@ -416,6 +421,7 @@ impl GuiActionKind {
         Self::MoveBrowserFocus,
         Self::SetBrowserViewStart,
         Self::FocusBrowserRow,
+        Self::SetCompareAnchorFromFocusedBrowserSample,
         Self::CommitFocusedBrowserRow,
         Self::SaveWaveformSelectionToBrowser,
         Self::SaveWaveformSelectionToBrowserWithKeep2,

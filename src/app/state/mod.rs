@@ -5,6 +5,7 @@
 mod audio;
 mod browser;
 mod controls;
+mod compare;
 mod drag;
 mod feedback_issue;
 mod focus;
@@ -24,6 +25,7 @@ mod waveform;
 pub use audio::*;
 pub use browser::*;
 pub use controls::*;
+pub use compare::*;
 pub use drag::*;
 pub use feedback_issue::*;
 pub use focus::*;
@@ -70,6 +72,8 @@ pub struct UiState {
     pub controls: InteractionOptionsState,
     /// Native-shell options panel state.
     pub options_panel: OptionsPanelState,
+    /// Active compare-anchor metadata used by transport compare affordances.
+    pub compare_anchor: Option<CompareAnchorState>,
     /// Pending loop crossfade prompt state.
     pub loop_crossfade_prompt: Option<LoopCrossfadePrompt>,
     /// Master output volume (0.0-1.0).
@@ -100,6 +104,7 @@ impl Default for UiState {
             map: MapUiState::default(),
             controls: InteractionOptionsState::default(),
             options_panel: OptionsPanelState::default(),
+            compare_anchor: None,
             loop_crossfade_prompt: None,
             volume: 1.0,
             update: UpdateUiState::default(),

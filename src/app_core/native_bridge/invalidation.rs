@@ -158,7 +158,8 @@ pub(super) fn classify_dirty_source(
         NativeUiAction::SetBrowserTab { map: true } | NativeUiAction::FocusMapSample { .. } => {
             Some((DerivedNodeId::MapState, DirtyReason::MapAction))
         }
-        NativeUiAction::PlayFromStart
+        NativeUiAction::PlayCompareAnchor
+        | NativeUiAction::PlayFromStart
         | NativeUiAction::PlayFromCurrentPlayhead
         | NativeUiAction::PlayFromWaveformCursor
         | NativeUiAction::PlayWaveformAtPrecise { .. }
@@ -166,6 +167,9 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::ToggleLoopPlayback
         | NativeUiAction::SetVolume { .. }
         | NativeUiAction::CommitVolumeSetting => {
+            Some((DerivedNodeId::TransportState, DirtyReason::TransportAction))
+        }
+        NativeUiAction::SetCompareAnchorFromFocusedBrowserSample => {
             Some((DerivedNodeId::TransportState, DirtyReason::TransportAction))
         }
         NativeUiAction::CheckForUpdates

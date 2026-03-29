@@ -173,6 +173,8 @@ fn project_waveform_image(controller: &mut AppController) -> Option<Arc<ImageRgb
 pub(crate) fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel {
     WaveformChromeModel {
         transport_hint: waveform_transport_hint(ui),
+        compare_anchor_available: ui.compare_anchor.is_some(),
+        compare_anchor_label: ui.waveform.compare_anchor_label.clone(),
         loop_lock_enabled: ui.waveform.loop_lock_enabled,
         channel_view: project_waveform_channel_view_model(ui.waveform.channel_view),
         normalized_audition_enabled: ui.waveform.normalized_audition_enabled,

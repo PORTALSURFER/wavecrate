@@ -133,6 +133,7 @@ impl AppController {
 
     pub(crate) fn clear_loaded_sample_if(&mut self, source: &SampleSource, relative_path: &Path) {
         self.invalidate_cached_audio(&source.id, relative_path);
+        self.clear_compare_anchor_if_matches(&source.id, relative_path);
         if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
             if self.sample_view.wav.selected_wav.as_deref() == Some(relative_path) {
                 self.sample_view.wav.selected_wav = None;

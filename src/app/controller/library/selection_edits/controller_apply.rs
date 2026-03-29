@@ -228,6 +228,7 @@ impl AppController {
                 relative_path: target.relative_path.clone(),
                 looped: playback.was_looping,
                 start_override: playback.start_override,
+                force_loaded_audio: false,
             }));
     }
 }

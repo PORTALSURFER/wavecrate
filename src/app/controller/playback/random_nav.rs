@@ -232,6 +232,7 @@ fn play_random_history_entry(controller: &mut AppController, entry: RandomHistor
                 relative_path: entry.relative_path.clone(),
                 looped: controller.ui.waveform.loop_enabled,
                 start_override: None,
+                force_loaded_audio: false,
             }));
         controller
             .runtime

@@ -140,6 +140,8 @@ fn waveform_chrome_projection_reflects_loop_hint() {
     ui.waveform.channel_view = crate::waveform::WaveformChannelView::Mono;
     let projected = project_waveform_chrome_model(&ui);
     assert_eq!(projected.transport_hint, "Loop disabled");
+    assert!(!projected.compare_anchor_available);
+    assert!(projected.compare_anchor_label.is_none());
     assert!(!projected.loop_lock_enabled);
     assert_eq!(
         projected.channel_view,
@@ -158,6 +160,12 @@ fn waveform_chrome_projection_reflects_loop_hint() {
     assert!(projected.loop_lock_enabled);
 
     ui.waveform.loop_enabled = true;
+    ui.compare_anchor = Some(crate::app::state::CompareAnchorState {
+        source_id: crate::sample_sources::SourceId::new(),
+        relative_path: std::path::PathBuf::from("anchor.wav"),
+        label: String::from("anchor.wav"),
+    });
+    ui.waveform.compare_anchor_label = Some(String::from("anchor.wav"));
     ui.waveform.channel_view = crate::waveform::WaveformChannelView::SplitStereo;
     ui.waveform.normalized_audition_enabled = true;
     ui.waveform.bpm_snap_enabled = true;
@@ -171,6 +179,8 @@ fn waveform_chrome_projection_reflects_loop_hint() {
         projected.channel_view,
         radiant::app::WaveformChannelViewModel::Stereo
     );
+    assert!(projected.compare_anchor_available);
+    assert_eq!(projected.compare_anchor_label.as_deref(), Some("anchor.wav"));
     assert!(projected.loop_lock_enabled);
     assert!(projected.normalized_audition_enabled);
     assert!(projected.bpm_snap_enabled);

@@ -233,6 +233,8 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
             .map(view_model::sample_display_label),
         waveform_loading: controller.ui.waveform.loading.is_some(),
         waveform_transport_hint: waveform_projection::waveform_transport_hint(&controller.ui),
+        waveform_compare_anchor_available: controller.ui.compare_anchor.is_some(),
+        waveform_compare_anchor_label: controller.ui.waveform.compare_anchor_label.clone(),
         waveform_channel_view: waveform_projection::project_waveform_channel_view_model(
             controller.ui.waveform.channel_view,
         ),

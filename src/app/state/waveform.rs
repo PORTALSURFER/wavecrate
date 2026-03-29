@@ -89,6 +89,8 @@ pub struct WaveformState {
     pub normalized_audition_enabled: bool,
     /// Optional notice text displayed near the waveform.
     pub notice: Option<String>,
+    /// User-facing compare-anchor label shown by waveform/transport compare controls.
+    pub compare_anchor_label: Option<String>,
     /// Optional path for the sample currently loading to drive UI affordances.
     pub loading: Option<PathBuf>,
     /// Pending confirmation dialog for destructive edits.
@@ -218,6 +220,7 @@ impl Default for WaveformState {
             loop_lock_enabled: false,
             normalized_audition_enabled: false,
             notice: None,
+            compare_anchor_label: None,
             loading: None,
             pending_destructive: None,
             cursor_last_hover_at: None,

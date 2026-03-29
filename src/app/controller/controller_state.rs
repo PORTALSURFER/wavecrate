@@ -14,7 +14,7 @@ pub(crate) use super::state::runtime::{
     SimilarityPrepStage, SimilarityPrepState, UpdateCheckResult, WavLoadJob, WavLoadResult,
 };
 pub(super) use super::state::selection::{
-    ControllerSampleViewState, ControllerSelectionState, SelectionUndoState, WaveformSlidePreview,
-    WaveformSlideState,
+    CompareAnchorSample, ControllerSampleViewState, ControllerSelectionState, SelectionUndoState,
+    WaveformSlidePreview, WaveformSlideState,
 };
 pub(super) use super::state::settings::AppSettingsState;
