@@ -6,7 +6,7 @@ This directory keeps agent handoff planning state out of the way of other docs.
 
 - `../../tmp/improvement_audit_plan.md` — current evidence-driven ROI-ranked
   improvement backlog and execution record for the current tree
-  (Phase 2 started on 2026-03-29; item 2 is next)
+  (Phase 2 started on 2026-03-29; item 3 is next)
 - `active/runtime_performance_exec_plan.md` — completed responsiveness/performance redesign record retained for reference
 - `active/gui_test_platform_exec_plan.md` — phased rollout plan for the GUI
   action catalog, automation snapshot, runtime test mode, CLI, and AIV loops

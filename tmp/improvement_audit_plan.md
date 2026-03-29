@@ -4,7 +4,7 @@ Generated: 2026-03-29
 Observed superproject commit: `148839fd`
 Observed `vendor/radiant` commit: `091d1674`
 Observed workspace state: dirty worktree in both repos; findings below reflect the live workspace seen during this audit.
-Status: Phase 2 execution in progress on 2026-03-29; item 1 is completed, item 2 is next in plan order.
+Status: Phase 2 execution in progress on 2026-03-29; items 1-2 are completed, and item 3 is next in plan order.
 
 ## Scope
 
@@ -70,7 +70,7 @@ Status: Phase 2 execution in progress on 2026-03-29; item 1 is completed, item 2
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-29
-- Commit: pending (record after commit)
+- Commit: `4c94dac5`
 - Assumptions: benign child-process stderr should remain visible as diagnostics, while the child exit code remains the source of truth for PASS/FAIL classification.
 - Validation:
   - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1 2>&1 | Out-String`
@@ -79,7 +79,7 @@ Status: Phase 2 execution in progress on 2026-03-29; item 1 is completed, item 2
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Plan order deviation: none
 
-### 2. [ ] Repair the cleanup-hotspot audit scripts so ROI planning includes `vendor/radiant`
+### 2. [x] Repair the cleanup-hotspot audit scripts so ROI planning includes `vendor/radiant`
 
 - Classification: Bug fix
 - Confidence: High
@@ -101,6 +101,17 @@ Status: Phase 2 execution in progress on 2026-03-29; item 1 is completed, item 2
   - inspect `tmp/cleanup_audit_hotspots.md` and confirm `vendor/radiant` files appear in the largest-file and over-budget sections
   - compare the refreshed snapshot against `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
 - Product clarification required: No
+- Completed: 2026-03-29
+- Commit: pending (record after commit)
+- Assumptions: the vendored `vendor/radiant` checkout remains intentional live development code for cleanup planning, so the hotspot snapshot should enumerate it whenever the nested repo or working tree is present.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
+  - `tmp/cleanup_audit_hotspots.md` now reports 1254 scanned Rust files and surfaces `vendor/radiant` entries in the largest-file, over-budget, and heuristic hotspot sections
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
+    still reports the live 30 file-budget violations, including the `vendor/radiant` cluster that the refreshed hotspot snapshot now exposes
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
 ### 3. [ ] Re-baseline `docs/QUALITY_SCORE.md` against the live file-size state
 

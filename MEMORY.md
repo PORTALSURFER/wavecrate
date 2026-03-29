@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-29T19:13:00Z
+Last Updated: 2026-03-29T19:59:00Z
 Updated By: Codex
 
 ## Purpose
@@ -18,6 +18,7 @@ Updated By: Codex
 - The current tree is not a clean baseline; the worktree is already dirty and the audit treats those edits as read-only context.
 - The live full-scan file-size budget is red again on this tree; `scripts/check_file_size_budget.ps1 -All` reported current repo and `vendor/radiant` violations during the audit.
 - Item 1 fixed `scripts/check_quality_score_drift.ps1` so benign nested Git CRLF warnings no longer abort guardrail classification on Windows.
+- Item 2 fixed the cleanup-hotspot audit scripts so `tmp/cleanup_audit_hotspots.md` now includes `vendor/radiant` and exposes the live runtime hotspot cluster again.
 - The repaired quality-score drift wrapper now reaches the real degraded-score result on this tree; the remaining mismatch is the stale scorecard state planned for item 3.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
@@ -26,7 +27,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order; item 2 is next.
+1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order; item 3 is next.
 2. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` aligned around the current execution lane.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
@@ -34,8 +35,8 @@ Updated By: Codex
 
 ## Work Notes
 
-- Active audit plan: `tmp/improvement_audit_plan.md` (rebuilt on 2026-03-29; Phase 2 started and item 1 is complete)
-- Prior broader hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
+- Active audit plan: `tmp/improvement_audit_plan.md` (rebuilt on 2026-03-29; Phase 2 started and items 1-2 are complete)
+- Current broader hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
 - Parked cleanup backlog: `tmp/cleanup_plan.md`

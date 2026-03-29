@@ -106,6 +106,8 @@ tmp_dead_counts="$(mktemp)"
 tmp_tma_counts="$(mktemp)"
 tmp_test_gaps="$(mktemp)"
 tmp_function_spans="$(mktemp)"
+VENDOR_REPO_PATH="vendor/radiant"
+VENDOR_SCOPE_PATH="src"
 
 cleanup() {
   rm -f \
@@ -120,7 +122,32 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mapfile -t rust_files < <(git ls-files '*.rs' | LC_ALL=C sort)
+repo_is_ready() {
+  local repo_path="$1"
+  [[ -d "$repo_path" ]] || return 1
+  git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1
+}
+
+emit_vendor_working_tree_files() {
+  local vendor_src="$ROOT_DIR/$VENDOR_REPO_PATH/$VENDOR_SCOPE_PATH"
+  [[ -d "$vendor_src" ]] || return 0
+  find "$vendor_src" -type f -name '*.rs' -print \
+    | sed "s#^$ROOT_DIR/##" \
+    | sed 's#\\#/#g'
+}
+
+collect_rust_files() {
+  git ls-files -- '*.rs'
+
+  if repo_is_ready "$VENDOR_REPO_PATH"; then
+    git -C "$VENDOR_REPO_PATH" ls-files -- "$VENDOR_SCOPE_PATH" \
+      | sed "s#^#$VENDOR_REPO_PATH/#"
+  else
+    emit_vendor_working_tree_files
+  fi
+}
+
+mapfile -t rust_files < <(collect_rust_files | LC_ALL=C sort -u)
 
 for file in "${rust_files[@]}"; do
   if [[ ! -f "$file" ]]; then
