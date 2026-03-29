@@ -4,7 +4,7 @@ Generated: 2026-03-29
 Observed superproject commit: `148839fd`
 Observed `vendor/radiant` commit: `091d1674`
 Observed workspace state: dirty worktree in both repos; findings below reflect the live workspace seen during this audit.
-Status: Phase 2 execution in progress on 2026-03-29; items 1-3 and 7 are completed, items 4-6 and 8-9 are clarification-gated or blocked, and item 10 is the next safe executable task.
+Status: Phase 2 execution in progress on 2026-03-29; items 1-3, 7, and 10 are completed, items 4-6 and 8-9 are clarification-gated or blocked, and item 11 is the next safe executable task.
 
 ## Scope
 
@@ -236,7 +236,7 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-3 and 7 are complet
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-29
-- Commit: pending (record after commit)
+- Commit: `585abf68`
 - Assumptions: compare-anchor rename-path rewrites are still safe to validate even while the separate undo/redo contract question remains unresolved.
 - Validation:
   - `cargo test entry_mutation_tests --lib -- --test-threads=1`
@@ -310,6 +310,14 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-3 and 7 are complet
   - targeted `cargo test -p gui-test-cli -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
 - Product clarification required: No
+- Completed: 2026-03-29
+- Commit: pending (record after commit)
+- Assumptions: command-surface parsing can be validated independently from the unresolved `CaptureSnapshot` artifact contract because the supported top-level CLI verbs and required arguments already exist today.
+- Validation:
+  - `cargo test -p gui-test-cli -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
 ### 11. [ ] Add direct coverage for the shipped installer entry flow
 

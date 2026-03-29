@@ -15,29 +15,26 @@ use sempal::{
 use std::path::PathBuf;
 
 fn main() -> Result<(), String> {
-    let mut args = std::env::args().skip(1);
-    let Some(command) = args.next() else {
-        return Err(usage());
-    };
-    match command.as_str() {
-        "snapshot" => {
-            let output = required_path(args.next(), "snapshot output path")?;
+    match parse_command(std::env::args().skip(1).collect())? {
+        CliCommand::Snapshot { output } => {
             let config = cli_config(None, &output);
             let bundle = capture_default_bundle(&config)?;
             write_artifact_bundle(&bundle, &output)
         }
-        "dispatch-action" => {
-            let action_json = required_arg(args.next(), "dispatch-action JSON payload")?;
-            let output = required_path(args.next(), "dispatch-action output path")?;
+        CliCommand::DispatchAction {
+            action_json,
+            output,
+        } => {
             let action: NativeUiAction = serde_json::from_str(&action_json)
                 .map_err(|err| format!("failed to parse action JSON: {err}"))?;
             let config = cli_config(Some(String::from("dispatch-action")), &output);
             let bundle = dispatch_action_bundle(&config, action)?;
             write_artifact_bundle(&bundle, &output)
         }
-        "run-scenario" => {
-            let scenario_path = required_path(args.next(), "scenario JSON path")?;
-            let output = required_path(args.next(), "scenario output path")?;
+        CliCommand::RunScenario {
+            scenario_path,
+            output,
+        } => {
             let scenario_json = std::fs::read_to_string(&scenario_path).map_err(|err| {
                 format!("failed to read scenario {}: {err}", scenario_path.display())
             })?;
@@ -47,9 +44,10 @@ fn main() -> Result<(), String> {
             let bundle = run_scenario(&config, &scenario)?;
             write_artifact_bundle(&bundle, &output)
         }
-        "run-scenario-pack" => {
-            let pack_name = required_arg(args.next(), "scenario pack name")?;
-            let output_dir = required_path(args.next(), "scenario pack output dir")?;
+        CliCommand::RunScenarioPack {
+            pack_name,
+            output_dir,
+        } => {
             let pack = gui_scenario_pack(&pack_name)?;
             for scenario in &pack.scenarios {
                 let output = output_dir.join(format!("{}.json", scenario.name));
@@ -60,16 +58,14 @@ fn main() -> Result<(), String> {
             }
             Ok(())
         }
-        "export-aiv-suite" => {
-            let request = resolve_export_aiv_suite_request(args.collect())?;
+        CliCommand::ExportAivSuite { args } => {
+            let request = resolve_export_aiv_suite_request(args)?;
             match request.pack_name.as_deref() {
                 Some(pack_name) => export_aiv_suite_pack(pack_name, &request.output_path),
                 None => export_aiv_suite(&request.output_path),
             }
         }
-        "resolve-node-target" => {
-            let artifact = required_path(args.next(), "GUI artifact path")?;
-            let node_id = required_arg(args.next(), "automation node id")?;
+        CliCommand::ResolveNodeTarget { artifact, node_id } => {
             let snapshot = read_automation_snapshot_from_artifact(&artifact)?;
             let target = resolve_automation_target(&snapshot, &node_id)?;
             let json = serde_json::to_string_pretty(&target)
@@ -77,6 +73,45 @@ fn main() -> Result<(), String> {
             println!("{json}");
             Ok(())
         }
+    }
+}
+
+#[derive(Debug)]
+enum CliCommand {
+    Snapshot { output: PathBuf },
+    DispatchAction { action_json: String, output: PathBuf },
+    RunScenario { scenario_path: PathBuf, output: PathBuf },
+    RunScenarioPack { pack_name: String, output_dir: PathBuf },
+    ExportAivSuite { args: Vec<String> },
+    ResolveNodeTarget { artifact: PathBuf, node_id: String },
+}
+
+fn parse_command(args: Vec<String>) -> Result<CliCommand, String> {
+    let mut args = args.into_iter();
+    let Some(command) = args.next() else {
+        return Err(usage());
+    };
+    match command.as_str() {
+        "snapshot" => Ok(CliCommand::Snapshot {
+            output: required_path(args.next(), "snapshot output path")?,
+        }),
+        "dispatch-action" => Ok(CliCommand::DispatchAction {
+            action_json: required_arg(args.next(), "dispatch-action JSON payload")?,
+            output: required_path(args.next(), "dispatch-action output path")?,
+        }),
+        "run-scenario" => Ok(CliCommand::RunScenario {
+            scenario_path: required_path(args.next(), "scenario JSON path")?,
+            output: required_path(args.next(), "scenario output path")?,
+        }),
+        "run-scenario-pack" => Ok(CliCommand::RunScenarioPack {
+            pack_name: required_arg(args.next(), "scenario pack name")?,
+            output_dir: required_path(args.next(), "scenario pack output dir")?,
+        }),
+        "export-aiv-suite" => Ok(CliCommand::ExportAivSuite { args: args.collect() }),
+        "resolve-node-target" => Ok(CliCommand::ResolveNodeTarget {
+            artifact: required_path(args.next(), "GUI artifact path")?,
+            node_id: required_arg(args.next(), "automation node id")?,
+        }),
         other => Err(format!("unknown command '{other}'\n\n{}", usage())),
     }
 }
@@ -129,6 +164,76 @@ mod tests {
     use super::*;
 
     #[test]
+    fn parse_snapshot_command_requires_output_path() {
+        let command = parse_command(vec![String::from("snapshot"), String::from("out.json")])
+            .expect("snapshot command");
+        match command {
+            CliCommand::Snapshot { output } => assert_eq!(output, PathBuf::from("out.json")),
+            _ => panic!("expected snapshot command"),
+        }
+    }
+
+    #[test]
+    fn parse_dispatch_action_command_accepts_json_and_output() {
+        let command = parse_command(vec![
+            String::from("dispatch-action"),
+            String::from(r#"{"kind":"PlayPause"}"#),
+            String::from("artifact.json"),
+        ])
+        .expect("dispatch-action command");
+        match command {
+            CliCommand::DispatchAction {
+                action_json,
+                output,
+            } => {
+                assert_eq!(action_json, r#"{"kind":"PlayPause"}"#);
+                assert_eq!(output, PathBuf::from("artifact.json"));
+            }
+            _ => panic!("expected dispatch-action command"),
+        }
+    }
+
+    #[test]
+    fn parse_run_scenario_command_accepts_paths() {
+        let command = parse_command(vec![
+            String::from("run-scenario"),
+            String::from("scenario.json"),
+            String::from("artifact.json"),
+        ])
+        .expect("run-scenario command");
+        match command {
+            CliCommand::RunScenario {
+                scenario_path,
+                output,
+            } => {
+                assert_eq!(scenario_path, PathBuf::from("scenario.json"));
+                assert_eq!(output, PathBuf::from("artifact.json"));
+            }
+            _ => panic!("expected run-scenario command"),
+        }
+    }
+
+    #[test]
+    fn parse_run_scenario_pack_command_accepts_pack_and_output_dir() {
+        let command = parse_command(vec![
+            String::from("run-scenario-pack"),
+            String::from("smoke"),
+            String::from("artifacts"),
+        ])
+        .expect("run-scenario-pack command");
+        match command {
+            CliCommand::RunScenarioPack {
+                pack_name,
+                output_dir,
+            } => {
+                assert_eq!(pack_name, "smoke");
+                assert_eq!(output_dir, PathBuf::from("artifacts"));
+            }
+            _ => panic!("expected run-scenario-pack command"),
+        }
+    }
+
+    #[test]
     fn export_aiv_suite_legacy_alias_defaults_to_smoke_pack() {
         let request = resolve_export_aiv_suite_request(vec![String::from("out.json")])
             .expect("legacy export request");
@@ -145,5 +250,49 @@ mod tests {
         .expect("explicit export request");
         assert_eq!(request.pack_name.as_deref(), Some("desktop-regression"));
         assert_eq!(request.output_path, PathBuf::from("out.json"));
+    }
+
+    #[test]
+    fn parse_export_aiv_suite_command_preserves_remaining_args() {
+        let command = parse_command(vec![
+            String::from("export-aiv-suite"),
+            String::from("desktop-regression"),
+            String::from("out.json"),
+        ])
+        .expect("export-aiv-suite command");
+        match command {
+            CliCommand::ExportAivSuite { args } => assert_eq!(
+                args,
+                vec![
+                    String::from("desktop-regression"),
+                    String::from("out.json")
+                ]
+            ),
+            _ => panic!("expected export-aiv-suite command"),
+        }
+    }
+
+    #[test]
+    fn parse_resolve_node_target_command_accepts_artifact_and_node_id() {
+        let command = parse_command(vec![
+            String::from("resolve-node-target"),
+            String::from("artifact.json"),
+            String::from("browser.root"),
+        ])
+        .expect("resolve-node-target command");
+        match command {
+            CliCommand::ResolveNodeTarget { artifact, node_id } => {
+                assert_eq!(artifact, PathBuf::from("artifact.json"));
+                assert_eq!(node_id, "browser.root");
+            }
+            _ => panic!("expected resolve-node-target command"),
+        }
+    }
+
+    #[test]
+    fn parse_unknown_command_reports_usage() {
+        let err = parse_command(vec![String::from("unknown")]).expect_err("unknown command");
+        assert!(err.contains("unknown command 'unknown'"));
+        assert!(err.contains("gui-test-cli snapshot <output.json>"));
     }
 }
