@@ -11,7 +11,10 @@ pub(crate) fn ensure_progress_visible(
 ) {
     if !controller.ui.progress.visible || controller.ui.progress.task != Some(task) {
         controller.show_status_progress(task, label, total, cancellable);
+        return;
     }
+    controller.update_status_progress_title(task, label);
+    controller.ui.progress.cancelable = cancellable;
 }
 
 /// Update detail text for an active progress task without changing total counts.

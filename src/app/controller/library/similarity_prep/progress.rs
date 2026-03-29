@@ -1,6 +1,7 @@
 use super::{DbSimilarityPrepStore, SimilarityPrepStore, state::SimilarityPrepStage};
 use crate::app::controller::AppController;
 use crate::app::state::AnalysisProgressSnapshot;
+use crate::sample_sources::scanner::ScanMode;
 use tracing::info;
 
 impl AppController {
@@ -21,8 +22,9 @@ impl AppController {
                         "Similarity prep waiting for scan (source_id={})",
                         state.source_id.as_str()
                     );
-                    self.ensure_similarity_prep_progress(0, false);
-                    self.set_similarity_scan_detail();
+                    if let Some(source) = self.find_source_by_id(&state.source_id) {
+                        self.ensure_scan_progress_for_source(ScanMode::Hard, &source);
+                    }
                     return;
                 }
                 info!(

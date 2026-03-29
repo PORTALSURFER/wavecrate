@@ -21,6 +21,17 @@ impl AppController {
         }
     }
 
+    /// Update the current progress title when the expected task owns the footer lane.
+    pub(crate) fn update_status_progress_title(
+        &mut self,
+        task: ProgressTaskKind,
+        title: impl Into<String>,
+    ) {
+        if self.ui.progress.task == Some(task) {
+            self.ui.progress.set_title(title);
+        }
+    }
+
     /// Clear any active progress overlay.
     pub(crate) fn clear_progress(&mut self) {
         self.ui.progress.reset();

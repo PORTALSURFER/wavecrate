@@ -2,8 +2,9 @@ use super::*;
 use crate::app::state::ProgressTaskKind;
 use crate::sample_sources::scanner::ScanMode;
 
-const SCAN_PROGRESS_DETAIL: &str = "Scanning audio files…";
-const SIMILARITY_PREP_LABEL: &str = "Preparing similarity search";
+const SCAN_PROGRESS_LABEL: &str = "Scanning source";
+const SIMILARITY_ANALYSIS_LABEL: &str = "Analyzing samples";
+const SIMILARITY_EMBEDDING_LABEL: &str = "Embedding similarity";
 const SIMILARITY_FINALIZE_LABEL: &str = "Finalizing similarity prep";
 const SIMILARITY_SCAN_DETAIL: &str = "Scanning source…";
 const SIMILARITY_ANALYSIS_DETAIL: &str = "Analyzing…";
@@ -26,8 +27,26 @@ impl AppController {
             format!("{status_label} on {}", source.root.display()),
             StatusTone::Busy,
         ));
-        self.show_status_progress(ProgressTaskKind::Scan, status_label, 0, true);
-        self.update_progress_detail(SCAN_PROGRESS_DETAIL);
+        self.ensure_scan_progress_for_source(mode, source);
+    }
+
+    pub(crate) fn ensure_scan_progress_for_source(
+        &mut self,
+        mode: ScanMode,
+        source: &SampleSource,
+    ) {
+        let should_seed_detail =
+            !self.ui.progress.visible || self.ui.progress.task != Some(ProgressTaskKind::Scan);
+        if should_seed_detail {
+            self.show_status_progress(ProgressTaskKind::Scan, SCAN_PROGRESS_LABEL, 0, true);
+            self.update_progress_detail(format!(
+                "{} • {}",
+                Self::scan_status_label(mode),
+                source.root.display()
+            ));
+            return;
+        }
+        self.update_status_progress_title(ProgressTaskKind::Scan, SCAN_PROGRESS_LABEL);
     }
 
     pub(crate) fn ensure_wav_load_progress(&mut self, source: &SampleSource) {
@@ -44,22 +63,39 @@ impl AppController {
     pub(crate) fn show_similarity_prep_progress(&mut self, total: usize, cancelable: bool) {
         self.show_status_progress(
             ProgressTaskKind::Analysis,
-            SIMILARITY_PREP_LABEL,
+            SIMILARITY_ANALYSIS_LABEL,
             total,
             cancelable,
         );
     }
 
     pub(crate) fn set_similarity_scan_detail(&mut self) {
-        self.update_progress_detail(SIMILARITY_SCAN_DETAIL);
+        self.update_status_progress_title(ProgressTaskKind::Scan, SCAN_PROGRESS_LABEL);
+        if self.ui.progress.task == Some(ProgressTaskKind::Scan)
+            && self.ui.progress.detail.is_none()
+        {
+            self.update_progress_detail(SIMILARITY_SCAN_DETAIL);
+        }
     }
 
     pub(crate) fn set_similarity_embedding_detail(&mut self) {
-        self.update_progress_detail(SIMILARITY_EMBEDDING_DETAIL);
+        if self.ui.progress.task == Some(ProgressTaskKind::Analysis) {
+            self.update_status_progress_title(
+                ProgressTaskKind::Analysis,
+                SIMILARITY_EMBEDDING_LABEL,
+            );
+            self.update_progress_detail(SIMILARITY_EMBEDDING_DETAIL);
+        }
     }
 
     pub(crate) fn set_similarity_analysis_detail(&mut self) {
-        self.update_progress_detail(SIMILARITY_ANALYSIS_DETAIL);
+        if self.ui.progress.task == Some(ProgressTaskKind::Analysis) {
+            self.update_status_progress_title(
+                ProgressTaskKind::Analysis,
+                SIMILARITY_ANALYSIS_LABEL,
+            );
+            self.update_progress_detail(SIMILARITY_ANALYSIS_DETAIL);
+        }
     }
 
     pub(crate) fn set_similarity_finalize_detail(&mut self) {

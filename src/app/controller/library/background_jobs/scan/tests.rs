@@ -77,7 +77,7 @@ fn changed_scan_refreshes_selected_source_and_enqueues_follow_up_analysis() {
         source.id.clone(),
         HashMap::from([(PathBuf::from("kick.wav"), 1.25)]),
     );
-    controller.show_status_progress(ProgressTaskKind::Scan, "Scanning", 1, true);
+    controller.show_status_progress(ProgressTaskKind::Scan, "Scanning source", 0, true);
 
     handle_scan_finished(
         &mut controller,
@@ -95,8 +95,16 @@ fn changed_scan_refreshes_selected_source_and_enqueues_follow_up_analysis() {
         ),
     );
 
-    assert_eq!(controller.ui.progress.task, None);
-    assert!(!controller.ui.progress.visible);
+    assert_eq!(
+        controller.ui.progress.task,
+        Some(ProgressTaskKind::Analysis)
+    );
+    assert!(controller.ui.progress.visible);
+    assert_eq!(controller.ui.progress.title, "Analyzing samples");
+    assert_eq!(
+        controller.ui.progress.detail.as_deref(),
+        Some("Queueing analysis follow-up…")
+    );
     assert!(
         !controller
             .ui_cache
@@ -184,6 +192,11 @@ fn unchanged_scan_finishes_similarity_prep_without_backfill_enqueue() {
         SimilarityPrepStage::AwaitEmbeddings | SimilarityPrepStage::Finalizing
     ));
     assert!(prep.skip_backfill);
+    assert_eq!(
+        controller.ui.progress.task,
+        Some(ProgressTaskKind::Analysis)
+    );
+    assert!(controller.ui.progress.visible);
 }
 
 #[test]
@@ -241,4 +254,20 @@ fn failed_scan_clears_similarity_prep_and_reports_error_for_selected_source() {
 
     assert!(controller.ui.status.text.starts_with("Hard sync failed: "));
     assert!(controller.runtime.similarity_prep.is_none());
+}
+
+#[test]
+fn scan_progress_updates_keep_indeterminate_total_and_path_detail() {
+    let (mut controller, _source) = dummy_controller();
+    controller.show_status_progress(ProgressTaskKind::Scan, "Scanning source", 0, true);
+
+    handle_scan_progress(&mut controller, 12, Some(String::from("drums\\kick.wav")));
+
+    assert_eq!(controller.ui.progress.task, Some(ProgressTaskKind::Scan));
+    assert_eq!(controller.ui.progress.total, 0);
+    assert_eq!(controller.ui.progress.completed, 12);
+    assert_eq!(
+        controller.ui.progress.detail.as_deref(),
+        Some("drums\\kick.wav")
+    );
 }

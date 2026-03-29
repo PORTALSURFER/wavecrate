@@ -3,27 +3,24 @@ use super::*;
 use crate::app::state::ProgressTaskKind;
 use crate::sample_sources::scanner::ChangedSample;
 
+const ANALYSIS_QUEUE_DETAIL: &str = "Queueing analysis follow-up…";
+
 /// Apply incremental scan progress to the shared progress UI.
 pub(crate) fn handle_scan_progress(
     controller: &mut AppController,
     completed: usize,
     detail: Option<String>,
 ) {
-    let detail = match detail {
-        Some(detail) if !detail.is_empty() => {
-            format!("Scanned {completed} file(s)\n{detail}")
-        }
-        _ => format!("Scanned {completed} file(s)"),
-    };
-    progress::update_progress_detail(controller, ProgressTaskKind::Scan, completed, Some(detail));
+    let detail = detail.and_then(|detail| {
+        let trimmed = detail.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
+    });
+    progress::update_progress_detail(controller, ProgressTaskKind::Scan, completed, detail);
 }
 
 /// Finalize scan state, refresh caches, and queue analysis follow-up work.
 pub(crate) fn handle_scan_finished(controller: &mut AppController, result: ScanResult) {
     controller.runtime.jobs.clear_scan();
-    if controller.ui.progress.task == Some(ProgressTaskKind::Scan) {
-        controller.clear_progress();
-    }
     let is_selected_source =
         Some(&result.source_id) == controller.selection_state.ctx.selected_source.as_ref();
     let is_auto = matches!(result.kind, ScanKind::Auto);
@@ -38,9 +35,11 @@ pub(crate) fn handle_scan_finished(controller: &mut AppController, result: ScanR
             label,
             is_selected_source,
             is_auto,
+            result.kind,
             stats,
         ),
         Err(crate::sample_sources::scanner::ScanError::Canceled) => {
+            clear_scan_progress_if_active(controller);
             handle_scan_failure(
                 controller,
                 &result.source_id,
@@ -49,13 +48,16 @@ pub(crate) fn handle_scan_finished(controller: &mut AppController, result: ScanR
                 None,
             );
         }
-        Err(err) => handle_scan_failure(
-            controller,
-            &result.source_id,
-            label,
-            is_selected_source,
-            Some(err),
-        ),
+        Err(err) => {
+            clear_scan_progress_if_active(controller);
+            handle_scan_failure(
+                controller,
+                &result.source_id,
+                label,
+                is_selected_source,
+                Some(err),
+            )
+        }
     }
 }
 
@@ -65,6 +67,7 @@ fn handle_successful_scan(
     label: &str,
     is_selected_source: bool,
     is_auto: bool,
+    kind: ScanKind,
     stats: ScanStats,
 ) {
     let changed_samples = stats.changed_samples.clone();
@@ -91,6 +94,13 @@ fn handle_successful_scan(
         .iter()
         .find(|source| source.id == *source_id)
         .cloned();
+    let keep_footer_progress = controller.ui.progress.task == Some(ProgressTaskKind::Scan)
+        && matches!(kind, ScanKind::Manual)
+        && source.is_some();
+
+    if keep_footer_progress {
+        begin_follow_up_analysis_progress(controller);
+    }
 
     if scan_changed {
         if let Some(source) = source.clone() {
@@ -108,6 +118,7 @@ fn handle_successful_scan(
         spawn_duration_refresh(controller, source);
     }
     controller.handle_similarity_scan_finished(source_id, scan_changed);
+    clear_scan_progress_if_active(controller);
 }
 
 fn report_successful_scan_status(
@@ -233,6 +244,17 @@ fn spawn_duration_refresh(controller: &mut AppController, source: SampleSource) 
             }
         },
     );
+}
+
+fn begin_follow_up_analysis_progress(controller: &mut AppController) {
+    controller.show_status_progress(ProgressTaskKind::Analysis, "Analyzing samples", 0, true);
+    controller.update_progress_detail(ANALYSIS_QUEUE_DETAIL);
+}
+
+fn clear_scan_progress_if_active(controller: &mut AppController) {
+    if controller.ui.progress.task == Some(ProgressTaskKind::Scan) {
+        controller.clear_progress();
+    }
 }
 
 fn handle_scan_failure(

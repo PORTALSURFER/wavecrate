@@ -137,6 +137,12 @@ impl ProgressOverlayState {
         self.last_update_at = Some(Instant::now());
     }
 
+    /// Update the title text and refresh the timestamp.
+    pub fn set_title(&mut self, title: impl Into<String>) {
+        self.title = title.into();
+        self.last_update_at = Some(Instant::now());
+    }
+
     /// Update total/completed counts and refresh timestamps.
     pub fn set_counts(&mut self, total: usize, completed: usize) {
         if self.total != total || self.completed != completed {

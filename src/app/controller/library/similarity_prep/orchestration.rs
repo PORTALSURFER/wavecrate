@@ -60,7 +60,7 @@ impl AppController {
         self.apply_similarity_prep_fast_mode();
         self.apply_similarity_prep_full_analysis(force_full_analysis);
         self.apply_similarity_prep_worker_boost();
-        self.show_similarity_prep_start(&source);
+        self.show_similarity_prep_start(&source, plan.skip_scan);
         if plan.skip_scan {
             self.ensure_similarity_prep_progress(0, true);
             self.set_similarity_embedding_detail();
