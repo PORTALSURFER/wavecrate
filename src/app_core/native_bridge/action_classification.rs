@@ -64,6 +64,8 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::MuteWaveformSelection
         | NativeUiAction::DeleteSelectedSliceMarkers
         | NativeUiAction::DetectWaveformSilenceSlices
+        | NativeUiAction::DetectWaveformExactDuplicateSlices
+        | NativeUiAction::CleanWaveformExactDuplicateSlices
         | NativeUiAction::ToggleWaveformSliceSelection { .. }
         | NativeUiAction::MoveWaveformSliceFocus { .. }
         | NativeUiAction::ToggleFocusedWaveformSliceExportMark
@@ -113,6 +115,7 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
             | NativeUiAction::ToggleWaveformSliceSelection { .. }
             | NativeUiAction::MoveWaveformSliceFocus { .. }
             | NativeUiAction::ToggleFocusedWaveformSliceExportMark
+            | NativeUiAction::DetectWaveformExactDuplicateSlices
             | NativeUiAction::ClearWaveformSelection
             | NativeUiAction::ClearWaveformEditSelection
             | NativeUiAction::ClearWaveformSelections
@@ -153,6 +156,7 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::ToggleWaveformSliceSelection { .. }
             | NativeUiAction::MoveWaveformSliceFocus { .. }
             | NativeUiAction::ToggleFocusedWaveformSliceExportMark
+            | NativeUiAction::DetectWaveformExactDuplicateSlices
     )
 }
 

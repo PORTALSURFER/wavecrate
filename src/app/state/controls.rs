@@ -69,6 +69,8 @@ pub enum DestructiveSelectionEdit {
     NormalizeSelection,
     /// Attempt to remove clicks in the selection.
     ClickRemoval,
+    /// Remove later exact BPM-aligned duplicate beat ranges from the loaded file.
+    CleanExactDuplicateBeats,
 }
 
 /// Confirmation prompt content for destructive edits.

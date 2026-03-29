@@ -245,6 +245,9 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         waveform_transient_snap_enabled: controller.ui.waveform.transient_snap_enabled,
         waveform_transient_markers_enabled: controller.ui.waveform.transient_markers_enabled,
         waveform_slice_mode_enabled: controller.ui.waveform.slice_mode_enabled,
+        waveform_exact_duplicate_cleanup_available: controller.ui.waveform.slice_batch_profile
+            == crate::app::state::WaveformSliceBatchProfile::ExactDuplicateBeats
+            && !controller.ui.waveform.slices.is_empty(),
         status_right: status_bar_right_text(selected_column),
     }
 }

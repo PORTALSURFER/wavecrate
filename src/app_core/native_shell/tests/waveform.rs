@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::state::WaveformSliceBatchProfile;
 
 /// Live transport progress should override stale UI playhead snapshots during motion pulls.
 #[test]
@@ -169,4 +170,18 @@ fn waveform_chrome_projection_reflects_loop_hint() {
     assert!(projected.transient_snap_enabled);
     assert!(!projected.transient_markers_enabled);
     assert!(projected.slice_mode_enabled);
+    assert!(!projected.exact_duplicate_cleanup_available);
+}
+
+#[test]
+fn waveform_chrome_projection_marks_exact_duplicate_cleanup_availability() {
+    let mut ui = UiState::default();
+    ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::ExactDuplicateBeats;
+    ui.waveform
+        .slices
+        .push(crate::selection::SelectionRange::new(0.2, 0.4));
+
+    let projected = project_waveform_chrome_model(&ui);
+
+    assert!(projected.exact_duplicate_cleanup_available);
 }

@@ -134,6 +134,10 @@ pub enum GuiActionKind {
     CommitWaveformEditFades,
     /// Detect silence-separated waveform slices and preview them for export.
     DetectWaveformSilenceSlices,
+    /// Detect exact BPM-aligned duplicate beat slices for cleanup preview.
+    DetectWaveformExactDuplicateSlices,
+    /// Apply the current exact duplicate cleanup batch to the loaded waveform file.
+    CleanWaveformExactDuplicateSlices,
     /// Toggle selection on one browser row.
     ToggleBrowserRowSelection,
     /// Start dragging one browser sample or the active browser multi-selection.
@@ -348,7 +352,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 169] = [
+    pub const ALL: [Self; 171] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -413,6 +417,8 @@ impl GuiActionKind {
         Self::SaveWaveformSelectionToBrowserWithKeep2,
         Self::CommitWaveformEditFades,
         Self::DetectWaveformSilenceSlices,
+        Self::DetectWaveformExactDuplicateSlices,
+        Self::CleanWaveformExactDuplicateSlices,
         Self::ToggleBrowserRowSelection,
         Self::StartBrowserSampleDrag,
         Self::UpdateBrowserSampleDrag,

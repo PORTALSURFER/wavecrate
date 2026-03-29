@@ -6,7 +6,7 @@ impl AppController {
         &mut self,
         edit: DestructiveSelectionEdit,
     ) -> Result<SelectionEditRequest, String> {
-        if let Err(err) = self.selection_target() {
+        if let Err(err) = self.validate_destructive_edit_request(edit) {
             self.set_status(err.clone(), StatusTone::Error);
             return Err(err);
         }
@@ -241,6 +241,21 @@ impl AppController {
         result
     }
 
+    fn validate_destructive_edit_request(
+        &self,
+        edit: DestructiveSelectionEdit,
+    ) -> Result<(), String> {
+        match edit {
+            DestructiveSelectionEdit::CleanExactDuplicateBeats => {
+                self.exact_duplicate_cleanup_ranges().map(|_| ())
+            }
+            _ => {
+                self.selection_target()?;
+                Ok(())
+            }
+        }
+    }
+
     fn apply_selection_edit_kind(&mut self, edit: DestructiveSelectionEdit) -> Result<(), String> {
         match edit {
             DestructiveSelectionEdit::CropSelection => self.crop_waveform_selection(),
@@ -256,6 +271,9 @@ impl AppController {
             DestructiveSelectionEdit::MuteSelection => self.mute_waveform_selection(),
             DestructiveSelectionEdit::NormalizeSelection => self.normalize_waveform_selection(),
             DestructiveSelectionEdit::ClickRemoval => self.repair_clicks_selection(),
+            DestructiveSelectionEdit::CleanExactDuplicateBeats => {
+                self.clean_exact_duplicate_beats()
+            }
         }
     }
 }

@@ -167,6 +167,44 @@ fn detect_waveform_slices_ignores_transient_settings() {
 }
 
 #[test]
+fn detect_waveform_exact_duplicate_slices_from_bpm_keeps_first_beat() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).unwrap();
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(root.clone());
+    controller.library.sources.push(source.clone());
+    controller.cache_db(&source).unwrap();
+
+    let wav_path = root.join("clip.wav");
+    write_test_wav(
+        &wav_path,
+        &[0.8, 0.0, 0.0, 0.0, 0.8, 0.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0],
+    );
+    controller
+        .load_waveform_for_selection(&source, Path::new("clip.wav"))
+        .unwrap();
+    controller.ui.waveform.bpm_value = Some(120.0);
+
+    let count = controller
+        .detect_waveform_exact_duplicate_slices_from_bpm()
+        .unwrap();
+
+    assert_eq!(count, 1);
+    assert_eq!(controller.ui.waveform.slices.len(), 1);
+    let duplicate = controller.ui.waveform.slices[0];
+    assert!((duplicate.start() - (4.0 / 12.0)).abs() < 1.0e-6);
+    assert!((duplicate.end() - (8.0 / 12.0)).abs() < 1.0e-6);
+    assert_eq!(
+        controller.ui.waveform.slice_batch_profile,
+        WaveformSliceBatchProfile::ExactDuplicateBeats
+    );
+    assert_eq!(controller.ui.waveform.slice_batch_beat_count, 1);
+    assert!(controller.ui.status.text.contains("Clean Dups apply"));
+}
+
+#[test]
 fn slice_review_navigation_and_marking_use_dedicated_state() {
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
     let mut controller = AppController::new(renderer, None);
@@ -191,6 +229,24 @@ fn slice_review_navigation_and_marking_use_dedicated_state() {
     assert!(!controller.ui.waveform.slice_review.active);
     assert!(controller.ui.waveform.slice_review.focused_index.is_none());
     assert_eq!(controller.ui.waveform.slice_review.marked_indices, vec![1]);
+}
+
+#[test]
+fn toggle_focused_slice_export_mark_rejects_duplicate_cleanup_batches() {
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    controller.ui.waveform.slices = vec![SelectionRange::new(0.25, 0.5)];
+    controller.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::ExactDuplicateBeats;
+    controller.start_slice_review();
+
+    let err = controller
+        .toggle_focused_slice_export_mark()
+        .expect_err("duplicate cleanup batches should not be export-marked");
+
+    assert_eq!(
+        err,
+        "Exact duplicate cleanup batches cannot be export-marked"
+    );
 }
 
 #[test]
@@ -267,6 +323,44 @@ fn delete_selected_slices_removes_marked_ranges() {
 }
 
 #[test]
+fn delete_selected_slices_preserves_duplicate_cleanup_profile_and_recounts_beats() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).unwrap();
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(root.clone());
+    controller.library.sources.push(source.clone());
+    controller.cache_db(&source).unwrap();
+
+    let wav_path = root.join("clip.wav");
+    write_test_wav(
+        &wav_path,
+        &[
+            0.8, 0.0, 0.0, 0.0, 0.8, 0.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0,
+        ],
+    );
+    controller
+        .load_waveform_for_selection(&source, Path::new("clip.wav"))
+        .unwrap();
+    controller.ui.waveform.bpm_value = Some(120.0);
+    controller
+        .detect_waveform_exact_duplicate_slices_from_bpm()
+        .unwrap();
+    controller.ui.waveform.selected_slices = vec![0];
+
+    let removed = controller.delete_selected_slices();
+
+    assert_eq!(removed, 1);
+    assert_eq!(controller.ui.waveform.slices.len(), 1);
+    assert_eq!(
+        controller.ui.waveform.slice_batch_profile,
+        WaveformSliceBatchProfile::ExactDuplicateBeats
+    );
+    assert_eq!(controller.ui.waveform.slice_batch_beat_count, 1);
+}
+
+#[test]
 fn merge_selected_slices_spans_between_markers() {
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
     let mut controller = AppController::new(renderer, None);
@@ -290,4 +384,18 @@ fn merge_selected_slices_spans_between_markers() {
         controller.ui.waveform.slice_batch_profile,
         WaveformSliceBatchProfile::Manual
     );
+}
+
+#[test]
+fn accept_waveform_slices_rejects_duplicate_cleanup_batches() {
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    controller.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::ExactDuplicateBeats;
+    controller.ui.waveform.slices = vec![SelectionRange::new(0.25, 0.5)];
+
+    let err = controller
+        .accept_waveform_slices()
+        .expect_err("duplicate cleanup batches should not export");
+
+    assert_eq!(err, "Use Clean Dups to apply exact duplicate cleanup");
 }

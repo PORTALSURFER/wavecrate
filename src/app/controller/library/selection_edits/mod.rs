@@ -5,6 +5,7 @@ use std::time::Duration;
 mod buffer;
 mod controller_actions;
 mod controller_apply;
+mod duplicate_cleanup;
 mod ops;
 mod prompt;
 mod undo_entries;
@@ -14,7 +15,7 @@ mod selection_click;
 mod selection_normalize;
 
 pub(crate) use buffer::next_crop_relative_path;
-use buffer::{SelectionEditBuffer, SelectionTarget};
+use buffer::{SelectionEditBuffer, SelectionTarget, selection_frame_bounds};
 pub(crate) use selection_click::repair_clicks_selection as repair_clicks_buffer;
 use selection_normalize::normalize_selection;
 use write_service::{SelectionEditWriteRequest, apply_selection_edit_write};
@@ -24,8 +25,6 @@ use ops::{
     crop_buffer, reverse_buffer, trim_buffer,
 };
 
-#[cfg(test)]
-use buffer::selection_frame_bounds;
 #[cfg(test)]
 use ops::{apply_muted_selection, fade_factor, slice_frames};
 

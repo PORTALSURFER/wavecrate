@@ -181,11 +181,17 @@ pub(super) fn next_slice_path_in_dir_for_root(
     let stem = match profile {
         WaveformSliceBatchProfile::Manual => strip_numbered_suffix(stem, "slice"),
         WaveformSliceBatchProfile::SilenceSplit => strip_numbered_suffix(stem, "silence_split"),
+        WaveformSliceBatchProfile::ExactDuplicateBeats => {
+            strip_numbered_suffix(stem, "exact_duplicate")
+        }
     };
     loop {
         let suffix = match profile {
             WaveformSliceBatchProfile::Manual => format!("slice{:03}", counter),
             WaveformSliceBatchProfile::SilenceSplit => format!("silence_split_{:03}", counter),
+            WaveformSliceBatchProfile::ExactDuplicateBeats => {
+                format!("exact_duplicate_{:03}", counter)
+            }
         };
         let candidate = parent.join(format!("{stem}_{suffix}.wav"));
         if !root.join(&candidate).exists() {

@@ -36,6 +36,11 @@ pub struct WaveformState {
     pub slices: Vec<SelectionRange>,
     /// Batch origin that determines how slice exports should be named.
     pub slice_batch_profile: WaveformSliceBatchProfile,
+    /// Number of beat cells represented by the current exact-duplicate cleanup batch.
+    ///
+    /// This is only non-zero when `slice_batch_profile` is
+    /// `WaveformSliceBatchProfile::ExactDuplicateBeats`.
+    pub slice_batch_beat_count: usize,
     /// Indices of slice ranges currently selected for edits.
     pub selected_slices: Vec<usize>,
     /// Keyboard-first review state for previewed waveform slices.
@@ -128,6 +133,8 @@ pub enum WaveformSliceBatchProfile {
     Manual,
     /// Slice batch created from silence-only detection.
     SilenceSplit,
+    /// Slice batch created from exact BPM-aligned duplicate detection.
+    ExactDuplicateBeats,
 }
 
 /// Keyboard-oriented review state for previewed waveform slices.
@@ -159,6 +166,7 @@ impl Default for WaveformState {
             edit_selection: None,
             slices: Vec::new(),
             slice_batch_profile: WaveformSliceBatchProfile::Manual,
+            slice_batch_beat_count: 0,
             selected_slices: Vec::new(),
             slice_review: WaveformSliceReviewState::default(),
             slice_mode_enabled: false,
@@ -296,6 +304,7 @@ mod tests {
         assert!(state.image.is_none());
         assert!(state.waveform_image_signature.is_none());
         assert_eq!(state.slice_batch_profile, WaveformSliceBatchProfile::Manual);
+        assert_eq!(state.slice_batch_beat_count, 0);
         assert!(!state.slice_review.active);
         assert!(state.slice_review.focused_index.is_none());
         assert!(state.slice_review.marked_indices.is_empty());

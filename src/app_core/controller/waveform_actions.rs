@@ -172,6 +172,14 @@ pub(super) fn apply_waveform_native_ui_action(
         NativeUiAction::DetectWaveformSilenceSlices => {
             controller.detect_waveform_silence_slices_action();
         }
+        NativeUiAction::DetectWaveformExactDuplicateSlices => {
+            controller.detect_waveform_exact_duplicate_slices_action();
+        }
+        NativeUiAction::CleanWaveformExactDuplicateSlices => {
+            let _ = controller.request_destructive_selection_edit(
+                DestructiveSelectionEdit::CleanExactDuplicateBeats,
+            );
+        }
         NativeUiAction::ClearWaveformSelection => controller.clear_waveform_selection_with_focus(),
         NativeUiAction::ClearWaveformEditSelection => {
             controller.clear_waveform_edit_selection_with_focus()

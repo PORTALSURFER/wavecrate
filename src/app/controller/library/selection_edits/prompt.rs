@@ -12,6 +12,7 @@ impl DestructiveSelectionEdit {
             DestructiveSelectionEdit::MuteSelection => "Mute selection",
             DestructiveSelectionEdit::NormalizeSelection => "Normalize selection",
             DestructiveSelectionEdit::ClickRemoval => "Remove clicks in selection",
+            DestructiveSelectionEdit::CleanExactDuplicateBeats => "Clean exact duplicate beats",
         }
     }
 
@@ -43,6 +44,9 @@ impl DestructiveSelectionEdit {
             }
             DestructiveSelectionEdit::ClickRemoval => {
                 "This will overwrite the selection with an interpolated repair to remove clicks."
+            }
+            DestructiveSelectionEdit::CleanExactDuplicateBeats => {
+                "This will remove later exact BPM-aligned duplicate beat regions and close the gaps in the source file."
             }
         }
     }

@@ -184,6 +184,9 @@ pub(crate) fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel
         transient_snap_enabled: ui.waveform.transient_snap_enabled,
         transient_markers_enabled: ui.waveform.transient_markers_enabled,
         slice_mode_enabled: ui.waveform.slice_mode_enabled,
+        exact_duplicate_cleanup_available: ui.waveform.slice_batch_profile
+            == crate::app::state::WaveformSliceBatchProfile::ExactDuplicateBeats
+            && !ui.waveform.slices.is_empty(),
     }
 }
 

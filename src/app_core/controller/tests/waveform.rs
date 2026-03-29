@@ -84,6 +84,38 @@ fn apply_native_waveform_silence_slice_detect_routes_to_controller_behavior() {
 }
 
 #[test]
+fn apply_native_waveform_exact_duplicate_detect_routes_to_controller_behavior() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.apply_native_ui_action(NativeUiAction::DetectWaveformExactDuplicateSlices);
+
+    assert!(
+        controller
+            .ui
+            .status
+            .text
+            .contains("Load a sample before slicing"),
+        "status was {:?}",
+        controller.ui.status.text
+    );
+}
+
+#[test]
+fn apply_native_waveform_clean_duplicates_routes_to_controller_behavior() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.apply_native_ui_action(NativeUiAction::CleanWaveformExactDuplicateSlices);
+
+    assert!(
+        controller
+            .ui
+            .status
+            .text
+            .contains("Run Exact Dedupe before cleaning duplicates"),
+        "status was {:?}",
+        controller.ui.status.text
+    );
+}
+
+#[test]
 fn apply_native_waveform_smart_scale_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.set_loaded_audio_duration_for_tests(4.0);
