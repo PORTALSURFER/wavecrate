@@ -87,10 +87,19 @@ impl AppController {
         if slices.is_empty() {
             return Some(0);
         }
-        let (samples, _, channels) = self.waveform_slice_analysis_audio().ok()?;
+        let (samples, sample_rate, channels) = self.waveform_slice_analysis_audio().ok()?;
         let total_frames = samples.len() / channels.max(1) as usize;
         let scan = self.current_duplicate_window_scan_config(total_frames)?;
-        let count = collect_full_windows(scan.anchor_start_frame, scan.window_frames, total_frames)
+        let detection = detect_exact_duplicate_window_ranges(
+            samples.as_ref(),
+            channels,
+            sample_rate,
+            scan.window_frames,
+            scan.anchor_start_frame,
+        )
+        .ok()?;
+        let count = detection
+            .duplicate_windows
             .into_iter()
             .filter(|window| {
                 slices.iter().copied().any(|slice| {
@@ -146,26 +155,6 @@ impl AppController {
 struct DuplicateWindowScanConfig {
     anchor_start_frame: usize,
     window_frames: usize,
-}
-
-fn collect_full_windows(
-    anchor_start_frame: usize,
-    window_frames: usize,
-    total_frames: usize,
-) -> Vec<(usize, usize)> {
-    if window_frames == 0 || window_frames > total_frames {
-        return Vec::new();
-    }
-    let mut start_frame = anchor_start_frame.min(total_frames.saturating_sub(1));
-    while start_frame >= window_frames {
-        start_frame -= window_frames;
-    }
-    let mut windows = Vec::new();
-    while start_frame + window_frames <= total_frames {
-        windows.push((start_frame, start_frame + window_frames));
-        start_frame += window_frames;
-    }
-    windows
 }
 
 fn selection_frame_bounds(total_frames: usize, bounds: SelectionRange) -> (usize, usize) {

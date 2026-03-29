@@ -219,13 +219,13 @@ fn detect_waveform_exact_duplicate_slices_uses_selection_window_anchor() {
     write_test_wav(
         &wav_path,
         &[
-            9.0, 9.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 2.0, 0.0, 2.0, 0.0,
+            9.0, 0.0, 1.0, 0.0, 0.0, 0.0, 7.0, 0.0, 1.0, 0.0, 0.0, 0.0, 5.0,
         ],
     );
     controller
         .load_waveform_for_selection(&source, Path::new("clip.wav"))
         .unwrap();
-    controller.ui.waveform.selection = Some(SelectionRange::new(2.0 / 14.0, 6.0 / 14.0));
+    controller.ui.waveform.selection = Some(SelectionRange::new(1.0 / 13.0, 5.0 / 13.0));
 
     let count = controller
         .detect_waveform_exact_duplicate_slices_from_selection()
@@ -234,8 +234,42 @@ fn detect_waveform_exact_duplicate_slices_uses_selection_window_anchor() {
     assert_eq!(count, 1);
     assert_eq!(controller.ui.waveform.slices.len(), 1);
     let duplicate = controller.ui.waveform.slices[0];
-    assert!((duplicate.start() - (6.0 / 14.0)).abs() < 1.0e-6);
-    assert!((duplicate.end() - (10.0 / 14.0)).abs() < 1.0e-6);
+    assert!((duplicate.start() - (7.0 / 13.0)).abs() < 1.0e-6);
+    assert!((duplicate.end() - (11.0 / 13.0)).abs() < 1.0e-6);
+}
+
+#[test]
+fn detect_waveform_exact_duplicate_slices_marks_all_duplicate_groups_for_selection_size() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).unwrap();
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(root.clone());
+    controller.library.sources.push(source.clone());
+    controller.cache_db(&source).unwrap();
+
+    let wav_path = root.join("clip.wav");
+    write_test_wav(
+        &wav_path,
+        &[
+            0.0, 0.8, 0.0, 0.0, 0.0, 0.6, 0.0, 0.0, 0.0, 0.8, 0.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0,
+            0.6, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.2, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.4,
+            0.0, 0.0, 0.0, 0.2, 0.0, 0.0,
+        ],
+    );
+    controller
+        .load_waveform_for_selection(&source, Path::new("clip.wav"))
+        .unwrap();
+    controller.ui.waveform.selection = Some(SelectionRange::new(0.0, 4.0 / 40.0));
+
+    let count = controller
+        .detect_waveform_exact_duplicate_slices_from_selection()
+        .unwrap();
+
+    assert_eq!(count, 3);
+    assert_eq!(controller.ui.waveform.slices.len(), 3);
+    assert_eq!(controller.ui.waveform.slice_batch_beat_count, 5);
 }
 
 #[test]
