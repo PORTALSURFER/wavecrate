@@ -4,7 +4,7 @@ Generated: 2026-03-29
 Observed superproject commit: `148839fd`
 Observed `vendor/radiant` commit: `091d1674`
 Observed workspace state: dirty worktree in both repos; findings below reflect the live workspace seen during this audit.
-Status: Phase 2 execution in progress on 2026-03-29; items 1-3, 7, 10, and 11 are completed, items 4-6 and 8-9 are clarification-gated or blocked, and item 12 is the next safe executable task.
+Status: Phase 2 execution paused on 2026-03-29 after all currently safe executable items were completed; items 4-6 and 8-9 remain clarification-gated or blocked.
 
 ## Scope
 
@@ -339,7 +339,7 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-3, 7, 10, and 11 ar
   - compare behavior expectations against `.github/workflows/release-build.yml`
 - Product clarification required: No
 - Completed: 2026-03-29
-- Commit: pending (record after commit)
+- Commit: `9cca9034`
 - Assumptions: the shipped installer contract is the existing top-level flag precedence and branch behavior in `apps/installer/src/main.rs`, so a small parse/dispatch seam can add coverage without changing release behavior.
 - Validation:
   - `cargo test -p sempal-installer -- --test-threads=1`
@@ -366,6 +366,14 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-3, 7, 10, and 11 ar
   - targeted `vendor/radiant` tests in one cargo process
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-29
+- Commit: pending (record after superproject pointer update; `vendor/radiant` commit `40855cc9`)
+- Assumptions: splitting the two largest cluster-entry files by their existing surface responsibilities is sufficient to complete the "starting with the hit-testing and chrome/frame-build cluster" scope for this item without attempting the remaining unrelated `vendor/radiant` violations.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
+    no longer reports `vendor/radiant/src/gui/native_shell/state/hit_testing/chrome.rs` or `vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar_parts/folders.rs` as over-budget files
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
 ## Open Questions / Missing Definitions
 

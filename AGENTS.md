@@ -61,14 +61,14 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: evidence-driven improvement audit execution for the current live tree
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-29 ROI-ranked backlog and live execution record for this tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
-- Current status: Phase 2 execution started on `2026-03-29`; items 1-3, 7, 10, and 11 are completed, items 4-6 and 8-9 are clarification-gated or blocked, item 12 is the next safe executable task, and `tmp/improvement_audit_plan.md` is the live source of truth for ordering, evidence, validation, and blockers.
+- Current status: Phase 2 execution paused on `2026-03-29` after all safe executable audit items were completed; items 4-6 and 8-9 remain clarification-gated or blocked, and `tmp/improvement_audit_plan.md` is the live source of truth for ordering, evidence, validation, and blockers.
 
 ## Immediate Next Actions
-1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order; item 12 is the next safe executable task after the clarification-gated items 4-6 and 8-9.
-2. Keep `tmp/improvement_audit_plan.md` as the live execution record and decision log for this audit lane.
+1. Wait for user clarification on item 4, item 6, or item 8 before resuming the remaining blocked audit backlog, or wait for the user to choose a new lane.
+2. Keep `tmp/improvement_audit_plan.md` as the live execution record and decision log for this paused audit lane.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
-5. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized as Phase 2 progresses or if the active lane changes.
+5. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized when the active lane changes or one of the blocked clarification items is resolved.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
