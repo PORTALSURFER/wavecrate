@@ -4,7 +4,7 @@ Generated: 2026-03-29
 Observed superproject commit: `148839fd`
 Observed `vendor/radiant` commit: `091d1674`
 Observed workspace state: dirty worktree in both repos; findings below reflect the live workspace seen during this audit.
-Status: Phase 2 execution in progress on 2026-03-29; items 1-2 are completed, and item 3 is next in plan order.
+Status: Phase 2 execution in progress on 2026-03-29; items 1-3 are completed, items 4-6 are clarification-gated or blocked, and item 7 is the next safe executable task.
 
 ## Scope
 
@@ -102,7 +102,7 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-2 are completed, an
   - compare the refreshed snapshot against `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
 - Product clarification required: No
 - Completed: 2026-03-29
-- Commit: pending (record after commit)
+- Commit: `c46af560`
 - Assumptions: the vendored `vendor/radiant` checkout remains intentional live development code for cleanup planning, so the hotspot snapshot should enumerate it whenever the nested repo or working tree is present.
 - Validation:
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
@@ -113,7 +113,7 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-2 are completed, an
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Plan order deviation: none
 
-### 3. [ ] Re-baseline `docs/QUALITY_SCORE.md` against the live file-size state
+### 3. [x] Re-baseline `docs/QUALITY_SCORE.md` against the live file-size state
 
 - Classification: Documentation gap
 - Confidence: High
@@ -134,6 +134,16 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-2 are completed, an
   - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
   - rerun `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` and confirm the scorecard describes the observed result honestly
 - Product clarification required: No
+- Completed: 2026-03-29
+- Commit: pending (record after commit)
+- Assumptions: the scorecard should describe the live observed dirty workspace explicitly rather than silently reusing the last clean-baseline claims.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
+    now passes with a degraded guardrail posture and score `3`, instead of failing on stale healthy wording
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
 ### 4. [!] Clarify whether compare-anchor state is part of the undoable "meaningful UI" contract
 
@@ -156,7 +166,7 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-2 are completed, an
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: Yes
 
-### 5. [ ] Deepen regression coverage for `MeaningfulUiSnapshot` restore and async history completion paths
+### 5. [~] Deepen regression coverage for `MeaningfulUiSnapshot` restore and async history completion paths
 
 - Classification: Test gap
 - Confidence: High
@@ -178,6 +188,9 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-2 are completed, an
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Blocked: 2026-03-29
+- Blocking dependency: item 4 compare-anchor clarification
+- Blocking note: safe coverage for the snapshot contract depends on whether compare-anchor must participate in undo/redo, so this test expansion is deferred until that contract is defined.
 
 ### 6. [!] Define the lifecycle for retained pending-rename rows in the source DB
 

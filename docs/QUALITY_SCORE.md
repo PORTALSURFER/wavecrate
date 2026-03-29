@@ -4,7 +4,11 @@ This document is a lightweight scorecard for key domains/layers in Sempal. The
 goal is to make quality gaps explicit so agents and humans can prioritize the
 next improvements without rediscovering context.
 
-Last reviewed: 2026-03-25
+Last reviewed: 2026-03-29
+
+Scope note: this review describes the live observed workspace on 2026-03-29,
+which is currently dirty. It is not a claim that the last clean baseline has
+the same guardrail posture.
 
 ## Scoring rubric (0–5)
 
@@ -21,9 +25,9 @@ Last reviewed: 2026-03-25
 | --- | ---: | --- |
 | Developer entrypoints (docs/scripts) | 4 | `docs/README.md`, `scripts/ci_local.*`, `scripts/doctor.*`, `scripts/run_sandbox.*` exist and are wired into CI/local flows. |
 | Documentation hygiene | 4 | Knowledge lint exists; still some doc drift risk outside the checked scope. |
-| Agent-facing guardrails | 4 | Guardrails are wired into local CI, the full file-size scan is green again, and the remaining oversized cohesive modules are explicitly documented in `docs/file_size_budget_allowlist.txt`. |
+| Agent-facing guardrails | 3 | Guardrails are still wired into local CI and the quality-score drift check now reports degraded state correctly on Windows, but the observed full file-size scan is red again on this live tree and should not be described as healthy. |
 | Legacy boundary enforcement | 4 | `crate::app` coupling and `app_core` boundaries are enforced diff-aware in CI. |
-| Code size discipline | 3 | The enforced full-scan budget now passes with two documented cohesive exceptions in `docs/file_size_budget_allowlist.txt`; broader hotspot debt still exists outside the active allowlist and should keep shrinking over time. |
+| Code size discipline | 2 | The observed full-scan budget currently fails with 30 over-budget files across the root repo and `vendor/radiant`, and `tmp/cleanup_audit_hotspots.md` now surfaces a much larger over-budget/runtime hotspot cluster than the allowlist alone describes. |
 | Testing posture | 3 | Focused unit coverage improved in transport/browser actions, but some critical flows remain integration-heavy. |
 | Observability & diagnostics | 3 | Structured logging via `tracing` exists; log bundling helpers added; could improve targeted debug tooling. |
 | Performance guardrails | 3 | `scripts/run_perf_guard.sh` is part of local CI; warning drift (for example `wheel_latency`) still needs ongoing burn-down. |
@@ -31,8 +35,8 @@ Last reviewed: 2026-03-25
 
 ## Known gaps (actionable)
 
-- Reduce the broader file-size debt tracked in `tmp/cleanup_audit_hotspots.md`: the active guardrail scope is green again, but the wider hotspot snapshot still contains oversized Rust files outside the current allowlist.
-- Continue burning down the remaining `#[allow(dead_code)]` suppression in `src/lib.rs`; `clippy::too_many_arguments` suppressions are currently at zero on the active tree.
+- Restore the enforced full-scan file-size budget to green on a clean baseline; the observed live tree currently reports 30 active-scope violations, while `tmp/cleanup_audit_hotspots.md` reports 58 over-budget Rust files across the broader snapshot.
+- Continue burning down the suppression debt now surfaced in the refreshed hotspot snapshot; the observed tree currently has `#[allow(dead_code)]` in 2 files and `clippy::too_many_arguments` in 3 files.
 - Add a scheduled doc review cadence: review this file monthly and update scores based on current reality.
 - Add one performance regression harness for a representative large dataset/view and run it in CI (even if it is a coarse threshold test).
 - The guardrail drift check now lives in `scripts/check_quality_score_drift.sh` and is wired into local CI and GitHub CI.
