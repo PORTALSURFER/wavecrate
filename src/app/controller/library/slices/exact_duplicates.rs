@@ -1,5 +1,5 @@
 use super::*;
-use crate::analysis::audio::detect_exact_duplicate_beat_ranges;
+use crate::analysis::audio::{ExactDuplicateBeatDetection, detect_exact_duplicate_beat_ranges};
 use crate::app::controller::playback::audio_samples::decode_samples_from_bytes;
 use std::borrow::Cow;
 
@@ -22,14 +22,8 @@ impl AppController {
         if total_frames == 0 {
             return Err("No audio data to scan".to_string());
         }
-        let grid_origin_frame = self.current_duplicate_grid_origin_frame(total_frames);
-        let detection = detect_exact_duplicate_beat_ranges(
-            samples.as_ref(),
-            channels,
-            sample_rate,
-            bpm,
-            grid_origin_frame,
-        )?;
+        let (detection, anchor_label) =
+            self.best_exact_duplicate_detection(samples.as_ref(), channels, sample_rate, bpm)?;
         self.ui.waveform.slices = detection
             .duplicate_ranges
             .into_iter()
@@ -46,9 +40,22 @@ impl AppController {
         self.ui.waveform.slice_mode_enabled = true;
         if self.ui.waveform.slices.is_empty() {
             self.clear_waveform_slices();
-            self.set_status("No exact duplicate beats found", StatusTone::Info);
+            self.set_status(
+                format!(
+                    "No exact duplicate beats found at {bpm:.1} BPM. Align a playmark or selection to the beat grid and try again."
+                ),
+                StatusTone::Info,
+            );
             return Ok(0);
         }
+        self.set_status(
+            format!(
+                "Found {} duplicate beat(s) across {} cleanup range(s) using {anchor_label}",
+                self.ui.waveform.slice_batch_beat_count,
+                self.ui.waveform.slices.len(),
+            ),
+            StatusTone::Info,
+        );
         self.start_slice_review();
         Ok(self.ui.waveform.slices.len())
     }
@@ -99,35 +106,92 @@ impl AppController {
         if !beat_frames.is_finite() || beat_frames < 1.0 {
             return Some(0);
         }
-        let windows = collect_full_beat_windows(
-            total_frames,
-            beat_frames,
-            self.current_duplicate_grid_origin_frame(total_frames),
-        );
-        let count = windows
+        let count = self
+            .current_duplicate_grid_origins(total_frames)
             .into_iter()
-            .filter(|window| {
-                slices.iter().copied().any(|slice| {
-                    let start = slice.start() * total_frames as f32;
-                    let end = slice.end() * total_frames as f32;
-                    start <= window.0 as f32 && end >= window.1 as f32
-                })
+            .map(|(origin, _)| {
+                collect_full_beat_windows(total_frames, beat_frames, origin)
+                    .into_iter()
+                    .filter(|window| {
+                        slices.iter().copied().any(|slice| {
+                            let start = slice.start() * total_frames as f32;
+                            let end = slice.end() * total_frames as f32;
+                            start <= window.0 as f32 && end >= window.1 as f32
+                        })
+                    })
+                    .count()
             })
-            .count();
+            .max()
+            .unwrap_or(0);
         Some(count)
     }
 
-    fn current_duplicate_grid_origin_frame(&self, total_frames: usize) -> f64 {
-        let origin = if self.ui.waveform.relative_bpm_grid_enabled {
-            self.ui
-                .waveform
-                .selection
-                .map(|selection| selection.start())
-                .unwrap_or(self.ui.waveform.last_bpm_grid_origin)
-        } else {
-            0.0
-        };
-        f64::from(origin.clamp(0.0, 1.0)) * total_frames as f64
+    fn best_exact_duplicate_detection(
+        &self,
+        samples: &[f32],
+        channels: u16,
+        sample_rate: u32,
+        bpm: f32,
+    ) -> Result<(ExactDuplicateBeatDetection, &'static str), String> {
+        let total_frames = samples.len() / channels.max(1) as usize;
+        let mut best = None;
+        for (origin_frame, label) in self.current_duplicate_grid_origins(total_frames) {
+            let detection = detect_exact_duplicate_beat_ranges(
+                samples,
+                channels,
+                sample_rate,
+                bpm,
+                origin_frame,
+            )?;
+            let score = (
+                detection.duplicate_beat_count,
+                detection.duplicate_ranges.len(),
+            );
+            if best
+                .as_ref()
+                .is_none_or(|(best_score, _, _)| score > *best_score)
+            {
+                best = Some((score, detection, label));
+            }
+        }
+        let (_, detection, label) = best
+            .ok_or_else(|| "No BPM grid anchors are available for duplicate cleanup".to_string())?;
+        Ok((detection, label))
+    }
+
+    fn current_duplicate_grid_origins(&self, total_frames: usize) -> Vec<(f64, &'static str)> {
+        let mut origins = Vec::new();
+        if self.ui.waveform.relative_bpm_grid_enabled {
+            if let Some(selection) = self.ui.waveform.selection {
+                origins.push((
+                    f64::from(selection.start().clamp(0.0, 1.0)) * total_frames as f64,
+                    "selection start",
+                ));
+            }
+            origins.push((
+                f64::from(self.ui.waveform.last_bpm_grid_origin.clamp(0.0, 1.0))
+                    * total_frames as f64,
+                "relative BPM grid",
+            ));
+        }
+        if let Some(start_marker) = self.ui.waveform.last_start_marker {
+            origins.push((
+                f64::from(start_marker.clamp(0.0, 1.0)) * total_frames as f64,
+                "playmark",
+            ));
+        }
+        origins.push((0.0, "sample start"));
+
+        let mut unique = Vec::new();
+        for (origin, label) in origins {
+            if unique.iter().any(|(existing, _): &(f64, &'static str)| {
+                (existing - origin).abs() <= f64::EPSILON
+            }) {
+                continue;
+            }
+            unique.push((origin, label));
+        }
+        unique
     }
 
     fn waveform_slice_analysis_audio(&self) -> Result<(Cow<'_, [f32]>, u32, u16), String> {

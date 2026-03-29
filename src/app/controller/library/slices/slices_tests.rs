@@ -205,6 +205,41 @@ fn detect_waveform_exact_duplicate_slices_from_bpm_keeps_first_beat() {
 }
 
 #[test]
+fn detect_waveform_exact_duplicate_slices_uses_last_start_marker_anchor() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).unwrap();
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(root.clone());
+    controller.library.sources.push(source.clone());
+    controller.cache_db(&source).unwrap();
+
+    let wav_path = root.join("clip.wav");
+    write_test_wav(
+        &wav_path,
+        &[
+            9.0, 9.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 2.0, 0.0, 2.0, 0.0,
+        ],
+    );
+    controller
+        .load_waveform_for_selection(&source, Path::new("clip.wav"))
+        .unwrap();
+    controller.ui.waveform.bpm_value = Some(120.0);
+    controller.ui.waveform.last_start_marker = Some(2.0 / 14.0);
+
+    let count = controller
+        .detect_waveform_exact_duplicate_slices_from_bpm()
+        .unwrap();
+
+    assert_eq!(count, 1);
+    assert_eq!(controller.ui.waveform.slices.len(), 1);
+    let duplicate = controller.ui.waveform.slices[0];
+    assert!((duplicate.start() - (6.0 / 14.0)).abs() < 1.0e-6);
+    assert!((duplicate.end() - (10.0 / 14.0)).abs() < 1.0e-6);
+}
+
+#[test]
 fn slice_review_navigation_and_marking_use_dedicated_state() {
     let renderer = crate::waveform::WaveformRenderer::new(12, 12);
     let mut controller = AppController::new(renderer, None);
