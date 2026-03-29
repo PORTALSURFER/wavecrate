@@ -242,7 +242,7 @@ pub enum GuiActionKind {
     SetInvertWaveformScroll,
     /// Toggle loop playback for the active sample or selection.
     ToggleLoopPlayback,
-    /// Toggle whether loop state stays locked across sample changes.
+    /// Enter or cycle the locked loop override across sample changes.
     ToggleLoopLock,
     /// Switch the waveform channel-view mode.
     SetWaveformChannelView,

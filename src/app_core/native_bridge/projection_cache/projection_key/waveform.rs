@@ -35,6 +35,7 @@ pub(super) fn build_waveform_projection_key(
         waveform_view_start_micros: scalars.view_start_micros,
         waveform_view_end_micros: scalars.view_end_micros,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
+        waveform_loop_lock_enabled: controller.ui.waveform.loop_lock_enabled,
         waveform_bpm_bits: controller.ui.waveform.bpm_value.map(f32::to_bits),
         waveform_channel_view: encode_waveform_channel_view(controller),
         waveform_normalized_audition_enabled: controller.ui.waveform.normalized_audition_enabled,

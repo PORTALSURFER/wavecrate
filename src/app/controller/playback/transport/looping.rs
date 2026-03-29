@@ -1,7 +1,16 @@
 use super::*;
 pub(crate) fn toggle_loop(controller: &mut AppController) {
+    if controller.ui.waveform.loop_lock_enabled {
+        controller.set_loop_lock_enabled(false);
+    }
     let state = flip_loop_toggle_state(controller);
     persist_loop_toggle_markers(controller, state);
+    apply_loop_toggle_playback_policy(controller, state);
+}
+
+/// Cycle the locked loop override without mutating per-sample loop metadata.
+pub(crate) fn toggle_loop_lock(controller: &mut AppController) {
+    let state = cycle_loop_lock_state(controller);
     apply_loop_toggle_playback_policy(controller, state);
 }
 
@@ -42,6 +51,22 @@ fn flip_loop_toggle_state(controller: &mut AppController) -> LoopToggleState {
     let was_looping = controller.ui.waveform.loop_enabled;
     controller.audio.clear_pending_loop_retarget();
     controller.ui.waveform.loop_enabled = !was_looping;
+    LoopToggleState {
+        was_looping,
+        loop_enabled: controller.ui.waveform.loop_enabled,
+    }
+}
+
+/// Enter or cycle the locked loop override while preserving sample metadata.
+fn cycle_loop_lock_state(controller: &mut AppController) -> LoopToggleState {
+    let was_looping = controller.ui.waveform.loop_enabled;
+    controller.audio.clear_pending_loop_retarget();
+    if !controller.ui.waveform.loop_lock_enabled {
+        controller.set_loop_lock_enabled(true);
+        controller.ui.waveform.loop_enabled = true;
+    } else {
+        controller.ui.waveform.loop_enabled = !controller.ui.waveform.loop_enabled;
+    }
     LoopToggleState {
         was_looping,
         loop_enabled: controller.ui.waveform.loop_enabled,
@@ -201,6 +226,7 @@ fn has_loop_playback_selection(controller: &AppController) -> bool {
 mod tests {
     use super::*;
     use crate::app::controller::test_support;
+    use std::path::Path;
     use std::time::{Duration, Instant};
 
     #[test]
@@ -237,6 +263,77 @@ mod tests {
                 loop_enabled: false,
             }),
             LoopPlaybackPolicy::None
+        );
+    }
+
+    #[test]
+    fn toggle_loop_unlocks_before_persisting_normal_toggle() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        controller.ui.waveform.loop_enabled = true;
+        controller.set_loop_lock_enabled(true);
+
+        toggle_loop(&mut controller);
+
+        assert!(!controller.ui.waveform.loop_lock_enabled);
+        assert!(!controller.ui.waveform.loop_enabled);
+    }
+
+    #[test]
+    fn toggle_loop_lock_enters_locked_on_from_unlocked() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        controller.ui.waveform.loop_enabled = false;
+        controller.set_loop_lock_enabled(false);
+
+        toggle_loop_lock(&mut controller);
+
+        assert!(controller.ui.waveform.loop_lock_enabled);
+        assert!(controller.ui.waveform.loop_enabled);
+    }
+
+    #[test]
+    fn toggle_loop_lock_cycles_locked_on_and_off() {
+        let (mut controller, _source) = test_support::dummy_controller();
+        controller.ui.waveform.loop_enabled = false;
+
+        toggle_loop_lock(&mut controller);
+        assert!(controller.ui.waveform.loop_lock_enabled);
+        assert!(controller.ui.waveform.loop_enabled);
+
+        toggle_loop_lock(&mut controller);
+        assert!(controller.ui.waveform.loop_lock_enabled);
+        assert!(!controller.ui.waveform.loop_enabled);
+
+        toggle_loop_lock(&mut controller);
+        assert!(controller.ui.waveform.loop_lock_enabled);
+        assert!(controller.ui.waveform.loop_enabled);
+    }
+
+    #[test]
+    fn toggle_loop_lock_does_not_persist_sample_loop_marker() {
+        let (mut controller, source) =
+            test_support::prepare_with_source_and_wav_entries(vec![test_support::sample_entry(
+                "locked_override.wav",
+                crate::sample_sources::Rating::NEUTRAL,
+            )]);
+        let db = controller.cache_db(&source).expect("db");
+        db.set_looped(Path::new("locked_override.wav"), false)
+            .expect("seed loop marker");
+        controller.sample_view.wav.loaded_audio =
+            Some(crate::app::controller::state::audio::LoadedAudio {
+                source_id: source.id.clone(),
+                root: source.root.clone(),
+                relative_path: Path::new("locked_override.wav").to_path_buf(),
+                bytes: Vec::new().into(),
+                duration_seconds: 1.0,
+                sample_rate: 48_000,
+            });
+
+        toggle_loop_lock(&mut controller);
+
+        assert_eq!(
+            db.looped_for_path(Path::new("locked_override.wav"))
+                .expect("load loop marker"),
+            Some(false)
         );
     }
 

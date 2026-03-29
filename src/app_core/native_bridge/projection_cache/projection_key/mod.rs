@@ -87,6 +87,7 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         waveform_view_start_micros: waveform_key.waveform_view_start_micros,
         waveform_view_end_micros: waveform_key.waveform_view_end_micros,
         waveform_loop_enabled: waveform_key.waveform_loop_enabled,
+        waveform_loop_lock_enabled: waveform_key.waveform_loop_lock_enabled,
         waveform_bpm_bits: waveform_key.waveform_bpm_bits,
         waveform_channel_view: waveform_key.waveform_channel_view,
         waveform_normalized_audition_enabled: waveform_key.waveform_normalized_audition_enabled,

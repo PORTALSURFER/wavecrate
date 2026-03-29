@@ -101,7 +101,7 @@ pub(super) const TOGGLE_LOOP: HotkeyAction = HotkeyAction {
 
 pub(super) const TOGGLE_LOOP_LOCK: HotkeyAction = HotkeyAction {
     id: "toggle-loop-lock",
-    label: "Toggle loop lock",
+    label: "Cycle locked loop",
     gesture: HotkeyGesture::with_shift(Key::L),
     scope: GLOBAL,
     command: HotkeyCommand::ToggleLoopLock,

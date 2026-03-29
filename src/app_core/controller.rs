@@ -213,10 +213,7 @@ fn apply_transport_native_ui_action(
         NativeUiAction::ToggleTransport => controller.toggle_play_pause(),
         NativeUiAction::HandleEscape => controller.handle_escape(),
         NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
-        NativeUiAction::ToggleLoopLock => {
-            let enabled = !controller.ui.waveform.loop_lock_enabled;
-            controller.set_loop_lock_enabled(enabled);
-        }
+        NativeUiAction::ToggleLoopLock => controller.toggle_loop_lock(),
         NativeUiAction::SetVolume { value_milli } => {
             controller.set_volume_live((f32::from(value_milli.min(1000)) / 1000.0).clamp(0.0, 1.0))
         }

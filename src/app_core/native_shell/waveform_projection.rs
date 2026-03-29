@@ -172,11 +172,8 @@ fn project_waveform_image(controller: &mut AppController) -> Option<Arc<ImageRgb
 /// Project waveform chrome labels and action-hint copy.
 pub(crate) fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel {
     WaveformChromeModel {
-        transport_hint: if ui.waveform.loop_enabled {
-            String::from("Loop enabled")
-        } else {
-            String::from("Loop disabled")
-        },
+        transport_hint: waveform_transport_hint(ui),
+        loop_lock_enabled: ui.waveform.loop_lock_enabled,
         channel_view: project_waveform_channel_view_model(ui.waveform.channel_view),
         normalized_audition_enabled: ui.waveform.normalized_audition_enabled,
         bpm_snap_enabled: ui.waveform.bpm_snap_enabled,
@@ -187,6 +184,16 @@ pub(crate) fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel
         exact_duplicate_cleanup_available: ui.waveform.slice_batch_profile
             == crate::app::state::WaveformSliceBatchProfile::ExactDuplicateBeats
             && !ui.waveform.slices.is_empty(),
+    }
+}
+
+/// Build the waveform transport hint text for unlocked and locked loop states.
+pub(crate) fn waveform_transport_hint(ui: &UiState) -> String {
+    match (ui.waveform.loop_lock_enabled, ui.waveform.loop_enabled) {
+        (true, true) => String::from("Loop locked on"),
+        (true, false) => String::from("Loop locked off"),
+        (false, true) => String::from("Loop enabled"),
+        (false, false) => String::from("Loop disabled"),
     }
 }
 

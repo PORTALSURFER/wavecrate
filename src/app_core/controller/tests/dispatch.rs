@@ -326,3 +326,16 @@ fn apply_native_locked_keep_filter_sets_only_locked_level() {
         vec![4]
     );
 }
+
+#[test]
+fn apply_native_loop_lock_cycles_locked_loop_override() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+
+    controller.apply_native_ui_action(NativeUiAction::ToggleLoopLock);
+    assert!(controller.ui.waveform.loop_lock_enabled);
+    assert!(controller.ui.waveform.loop_enabled);
+
+    controller.apply_native_ui_action(NativeUiAction::ToggleLoopLock);
+    assert!(controller.ui.waveform.loop_lock_enabled);
+    assert!(!controller.ui.waveform.loop_enabled);
+}

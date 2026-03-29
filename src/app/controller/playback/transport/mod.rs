@@ -7,6 +7,7 @@ mod selection;
 mod volume;
 
 pub(crate) use looping::toggle_loop;
+pub(crate) use looping::toggle_loop_lock;
 pub(crate) use playback::{
     handle_escape, play_from_current_playhead, play_from_cursor, play_from_start,
     replay_from_last_start, stop_playback_if_active, toggle_play_pause,

@@ -49,6 +49,11 @@ impl AppController {
         transport::toggle_loop(self);
     }
 
+    /// Enter or cycle the locked loop override for the current waveform session.
+    pub fn toggle_loop_lock(&mut self) {
+        transport::toggle_loop_lock(self);
+    }
+
     /// Set waveform selection range using 0..=1000 milli positions from UI actions.
     pub fn set_waveform_selection_range_milli(&mut self, start_milli: u16, end_milli: u16) {
         self.set_waveform_selection_range_micros_with_drag_policy(
