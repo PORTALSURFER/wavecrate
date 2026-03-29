@@ -134,7 +134,7 @@ pub enum GuiActionKind {
     CommitWaveformEditFades,
     /// Detect silence-separated waveform slices and preview them for export.
     DetectWaveformSilenceSlices,
-    /// Detect exact BPM-aligned duplicate beat slices for cleanup preview.
+    /// Detect exact duplicate windows using the current playback selection size.
     DetectWaveformExactDuplicateSlices,
     /// Apply the current exact duplicate cleanup batch to the loaded waveform file.
     CleanWaveformExactDuplicateSlices,

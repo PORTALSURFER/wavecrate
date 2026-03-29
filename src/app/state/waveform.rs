@@ -36,7 +36,7 @@ pub struct WaveformState {
     pub slices: Vec<SelectionRange>,
     /// Batch origin that determines how slice exports should be named.
     pub slice_batch_profile: WaveformSliceBatchProfile,
-    /// Number of beat cells represented by the current exact-duplicate cleanup batch.
+    /// Number of duplicate windows represented by the current exact-duplicate cleanup batch.
     ///
     /// This is only non-zero when `slice_batch_profile` is
     /// `WaveformSliceBatchProfile::ExactDuplicateBeats`.

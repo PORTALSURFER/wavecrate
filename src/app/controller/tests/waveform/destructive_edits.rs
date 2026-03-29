@@ -283,9 +283,9 @@ fn exact_duplicate_cleanup_request_prompts_without_selection() {
     controller
         .load_waveform_for_selection(&source, Path::new("dups.wav"))
         .unwrap();
-    controller.ui.waveform.bpm_value = Some(120.0);
+    controller.ui.waveform.selection = Some(SelectionRange::new(0.0, 4.0 / 12.0));
     controller
-        .detect_waveform_exact_duplicate_slices_from_bpm()
+        .detect_waveform_exact_duplicate_slices_from_selection()
         .unwrap();
     controller.ui.waveform.selection = None;
 
@@ -320,9 +320,9 @@ fn clean_exact_duplicate_beats_overwrites_file_and_clears_cleanup_batch() {
     controller
         .load_waveform_for_selection(&source, Path::new("dups.wav"))
         .unwrap();
-    controller.ui.waveform.bpm_value = Some(120.0);
+    controller.ui.waveform.selection = Some(SelectionRange::new(0.0, 4.0 / 12.0));
     controller
-        .detect_waveform_exact_duplicate_slices_from_bpm()
+        .detect_waveform_exact_duplicate_slices_from_selection()
         .unwrap();
 
     controller.clean_exact_duplicate_beats().unwrap();
@@ -335,5 +335,11 @@ fn clean_exact_duplicate_beats_overwrites_file_and_clears_cleanup_batch() {
     assert_eq!(samples, vec![0.8, 0.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0]);
     assert!(controller.ui.waveform.slices.is_empty());
     assert_eq!(controller.ui.waveform.slice_batch_beat_count, 0);
-    assert!(controller.ui.status.text.contains("Removed 1 beat(s)"));
+    assert!(
+        controller
+            .ui
+            .status
+            .text
+            .contains("Removed 1 duplicate window(s)")
+    );
 }

@@ -3,48 +3,43 @@ use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
 
-/// Duplicate-beat cleanup candidates detected from one loaded waveform.
+/// Exact-duplicate cleanup candidates detected from one loaded waveform.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(crate) struct ExactDuplicateBeatDetection {
+pub(crate) struct ExactDuplicateWindowDetection {
     /// Coalesced frame ranges that should be removed from the source file.
     pub(crate) duplicate_ranges: Vec<(usize, usize)>,
-    /// Number of duplicate beat cells represented by `duplicate_ranges`.
-    pub(crate) duplicate_beat_count: usize,
+    /// Number of duplicate windows represented by `duplicate_ranges`.
+    pub(crate) duplicate_window_count: usize,
 }
 
-/// Detect exact duplicate beat windows aligned to one BPM grid.
+/// Detect exact duplicate windows aligned to one fixed scan size.
 ///
-/// The detector scans full quarter-note windows only, keeps the earliest
-/// audible occurrence of each unique beat, and returns later exact matches as
-/// removable clone ranges. Silent-only windows are ignored so repeated gaps do
-/// not become cleanup candidates.
-pub(crate) fn detect_exact_duplicate_beat_ranges(
+/// The detector scans full windows only, keeps the earliest audible occurrence
+/// of each unique window, and returns later exact matches as removable clone
+/// ranges. Silent-only windows are ignored so repeated gaps do not become
+/// cleanup candidates.
+pub(crate) fn detect_exact_duplicate_window_ranges(
     samples: &[f32],
     channels: u16,
     sample_rate: u32,
-    bpm: f32,
-    grid_origin_frame: f64,
-) -> Result<ExactDuplicateBeatDetection, String> {
+    window_frames: usize,
+    anchor_start_frame: usize,
+) -> Result<ExactDuplicateWindowDetection, String> {
     let channels = channels.max(1) as usize;
     let total_frames = samples.len() / channels;
     if total_frames == 0 {
-        return Ok(ExactDuplicateBeatDetection::default());
-    }
-    if !bpm.is_finite() || bpm <= 0.0 {
-        return Err("Set a valid BPM value before cleaning duplicates".to_string());
+        return Ok(ExactDuplicateWindowDetection::default());
     }
     if sample_rate == 0 {
         return Err("Sample rate is unavailable for duplicate cleanup".to_string());
     }
-
-    let beat_frames = sample_rate as f64 * 60.0 / f64::from(bpm);
-    if !beat_frames.is_finite() || beat_frames < 1.0 {
-        return Err("BPM is too high for beat-aligned duplicate cleanup".to_string());
+    if window_frames == 0 {
+        return Err("Create a playback selection to define the duplicate window size".to_string());
     }
 
-    let windows = collect_full_beat_windows(total_frames, beat_frames, grid_origin_frame);
+    let windows = collect_full_windows(total_frames, window_frames, anchor_start_frame);
     if windows.is_empty() {
-        return Ok(ExactDuplicateBeatDetection::default());
+        return Ok(ExactDuplicateWindowDetection::default());
     }
 
     let audible_ranges = detect_non_silent_ranges_for_slices(samples, channels as u16, sample_rate);
@@ -68,53 +63,51 @@ pub(crate) fn detect_exact_duplicate_beat_ranges(
         }
     }
 
-    Ok(ExactDuplicateBeatDetection {
-        duplicate_beat_count: duplicates.len(),
+    Ok(ExactDuplicateWindowDetection {
+        duplicate_window_count: duplicates.len(),
         duplicate_ranges: coalesce_adjacent_windows(&duplicates),
     })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct BeatWindow {
+struct Window {
     start_frame: usize,
     end_frame: usize,
 }
 
-fn collect_full_beat_windows(
+fn collect_full_windows(
     total_frames: usize,
-    beat_frames: f64,
-    grid_origin_frame: f64,
-) -> Vec<BeatWindow> {
-    let mut windows = Vec::new();
-    let mut beat_index = ((-grid_origin_frame) / beat_frames).floor() as i64 - 1;
-    let total_frames_i64 = total_frames as i64;
-
-    loop {
-        let start_frame = (grid_origin_frame + beat_index as f64 * beat_frames).round() as i64;
-        let end_frame = (grid_origin_frame + (beat_index + 1) as f64 * beat_frames).round() as i64;
-        if start_frame >= total_frames_i64 {
-            break;
-        }
-        if start_frame >= 0 && end_frame <= total_frames_i64 && end_frame > start_frame {
-            windows.push(BeatWindow {
-                start_frame: start_frame as usize,
-                end_frame: end_frame as usize,
-            });
-        }
-        beat_index += 1;
+    window_frames: usize,
+    anchor_start_frame: usize,
+) -> Vec<Window> {
+    if window_frames == 0 || window_frames > total_frames {
+        return Vec::new();
     }
 
+    let mut start_frame = anchor_start_frame.min(total_frames.saturating_sub(1));
+    while start_frame >= window_frames {
+        start_frame -= window_frames;
+    }
+
+    let mut windows = Vec::new();
+    while start_frame + window_frames <= total_frames {
+        windows.push(Window {
+            start_frame,
+            end_frame: start_frame + window_frames,
+        });
+        start_frame += window_frames;
+    }
     windows
 }
 
-fn window_overlaps_audible_range(window: BeatWindow, audible_ranges: &[(usize, usize)]) -> bool {
+fn window_overlaps_audible_range(window: Window, audible_ranges: &[(usize, usize)]) -> bool {
     audible_ranges
         .iter()
         .copied()
         .any(|range| range.0 < window.end_frame && range.1 > window.start_frame)
 }
 
-fn hash_window(samples: &[f32], channels: usize, window: BeatWindow) -> u64 {
+fn hash_window(samples: &[f32], channels: usize, window: Window) -> u64 {
     let start = window.start_frame.saturating_mul(channels);
     let end = window.end_frame.saturating_mul(channels).min(samples.len());
     let mut hasher = DefaultHasher::new();
@@ -124,7 +117,7 @@ fn hash_window(samples: &[f32], channels: usize, window: BeatWindow) -> u64 {
     hasher.finish()
 }
 
-fn windows_equal(samples: &[f32], channels: usize, left: BeatWindow, right: BeatWindow) -> bool {
+fn windows_equal(samples: &[f32], channels: usize, left: Window, right: Window) -> bool {
     let left_len = left.end_frame.saturating_sub(left.start_frame);
     let right_len = right.end_frame.saturating_sub(right.start_frame);
     if left_len != right_len {
@@ -143,7 +136,7 @@ fn windows_equal(samples: &[f32], channels: usize, left: BeatWindow, right: Beat
             .all(|(left, right)| left.to_bits() == right.to_bits())
 }
 
-fn coalesce_adjacent_windows(windows: &[BeatWindow]) -> Vec<(usize, usize)> {
+fn coalesce_adjacent_windows(windows: &[Window]) -> Vec<(usize, usize)> {
     let mut merged: Vec<(usize, usize)> = Vec::new();
     for window in windows {
         if let Some(last) = merged.last_mut()
@@ -161,39 +154,42 @@ fn coalesce_adjacent_windows(windows: &[BeatWindow]) -> Vec<(usize, usize)> {
 mod tests {
     use super::*;
 
-    fn mono_samples(beats: &[[f32; 4]]) -> Vec<f32> {
-        beats.iter().flat_map(|beat| beat.iter().copied()).collect()
+    fn mono_samples(windows: &[[f32; 4]]) -> Vec<f32> {
+        windows
+            .iter()
+            .flat_map(|window| window.iter().copied())
+            .collect()
     }
 
     #[test]
-    fn keeps_first_duplicate_beat_and_coalesces_later_matches() {
+    fn keeps_first_duplicate_window_and_coalesces_later_matches() {
         let samples = mono_samples(&[
             [1.0, 0.5, 0.25, 0.0],
             [1.0, 0.5, 0.25, 0.0],
             [1.0, 0.5, 0.25, 0.0],
         ]);
 
-        let detection = detect_exact_duplicate_beat_ranges(&samples, 1, 4, 60.0, 0.0).unwrap();
+        let detection = detect_exact_duplicate_window_ranges(&samples, 1, 4, 4, 0).unwrap();
 
-        assert_eq!(detection.duplicate_beat_count, 2);
+        assert_eq!(detection.duplicate_window_count, 2);
         assert_eq!(detection.duplicate_ranges, vec![(4, 12)]);
     }
 
     #[test]
-    fn skips_partial_beats_before_relative_grid_anchor() {
+    fn skips_partial_windows_before_anchor() {
         let samples = vec![
             9.0, 9.0, // partial head fragment
             1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 2.0, 0.0, 2.0, 0.0,
         ];
 
-        let detection = detect_exact_duplicate_beat_ranges(&samples, 1, 4, 60.0, 2.0).unwrap();
+        let detection = detect_exact_duplicate_window_ranges(&samples, 1, 4, 4, 2).unwrap();
 
-        assert_eq!(detection.duplicate_beat_count, 1);
+        assert_eq!(detection.duplicate_window_count, 1);
         assert_eq!(detection.duplicate_ranges, vec![(6, 10)]);
     }
 
     #[test]
-    fn ignores_silent_only_duplicate_beats() {
+    fn ignores_silent_only_duplicate_windows() {
         let samples = mono_samples(&[
             [0.0, 0.0, 0.0, 0.0],
             [0.0, 0.0, 0.0, 0.0],
@@ -201,9 +197,9 @@ mod tests {
             [0.9, 0.0, 0.0, 0.0],
         ]);
 
-        let detection = detect_exact_duplicate_beat_ranges(&samples, 1, 4, 60.0, 0.0).unwrap();
+        let detection = detect_exact_duplicate_window_ranges(&samples, 1, 4, 4, 0).unwrap();
 
-        assert_eq!(detection.duplicate_beat_count, 1);
+        assert_eq!(detection.duplicate_window_count, 1);
         assert_eq!(detection.duplicate_ranges, vec![(12, 16)]);
     }
 
@@ -213,9 +209,9 @@ mod tests {
         let right = [1.0_f32, -1.0, 0.5, -0.25];
         let samples = mono_samples(&[left, right, left]);
 
-        let detection = detect_exact_duplicate_beat_ranges(&samples, 1, 4, 60.0, 0.0).unwrap();
+        let detection = detect_exact_duplicate_window_ranges(&samples, 1, 4, 4, 0).unwrap();
 
-        assert_eq!(detection.duplicate_beat_count, 1);
+        assert_eq!(detection.duplicate_window_count, 1);
         assert_eq!(detection.duplicate_ranges, vec![(8, 12)]);
     }
 }

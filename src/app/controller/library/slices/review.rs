@@ -176,7 +176,7 @@ impl AppController {
             .unwrap_or(1);
         match self.ui.waveform.slice_batch_profile {
             WaveformSliceBatchProfile::ExactDuplicateBeats => format!(
-                "Cleanup {focused}/{total}. Left/Right review, Space audition, Shift+D keep, M merge, Clean Dups apply."
+                "Cleanup {focused}/{total}. Left/Right review, Space audition, Shift+D keep, M merge, Clean Dups apply duplicate windows."
             ),
             _ => format!(
                 "Slice {focused}/{total}. Left/Right review, Space audition, A mark, E export."

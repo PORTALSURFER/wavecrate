@@ -20,7 +20,7 @@ impl AppController {
     pub(crate) fn clean_exact_duplicate_beats(&mut self) -> Result<(), String> {
         let cleanup_ranges = self.exact_duplicate_cleanup_ranges()?;
         let removed_ranges = cleanup_ranges.len();
-        let removed_beats = self.ui.waveform.slice_batch_beat_count.max(removed_ranges);
+        let removed_windows = self.ui.waveform.slice_batch_beat_count.max(removed_ranges);
         let audio = self
             .sample_view
             .wav
@@ -68,7 +68,10 @@ impl AppController {
         self.queue_selection_edit_playback(&target, &playback);
         self.maybe_trigger_pending_playback();
         self.push_undo_entry(self.selection_edit_undo_entry(
-            format!("Cleaned duplicate beats {}", target.relative_path.display()),
+            format!(
+                "Cleaned duplicate windows {}",
+                target.relative_path.display()
+            ),
             target.source.id.clone(),
             target.relative_path.clone(),
             target.absolute_path.clone(),
@@ -77,7 +80,7 @@ impl AppController {
         self.clear_waveform_slices();
         self.focus_waveform_context();
         self.set_status(
-            format!("Removed {removed_beats} beat(s) across {removed_ranges} cleanup range(s)"),
+            format!("Removed {removed_windows} duplicate window(s) across {removed_ranges} cleanup range(s)"),
             StatusTone::Info,
         );
         Ok(())

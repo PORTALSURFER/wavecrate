@@ -167,7 +167,7 @@ fn detect_waveform_slices_ignores_transient_settings() {
 }
 
 #[test]
-fn detect_waveform_exact_duplicate_slices_from_bpm_keeps_first_beat() {
+fn detect_waveform_exact_duplicate_slices_from_selection_keeps_first_window() {
     let temp = tempdir().unwrap();
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).unwrap();
@@ -185,10 +185,10 @@ fn detect_waveform_exact_duplicate_slices_from_bpm_keeps_first_beat() {
     controller
         .load_waveform_for_selection(&source, Path::new("clip.wav"))
         .unwrap();
-    controller.ui.waveform.bpm_value = Some(120.0);
+    controller.ui.waveform.selection = Some(SelectionRange::new(0.0, 4.0 / 12.0));
 
     let count = controller
-        .detect_waveform_exact_duplicate_slices_from_bpm()
+        .detect_waveform_exact_duplicate_slices_from_selection()
         .unwrap();
 
     assert_eq!(count, 1);
@@ -201,11 +201,11 @@ fn detect_waveform_exact_duplicate_slices_from_bpm_keeps_first_beat() {
         WaveformSliceBatchProfile::ExactDuplicateBeats
     );
     assert_eq!(controller.ui.waveform.slice_batch_beat_count, 1);
-    assert!(controller.ui.status.text.contains("Clean Dups apply"));
+    assert!(controller.ui.status.text.contains("duplicate windows"));
 }
 
 #[test]
-fn detect_waveform_exact_duplicate_slices_uses_last_start_marker_anchor() {
+fn detect_waveform_exact_duplicate_slices_uses_selection_window_anchor() {
     let temp = tempdir().unwrap();
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).unwrap();
@@ -225,11 +225,10 @@ fn detect_waveform_exact_duplicate_slices_uses_last_start_marker_anchor() {
     controller
         .load_waveform_for_selection(&source, Path::new("clip.wav"))
         .unwrap();
-    controller.ui.waveform.bpm_value = Some(120.0);
-    controller.ui.waveform.last_start_marker = Some(2.0 / 14.0);
+    controller.ui.waveform.selection = Some(SelectionRange::new(2.0 / 14.0, 6.0 / 14.0));
 
     let count = controller
-        .detect_waveform_exact_duplicate_slices_from_bpm()
+        .detect_waveform_exact_duplicate_slices_from_selection()
         .unwrap();
 
     assert_eq!(count, 1);
@@ -358,7 +357,7 @@ fn delete_selected_slices_removes_marked_ranges() {
 }
 
 #[test]
-fn delete_selected_slices_preserves_duplicate_cleanup_profile_and_recounts_beats() {
+fn delete_selected_slices_preserves_duplicate_cleanup_profile_and_recounts_windows() {
     let temp = tempdir().unwrap();
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).unwrap();
@@ -378,9 +377,13 @@ fn delete_selected_slices_preserves_duplicate_cleanup_profile_and_recounts_beats
     controller
         .load_waveform_for_selection(&source, Path::new("clip.wav"))
         .unwrap();
-    controller.ui.waveform.bpm_value = Some(120.0);
     controller
-        .detect_waveform_exact_duplicate_slices_from_bpm()
+        .ui
+        .waveform
+        .selection
+        .replace(SelectionRange::new(0.0, 4.0 / 16.0));
+    controller
+        .detect_waveform_exact_duplicate_slices_from_selection()
         .unwrap();
     controller.ui.waveform.selected_slices = vec![0];
 

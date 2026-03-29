@@ -61,11 +61,13 @@ fn zoom_steps_from_ui_with_anchor_ratio_preserves_pointer_position() {
     let after = controller.ui.waveform.view;
     let after_ratio = (anchor - after.start) / (after.end - after.start);
     assert!((after_ratio - 0.25).abs() < 1.0e-6);
-    assert!(controller
-        .ui
-        .waveform
-        .cursor
-        .is_some_and(|cursor| (f64::from(cursor) - anchor).abs() < 1.0e-6));
+    assert!(
+        controller
+            .ui
+            .waveform
+            .cursor
+            .is_some_and(|cursor| (f64::from(cursor) - anchor).abs() < 1.0e-6)
+    );
 }
 
 /// UI zoom should initialize cursor at view center when none exists.
