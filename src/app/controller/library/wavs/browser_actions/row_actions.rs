@@ -177,7 +177,11 @@ impl AppController {
         if rows.is_empty() {
             return false;
         }
-        let _ = self.delete_browser_samples(&rows);
+        if let Err(err) = self.delete_browser_samples(&rows)
+            && self.ui.status.text != err
+        {
+            self.set_status(err, StatusTone::Error);
+        }
         true
     }
 

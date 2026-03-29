@@ -6,6 +6,7 @@ use crate::app::controller::jobs::{
     ActiveRetainedDeleteResolution, RetainedDeleteBusyEntry, RetainedDeleteResolutionMode,
 };
 use crate::app::controller::library::analysis_jobs;
+use crate::app::controller::state::audio::{AudioLoadIntent, PendingAudio};
 use crate::app::controller::ui::hotkeys;
 use crate::app::state::FocusContext;
 use crate::sample_sources::Rating;
@@ -258,6 +259,98 @@ fn delete_hotkey_applies_to_all_selected_rows() {
     assert!(!source.root.join("one.wav").exists());
     assert!(!source.root.join("two.wav").exists());
     assert!(!source.root.join("three.wav").exists());
+}
+
+#[test]
+fn delete_hotkey_keeps_focus_when_file_delete_fails() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("a.wav", Rating::NEUTRAL),
+        sample_entry("b.wav", Rating::NEUTRAL),
+        sample_entry("c.wav", Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("a.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("c.wav"), &[0.0, 0.1]);
+    controller.focus_browser_row_only(1);
+    let action = hotkeys::iter_actions()
+        .find(|action| action.id == "delete-browser")
+        .expect("delete-browser hotkey");
+
+    controller.handle_hotkey(action, FocusContext::SampleBrowser);
+
+    assert_eq!(
+        controller.focused_browser_path().as_deref(),
+        Some(Path::new("b.wav"))
+    );
+    assert_eq!(visible_browser_paths(&mut controller).len(), 3);
+    assert_eq!(controller.ui.status.status_tone, crate::app::state::StatusTone::Error);
+    assert!(controller.ui.status.text.contains("Failed to delete file"));
+}
+
+#[test]
+fn delete_hotkey_waits_for_loading_sample() {
+    let (mut controller, source) =
+        prepare_with_source_and_wav_entries(vec![sample_entry("one.wav", Rating::NEUTRAL)]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    controller.focus_browser_row_only(0);
+    controller.ui.waveform.loading = Some(PathBuf::from("one.wav"));
+    controller.runtime.jobs.set_pending_audio(Some(PendingAudio {
+        request_id: 1,
+        source_id: source.id.clone(),
+        root: source.root.clone(),
+        relative_path: PathBuf::from("one.wav"),
+        intent: AudioLoadIntent::Selection,
+    }));
+    let action = hotkeys::iter_actions()
+        .find(|action| action.id == "delete-browser")
+        .expect("delete-browser hotkey");
+
+    controller.handle_hotkey(action, FocusContext::SampleBrowser);
+
+    assert!(source.root.join("one.wav").exists());
+    assert_eq!(
+        controller.focused_browser_path().as_deref(),
+        Some(Path::new("one.wav"))
+    );
+    assert_eq!(controller.wav_entries_len(), 1);
+    assert_eq!(controller.ui.status.status_tone, crate::app::state::StatusTone::Info);
+    assert_eq!(
+        controller.ui.status.text,
+        "Wait for sample load to finish before deleting one.wav"
+    );
+}
+
+#[test]
+fn delete_browser_samples_reports_partial_failure_and_refocuses_survivor() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("a.wav", Rating::NEUTRAL),
+        sample_entry("b.wav", Rating::NEUTRAL),
+        sample_entry("c.wav", Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("a.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("c.wav"), &[0.0, 0.1]);
+    controller.focus_browser_row_only(0);
+    controller.toggle_browser_row_selection(1);
+    let rows = controller.action_rows_from_primary(0);
+
+    let err = controller
+        .delete_browser_samples(&rows)
+        .expect_err("partial delete should report failure");
+
+    assert!(!source.root.join("a.wav").exists());
+    assert_eq!(
+        visible_browser_paths(&mut controller),
+        vec![PathBuf::from("b.wav"), PathBuf::from("c.wav")]
+    );
+    assert_eq!(
+        controller.focused_browser_path().as_deref(),
+        Some(Path::new("c.wav"))
+    );
+    assert_eq!(
+        controller.ui.status.status_tone,
+        crate::app::state::StatusTone::Warning
+    );
+    assert!(controller.ui.status.text.contains("Deleted 1 sample with 1 error"));
+    assert_eq!(controller.ui.status.text, err);
 }
 
 #[test]

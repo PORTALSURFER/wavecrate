@@ -48,12 +48,28 @@ pub(crate) fn schedule_similarity_filter_rebuild_after_delete(
     controller: &mut AppController,
     deleted_paths: &HashSet<PathBuf>,
 ) {
+    let selected_source_id = controller.selected_source_id();
+    let query = controller.ui.browser.search.similar_query.clone();
+    schedule_similarity_filter_rebuild_after_delete_with_state(
+        controller,
+        selected_source_id,
+        query,
+        deleted_paths,
+    );
+}
+
+pub(crate) fn schedule_similarity_filter_rebuild_after_delete_with_state(
+    controller: &mut AppController,
+    selected_source_id: Option<SourceId>,
+    query: Option<SimilarQuery>,
+    deleted_paths: &HashSet<PathBuf>,
+) {
     cancel_pending_similarity_filter_rebuild(controller);
-    let Some(selected_source_id) = controller.selected_source_id() else {
+    let Some(selected_source_id) = selected_source_id else {
         clear_manual_similarity_filter_state_without_rebuild(controller);
         return;
     };
-    let Some(query) = controller.ui.browser.search.similar_query.clone() else {
+    let Some(query) = query else {
         return;
     };
     if controller.ui.browser.search.similarity_sort_follow_loaded {

@@ -79,6 +79,20 @@ pub(crate) fn schedule_similarity_filter_rebuild_after_delete(
     apply::schedule_similarity_filter_rebuild_after_delete(controller, deleted_paths);
 }
 
+pub(crate) fn schedule_similarity_filter_rebuild_after_delete_with_state(
+    controller: &mut AppController,
+    selected_source_id: Option<SourceId>,
+    query: Option<crate::app::state::SimilarQuery>,
+    deleted_paths: &HashSet<PathBuf>,
+) {
+    apply::schedule_similarity_filter_rebuild_after_delete_with_state(
+        controller,
+        selected_source_id,
+        query,
+        deleted_paths,
+    );
+}
+
 pub(crate) fn apply_pending_similarity_filter_rebuild(controller: &mut AppController) {
     apply::apply_pending_similarity_filter_rebuild(controller);
 }
