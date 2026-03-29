@@ -1,4 +1,7 @@
 use super::*;
+use crate::app_core::controller::build_named_gui_fixture_controller;
+use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
+use std::path::Path;
 
 #[test]
 fn apply_native_waveform_normalize_routes_to_controller_behavior() {
@@ -419,4 +422,82 @@ fn apply_native_options_panel_actions_update_ui_state() {
 
     controller.apply_native_ui_action(NativeUiAction::CloseOptionsPanel);
     assert!(!controller.ui.options_panel.open);
+}
+
+#[test]
+fn apply_native_waveform_circular_slide_rotates_sample_and_clears_drag_state() {
+    with_waveform_fixture_controller(|controller, source, wav_path| {
+        write_test_wav(&wav_path, &[1.0, 2.0, 3.0, 4.0]);
+        controller
+            .load_waveform_for_selection(&source, Path::new("kick_one.wav"))
+            .unwrap();
+
+        controller.apply_native_ui_action(NativeUiAction::BeginWaveformCircularSlide {
+            anchor_micros: 500_000,
+        });
+        assert!(controller.is_waveform_circular_slide_active());
+
+        controller.apply_native_ui_action(NativeUiAction::UpdateWaveformCircularSlide {
+            position_micros: 0,
+        });
+        assert!(controller.is_waveform_circular_slide_active());
+
+        controller.apply_native_ui_action(NativeUiAction::FinishWaveformCircularSlide);
+
+        assert!(!controller.is_waveform_circular_slide_active());
+        assert_eq!(read_test_wav_samples(&wav_path), vec![3.0, 4.0, 1.0, 2.0]);
+    });
+}
+
+#[test]
+fn apply_native_waveform_circular_slide_no_op_finish_leaves_file_unchanged() {
+    with_waveform_fixture_controller(|controller, source, wav_path| {
+        write_test_wav(&wav_path, &[1.0, 2.0, 3.0, 4.0]);
+        controller
+            .load_waveform_for_selection(&source, Path::new("kick_one.wav"))
+            .unwrap();
+
+        controller.apply_native_ui_action(NativeUiAction::BeginWaveformCircularSlide {
+            anchor_micros: 500_000,
+        });
+        controller.apply_native_ui_action(NativeUiAction::FinishWaveformCircularSlide);
+
+        assert!(!controller.is_waveform_circular_slide_active());
+        assert_eq!(read_test_wav_samples(&wav_path), vec![1.0, 2.0, 3.0, 4.0]);
+    });
+}
+
+fn write_test_wav(path: &Path, samples: &[f32]) {
+    let spec = WavSpec {
+        channels: 1,
+        sample_rate: 8,
+        bits_per_sample: 32,
+        sample_format: SampleFormat::Float,
+    };
+    let mut writer = WavWriter::create(path, spec).unwrap();
+    for sample in samples {
+        writer.write_sample(*sample).unwrap();
+    }
+    writer.finalize().unwrap();
+}
+
+fn read_test_wav_samples(path: &Path) -> Vec<f32> {
+    WavReader::open(path)
+        .unwrap()
+        .samples::<f32>()
+        .map(|sample| sample.unwrap())
+        .collect()
+}
+
+fn with_waveform_fixture_controller(
+    run: impl FnOnce(&mut AppController, crate::sample_sources::SampleSource, std::path::PathBuf),
+) {
+    let mut bundle = build_named_gui_fixture_controller(WaveformRenderer::new(16, 16), "waveform")
+        .unwrap_or_else(|err| panic!("failed to build waveform fixture: {err}"));
+    let source = bundle
+        .controller
+        .current_source()
+        .expect("waveform fixture should select a source");
+    let wav_path = source.root.join("kick_one.wav");
+    run(&mut bundle.controller, source, wav_path);
 }

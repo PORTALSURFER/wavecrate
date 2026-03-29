@@ -11,6 +11,9 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
             | NativeUiAction::SetWaveformCursorPrecise { .. }
             | NativeUiAction::SeekWaveform { .. }
             | NativeUiAction::SetWaveformCursor { .. }
+            | NativeUiAction::BeginWaveformCircularSlide { .. }
+            | NativeUiAction::UpdateWaveformCircularSlide { .. }
+            | NativeUiAction::FinishWaveformCircularSlide
             | NativeUiAction::SetWaveformViewCenter { .. }
             | NativeUiAction::BeginWaveformSelectionAt { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
@@ -110,6 +113,9 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::ZoomWaveformToSelection
         | NativeUiAction::ZoomWaveformFull
         | NativeUiAction::SetWaveformViewCenter { .. }
+        | NativeUiAction::BeginWaveformCircularSlide { .. }
+        | NativeUiAction::UpdateWaveformCircularSlide { .. }
+        | NativeUiAction::FinishWaveformCircularSlide
         | NativeUiAction::SetWaveformBpmValue { .. }
         | NativeUiAction::AdjustWaveformBpm { .. }
         | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }

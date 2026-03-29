@@ -79,6 +79,7 @@ const fn gui_history_policy(kind: GuiActionKind, _effect: GuiEffectClass) -> Gui
         | GuiActionKind::ToggleFocusedBrowserRowSelection
         | GuiActionKind::SelectAllBrowserRows
         | GuiActionKind::FinishWaveformSelectionDrag
+        | GuiActionKind::FinishWaveformCircularSlide
         | GuiActionKind::FinishWaveformSelectionRangeDrag
         | GuiActionKind::FinishWaveformSelectionSmartScaleDrag
         | GuiActionKind::FinishWaveformEditSelectionDrag
@@ -237,6 +238,9 @@ gui_action_catalog!(
     SetWaveformCursorPrecise { position_nanos } => { id: "set_waveform_cursor_precise", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::SetWaveformCursorPrecise { position_nanos: 450_000_000 } },
     SeekWaveform { position_milli } => { id: "seek_waveform", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::SeekWaveform { position_milli: 450 } },
     SetWaveformCursor { position_milli } => { id: "set_waveform_cursor", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::SetWaveformCursor { position_milli: 450 } },
+    BeginWaveformCircularSlide { anchor_micros } => { id: "begin_waveform_circular_slide", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::BeginWaveformCircularSlide { anchor_micros: 125_000 } },
+    UpdateWaveformCircularSlide { position_micros } => { id: "update_waveform_circular_slide", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::UpdateWaveformCircularSlide { position_micros: 375_000 } },
+    FinishWaveformCircularSlide {} => { id: "finish_waveform_circular_slide", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::FinishWaveformCircularSlide },
     BeginWaveformSelectionAt { anchor_micros } => { id: "begin_waveform_selection_at", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::BeginWaveformSelectionAt { anchor_micros: 125_000 } },
     SetWaveformSelectionRange { start_micros, end_micros, snap_override, preserve_view_edge } => { id: "set_waveform_selection_range", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot, DesktopAiv], fixtures: ["waveform"], sample: NativeUiAction::SetWaveformSelectionRange { start_micros: 100_000, end_micros: 300_000, snap_override: false, preserve_view_edge: false } },
     SetWaveformSelectionRangeSmartScale { start_micros, end_micros } => { id: "set_waveform_selection_range_smart_scale", surface: Waveform, effect: RuntimeMotion, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::SetWaveformSelectionRangeSmartScale { start_micros: 100_000, end_micros: 300_000 } },

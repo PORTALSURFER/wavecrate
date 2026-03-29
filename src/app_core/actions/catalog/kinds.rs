@@ -284,6 +284,12 @@ pub enum GuiActionKind {
     SeekWaveform,
     /// Set the waveform cursor to one position.
     SetWaveformCursor,
+    /// Begin one circular waveform-slide gesture.
+    BeginWaveformCircularSlide,
+    /// Update one active circular waveform-slide gesture.
+    UpdateWaveformCircularSlide,
+    /// Finish one active circular waveform-slide gesture.
+    FinishWaveformCircularSlide,
     /// Begin a new waveform selection from one exact anchor point.
     BeginWaveformSelectionAt,
     /// Set the playback selection range directly.
@@ -352,7 +358,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 171] = [
+    pub const ALL: [Self; 174] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -492,6 +498,9 @@ impl GuiActionKind {
         Self::SetWaveformCursorPrecise,
         Self::SeekWaveform,
         Self::SetWaveformCursor,
+        Self::BeginWaveformCircularSlide,
+        Self::UpdateWaveformCircularSlide,
+        Self::FinishWaveformCircularSlide,
         Self::BeginWaveformSelectionAt,
         Self::SetWaveformSelectionRange,
         Self::SetWaveformSelectionRangeSmartScale,

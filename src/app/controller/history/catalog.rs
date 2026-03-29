@@ -35,6 +35,7 @@ pub(crate) const fn catalog_history_handler_supported(
                 | GuiActionKind::ToggleFocusedBrowserRowSelection
                 | GuiActionKind::SelectAllBrowserRows
                 | GuiActionKind::FinishWaveformSelectionDrag
+                | GuiActionKind::FinishWaveformCircularSlide
                 | GuiActionKind::FinishWaveformSelectionRangeDrag
                 | GuiActionKind::FinishWaveformSelectionSmartScaleDrag
                 | GuiActionKind::FinishWaveformEditSelectionDrag

@@ -32,6 +32,9 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::PlayWaveformAtPrecise { .. }
         | NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
+        | NativeUiAction::BeginWaveformCircularSlide { .. }
+        | NativeUiAction::UpdateWaveformCircularSlide { .. }
+        | NativeUiAction::FinishWaveformCircularSlide
         | NativeUiAction::SetWaveformViewCenter { .. }
         | NativeUiAction::BeginWaveformSelectionAt { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
@@ -97,6 +100,9 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
         action,
         NativeUiAction::SetWaveformCursorPrecise { .. }
             | NativeUiAction::SetWaveformCursor { .. }
+            | NativeUiAction::BeginWaveformCircularSlide { .. }
+            | NativeUiAction::UpdateWaveformCircularSlide { .. }
+            | NativeUiAction::FinishWaveformCircularSlide
             | NativeUiAction::BeginWaveformSelectionAt { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
             | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }

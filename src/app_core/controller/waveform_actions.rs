@@ -85,6 +85,21 @@ pub(super) fn apply_waveform_native_ui_action(
         NativeUiAction::SetWaveformCursor { position_milli } => {
             controller.set_waveform_cursor_milli(position_milli)
         }
+        NativeUiAction::BeginWaveformCircularSlide { anchor_micros } => {
+            if let Err(err) =
+                controller.start_waveform_circular_slide(normalize_waveform_micros(anchor_micros))
+            {
+                controller.set_status(err, StatusTone::Error);
+            }
+        }
+        NativeUiAction::UpdateWaveformCircularSlide { position_micros } => {
+            controller.update_waveform_circular_slide(normalize_waveform_micros(position_micros));
+        }
+        NativeUiAction::FinishWaveformCircularSlide => {
+            if let Err(err) = controller.finish_waveform_circular_slide() {
+                controller.set_status(err, StatusTone::Error);
+            }
+        }
         NativeUiAction::BeginWaveformSelectionAt { anchor_micros } => {
             controller.start_selection_drag(anchor_micros.min(1_000_000) as f32 / 1_000_000.0);
             controller.focus_waveform_context();
@@ -329,6 +344,11 @@ fn toggle_bpm_snap(controller: &mut AppController) {
         controller.set_bpm_value(fallback);
         controller.ui.waveform.bpm_input = format!("{fallback:.0}");
     }
+}
+
+/// Convert one normalized micro-unit waveform position into controller space.
+fn normalize_waveform_micros(position_micros: u32) -> f32 {
+    position_micros.min(1_000_000) as f32 / 1_000_000.0
 }
 
 /// Convert native action pointer coordinates into controller UI points.
