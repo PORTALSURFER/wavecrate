@@ -18,6 +18,8 @@ mod browser_viewport;
 mod entry_access;
 /// File rename/normalize/update mutation helpers for wav browser state.
 mod entry_mutation;
+#[cfg(test)]
+mod entry_mutation_tests;
 mod feature_cache;
 /// Focused-similarity refresh and waveform view reset helpers.
 mod focus_similarity;

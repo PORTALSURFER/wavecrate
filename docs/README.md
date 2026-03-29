@@ -25,7 +25,7 @@ Start here:
 - `docs/plans/index.md` — current/archived plan index for parallel agents
 - `docs/plans/active/todo.md` — short ordered queue for the active execution lane
 - `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog
-  and execution record for the live codebase (Phase 2 started on 2026-03-29; item 7 is the next safe executable task after clarification-gated items 4-6)
+  and execution record for the live codebase (Phase 2 started on 2026-03-29; item 10 is the next safe executable task after clarification-gated items 4-6 and 8-9)
 - `tmp/cleanup_plan.md` — parked ROI-ranked cleanup backlog
   (Phase 1 complete on 2026-03-12; resume only after explicit Phase 2 confirmation)
 - `tmp/perf_plan.md` — completed runtime performance execution record through item 11

@@ -4,7 +4,7 @@ Generated: 2026-03-29
 Observed superproject commit: `148839fd`
 Observed `vendor/radiant` commit: `091d1674`
 Observed workspace state: dirty worktree in both repos; findings below reflect the live workspace seen during this audit.
-Status: Phase 2 execution in progress on 2026-03-29; items 1-3 are completed, items 4-6 are clarification-gated or blocked, and item 7 is the next safe executable task.
+Status: Phase 2 execution in progress on 2026-03-29; items 1-3 and 7 are completed, items 4-6 and 8-9 are clarification-gated or blocked, and item 10 is the next safe executable task.
 
 ## Scope
 
@@ -135,7 +135,7 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-3 are completed, it
   - rerun `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` and confirm the scorecard describes the observed result honestly
 - Product clarification required: No
 - Completed: 2026-03-29
-- Commit: pending (record after commit)
+- Commit: `afb61db3`
 - Assumptions: the scorecard should describe the live observed dirty workspace explicitly rather than silently reusing the last clean-baseline claims.
 - Validation:
   - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
@@ -214,7 +214,7 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-3 are completed, it
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: Yes
 
-### 7. [ ] Add mutation-invariant coverage for `entry_mutation.rs`, including cache, DB, and compare-anchor updates
+### 7. [x] Add mutation-invariant coverage for `entry_mutation.rs`, including cache, DB, and compare-anchor updates
 
 - Classification: Test gap
 - Confidence: High
@@ -235,6 +235,14 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-3 are completed, it
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-29
+- Commit: pending (record after commit)
+- Assumptions: compare-anchor rename-path rewrites are still safe to validate even while the separate undo/redo contract question remains unresolved.
+- Validation:
+  - `cargo test entry_mutation_tests --lib -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
 ### 8. [!] Make `GuiScenarioStep::CaptureSnapshot` truthful or remove it from the supported scenario contract
 
@@ -257,7 +265,7 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-3 are completed, it
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: Yes
 
-### 9. [ ] Split `src/gui_test/runner.rs` once the capture-step contract is settled
+### 9. [~] Split `src/gui_test/runner.rs` once the capture-step contract is settled
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -279,6 +287,9 @@ Status: Phase 2 execution in progress on 2026-03-29; items 1-3 are completed, it
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
 - Product clarification required: No
+- Blocked: 2026-03-29
+- Blocking dependency: item 8 capture-step contract clarification
+- Blocking note: the split boundary for `src/gui_test/runner.rs` depends on whether `CaptureSnapshot` becomes a real artifact feature or is removed from the contract.
 
 ### 10. [ ] Add direct command-surface coverage for `gui-test-cli`
 

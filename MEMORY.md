@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-29T21:12:00Z
+Last Updated: 2026-03-29T21:48:00Z
 Updated By: Codex
 
 ## Purpose
@@ -20,7 +20,9 @@ Updated By: Codex
 - Item 1 fixed `scripts/check_quality_score_drift.ps1` so benign nested Git CRLF warnings no longer abort guardrail classification on Windows.
 - Item 2 fixed the cleanup-hotspot audit scripts so `tmp/cleanup_audit_hotspots.md` now includes `vendor/radiant` and exposes the live runtime hotspot cluster again.
 - Item 3 refreshed `docs/QUALITY_SCORE.md` so the scorecard now describes the live observed dirty workspace, including the degraded file-size posture and suppression counts.
+- Item 7 added direct mutation-invariant coverage for `entry_mutation`, including DB metadata rewrite, cache lookup rewrite, browser focus path rewrite, and compare-anchor path updates during rename/move flows.
 - Item 4 still needs compare-anchor product clarification, item 5 is blocked on that decision, and item 6 still needs pending-rename lifecycle clarification.
+- Item 8 still needs GUI scenario capture-step clarification, and item 9 is blocked on that contract.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -28,7 +30,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order; item 7 is the next safe executable task after the clarification-gated items 4-6.
+1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order; item 10 is the next safe executable task after the clarification-gated items 4-6 and 8-9.
 2. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` aligned around the current execution lane.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
@@ -36,7 +38,7 @@ Updated By: Codex
 
 ## Work Notes
 
-- Active audit plan: `tmp/improvement_audit_plan.md` (rebuilt on 2026-03-29; Phase 2 started and items 1-3 are complete)
+- Active audit plan: `tmp/improvement_audit_plan.md` (rebuilt on 2026-03-29; Phase 2 started and items 1-3 and 7 are complete)
 - Current broader hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
