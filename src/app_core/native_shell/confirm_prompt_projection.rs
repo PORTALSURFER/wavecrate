@@ -4,22 +4,8 @@ use super::*;
 
 /// Project active confirm prompt metadata for modal rendering.
 pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
-    if let Some(SampleBrowserActionPrompt::Rename { target, name }) =
-        ui.browser.pending_action.clone()
-    {
-        let input_value = Some(name);
-        return ConfirmPromptModel {
-            visible: true,
-            kind: Some(ConfirmPromptKind::BrowserRename),
-            title: String::from("Rename sample"),
-            message: String::from("Apply rename for focused sample?"),
-            confirm_label: String::from("Apply"),
-            cancel_label: String::from("Cancel"),
-            target_label: Some(target.display().to_string()),
-            input_value,
-            input_placeholder: Some(String::from("Sample name")),
-            input_error: None,
-        };
+    if let Some(prompt) = ui.browser.pending_action.clone() {
+        return project_browser_prompt(prompt);
     }
     if let Some(FolderActionPrompt::RestoreRetainedDeletes { entry_count }) =
         ui.sources.folders.pending_action.clone()
@@ -70,4 +56,52 @@ pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
         };
     }
     ConfirmPromptModel::default()
+}
+
+fn project_browser_prompt(prompt: SampleBrowserActionPrompt) -> ConfirmPromptModel {
+    match prompt {
+        SampleBrowserActionPrompt::Rename {
+            target,
+            name,
+            input_error,
+        } => ConfirmPromptModel {
+            visible: true,
+            kind: Some(ConfirmPromptKind::BrowserRename),
+            title: String::from("Rename sample"),
+            message: String::from("Apply rename for focused sample?"),
+            confirm_label: String::from("Apply"),
+            cancel_label: String::from("Cancel"),
+            target_label: Some(target.display().to_string()),
+            input_value: Some(name),
+            input_placeholder: Some(String::from("Sample name")),
+            input_error,
+        },
+        SampleBrowserActionPrompt::MoveToFolderConflict {
+            target_folder,
+            name,
+            input_error,
+            ..
+        } => ConfirmPromptModel {
+            visible: true,
+            kind: Some(ConfirmPromptKind::BrowserRename),
+            title: String::from("Name conflict"),
+            message: String::from(
+                "That folder already contains a file with this name. Choose a new name to finish the drop.",
+            ),
+            confirm_label: String::from("Move"),
+            cancel_label: String::from("Cancel"),
+            target_label: Some(folder_drop_target_label(&target_folder)),
+            input_value: Some(name),
+            input_placeholder: Some(String::from("Sample name")),
+            input_error,
+        },
+    }
+}
+
+fn folder_drop_target_label(target_folder: &std::path::Path) -> String {
+    if target_folder.as_os_str().is_empty() {
+        String::from("Source root")
+    } else {
+        format!("Folder: {}", target_folder.display())
+    }
 }

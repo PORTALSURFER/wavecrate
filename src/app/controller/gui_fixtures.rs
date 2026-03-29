@@ -226,6 +226,7 @@ fn build_prompt_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControll
     bundle.controller.ui.browser.pending_action = Some(SampleBrowserActionPrompt::Rename {
         target: PathBuf::from("kick_one.wav"),
         name: String::from("kick_one"),
+        input_error: None,
     });
     bundle.controller.focus_browser_list();
     Ok(bundle)

@@ -5,7 +5,7 @@ use crate::app::controller::jobs::{
     FileOpMessage, FileOpResult, FolderMoveRequest, FolderSampleMoveRequest,
 };
 use crate::app::state::{DragSample, ProgressTaskKind};
-use crate::sample_sources::SourceId;
+use crate::sample_sources::{SampleSource, SourceId};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, atomic::AtomicBool};
 use tracing::{info, warn};
@@ -54,40 +54,18 @@ impl DragDropController<'_> {
             );
             return;
         }
-        let Some(source) = self
-            .library
-            .sources
-            .iter()
-            .find(|s| s.id == source_id)
-            .cloned()
-        else {
-            warn!("Folder move: missing source {:?}", source_id);
-            self.set_status("Source not available for move", StatusTone::Error);
+        let Some(source) = self.resolve_folder_sample_move_source(&source_id) else {
             return;
         };
-        if self
-            .selection_state
-            .ctx
-            .selected_source
-            .as_ref()
-            .is_some_and(|selected| selected != &source.id)
-        {
-            warn!(
-                "Folder move blocked: selected source {:?} differs from sample source {:?}",
-                self.selection_state.ctx.selected_source, source.id
-            );
-            self.set_status(
-                "Switch to the sample's source before moving into its folders",
-                StatusTone::Warning,
-            );
+        if self.maybe_open_single_sample_drop_conflict_prompt(&source, samples, target_folder) {
             return;
         }
         let mut requests = Vec::new();
         let mut errors = Vec::new();
         let mut skipped = 0usize;
         for sample in samples {
-            let file_name = match sample.relative_path.file_name() {
-                Some(name) => name.to_owned(),
+            let new_relative = match sample_target_relative(&sample.relative_path, target_folder) {
+                Some(path) => path,
                 None => {
                     errors.push(format!(
                         "Sample name unavailable for move: {}",
@@ -95,11 +73,6 @@ impl DragDropController<'_> {
                     ));
                     continue;
                 }
-            };
-            let new_relative = if target_folder.as_os_str().is_empty() {
-                PathBuf::from(file_name)
-            } else {
-                target_folder.join(file_name)
             };
             if new_relative == sample.relative_path {
                 skipped += 1;
@@ -118,55 +91,27 @@ impl DragDropController<'_> {
             }
             return;
         }
-        let label = if requests.len() == 1 {
-            "Moving sample"
-        } else {
-            "Moving samples"
+        self.begin_folder_sample_move(source, requests, errors);
+    }
+
+    /// Enqueue a single-sample folder move with an explicit destination path.
+    pub(crate) fn handle_sample_drop_to_folder_with_target(
+        &mut self,
+        source_id: SourceId,
+        relative_path: PathBuf,
+        target_relative: PathBuf,
+    ) {
+        let Some(source) = self.resolve_folder_sample_move_source(&source_id) else {
+            return;
         };
-        self.set_status(format!("{label}..."), StatusTone::Busy);
-        self.show_status_progress(
-            ProgressTaskKind::FileOps,
-            label.to_string(),
-            requests.len(),
-            true,
+        self.begin_folder_sample_move(
+            source,
+            vec![FolderSampleMoveRequest {
+                relative_path,
+                target_relative,
+            }],
+            Vec::new(),
         );
-        let cancel = Arc::new(AtomicBool::new(false));
-        #[cfg(test)]
-        {
-            let result = run_folder_sample_move_task(
-                source.id.clone(),
-                source.root.clone(),
-                requests,
-                errors,
-                cancel,
-                None,
-            );
-            let message = FileOpMessage::Finished(FileOpResult::FolderSampleMove(result));
-            if let FileOpMessage::Finished(FileOpResult::FolderSampleMove(result)) = message {
-                self.apply_folder_sample_move_result(result);
-            }
-            if self.ui.progress.task == Some(ProgressTaskKind::FileOps) {
-                self.clear_progress();
-            }
-        }
-        #[cfg(not(test))]
-        {
-            let (tx, rx) = std::sync::mpsc::channel();
-            self.runtime.jobs.start_file_ops(rx, cancel.clone());
-            std::thread::spawn(move || {
-                let result = run_folder_sample_move_task(
-                    source.id.clone(),
-                    source.root.clone(),
-                    requests,
-                    errors,
-                    cancel,
-                    Some(&tx),
-                );
-                let _ = tx.send(FileOpMessage::Finished(FileOpResult::FolderSampleMove(
-                    result,
-                )));
-            });
-        }
     }
 
     /// Enqueue a background move for a folder dropped onto another folder.
@@ -260,4 +205,130 @@ impl DragDropController<'_> {
             });
         }
     }
+
+    fn resolve_folder_sample_move_source(&mut self, source_id: &SourceId) -> Option<SampleSource> {
+        let Some(source) = self
+            .library
+            .sources
+            .iter()
+            .find(|source| &source.id == source_id)
+            .cloned()
+        else {
+            warn!("Folder move: missing source {:?}", source_id);
+            self.set_status("Source not available for move", StatusTone::Error);
+            return None;
+        };
+        if self
+            .selection_state
+            .ctx
+            .selected_source
+            .as_ref()
+            .is_some_and(|selected| selected != &source.id)
+        {
+            warn!(
+                "Folder move blocked: selected source {:?} differs from sample source {:?}",
+                self.selection_state.ctx.selected_source, source.id
+            );
+            self.set_status(
+                "Switch to the sample's source before moving into its folders",
+                StatusTone::Warning,
+            );
+            return None;
+        }
+        Some(source)
+    }
+
+    fn maybe_open_single_sample_drop_conflict_prompt(
+        &mut self,
+        source: &SampleSource,
+        samples: &[DragSample],
+        target_folder: &Path,
+    ) -> bool {
+        let [sample] = samples else {
+            return false;
+        };
+        let Some(target_relative) = sample_target_relative(&sample.relative_path, target_folder)
+        else {
+            return false;
+        };
+        if target_relative == sample.relative_path || !source.root.join(&target_relative).exists() {
+            return false;
+        }
+        self.set_status(
+            "Drop blocked because that folder already contains the same file name",
+            StatusTone::Warning,
+        );
+        self.start_folder_drop_conflict_prompt(
+            sample.source_id.clone(),
+            sample.relative_path.clone(),
+            target_folder.to_path_buf(),
+        );
+        true
+    }
+
+    fn begin_folder_sample_move(
+        &mut self,
+        source: SampleSource,
+        requests: Vec<FolderSampleMoveRequest>,
+        errors: Vec<String>,
+    ) {
+        let label = if requests.len() == 1 {
+            "Moving sample"
+        } else {
+            "Moving samples"
+        };
+        self.set_status(format!("{label}..."), StatusTone::Busy);
+        self.show_status_progress(
+            ProgressTaskKind::FileOps,
+            label.to_string(),
+            requests.len(),
+            true,
+        );
+        let cancel = Arc::new(AtomicBool::new(false));
+        #[cfg(test)]
+        {
+            let result = run_folder_sample_move_task(
+                source.id.clone(),
+                source.root.clone(),
+                requests,
+                errors,
+                cancel,
+                None,
+            );
+            let message = FileOpMessage::Finished(FileOpResult::FolderSampleMove(result));
+            if let FileOpMessage::Finished(FileOpResult::FolderSampleMove(result)) = message {
+                self.apply_folder_sample_move_result(result);
+            }
+            if self.ui.progress.task == Some(ProgressTaskKind::FileOps) {
+                self.clear_progress();
+            }
+        }
+        #[cfg(not(test))]
+        {
+            let (tx, rx) = std::sync::mpsc::channel();
+            self.runtime.jobs.start_file_ops(rx, cancel.clone());
+            std::thread::spawn(move || {
+                let result = run_folder_sample_move_task(
+                    source.id.clone(),
+                    source.root.clone(),
+                    requests,
+                    errors,
+                    cancel,
+                    Some(&tx),
+                );
+                let _ = tx.send(FileOpMessage::Finished(FileOpResult::FolderSampleMove(
+                    result,
+                )));
+            });
+        }
+    }
+}
+
+fn sample_target_relative(relative_path: &Path, target_folder: &Path) -> Option<PathBuf> {
+    let file_name = relative_path.file_name()?.to_owned();
+    Some(if target_folder.as_os_str().is_empty() {
+        PathBuf::from(file_name)
+    } else {
+        target_folder.join(file_name)
+    })
 }

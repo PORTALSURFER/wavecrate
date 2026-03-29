@@ -106,6 +106,36 @@ impl AppController {
         entry_mutation::validate_new_sample_name_in_parent(relative_path, root, new_name)
     }
 
+    /// Validate that a moved file name is safe and available in the target folder.
+    pub(crate) fn validate_new_sample_name_in_folder(
+        &self,
+        current_relative: &Path,
+        root: &Path,
+        target_folder: &Path,
+        new_name: &str,
+    ) -> Result<PathBuf, String> {
+        entry_mutation::validate_new_sample_name_in_folder(
+            current_relative,
+            root,
+            target_folder,
+            new_name,
+        )
+    }
+
+    /// Suggest the next available numbered name for a sample moved into another folder.
+    pub(crate) fn suggest_numbered_sample_name_in_folder(
+        &self,
+        current_relative: &Path,
+        root: &Path,
+        target_folder: &Path,
+    ) -> Result<String, String> {
+        entry_mutation::suggest_numbered_sample_name_in_folder(
+            current_relative,
+            root,
+            target_folder,
+        )
+    }
+
     /// Update all cached structures after a file path or metadata change.
     pub(crate) fn update_cached_entry(
         &mut self,

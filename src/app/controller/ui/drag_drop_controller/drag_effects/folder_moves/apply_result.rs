@@ -47,8 +47,15 @@ impl DragDropController<'_> {
             self.apply_folder_entry_updates(&source, &updates);
         }
         let moved = result.moved.len();
-        if moved == 0 && result.errors.is_empty() {
-            if result.cancelled {
+        if moved == 0 {
+            if let Some(err) = result.errors.first() {
+                let message = if result.cancelled {
+                    format!("{err} (cancelled)")
+                } else {
+                    err.clone()
+                };
+                self.set_status(message, StatusTone::Warning);
+            } else if result.cancelled {
                 self.set_status("Move cancelled", StatusTone::Warning);
             } else {
                 self.set_status("No samples moved", StatusTone::Warning);

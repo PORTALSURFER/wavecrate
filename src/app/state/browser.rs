@@ -2,6 +2,7 @@ mod search;
 mod selection;
 mod viewport;
 
+use crate::sample_sources::SourceId;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -25,9 +26,9 @@ pub struct SampleBrowserState {
     pub viewport: BrowserViewportState,
     /// Search/filter/similarity state for the browser list.
     pub search: BrowserSearchState,
-    /// Pending inline action for the sample browser rows.
+    /// Pending modal action for the sample browser area.
     pub pending_action: Option<SampleBrowserActionPrompt>,
-    /// Flag to request focus on the active inline rename editor.
+    /// Flag to request focus on the active prompt input field.
     pub rename_focus_requested: bool,
     /// Active tab in the sample browser area.
     pub active_tab: SampleBrowserTab,
@@ -64,6 +65,21 @@ pub enum SampleBrowserActionPrompt {
         target: PathBuf,
         /// New name.
         name: String,
+        /// Inline validation error shown under the prompt input when present.
+        input_error: Option<String>,
+    },
+    /// Complete a blocked folder drop by choosing a unique destination name.
+    MoveToFolderConflict {
+        /// Source identifier for the dragged sample.
+        source_id: SourceId,
+        /// Path of the source sample within the source root.
+        source_relative: PathBuf,
+        /// Destination folder that rejected the original drop.
+        target_folder: PathBuf,
+        /// Proposed destination name without forcing the extension into the input text.
+        name: String,
+        /// Inline validation error shown under the prompt input when present.
+        input_error: Option<String>,
     },
 }
 

@@ -26,6 +26,7 @@ fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
     ui.browser.pending_action = Some(SampleBrowserActionPrompt::Rename {
         target: std::path::PathBuf::from("kick.wav"),
         name: String::from("kick"),
+        input_error: None,
     });
     ui.waveform.pending_destructive = Some(DestructiveEditPrompt {
         edit: DestructiveSelectionEdit::TrimSelection,
@@ -35,6 +36,34 @@ fn confirm_prompt_prefers_browser_rename_when_multiple_prompts_exist() {
     let projected = project_confirm_prompt_model(&ui);
     assert!(projected.visible);
     assert_eq!(projected.kind, Some(ConfirmPromptKind::BrowserRename));
+}
+
+/// Folder-drop conflict prompts should project warning copy and inline validation.
+#[test]
+fn confirm_prompt_projects_folder_drop_conflict_prompt() {
+    let mut ui = UiState::default();
+    ui.browser.pending_action = Some(SampleBrowserActionPrompt::MoveToFolderConflict {
+        source_id: crate::sample_sources::SourceId::from_string("source"),
+        source_relative: std::path::PathBuf::from("kick.wav"),
+        target_folder: std::path::PathBuf::from("dest"),
+        name: String::from("kick_001"),
+        input_error: Some(String::from(
+            "A file named dest/kick_001.wav already exists",
+        )),
+    });
+
+    let projected = project_confirm_prompt_model(&ui);
+
+    assert!(projected.visible);
+    assert_eq!(projected.kind, Some(ConfirmPromptKind::BrowserRename));
+    assert_eq!(projected.title, "Name conflict");
+    assert_eq!(projected.confirm_label, "Move");
+    assert_eq!(projected.target_label.as_deref(), Some("Folder: dest"));
+    assert_eq!(projected.input_value.as_deref(), Some("kick_001"));
+    assert_eq!(
+        projected.input_error.as_deref(),
+        Some("A file named dest/kick_001.wav already exists")
+    );
 }
 
 /// Inline folder creation should stay out of the modal confirm prompt.

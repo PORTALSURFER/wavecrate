@@ -4,7 +4,7 @@ use super::*;
 use crate::app::controller::StatusTone;
 use crate::app::state::SampleBrowserActionPrompt;
 use crate::app::view_model;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 impl AppController {
     /// Start rename prompt state for the currently focused browser row.
@@ -18,50 +18,142 @@ impl AppController {
         self.ui.browser.pending_action = Some(SampleBrowserActionPrompt::Rename {
             target: path,
             name: default,
+            input_error: None,
         });
         self.ui.browser.rename_focus_requested = true;
     }
 
-    /// Dismiss any pending browser rename prompt.
+    /// Open a modal rename prompt for a sample drop blocked by a duplicate destination name.
+    pub(crate) fn start_folder_drop_conflict_prompt(
+        &mut self,
+        source_id: crate::sample_sources::SourceId,
+        source_relative: PathBuf,
+        target_folder: PathBuf,
+    ) {
+        let Some(source) = self
+            .library
+            .sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .cloned()
+        else {
+            self.set_status("Source not available for move", StatusTone::Error);
+            return;
+        };
+        let name = match self.suggest_numbered_sample_name_in_folder(
+            &source_relative,
+            &source.root,
+            &target_folder,
+        ) {
+            Ok(name) => name,
+            Err(err) => {
+                self.set_status(err, StatusTone::Error);
+                return;
+            }
+        };
+        self.focus_browser_context();
+        self.ui.browser.pending_action = Some(SampleBrowserActionPrompt::MoveToFolderConflict {
+            source_id,
+            source_relative,
+            target_folder,
+            name,
+            input_error: None,
+        });
+        self.ui.browser.rename_focus_requested = true;
+    }
+
+    /// Dismiss any pending browser prompt.
     pub(crate) fn cancel_browser_rename(&mut self) {
         self.ui.browser.pending_action = None;
         self.ui.browser.rename_focus_requested = false;
     }
 
-    /// Apply the currently staged browser rename, if one exists.
+    /// Apply the currently staged browser prompt, if one exists.
     pub(crate) fn apply_pending_browser_rename(&mut self) {
         let action = self.ui.browser.pending_action.clone();
-        if let Some(SampleBrowserActionPrompt::Rename { target, name }) = action {
-            let Some(row) = self.visible_row_for_path(&target) else {
-                self.cancel_browser_rename();
-                self.set_status("Sample not found to rename", StatusTone::Info);
-                return;
-            };
-            match self.rename_browser_sample(row, &name) {
-                Ok(()) => {
+        match action {
+            Some(SampleBrowserActionPrompt::Rename {
+                target,
+                name,
+                input_error: _,
+            }) => {
+                let Some(row) = self.visible_row_for_path(&target) else {
                     self.cancel_browser_rename();
-                }
-                Err(err) => {
-                    self.cancel_browser_rename();
-                    self.set_status(err, StatusTone::Error);
+                    self.set_status("Sample not found to rename", StatusTone::Info);
+                    return;
+                };
+                match self.rename_browser_sample(row, &name) {
+                    Ok(()) => {
+                        self.cancel_browser_rename();
+                    }
+                    Err(err) => {
+                        self.cancel_browser_rename();
+                        self.set_status(err, StatusTone::Error);
+                    }
                 }
             }
+            Some(SampleBrowserActionPrompt::MoveToFolderConflict {
+                source_id,
+                source_relative,
+                target_folder,
+                name,
+                input_error: _,
+            }) => self.apply_folder_drop_conflict_prompt(
+                source_id,
+                source_relative,
+                target_folder,
+                &name,
+            ),
+            None => {}
         }
     }
 
-    /// Update the staged browser rename text and keep rename focus requested.
+    /// Update the staged browser prompt text and keep prompt focus requested.
     pub(crate) fn set_browser_rename_input(&mut self, value: String) -> bool {
-        let Some(SampleBrowserActionPrompt::Rename { name, .. }) =
-            self.ui.browser.pending_action.as_mut()
-        else {
-            return false;
-        };
-        *name = value;
-        self.ui.browser.rename_focus_requested = true;
-        true
+        let action = self.ui.browser.pending_action.clone();
+        match action {
+            Some(SampleBrowserActionPrompt::Rename { .. }) => {
+                if let Some(SampleBrowserActionPrompt::Rename {
+                    name, input_error, ..
+                }) = self.ui.browser.pending_action.as_mut()
+                {
+                    *name = value;
+                    *input_error = None;
+                    self.ui.browser.rename_focus_requested = true;
+                    return true;
+                }
+                false
+            }
+            Some(SampleBrowserActionPrompt::MoveToFolderConflict {
+                source_id,
+                source_relative,
+                target_folder,
+                ..
+            }) => {
+                let input_error = self.folder_drop_conflict_input_error(
+                    &source_id,
+                    &source_relative,
+                    &target_folder,
+                    &value,
+                );
+                if let Some(SampleBrowserActionPrompt::MoveToFolderConflict {
+                    name,
+                    input_error: error,
+                    ..
+                }) = self.ui.browser.pending_action.as_mut()
+                {
+                    *name = value;
+                    *error = input_error;
+                    self.ui.browser.rename_focus_requested = true;
+                    return true;
+                }
+                false
+            }
+            None => false,
+        }
     }
 
-    /// Report whether a browser rename prompt is currently active.
+    /// Report whether a browser prompt is currently active.
     pub(crate) fn has_pending_browser_rename(&self) -> bool {
         self.ui.browser.pending_action.is_some()
     }
@@ -92,6 +184,73 @@ impl AppController {
     /// Delete current browser selection from UI actions, ignoring no-op outcomes.
     pub fn delete_active_browser_selection_action(&mut self) {
         let _ = self.delete_active_browser_selection();
+    }
+
+    fn apply_folder_drop_conflict_prompt(
+        &mut self,
+        source_id: crate::sample_sources::SourceId,
+        source_relative: PathBuf,
+        target_folder: PathBuf,
+        name: &str,
+    ) {
+        let Some(source) = self
+            .library
+            .sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .cloned()
+        else {
+            self.cancel_browser_rename();
+            self.set_status("Source not available for move", StatusTone::Error);
+            return;
+        };
+        let new_relative = match self.validate_new_sample_name_in_folder(
+            &source_relative,
+            &source.root,
+            &target_folder,
+            name,
+        ) {
+            Ok(path) => path,
+            Err(err) => {
+                self.set_folder_drop_conflict_input_error(Some(err));
+                return;
+            }
+        };
+        self.cancel_browser_rename();
+        self.drag_drop().handle_sample_drop_to_folder_with_target(
+            source_id,
+            source_relative,
+            new_relative,
+        );
+    }
+
+    fn folder_drop_conflict_input_error(
+        &self,
+        source_id: &crate::sample_sources::SourceId,
+        source_relative: &Path,
+        target_folder: &Path,
+        name: &str,
+    ) -> Option<String> {
+        let Some(source) = self
+            .library
+            .sources
+            .iter()
+            .find(|source| &source.id == source_id)
+        else {
+            return Some(String::from("Source not available for move"));
+        };
+        self.validate_new_sample_name_in_folder(source_relative, &source.root, target_folder, name)
+            .err()
+    }
+
+    fn set_folder_drop_conflict_input_error(&mut self, input_error: Option<String>) {
+        if let Some(SampleBrowserActionPrompt::MoveToFolderConflict {
+            input_error: error, ..
+        }) = self.ui.browser.pending_action.as_mut()
+        {
+            *error = input_error;
+            self.ui.browser.rename_focus_requested = true;
+        }
     }
 
     /// Apply a triage rating target to the current browser selection from UI actions.
