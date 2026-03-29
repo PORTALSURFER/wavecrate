@@ -367,7 +367,7 @@ Status: Phase 2 execution paused on 2026-03-29 after all currently safe executab
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-29
-- Commit: pending (record after superproject pointer update; `vendor/radiant` commit `40855cc9`)
+- Commit: `5d7bca02` (`vendor/radiant` commit `40855cc9`)
 - Assumptions: splitting the two largest cluster-entry files by their existing surface responsibilities is sufficient to complete the "starting with the hit-testing and chrome/frame-build cluster" scope for this item without attempting the remaining unrelated `vendor/radiant` violations.
 - Validation:
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
