@@ -33,7 +33,10 @@ pub(crate) fn handle_waveform_command(
             true
         }
         HotkeyCommand::SaveSelectionToBrowser => {
-            controller.save_waveform_selection_or_slices_to_browser_action(true);
+            controller.save_waveform_selection_or_slices_to_browser_action_with_tag(
+                true,
+                Some(crate::sample_sources::Rating::KEEP_1),
+            );
             true
         }
         HotkeyCommand::TrimSelection => {

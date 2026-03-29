@@ -126,7 +126,7 @@ pub enum GuiActionKind {
     SetCompareAnchorFromFocusedBrowserSample,
     /// Commit the currently focused browser row.
     CommitFocusedBrowserRow,
-    /// Save the current waveform selection back to the browser/sample metadata.
+    /// Save the current waveform selection and mark exported clip(s) keep-1.
     SaveWaveformSelectionToBrowser,
     /// Save the current waveform selection and mark exported clip(s) keep-2.
     SaveWaveformSelectionToBrowserWithKeep2,

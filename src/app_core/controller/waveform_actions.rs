@@ -182,9 +182,11 @@ pub(super) fn apply_waveform_native_ui_action(
         NativeUiAction::FinishWaveformSelectionRangeDrag => controller.finish_selection_drag(),
         NativeUiAction::FinishWaveformSelectionSmartScaleDrag => controller.finish_selection_drag(),
         NativeUiAction::FinishWaveformEditSelectionDrag => controller.finish_edit_selection_drag(),
-        NativeUiAction::SaveWaveformSelectionToBrowser => {
-            controller.save_waveform_selection_or_slices_to_browser_action(true)
-        }
+        NativeUiAction::SaveWaveformSelectionToBrowser => controller
+            .save_waveform_selection_or_slices_to_browser_action_with_tag(
+                true,
+                Some(crate::sample_sources::Rating::KEEP_1),
+            ),
         NativeUiAction::SaveWaveformSelectionToBrowserWithKeep2 => controller
             .save_waveform_selection_or_slices_to_browser_action_with_tag(
                 true,

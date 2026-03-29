@@ -135,7 +135,7 @@ fn waveform_selection_drop_to_browser_list_exports_selection_clip() {
 }
 
 #[test]
-/// Native E-equivalent waveform save action should export the current selection.
+/// Native E-equivalent waveform save action should export the current selection with keep-1.
 fn waveform_selection_native_save_exports_selection_clip() {
     let temp = tempdir().unwrap();
     let root = temp.path().join("source");
@@ -162,6 +162,16 @@ fn waveform_selection_native_save_exports_selection_clip() {
     });
     assert!(root.join("loop_selection_001.wav").is_file());
     assert!(controller.ui.status.text.contains("Saved clip"));
+    let rows = controller
+        .database_for(&source)
+        .unwrap()
+        .list_files()
+        .unwrap();
+    let exported = rows
+        .iter()
+        .find(|row| row.relative_path == PathBuf::from("loop_selection_001.wav"))
+        .expect("exported clip should be registered");
+    assert_eq!(exported.tag, crate::sample_sources::Rating::KEEP_1);
     assert_eq!(
         controller
             .sample_view

@@ -11,7 +11,7 @@
 - Silence split: Click Silence Split, then use Left/Right to review slices, Space to audition, A to mark, and E to export only the marked `_silence_split_###.wav` samples.
 - Exact dedupe: Make a playback selection to define the scan size, click Exact Dedupe, audition duplicate windows with Left-click or Space, Right-click any copy you want to keep, then click Clean Dups to remove the remaining near-duplicate hits while keeping the first copy in each group.
 - Batch triage: Multi-select samples to apply keep/trash tags in one action.
-- Collect from selection: Use `E` to save a clip without leaving the waveform view, or `Shift + E` to save it and immediately mark the export keep x2.
+- Collect from selection: Use `E` to save a clip without leaving the waveform view and mark the export keep x1, or `Shift + E` to save it and immediately mark the export keep x2.
 - Search samples: Press F to focus the search box and filter the browser list.
 - Similarity prep: Run similarity prep after adding sources to unlock map navigation.
 - GPU embeddings: Open GPU embedding options to speed up analysis on compatible hardware.
