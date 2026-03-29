@@ -163,6 +163,8 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::OpenOptionsMenu
             | NativeUiAction::CloseOptionsPanel
             | NativeUiAction::SetPromptInput { .. }
+            | NativeUiAction::ToggleBrowserDuplicateCleanupMode
+            | NativeUiAction::ToggleBrowserDuplicateCleanupKeep { .. }
             | NativeUiAction::ToggleWaveformSliceSelection { .. }
             | NativeUiAction::ToggleWaveformDuplicateSliceExemption { .. }
             | NativeUiAction::MoveWaveformSliceFocus { .. }

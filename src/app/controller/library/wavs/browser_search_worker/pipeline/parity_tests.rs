@@ -161,6 +161,7 @@ fn make_search_job(source: &crate::sample_sources::SampleSource, query: &str) ->
         rating_filter: Default::default(),
         sort: SampleBrowserSort::ListOrder,
         similar_query: None,
+        duplicate_cleanup: None,
         folder_selection: None,
         folder_negated: None,
         file_scope_mode: crate::app::state::FolderFileScopeMode::AllDescendants,

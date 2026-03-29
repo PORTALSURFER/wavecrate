@@ -10,6 +10,7 @@ mod projection;
 
 impl AppController {
     pub(crate) fn rebuild_browser_lists(&mut self) {
+        self.clear_invalid_browser_duplicate_cleanup();
         self.prune_browser_selection();
         if self.should_rebuild_browser_lists_async() {
             self.dispatch_search_job();

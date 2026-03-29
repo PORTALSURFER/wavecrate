@@ -42,11 +42,15 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         controller.ui.browser.search.search_focus_requested,
     ));
     let busy = controller.ui.browser.search.search_busy;
-    let similarity_filtered = controller.ui.browser.search.similar_query.is_some();
-    let sort_label = Some(
+    let duplicate_cleanup_active = controller.ui.browser.duplicate_cleanup.is_some();
+    let similarity_filtered =
+        !duplicate_cleanup_active && controller.ui.browser.search.similar_query.is_some();
+    let sort_label = Some(if duplicate_cleanup_active {
+        String::from("Duplicate cleanup")
+    } else {
         super::browser_sort_label(SampleBrowserSort::from(controller.ui.browser.search.sort))
-            .to_owned(),
-    );
+            .to_owned()
+    });
     let active_tab_label =
         Some(super::browser_tab_label(controller.ui.browser.active_tab).to_owned());
     let focused_sample_label = controller
@@ -65,6 +69,7 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         search_placeholder,
         busy,
         similarity_filtered,
+        duplicate_cleanup_active,
         sort_label,
         active_tab_label,
         focused_sample_label,

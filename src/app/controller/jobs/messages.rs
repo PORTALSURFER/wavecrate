@@ -44,6 +44,7 @@ pub(crate) struct SearchJob {
     pub(crate) rating_filter: BTreeSet<i8>,
     pub(crate) sort: crate::app::state::SampleBrowserSort,
     pub(crate) similar_query: Option<crate::app::state::SimilarQuery>,
+    pub(crate) duplicate_cleanup: Option<crate::app::state::BrowserDuplicateCleanupState>,
     pub(crate) folder_selection: Option<BTreeSet<PathBuf>>,
     pub(crate) folder_negated: Option<BTreeSet<PathBuf>>,
     pub(crate) file_scope_mode: crate::app::state::FolderFileScopeMode,

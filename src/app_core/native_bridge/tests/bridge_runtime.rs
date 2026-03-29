@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::state::BrowserDuplicateCleanupState;
 use crate::app_core::state::{InlineFolderEdit, InlineFolderEditKind};
 
 fn browser_row_bucket_label(
@@ -127,6 +128,63 @@ fn random_navigation_toggle_updates_projected_browser_actions_immediately() {
 
     let updated = bridge.project_model();
     assert!(updated.browser_actions.random_navigation_enabled);
+}
+
+/// Duplicate cleanup should project active toolbar state plus transient row badges.
+#[test]
+fn duplicate_cleanup_projects_active_browser_state_and_row_badges() {
+    let bundle = crate::app_core::controller::build_named_gui_fixture_controller(
+        WaveformRenderer::new(16, 16),
+        "waveform",
+    )
+    .expect("waveform fixture");
+    let _sandbox_guards = bundle.sandbox_guards;
+    let mut controller = bundle.controller;
+    let source_id = controller.current_source().expect("selected source").id;
+    let anchor_path = controller
+        .wav_entry(0)
+        .expect("anchor entry")
+        .relative_path
+        .clone();
+    let keep_path = controller
+        .wav_entry(1)
+        .expect("keep entry")
+        .relative_path
+        .clone();
+    let anchor_label = crate::app::view_model::sample_display_label(&anchor_path);
+    let keep_label = crate::app::view_model::sample_display_label(&keep_path);
+    controller.focus_browser_row_only(0);
+    controller.ui.browser.duplicate_cleanup = Some(BrowserDuplicateCleanupState::new(
+        source_id,
+        String::from("sample-id"),
+        anchor_path,
+        String::from("Duplicates"),
+        vec![0, 1],
+        vec![1.0, 0.999],
+        0,
+    ));
+    controller
+        .ui
+        .browser
+        .duplicate_cleanup
+        .as_mut()
+        .expect("duplicate cleanup should exist")
+        .kept_indices
+        .insert(1);
+    let mut bridge = crate::app_core::native_bridge::new_native_bridge_with_controller(controller);
+
+    let projected = bridge.project_model();
+
+    assert!(projected.browser.duplicate_cleanup_active);
+    assert!(projected.browser_actions.duplicate_cleanup_active);
+    assert_eq!(
+        browser_row_bucket_label(&projected, &anchor_label),
+        Some(String::from("ANCHOR"))
+    );
+    assert_eq!(
+        browser_row_bucket_label(&projected, &keep_label),
+        Some(String::from("KEEP"))
+    );
 }
 
 /// Loop-toggle metadata writes should refresh the visible browser badge in the

@@ -186,10 +186,30 @@ pub(super) fn apply_browser_native_ui_action(
             }
         }
         NativeUiAction::ToggleRandomNavigationMode => controller.toggle_random_navigation_mode(),
+        NativeUiAction::ToggleBrowserDuplicateCleanupMode => {
+            controller.toggle_browser_duplicate_cleanup_mode()
+        }
         NativeUiAction::FocusPreviousBrowserHistory => controller.focus_previous_sample_history(),
         NativeUiAction::FocusNextBrowserHistory => controller.focus_next_sample_history(),
         NativeUiAction::ToggleFindSimilarFocusedSample => {
             toggle_find_similar_focused_sample(controller)
+        }
+        NativeUiAction::ToggleBrowserDuplicateCleanupKeep { visible_row } => {
+            match controller.toggle_browser_duplicate_cleanup_keep_for_visible_row(visible_row) {
+                Ok(_) => {}
+                Err(err) => controller.set_status(
+                    format!("Duplicate cleanup keep toggle failed: {err}"),
+                    StatusTone::Warning,
+                ),
+            }
+        }
+        NativeUiAction::ConfirmBrowserDuplicateCleanup => {
+            if let Err(err) = controller.confirm_browser_duplicate_cleanup() {
+                controller.set_status(
+                    format!("Duplicate cleanup failed: {err}"),
+                    StatusTone::Error,
+                );
+            }
         }
         NativeUiAction::PlayRandomSample => controller.play_random_visible_sample(),
         NativeUiAction::PlayPreviousRandomSample => controller.play_previous_random_sample(),
@@ -238,6 +258,9 @@ fn folder_drag_target(
 }
 
 fn toggle_find_similar_focused_sample(controller: &mut AppController) {
+    if controller.clear_browser_duplicate_cleanup() {
+        controller.set_status("Duplicate cleanup off", StatusTone::Info);
+    }
     if matches!(
         controller.ui.browser.active_tab,
         crate::app_core::state::SampleBrowserTab::Map

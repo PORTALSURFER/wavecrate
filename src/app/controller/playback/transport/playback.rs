@@ -85,6 +85,10 @@ pub(crate) fn stop_playback_if_active(controller: &mut AppController) -> bool {
 }
 
 pub(crate) fn handle_escape(controller: &mut AppController) {
+    if controller.clear_browser_duplicate_cleanup() {
+        controller.set_status("Duplicate cleanup canceled", StatusTone::Info);
+        return;
+    }
     if controller.exit_slice_review() {
         return;
     }

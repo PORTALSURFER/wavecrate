@@ -20,6 +20,7 @@ pub(in super::super) fn build_fast_path_result_if_applicable(
         || has_folder_filters
         || job.filter != TriageFlagFilter::All
         || job.similar_query.is_some()
+        || job.duplicate_cleanup.is_some()
         || job.sort != SampleBrowserSort::ListOrder
         || !job.rating_filter.is_empty()
     {
@@ -88,6 +89,17 @@ pub(in super::super) fn build_visible_rows_for_job(
             entries_len,
             queue,
             generation,
+        );
+    }
+
+    if let Some(cleanup) = &job.duplicate_cleanup {
+        return Some(
+            cleanup
+                .indices
+                .iter()
+                .copied()
+                .filter(|index| *index < entries_len)
+                .collect(),
         );
     }
 

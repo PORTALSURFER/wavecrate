@@ -41,6 +41,7 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         browser_row_metadata_revision: browser_rows_key.browser_row_metadata_revision,
         browser_search_revision: browser_frame_key.browser_search_revision,
         browser_similarity_filtered: browser_frame_key.browser_similarity_filtered,
+        browser_duplicate_cleanup_active: browser_frame_key.browser_duplicate_cleanup_active,
         browser_filter: encode_browser_filter(controller.ui.browser.search.filter),
         browser_sort: browser_frame_key.browser_sort,
         browser_tab: browser_frame_key.browser_tab,

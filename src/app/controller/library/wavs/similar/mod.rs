@@ -50,6 +50,21 @@ pub(crate) fn find_duplicates_for_visible_row(
     )
 }
 
+pub(crate) fn build_duplicate_query_for_sample_id(
+    controller: &mut AppController,
+    sample_id: &str,
+    anchor_override: Option<usize>,
+) -> Result<crate::app::state::SimilarQuery, String> {
+    query::build_similar_query_for_sample_id(
+        controller,
+        sample_id,
+        Some(DUPLICATE_SCORE_THRESHOLD),
+        |path| format!("Duplicates of {}", view_model::sample_display_label(path)),
+        anchor_override,
+        "No duplicates found in the current source",
+    )
+}
+
 pub(crate) fn find_similar_for_sample_id(
     controller: &mut AppController,
     sample_id: &str,

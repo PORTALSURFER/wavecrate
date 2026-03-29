@@ -1,6 +1,7 @@
 use super::base_stage::ensure_base_stage;
 use super::folder_stage::{ensure_folder_acceptance_stage, folder_accepts};
 use super::*;
+use crate::app::state::BrowserDuplicateCleanupState;
 use crate::app::state::{SampleBrowserSort, TriageFlagFilter, VisibleRows};
 
 /// Build browser visible rows from retained staged pipeline caches.
@@ -11,6 +12,7 @@ pub(crate) fn build_visible_rows(
 ) -> (VisibleRows, Option<usize>, Option<usize>) {
     ensure_base_stage(controller);
 
+    let duplicate_cleanup = controller.ui.browser.duplicate_cleanup.clone();
     let query = controller.active_search_query().map(str::to_owned);
     let similar_query = controller.ui.browser.search.similar_query.clone();
     let sort_mode = controller.ui.browser.search.sort;
@@ -40,6 +42,10 @@ pub(crate) fn build_visible_rows(
         folder_hash,
         has_folder_filters,
     );
+
+    if let Some(cleanup) = duplicate_cleanup {
+        return visible_result_for_duplicate_cleanup(controller, focused_index, loaded_index, &cleanup);
+    }
 
     if query.is_none()
         && similar_query.is_none()
@@ -72,6 +78,26 @@ pub(crate) fn build_visible_rows(
 
     ensure_sorted_stage_for_filter_only(controller, filtered_fingerprint, sort_mode);
     visible_result_from_sorted(controller, focused_index, loaded_index)
+}
+
+fn visible_result_for_duplicate_cleanup(
+    controller: &mut AppController,
+    focused_index: Option<usize>,
+    loaded_index: Option<usize>,
+    cleanup: &BrowserDuplicateCleanupState,
+) -> (VisibleRows, Option<usize>, Option<usize>) {
+    let visible: Arc<[usize]> = cleanup
+        .indices
+        .iter()
+        .copied()
+        .filter(|index| controller.wav_entry(*index).is_some())
+        .collect::<Vec<_>>()
+        .into();
+    let selected_visible =
+        focused_index.and_then(|index| visible.iter().position(|row| *row == index));
+    let loaded_visible =
+        loaded_index.and_then(|index| visible.iter().position(|row| *row == index));
+    (VisibleRows::List(visible), selected_visible, loaded_visible)
 }
 
 fn ensure_filtered_stage(

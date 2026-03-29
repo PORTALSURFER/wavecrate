@@ -1,3 +1,4 @@
+mod duplicate_cleanup;
 mod search;
 mod selection;
 mod viewport;
@@ -7,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
+pub use duplicate_cleanup::*;
 pub use search::*;
 pub use selection::*;
 pub use viewport::*;
@@ -26,6 +28,8 @@ pub struct SampleBrowserState {
     pub viewport: BrowserViewportState,
     /// Search/filter/similarity state for the browser list.
     pub search: BrowserSearchState,
+    /// Active duplicate-cleanup workspace for the browser list.
+    pub duplicate_cleanup: Option<BrowserDuplicateCleanupState>,
     /// Pending modal action for the sample browser area.
     pub pending_action: Option<SampleBrowserActionPrompt>,
     /// Flag to request focus on the active prompt input field.
@@ -47,6 +51,7 @@ impl Default for SampleBrowserState {
             selection: BrowserSelectionState::default(),
             viewport: BrowserViewportState::default(),
             search: BrowserSearchState::default(),
+            duplicate_cleanup: None,
             pending_action: None,
             rename_focus_requested: false,
             active_tab: SampleBrowserTab::List,

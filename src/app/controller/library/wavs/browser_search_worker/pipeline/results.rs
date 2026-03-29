@@ -152,6 +152,7 @@ mod tests {
             rating_filter: BTreeSet::new(),
             sort: SampleBrowserSort::ListOrder,
             similar_query: None,
+            duplicate_cleanup: None,
             folder_selection: None,
             folder_negated: None,
             file_scope_mode: crate::app::state::FolderFileScopeMode::AllDescendants,

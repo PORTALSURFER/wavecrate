@@ -14,6 +14,7 @@ mod browser_pipeline;
 mod browser_search;
 pub(crate) mod browser_search_worker;
 mod browser_viewport;
+mod duplicate_cleanup;
 /// Lightweight entry/cache paging and lookup facade methods.
 mod entry_access;
 /// File rename/normalize/update mutation helpers for wav browser state.

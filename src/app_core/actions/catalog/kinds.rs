@@ -164,12 +164,18 @@ pub enum GuiActionKind {
     ToggleBrowserRatingFilter,
     /// Toggle random browser-navigation mode.
     ToggleRandomNavigationMode,
+    /// Toggle browser duplicate-cleanup mode for the focused browser sample.
+    ToggleBrowserDuplicateCleanupMode,
     /// Focus the previous sample from browser history.
     FocusPreviousBrowserHistory,
     /// Focus the next sample from browser history.
     FocusNextBrowserHistory,
     /// Toggle find-similar mode for the focused browser sample.
     ToggleFindSimilarFocusedSample,
+    /// Toggle whether one duplicate-cleanup browser row should be kept.
+    ToggleBrowserDuplicateCleanupKeep,
+    /// Confirm duplicate cleanup and trash every unkept duplicate.
+    ConfirmBrowserDuplicateCleanup,
     /// Play a random visible browser sample.
     PlayRandomSample,
     /// Replay the previous random-visible browser sample.
@@ -364,7 +370,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 177] = [
+    pub const ALL: [Self; 180] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -444,9 +450,12 @@ impl GuiActionKind {
         Self::SetBrowserSearch,
         Self::ToggleBrowserRatingFilter,
         Self::ToggleRandomNavigationMode,
+        Self::ToggleBrowserDuplicateCleanupMode,
         Self::FocusPreviousBrowserHistory,
         Self::FocusNextBrowserHistory,
         Self::ToggleFindSimilarFocusedSample,
+        Self::ToggleBrowserDuplicateCleanupKeep,
+        Self::ConfirmBrowserDuplicateCleanup,
         Self::PlayRandomSample,
         Self::PlayPreviousRandomSample,
         Self::AdjustSelectedBrowserRating,

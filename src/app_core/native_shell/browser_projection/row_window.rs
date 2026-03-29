@@ -57,6 +57,7 @@ pub(crate) fn project_browser_rows_model_into(
     );
     controller.ui.browser.viewport.render_window_start = window_start;
     super::preload_browser_window_bpms(controller, window_start, window_len);
+    let duplicate_cleanup = controller.ui.browser.duplicate_cleanup.clone();
     if rows.capacity() < window_len {
         rows.reserve(window_len.saturating_sub(rows.len()));
     }
@@ -87,6 +88,11 @@ pub(crate) fn project_browser_rows_model_into(
             continue;
         };
         let focused = selected_visible_row.is_some_and(|focused| focused == visible_row);
+        let bucket_label = browser_duplicate_cleanup_bucket_label(
+            duplicate_cleanup.as_ref(),
+            absolute_index,
+            &cached_row.bucket_label,
+        );
         write_browser_row_into_slot(
             rows,
             offset,
@@ -95,7 +101,7 @@ pub(crate) fn project_browser_rows_model_into(
                 &cached_row.row_label,
                 cached_row.column_index,
                 cached_row.rating_level,
-                &cached_row.bucket_label,
+                &bucket_label,
                 selected,
                 focused,
                 cached_row.missing,
@@ -156,6 +162,27 @@ fn format_bpm_badge_label(bpm: f32) -> String {
     } else {
         format!("{bpm:.1} BPM")
     }
+}
+
+/// Append transient duplicate-cleanup badges to one browser-row metadata label.
+fn browser_duplicate_cleanup_bucket_label(
+    duplicate_cleanup: Option<&crate::app::state::BrowserDuplicateCleanupState>,
+    absolute_index: usize,
+    base_label: &str,
+) -> String {
+    let Some(cleanup) = duplicate_cleanup else {
+        return base_label.to_owned();
+    };
+    let mut tags = Vec::new();
+    if !base_label.is_empty() {
+        tags.push(base_label.to_owned());
+    }
+    if cleanup.is_anchor(absolute_index) {
+        tags.push(String::from("ANCHOR"));
+    } else if cleanup.is_kept(absolute_index) {
+        tags.push(String::from("KEEP"));
+    }
+    tags.join(" · ")
 }
 
 /// Write one browser row into `rows[offset]`, reusing existing `String` buffers.

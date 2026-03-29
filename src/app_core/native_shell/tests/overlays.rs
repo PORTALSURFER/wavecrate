@@ -9,6 +9,7 @@ fn browser_actions_require_focus_or_selection() {
     assert!(!projected.can_delete);
     assert!(!projected.can_tag);
     assert!(!projected.random_navigation_enabled);
+    assert!(!projected.duplicate_cleanup_active);
 
     ui.browser.selection.selected_visible = Some(0);
     ui.browser.search.random_navigation_mode = true;
@@ -17,6 +18,19 @@ fn browser_actions_require_focus_or_selection() {
     assert!(projected.can_delete);
     assert!(projected.can_tag);
     assert!(projected.random_navigation_enabled);
+    assert!(!projected.duplicate_cleanup_active);
+
+    ui.browser.duplicate_cleanup = Some(crate::app::state::BrowserDuplicateCleanupState::new(
+        crate::sample_sources::SourceId::from_string("source"),
+        String::from("sample-id"),
+        std::path::PathBuf::from("anchor.wav"),
+        String::from("Duplicates of anchor"),
+        vec![0],
+        vec![1.0],
+        0,
+    ));
+    let projected = project_browser_actions_model(&ui);
+    assert!(projected.duplicate_cleanup_active);
 }
 
 /// Browser rename prompts should win over destructive waveform prompts when both are present.

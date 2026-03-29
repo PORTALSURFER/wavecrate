@@ -26,6 +26,7 @@ pub(crate) struct NativeProjectionCacheKey {
     pub(crate) browser_row_metadata_revision: u64,
     pub(crate) browser_search_revision: u64,
     pub(crate) browser_similarity_filtered: bool,
+    pub(crate) browser_duplicate_cleanup_active: bool,
     pub(crate) browser_filter: u8,
     pub(crate) browser_sort: u8,
     pub(crate) browser_tab: u8,
@@ -120,6 +121,7 @@ pub(crate) struct BrowserFrameProjectionCacheKey {
     pub(crate) browser_search_revision: u64,
     pub(crate) browser_search_busy: bool,
     pub(crate) browser_similarity_filtered: bool,
+    pub(crate) browser_duplicate_cleanup_active: bool,
     pub(crate) browser_sort: u8,
     pub(crate) browser_tab: u8,
     pub(crate) browser_similarity_follow_loaded: bool,
@@ -139,6 +141,7 @@ pub(crate) struct BrowserRowsProjectionCacheKey {
     pub(crate) browser_selected_paths_len: usize,
     pub(crate) browser_selected_paths_revision: u64,
     pub(crate) browser_row_metadata_revision: u64,
+    pub(crate) browser_duplicate_cleanup_active: bool,
     pub(crate) browser_tab: u8,
 }
 

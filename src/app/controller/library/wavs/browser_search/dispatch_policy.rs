@@ -52,6 +52,7 @@ impl AppController {
         let rating_filter = self.ui.browser.search.rating_filter.clone();
         let sort = self.ui.browser.search.sort;
         let similar_query = self.ui.browser.search.similar_query.clone();
+        let duplicate_cleanup = self.ui.browser.duplicate_cleanup.clone();
         let folder_selection = self.folder_selection_for_filter().cloned();
         let folder_negated = self.folder_negation_for_filter().cloned();
         let file_scope_mode = self.folder_file_scope_mode_for_filter().unwrap_or_default();
@@ -69,6 +70,7 @@ impl AppController {
                 rating_filter,
                 sort,
                 similar_query,
+                duplicate_cleanup,
                 folder_selection,
                 folder_negated,
                 file_scope_mode,

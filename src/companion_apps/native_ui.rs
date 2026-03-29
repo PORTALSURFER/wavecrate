@@ -121,6 +121,7 @@ pub fn standard_browser_panel(config: CompanionBrowserPanelConfig) -> BrowserPan
         search_placeholder: config.search_placeholder,
         busy: config.busy,
         similarity_filtered: false,
+        duplicate_cleanup_active: false,
         sort_label: config.sort_label,
         active_tab_label: config.active_tab_label,
         focused_sample_label: config.focused_sample_label,
