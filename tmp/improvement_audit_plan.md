@@ -1,384 +1,405 @@
 # Improvement Audit Plan
 
-Generated: 2026-03-25
-Observed commit: `4f448b52`
-Status: Phase 2 execution completed on 2026-03-25; all 10 ranked backlog items are implemented and recorded below.
+Generated: 2026-03-29
+Observed superproject commit: `148839fd`
+Observed `vendor/radiant` commit: `091d1674`
+Observed workspace state: dirty worktree in both repos; findings below reflect the live workspace seen during this audit.
+Status: Phase 2 execution in progress on 2026-03-29; item 1 is completed, item 2 is next in plan order.
 
 ## Scope
 
-- This document supersedes the previous execution record that lived at this path.
-- Findings are ranked in strict execution order by expected ROI for the live tree observed on 2026-03-25.
+- This document supersedes the previous completed execution record that lived at this path.
+- Findings are ranked in strict execution order by expected ROI for the current workspace, not by category.
 - Recommendations stay inside repository-supported direction. Broad rewrites, speculative features, and preference-only cleanup are excluded.
 
 ## Decision Log
 
-- 2026-03-25: The user approved Phase 2 sequential implementation of the ranked backlog.
-- 2026-03-25: Direct tagging to `KEEP_3` was clarified to represent the fourth keep state and must also promote the sample into the locked state.
-- 2026-03-25: The stateless handoff authority follows `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md`, with `docs/plans/index.md` serving as the historical index.
-- 2026-03-25: Public release docs should use conservative wording: Windows is the primary supported platform, while Linux and macOS assets are also published.
-- 2026-03-25: Desktop AIV should remain local-only for now, with any future CI promotion starting from a tiny non-blocking smoke subset.
+- 2026-03-29: This is a fresh Phase 1 evidence-driven audit of the current workspace, not a continuation of the 2026-03-25 execution record.
+- 2026-03-29: The current workspace is dirty, so evidence that depends on line counts or guardrail status applies to the live tree observed now, not necessarily to the last clean commit.
+- 2026-03-29: The user explicitly approved Phase 2 sequential implementation of this backlog.
 
 ## Repository Context
 
-- Project purpose: Explicitly documented. [README.md](/C:/dev/sempal/README.md) and [docs/design_principles.md](/C:/dev/sempal/docs/design_principles.md) describe Sempal as a realtime-oriented Rust desktop tool for triaging, auditioning, editing, and curating local audio samples.
-- Maturity level: Explicitly documented. [README.md](/C:/dev/sempal/README.md) warns that the app is early alpha and can modify or delete sample-library files.
-- Primary languages / frameworks / tooling: Explicitly documented. [Cargo.toml](/C:/dev/sempal/Cargo.toml) defines a Rust 2024 workspace with the vendored `radiant` GUI/runtime layer plus helper apps and support tools.
-- Repository shape: Explicitly documented. [docs/ARCHITECTURE.md](/C:/dev/sempal/docs/ARCHITECTURE.md) splits domain/controller logic under `src/`, GUI behavior under `vendor/radiant/`, and support apps/tools under `apps/` and `tools/`.
-- Architectural boundaries: Explicitly documented. [README.md](/C:/dev/sempal/README.md) and [docs/ARCHITECTURE.md](/C:/dev/sempal/docs/ARCHITECTURE.md) keep domain state and UI intent in `src`, while `vendor/radiant` owns widget behavior, layout, input routing, and render coordination.
-- Test strategy: Strongly implied by code/docs. [docs/TEST.md](/C:/dev/sempal/docs/TEST.md) and the source tree emphasize deterministic Rust unit/module tests, targeted GUI contract tests, and optional desktop-AIV loops.
+- Project purpose: Explicitly documented. `README.md` and `docs/design_principles.md` describe Sempal as an early-alpha Rust desktop tool for triaging, auditioning, editing, and curating local audio samples.
+- Maturity level: Explicitly documented. `README.md` warns that the app is early alpha and can modify, rename, or delete sample-library files.
+- Primary languages / frameworks / tooling: Explicitly documented. `Cargo.toml` defines a Rust 2024 workspace with the root `sempal` crate, support apps/tools, and the vendored `radiant` GUI/runtime submodule.
+- Repository shape: Explicitly documented. `docs/ARCHITECTURE.md` splits domain/controller logic under `src/`, GUI/runtime behavior under `vendor/radiant/`, host projections under `src/app_core`, and support binaries under `apps/` and `tools/`.
+- Architectural boundaries: Explicitly documented. `README.md` and `docs/ARCHITECTURE.md` keep domain state and UI intent in `src`, while `vendor/radiant` owns widget behavior, layout, input routing, and rendering coordination.
+- Test strategy: Strongly implied by code/docs. `docs/TEST.md` and `.github/workflows/ci.yml` center the repo on deterministic Rust unit/module tests, `cargo nextest`, targeted GUI contract tests, and optional desktop-AIV loops.
 - Canonical local validation commands: Explicitly documented. Windows flows center on `scripts/devcheck.ps1`, `scripts/ci_agent.ps1`, `scripts/ci_quick.ps1`, and `scripts/ci_local.ps1`.
-- Documented priorities: Explicitly documented. [docs/design_principles.md](/C:/dev/sempal/docs/design_principles.md) prioritizes responsiveness, non-blocking execution, predictability, reversibility, and data integrity.
-- Explicit non-goals: Explicitly documented. [docs/design_principles.md](/C:/dev/sempal/docs/design_principles.md) says Sempal is not a DAW replacement, cloud platform, social network, or attention-retention product.
+- Documented priorities: Explicitly documented. `docs/design_principles.md` prioritizes responsiveness, non-blocking execution, predictability, reversibility, and data integrity.
+- Explicit non-goals: Explicitly documented. `docs/design_principles.md` says Sempal is not a DAW replacement, cloud platform, social network, or attention-retention product.
 
 ## Audit Notes
 
-- `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed on the observed tree.
-- `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` passed, and `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all` reported `OK (654 files checked)`.
-- The broader hotspot snapshot still shows live debt outside the currently enforced allowlist: [tmp/cleanup_audit_hotspots.md](/C:/dev/sempal/tmp/cleanup_audit_hotspots.md) reports 11 over-budget Rust files, 85 heuristic test-gap hotspots, and one remaining `#[allow(dead_code)]` suppression.
-- The file-size guardrail appears to have a live blind spot: [scripts/check_file_size_budget.ps1](/C:/dev/sempal/scripts/check_file_size_budget.ps1) claims to scan `vendor/radiant/src`, but `git ls-files -- vendor/radiant/src` returns `0` from the superproject while `vendor/radiant` is an active submodule containing 295 Rust source files.
+- `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1` passed.
+- `powershell -ExecutionPolicy Bypass -File scripts/check_codeowners_coverage.ps1` passed.
+- `powershell -ExecutionPolicy Bypass -File scripts/check_rust_taste_invariants.ps1` passed, but the dirty Windows worktree emitted repeated Git CRLF warnings while diff-aware scripts ran.
+- `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` failed on the live tree with 30 over-budget files across `src/` and `vendor/radiant/src`, including production files such as `src/app/controller/library/wavs/audio_loading.rs`, `src/app/controller/library/wavs/entry_mutation.rs`, and several non-test `vendor/radiant` modules.
+- `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` did not report guardrail state cleanly on the live tree because a Git line-ending warning was surfaced as a terminating PowerShell error before the wrapper could classify pass/fail.
+- `tmp/cleanup_audit_hotspots.md` is stale relative to the live workspace and was generated from a script path that still ignores `vendor/radiant` submodule files when building the hotspot snapshot.
 
 ## Intent Boundaries
 
 - What the repo clearly is: a Rust desktop application for listening to, navigating, editing, and curating local sample libraries with strong emphasis on responsiveness and reversible workflows.
-- What the repo appears to be moving toward: Strongly implied by code/docs. Tighter guardrails around stateless-agent handoff, stronger GUI contract coverage, continued migration to `app_core` seams, and broader native-runtime validation.
-- What is merely possible but unsupported: shipping desktop AIV in default CI today, broad `app_core` action-model redesigns, or major GUI/runtime ownership changes that contradict the thin-adapter boundary.
+- What the repo appears to be moving toward: Strongly implied by code/docs. Tighter stateless-agent guardrails, better GUI contract coverage, continued `app_core`/runtime separation, and more reliable Windows validation wrappers.
+- What is merely possible but unsupported: broad `app_core` redesigns, replacing the vendored runtime strategy, or promoting unstable desktop AIV coverage into default CI now.
 
 ## Ordered Backlog
 
-### 1. [x] Fix the file-size guardrail blind spot for `vendor/radiant` submodule files
+### 1. [x] Make `scripts/check_quality_score_drift.ps1` robust to benign Git warning output on Windows
+
+- Classification: Bug fix
+- Confidence: High
+- ROI: High
+- Effort: S
+- Why it matters: the PowerShell drift wrapper is part of the documented Windows guardrail path, but it can terminate before reporting any real PASS/FAIL result when a nested check writes a non-fatal Git warning to stderr.
+- Evidence:
+  - `scripts/check_quality_score_drift.ps1:18-19` sets `$ErrorActionPreference = "Stop"`.
+  - `scripts/check_quality_score_drift.ps1:41-70` wraps nested script execution in `Invoke-GuardrailCheck`.
+  - `scripts/check_quality_score_drift.ps1:59` captures child output via `& $psExe @args 2>&1`.
+  - On the current tree, running `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` aborted at line 59 after Git emitted `LF will be replaced by CRLF`, so the wrapper never reached its own guardrail-status classification.
+  - The bash variant in `scripts/check_quality_score_drift.sh:59-87` handles nested command status explicitly and does not have this failure mode.
+- Recommended change: change the PowerShell wrapper so nested-script stderr warnings do not become terminating wrapper errors; preserve child exit code as the source of truth and print warnings as diagnostic output instead of aborting classification.
+- Expected impact: restores trust in the documented Windows guardrail check and removes a false-negative failure mode during normal agent use.
+- Risks / tradeoffs: low; the main risk is masking real wrapper errors if stderr handling becomes too blunt.
+- Dependencies: none
+- Suggested validation:
+  - reproduce with a warning-producing dirty tree and confirm the script reports the nested guardrail result instead of aborting
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Product clarification required: No
+- Completed: 2026-03-29
+- Commit: pending (record after commit)
+- Assumptions: benign child-process stderr should remain visible as diagnostics, while the child exit code remains the source of truth for PASS/FAIL classification.
+- Validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1 2>&1 | Out-String`
+    now reaches nested guardrail classification instead of aborting on Git CRLF warnings; the remaining failure is the expected stale-score mismatch tracked by item 3
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
+
+### 2. [ ] Repair the cleanup-hotspot audit scripts so ROI planning includes `vendor/radiant`
 
 - Classification: Bug fix
 - Confidence: High
 - ROI: High
 - Effort: S-M
-- Why it matters: the repository treats file-size discipline as an enforced quality guardrail, but the current script silently misses the vendored GUI/runtime code it claims to cover.
+- Why it matters: the repo explicitly documents `scripts/audit_cleanup_hotspots.*` as the input for cleanup/ROI planning, but the current implementation silently omits the vendored GUI/runtime submodule even though the repo's workflow and file-size budgeting still treat it as live development code.
 - Evidence:
-  - [scripts/check_file_size_budget.ps1](/C:/dev/sempal/scripts/check_file_size_budget.ps1#L7) says it checks `vendor/radiant/src`.
-  - [scripts/check_file_size_budget.ps1](/C:/dev/sempal/scripts/check_file_size_budget.ps1#L39) scopes to `vendor/radiant/src`.
-  - [scripts/check_file_size_budget.ps1](/C:/dev/sempal/scripts/check_file_size_budget.ps1#L55) discovers files via `git ls-files -- $scopePaths`.
-  - Running `git ls-files -- vendor/radiant/src` from the superproject returned `0`, while `vendor/radiant` is an initialized submodule and `Get-ChildItem vendor/radiant/src -Recurse -Filter *.rs` found `295` Rust files.
-  - Large live files exist under the skipped tree, including `vendor/radiant/src/app/hotkeys.rs` (784 lines) and `vendor/radiant/src/gui_runtime/native_vello/tests/queue_runtime.rs` (1055 lines).
-- Recommended change: make the file-budget scripts enumerate `vendor/radiant` files from the submodule checkout instead of relying on the superproject index, and add regression fixtures proving that oversized `vendor/radiant/src` files fail the check.
-- Expected impact: restores trust in a repo-advertised guardrail and makes `docs/QUALITY_SCORE.md` more honest.
-- Risks / tradeoffs: low; the main risk is double-scanning or incorrectly handling uninitialized submodules.
+  - `docs/INDEX.md:33-35` recommends `scripts/audit_cleanup_hotspots.*` for ROI planning.
+  - `scripts/audit_cleanup_hotspots.sh:123` enumerates Rust files via `git ls-files '*.rs'`.
+  - `scripts/audit_cleanup_hotspots.ps1:35-38` uses the same superproject-only enumeration in `Get-RustFiles`.
+  - The current snapshot at `tmp/cleanup_audit_hotspots.md` reports 922 Rust files scanned and misses much larger live files under `vendor/radiant`.
+  - A direct scan of the current tree found `vendor/radiant/src/gui_runtime/native_vello/tests/queue_runtime.rs` at 1636 lines and `vendor/radiant/src/app/hotkeys.rs` at 875 lines, neither of which can appear in the current hotspot snapshot.
+- Recommended change: teach both hotspot audit scripts to enumerate `vendor/radiant` Rust files from the initialized submodule checkout, with a filesystem fallback when the nested repo is present but not fully tracked from the superproject.
+- Expected impact: future ROI planning will stop undercounting the largest file-size and test-debt hotspots in the actual workspace.
+- Risks / tradeoffs: low to medium; the main risk is double-counting or producing inconsistent output when the submodule is missing or detached.
 - Dependencies: none
 - Suggested validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
-  - `bash scripts/check_file_size_budget.sh --all`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
+  - inspect `tmp/cleanup_audit_hotspots.md` and confirm `vendor/radiant` files appear in the largest-file and over-budget sections
+  - compare the refreshed snapshot against `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
 - Product clarification required: No
-- Completed: 2026-03-25
-- Commit: `b2ee3235`
-- Assumptions: Keep the full guardrail green by allowlisting the current oversized vendored legacy files explicitly instead of silently excluding the entire nested repo.
-- Validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Plan order deviation: none
 
-### 2. [x] Resynchronize the stateless handoff docs and active plan status markers
+### 3. [ ] Re-baseline `docs/QUALITY_SCORE.md` against the live file-size state
 
 - Classification: Documentation gap
 - Confidence: High
 - ROI: High
 - Effort: S
-- Why it matters: this repository explicitly depends on `AGENTS.md`, `MEMORY.md`, `docs/README.md`, and plan files to reorient stateless agents, but those entry points currently disagree about what has shipped and which plan is live.
+- Why it matters: the scorecard is supposed to keep high-visibility guardrail health obvious to future agents, but it currently claims a green full-scan file-size state that no longer matches the observed workspace.
 - Evidence:
-  - [docs/README.md](/C:/dev/sempal/docs/README.md#L27) still says [tmp/improvement_audit_plan.md](/C:/dev/sempal/tmp/improvement_audit_plan.md) is awaiting Phase 2 confirmation.
-  - [docs/plans/index.md](/C:/dev/sempal/docs/plans/index.md#L6) still presents `active/runtime_performance_exec_plan.md` as the current source of truth, while [docs/plans/index.md](/C:/dev/sempal/docs/plans/index.md#L15) also says the improvement audit Phase 2 completed on 2026-03-25.
-  - [docs/plans/active/gui_test_platform_exec_plan.md](/C:/dev/sempal/docs/plans/active/gui_test_platform_exec_plan.md#L43) still lists prompt/waveform AIV coverage and `ci_quick` promotion as pending.
-  - [docs/gui_test_platform.md](/C:/dev/sempal/docs/gui_test_platform.md#L149) says `ci_quick` already includes the GUI contract lane, and [docs/gui_test_platform.md](/C:/dev/sempal/docs/gui_test_platform.md#L169) says prompt/waveform/update flows already run through desktop AIV.
-- Recommended change: resync the repo-entry docs and plan index around the current lane, and explicitly distinguish active source-of-truth documents from retained historical plans.
-- Expected impact: reduces agent/operator confusion and makes future audit handoff cheaper.
-- Risks / tradeoffs: low; the main risk is overwriting intentionally historical wording without preserving history elsewhere.
-- Dependencies: none
+  - `docs/QUALITY_SCORE.md:24` says `Agent-facing guardrails` are at score `4` and that the full file-size scan is green again.
+  - `docs/QUALITY_SCORE.md:26` says the enforced full-scan budget passes with two documented cohesive exceptions.
+  - `docs/file_size_budget_allowlist.txt` currently lists only seven allowlisted paths.
+  - The live `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` run reported 30 over-budget files across the root repo and `vendor/radiant`.
+- Recommended change: update `docs/QUALITY_SCORE.md` so the guardrail and code-size rows describe the current observed state honestly, including whether the claims apply to the live dirty workspace or only to the last clean baseline.
+- Expected impact: future audits and handoffs start from truthful guardrail posture instead of stale "green again" language.
+- Risks / tradeoffs: low; the main risk is overfitting the scorecard to temporary local WIP unless the wording names the observed scope clearly.
+- Dependencies: items 1 and 2 make the supporting guardrail/reporting path more trustworthy.
 - Suggested validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
+  - rerun `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` and confirm the scorecard describes the observed result honestly
 - Product clarification required: No
-- Completed: 2026-03-25
-- Commit: `19455ebb`
-- Assumptions: `AGENTS.md`, `MEMORY.md`, and `docs/plans/active/todo.md` remain the wake-up authority, while `docs/plans/index.md` is the retained plan catalog.
-- Validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Plan order deviation: none
 
-### 3. [x] Correct the public release-platform docs to match the live release workflow
+### 4. [!] Clarify whether compare-anchor state is part of the undoable "meaningful UI" contract
 
-- Classification: Documentation gap
+- Classification: Product-definition gap
 - Confidence: High
 - ROI: High
-- Effort: S
-- Why it matters: the top-level README is user-facing release guidance, and it currently understates what the repository actually publishes.
+- Effort: S-M
+- Why it matters: the design principles promise uniform undo/redo coverage for meaningful in-session curation workflows, but compare-anchor state currently mutates outside that contract and its intended reversibility is undocumented.
 - Evidence:
-  - [README.md](/C:/dev/sempal/README.md#L18) says GitHub Releases publish Windows binaries only.
-  - [release-build.yml](/C:/dev/sempal/.github/workflows/release-build.yml#L19) builds Windows, Linux x86_64, Linux aarch64, macOS x86_64, and macOS aarch64 assets.
-- Recommended change: update the Downloads section to describe the actual release matrix, using conservative wording if non-Windows assets are published but not yet considered equally supported.
-- Expected impact: improves user trust and reduces avoidable installation confusion.
-- Risks / tradeoffs: low; wording should avoid promising support guarantees the maintainers do not want to make.
+  - `docs/design_principles.md:126-134` says meaningful in-session workflows should be reversible via undo/redo.
+  - `src/app/controller/playback/compare_anchor.rs:7-38` and `:129-188` mutate compare-anchor state directly.
+  - `src/app/controller/history.rs:46-80` defines `MeaningfulUiSnapshot`, but it does not include compare-anchor state.
+  - `src/app/controller/tests/compare_anchor.rs:21-212` covers set/play/missing-anchor behavior, but not undo/redo.
+- Recommended change: decide whether compare-anchor is meaningful undo state; if yes, add it to the snapshot/restore path and cover it with history tests, and if not, document the explicit exemption in the design/behavior docs.
+- Expected impact: aligns a live curation feature with the repo's stated undo model and removes an ambiguity that could otherwise cause user-trust regressions.
+- Risks / tradeoffs: medium; treating it as undoable broadens snapshot churn, while exempting it weakens the "uniform undo" story.
 - Dependencies: none
 - Suggested validation:
-  - review [README.md](/C:/dev/sempal/README.md) against [release-build.yml](/C:/dev/sempal/.github/workflows/release-build.yml)
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
-- Product clarification required: No
-- Completed: 2026-03-25
-- Commit: `a1c8b659`
-- Assumptions: Release assets for Linux and macOS are published artifacts, but Windows remains the primary explicitly supported release platform until docs say otherwise.
-- Validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
+  - focused compare-anchor/history undo tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Plan order deviation: none
+- Product clarification required: Yes
 
-### 4. [x] Add crash-recovery regression coverage for drop-target copy/move failures after durable journal stages
+### 5. [ ] Deepen regression coverage for `MeaningfulUiSnapshot` restore and async history completion paths
 
 - Classification: Test gap
 - Confidence: High
 - ROI: High
 - Effort: M
-- Why it matters: drop-target transfers mutate both filesystem state and multiple databases, and the repo’s recovery contract explicitly depends on staged journal semantics that are only partially exercised today.
+- Why it matters: the meaningful-UI history path restores a wide surface of browser, waveform, folder, and async-completion state, but current regression coverage only exercises a narrow subset of that contract.
 - Evidence:
-  - [docs/file_ops_journal_recovery.md](/C:/dev/sempal/docs/file_ops_journal_recovery.md) defines the `Intent -> Staged -> TargetDb -> SourceDb` recovery contract.
-  - [worker.rs](/C:/dev/sempal/src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets/worker.rs#L268) commits target DB state before finalizing staged copies/moves.
-  - [worker.rs](/C:/dev/sempal/src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets/worker.rs#L307) and [worker.rs](/C:/dev/sempal/src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets/worker.rs#L375) return errors after durable stage advancement, relying on later recovery rather than immediate rollback.
-  - Existing coverage under [transfer/workflow.rs](/C:/dev/sempal/src/app/controller/tests/drag_drop_drop_targets/transfer/workflow.rs) covers happy paths, target-DB lock failures, and source-cleanup failure, but not post-`TargetDb` copy-finalize failure or post-`SourceDb` move-finalize failure invariants.
-- Recommended change: add focused tests that simulate failures after `TargetDb` and `SourceDb` stage transitions and assert the expected staged-file, journal-row, and DB-state outcomes.
-- Expected impact: hardens one of the repo’s most data-integrity-sensitive workflows without changing design direction.
-- Risks / tradeoffs: medium; fixtures will need careful control over staged files and DB state to keep the tests deterministic.
-- Dependencies: none
+  - `src/app/controller/history.rs:98-109` wraps mutations in `record_meaningful_ui_transaction`.
+  - `src/app/controller/history.rs:167-252` restores selected source, browser selection, `loaded_wav`, waveform selection/edit selection, view, cursor, and loop state.
+  - `src/app/controller/history.rs:350-419` finalizes async overwrite/creation transactions and attaches UI restore hooks.
+  - `src/app/controller/tests/history_transactions.rs:1-113` only covers four basic undo/redo cases.
+  - `src/app/controller/library/selection_export/selection_export_tests/waveform_selection_export_tests.rs:147-454` covers one creation-success lane and one failure lane, but not overwrite completion or the fuller snapshot-restore surface.
+- Recommended change: add focused history tests for capture/restore of source/browser/folder selection, waveform state, and async completion hooks, using table-driven snapshots instead of one large scenario file.
+- Expected impact: tighter protection for one of the repo's core reversibility contracts without changing design direction.
+- Risks / tradeoffs: medium; the tests need disciplined fixtures so they validate behavior rather than internal representation details.
+- Dependencies: item 4 if compare-anchor is judged part of the snapshot contract
 - Suggested validation:
-  - targeted `cargo test drag_drop_drop_targets --lib -- --test-threads=1`
+  - targeted history and selection-export tests in one cargo process
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
-- Completed: 2026-03-25
-- Commit: `b0ef8c0c`
-- Assumptions: Worker-local tests are the tightest place to pin the post-`TargetDb` and post-`SourceDb` staged recovery contract without widening production visibility.
-- Validation:
-  - `cargo test finalize_failure_keeps --lib -- --test-threads=1`
-  - `cargo test drag_drop_drop_targets --lib -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Plan order deviation: none
 
-### 5. [x] Deepen GUI contract harness tests around scenario assertions and automation target resolution
-
-- Classification: Test gap
-- Confidence: High
-- ROI: High
-- Effort: S-M
-- Why it matters: the GUI test runner and automation helpers are the contract surface for semantic GUI assertions, the CLI, and desktop AIV targeting, but their error-handling coverage is much thinner than their branch surface.
-- Evidence:
-  - [runner.rs](/C:/dev/sempal/src/gui_test/runner.rs#L129) implements nine assertion branches.
-  - [runner.rs](/C:/dev/sempal/src/gui_test/runner.rs#L231) only has two local tests, covering root capture and one `NodePresent` path.
-  - [automation.rs](/C:/dev/sempal/src/gui_test/automation.rs#L42) resolves semantic targets for both the CLI and AIV wrappers, and [automation.rs](/C:/dev/sempal/src/gui_test/automation.rs#L68) parses snapshots from artifact bundles.
-  - [automation.rs](/C:/dev/sempal/src/gui_test/automation.rs#L102) only tests one happy-path root target.
-- Recommended change: add table-driven runner tests for each assertion type plus missing-node failure cases, and add automation-helper tests for missing `automation_snapshot` payloads, malformed artifacts, and absent node ids.
-- Expected impact: faster localization for GUI contract regressions without needing desktop automation to fail first.
-- Risks / tradeoffs: low; these tests should stay focused on the existing semantic API rather than growing new fixture infrastructure.
-- Dependencies: none
-- Suggested validation:
-  - targeted `cargo test gui_test:: -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completed: 2026-03-25
-- Commit: `1e7df3db`
-- Assumptions: Runner-local and automation-local unit tests are the tightest place to expand assertion and artifact error coverage without depending on desktop AIV failures first.
-- Validation:
-  - `cargo test gui_test:: -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Plan order deviation: none
-
-### 6. [x] Add explicit Windows/root-path sanitization regression tests across the audio loader and source DB
-
-- Classification: Test gap
-- Confidence: High
-- ROI: High
-- Effort: S
-- Why it matters: path sanitization is an explicit safety boundary for a Windows-first desktop app, but current tests only pin a subset of the rejected path forms.
-- Evidence:
-  - [audio_loader/stages/io.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages/io.rs#L125) rejects `ParentDir`, `RootDir`, and `Prefix(_)`.
-  - [audio_loader/tests.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/tests.rs#L90) only tested parent-dir rejection and normal relative-path acceptance before this item landed.
-  - [sample_sources/db/util.rs](/C:/dev/sempal/src/sample_sources/db/util.rs#L35) rejects absolute, rooted, and prefixed paths.
-  - [sample_sources/db/util.rs](/C:/dev/sempal/src/sample_sources/db/util.rs#L72) only tested parent-dir, empty, and `.` cleanup before this item landed.
-- Recommended change: add targeted regression tests for rooted paths and Windows-style prefixed paths, keeping platform-gated expectations where `Component::Prefix(_)` only exists on Windows.
-- Expected impact: locks down a small but important safety contract at very low cost.
-- Risks / tradeoffs: low; platform-specific assertions need careful `cfg` gating to avoid brittle cross-platform failures.
-- Dependencies: none
-- Suggested validation:
-  - targeted `cargo test audio_loader --lib`
-  - targeted `cargo test sample_sources::db::util --lib`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-- Product clarification required: No
-- Completed: 2026-03-25
-- Commit: `2e7dd60d`
-- Assumptions: `/escape.wav` rejects through different branches on Windows and non-Windows hosts, so the rooted-path expectation needs explicit `cfg` gating instead of one shared error variant.
-- Validation:
-  - `cargo test ensure_safe_relative_path --lib -- --test-threads=1`
-  - `cargo test normalize_relative_path --lib -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Plan order deviation: none
-
-### 7. [x] Add direct tests for the updater-helper CLI parser and headless apply path
-
-- Classification: Test gap
-- Confidence: High
-- ROI: High
-- Effort: S-M
-- Why it matters: the updater helper is part of the shipped update flow, but its top-level parser and headless execution path are largely untested.
-- Evidence:
-  - [apps/updater-helper/src/main.rs](/C:/dev/sempal/apps/updater-helper/src/main.rs#L21) owns the `try_main` and `run_headless` entry flow.
-  - [apps/updater-helper/src/main.rs](/C:/dev/sempal/apps/updater-helper/src/main.rs#L40) implements non-trivial CLI parsing, target/platform defaults, and help/error behavior.
-  - [apps/updater-helper/src/ui/tests.rs](/C:/dev/sempal/apps/updater-helper/src/ui/tests.rs) only contains two focused UI-state tests.
-  - [release-build.yml](/C:/dev/sempal/.github/workflows/release-build.yml#L121) signs and packages `sempal-updater.exe`.
-- Recommended change: extract or directly test the parser/headless seams so help text, required args, platform defaults, and `--headless` execution behavior are covered without requiring the GUI layer.
-- Expected impact: protects a shipped release/update path with relatively little test code.
-- Risks / tradeoffs: low to medium; parser tests should avoid coupling too tightly to exact help-text formatting.
-- Dependencies: none
-- Suggested validation:
-  - `cargo test -p updater-helper -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Completed: 2026-03-25
-- Commit: `ac644615`
-- Assumptions: A tiny injected helper around `run_headless` keeps runtime behavior unchanged while making parser and headless-apply coverage deterministic and network-free.
-- Validation:
-  - `cargo test -p updater-helper -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Plan order deviation: none
-
-### 8. [x] Split `src/app/controller/playback/audio_loader/stages.rs` by its existing stage boundaries
-
-- Classification: Refactor / cleanup
-- Confidence: High
-- ROI: Medium-High
-- Effort: M
-- Why it matters: the audio loader already has clear IO/decode/stretch/finalize stage seams, but one over-budget file still owns all of them plus test hooks and path sanitization.
-- Evidence:
-  - [tmp/cleanup_audit_hotspots.md](/C:/dev/sempal/tmp/cleanup_audit_hotspots.md) recorded the pre-split `src/app/controller/playback/audio_loader/stages.rs` hotspot at 437 lines on the observed tree.
-  - The live split now maps those same seams across [stages/mod.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages/mod.rs), [stages/io.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages/io.rs), [stages/decode.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages/decode.rs), [stages/stretch.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages/stretch.rs), and [stages/transients.rs](/C:/dev/sempal/src/app/controller/playback/audio_loader/stages/transients.rs).
-- Recommended change: keep the public loader API stable but extract focused stage helpers/modules for IO/path safety, decode/stretch, and transient/finalize behavior.
-- Expected impact: restores cohesion in a production hot path without changing semantics.
-- Risks / tradeoffs: medium; refactor churn around a worker path needs to preserve stale-request handling exactly.
-- Dependencies: item 6 is a good safety-first precursor
-- Suggested validation:
-  - targeted `cargo test audio_loader --lib`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 --all`
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Product clarification required: No
-- Completed: 2026-03-25
-- Commit: `1e4610c3`
-- Assumptions: Keep `stages` as the stable module surface for callers/tests and move only the internal stage responsibilities behind submodules to avoid behavioral churn.
-- Validation:
-  - `cargo test audio_loader --lib -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` (reported one unrelated pre-existing violation in `src/gui_test/runner.rs: 410`; the split audio-loader modules themselves were no longer budget offenders)
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Plan order deviation: none
-
-### 9. [x] Consolidate keep-lock tagging semantics and remove the duplicated direct-tag path
+### 6. [!] Define the lifecycle for retained pending-rename rows in the source DB
 
 - Classification: Product-definition gap
 - Confidence: Medium
-- ROI: Medium
-- Effort: S-M
-- Why it matters: lock state is part of the sample-safety model, but direct keep-tagging and incremental rating adjustment currently imply different semantics and one branch appears effectively dead.
+- ROI: High
+- Effort: M
+- Why it matters: pending rename rows preserve tags and metadata for quick/deep rename reconciliation, but the repo does not currently define how long unmatched rows should survive or when they should be pruned.
 - Evidence:
-  - [tagging/mod.rs](/C:/dev/sempal/src/app/controller/playback/tagging/mod.rs#L82) implements `tag_selected(...)` directly.
-  - [tagging/mod.rs](/C:/dev/sempal/src/app/controller/playback/tagging/mod.rs#L96) skips locked entries, yet [tagging/mod.rs](/C:/dev/sempal/src/app/controller/playback/tagging/mod.rs#L99) still computes `target_locked = ctx.entry.locked && target == KEEP_3`, which cannot currently become `true`.
-  - [selection_ops/tags.rs](/C:/dev/sempal/src/app/controller/library/wavs/selection_ops/tags.rs#L56) already has a shared `set_sample_tag_for_source(...)` path that both direct-tagging and rating adjustment can use.
-  - [rating_logic.rs](/C:/dev/sempal/src/app/controller/tests/rating_logic.rs#L170) covers lock promotion through `adjust_selected_rating(1)`, but not the direct-tagging path.
-- Recommended change: document the clarified rule that direct `KEEP_3` tagging must also lock, route both direct-tag and incremental-rating flows through one helper, and remove the dead branch.
-- Expected impact: makes keep/lock semantics explicit and reduces drift in a safety-sensitive workflow.
-- Risks / tradeoffs: medium; the change must preserve existing keep/lower-state behavior outside the clarified top-keep lock rule.
+  - `src/sample_sources/scanner/scan_diff.rs:123-128` stages every leftover missing row as a pending rename during quick scans.
+  - `src/sample_sources/db/pending_renames.rs:99-228` only clears rows when they are claimed or when a live-path upsert conflicts with them.
+  - `src/sample_sources/scanner/scan_hash.rs:21-120` only reconciles and clears rows when deep-hash matching succeeds.
+  - `src/sample_sources/scanner/scan/tests.rs:258-289` intentionally leaves ambiguous large-file renames in `pending_wav_renames`.
+  - `src/sample_sources/scanner/scan/runner.rs:81-87` documents hard rescans as moving rename work into the deeper pass, but there is no documented policy for stale unmatched pending rows.
+- Recommended change: document one explicit retention/pruning policy for pending renames, then enforce it in the scanner/DB helpers and add tests for hard-rescan, ambiguous-rename, and eventual-prune behavior.
+- Expected impact: removes a silent trust-model ambiguity around whether metadata for deleted/moved samples is preserved temporarily or indefinitely.
+- Risks / tradeoffs: medium; an aggressive prune policy can lose intended metadata preservation, while indefinite retention can accumulate stale rows and surprising future matches.
 - Dependencies: none
 - Suggested validation:
-  - targeted rating/tagging tests
-  - targeted browser action tests that exercise direct tag and incremental rating flows
-  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-- Product clarification required: No
-- Completed: 2026-03-25
-- Commit: `6d14d903`
-- Assumptions: Lower keep/trash/neutral targets should preserve the existing “not locked” behavior; only direct promotion into `KEEP_3` was clarified as lock-promoting.
-- Validation:
-  - `cargo test rating_logic --lib -- --test-threads=1`
-  - `cargo test direct_keep_three_tag_locks_sample_and_blocks_future_tag_changes --lib -- --test-threads=1`
+  - targeted scanner/db tests for quick scan, deep scan, ambiguous rename, and prune behavior
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Plan order deviation: none
+- Product clarification required: Yes
 
-### 10. [x] Align CODEOWNERS and historical-path guardrail docs with the current module tree
+### 7. [ ] Add mutation-invariant coverage for `entry_mutation.rs`, including cache, DB, and compare-anchor updates
 
-- Classification: Documentation gap
+- Classification: Test gap
+- Confidence: High
+- ROI: Medium-High
+- Effort: S-M
+- Why it matters: rename/move helpers are part of the repo's trust model. This layer rewrites database rows, lookup caches, selection paths, and compare-anchor paths, but most of those invariants are still only covered indirectly.
+- Evidence:
+  - `src/app/controller/library/wavs/entry_mutation.rs:31-74` rewrites DB rows and preserves metadata across path changes.
+  - `src/app/controller/library/wavs/entry_mutation.rs:208-338` updates cached lookups, selection paths, compare-anchor paths, and UI invalidation state.
+  - `src/app/controller/library/wavs/entry_mutation.rs:383-436` only tests numbered-name suggestion helpers.
+  - A repository-wide search shows this helper is called from file ops, waveform slide, drag/drop, selection export, duplicate cleanup, background polling, and browser-controller delegates.
+- Recommended change: add focused tests for metadata rewrite, lookup/cache updates, compare-anchor path rewrites, and selection-path propagation during rename/move operations.
+- Expected impact: hardens a data-integrity-sensitive helper layer with cheaper, more local coverage than relying only on high-level UI-driven tests.
+- Risks / tradeoffs: low; the main risk is over-coupling tests to implementation details instead of invariant-level outcomes.
+- Dependencies: item 4 only if compare-anchor semantics change materially
+- Suggested validation:
+  - targeted controller/browser helper tests
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Product clarification required: No
+
+### 8. [!] Make `GuiScenarioStep::CaptureSnapshot` truthful or remove it from the supported scenario contract
+
+- Classification: Bug fix
+- Confidence: High
+- ROI: Medium-High
+- Effort: S-M
+- Why it matters: the public GUI-scenario schema exposes a labeled capture step, but the runner currently treats that step as a silent no-op, which means the supported contract is misleading for CLI users and future automation consumers.
+- Evidence:
+  - `src/gui_test/scenario.rs:20-24` defines `GuiScenarioStep::CaptureSnapshot { label }`.
+  - `src/gui_test/runner.rs:66` currently handles `GuiScenarioStep::CaptureSnapshot { .. }` with an empty arm.
+  - `src/gui_test/artifacts.rs:80` only stores one final `automation_snapshot`, so there is nowhere for intermediate labeled captures to land today.
+- Recommended change: either implement labeled intermediate snapshot capture in the artifact/report path or remove/deprecate the step so unsupported behavior is not silently advertised.
+- Expected impact: makes the GUI scenario schema honest and prevents future tooling from depending on a no-op feature.
+- Risks / tradeoffs: medium; adding intermediate captures expands artifact schema, while removing the step may require a migration path for any unpublished consumers.
+- Dependencies: none
+- Suggested validation:
+  - targeted `src/gui_test` scenario-runner tests for the chosen behavior
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Product clarification required: Yes
+
+### 9. [ ] Split `src/gui_test/runner.rs` once the capture-step contract is settled
+
+- Classification: Refactor / cleanup
 - Confidence: High
 - ROI: Medium
-- Effort: S
-- Why it matters: the repo says CODEOWNERS mirrors the architecture map, but several entries still point at historical or wrong paths.
+- Effort: M
+- Why it matters: the GUI runner is now an over-budget, multi-responsibility file that mixes fixture bootstrap, scenario execution, assertion logic, artifact assembly, step labeling, and local tests.
 - Evidence:
-  - [docs/ARCHITECTURE.md](/C:/dev/sempal/docs/ARCHITECTURE.md#L37) documents `src/external_drag/` as a directory.
-  - [CODEOWNERS](/C:/dev/sempal/.github/CODEOWNERS#L22) still lists `/src/gui_app/` and [CODEOWNERS](/C:/dev/sempal/.github/CODEOWNERS#L24) `/src/legacy_runtime/`, which are not current live paths in this tree.
-  - [CODEOWNERS](/C:/dev/sempal/.github/CODEOWNERS#L39) points at `/src/external_drag.rs` instead of the live `src/external_drag/` directory.
-  - [docs/INDEX.md](/C:/dev/sempal/docs/INDEX.md#L103) and [docs/INDEX.md](/C:/dev/sempal/docs/INDEX.md#L112) still mention `crate::legacy_runtime::` and `crate::gui_app::` as historical tokens.
-- Recommended change: update CODEOWNERS to the current module tree and clarify historical path names in guardrail docs only where they are still intentionally reserved for boundary checks.
-- Expected impact: better reviewer-routing hygiene and less confusion for future ownership changes.
-- Risks / tradeoffs: low; because one owner currently covers everything, the main benefit is correctness and future maintainability.
+  - The live full scan flags `src/gui_test/runner.rs` at 425 lines.
+  - `src/gui_test/runner.rs:27-55` exposes bundle capture/dispatch entrypoints.
+  - `src/gui_test/runner.rs:55-100` runs scenarios and timings.
+  - `src/gui_test/runner.rs:145-233` contains assertion evaluation and step labeling.
+  - `src/gui_test/runner.rs:247-446` embeds a sizeable local test module in the same file.
+- Recommended change: split the file around `execution`, `assertions`, and `bundle/artifact` responsibilities after item 8 clarifies whether capture steps remain part of the contract.
+- Expected impact: restores the repo's file-size and single-responsibility discipline in one of the actively evolving GUI-test-platform modules.
+- Risks / tradeoffs: medium; moving tests and helpers can create temporary churn if the split is not anchored to stable boundaries.
+- Dependencies: item 8
+- Suggested validation:
+  - targeted `cargo test gui_test:: -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
+- Product clarification required: No
+
+### 10. [ ] Add direct command-surface coverage for `gui-test-cli`
+
+- Classification: Test gap
+- Confidence: High
+- ROI: Medium
+- Effort: S-M
+- Why it matters: `gui-test-cli` is part of the supported GUI test platform, but most of its command surface still relies on untested top-level branching and argument handling.
+- Evidence:
+  - `tools/gui-test-cli/src/main.rs:23-104` exposes `snapshot`, `dispatch-action`, `run-scenario`, `run-scenario-pack`, `export-aiv-suite`, and `resolve-node-target`.
+  - `tools/gui-test-cli/src/main.rs:128-140` only tests the `export-aiv-suite` argument helper near the bottom of the file.
+  - The CLI is referenced throughout `docs/gui_test_platform.md` and `docs/TEST.md` as a normal workflow surface, not just an internal dev script.
+- Recommended change: add focused tests for per-command argument validation and at least one smoke path for each supported command, preferably by extracting a small parse/dispatch layer that can be exercised without spawning the full app.
+- Expected impact: reduces the chance that a GUI-platform CLI regression is only caught after downstream PowerShell or AIV wrappers fail.
+- Risks / tradeoffs: low to medium; end-to-end CLI tests can become noisy if they require too much artifact setup.
+- Dependencies: item 8 if `run-scenario` behavior changes with the capture-step contract
+- Suggested validation:
+  - targeted `cargo test -p gui-test-cli -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
+- Product clarification required: No
+
+### 11. [ ] Add direct coverage for the shipped installer entry flow
+
+- Classification: Test gap
+- Confidence: Medium
+- ROI: Medium
+- Effort: S
+- Why it matters: the installer binary is built and signed for release, but the top-level branching between uninstall, dry-run, and normal GUI launch is barely tested.
+- Evidence:
+  - `.github/workflows/release-build.yml:94-101` builds and signs `sempal-installer.exe`.
+  - `apps/installer/src/main.rs:22-39` branches on `--uninstall`, `--dry-run`, and the default GUI path.
+  - `apps/installer/src/main.rs:41-55` only contains one narrow dry-run plan test.
+- Recommended change: extract a small `try_main`/dispatch seam or equivalent so uninstall and default-path branching can be covered without launching the GUI, and keep the existing dry-run plan test as a lower-level helper check.
+- Expected impact: protects a shipped release path with low-effort coverage that is currently missing.
+- Risks / tradeoffs: low; the main risk is adding test seams that overfit the current top-level structure.
 - Dependencies: none
 - Suggested validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_codeowners_coverage.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
+  - targeted `cargo test -p sempal-installer -- --test-threads=1`
+  - compare behavior expectations against `.github/workflows/release-build.yml`
 - Product clarification required: No
-- Completed: 2026-03-25
-- Commit: `4f448b52`
-- Assumptions: `.github/CODEOWNERS` should mirror the current high-level tree and `docs/ARCHITECTURE.md`, even when one owner currently covers all buckets.
-- Validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_codeowners_coverage.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1`
+
+### 12. [ ] Reduce live `vendor/radiant` production file-size debt, starting with the hit-testing and chrome/frame-build cluster
+
+- Classification: Refactor / cleanup
+- Confidence: High
+- ROI: Medium
+- Effort: L
+- Why it matters: the live full scan is red again not only because of test files but also because several active `vendor/radiant` production modules have grown well past the documented 400-line budget.
+- Evidence:
+  - The live full scan flagged `vendor/radiant/src/gui/native_shell/state/hit_testing/chrome.rs`, `vendor/radiant/src/gui/native_shell/state/hit_testing/waveform.rs`, `vendor/radiant/src/gui/native_shell/layout_adapter/sidebar_header.rs`, `vendor/radiant/src/gui/native_shell/layout_adapter/waveform_annotations.rs`, `vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar_parts/folders.rs`, `vendor/radiant/src/gui/native_shell/state/frame_build/overlay/focus.rs`, and `vendor/radiant/src/gui_runtime/native_vello/text_bpm.rs`.
+  - `vendor/radiant/src/gui/native_shell/state/hit_testing/chrome.rs:4-604` currently mixes sidebar rows, folder panel, source actions, options panel, prompt, progress overlay, and top-bar hit testing in one file.
+  - `vendor/radiant/src/gui/native_shell/state/frame_build/chrome/sidebar_parts/folders.rs:4-548` currently mixes folder header layout, toggle buttons, inline draft row rendering, row disclosure, labels, and recovery badge rendering.
+- Recommended change: split the clustered modules by surface responsibility first (for example sidebar rows vs top-bar/options hit testing, and folder header vs folder-row rendering), then reevaluate the remaining standalone offenders.
+- Expected impact: restores code-structure discipline in the live GUI/runtime surface and makes future GUI bugfixes more local and reviewable.
+- Risks / tradeoffs: medium; `vendor/radiant` refactors can be mechanically noisy and should avoid changing interaction behavior while splitting files.
+- Dependencies: item 2 helps keep follow-up cleanup planning honest
+- Suggested validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
+  - targeted `vendor/radiant` tests in one cargo process
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Plan order deviation: none
+- Product clarification required: No
 
 ## Open Questions / Missing Definitions
 
-### [!] 1. What success bar should justify promoting any desktop-AIV subset into CI?
+### [!] 1. Should scorecards and wake-up docs describe the live dirty workspace or only the last clean baseline?
 
 - Evidence:
-  - [docs/gui_test_platform.md](/C:/dev/sempal/docs/gui_test_platform.md#L187) still documents `SetForegroundWindow` instability as the blocker.
-  - [docs/plans/active/gui_test_platform_exec_plan.md](/C:/dev/sempal/docs/plans/active/gui_test_platform_exec_plan.md#L51) names focus recovery as the open issue.
-  - [scripts/run_gui_aiv_suite.ps1](/C:/dev/sempal/scripts/run_gui_aiv_suite.ps1) already categorizes failures, but the repo does not define the pass-rate or case-subset threshold that would be “good enough” for promotion.
-- Why this matters: future GUI-test work can keep accumulating without a stable exit criterion.
+  - `docs/QUALITY_SCORE.md` speaks in present tense about guardrail health.
+  - The current workspace is dirty, and the live file-size state is materially worse than the last recorded clean-audit posture.
+  - Most guardrails are diff-aware during iteration, which suggests the repo sometimes distinguishes "current live edits" from "clean baseline truth."
+- Why this matters: the repo needs one stable rule for what handoff/score docs are allowed to claim, otherwise future sessions can either trust stale green claims or overfit temporary local WIP as baseline truth.
 - Affected files/modules:
-  - `docs/gui_test_platform.md`
-  - `docs/plans/active/gui_test_platform_exec_plan.md`
-  - `scripts/run_gui_aiv_suite.ps1`
-- Risk if guessed incorrectly: either premature CI flakiness or indefinite local-only status for a valuable regression lane.
-- Most conservative provisional assumption: keep desktop AIV local-only until one small smoke subset demonstrates repeatable focus-recovery success on the current Windows setup.
+  - `docs/QUALITY_SCORE.md`
+  - `AGENTS.md`
+  - `MEMORY.md`
+  - `docs/plans/active/todo.md`
+- Risk if guessed incorrectly: wake-up docs either hide important live regressions or encode transient local churn as if it were the canonical baseline.
+- Most conservative provisional assumption: score and handoff docs should name the observed commit/date and explicitly say when a statement refers to the dirty workspace rather than clean HEAD.
+
+### [!] 2. Should compare-anchor state participate in undo/redo, or is it intentionally exempt from the "meaningful UI" contract?
+
+- Evidence:
+  - `docs/design_principles.md` says meaningful curation workflows should be reversible.
+  - `src/app/controller/playback/compare_anchor.rs` mutates compare-anchor state directly.
+  - `src/app/controller/history.rs` does not currently snapshot or restore that state.
+- Why this matters: implementation order for compare-anchor tests and history changes depends on whether the feature is meant to be transient or undoable.
+- Affected files/modules:
+  - `src/app/controller/playback/compare_anchor.rs`
+  - `src/app/controller/history.rs`
+  - `src/app/controller/tests/compare_anchor.rs`
+- Risk if guessed incorrectly: either undo/redo remains surprisingly incomplete or snapshot churn expands around a state the maintainers intended to keep transient.
+- Most conservative provisional assumption: treat compare-anchor as clarification-needed and do not silently widen or narrow the undo contract.
+
+### [!] 3. What is the intended retention/pruning policy for unmatched `pending_wav_renames` rows?
+
+- Evidence:
+  - Quick scans stage leftover missing rows.
+  - Deep scans only clear rows when a unique match is found.
+  - Current tests intentionally allow ambiguous pending rows to remain.
+- Why this matters: safe implementation depends on whether the correct outcome is indefinite metadata retention, bounded retention, or explicit prune-on-hard-rescan.
+- Affected files/modules:
+  - `src/sample_sources/db/pending_renames.rs`
+  - `src/sample_sources/scanner/scan_diff.rs`
+  - `src/sample_sources/scanner/scan_hash.rs`
+  - `src/sample_sources/scanner/scan/tests.rs`
+- Risk if guessed incorrectly: either metadata is lost too aggressively or stale rows linger and create surprising future matches.
+- Most conservative provisional assumption: keep behavior unchanged until the intended retention policy is documented.
+
+### [!] 4. Should `GuiScenarioStep::CaptureSnapshot` add labeled intermediate snapshots to artifacts, or should the step be removed/deprecated?
+
+- Evidence:
+  - The scenario schema exposes the step.
+  - The runner currently does nothing for it.
+  - The artifact schema currently only stores one final automation snapshot.
+- Why this matters: fixing the no-op requires either an artifact/schema expansion or a contract simplification, and the right refactor boundary for `src/gui_test/runner.rs` depends on that decision.
+- Affected files/modules:
+  - `src/gui_test/scenario.rs`
+  - `src/gui_test/runner.rs`
+  - `src/gui_test/artifacts.rs`
+  - `tools/gui-test-cli/src/main.rs`
+- Risk if guessed incorrectly: future tooling depends on a misleading no-op contract or the schema grows in a direction the maintainers do not want.
+- Most conservative provisional assumption: unsupported capture steps should fail loudly or remain blocked until the artifact contract is clarified.
 
 ## Rejected Ideas
 
-### [-] 1. Split `src/app/controller/playback/transport/selection.rs` immediately
+### [-] 1. Split `src/app_core/actions/catalog/kinds.rs` immediately
 
-- Why it was considered: [tmp/cleanup_audit_hotspots.md](/C:/dev/sempal/tmp/cleanup_audit_hotspots.md) lists it as the largest live Rust file.
-- Why it was rejected: the file appears to hold one cohesive selection-drag/snap/retarget subdomain, and I did not find repository evidence of a current ownership or correctness failure beyond size alone.
-- What evidence was missing: a concrete bug, duplicated subdomain, or recurring change-friction signal tied specifically to this file shape.
+- Why it was considered: it is currently 543 lines and over the nominal 400-line budget.
+- Why it was rejected: `docs/file_size_budget_allowlist.txt` explicitly documents this file as an intentional centralized surface for payload-free GUI action identities and representative-action tooling.
+- What evidence was missing: current correctness bugs or ownership pain strong enough to justify breaking the central declaration-order surface.
 
-### [-] 2. Promote the full desktop-AIV suite into default CI now
+### [-] 2. Split `src/app/controller/playback/transport/selection.rs` immediately
 
-- Why it was considered: the GUI test platform already exports semantic manifests and categorized desktop-AIV reports.
-- Why it was rejected: [docs/gui_test_platform.md](/C:/dev/sempal/docs/gui_test_platform.md#L187) still documents foreground/focus instability as a known blocker.
-- What evidence was missing: a stable smoke subset with a defined promotion threshold and repeatable success evidence on the current Windows setup.
+- Why it was considered: it remains 475 lines and over budget.
+- Why it was rejected: the file still reads as one cohesive selection-drag/loop-retarget subdomain and already carries local tests that explain its current behavior.
+- What evidence was missing: a concrete bug, duplicated subdomain, or recurring change-friction signal beyond file size alone.
 
-### [-] 3. Replace the repository’s custom CLI parsers with `clap`
+### [-] 3. Replace the small custom CLI parsers with `clap`
 
-- Why it was considered: several support binaries parse arguments manually.
-- Why it was rejected: the repo explicitly prefers minimal dependencies, and I did not find repository-local parser bugs that justify a framework switch.
-- What evidence was missing: concrete maintenance failures or correctness regressions caused by the current parser approach.
+- Why it was considered: support binaries in `apps/` and `tools/` still parse some arguments manually.
+- Why it was rejected: the current parsers are small, already documented, and at least partially tested; I did not find a repository-specific bug that justifies dependency and migration churn.
+- What evidence was missing: a concrete parser correctness issue or clear maintenance failure caused by the current approach.
 
-### [-] 4. Re-open a broad `app_core` action-semantic redesign
+### [-] 4. Promote the full desktop-AIV suite into normal CI now
 
-- Why it was considered: action semantics still span catalog, bridge, and controller/history tables.
-- Why it was rejected: [src/app_core/actions/tests.rs](/C:/dev/sempal/src/app_core/actions/tests.rs) already provides explicit cross-table guardrails, and I did not find evidence that a larger redesign is currently the highest-ROI move.
-- What evidence was missing: active semantic drift that the current guard tests cannot contain.
+- Why it was considered: `docs/gui_test_platform.md` and `docs/plans/active/gui_test_platform_exec_plan.md` show significant desktop-AIV progress.
+- Why it was rejected: `docs/gui_test_platform.md` still documents Windows foreground-activation instability as a blocker for CI promotion.
+- What evidence was missing: a small stable subset with a documented promotion bar and repeatable success evidence on the current Windows setup.

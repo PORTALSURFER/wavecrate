@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (local): 2026-03-26T00:28:36+01:00
+Last updated (local): 2026-03-29T21:13:00+02:00
 Owner: Codex agent sessions
 
 Purpose:
@@ -10,16 +10,16 @@ Purpose:
 
 ## Current lane
 
-- The refreshed evidence-driven improvement audit finished on 2026-03-25 for the current live tree.
-- `tmp/improvement_audit_plan.md` is the live source of truth and execution log for that completed lane.
-- `tmp/cleanup_audit_hotspots.md` was regenerated during this audit to refresh the broader file-size and test-gap evidence snapshot.
-- `scripts/check_quality_score_drift.ps1` is green again after the vendor/radiant file-size guardrail fix, while the latest full-scan file-size budget still reports one unrelated live violation in `src/gui_test/runner.rs`.
+- The active lane is Phase 2 execution of the refreshed evidence-driven improvement audit for the current live tree.
+- `tmp/improvement_audit_plan.md` is the live source of truth for the ranked backlog and execution record rebuilt on 2026-03-29.
+- Item 1 is complete; item 2 is the next executable task.
+- The live full-scan file-size budget is red again on this tree and is now part of the refreshed audit backlog.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Wait for the user to choose the next lane; the current audit backlog is complete.
-2. Keep `tmp/improvement_audit_plan.md` available as the finished execution record and decision log for this lane.
+1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order; item 2 is next.
+2. Keep `tmp/improvement_audit_plan.md` available as the active execution record and decision log for this lane.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
-5. Keep `AGENTS.md`, `MEMORY.md`, this file, and `docs/plans/index.md` synchronized when the next active lane begins.
+5. Keep `AGENTS.md`, `MEMORY.md`, this file, and `docs/plans/index.md` synchronized as execution progresses or if the active lane changes.

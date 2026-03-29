@@ -56,10 +56,29 @@ function Invoke-GuardrailCheck {
     $args += @("-Head", $HeadRef)
   }
 
-  $output = & $psExe @args 2>&1
-  $exitCode = $LASTEXITCODE
-  foreach ($line in $output) {
-    Write-Host $line
+  $stdoutPath = [System.IO.Path]::GetTempFileName()
+  $stderrPath = [System.IO.Path]::GetTempFileName()
+  try {
+    $process = Start-Process `
+      -FilePath $psExe `
+      -ArgumentList $args `
+      -NoNewWindow `
+      -Wait `
+      -PassThru `
+      -RedirectStandardOutput $stdoutPath `
+      -RedirectStandardError $stderrPath
+
+    foreach ($line in [System.IO.File]::ReadAllLines($stdoutPath)) {
+      Write-Host $line
+    }
+    foreach ($line in [System.IO.File]::ReadAllLines($stderrPath)) {
+      Write-Host $line
+    }
+
+    $exitCode = $process.ExitCode
+  } finally {
+    Remove-Item -LiteralPath $stdoutPath -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $stderrPath -ErrorAction SilentlyContinue
   }
 
   if ($exitCode -eq 0) {
