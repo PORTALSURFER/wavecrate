@@ -149,6 +149,15 @@ fn apply_native_cancel_progress_only_sets_cancel_flag_for_cancelable_tasks() {
 }
 
 #[test]
+fn apply_native_copy_selection_to_clipboard_uses_controller_clipboard_path() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+
+    controller.apply_native_ui_action(NativeUiAction::CopySelectionToClipboard);
+
+    assert_eq!(controller.ui.status.text, "Select a sample to copy");
+}
+
+#[test]
 fn apply_native_open_feedback_issue_prompt_closes_overlay_and_primes_issue_state() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.ui.hotkeys.overlay_visible = true;

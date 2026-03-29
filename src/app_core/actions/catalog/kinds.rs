@@ -224,6 +224,8 @@ pub enum GuiActionKind {
     CancelPrompt,
     /// Cancel the active progress operation.
     CancelProgress,
+    /// Copy browser sample file(s) or the active waveform selection clip to the clipboard.
+    CopySelectionToClipboard,
     /// Toggle the hotkey overlay.
     ToggleHotkeyOverlay,
     /// Copy the status log to the clipboard.
@@ -362,7 +364,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 176] = [
+    pub const ALL: [Self; 177] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -472,6 +474,7 @@ impl GuiActionKind {
         Self::ConfirmPrompt,
         Self::CancelPrompt,
         Self::CancelProgress,
+        Self::CopySelectionToClipboard,
         Self::ToggleHotkeyOverlay,
         Self::CopyStatusLog,
         Self::OpenFeedbackIssuePrompt,

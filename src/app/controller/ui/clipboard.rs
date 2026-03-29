@@ -87,10 +87,10 @@ impl AppController {
     }
 
     fn selected_sample_paths(&self) -> Result<Vec<PathBuf>, String> {
-        let Some(source) = self.current_source() else {
-            return Err("Select a source first".into());
-        };
         let mut paths: Vec<PathBuf> = if !self.ui.browser.selection.selected_paths.is_empty() {
+            let Some(source) = self.current_source() else {
+                return Err("Select a source first".into());
+            };
             self.ui
                 .browser
                 .selection
@@ -99,7 +99,12 @@ impl AppController {
                 .map(|p| source.root.join(p))
                 .collect()
         } else if let Some(selected) = self.sample_view.wav.selected_wav.as_ref() {
+            let Some(source) = self.current_source() else {
+                return Err("Select a source first".into());
+            };
             vec![source.root.join(selected)]
+        } else if let Some(loaded) = self.sample_view.wav.loaded_audio.as_ref() {
+            vec![loaded.root.join(&loaded.relative_path)]
         } else {
             Vec::new()
         };
@@ -152,10 +157,12 @@ fn clipboard_copy_label(paths: &[PathBuf]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::controller::LoadedAudio;
     use crate::app::controller::test_support::write_test_wav;
     use crate::app::state::FocusContext;
     use crate::app_dirs::ConfigBaseGuard;
     use std::path::Path;
+    use std::sync::Arc;
     use tempfile::tempdir;
 
     #[test]
@@ -208,5 +215,56 @@ mod tests {
             paths,
             vec![PathBuf::from("alpha.wav"), PathBuf::from("beta.wav")]
         );
+    }
+
+    #[test]
+    fn selected_sample_paths_prefers_selected_browser_rows() {
+        let temp = tempdir().unwrap();
+        let source_root = temp.path().join("source");
+        std::fs::create_dir_all(&source_root).unwrap();
+
+        let renderer = crate::waveform::WaveformRenderer::new(8, 8);
+        let mut controller = AppController::new(renderer, None);
+        let source = SampleSource::new(source_root.clone());
+        controller.library.sources.push(source.clone());
+        controller.selection_state.ctx.selected_source = Some(source.id.clone());
+
+        let alpha = source_root.join("alpha.wav");
+        let beta = source_root.join("beta.wav");
+        write_test_wav(&alpha, &[0.1, 0.2]);
+        write_test_wav(&beta, &[0.3, 0.4]);
+        controller.ui.browser.selection.selected_paths =
+            vec![PathBuf::from("alpha.wav"), PathBuf::from("beta.wav")];
+
+        let paths = controller.selected_sample_paths().unwrap();
+
+        assert_eq!(paths, vec![alpha, beta]);
+    }
+
+    #[test]
+    fn selected_sample_paths_falls_back_to_loaded_audio_file() {
+        let temp = tempdir().unwrap();
+        let source_root = temp.path().join("source");
+        std::fs::create_dir_all(&source_root).unwrap();
+
+        let renderer = crate::waveform::WaveformRenderer::new(8, 8);
+        let mut controller = AppController::new(renderer, None);
+        let source = SampleSource::new(source_root.clone());
+        controller.library.sources.push(source.clone());
+
+        let loaded_path = source_root.join("loaded.wav");
+        write_test_wav(&loaded_path, &[0.1, 0.2, 0.3]);
+        controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
+            source_id: source.id,
+            root: source_root,
+            relative_path: PathBuf::from("loaded.wav"),
+            bytes: Arc::from(Vec::<u8>::new()),
+            duration_seconds: 0.1,
+            sample_rate: 44_100,
+        });
+
+        let paths = controller.selected_sample_paths().unwrap();
+
+        assert_eq!(paths, vec![loaded_path]);
     }
 }

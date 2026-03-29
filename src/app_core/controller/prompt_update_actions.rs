@@ -20,6 +20,7 @@ pub(super) fn apply_prompt_and_update_native_ui_action(
         NativeUiAction::CancelPrompt => controller.cancel_active_prompt_action(),
         NativeUiAction::CancelFolderCreate => controller.cancel_inline_folder_edit(),
         NativeUiAction::CancelProgress => controller.request_progress_cancel(),
+        NativeUiAction::CopySelectionToClipboard => controller.copy_selection_to_clipboard(),
         NativeUiAction::ToggleHotkeyOverlay => {
             controller.ui.hotkeys.overlay_visible = !controller.ui.hotkeys.overlay_visible
         }
