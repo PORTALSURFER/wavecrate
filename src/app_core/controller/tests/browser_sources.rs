@@ -54,6 +54,102 @@ fn apply_native_browser_normalize_routes_to_hotkey_behavior() {
 }
 
 #[test]
+/// Native browser selection toggle should mark and unmark the focused file row without moving focus.
+fn toggle_focused_browser_row_selection_action_preserves_focus_and_anchor() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let dir = tempdir().unwrap();
+    let source_root = dir.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+    controller.add_source_from_path(source_root).unwrap();
+    controller.select_source_by_index(0);
+    controller.set_wav_entries_for_tests(vec![
+        browser_test_sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        browser_test_sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.focus_browser_row_only(1);
+
+    controller.apply_native_ui_action(NativeUiAction::ToggleFocusedBrowserRowSelection);
+
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selection_anchor_visible, Some(1));
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
+        vec![PathBuf::from("two.wav")]
+    );
+
+    controller.apply_native_ui_action(NativeUiAction::ToggleFocusedBrowserRowSelection);
+
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    assert_eq!(controller.ui.browser.selection.selection_anchor_visible, Some(1));
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
+}
+
+#[test]
+/// Native folder selection toggle should mark and unmark the focused folder row without losing focus.
+fn toggle_focused_folder_selection_action_preserves_focus_and_anchor() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let dir = tempdir().unwrap();
+    let source_root = dir.path().join("source");
+    let folder_path = PathBuf::from("drums");
+    std::fs::create_dir_all(source_root.join(&folder_path)).unwrap();
+    browser_test_write_wav(&source_root.join(folder_path.join("clip.wav")), &[0.1, -0.1]);
+    controller.add_source_from_path(source_root).unwrap();
+    controller.select_source_by_index(0);
+    controller.set_wav_entries_for_tests(vec![browser_test_sample_entry(
+        "drums/clip.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.refresh_folder_browser_for_tests();
+
+    let row_index = controller
+        .ui
+        .sources
+        .folders
+        .rows
+        .iter()
+        .position(|row| row.path == folder_path)
+        .expect("failed to locate folder row");
+    controller.focus_folder_row(row_index);
+
+    controller.apply_native_ui_action(NativeUiAction::ToggleFocusedFolderSelection);
+
+    assert_eq!(controller.ui.sources.folders.focused, Some(row_index));
+    assert_eq!(
+        controller
+            .folder_selection_for_filter()
+            .cloned()
+            .unwrap_or_default(),
+        [folder_path.clone()].into_iter().collect::<BTreeSet<_>>()
+    );
+    assert_eq!(
+        controller
+            .current_folder_model()
+            .and_then(|model| model.selection_anchor.clone()),
+        Some(folder_path.clone())
+    );
+
+    controller.apply_native_ui_action(NativeUiAction::ToggleFocusedFolderSelection);
+
+    assert_eq!(controller.ui.sources.folders.focused, Some(row_index));
+    assert!(
+        controller
+            .folder_selection_for_filter()
+            .cloned()
+            .unwrap_or_default()
+            .is_empty()
+    );
+    assert!(
+        controller
+            .current_folder_model()
+            .is_some_and(|model| model.selection_anchor.is_none())
+    );
+}
+
+#[test]
 /// Native folder-row focus action should select the clicked folder for filtering.
 fn focus_folder_row_action_replaces_folder_selection() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
