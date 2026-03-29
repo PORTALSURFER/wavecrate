@@ -53,6 +53,15 @@ pub(super) fn apply_waveform_native_ui_action(
             controller.toggle_slice_selection(index);
             controller.focus_waveform_context();
         }
+        NativeUiAction::AuditionWaveformDuplicateSlice { index } => {
+            controller.audition_duplicate_cleanup_preview(index);
+        }
+        NativeUiAction::ToggleWaveformDuplicateSliceExemption { index } => {
+            if let Err(err) = controller.toggle_duplicate_cleanup_preview_exemption(index) {
+                controller.set_status(err, StatusTone::Info);
+            }
+            controller.focus_waveform_context();
+        }
         NativeUiAction::MoveWaveformSliceFocus { delta } => {
             if !controller.move_slice_review_focus(delta) {
                 controller.slide_selection_range(delta.into());

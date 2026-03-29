@@ -10,7 +10,7 @@ impl AppController {
     /// Export detected slices to new audio files and register them in the browser.
     pub(crate) fn accept_waveform_slices(&mut self) -> Result<usize, String> {
         if self.ui.waveform.slice_batch_profile == WaveformSliceBatchProfile::ExactDuplicateBeats {
-            return Err("Use Clean Dups to apply exact duplicate cleanup".to_string());
+            return Err("Use Clean Dups to apply duplicate cleanup".to_string());
         }
         if self.loaded_waveform_slice_export_in_progress() {
             return Err("Wait for the current slice export to finish".to_string());

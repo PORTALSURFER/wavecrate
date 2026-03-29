@@ -69,7 +69,7 @@ pub enum DestructiveSelectionEdit {
     NormalizeSelection,
     /// Attempt to remove clicks in the selection.
     ClickRemoval,
-    /// Remove later exact duplicate windows from the loaded file.
+    /// Remove later duplicate windows from the loaded file.
     CleanExactDuplicateBeats,
 }
 

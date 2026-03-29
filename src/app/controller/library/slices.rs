@@ -3,7 +3,7 @@ use super::MIN_SELECTION_WIDTH;
 use crate::analysis::audio::detect_non_silent_ranges_for_slices;
 use crate::app::controller::StatusTone;
 use crate::app::controller::playback::audio_samples::decode_samples_from_bytes;
-use crate::app::state::WaveformSliceBatchProfile;
+use crate::app::state::{WaveformDuplicateCleanupPreview, WaveformSliceBatchProfile};
 use crate::selection::SelectionRange;
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -66,6 +66,7 @@ impl AppController {
         self.ui.waveform.selected_slices.clear();
         self.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::SilenceSplit;
         self.ui.waveform.slice_batch_beat_count = 0;
+        self.ui.waveform.duplicate_cleanup = None;
         self.ui.waveform.slice_mode_enabled = true;
         if self.ui.waveform.slices.is_empty() {
             self.clear_waveform_slices();
@@ -99,6 +100,7 @@ impl AppController {
         self.ui.waveform.slice_review = Default::default();
         self.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::Manual;
         self.ui.waveform.slice_batch_beat_count = 0;
+        self.ui.waveform.duplicate_cleanup = None;
     }
 
     /// Apply a manually painted slice, cutting it out of any overlapping slices.
@@ -115,6 +117,7 @@ impl AppController {
         self.ui.waveform.selected_slices.clear();
         self.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::Manual;
         self.ui.waveform.slice_batch_beat_count = 0;
+        self.ui.waveform.duplicate_cleanup = None;
         self.refresh_slice_review_state();
         true
     }
@@ -139,6 +142,7 @@ impl AppController {
         self.ui.waveform.selected_slices = updated.selected_indices;
         self.ui.waveform.slice_batch_profile = WaveformSliceBatchProfile::Manual;
         self.ui.waveform.slice_batch_beat_count = 0;
+        self.ui.waveform.duplicate_cleanup = None;
         self.refresh_slice_review_state();
         updated.new_index
     }
@@ -195,6 +199,24 @@ impl AppController {
         let mut indices = self.ui.waveform.selected_slices.clone();
         indices.sort_unstable();
         indices.dedup();
+        if self.ui.waveform.slice_batch_profile == WaveformSliceBatchProfile::ExactDuplicateBeats
+            && let Some(cleanup) = self.ui.waveform.duplicate_cleanup.as_mut()
+        {
+            let mut removed = 0usize;
+            for index in indices.into_iter().rev() {
+                if index < cleanup.previews.len() {
+                    cleanup.previews.remove(index);
+                    removed += 1;
+                }
+            }
+            if cleanup.previews.is_empty() {
+                self.clear_waveform_slices();
+                return removed;
+            }
+            self.ui.waveform.selected_slices.clear();
+            self.sync_duplicate_cleanup_previews();
+            return removed;
+        }
         let mut removed = 0usize;
         for index in indices.into_iter().rev() {
             if index < self.ui.waveform.slices.len() {
@@ -228,6 +250,66 @@ impl AppController {
         let mut indices = self.ui.waveform.selected_slices.clone();
         indices.sort_unstable();
         indices.dedup();
+        if self.ui.waveform.slice_batch_profile == WaveformSliceBatchProfile::ExactDuplicateBeats
+            && let Some(cleanup) = self.ui.waveform.duplicate_cleanup.as_mut()
+        {
+            let selected = indices
+                .iter()
+                .filter_map(|index| cleanup.previews.get(*index).copied())
+                .collect::<Vec<_>>();
+            if selected.len() < 2 {
+                return None;
+            }
+            let merged = SelectionRange::new(
+                selected
+                    .iter()
+                    .map(|preview| preview.range.start())
+                    .fold(1.0, f32::min),
+                selected
+                    .iter()
+                    .map(|preview| preview.range.end())
+                    .fold(0.0, f32::max),
+            );
+            if merged.end() <= merged.start() {
+                return None;
+            }
+            let merged_preview = WaveformDuplicateCleanupPreview {
+                range: merged,
+                group_id: selected
+                    .iter()
+                    .map(|preview| preview.group_id)
+                    .min()
+                    .unwrap_or(0),
+                exempted: selected.iter().all(|preview| preview.exempted),
+                represented_window_count: selected
+                    .iter()
+                    .map(|preview| preview.represented_window_count)
+                    .sum(),
+            };
+            for index in indices.into_iter().rev() {
+                if index < cleanup.previews.len() {
+                    cleanup.previews.remove(index);
+                }
+            }
+            cleanup.previews.push(merged_preview);
+            cleanup.previews.sort_by(|left, right| {
+                left.range
+                    .start()
+                    .partial_cmp(&right.range.start())
+                    .unwrap_or(Ordering::Equal)
+            });
+            self.sync_duplicate_cleanup_previews();
+            let merged_index = self
+                .ui
+                .waveform
+                .slices
+                .iter()
+                .position(|slice| *slice == merged)
+                .unwrap_or(0);
+            self.ui.waveform.selected_slices = vec![merged_index];
+            self.refresh_slice_review_state();
+            return Some(merged);
+        }
         let mut min_start: f32 = 1.0;
         let mut max_end: f32 = 0.0;
         for &index in &indices {

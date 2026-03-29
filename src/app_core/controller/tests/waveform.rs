@@ -365,6 +365,41 @@ fn handle_escape_exits_slice_review_before_clearing_slice_batch() {
 }
 
 #[test]
+fn duplicate_preview_actions_focus_audition_and_toggle_exemption() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let range = crate::selection::SelectionRange::new(0.1, 0.2);
+    controller.ui.waveform.slice_batch_profile =
+        crate::app::state::WaveformSliceBatchProfile::ExactDuplicateBeats;
+    controller.ui.waveform.slices = vec![range];
+    controller.ui.waveform.duplicate_cleanup =
+        Some(crate::app::state::WaveformDuplicateCleanupState {
+            group_count: 1,
+            previews: vec![crate::app::state::WaveformDuplicateCleanupPreview {
+                range,
+                group_id: 0,
+                exempted: false,
+                represented_window_count: 1,
+            }],
+        });
+    controller.ui.waveform.slice_batch_beat_count = 1;
+
+    controller.apply_native_ui_action(NativeUiAction::AuditionWaveformDuplicateSlice { index: 0 });
+    assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(0));
+
+    controller
+        .apply_native_ui_action(NativeUiAction::ToggleWaveformDuplicateSliceExemption { index: 0 });
+    assert_eq!(controller.ui.waveform.slice_batch_beat_count, 0);
+    assert!(
+        controller
+            .ui
+            .waveform
+            .duplicate_cleanup
+            .as_ref()
+            .is_some_and(|state| state.previews[0].exempted)
+    );
+}
+
+#[test]
 /// Native options panel actions should update UI settings state.
 fn apply_native_options_panel_actions_update_ui_state() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);

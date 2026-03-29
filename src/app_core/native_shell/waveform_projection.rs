@@ -211,6 +211,7 @@ pub(super) fn project_waveform_edit_selection_milli(ui: &UiState) -> Option<Norm
 pub(super) fn project_waveform_slice_previews(
     ui: &UiState,
 ) -> Vec<radiant::app::WaveformSlicePreviewModel> {
+    let duplicate_cleanup = ui.waveform.duplicate_cleanup.as_ref();
     ui.waveform
         .slices
         .iter()
@@ -223,6 +224,11 @@ pub(super) fn project_waveform_slice_previews(
             selected: ui.waveform.selected_slices.contains(&index),
             focused: ui.waveform.slice_review.focused_index == Some(index),
             marked_for_export: ui.waveform.slice_review.marked_indices.contains(&index),
+            duplicate_cleanup_candidate: ui.waveform.slice_batch_profile
+                == crate::app::state::WaveformSliceBatchProfile::ExactDuplicateBeats,
+            duplicate_cleanup_exempted: duplicate_cleanup
+                .and_then(|cleanup| cleanup.previews.get(index))
+                .is_some_and(|preview| preview.exempted),
         })
         .collect()
 }

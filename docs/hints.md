@@ -9,7 +9,7 @@
 - Hold Alt while dragging a playback selection to bypass BPM snapping until you release Alt again.
 - Transient snapping: Enable transient snap to grab onsets when slicing samples.
 - Silence split: Click Silence Split, then use Left/Right to review slices, Space to audition, A to mark, and E to export only the marked `_silence_split_###.wav` samples.
-- Exact dedupe: Make a playback selection to define the scan size, click Exact Dedupe, review duplicate windows with Left/Right and Space, use Shift + D or M to refine the cleanup set, then click Clean Dups to remove later exact clones while keeping the first hit.
+- Exact dedupe: Make a playback selection to define the scan size, click Exact Dedupe, audition duplicate windows with Left-click or Space, Right-click any copy you want to keep, then click Clean Dups to remove the remaining near-duplicate hits while keeping the first copy in each group.
 - Batch triage: Multi-select samples to apply keep/trash tags in one action.
 - Collect from selection: Use `E` to save a clip without leaving the waveform view, or `Shift + E` to save it and immediately mark the export keep x2.
 - Search samples: Press F to focus the search box and filter the browser list.

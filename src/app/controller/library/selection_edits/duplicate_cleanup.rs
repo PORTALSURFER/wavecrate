@@ -10,17 +10,30 @@ impl AppController {
         if self.ui.waveform.slice_batch_profile != WaveformSliceBatchProfile::ExactDuplicateBeats {
             return Err("Run Exact Dedupe before cleaning duplicates".to_string());
         }
-        if self.ui.waveform.slices.is_empty() {
+        let cleanup = self
+            .ui
+            .waveform
+            .duplicate_cleanup
+            .as_ref()
+            .ok_or_else(|| "Run Exact Dedupe before cleaning duplicates".to_string())?;
+        let ranges = cleanup
+            .previews
+            .iter()
+            .filter(|preview| !preview.exempted)
+            .map(|preview| preview.range)
+            .collect::<Vec<_>>();
+        if ranges.is_empty() {
             return Err("No duplicate cleanup ranges to apply".to_string());
         }
-        Ok(self.ui.waveform.slices.clone())
+        Ok(ranges)
     }
 
     /// Remove the current exact-duplicate cleanup ranges from the loaded sample.
     pub(crate) fn clean_exact_duplicate_beats(&mut self) -> Result<(), String> {
         let cleanup_ranges = self.exact_duplicate_cleanup_ranges()?;
+        let counts = self.current_duplicate_cleanup_counts();
         let removed_ranges = cleanup_ranges.len();
-        let removed_windows = self.ui.waveform.slice_batch_beat_count.max(removed_ranges);
+        let removed_windows = counts.marked_windows.max(removed_ranges);
         let audio = self
             .sample_view
             .wav
@@ -80,7 +93,11 @@ impl AppController {
         self.clear_waveform_slices();
         self.focus_waveform_context();
         self.set_status(
-            format!("Removed {removed_windows} duplicate window(s) across {removed_ranges} cleanup range(s)"),
+            format!(
+                "Removed {removed_windows} duplicate window(s) across {removed_ranges} cleanup range(s). {groups} group(s), {kept} kept.",
+                groups = counts.group_count,
+                kept = counts.exempted_windows
+            ),
             StatusTone::Info,
         );
         Ok(())

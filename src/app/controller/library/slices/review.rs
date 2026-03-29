@@ -72,7 +72,7 @@ impl AppController {
     /// Toggle export marking on the currently focused review slice.
     pub(crate) fn toggle_focused_slice_export_mark(&mut self) -> Result<bool, String> {
         if self.ui.waveform.slice_batch_profile == WaveformSliceBatchProfile::ExactDuplicateBeats {
-            return Err("Exact duplicate cleanup batches cannot be export-marked".to_string());
+            return Err("Duplicate cleanup batches cannot be export-marked".to_string());
         }
         let index = self
             .ui
@@ -123,7 +123,7 @@ impl AppController {
     /// Resolve the slice ranges that should be exported for the current waveform preview batch.
     pub(crate) fn waveform_slice_export_ranges(&self) -> Result<Vec<SelectionRange>, String> {
         if self.ui.waveform.slice_batch_profile == WaveformSliceBatchProfile::ExactDuplicateBeats {
-            return Err("Use Clean Dups to apply exact duplicate cleanup".to_string());
+            return Err("Use Clean Dups to apply duplicate cleanup".to_string());
         }
         if self.ui.waveform.slices.is_empty() {
             return Err("No slices to export".to_string());
@@ -175,9 +175,15 @@ impl AppController {
             .map(|index| index + 1)
             .unwrap_or(1);
         match self.ui.waveform.slice_batch_profile {
-            WaveformSliceBatchProfile::ExactDuplicateBeats => format!(
-                "Cleanup {focused}/{total}. Left/Right review, Space audition, Shift+D keep, M merge, Clean Dups apply duplicate windows."
-            ),
+            WaveformSliceBatchProfile::ExactDuplicateBeats => {
+                let counts = self.current_duplicate_cleanup_counts();
+                format!(
+                    "Cleanup {focused}/{total}. {marked} marked, {kept} kept, {groups} group(s). Left-click audition, Right-click keep, Left/Right review, Space audition, M merge, Clean Dups apply.",
+                    marked = counts.marked_windows,
+                    kept = counts.exempted_windows,
+                    groups = counts.group_count
+                )
+            }
             _ => format!(
                 "Slice {focused}/{total}. Left/Right review, Space audition, A mark, E export."
             ),

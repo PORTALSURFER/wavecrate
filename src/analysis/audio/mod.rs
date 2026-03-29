@@ -29,6 +29,7 @@ pub(crate) use decode::decode_for_analysis;
 pub(crate) use decode::{
     decode_for_analysis_with_rate, decode_for_analysis_with_rate_limit, probe_metadata,
 };
+pub(crate) use exact_duplicates::DetectedDuplicateWindow;
 pub(crate) use exact_duplicates::detect_exact_duplicate_window_ranges;
 pub(crate) use normalize::normalize_peak_in_place;
 pub(crate) use normalize::sanitize_samples_in_place;

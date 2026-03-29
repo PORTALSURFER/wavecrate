@@ -201,7 +201,16 @@ fn detect_waveform_exact_duplicate_slices_from_selection_keeps_first_window() {
         WaveformSliceBatchProfile::ExactDuplicateBeats
     );
     assert_eq!(controller.ui.waveform.slice_batch_beat_count, 1);
-    assert!(controller.ui.status.text.contains("duplicate windows"));
+    assert_eq!(
+        controller
+            .ui
+            .waveform
+            .duplicate_cleanup
+            .as_ref()
+            .map(|state| state.group_count),
+        Some(1)
+    );
+    assert!(controller.ui.status.text.contains("Left-click audition"));
 }
 
 #[test]
@@ -267,9 +276,50 @@ fn detect_waveform_exact_duplicate_slices_marks_all_duplicate_groups_for_selecti
         .detect_waveform_exact_duplicate_slices_from_selection()
         .unwrap();
 
-    assert_eq!(count, 3);
-    assert_eq!(controller.ui.waveform.slices.len(), 3);
+    assert_eq!(count, 5);
+    assert_eq!(controller.ui.waveform.slices.len(), 5);
     assert_eq!(controller.ui.waveform.slice_batch_beat_count, 5);
+}
+
+#[test]
+fn duplicate_cleanup_exemption_keeps_preview_but_reduces_cleanup_count() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).unwrap();
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(root.clone());
+    controller.library.sources.push(source.clone());
+    controller.cache_db(&source).unwrap();
+
+    let wav_path = root.join("clip.wav");
+    write_test_wav(
+        &wav_path,
+        &[0.8, 0.0, 0.0, 0.0, 0.8, 0.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0],
+    );
+    controller
+        .load_waveform_for_selection(&source, Path::new("clip.wav"))
+        .unwrap();
+    controller.ui.waveform.selection = Some(SelectionRange::new(0.0, 4.0 / 12.0));
+    controller
+        .detect_waveform_exact_duplicate_slices_from_selection()
+        .unwrap();
+
+    let exempted = controller
+        .toggle_duplicate_cleanup_preview_exemption(0)
+        .expect("duplicate preview should toggle");
+
+    assert!(exempted);
+    assert_eq!(controller.ui.waveform.slices.len(), 1);
+    assert_eq!(controller.ui.waveform.slice_batch_beat_count, 0);
+    assert!(
+        controller
+            .ui
+            .waveform
+            .duplicate_cleanup
+            .as_ref()
+            .is_some_and(|state| state.previews[0].exempted)
+    );
 }
 
 #[test]
@@ -311,10 +361,7 @@ fn toggle_focused_slice_export_mark_rejects_duplicate_cleanup_batches() {
         .toggle_focused_slice_export_mark()
         .expect_err("duplicate cleanup batches should not be export-marked");
 
-    assert_eq!(
-        err,
-        "Exact duplicate cleanup batches cannot be export-marked"
-    );
+    assert_eq!(err, "Duplicate cleanup batches cannot be export-marked");
 }
 
 #[test]
@@ -358,6 +405,7 @@ fn clear_waveform_slices_resets_batch_profile() {
 
     assert!(controller.ui.waveform.slices.is_empty());
     assert!(controller.ui.waveform.selected_slices.is_empty());
+    assert!(controller.ui.waveform.duplicate_cleanup.is_none());
     assert_eq!(
         controller.ui.waveform.slice_batch_profile,
         WaveformSliceBatchProfile::Manual
@@ -469,5 +517,5 @@ fn accept_waveform_slices_rejects_duplicate_cleanup_batches() {
         .accept_waveform_slices()
         .expect_err("duplicate cleanup batches should not export");
 
-    assert_eq!(err, "Use Clean Dups to apply exact duplicate cleanup");
+    assert_eq!(err, "Use Clean Dups to apply duplicate cleanup");
 }

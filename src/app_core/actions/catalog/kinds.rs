@@ -134,9 +134,9 @@ pub enum GuiActionKind {
     CommitWaveformEditFades,
     /// Detect silence-separated waveform slices and preview them for export.
     DetectWaveformSilenceSlices,
-    /// Detect exact duplicate windows using the current playback selection size.
+    /// Detect near-duplicate windows using the current playback selection size.
     DetectWaveformExactDuplicateSlices,
-    /// Apply the current exact duplicate cleanup batch to the loaded waveform file.
+    /// Apply the current duplicate cleanup batch to the loaded waveform file.
     CleanWaveformExactDuplicateSlices,
     /// Toggle selection on one browser row.
     ToggleBrowserRowSelection,
@@ -268,6 +268,10 @@ pub enum GuiActionKind {
     SetSliceModeEnabled,
     /// Toggle selection for one previewed waveform slice.
     ToggleWaveformSliceSelection,
+    /// Focus and audition one duplicate-cleanup preview slice.
+    AuditionWaveformDuplicateSlice,
+    /// Toggle whether one duplicate-cleanup preview is exempt from cleanup.
+    ToggleWaveformDuplicateSliceExemption,
     /// Move the focused review slice by one signed step.
     MoveWaveformSliceFocus,
     /// Toggle export marking for the focused review slice.
@@ -352,7 +356,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 171] = [
+    pub const ALL: [Self; 173] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -484,6 +488,8 @@ impl GuiActionKind {
         Self::ToggleBpmSnap,
         Self::SetSliceModeEnabled,
         Self::ToggleWaveformSliceSelection,
+        Self::AuditionWaveformDuplicateSlice,
+        Self::ToggleWaveformDuplicateSliceExemption,
         Self::MoveWaveformSliceFocus,
         Self::ToggleFocusedWaveformSliceExportMark,
         Self::SetVolume,

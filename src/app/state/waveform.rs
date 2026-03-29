@@ -41,6 +41,11 @@ pub struct WaveformState {
     /// This is only non-zero when `slice_batch_profile` is
     /// `WaveformSliceBatchProfile::ExactDuplicateBeats`.
     pub slice_batch_beat_count: usize,
+    /// Exact-duplicate cleanup metadata for the current cleanup batch.
+    ///
+    /// This stays separate from generic slice review/export state so duplicate
+    /// cleanup can track one preview per duplicate window plus user exemptions.
+    pub duplicate_cleanup: Option<WaveformDuplicateCleanupState>,
     /// Indices of slice ranges currently selected for edits.
     pub selected_slices: Vec<usize>,
     /// Keyboard-first review state for previewed waveform slices.
@@ -137,6 +142,31 @@ pub enum WaveformSliceBatchProfile {
     ExactDuplicateBeats,
 }
 
+/// Reviewable duplicate-cleanup batch derived from one waveform scan.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct WaveformDuplicateCleanupState {
+    /// Number of duplicate groups that have one kept canonical hit plus clones.
+    pub group_count: usize,
+    /// Visible duplicate previews in original waveform order.
+    pub previews: Vec<WaveformDuplicateCleanupPreview>,
+}
+
+/// One duplicate-cleanup preview entry shown in slice review mode.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WaveformDuplicateCleanupPreview {
+    /// Cleanup preview range in normalized waveform space.
+    pub range: SelectionRange,
+    /// Stable duplicate-group id for status text and future grouping logic.
+    pub group_id: usize,
+    /// Whether this preview is excluded from destructive cleanup.
+    pub exempted: bool,
+    /// Number of duplicate windows represented by this preview.
+    ///
+    /// This is `1` for detected windows and can be greater when the user merges
+    /// multiple duplicate previews into one wider cleanup span.
+    pub represented_window_count: usize,
+}
+
 /// Keyboard-oriented review state for previewed waveform slices.
 ///
 /// Slice review intentionally stays separate from `selected_slices`: edit
@@ -167,6 +197,7 @@ impl Default for WaveformState {
             slices: Vec::new(),
             slice_batch_profile: WaveformSliceBatchProfile::Manual,
             slice_batch_beat_count: 0,
+            duplicate_cleanup: None,
             selected_slices: Vec::new(),
             slice_review: WaveformSliceReviewState::default(),
             slice_mode_enabled: false,
@@ -305,6 +336,7 @@ mod tests {
         assert!(state.waveform_image_signature.is_none());
         assert_eq!(state.slice_batch_profile, WaveformSliceBatchProfile::Manual);
         assert_eq!(state.slice_batch_beat_count, 0);
+        assert!(state.duplicate_cleanup.is_none());
         assert!(!state.slice_review.active);
         assert!(state.slice_review.focused_index.is_none());
         assert!(state.slice_review.marked_indices.is_empty());
