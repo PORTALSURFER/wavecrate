@@ -10,7 +10,7 @@
 - Transient snapping: Enable transient snap to grab onsets when slicing samples.
 - Silence split: Click Silence Split, then use Left/Right to review slices, Space to audition, A to mark, and E to export only the marked `_silence_split_###.wav` samples.
 - Batch triage: Multi-select samples to apply keep/trash tags in one action.
-- Collect from selection: Use selection export to save a clip without leaving the waveform view.
+- Collect from selection: Use `E` to save a clip without leaving the waveform view, or `Shift + E` to save it and immediately mark the export keep x2.
 - Search samples: Press F to focus the search box and filter the browser list.
 - Similarity prep: Run similarity prep after adding sources to unlock map navigation.
 - GPU embeddings: Open GPU embedding options to speed up analysis on compatible hardware.

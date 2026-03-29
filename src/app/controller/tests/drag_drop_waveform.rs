@@ -172,3 +172,51 @@ fn waveform_selection_native_save_exports_selection_clip() {
         Some(&PathBuf::from("loop.wav"))
     );
 }
+
+#[test]
+/// Native Shift+E-equivalent waveform save action should export the current selection with keep-2.
+fn waveform_selection_native_save_with_keep2_exports_selection_clip() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).unwrap();
+    let renderer = WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+
+    write_test_wav(&root.join("loop.wav"), &[0.1, 0.2, 0.3, 0.4]);
+    controller
+        .load_waveform_for_selection(&source, std::path::Path::new("loop.wav"))
+        .unwrap();
+    controller.ui.waveform.selection = Some(SelectionRange::new(0.25, 0.75));
+
+    controller.apply_native_ui_action(NativeUiAction::SaveWaveformSelectionToBrowserWithKeep2);
+
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Busy);
+    pump_background_jobs_until(&mut controller, |controller| {
+        root.join("loop_selection_001.wav").is_file()
+            && controller.ui.status.text.contains("Saved clip")
+    });
+    assert!(root.join("loop_selection_001.wav").is_file());
+    let rows = controller
+        .database_for(&source)
+        .unwrap()
+        .list_files()
+        .unwrap();
+    let exported = rows
+        .iter()
+        .find(|row| row.relative_path == PathBuf::from("loop_selection_001.wav"))
+        .expect("exported clip should be registered");
+    assert_eq!(exported.tag, crate::sample_sources::Rating::new(2));
+    assert_eq!(
+        controller
+            .sample_view
+            .wav
+            .loaded_audio
+            .as_ref()
+            .map(|audio| &audio.relative_path),
+        Some(&PathBuf::from("loop.wav"))
+    );
+}

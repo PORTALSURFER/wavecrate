@@ -89,7 +89,12 @@ pub(super) fn record_slice_batch_entry(
     snapshot: &SelectionSliceBatchExportSnapshot,
     relative_path: PathBuf,
 ) -> Result<WavEntry, String> {
-    let entry = build_written_entry(&snapshot.source_root, relative_path, Rating::NEUTRAL, false)?;
+    let entry = build_written_entry(
+        &snapshot.source_root,
+        relative_path,
+        snapshot.target_tag.unwrap_or(Rating::NEUTRAL),
+        false,
+    )?;
     let source = SampleSource {
         id: snapshot.source_id.clone(),
         root: snapshot.source_root.clone(),
@@ -98,6 +103,10 @@ pub(super) fn record_slice_batch_entry(
         .map_err(|err| format!("Database unavailable: {err}"))?;
     db.upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)
         .map_err(|err| format!("Failed to register slice: {err}"))?;
+    if entry.tag != Rating::NEUTRAL {
+        db.set_tag(&entry.relative_path, entry.tag)
+            .map_err(|err| format!("Failed to tag slice: {err}"))?;
+    }
     Ok(entry)
 }
 

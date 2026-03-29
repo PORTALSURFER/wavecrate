@@ -6,6 +6,7 @@ use crate::app::controller::jobs::{
     SelectionSliceBatchExportSuccess, build_selection_export_audio_payload,
 };
 use crate::app::state::{ProgressTaskKind, WaveformSliceBatchProfile};
+use crate::sample_sources::Rating;
 
 impl AppController {
     /// Return whether the currently loaded waveform owns the active slice-batch export.
@@ -23,11 +24,18 @@ impl AppController {
 
     /// Queue the current waveform slice batch for background export.
     pub(crate) fn start_waveform_slice_batch_export(&mut self) -> Result<(), String> {
+        self.start_waveform_slice_batch_export_with_tag(None)
+    }
+
+    pub(super) fn start_waveform_slice_batch_export_with_tag(
+        &mut self,
+        target_tag: Option<Rating>,
+    ) -> Result<(), String> {
         if self.runtime.jobs.pending_slice_batch_export().is_some() {
             self.set_status("Slice export already in progress", StatusTone::Info);
             return Ok(());
         }
-        let snapshot = self.capture_slice_batch_export_snapshot()?;
+        let snapshot = self.capture_slice_batch_export_snapshot_with_tag(target_tag)?;
         let total = snapshot.slices.len();
         let request_id = self.runtime.jobs.next_selection_export_request_id();
         self.runtime
@@ -57,6 +65,13 @@ impl AppController {
     pub(crate) fn capture_slice_batch_export_snapshot(
         &self,
     ) -> Result<SelectionSliceBatchExportSnapshot, String> {
+        self.capture_slice_batch_export_snapshot_with_tag(None)
+    }
+
+    pub(super) fn capture_slice_batch_export_snapshot_with_tag(
+        &self,
+        target_tag: Option<Rating>,
+    ) -> Result<SelectionSliceBatchExportSnapshot, String> {
         let audio = self
             .sample_view
             .wav
@@ -73,6 +88,7 @@ impl AppController {
             relative_path: audio.relative_path.clone(),
             slices,
             profile: self.ui.waveform.slice_batch_profile,
+            target_tag,
             audio: build_selection_export_audio_payload(
                 self.sample_view.waveform.decoded.as_ref(),
                 Arc::clone(&audio.bytes),

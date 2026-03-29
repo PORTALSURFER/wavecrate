@@ -27,6 +27,7 @@ use crate::app::controller::jobs::{
     build_selection_export_audio_payload,
 };
 use crate::app::controller::playback::audio_samples::write_wav;
+use crate::sample_sources::Rating;
 
 impl AppController {
     /// Save the current waveform selection or marked slice batch into the browser.
@@ -37,11 +38,19 @@ impl AppController {
         &mut self,
         keep_source_focused: bool,
     ) -> Result<(), String> {
+        self.save_waveform_selection_or_slices_to_browser_with_tag(keep_source_focused, None)
+    }
+
+    fn save_waveform_selection_or_slices_to_browser_with_tag(
+        &mut self,
+        keep_source_focused: bool,
+        target_tag: Option<Rating>,
+    ) -> Result<(), String> {
         if !self.ui.waveform.slices.is_empty() {
-            self.start_waveform_slice_batch_export()?;
+            self.start_waveform_slice_batch_export_with_tag(target_tag)?;
             return Ok(());
         }
-        self.save_waveform_selection_to_browser(keep_source_focused)
+        self.save_waveform_selection_to_browser_with_tag(keep_source_focused, target_tag)
     }
 
     /// Save the current waveform selection or slices and surface any failure via status UI.
@@ -49,7 +58,21 @@ impl AppController {
         &mut self,
         keep_source_focused: bool,
     ) {
-        if let Err(err) = self.save_waveform_selection_or_slices_to_browser(keep_source_focused) {
+        self.save_waveform_selection_or_slices_to_browser_action_with_tag(
+            keep_source_focused,
+            None,
+        );
+    }
+
+    /// Save the current waveform selection or slices with an explicit tag.
+    pub(crate) fn save_waveform_selection_or_slices_to_browser_action_with_tag(
+        &mut self,
+        keep_source_focused: bool,
+        target_tag: Option<Rating>,
+    ) {
+        if let Err(err) = self
+            .save_waveform_selection_or_slices_to_browser_with_tag(keep_source_focused, target_tag)
+        {
             self.set_error_status(err);
         }
     }
@@ -132,6 +155,14 @@ impl AppController {
         &mut self,
         keep_source_focused: bool,
     ) -> Result<(), String> {
+        self.save_waveform_selection_to_browser_with_tag(keep_source_focused, None)
+    }
+
+    fn save_waveform_selection_to_browser_with_tag(
+        &mut self,
+        keep_source_focused: bool,
+        target_tag: Option<Rating>,
+    ) -> Result<(), String> {
         let selection = self.active_waveform_selection_for_export()?;
         let folder_override = self
             .selection_state
@@ -163,7 +194,7 @@ impl AppController {
             .jobs
             .begin_selection_export(SelectionExportJob::Clip {
                 request_id,
-                snapshot: self.capture_selection_export_snapshot(selection, None)?,
+                snapshot: self.capture_selection_export_snapshot(selection, target_tag)?,
                 destination: SelectionClipDestination::Browser {
                     keep_source_focused,
                     folder_override,

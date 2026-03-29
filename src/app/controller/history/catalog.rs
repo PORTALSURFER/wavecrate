@@ -51,6 +51,7 @@ pub(crate) const fn catalog_history_handler_supported(
             kind,
             GuiActionKind::NormalizeFocusedBrowserSample
                 | GuiActionKind::SaveWaveformSelectionToBrowser
+                | GuiActionKind::SaveWaveformSelectionToBrowserWithKeep2
         ),
     }
 }

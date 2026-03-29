@@ -91,7 +91,8 @@ const fn gui_history_policy(kind: GuiActionKind, _effect: GuiEffectClass) -> Gui
         | GuiActionKind::AdjustSelectedBrowserRating
         | GuiActionKind::DeleteFocusedFolder => GuiHistoryPolicy::Immediate,
         GuiActionKind::NormalizeFocusedBrowserSample
-        | GuiActionKind::SaveWaveformSelectionToBrowser => GuiHistoryPolicy::Deferred,
+        | GuiActionKind::SaveWaveformSelectionToBrowser
+        | GuiActionKind::SaveWaveformSelectionToBrowserWithKeep2 => GuiHistoryPolicy::Deferred,
         _ => GuiHistoryPolicy::None,
     }
 }
@@ -158,6 +159,7 @@ gui_action_catalog!(
     FocusBrowserRow { visible_row } => { id: "focus_browser_row", surface: Browser, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["browser"], sample: NativeUiAction::FocusBrowserRow { visible_row: 2 } },
     CommitFocusedBrowserRow {} => { id: "commit_focused_browser_row", surface: Browser, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot, DesktopAiv], fixtures: ["browser"], sample: NativeUiAction::CommitFocusedBrowserRow },
     SaveWaveformSelectionToBrowser {} => { id: "save_waveform_selection_to_browser", surface: Waveform, effect: IoJob, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform", "browser"], sample: NativeUiAction::SaveWaveformSelectionToBrowser },
+    SaveWaveformSelectionToBrowserWithKeep2 {} => { id: "save_waveform_selection_to_browser_with_keep2", surface: Waveform, effect: IoJob, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform", "browser"], sample: NativeUiAction::SaveWaveformSelectionToBrowserWithKeep2 },
     CommitWaveformEditFades {} => { id: "commit_waveform_edit_fades", surface: Waveform, effect: Destructive, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::CommitWaveformEditFades },
     DetectWaveformSilenceSlices {} => { id: "detect_waveform_silence_slices", surface: Waveform, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["waveform"], sample: NativeUiAction::DetectWaveformSilenceSlices },
     ToggleBrowserRowSelection { visible_row } => { id: "toggle_browser_row_selection", surface: Browser, effect: Projection, coverage: [SemanticContract, RuntimeInput, ProjectionSnapshot], fixtures: ["browser"], sample: NativeUiAction::ToggleBrowserRowSelection { visible_row: 2 } },

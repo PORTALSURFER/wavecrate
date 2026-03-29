@@ -66,6 +66,8 @@ pub(crate) struct SelectionSliceBatchExportSnapshot {
     pub(crate) slices: Vec<SelectionRange>,
     /// Naming profile for the generated clips.
     pub(crate) profile: crate::app::state::WaveformSliceBatchProfile,
+    /// Tag to assign to each exported clip.
+    pub(crate) target_tag: Option<Rating>,
     /// Captured audio payload.
     pub(crate) audio: SelectionExportAudioPayload,
     /// Whether short edge fades should be applied to new files.
