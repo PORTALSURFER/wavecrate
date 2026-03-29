@@ -52,6 +52,8 @@ pub(super) struct PendingWaveformActions {
     pub(super) clear_selection: bool,
     /// Latest waveform viewport center in normalized micro space.
     pub(super) view_center_micros: Option<u32>,
+    /// Latest exact waveform viewport center in normalized nanounits.
+    pub(super) view_center_nanos: Option<u32>,
     /// Net signed waveform zoom step delta accumulated this frame.
     pub(super) zoom_steps_delta: i16,
     /// Latest queued pointer-anchor ratio for waveform zoom (`0..=1_000_000`).
@@ -70,6 +72,7 @@ impl PendingWaveformActions {
             || self.selection_range_micros.is_some()
             || self.clear_selection
             || self.view_center_micros.is_some()
+            || self.view_center_nanos.is_some()
             || self.zoom_steps_delta != 0
             || self.zoom_to_selection
             || self.zoom_full
@@ -126,8 +129,12 @@ impl PendingWaveformActions {
                 self.clear_selection = true;
                 true
             }
-            NativeUiAction::SetWaveformViewCenter { center_micros } => {
+            NativeUiAction::SetWaveformViewCenter {
+                center_micros,
+                center_nanos,
+            } => {
                 self.view_center_micros = Some((*center_micros).min(1_000_000));
+                self.view_center_nanos = center_nanos.map(|nanos| nanos.min(1_000_000_000));
                 true
             }
             NativeUiAction::ZoomWaveform {
@@ -175,6 +182,7 @@ impl PendingWaveformActions {
             || self.zoom_to_selection
             || self.zoom_steps_delta != 0
             || self.view_center_micros.is_some()
+            || self.view_center_nanos.is_some()
             || self.selection_smart_scale
         {
             DirtyReason::WaveformViewAction
@@ -248,7 +256,10 @@ impl PendingWaveformActions {
             emitted_actions = emitted_actions.saturating_add(1);
         }
         if let Some(center_micros) = self.view_center_micros {
-            emit(NativeUiAction::SetWaveformViewCenter { center_micros });
+            emit(NativeUiAction::SetWaveformViewCenter {
+                center_micros,
+                center_nanos: self.view_center_nanos,
+            });
             emitted_actions = emitted_actions.saturating_add(1);
         }
         if let Some(position_nanos) = self.deduped_cursor_nanos() {
@@ -271,5 +282,6 @@ impl PendingWaveformActions {
             || self.zoom_to_selection
             || self.zoom_full
             || self.view_center_micros.is_some()
+            || self.view_center_nanos.is_some()
     }
 }

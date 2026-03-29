@@ -285,10 +285,28 @@ fn apply_native_waveform_view_center_routes_to_controller_behavior() {
 
     controller.apply_native_ui_action(NativeUiAction::SetWaveformViewCenter {
         center_micros: 700_000,
+        center_nanos: None,
     });
 
     assert!((controller.ui.waveform.view.start - 0.6).abs() < 1.0e-6);
     assert!((controller.ui.waveform.view.end - 0.8).abs() < 1.0e-6);
+}
+
+#[test]
+fn apply_native_waveform_view_center_uses_precise_nanos_when_available() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    controller.ui.waveform.view = crate::app::state::WaveformView {
+        start: 0.5,
+        end: 0.500_000_2,
+    };
+
+    controller.apply_native_ui_action(NativeUiAction::SetWaveformViewCenter {
+        center_micros: 500_000,
+        center_nanos: Some(500_000_050),
+    });
+
+    assert!((controller.ui.waveform.view.start - 0.499_999_95).abs() < 1.0e-9);
+    assert!((controller.ui.waveform.view.end - 0.500_000_15).abs() < 1.0e-9);
 }
 
 #[test]

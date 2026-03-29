@@ -209,9 +209,10 @@ pub(super) fn apply_waveform_native_ui_action(
             controller.clear_waveform_edit_selection_with_focus()
         }
         NativeUiAction::ClearWaveformSelections => controller.clear_waveform_marks_with_focus(),
-        NativeUiAction::SetWaveformViewCenter { center_micros } => {
-            controller.scroll_waveform_view_with_focus(center_micros)
-        }
+        NativeUiAction::SetWaveformViewCenter {
+            center_micros,
+            center_nanos,
+        } => controller.scroll_waveform_view_with_focus(center_micros, center_nanos),
         NativeUiAction::ZoomWaveform {
             zoom_in,
             steps,

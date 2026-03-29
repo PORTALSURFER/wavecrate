@@ -102,10 +102,20 @@ impl AppController {
     }
 
     /// Scroll waveform viewport to a normalized center while preserving waveform focus.
-    pub fn scroll_waveform_view_with_focus(&mut self, center_micros: u32) {
-        self.scroll_waveform_view(
-            f64::from(center_micros.min(1_000_000)) / WAVEFORM_ANCHOR_RATIO_MICROS_SCALE,
-        );
+    ///
+    /// `center_nanos` is authoritative when present so native deep-zoom pan and
+    /// click flows can preserve sub-micro viewport intent end-to-end.
+    pub fn scroll_waveform_view_with_focus(
+        &mut self,
+        center_micros: u32,
+        center_nanos: Option<u32>,
+    ) {
+        let center = center_nanos
+            .map(normalized64_from_nanos)
+            .unwrap_or_else(|| {
+                f64::from(center_micros.min(1_000_000)) / WAVEFORM_ANCHOR_RATIO_MICROS_SCALE
+            });
+        self.scroll_waveform_view(center);
         self.focus_waveform_context();
     }
 

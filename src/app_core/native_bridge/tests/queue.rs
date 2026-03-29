@@ -65,6 +65,7 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
     }));
     assert!(queue.enqueue(&NativeUiAction::SetWaveformViewCenter {
         center_micros: 500_000,
+        center_nanos: None,
     }));
     assert!(queue.enqueue(&NativeUiAction::SetWaveformCursor {
         position_milli: 410,
@@ -93,6 +94,7 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
             },
             NativeUiAction::SetWaveformViewCenter {
                 center_micros: 500_000,
+                center_nanos: None,
             },
             NativeUiAction::SetWaveformCursorPrecise {
                 position_nanos: 410_000_000,
@@ -109,11 +111,14 @@ fn waveform_action_queue_keeps_latest_view_center() {
     let mut queue = PendingWaveformActions::default();
     assert!(queue.enqueue(&NativeUiAction::SetWaveformViewCenter {
         center_micros: 200_000,
+        center_nanos: None,
     }));
     assert!(queue.enqueue(&NativeUiAction::SetWaveformViewCenter {
         center_micros: 700_000,
+        center_nanos: Some(700_000_123),
     }));
     assert_eq!(queue.view_center_micros, Some(700_000));
+    assert_eq!(queue.view_center_nanos, Some(700_000_123));
     assert_eq!(queue.dirty_reason(), DirtyReason::WaveformViewAction);
 }
 
