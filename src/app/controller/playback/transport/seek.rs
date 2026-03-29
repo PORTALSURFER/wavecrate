@@ -30,7 +30,7 @@ pub(crate) fn seek_waveform_nanos(controller: &mut AppController, position_nanos
     clear_selection_for_outside_waveform_seek(controller, normalized);
     seek_to(controller, normalized);
     controller.set_waveform_cursor(normalized as f32);
-    controller.focus_waveform();
+    controller.focus_waveform_context();
 }
 
 /// Queue a waveform seek request and defer playback restart to frame prep.
@@ -45,7 +45,7 @@ pub(crate) fn queue_waveform_seek_nanos(controller: &mut AppController, position
         let normalized = normalized64_from_nanos(clamped);
         seek_to(controller, normalized);
         controller.set_waveform_cursor(normalized as f32);
-        controller.focus_waveform();
+        controller.focus_waveform_context();
         return;
     }
     controller.runtime.pending_waveform_seek_nanos = Some(clamped);
@@ -103,7 +103,7 @@ pub(crate) fn flush_pending_waveform_seek_commit(controller: &mut AppController)
     let normalized = normalized64_from_nanos(position_nanos);
     seek_to(controller, normalized);
     controller.set_waveform_cursor(normalized as f32);
-    controller.focus_waveform();
+    controller.focus_waveform_context();
 }
 
 /// Clear the active playback selection when a waveform seek lands outside it.
@@ -346,5 +346,87 @@ mod tests {
                 .is_some()
         );
         assert_eq!(controller.ui.waveform.cursor, Some(0.75));
+    }
+
+    #[test]
+    fn immediate_waveform_seek_preserves_panned_view_when_starting_playback() {
+        let Some(player) = crate::audio::AudioPlayer::playing_for_tests() else {
+            return;
+        };
+        let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+            "seek_preserves_panned_view.wav",
+            crate::sample_sources::Rating::NEUTRAL,
+        )]);
+        controller.audio.player = Some(Rc::new(RefCell::new(player)));
+        load_waveform_selection(
+            &mut controller,
+            &source,
+            "seek_preserves_panned_view.wav",
+            &[0.0; 64],
+            SelectionRange::new(0.25, 0.75),
+        );
+        controller.selection_state.range.set_range(None);
+        controller.ui.waveform.selection = None;
+        controller.ui.waveform.view = crate::app::state::WaveformView {
+            start: 0.1,
+            end: 0.2,
+        };
+        controller
+            .audio
+            .player
+            .as_ref()
+            .expect("player")
+            .borrow_mut()
+            .stop();
+
+        queue_waveform_seek_nanos(&mut controller, 750_000_000);
+
+        assert_eq!(
+            controller.ui.focus.context,
+            crate::app::state::FocusContext::Waveform
+        );
+        assert!((controller.ui.waveform.view.start - 0.1).abs() < 1.0e-9);
+        assert!((controller.ui.waveform.view.end - 0.2).abs() < 1.0e-9);
+        assert!((controller.ui.waveform.playhead.position - 0.75).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn deferred_waveform_seek_commit_preserves_panned_view_when_playing() {
+        let Some(player) = crate::audio::AudioPlayer::playing_for_tests() else {
+            return;
+        };
+        let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+            "deferred_seek_preserves_panned_view.wav",
+            crate::sample_sources::Rating::NEUTRAL,
+        )]);
+        controller.audio.player = Some(Rc::new(RefCell::new(player)));
+        load_waveform_selection(
+            &mut controller,
+            &source,
+            "deferred_seek_preserves_panned_view.wav",
+            &[0.0; 64],
+            SelectionRange::new(0.25, 0.75),
+        );
+        controller.selection_state.range.set_range(None);
+        controller.ui.waveform.selection = None;
+        controller.ui.waveform.view = crate::app::state::WaveformView {
+            start: 0.1,
+            end: 0.2,
+        };
+        assert!(controller.play_audio(false, None).is_ok());
+
+        queue_waveform_seek_nanos(&mut controller, 750_000_000);
+        controller.runtime.pending_waveform_seek_not_before =
+            Some(Instant::now() - Duration::from_millis(1));
+
+        flush_pending_waveform_seek_commit(&mut controller);
+
+        assert_eq!(
+            controller.ui.focus.context,
+            crate::app::state::FocusContext::Waveform
+        );
+        assert!((controller.ui.waveform.view.start - 0.1).abs() < 1.0e-9);
+        assert!((controller.ui.waveform.view.end - 0.2).abs() < 1.0e-9);
+        assert!((controller.ui.waveform.playhead.position - 0.75).abs() < 1.0e-6);
     }
 }
