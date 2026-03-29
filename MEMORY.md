@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-29T22:16:00Z
+Last Updated: 2026-03-29T22:28:00Z
 Updated By: Codex
 
 ## Purpose
@@ -22,6 +22,7 @@ Updated By: Codex
 - Item 3 refreshed `docs/QUALITY_SCORE.md` so the scorecard now describes the live observed dirty workspace, including the degraded file-size posture and suppression counts.
 - Item 7 added direct mutation-invariant coverage for `entry_mutation`, including DB metadata rewrite, cache lookup rewrite, browser focus path rewrite, and compare-anchor path updates during rename/move flows.
 - Item 10 added direct `gui-test-cli` command-surface coverage by extracting a parse seam and testing argument handling for every supported top-level command without spawning the full app.
+- Item 11 added direct installer-entry coverage by extracting a tiny command-selection/dispatch seam and testing uninstall, dry-run, and default UI launch behavior without starting the installer UI.
 - Item 4 still needs compare-anchor product clarification, item 5 is blocked on that decision, and item 6 still needs pending-rename lifecycle clarification.
 - Item 8 still needs GUI scenario capture-step clarification, and item 9 is blocked on that contract.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
@@ -31,7 +32,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order; item 11 is the next safe executable task after the clarification-gated items 4-6 and 8-9.
+1. Continue Phase 2 strictly in `tmp/improvement_audit_plan.md` order; item 12 is the next safe executable task after the clarification-gated items 4-6 and 8-9.
 2. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` aligned around the current execution lane.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
@@ -39,7 +40,7 @@ Updated By: Codex
 
 ## Work Notes
 
-- Active audit plan: `tmp/improvement_audit_plan.md` (rebuilt on 2026-03-29; Phase 2 started and items 1-3, 7, and 10 are complete)
+- Active audit plan: `tmp/improvement_audit_plan.md` (rebuilt on 2026-03-29; Phase 2 started and items 1-3, 7, 10, and 11 are complete)
 - Current broader hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
