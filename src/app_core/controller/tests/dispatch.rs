@@ -53,6 +53,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
         BrowserSearch(&'static str),
         BrowserSearchFocused(bool),
         BrowserRatingFilter(Vec<i8>),
+        BrowserPlaybackAgeFilter(Vec<crate::app::state::PlaybackAgeFilterChip>),
         RandomNavigationMode(bool),
         MapTab(SampleBrowserTab),
         LoopEnabled(bool),
@@ -99,6 +100,17 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                 invert: true,
             },
             expected: Expected::BrowserRatingFilter(vec![-3, -2, -1, 0, 1, 2, 3]),
+        },
+        Case {
+            label: "browser playback-age invert group",
+            action: NativeUiAction::ToggleBrowserPlaybackAgeFilter {
+                bucket: crate::app_core::actions::NativePlaybackAgeFilterChip::OlderThanWeek,
+                invert: true,
+            },
+            expected: Expected::BrowserPlaybackAgeFilter(vec![
+                crate::app::state::PlaybackAgeFilterChip::NeverPlayed,
+                crate::app::state::PlaybackAgeFilterChip::OlderThanMonth,
+            ]),
         },
         Case {
             label: "browser random toggle group",
@@ -190,6 +202,21 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
                         .browser
                         .search
                         .rating_filter
+                        .iter()
+                        .copied()
+                        .collect::<Vec<_>>(),
+                    expected,
+                    "{}",
+                    case.label
+                );
+            }
+            Expected::BrowserPlaybackAgeFilter(expected) => {
+                assert_eq!(
+                    controller
+                        .ui
+                        .browser
+                        .search
+                        .playback_age_filter
                         .iter()
                         .copied()
                         .collect::<Vec<_>>(),
@@ -327,6 +354,36 @@ fn apply_native_locked_keep_filter_sets_only_locked_level() {
             .collect::<Vec<_>>(),
         vec![4]
     );
+}
+
+#[test]
+fn apply_native_inverted_browser_playback_age_filter_toggles_off_when_reclicked() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+
+    controller.apply_native_ui_action(NativeUiAction::ToggleBrowserPlaybackAgeFilter {
+        bucket: crate::app_core::actions::NativePlaybackAgeFilterChip::OlderThanWeek,
+        invert: true,
+    });
+    assert_eq!(
+        controller
+            .ui
+            .browser
+            .search
+            .playback_age_filter
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![
+            crate::app::state::PlaybackAgeFilterChip::NeverPlayed,
+            crate::app::state::PlaybackAgeFilterChip::OlderThanMonth,
+        ]
+    );
+
+    controller.apply_native_ui_action(NativeUiAction::ToggleBrowserPlaybackAgeFilter {
+        bucket: crate::app_core::actions::NativePlaybackAgeFilterChip::OlderThanWeek,
+        invert: true,
+    });
+    assert!(controller.ui.browser.search.playback_age_filter.is_empty());
 }
 
 #[test]

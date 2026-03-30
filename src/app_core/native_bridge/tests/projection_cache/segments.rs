@@ -72,6 +72,31 @@ fn projection_segment_browser_frame_copies_active_rating_filters() {
     );
 }
 
+/// Retained browser-frame materialization must copy active playback-age filter flags.
+#[test]
+fn projection_segment_browser_frame_copies_active_playback_age_filters() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let mut cache = NativeProjectionCache::default();
+    let _ = cache.resolve_or_project(&mut controller);
+
+    controller.ui.browser.search.playback_age_filter.insert(
+        crate::app::state::PlaybackAgeFilterChip::NeverPlayed,
+    );
+    controller.ui.browser.search.playback_age_filter.insert(
+        crate::app::state::PlaybackAgeFilterChip::OlderThanWeek,
+    );
+    controller.mark_browser_search_projection_revision_dirty();
+
+    let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(
+            NativeDirtySegments::STATUS_BAR | NativeDirtySegments::BROWSER_FRAME
+        )
+    );
+    assert_eq!(model.browser.active_playback_age_filters, [true, false, true]);
+}
+
 #[test]
 fn projection_segment_browser_frame_copies_marked_filter_state() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);

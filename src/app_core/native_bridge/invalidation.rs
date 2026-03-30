@@ -72,6 +72,7 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
             | NativeUiAction::SelectAllBrowserRows
             | NativeUiAction::SetBrowserSearch { .. }
             | NativeUiAction::ToggleBrowserRatingFilter { .. }
+            | NativeUiAction::ToggleBrowserPlaybackAgeFilter { .. }
             | NativeUiAction::ToggleBrowserSampleMark
             | NativeUiAction::ToggleBrowserMarkedFilter
             | NativeUiAction::ToggleBrowserDuplicateCleanupMode
@@ -147,6 +148,7 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::SelectAllBrowserRows
         | NativeUiAction::SetBrowserSearch { .. }
         | NativeUiAction::ToggleBrowserRatingFilter { .. }
+        | NativeUiAction::ToggleBrowserPlaybackAgeFilter { .. }
         | NativeUiAction::ToggleBrowserSampleMark
         | NativeUiAction::ToggleBrowserMarkedFilter
         | NativeUiAction::FocusBrowserPanel

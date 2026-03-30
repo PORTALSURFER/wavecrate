@@ -122,6 +122,31 @@ pub(crate) fn browser_map_point_focus_case() -> GuiAivCase {
     }
 }
 
+pub(crate) fn browser_playback_age_filters_case() -> GuiAivCase {
+    GuiAivCase {
+        name: String::from("browser_playback_age_filters"),
+        fixture_tag: String::from("browser"),
+        viewport: DEFAULT_VIEWPORT,
+        window_title: String::from(GUI_TEST_WINDOW_TITLE),
+        steps: vec![
+            wait_for_node("browser.playback_age_filter.never"),
+            click_node("browser.playback_age_filter.month", None, None),
+            assert_step(GuiAivAssertion::AssertNodeSelected {
+                node_id: String::from("browser.playback_age_filter.month"),
+                selected: true,
+            }),
+            assert_step(GuiAivAssertion::AssertActionRecorded {
+                action_id: String::from("toggle_browser_playback_age_filter"),
+            }),
+            screenshot("browser-playback-age-filters"),
+        ],
+        expected_assertions: vec![GuiAivAssertion::AssertNodeSelected {
+            node_id: String::from("browser.playback_age_filter.month"),
+            selected: true,
+        }],
+    }
+}
+
 pub(crate) fn browser_interior_click_keeps_viewport_after_down_scroll_case() -> GuiAivCase {
     GuiAivCase {
         name: String::from("browser_interior_click_keeps_viewport_after_down_scroll"),

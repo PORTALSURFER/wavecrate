@@ -2,6 +2,7 @@
 
 use super::*;
 use std::sync::OnceLock;
+use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(test)]
 use std::{cell::Cell, thread_local};
 
@@ -50,6 +51,7 @@ impl AppController {
         let query = self.ui.browser.search.search_query.clone();
         let filter = self.ui.browser.search.filter;
         let rating_filter = self.ui.browser.search.rating_filter.clone();
+        let playback_age_filter = self.ui.browser.search.playback_age_filter.clone();
         let marked_only = self.ui.browser.search.marked_only;
         let marked_paths = self.ui.browser.marks.paths_for_source(&source.id);
         let sort = self.ui.browser.search.sort;
@@ -58,6 +60,10 @@ impl AppController {
         let folder_selection = self.folder_selection_for_filter().cloned();
         let folder_negated = self.folder_negation_for_filter().cloned();
         let file_scope_mode = self.folder_file_scope_mode_for_filter().unwrap_or_default();
+        let playback_age_now_unix_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
 
         self.mark_browser_search_projection_revision_dirty();
         self.ui.browser.search.search_busy = true;
@@ -70,6 +76,7 @@ impl AppController {
                 query,
                 filter,
                 rating_filter,
+                playback_age_filter,
                 marked_only,
                 marked_paths,
                 sort,
@@ -78,6 +85,7 @@ impl AppController {
                 folder_selection,
                 folder_negated,
                 file_scope_mode,
+                playback_age_now_unix_secs,
             });
     }
 }

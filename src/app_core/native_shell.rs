@@ -164,6 +164,16 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
             }
             flags
         },
+        active_playback_age_filters: {
+            let mut flags = [false; 3];
+            for (index, chip) in crate::app::state::browser_playback_age_filter_chips()
+                .into_iter()
+                .enumerate()
+            {
+                flags[index] = controller.ui.browser.search.playback_age_filter.contains(&chip);
+            }
+            flags
+        },
         marked_filter_active: controller.ui.browser.search.marked_only,
         waveform_selection_milli: controller.ui.waveform.selection.map(|selection| {
             crate::app_core::actions::NativeNormalizedRangeModel::from_micros(

@@ -34,6 +34,19 @@ impl AppController {
             if let Some(entry) = self.wav_entries.entry_mut(index) {
                 entry.last_played_at = Some(played_at);
             }
+            self.mark_browser_row_metadata_projection_revision_dirty();
+            if self.ui.browser.search.sort == crate::app::state::SampleBrowserSort::PlaybackAgeAsc
+                || self.ui.browser.search.sort
+                    == crate::app::state::SampleBrowserSort::PlaybackAgeDesc
+                || !self.ui.browser.search.playback_age_filter.is_empty()
+            {
+                self.mark_browser_search_projection_revision_dirty();
+                if self.should_dispatch_browser_search_async() {
+                    self.dispatch_search_job();
+                } else {
+                    self.rebuild_browser_lists();
+                }
+            }
         }
         if let Some(cache) = self.cache.wav.entries.get_mut(&source_id)
             && let Some(index) = cache.lookup.get(&relative_path).copied()

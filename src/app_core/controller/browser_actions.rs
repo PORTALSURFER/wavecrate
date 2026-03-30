@@ -185,6 +185,25 @@ pub(super) fn apply_browser_native_ui_action(
                 controller.set_browser_rating_filter(level, true);
             }
         }
+        NativeUiAction::ToggleBrowserPlaybackAgeFilter { bucket, invert } => {
+            controller.focus_browser_list();
+            let chip = match bucket {
+                radiant::app::PlaybackAgeFilterChip::NeverPlayed => {
+                    crate::app::state::PlaybackAgeFilterChip::NeverPlayed
+                }
+                radiant::app::PlaybackAgeFilterChip::OlderThanMonth => {
+                    crate::app::state::PlaybackAgeFilterChip::OlderThanMonth
+                }
+                radiant::app::PlaybackAgeFilterChip::OlderThanWeek => {
+                    crate::app::state::PlaybackAgeFilterChip::OlderThanWeek
+                }
+            };
+            if invert {
+                controller.invert_browser_playback_age_filter(chip);
+            } else {
+                controller.set_browser_playback_age_filter(chip, true);
+            }
+        }
         NativeUiAction::ToggleBrowserSampleMark => {
             controller.focus_browser_list();
             controller.toggle_browser_sample_mark();

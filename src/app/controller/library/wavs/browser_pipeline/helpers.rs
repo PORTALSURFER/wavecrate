@@ -1,5 +1,8 @@
 use super::*;
-use crate::app::state::{SampleBrowserSort, TriageFlagFilter};
+use crate::app::state::{
+    PlaybackAgeBucket, PlaybackAgeFilterChip, SampleBrowserSort, TriageFlagFilter,
+    playback_age_bucket_matches_filters,
+};
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 
@@ -54,10 +57,13 @@ pub(super) fn apply_sort_for_similar(
 pub(super) fn filter_accepts(
     filter: TriageFlagFilter,
     rating_filter: &std::collections::BTreeSet<i8>,
+    playback_age_filter: &std::collections::BTreeSet<PlaybackAgeFilterChip>,
     marked_only: bool,
     marked: bool,
     tag: crate::sample_sources::Rating,
     locked: bool,
+    last_played_at: Option<i64>,
+    playback_age_now_unix_secs: i64,
 ) -> bool {
     let triage_ok = match filter {
         TriageFlagFilter::All => true,
@@ -67,8 +73,12 @@ pub(super) fn filter_accepts(
     };
     let rating_level = browser_rating_filter_level(tag, locked);
     let rating_ok = rating_filter.is_empty() || rating_filter.contains(&rating_level);
+    let playback_age_bucket =
+        PlaybackAgeBucket::from_last_played_at(last_played_at, playback_age_now_unix_secs);
+    let playback_age_ok =
+        playback_age_bucket_matches_filters(playback_age_filter, playback_age_bucket);
     let marked_ok = !marked_only || marked;
-    triage_ok && rating_ok && marked_ok
+    triage_ok && rating_ok && playback_age_ok && marked_ok
 }
 
 /// Return the effective browser rating-filter level for one sample row.

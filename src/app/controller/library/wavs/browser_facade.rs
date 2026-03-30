@@ -56,14 +56,36 @@ impl AppController {
         browser_search::set_browser_rating_filter(self, level, additive);
     }
 
+    /// Apply a playback-age chip filter to the browser list.
+    pub fn set_browser_playback_age_filter(
+        &mut self,
+        chip: crate::app::state::PlaybackAgeFilterChip,
+        additive: bool,
+    ) {
+        browser_search::set_browser_playback_age_filter(self, chip, additive);
+    }
+
     /// Invert one rating chip into the opposite rated bucket in the browser list.
     pub fn invert_browser_rating_filter(&mut self, level: i8) {
         browser_search::invert_browser_rating_filter(self, level);
     }
 
+    /// Invert one playback-age chip into the opposite playback-age buckets in the browser list.
+    pub fn invert_browser_playback_age_filter(
+        &mut self,
+        chip: crate::app::state::PlaybackAgeFilterChip,
+    ) {
+        browser_search::invert_browser_playback_age_filter(self, chip);
+    }
+
     /// Clear any active rating-level filters in the browser list.
     pub fn clear_browser_rating_filter(&mut self) {
         browser_search::clear_browser_rating_filter(self);
+    }
+
+    /// Clear any active playback-age filters in the browser list.
+    pub fn clear_browser_playback_age_filter(&mut self) {
+        browser_search::clear_browser_playback_age_filter(self);
     }
 
     /// Toggle whether the browser shows only session-marked samples.

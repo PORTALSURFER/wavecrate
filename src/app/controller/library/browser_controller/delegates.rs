@@ -165,6 +165,7 @@ impl AppController {
     pub(crate) fn refocus_after_filtered_removal(&mut self, primary_visible_row: usize) {
         if matches!(self.ui.browser.search.filter, TriageFlagFilter::All)
             && self.ui.browser.search.rating_filter.is_empty()
+            && self.ui.browser.search.playback_age_filter.is_empty()
         {
             return;
         }

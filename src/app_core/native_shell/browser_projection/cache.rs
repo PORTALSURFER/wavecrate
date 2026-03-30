@@ -3,6 +3,7 @@
 use super::*;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Hash one relative path into a stable row-identity scalar.
 pub(in crate::app_core::native_shell) fn browser_row_identity_hash(path: &Path) -> u64 {
@@ -93,6 +94,7 @@ struct BrowserRowCacheFingerprint {
     row_identity_hash: u64,
     column_index: usize,
     rating_level: i8,
+    playback_age_bucket: crate::app::state::PlaybackAgeBucket,
     missing: bool,
     looped: bool,
     locked: bool,
@@ -109,6 +111,7 @@ fn cached_browser_row_matches_entry(
     cached.row_identity_hash == fingerprint.row_identity_hash
         && cached.column_index == fingerprint.column_index
         && cached.rating_level == fingerprint.rating_level
+        && cached.playback_age_bucket == fingerprint.playback_age_bucket
         && cached.missing == fingerprint.missing
         && cached.looped == fingerprint.looped
         && cached.locked == fingerprint.locked
@@ -123,7 +126,11 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
     absolute_index: usize,
 ) -> Option<(&ProjectedBrowserRowCacheEntry, bool)> {
     let selected_source_id = controller.selected_source_id();
-    let (entry_tag, row_identity_hash, missing, looped, locked, marked) = controller
+    let playback_age_now_unix_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    let (entry_tag, row_identity_hash, missing, looped, locked, last_played_at, marked) = controller
         .wav_entry(absolute_index)
         .map(|entry| {
             (
@@ -132,19 +139,40 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
                 entry.missing,
                 entry.looped,
                 entry.locked,
+                entry.last_played_at,
                 entry.relative_path.clone(),
             )
         })
         .map(
-            |(entry_tag, row_identity_hash, missing, looped, locked, relative_path)| {
+            |(
+                entry_tag,
+                row_identity_hash,
+                missing,
+                looped,
+                locked,
+                last_played_at,
+                relative_path,
+            )| {
                 let marked = selected_source_id
                     .as_ref()
                     .is_some_and(|source_id| controller.browser_sample_marked(source_id, &relative_path));
-                (entry_tag, row_identity_hash, missing, looped, locked, marked)
+                (
+                    entry_tag,
+                    row_identity_hash,
+                    missing,
+                    looped,
+                    locked,
+                    last_played_at,
+                    marked,
+                )
             },
         )?;
     let column_index = super::browser_column_index(entry_tag);
     let rating_level = entry_tag.val();
+    let playback_age_bucket = crate::app::state::PlaybackAgeBucket::from_last_played_at(
+        last_played_at,
+        playback_age_now_unix_secs,
+    );
     let long_sample_mark = controller
         .cached_feature_status_for_entry(absolute_index)
         .and_then(|status| status.long_sample_mark)
@@ -166,6 +194,7 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
         row_identity_hash,
         column_index,
         rating_level,
+        playback_age_bucket,
         missing,
         looped,
         locked,
@@ -190,6 +219,7 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
             row_label,
             column_index,
             rating_level,
+            playback_age_bucket,
             bucket_label,
             missing,
             looped,

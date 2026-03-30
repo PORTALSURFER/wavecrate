@@ -79,6 +79,7 @@ pub(crate) fn project_browser_rows_model_into(
                     &format!("row {}", visible_row + 1),
                     1,
                     0,
+                    crate::app::state::PlaybackAgeBucket::Fresh,
                     "",
                     false,
                     focused,
@@ -103,6 +104,7 @@ pub(crate) fn project_browser_rows_model_into(
                 &cached_row.row_label,
                 cached_row.column_index,
                 cached_row.rating_level,
+                cached_row.playback_age_bucket,
                 &bucket_label,
                 selected,
                 focused,
@@ -188,17 +190,50 @@ fn browser_duplicate_cleanup_bucket_label(
     tags.join(" · ")
 }
 
+/// Convert one app-core playback-age bucket into the native radiant contract enum.
+fn native_playback_age_bucket(
+    bucket: crate::app::state::PlaybackAgeBucket,
+) -> crate::app_core::actions::NativePlaybackAgeBucket {
+    match bucket {
+        crate::app::state::PlaybackAgeBucket::Fresh => {
+            crate::app_core::actions::NativePlaybackAgeBucket::Fresh
+        }
+        crate::app::state::PlaybackAgeBucket::OlderThanWeek => {
+            crate::app_core::actions::NativePlaybackAgeBucket::OlderThanWeek
+        }
+        crate::app::state::PlaybackAgeBucket::OlderThanMonth => {
+            crate::app_core::actions::NativePlaybackAgeBucket::OlderThanMonth
+        }
+        crate::app::state::PlaybackAgeBucket::NeverPlayed => {
+            crate::app_core::actions::NativePlaybackAgeBucket::NeverPlayed
+        }
+    }
+}
+
 /// Write one browser row into `rows[offset]`, reusing existing `String` buffers.
 fn write_browser_row_into_slot(
     rows: &mut Vec<BrowserRowModel>,
     offset: usize,
-    projection: (usize, &str, usize, i8, &str, bool, bool, bool, bool, bool),
+    projection: (
+        usize,
+        &str,
+        usize,
+        i8,
+        crate::app::state::PlaybackAgeBucket,
+        &str,
+        bool,
+        bool,
+        bool,
+        bool,
+        bool,
+    ),
 ) {
     let (
         visible_row,
         row_label,
         column_index,
         rating_level,
+        playback_age_bucket,
         bucket_label,
         selected,
         focused,
@@ -208,6 +243,7 @@ fn write_browser_row_into_slot(
     ) = projection;
     let bucket_label = (!bucket_label.is_empty()).then_some(bucket_label);
     let clamped_column_index = column_index.min(2);
+    let native_playback_age_bucket = native_playback_age_bucket(playback_age_bucket);
     if let Some(row) = rows.get_mut(offset) {
         if row.visible_row == visible_row && row.column == clamped_column_index {
             row.selected = selected;
@@ -216,6 +252,7 @@ fn write_browser_row_into_slot(
             row.locked = locked;
             row.marked = marked;
             row.rating_level = rating_level.clamp(-3, 3);
+            row.playback_age_bucket = native_playback_age_bucket;
             if row.label == row_label && row.bucket_label.as_deref() == bucket_label {
                 return;
             }
@@ -227,6 +264,7 @@ fn write_browser_row_into_slot(
         }
         row.column = clamped_column_index;
         row.rating_level = rating_level.clamp(-3, 3);
+        row.playback_age_bucket = native_playback_age_bucket;
         row.selected = selected;
         row.focused = focused;
         row.missing = missing;
@@ -248,6 +286,7 @@ fn write_browser_row_into_slot(
     }
     let mut row = BrowserRowModel::new(visible_row, row_label, column_index, selected, focused)
         .with_rating_level(rating_level)
+        .with_playback_age_bucket(native_playback_age_bucket)
         .with_missing(missing)
         .with_locked(locked)
         .with_marked(marked);

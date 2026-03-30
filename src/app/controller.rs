@@ -78,6 +78,8 @@ pub(crate) struct ProjectedBrowserRowCacheEntry {
     pub column_index: usize,
     /// Signed keep/trash rating level for this row (`-3..=3`).
     pub rating_level: i8,
+    /// Playback-age bucket projected for row-aging visuals.
+    pub playback_age_bucket: crate::app::state::PlaybackAgeBucket,
     /// Stable rendered inline metadata label for the browser list row.
     pub bucket_label: String,
     /// Whether the backing sample file is currently marked missing.

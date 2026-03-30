@@ -179,6 +179,7 @@ fn make_search_job(query: &str) -> SearchJob {
         query: query.to_string(),
         filter: TriageFlagFilter::All,
         rating_filter: BTreeSet::new(),
+        playback_age_filter: BTreeSet::new(),
         marked_only: false,
         marked_paths: BTreeSet::new(),
         sort: SampleBrowserSort::ListOrder,
@@ -187,5 +188,6 @@ fn make_search_job(query: &str) -> SearchJob {
         folder_selection: None,
         folder_negated: None,
         file_scope_mode: crate::app::state::FolderFileScopeMode::AllDescendants,
+        playback_age_now_unix_secs: 0,
     }
 }

@@ -1,16 +1,22 @@
 //! Folder and tag filtering helpers for search worker pipeline execution.
 
 use super::*;
+use crate::app::state::{
+    PlaybackAgeBucket, PlaybackAgeFilterChip, playback_age_bucket_matches_filters,
+};
 use std::path::Path;
 
 /// Return whether a tag passes the active triage + rating filter settings.
 pub(super) fn filter_accepts_tag(
     filter: TriageFlagFilter,
     rating_filter: &std::collections::BTreeSet<i8>,
+    playback_age_filter: &std::collections::BTreeSet<PlaybackAgeFilterChip>,
     marked_only: bool,
     marked: bool,
     tag: Rating,
     locked: bool,
+    last_played_at: Option<i64>,
+    playback_age_now_unix_secs: i64,
 ) -> bool {
     let triage_ok = match filter {
         TriageFlagFilter::All => true,
@@ -20,8 +26,12 @@ pub(super) fn filter_accepts_tag(
     };
     let rating_level = browser_rating_filter_level(tag, locked);
     let rating_ok = rating_filter.is_empty() || rating_filter.contains(&rating_level);
+    let playback_age_bucket =
+        PlaybackAgeBucket::from_last_played_at(last_played_at, playback_age_now_unix_secs);
+    let playback_age_ok =
+        playback_age_bucket_matches_filters(playback_age_filter, playback_age_bucket);
     let marked_ok = !marked_only || marked;
-    triage_ok && rating_ok && marked_ok
+    triage_ok && rating_ok && playback_age_ok && marked_ok
 }
 
 /// Return the effective browser rating-filter level for one worker entry.
@@ -142,42 +152,57 @@ mod tests {
         assert!(filter_accepts_tag(
             TriageFlagFilter::All,
             &rating_filter,
+            &BTreeSet::new(),
             false,
             true,
             Rating::KEEP_3,
             true,
+            None,
+            0,
         ));
         assert!(!filter_accepts_tag(
             TriageFlagFilter::All,
             &rating_filter,
+            &BTreeSet::new(),
             false,
             false,
             Rating::KEEP_3,
             false,
+            None,
+            0,
         ));
         assert!(!filter_accepts_tag(
             TriageFlagFilter::All,
             &rating_filter,
+            &BTreeSet::new(),
             false,
             false,
             Rating::TRASH_3,
             true,
+            None,
+            0,
         ));
         assert!(!filter_accepts_tag(
             TriageFlagFilter::All,
             &BTreeSet::from([3]),
+            &BTreeSet::new(),
             false,
             true,
             Rating::KEEP_3,
             true,
+            None,
+            0,
         ));
         assert!(filter_accepts_tag(
             TriageFlagFilter::All,
             &BTreeSet::from([3, 4]),
+            &BTreeSet::new(),
             false,
             true,
             Rating::KEEP_3,
             true,
+            None,
+            0,
         ));
     }
 
@@ -226,6 +251,7 @@ mod tests {
             query: query.to_string(),
             filter: TriageFlagFilter::All,
             rating_filter: BTreeSet::new(),
+            playback_age_filter: BTreeSet::new(),
             marked_only: false,
             marked_paths: BTreeSet::new(),
             sort: SampleBrowserSort::ListOrder,
@@ -234,6 +260,7 @@ mod tests {
             folder_selection: Some(BTreeSet::from([PathBuf::from("group")])),
             folder_negated: None,
             file_scope_mode: crate::app::state::FolderFileScopeMode::AllDescendants,
+            playback_age_now_unix_secs: 0,
         }
     }
 }

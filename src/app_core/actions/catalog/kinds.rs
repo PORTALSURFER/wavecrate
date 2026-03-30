@@ -162,6 +162,8 @@ pub enum GuiActionKind {
     SetBrowserSearch,
     /// Toggle one browser rating-filter chip.
     ToggleBrowserRatingFilter,
+    /// Toggle one browser playback-age filter chip.
+    ToggleBrowserPlaybackAgeFilter,
     /// Toggle the temporary browser sample mark for the focused row or selection.
     ToggleBrowserSampleMark,
     /// Toggle whether the browser shows only temporary marked rows.
@@ -374,7 +376,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 182] = [
+    pub const ALL: [Self; 183] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -453,6 +455,7 @@ impl GuiActionKind {
         Self::SelectAllBrowserRows,
         Self::SetBrowserSearch,
         Self::ToggleBrowserRatingFilter,
+        Self::ToggleBrowserPlaybackAgeFilter,
         Self::ToggleBrowserSampleMark,
         Self::ToggleBrowserMarkedFilter,
         Self::ToggleRandomNavigationMode,

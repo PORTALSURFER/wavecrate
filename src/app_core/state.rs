@@ -48,6 +48,12 @@ pub type TriageFlagColumn = app_state::TriageFlagColumn;
 /// Browser row filter used by the sample table.
 pub type TriageFlagFilter = app_state::TriageFlagFilter;
 
+/// Browser playback-age filter chip state.
+pub type PlaybackAgeFilterChip = app_state::PlaybackAgeFilterChip;
+
+/// Browser playback-age row-visual bucket state.
+pub type PlaybackAgeBucket = app_state::PlaybackAgeBucket;
+
 /// Update status exposed by migration-facing projections.
 pub type UpdateStatus = app_state::UpdateStatus;
 

@@ -96,6 +96,7 @@ fn apply_browser_frame(model: &mut NativeAppModel, frame: NativeBrowserPanelMode
     model.browser.selected_path_count = frame.selected_path_count;
     model.browser.search_query = frame.search_query;
     model.browser.active_rating_filters = frame.active_rating_filters;
+    model.browser.active_playback_age_filters = frame.active_playback_age_filters;
     model.browser.marked_filter_active = frame.marked_filter_active;
     model.browser.search_placeholder = frame.search_placeholder;
     model.browser.busy = frame.busy;

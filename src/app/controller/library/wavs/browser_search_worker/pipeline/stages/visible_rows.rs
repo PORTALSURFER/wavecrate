@@ -24,6 +24,7 @@ pub(in super::super) fn build_fast_path_result_if_applicable(
         || job.duplicate_cleanup.is_some()
         || job.sort != SampleBrowserSort::ListOrder
         || !job.rating_filter.is_empty()
+        || !job.playback_age_filter.is_empty()
         || job.marked_only
     {
         return None;
@@ -128,10 +129,13 @@ pub(in super::super) fn build_visible_rows_for_job(
         if !filter_accepts_tag(
             job.filter,
             &job.rating_filter,
+            &job.playback_age_filter,
             job.marked_only,
             marked,
             entry.tag,
             entry.locked,
+            entry.last_played_at,
+            job.playback_age_now_unix_secs,
         )
             || !folder_accepts_index(folder_accepts.as_ref(), index)
         {
@@ -221,10 +225,13 @@ fn build_visible_rows_for_similar(
                 filter_accepts_tag(
                     job.filter,
                     &job.rating_filter,
+                    &job.playback_age_filter,
                     job.marked_only,
                     marked,
                     entry.tag,
                     entry.locked,
+                    entry.last_played_at,
+                    job.playback_age_now_unix_secs,
                 )
             }
             && folder_accepts_index(folder_accepts, index)
@@ -259,11 +266,14 @@ fn build_visible_rows_for_similar(
             && filter_accepts_tag(
                 job.filter,
                 &job.rating_filter,
+                &job.playback_age_filter,
                 job.marked_only,
                 job.marked_paths
                     .contains(Path::new(entry.relative_path.as_ref())),
                 entry.tag,
                 entry.locked,
+                entry.last_played_at,
+                job.playback_age_now_unix_secs,
             )
             && folder_accepts_index(folder_accepts, anchor)
         {

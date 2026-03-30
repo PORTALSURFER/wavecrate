@@ -42,6 +42,8 @@ pub(crate) struct SearchJob {
     pub(crate) filter: crate::app::state::TriageFlagFilter,
     /// Rating levels selected for filtering (`-3..=3`, plus `4` for locked keeps).
     pub(crate) rating_filter: BTreeSet<i8>,
+    /// Playback-age chips selected for filtering older or never-played samples.
+    pub(crate) playback_age_filter: BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
     /// Whether the result set should keep only session-marked samples.
     pub(crate) marked_only: bool,
     /// Session-marked sample paths for the active source.
@@ -52,6 +54,8 @@ pub(crate) struct SearchJob {
     pub(crate) folder_selection: Option<BTreeSet<PathBuf>>,
     pub(crate) folder_negated: Option<BTreeSet<PathBuf>>,
     pub(crate) file_scope_mode: crate::app::state::FolderFileScopeMode,
+    /// Reference timestamp used to classify playback-age buckets consistently within one job.
+    pub(crate) playback_age_now_unix_secs: i64,
 }
 
 #[derive(Debug)]

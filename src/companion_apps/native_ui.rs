@@ -118,6 +118,7 @@ pub fn standard_browser_panel(config: CompanionBrowserPanelConfig) -> BrowserPan
         selected_path_count: config.selected_path_count,
         search_query: config.search_query,
         active_rating_filters: [false; 8],
+        active_playback_age_filters: [false; 3],
         marked_filter_active: false,
         search_placeholder: config.search_placeholder,
         busy: config.busy,

@@ -3,6 +3,7 @@ use super::folder_stage::{ensure_folder_acceptance_stage, folder_accepts};
 use super::*;
 use crate::app::state::BrowserDuplicateCleanupState;
 use crate::app::state::{SampleBrowserSort, TriageFlagFilter, VisibleRows};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Build browser visible rows from retained staged pipeline caches.
 pub(crate) fn build_visible_rows(
@@ -19,7 +20,13 @@ pub(crate) fn build_visible_rows(
     let filter = controller.ui.browser.search.filter;
     let rating_filter = controller.ui.browser.search.rating_filter.clone();
     let rating_filter_hash = helpers::hash_value(&rating_filter);
+    let playback_age_filter = controller.ui.browser.search.playback_age_filter.clone();
+    let playback_age_filter_hash = helpers::hash_value(&playback_age_filter);
     let marked_only = controller.ui.browser.search.marked_only;
+    let playback_age_now_unix_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
     let marked_revision = controller.ui.browser.marks.revision;
     let selected_source_id = controller.selection_state.ctx.selected_source.clone();
     let folder_selection = controller.folder_selection_for_filter().cloned();
@@ -55,6 +62,7 @@ pub(crate) fn build_visible_rows(
         && sort_mode == SampleBrowserSort::ListOrder
         && filter == TriageFlagFilter::All
         && controller.ui.browser.search.rating_filter.is_empty()
+        && controller.ui.browser.search.playback_age_filter.is_empty()
         && !marked_only
         && !has_folder_filters
     {
@@ -67,7 +75,10 @@ pub(crate) fn build_visible_rows(
         filter,
         &rating_filter,
         rating_filter_hash,
+        &playback_age_filter,
+        playback_age_filter_hash,
         marked_only,
+        playback_age_now_unix_secs,
         marked_revision,
         selected_source_id.as_ref(),
         folder_hash,
@@ -112,7 +123,10 @@ fn ensure_filtered_stage(
     filter: TriageFlagFilter,
     rating_filter: &std::collections::BTreeSet<i8>,
     rating_filter_hash: u64,
+    playback_age_filter: &std::collections::BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
+    playback_age_filter_hash: u64,
     marked_only: bool,
+    playback_age_now_unix_secs: i64,
     marked_revision: u64,
     selected_source_id: Option<&crate::sample_sources::SourceId>,
     folder_hash: u64,
@@ -123,6 +137,8 @@ fn ensure_filtered_stage(
         base_fingerprint_hash,
         helpers::filter_key(filter),
         rating_filter_hash,
+        playback_age_filter_hash,
+        (!playback_age_filter.is_empty()).then_some(playback_age_now_unix_secs),
         marked_only,
         marked_revision,
         folder_hash,
@@ -132,9 +148,16 @@ fn ensure_filtered_stage(
         let mut filtered_rows = Vec::with_capacity(base_len);
         for row in 0..base_len {
             let index = controller.ui_cache.browser.pipeline.base_rows[row];
-            let Some((tag, locked, relative_path)) = controller
+            let Some((tag, locked, last_played_at, relative_path)) = controller
                 .wav_entry(index)
-                .map(|entry| (entry.tag, entry.locked, entry.relative_path.clone()))
+                .map(|entry| {
+                    (
+                        entry.tag,
+                        entry.locked,
+                        entry.last_played_at,
+                        entry.relative_path.clone(),
+                    )
+                })
             else {
                 continue;
             };
@@ -143,10 +166,13 @@ fn ensure_filtered_stage(
             if !helpers::filter_accepts(
                 filter,
                 rating_filter,
+                playback_age_filter,
                 marked_only,
                 marked,
                 tag,
                 locked,
+                last_played_at,
+                playback_age_now_unix_secs,
             ) {
                 continue;
             }
@@ -179,14 +205,26 @@ fn ensure_sorted_stage_for_similar(
     }
 
     let rating_filter = controller.ui.browser.search.rating_filter.clone();
+    let playback_age_filter = controller.ui.browser.search.playback_age_filter.clone();
     let filter = controller.ui.browser.search.filter;
     let marked_only = controller.ui.browser.search.marked_only;
+    let playback_age_now_unix_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
     let selected_source_id = controller.selection_state.ctx.selected_source.clone();
     let mut visible = Vec::with_capacity(similar.indices.len());
     for index in similar.indices.iter().copied() {
-        let Some((tag, locked, relative_path)) = controller
+        let Some((tag, locked, last_played_at, relative_path)) = controller
             .wav_entry(index)
-            .map(|entry| (entry.tag, entry.locked, entry.relative_path.clone()))
+            .map(|entry| {
+                (
+                    entry.tag,
+                    entry.locked,
+                    entry.last_played_at,
+                    entry.relative_path.clone(),
+                )
+            })
         else {
             continue;
         };
@@ -196,10 +234,13 @@ fn ensure_sorted_stage_for_similar(
         if !helpers::filter_accepts(
             filter,
             &rating_filter,
+            &playback_age_filter,
             marked_only,
             marked,
             tag,
             locked,
+            last_played_at,
+            playback_age_now_unix_secs,
         ) {
             continue;
         }

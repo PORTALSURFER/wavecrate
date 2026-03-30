@@ -38,6 +38,8 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
     let search_query = controller.ui.browser.search.search_query.clone();
     let active_rating_filters =
         browser_rating_filter_flags(&controller.ui.browser.search.rating_filter);
+    let active_playback_age_filters =
+        browser_playback_age_filter_flags(&controller.ui.browser.search.playback_age_filter);
     let marked_filter_active = controller.ui.browser.search.marked_only;
     let search_placeholder = Some(super::browser_search_placeholder(
         controller.ui.browser.search.search_focus_requested,
@@ -67,6 +69,7 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         selected_path_count,
         search_query,
         active_rating_filters,
+        active_playback_age_filters,
         marked_filter_active,
         search_placeholder,
         busy,
@@ -97,6 +100,20 @@ fn browser_rating_filter_flags(rating_filter: &std::collections::BTreeSet<i8>) -
     let mut flags = [false; 8];
     for (index, level) in [-3, -2, -1, 0, 1, 2, 3, 4].into_iter().enumerate() {
         flags[index] = rating_filter.contains(&level);
+    }
+    flags
+}
+
+/// Project active browser playback-age filters into a fixed chip-state array.
+fn browser_playback_age_filter_flags(
+    playback_age_filter: &std::collections::BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
+) -> [bool; 3] {
+    let mut flags = [false; 3];
+    for (index, chip) in crate::app::state::browser_playback_age_filter_chips()
+        .into_iter()
+        .enumerate()
+    {
+        flags[index] = playback_age_filter.contains(&chip);
     }
     flags
 }
