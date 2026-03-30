@@ -22,6 +22,7 @@ Status: Phase 2 execution is paused after the safe executable backlog was burned
 - 2026-03-30: Burned down the clean root-side file-size debt in phased splits across `analysis::audio`, controller runtime/audio-loading helpers, and multiple oversized test modules, landing commits `30326f28`, `ee6cd2b7`, and `38bed509` plus the current follow-up root-side split pass.
 - 2026-03-30: Re-ran the full serial lib suite and `devcheck`; remaining file-budget debt is now limited to the clarification-gated `src/gui_test/runner.rs`, the user-dirty `src/app_core/controller/tests/browser_sources.rs`, and user-dirty `vendor/radiant/**` hotspots.
 - 2026-03-30: Re-ran `scripts/ci_agent.ps1` after the follow-up root-side split pass; the agent-safe lane is green, and the remaining backlog is now purely clarification-gated or blocked on unrelated dirty files.
+- 2026-03-30: Resolved item 2 by documenting compare-anchor as a transient playback aid outside the meaningful undo/redo contract and adding regression coverage that keeps compare-anchor state stable across meaningful UI undo/redo.
 
 ## Repository Context
 
@@ -94,7 +95,7 @@ Status: Phase 2 execution is paused after the safe executable backlog was burned
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Plan order deviation: none
 
-### 2. [!] Clarify whether compare-anchor state is part of the “meaningful UI” undo/redo contract
+### 2. [x] Clarify whether compare-anchor state is part of the “meaningful UI” undo/redo contract
 
 - Classification: Product-definition gap
 - Confidence: High
@@ -106,14 +107,22 @@ Status: Phase 2 execution is paused after the safe executable backlog was burned
   - `src/app/controller/playback/compare_anchor.rs:7`, `src/app/controller/playback/compare_anchor.rs:38`, `src/app/controller/playback/compare_anchor.rs:120`, `src/app/controller/playback/compare_anchor.rs:146`, and `src/app/controller/playback/compare_anchor.rs:168` set, replay, clear, rewrite, and assign compare-anchor state.
   - `src/app/controller/history.rs:46-80` and `src/app/controller/history.rs:133-162` define and populate `MeaningfulUiSnapshot`, but do not capture compare-anchor fields.
   - `src/app/controller/tests/compare_anchor.rs` covers set/replay/missing-anchor behavior, but there is no undo/redo coverage for compare-anchor state.
-- Recommended change: decide whether compare-anchor is meaningful undo state. If yes, add it to snapshot capture/restore and cover it with history tests. If not, document the explicit exemption in the behavior/design docs.
+- Recommended change: keep compare-anchor out of `MeaningfulUiSnapshot`, document it explicitly as a transient playback aid, and cover that exemption with a focused history regression test.
 - Expected impact: resolves a live ambiguity in a user-facing audition workflow and prevents future undo/redo changes from silently widening or narrowing the contract.
 - Risks / tradeoffs: medium; treating compare-anchor as undoable broadens snapshot churn, while exempting it weakens the repo’s “uniform undo” story.
 - Dependencies: none
 - Suggested validation:
   - focused compare-anchor/history undo tests
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Product clarification required: Yes
+- Product clarification required: No
+- Completed: 2026-03-30
+- Commit: pending
+- Assumptions: compare-anchor remains a transient audition helper rather than curation/edit state because it does not directly mutate browser, metadata, or waveform edit state.
+- Validation:
+  - `cargo test compare_anchor --lib -- --test-threads=1`
+  - `cargo test history_transactions --lib -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: none
 
 ### 3. [x] Put crop-to-new-sample undo/redo on the same snapshot-restore path as other async selection exports
 
@@ -304,20 +313,6 @@ Status: Phase 2 execution is paused after the safe executable backlog was burned
 - Plan order deviation: items 4-7 remained blocked on clarification/dependency, so item 8 was executed next as the highest-value safe item.
 
 ## Open Questions / Missing Definitions
-
-### [!] 1. Should compare-anchor state participate in undo/redo?
-
-- Evidence:
-  - `docs/design_principles.md:126-134` promises uniform undo/redo semantics for meaningful in-session workflows.
-  - `src/app/controller/playback/compare_anchor.rs` mutates compare-anchor state directly.
-  - `src/app/controller/history.rs` does not currently snapshot or restore compare-anchor fields.
-- Why this matters: implementation order for history fixes and tests depends on whether compare-anchor is meant to be transient or undoable.
-- Affected files/modules:
-  - `src/app/controller/playback/compare_anchor.rs`
-  - `src/app/controller/history.rs`
-  - `src/app/controller/tests/compare_anchor.rs`
-- Risk if guessed incorrectly: undo/redo either remains surprisingly incomplete or silently widens around a state the maintainers intended to keep transient.
-- Most conservative provisional assumption: do not widen or narrow the undo contract until compare-anchor semantics are explicitly defined.
 
 ### [!] 2. What is the intended lifecycle for unmatched `pending_wav_renames` rows?
 

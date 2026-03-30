@@ -4,9 +4,15 @@ use std::path::Path;
 
 impl AppController {
     /// Store the currently focused browser sample as the compare anchor.
+    ///
+    /// Compare-anchor state is a transient playback aid and is intentionally
+    /// excluded from snapshot-based undo/redo.
     pub(crate) fn set_compare_anchor_from_focused_browser_sample(&mut self) {
         let Some(source) = self.current_source() else {
-            self.set_status("Select a source before setting a compare anchor", StatusTone::Info);
+            self.set_status(
+                "Select a source before setting a compare anchor",
+                StatusTone::Info,
+            );
             return;
         };
         let Some(row) = self.focused_browser_row() else {
@@ -59,7 +65,10 @@ impl AppController {
             .is_err()
         {
             self.clear_compare_anchor();
-            self.set_status("Compare anchor file is no longer available", StatusTone::Warning);
+            self.set_status(
+                "Compare anchor file is no longer available",
+                StatusTone::Warning,
+            );
             return;
         }
         let loaded_matches = self
@@ -88,16 +97,19 @@ impl AppController {
             .pending_audio()
             .as_ref()
             .is_some_and(|pending| {
-                pending.source_id == anchor.source_id && pending.relative_path == anchor.relative_path
+                pending.source_id == anchor.source_id
+                    && pending.relative_path == anchor.relative_path
             })
         {
-            self.runtime.jobs.set_pending_playback(Some(PendingPlayback {
-                source_id: anchor.source_id,
-                relative_path: anchor.relative_path,
-                looped: self.ui.waveform.loop_enabled,
-                start_override: None,
-                force_loaded_audio: true,
-            }));
+            self.runtime
+                .jobs
+                .set_pending_playback(Some(PendingPlayback {
+                    source_id: anchor.source_id,
+                    relative_path: anchor.relative_path,
+                    looped: self.ui.waveform.loop_enabled,
+                    start_override: None,
+                    force_loaded_audio: true,
+                }));
             return;
         }
         if let Err(err) = self.queue_audio_load_for(
@@ -117,6 +129,8 @@ impl AppController {
     }
 
     /// Clear the compare anchor state and its projected UI metadata.
+    ///
+    /// The compare anchor is not part of the meaningful undo/redo snapshot.
     pub(crate) fn clear_compare_anchor(&mut self) {
         self.sample_view.wav.compare_anchor = None;
         self.ui.compare_anchor = None;
