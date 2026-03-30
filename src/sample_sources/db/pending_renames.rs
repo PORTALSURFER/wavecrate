@@ -97,6 +97,9 @@ impl SourceDatabase {
 
 impl<'conn> SourceWriteBatch<'conn> {
     /// Retain metadata for a pruned file row so later scans can recover tags on rename.
+    ///
+    /// Quick scans keep these rows around so a later deep-hash pass or follow-up
+    /// quick scan can reconcile path changes without losing user metadata.
     pub(crate) fn stage_pending_rename(&mut self, entry: &WavEntry) -> Result<(), SourceDbError> {
         let path = normalize_relative_path(&entry.relative_path)?;
         self.tx
@@ -148,6 +151,17 @@ impl<'conn> SourceWriteBatch<'conn> {
         relative_path: &Path,
     ) -> Result<(), SourceDbError> {
         self.clear_pending_rename(relative_path)
+    }
+
+    /// Drop every retained rename candidate.
+    ///
+    /// Hard rescans use this to treat the current disk walk as authoritative and
+    /// prune any unmatched quick-scan rename rows that are still hanging around.
+    pub(crate) fn clear_all_pending_renames(&mut self) -> Result<(), SourceDbError> {
+        self.tx
+            .execute("DELETE FROM pending_wav_renames", [])
+            .map_err(map_sql_error)?;
+        Ok(())
     }
 
     /// Claim one unique retained rename candidate by content hash.

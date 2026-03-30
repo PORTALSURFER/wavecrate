@@ -17,7 +17,8 @@ pub enum ScanMode {
     /// Update the database with new/modified files and mark missing entries.
     /// Full hashing is staged for large files to keep quick scans responsive.
     Quick,
-    /// Force a full rescan, pruning missing rows to rebuild state from disk.
+    /// Force a full rescan, pruning missing rows and unmatched pending renames
+    /// to rebuild state from disk.
     Hard,
 }
 
@@ -27,7 +28,8 @@ pub fn scan_once(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
     scan(db, ScanMode::Quick, None, None)
 }
 
-/// Rescan the entire source, pruning rows for files that no longer exist.
+/// Rescan the entire source, pruning rows for files that no longer exist and
+/// clearing any unmatched pending rename rows left over from prior quick scans.
 pub fn hard_rescan(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
     scan(db, ScanMode::Hard, None, None)
 }

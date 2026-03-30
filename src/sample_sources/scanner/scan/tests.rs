@@ -142,6 +142,7 @@ fn hard_rescan_prunes_missing_rows() {
     assert_eq!(stats.missing, 0);
     let rows = db.list_files().unwrap();
     assert!(rows.is_empty());
+    assert!(db.list_pending_renames().unwrap().is_empty());
 }
 
 #[test]
@@ -312,6 +313,7 @@ fn hard_rescan_prunes_missing_files_with_tags() {
     assert_eq!(stats.missing, 0);
     let rows = db.list_files().unwrap();
     assert!(rows.is_empty());
+    assert!(db.list_pending_renames().unwrap().is_empty());
 }
 
 #[test]
@@ -332,6 +334,7 @@ fn hard_rescan_prunes_missing_without_touching_existing() {
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, Path::new("keep.wav"));
+    assert!(db.list_pending_renames().unwrap().is_empty());
 }
 
 #[cfg(unix)]

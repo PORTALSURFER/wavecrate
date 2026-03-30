@@ -4,7 +4,7 @@ use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::META_LAST_SCAN_COMPLETED_AT;
 use crate::sample_sources::db::SourceWriteBatch;
 
-use super::scan::{ScanContext, ScanError};
+use super::scan::{ScanContext, ScanError, ScanMode};
 use super::scan_diff::mark_missing;
 
 pub(super) fn db_sync_phase(
@@ -15,6 +15,9 @@ pub(super) fn db_sync_phase(
     let existing = std::mem::take(&mut context.existing);
     let mut batch = batch;
     mark_missing(&mut batch, existing, &mut context.stats, context.mode)?;
+    if context.mode == ScanMode::Hard {
+        batch.clear_all_pending_renames()?;
+    }
     batch.commit()?;
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
