@@ -60,6 +60,7 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
         NativeUiAction::MoveBrowserFocus { .. }
             | NativeUiAction::SetBrowserViewStart { .. }
             | NativeUiAction::FocusBrowserRow { .. }
+            | NativeUiAction::AdjustSelectedBrowserRating { .. }
             | NativeUiAction::ToggleBrowserRowSelection { .. }
             | NativeUiAction::StartBrowserSampleDrag { .. }
             | NativeUiAction::UpdateBrowserSampleDrag { .. }
@@ -73,6 +74,7 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
             | NativeUiAction::SetBrowserSearch { .. }
             | NativeUiAction::ToggleBrowserRatingFilter { .. }
             | NativeUiAction::ToggleBrowserPlaybackAgeFilter { .. }
+            | NativeUiAction::TagBrowserSelection { .. }
             | NativeUiAction::ToggleBrowserSampleMark
             | NativeUiAction::ToggleBrowserMarkedFilter
             | NativeUiAction::ToggleBrowserDuplicateCleanupMode
@@ -135,6 +137,7 @@ pub(super) fn classify_dirty_source(
         NativeUiAction::MoveBrowserFocus { .. }
         | NativeUiAction::SetBrowserViewStart { .. }
         | NativeUiAction::FocusBrowserRow { .. }
+        | NativeUiAction::AdjustSelectedBrowserRating { .. }
         | NativeUiAction::CommitFocusedBrowserRow
         | NativeUiAction::ToggleBrowserRowSelection { .. }
         | NativeUiAction::StartBrowserSampleDrag { .. }

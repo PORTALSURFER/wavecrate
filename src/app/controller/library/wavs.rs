@@ -38,6 +38,7 @@ pub mod waveform_rendering;
 
 mod waveform_view;
 
+pub(crate) use browser_actions::{BrowserReviewFollowUpPlan, BrowserReviewLinearMode};
 pub(crate) use browser_pipeline::BrowserPipelineCache;
 pub(crate) use browser_search::BrowserSearchCache;
 #[cfg(test)]

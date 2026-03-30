@@ -77,6 +77,60 @@ fn mark_dirty_for_browser_focus_action_stays_targeted() {
     );
 }
 
+/// Browser review mutation actions should dirty waveform state alongside browser state.
+#[test]
+fn mark_dirty_for_browser_review_actions_marks_waveform_state_too() {
+    let actions = [
+        NativeUiAction::ToggleBrowserSampleMark,
+        NativeUiAction::AdjustSelectedBrowserRating { delta: 1 },
+        NativeUiAction::TagBrowserSelection {
+            target: radiant::app::BrowserTagTarget::Keep,
+        },
+    ];
+
+    for action in actions {
+        let mut bridge = test_bridge(16);
+        bridge.mark_dirty_for_action(&action);
+
+        assert!(
+            bridge
+                .controller
+                .is_derived_node_dirty_for_test(DerivedNodeId::BrowserState),
+            "browser state should be dirty for {action:?}"
+        );
+        assert!(
+            bridge
+                .controller
+                .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState),
+            "waveform state should be dirty for {action:?}"
+        );
+        assert!(
+            bridge
+                .controller
+                .is_derived_node_dirty_for_test(DerivedNodeId::NativeAppProjectionKey),
+            "projection key should be dirty for {action:?}"
+        );
+        assert!(
+            !bridge
+                .controller
+                .is_derived_node_dirty_for_test(DerivedNodeId::MapState),
+            "map state should stay clean for {action:?}"
+        );
+        assert!(
+            !bridge
+                .controller
+                .is_derived_node_dirty_for_test(DerivedNodeId::TransportState),
+            "transport state should stay clean for {action:?}"
+        );
+        assert!(
+            !bridge
+                .controller
+                .is_derived_node_dirty_for_test(DerivedNodeId::StatusState),
+            "status state should stay clean for {action:?}"
+        );
+    }
+}
+
 /// Non-targeted actions should keep broad invalidation as the conservative fallback.
 #[test]
 fn mark_dirty_for_unclassified_action_keeps_broad_invalidation() {

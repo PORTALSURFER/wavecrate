@@ -31,6 +31,8 @@ pub enum BrowserFocusIntent {
     Commit,
 }
 
+pub(crate) use self::focus_navigation::{BrowserReviewFollowUpPlan, BrowserReviewLinearMode};
+
 impl AppController {
     /// Resolve the visible browser row reached by moving `delta` from the current focus.
     pub(super) fn browser_target_visible_row_from_delta(&self, delta: i8) -> Option<usize> {

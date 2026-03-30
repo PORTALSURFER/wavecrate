@@ -1,11 +1,26 @@
 use super::*;
 use crate::app::controller::AppController;
 use crate::sample_sources::SampleSource;
+use std::thread;
+use std::time::Duration;
 
 fn visible_paths(controller: &mut AppController) -> Vec<PathBuf> {
     (0..controller.visible_browser_len())
         .filter_map(|row| controller.browser_path_for_visible(row))
         .collect()
+}
+
+fn wait_for_waveform_image(controller: &mut AppController, path: &Path) {
+    for _ in 0..50 {
+        controller.poll_background_jobs();
+        if controller.sample_view.wav.loaded_wav.as_deref() == Some(path)
+            && controller.ui.waveform.loading.is_none()
+            && controller.ui.waveform.image.is_some()
+        {
+            return;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
 }
 
 #[test]
@@ -41,6 +56,58 @@ fn browser_sample_mark_toggle_applies_to_selection_and_focused_row() {
     assert!(controller.browser_sample_marked(&source.id, Path::new("one.wav")));
     assert!(controller.browser_sample_marked(&source.id, Path::new("two.wav")));
     assert!(!controller.browser_sample_marked(&source.id, Path::new("three.wav")));
+}
+
+#[test]
+fn focused_browser_mark_advances_and_previews_next_sample() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+        sample_entry("three.wav", Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+    controller.settings.feature_flags.autoplay_selection = false;
+
+    controller.focus_browser_row_only(0);
+    controller.toggle_browser_sample_mark();
+
+    assert!(controller.browser_sample_marked(&source.id, Path::new("one.wav")));
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_audio
+            .as_ref()
+            .map(|pending| pending.relative_path.as_path()),
+        Some(Path::new("two.wav"))
+    );
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_playback
+            .as_ref()
+            .map(|pending| pending.relative_path.as_path()),
+        Some(Path::new("two.wav"))
+    );
+    assert_eq!(
+        controller.ui.waveform.loading.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert!(controller.ui.waveform.image.is_none());
+
+    wait_for_waveform_image(&mut controller, Path::new("two.wav"));
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert!(controller.ui.waveform.image.is_some());
 }
 
 #[test]
@@ -110,12 +177,143 @@ fn unmarking_focused_marked_row_under_marked_filter_refocuses_next_visible_row()
 
     assert!(!controller.browser_sample_marked(&source.id, Path::new("one.wav")));
     assert!(controller.browser_sample_marked(&source.id, Path::new("two.wav")));
-    assert_eq!(visible_paths(&mut controller), vec![PathBuf::from("two.wav")]);
+    assert_eq!(
+        visible_paths(&mut controller),
+        vec![PathBuf::from("two.wav")]
+    );
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
     assert_eq!(
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("two.wav"))
     );
+}
+
+#[test]
+fn focused_browser_mark_uses_random_preview_follow_up() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+        sample_entry("three.wav", Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+    controller.settings.feature_flags.autoplay_selection = false;
+    controller.ui.browser.search.random_navigation_mode = true;
+    controller
+        .history
+        .random_history
+        .mark_played(&source.id, &PathBuf::from("one.wav"));
+    controller
+        .history
+        .random_history
+        .mark_played(&source.id, &PathBuf::from("two.wav"));
+
+    controller.focus_browser_row_only(0);
+    controller.toggle_browser_sample_mark();
+
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("three.wav"))
+    );
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_audio
+            .as_ref()
+            .map(|pending| pending.relative_path.as_path()),
+        Some(Path::new("three.wav"))
+    );
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_playback
+            .as_ref()
+            .map(|pending| pending.relative_path.as_path()),
+        Some(Path::new("three.wav"))
+    );
+    assert_eq!(
+        controller.ui.waveform.loading.as_deref(),
+        Some(Path::new("three.wav"))
+    );
+}
+
+#[test]
+fn unmarking_focused_marked_row_under_marked_filter_previews_replacement_sample() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+        sample_entry("three.wav", Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+    controller.settings.feature_flags.autoplay_selection = false;
+
+    controller.focus_browser_row_only(0);
+    controller.toggle_browser_sample_mark();
+    controller.focus_browser_row_only(1);
+    controller.toggle_browser_sample_mark();
+    controller.toggle_browser_marked_filter();
+    controller.focus_browser_row_only(0);
+
+    controller.toggle_browser_sample_mark();
+
+    assert_eq!(
+        visible_paths(&mut controller),
+        vec![PathBuf::from("two.wav")]
+    );
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_audio
+            .as_ref()
+            .map(|pending| pending.relative_path.as_path()),
+        Some(Path::new("two.wav"))
+    );
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_playback
+            .as_ref()
+            .map(|pending| pending.relative_path.as_path()),
+        Some(Path::new("two.wav"))
+    );
+    assert_eq!(
+        controller.ui.waveform.loading.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+}
+
+#[test]
+fn multi_selection_mark_does_not_auto_advance() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+        sample_entry("three.wav", Rating::NEUTRAL),
+    ]);
+
+    controller.focus_browser_row_only(0);
+    controller.toggle_browser_row_selection(1);
+    controller.toggle_browser_sample_mark();
+
+    assert!(controller.browser_sample_marked(&source.id, Path::new("one.wav")));
+    assert!(controller.browser_sample_marked(&source.id, Path::new("two.wav")));
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.runtime.jobs.pending_playback.is_none());
+    assert!(controller.ui.waveform.loading.is_none());
 }
 
 #[test]

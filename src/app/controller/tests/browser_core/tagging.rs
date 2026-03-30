@@ -138,6 +138,11 @@ fn tagging_under_filter_uses_random_focus_in_random_mode() {
         .as_deref()
         .expect("selected replacement row");
     assert!(browser_row_is_queued_or_loaded(&controller, selected_path));
+    assert_eq!(
+        controller.ui.waveform.loading.as_deref(),
+        Some(selected_path)
+    );
+    assert!(controller.ui.waveform.image.is_none());
 }
 
 #[test]

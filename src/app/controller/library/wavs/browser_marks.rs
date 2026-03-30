@@ -18,15 +18,29 @@ impl AppController {
         let Some(source_id) = self.selection_state.ctx.selected_source.clone() else {
             return;
         };
+        let primary_row = self.focused_browser_row();
         let Some(target_paths) = self.browser_mark_target_paths() else {
             return;
         };
         let fallback_path = self.browser_mark_fallback_path(&target_paths);
-        if !self.ui.browser.marks.toggle_paths(&source_id, &target_paths) {
+        let follow_up = self.browser_mark_follow_up_plan(
+            primary_row,
+            target_paths.len(),
+            fallback_path.is_some(),
+        );
+        if !self
+            .ui
+            .browser
+            .marks
+            .toggle_paths(&source_id, &target_paths)
+        {
             return;
         }
         if let Some(path) = fallback_path {
             self.focus_wav_by_path_preview_with_rebuild(&path, false);
+        }
+        if let Some(plan) = follow_up {
+            self.apply_browser_review_follow_up(plan, BrowserReviewLinearMode::Preview);
         }
         self.mark_browser_row_metadata_projection_revision_dirty();
         self.mark_browser_search_projection_revision_dirty();
@@ -49,7 +63,12 @@ impl AppController {
         old_path: &Path,
         new_path: &Path,
     ) {
-        if !self.ui.browser.marks.remap_path(source_id, old_path, new_path) {
+        if !self
+            .ui
+            .browser
+            .marks
+            .remap_path(source_id, old_path, new_path)
+        {
             return;
         }
         self.mark_browser_row_metadata_projection_revision_dirty();
@@ -71,11 +90,16 @@ impl AppController {
             return;
         };
         let retained: std::collections::HashSet<PathBuf> = (0..self.wav_entries_len())
-            .filter_map(|index| self.wav_entry(index).map(|entry| entry.relative_path.clone()))
+            .filter_map(|index| {
+                self.wav_entry(index)
+                    .map(|entry| entry.relative_path.clone())
+            })
             .collect();
-        let changed = self.ui.browser.marks.retain_paths_for_source(&source_id, |path| {
-            retained.contains(path)
-        });
+        let changed = self
+            .ui
+            .browser
+            .marks
+            .retain_paths_for_source(&source_id, |path| retained.contains(path));
         if !changed {
             return;
         }
@@ -112,5 +136,21 @@ impl AppController {
                 self.browser_path_for_visible(row)
                     .filter(|path| !target_paths.iter().any(|target| target == path))
             })
+    }
+
+    fn browser_mark_follow_up_plan(
+        &self,
+        primary_row: Option<usize>,
+        target_len: usize,
+        has_fallback_path: bool,
+    ) -> Option<BrowserReviewFollowUpPlan> {
+        if target_len != 1 {
+            return None;
+        }
+        if self.ui.browser.search.marked_only {
+            return has_fallback_path.then_some(BrowserReviewFollowUpPlan::UseFocusedReplacement);
+        }
+        primary_row
+            .map(|primary_row| BrowserReviewFollowUpPlan::AdvanceFromPrimaryRow { primary_row })
     }
 }

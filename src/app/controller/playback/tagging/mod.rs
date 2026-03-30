@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::controller::library::wavs::{BrowserReviewFollowUpPlan, BrowserReviewLinearMode};
 
 mod shared;
 
@@ -19,6 +20,30 @@ fn should_advance_after_rating(
         && refocus_path.and_then(|path| controller.visible_row_for_path(path)) == Some(primary_row)
 }
 
+fn review_follow_up_after_rating(
+    controller: &mut AppController,
+    primary_row: usize,
+    refocus_path: Option<&Path>,
+    changed: bool,
+) -> Option<(BrowserReviewFollowUpPlan, BrowserReviewLinearMode)> {
+    if !changed || !controller.settings.controls.advance_after_rating {
+        return None;
+    }
+    if should_advance_after_rating(controller, primary_row, refocus_path, changed) {
+        return Some((
+            BrowserReviewFollowUpPlan::AdvanceFromPrimaryRow { primary_row },
+            BrowserReviewLinearMode::Commit,
+        ));
+    }
+    refocus_path
+        .and_then(|path| controller.visible_row_for_path(path))
+        .is_none()
+        .then_some((
+            BrowserReviewFollowUpPlan::UseFocusedReplacement,
+            BrowserReviewLinearMode::Commit,
+        ))
+}
+
 /// Advance rating focus or commit the filtered replacement row after a rating change.
 ///
 /// When the rated sample remains visible, normal auto-advance moves to the next
@@ -33,30 +58,10 @@ fn advance_or_commit_after_rating(
     refocus_path: Option<&Path>,
     changed: bool,
 ) {
-    if !changed || !controller.settings.controls.advance_after_rating {
-        return;
-    }
-    if should_advance_after_rating(controller, primary_row, refocus_path, changed) {
-        if controller.random_navigation_mode_enabled() {
-            controller.focus_random_visible_sample();
-            controller.request_async_preview_playback_for_focused_selection();
-        } else {
-            let next_row = primary_row + 1;
-            if next_row < controller.ui.browser.viewport.visible.len() {
-                controller.focus_browser_row(next_row);
-            }
-        }
-        return;
-    }
-    if refocus_path
-        .and_then(|path| controller.visible_row_for_path(path))
-        .is_none()
+    if let Some((plan, linear_mode)) =
+        review_follow_up_after_rating(controller, primary_row, refocus_path, changed)
     {
-        if controller.random_navigation_mode_enabled() {
-            controller.request_async_preview_playback_for_focused_selection();
-        } else {
-            let _ = controller.commit_focused_browser_row();
-        }
+        controller.apply_browser_review_follow_up(plan, linear_mode);
     }
 }
 

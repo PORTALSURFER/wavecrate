@@ -25,6 +25,20 @@ use crate::app_core::controller::AppControllerNativeRuntimeExt;
 use std::time::{Duration, Instant};
 use tracing::debug;
 
+fn additional_dirty_sources_for_action(
+    action: &NativeUiAction,
+) -> &'static [(DerivedNodeId, DirtyReason)] {
+    match action {
+        NativeUiAction::AdjustSelectedBrowserRating { .. }
+        | NativeUiAction::TagBrowserSelection { .. }
+        | NativeUiAction::ToggleBrowserSampleMark => &[(
+            DerivedNodeId::WaveformState,
+            DirtyReason::WaveformViewAction,
+        )],
+        _ => &[],
+    }
+}
+
 impl SempalNativeBridge {
     /// Apply browser-focus movement immediately so wheel/arrow nudges are visible in-frame.
     pub(super) fn apply_browser_focus_delta_immediately(&mut self, delta: i8) {
@@ -72,6 +86,10 @@ impl SempalNativeBridge {
         let mut has_targeted_source = false;
         if let Some((source, reason)) = classify_dirty_source(action) {
             self.controller.mark_derived_source_dirty(source, reason);
+            has_targeted_source = true;
+        }
+        for (source, reason) in additional_dirty_sources_for_action(action) {
+            self.controller.mark_derived_source_dirty(*source, *reason);
             has_targeted_source = true;
         }
         if action_requires_projection_cache_invalidation(action)

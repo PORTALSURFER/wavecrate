@@ -5,6 +5,24 @@ use crate::app::controller::StatusTone;
 use crate::app::state::FocusContext;
 use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
 
+/// Follow-up plans for browser review actions that mutate the focused sample.
+#[derive(Clone, Copy)]
+pub(crate) enum BrowserReviewFollowUpPlan {
+    /// Move away from the current row using the next visible-browser target.
+    AdvanceFromPrimaryRow { primary_row: usize },
+    /// Reuse the already-refocused replacement sample after a filter removes the current row.
+    UseFocusedReplacement,
+}
+
+/// Linear-mode loading policy for browser review follow-up navigation.
+#[derive(Clone, Copy)]
+pub(crate) enum BrowserReviewLinearMode {
+    /// Commit the focused/next row using the standard selection load pipeline.
+    Commit,
+    /// Preview the focused/next row immediately so playback/waveform loading starts at once.
+    Preview,
+}
+
 impl AppController {
     /// Move browser column selection to the requested triage-column index.
     pub fn select_column_by_index(&mut self, target_index: usize) {
@@ -234,6 +252,55 @@ impl AppController {
         if let Err(err) = self.queue_browser_preview_audio_load(&source, &relative_path, looped) {
             self.set_status(err, StatusTone::Error);
         }
+    }
+
+    /// Apply one post-mutation browser review follow-up using shared preview/commit semantics.
+    pub(crate) fn apply_browser_review_follow_up(
+        &mut self,
+        plan: BrowserReviewFollowUpPlan,
+        linear_mode: BrowserReviewLinearMode,
+    ) {
+        match plan {
+            BrowserReviewFollowUpPlan::AdvanceFromPrimaryRow { primary_row } => {
+                self.advance_browser_review_from_primary_row(primary_row, linear_mode);
+            }
+            BrowserReviewFollowUpPlan::UseFocusedReplacement => {
+                self.follow_browser_review_replacement(linear_mode);
+            }
+        }
+    }
+
+    fn advance_browser_review_from_primary_row(
+        &mut self,
+        primary_row: usize,
+        linear_mode: BrowserReviewLinearMode,
+    ) {
+        if self.random_navigation_mode_enabled() {
+            self.focus_random_visible_sample();
+            self.request_async_preview_playback_for_focused_selection();
+            return;
+        }
+        let next_row = primary_row + 1;
+        if next_row >= self.ui.browser.viewport.visible.len() {
+            return;
+        }
+        match linear_mode {
+            BrowserReviewLinearMode::Commit => self.focus_browser_row(next_row),
+            BrowserReviewLinearMode::Preview => {
+                self.focus_browser_row_only(next_row);
+                self.request_async_preview_playback_for_focused_selection();
+            }
+        }
+    }
+
+    fn follow_browser_review_replacement(&mut self, linear_mode: BrowserReviewLinearMode) {
+        if self.random_navigation_mode_enabled()
+            || matches!(linear_mode, BrowserReviewLinearMode::Preview)
+        {
+            self.request_async_preview_playback_for_focused_selection();
+            return;
+        }
+        let _ = self.commit_focused_browser_row();
     }
 
     /// Clear sample browser focus/selection when another surface takes focus.

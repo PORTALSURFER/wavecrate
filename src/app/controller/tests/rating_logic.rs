@@ -4,6 +4,8 @@ use super::super::test_support::{
 use crate::app::state::TriageFlagFilter;
 use crate::sample_sources::Rating;
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::Duration;
 
 #[test]
 fn adjust_rating_skips_neutral_from_rated() {
@@ -142,6 +144,30 @@ fn advance_after_rating_respects_random_navigation() {
             .map(|pending| pending.relative_path.as_path()),
         Some(Path::new("c.wav"))
     );
+    assert_eq!(
+        controller.ui.waveform.loading.as_deref(),
+        Some(Path::new("c.wav"))
+    );
+    assert!(controller.ui.waveform.image.is_none());
+
+    for _ in 0..50 {
+        controller.poll_background_jobs();
+        if controller.sample_view.wav.loaded_wav.as_deref() == Some(Path::new("c.wav"))
+            && controller.ui.waveform.loading.is_none()
+            && controller.ui.waveform.image.is_some()
+        {
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("c.wav"))
+    );
+    assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.ui.waveform.loading.is_none());
+    assert!(controller.ui.waveform.image.is_some());
 }
 
 /// Browser keep/trash actions should step across zero without returning to neutral.
