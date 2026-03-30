@@ -1,7 +1,9 @@
-use super::super::test_support::{dummy_controller, sample_entry};
+use super::super::test_support::{
+    dummy_controller, prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
+};
 use crate::app::state::TriageFlagFilter;
 use crate::sample_sources::Rating;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[test]
 fn adjust_rating_skips_neutral_from_rated() {
@@ -88,24 +90,18 @@ fn adjust_rating_skips_neutral_from_rated() {
 
 #[test]
 fn advance_after_rating_respects_random_navigation() {
-    // Setup 3 files
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source.clone());
-    let entries = vec![
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("a.wav", Rating::NEUTRAL),
         sample_entry("b.wav", Rating::NEUTRAL),
         sample_entry("c.wav", Rating::NEUTRAL),
-    ];
-    controller.set_wav_entries_for_tests(entries);
-    controller.rebuild_wav_lookup();
-    controller.rebuild_browser_lists();
+    ]);
+    write_test_wav(&source.root.join("a.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("b.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("c.wav"), &[0.0, 0.1]);
 
-    // Enable random nav
     controller.ui.browser.search.random_navigation_mode = true;
     controller.settings.controls.advance_after_rating = true;
 
-    // Mark a.wav and b.wav as played so random choices are forced to c.wav
-    // We need to resolve source id and path
     let id = source.id.clone();
     controller
         .history
@@ -116,19 +112,11 @@ fn advance_after_rating_respects_random_navigation() {
         .random_history
         .mark_played(&id, &PathBuf::from("b.wav"));
 
-    // Select A (index 0)
     controller.focus_browser_row(0);
     assert_eq!(controller.selected_row_index(), Some(0));
 
-    // Rate A (which triggers advance)
-    // adjust_selected_rating checks if random is enabled
-    controller.adjust_selected_rating(1); // Increment rating
+    controller.adjust_selected_rating(1);
 
-    // Expectation:
-    // Linear advance would go to B (index 1).
-    // Random advance (constrained to unvisited) should go to C (index 2).
-
-    // Check selection
     let selected_path = controller
         .sample_view
         .wav
@@ -136,6 +124,24 @@ fn advance_after_rating_respects_random_navigation() {
         .as_ref()
         .expect("selection");
     assert_eq!(selected_path, &PathBuf::from("c.wav"));
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_audio
+            .as_ref()
+            .map(|pending| pending.relative_path.as_path()),
+        Some(Path::new("c.wav"))
+    );
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_playback
+            .as_ref()
+            .map(|pending| pending.relative_path.as_path()),
+        Some(Path::new("c.wav"))
+    );
 }
 
 /// Browser keep/trash actions should step across zero without returning to neutral.

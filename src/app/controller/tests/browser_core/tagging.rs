@@ -109,16 +109,15 @@ fn rating_filter_rating_keeps_focus_on_next_visible_item() {
 
 #[test]
 fn tagging_under_filter_uses_random_focus_in_random_mode() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source.clone());
-    controller.cache_db(&source).unwrap();
-    controller.set_wav_entries_for_tests(vec![
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
         sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
         sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
     ]);
-    controller.rebuild_wav_lookup();
-    controller.rebuild_browser_lists();
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+    controller.settings.controls.advance_after_rating = true;
     controller.set_browser_filter(TriageFlagFilter::Untagged);
     controller.toggle_random_navigation_mode();
 
@@ -132,6 +131,13 @@ fn tagging_under_filter_uses_random_focus_in_random_mode() {
         panic!("expected a selected row");
     };
     assert!(selected_visible < controller.visible_browser_len());
+    let selected_path = controller
+        .sample_view
+        .wav
+        .selected_wav
+        .as_deref()
+        .expect("selected replacement row");
+    assert!(browser_row_is_queued_or_loaded(&controller, selected_path));
 }
 
 #[test]

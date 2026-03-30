@@ -24,8 +24,9 @@ fn should_advance_after_rating(
 /// When the rated sample remains visible, normal auto-advance moves to the next
 /// visible browser row. When the active filter removes the rated sample, the
 /// browser already refocuses the replacement row in the same visible position;
-/// in that case this helper commits that replacement so waveform/audio loading
-/// follows the filtered list instead of skipping past it.
+/// in that case this helper either commits that replacement (linear mode) or
+/// queues preview playback for the random replacement row (random mode) so
+/// waveform/audio loading follows the post-filter focus state.
 fn advance_or_commit_after_rating(
     controller: &mut AppController,
     primary_row: usize,
@@ -38,6 +39,7 @@ fn advance_or_commit_after_rating(
     if should_advance_after_rating(controller, primary_row, refocus_path, changed) {
         if controller.random_navigation_mode_enabled() {
             controller.focus_random_visible_sample();
+            controller.request_async_preview_playback_for_focused_selection();
         } else {
             let next_row = primary_row + 1;
             if next_row < controller.ui.browser.viewport.visible.len() {
@@ -50,7 +52,11 @@ fn advance_or_commit_after_rating(
         .and_then(|path| controller.visible_row_for_path(path))
         .is_none()
     {
-        let _ = controller.commit_focused_browser_row();
+        if controller.random_navigation_mode_enabled() {
+            controller.request_async_preview_playback_for_focused_selection();
+        } else {
+            let _ = controller.commit_focused_browser_row();
+        }
     }
 }
 
