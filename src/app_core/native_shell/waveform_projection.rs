@@ -1,6 +1,7 @@
 //! Waveform panel and waveform chrome projection helpers.
 
 use super::*;
+use crate::app_core::app_api::state::WaveformSliceBatchProfile;
 
 /// Projected edit-fade overlay endpoints and curve values for the native waveform shell.
 pub(super) struct WaveformEditFadeOverlayModel {
@@ -184,7 +185,7 @@ pub(crate) fn project_waveform_chrome_model(ui: &UiState) -> WaveformChromeModel
         transient_markers_enabled: ui.waveform.transient_markers_enabled,
         slice_mode_enabled: ui.waveform.slice_mode_enabled,
         exact_duplicate_cleanup_available: ui.waveform.slice_batch_profile
-            == crate::app::state::WaveformSliceBatchProfile::ExactDuplicateBeats
+            == WaveformSliceBatchProfile::ExactDuplicateBeats
             && !ui.waveform.slices.is_empty(),
     }
 }
@@ -227,7 +228,7 @@ pub(super) fn project_waveform_slice_previews(
             focused: ui.waveform.slice_review.focused_index == Some(index),
             marked_for_export: ui.waveform.slice_review.marked_indices.contains(&index),
             duplicate_cleanup_candidate: ui.waveform.slice_batch_profile
-                == crate::app::state::WaveformSliceBatchProfile::ExactDuplicateBeats,
+                == WaveformSliceBatchProfile::ExactDuplicateBeats,
             duplicate_cleanup_exempted: duplicate_cleanup
                 .and_then(|cleanup| cleanup.previews.get(index))
                 .is_some_and(|preview| preview.exempted),

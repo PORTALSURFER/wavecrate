@@ -29,6 +29,8 @@ use crate::app_core::actions::{
 };
 use crate::app_core::app_api::state::DragPayload;
 use crate::app_core::app_api::state::FocusContext;
+use crate::app_core::app_api::state::UiPoint;
+use crate::app_core::app_api::state::WaveformSliceBatchProfile;
 #[cfg(test)]
 use crate::app_core::state::{
     DestructiveEditPrompt, DestructiveSelectionEdit, FolderDeleteRecoveryAction,
@@ -251,7 +253,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         waveform_transient_markers_enabled: controller.ui.waveform.transient_markers_enabled,
         waveform_slice_mode_enabled: controller.ui.waveform.slice_mode_enabled,
         waveform_exact_duplicate_cleanup_available: controller.ui.waveform.slice_batch_profile
-            == crate::app::state::WaveformSliceBatchProfile::ExactDuplicateBeats
+            == WaveformSliceBatchProfile::ExactDuplicateBeats
             && !controller.ui.waveform.slices.is_empty(),
         status_right: status_bar_right_text(selected_column),
     }
@@ -338,9 +340,7 @@ pub(crate) fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
 }
 
 /// Convert the retained drag cursor position into native overlay anchor coordinates.
-fn native_drag_overlay_pointer_anchor(
-    position: crate::app::state::UiPoint,
-) -> (Option<u16>, Option<u16>) {
+fn native_drag_overlay_pointer_anchor(position: UiPoint) -> (Option<u16>, Option<u16>) {
     (
         native_drag_overlay_pointer_component(position.x),
         native_drag_overlay_pointer_component(position.y),

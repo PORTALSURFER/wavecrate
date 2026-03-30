@@ -160,7 +160,11 @@ and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
 
 ## Remaining migration blockers
 
-- No remaining blockers tracked in this pass.
+- `src/app_core/native_shell.rs`, `src/app_core/native_shell/browser_projection/row_window.rs`,
+  and `src/app_core/native_shell/waveform_projection.rs` currently still carry
+  direct `crate::app::state` references outside `app_core::app_api`, so the
+  migration-boundary preflight remains the active blocker until those callers
+  are routed back through the migration-facing alias surface.
 
 ## Legacy Removal Checklist
 

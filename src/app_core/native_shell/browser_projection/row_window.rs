@@ -1,4 +1,5 @@
 use super::*;
+use crate::app_core::app_api::state::BrowserDuplicateCleanupState;
 
 /// Number of rows kept between the focused row and the window edge before scrolling.
 ///
@@ -166,7 +167,7 @@ fn format_bpm_badge_label(bpm: f32) -> String {
 
 /// Append transient duplicate-cleanup badges to one browser-row metadata label.
 fn browser_duplicate_cleanup_bucket_label(
-    duplicate_cleanup: Option<&crate::app::state::BrowserDuplicateCleanupState>,
+    duplicate_cleanup: Option<&BrowserDuplicateCleanupState>,
     absolute_index: usize,
     base_label: &str,
 ) -> String {
