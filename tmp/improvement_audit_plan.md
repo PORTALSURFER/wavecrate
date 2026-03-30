@@ -4,7 +4,7 @@ Generated: 2026-03-30
 Observed superproject commit: `4be4051e`
 Observed `vendor/radiant` commit: `dd22ac1c`
 Observed workspace state: clean worktree in the superproject at audit time.
-Status: Phase 2 execution started on 2026-03-30. Items 1 and 3 are complete; item 2 remains clarification-gated; items 4-7 are blocked by clarification or dependency; item 8 is the next safe executable backlog item.
+Status: Phase 2 execution is paused after the safe executable backlog was burned down and revalidated on 2026-03-30. Items 1 and 3 are complete; items 2, 5, and 6 remain clarification-gated; item 4 stays blocked on item 2; item 7 stays blocked on item 6; and item 8 is now blocked by clarification plus unrelated dirty files (`src/app_core/controller/tests/browser_sources.rs` and `vendor/radiant/**`) after the clean root-side scope was split and validated.
 
 ## Scope
 
@@ -19,6 +19,9 @@ Status: Phase 2 execution started on 2026-03-30. Items 1 and 3 are complete; ite
 - 2026-03-30: Started Phase 2 after user confirmation and landed item 1 in commit `7fa92ac6`.
 - 2026-03-30: Landed item 3 after routing crop-to-new-sample through the shared pending-history snapshot path and adding focused crop-history regression coverage.
 - 2026-03-30: While validating item 3, the repo-wide serial lib suite exposed a pre-existing `gui_test` test-harness instability tied to repeated `default` fixture usage; tightening those unit tests and the shell smoke pack to deterministic named fixtures restored stable `gui_test::` and `ci_agent` coverage without changing the product contract under audit.
+- 2026-03-30: Burned down the clean root-side file-size debt in phased splits across `analysis::audio`, controller runtime/audio-loading helpers, and multiple oversized test modules, landing commits `30326f28`, `ee6cd2b7`, and `38bed509` plus the current follow-up root-side split pass.
+- 2026-03-30: Re-ran the full serial lib suite and `devcheck`; remaining file-budget debt is now limited to the clarification-gated `src/gui_test/runner.rs`, the user-dirty `src/app_core/controller/tests/browser_sources.rs`, and user-dirty `vendor/radiant/**` hotspots.
+- 2026-03-30: Re-ran `scripts/ci_agent.ps1` after the follow-up root-side split pass; the agent-safe lane is green, and the remaining backlog is now purely clarification-gated or blocked on unrelated dirty files.
 
 ## Repository Context
 
@@ -36,7 +39,7 @@ Status: Phase 2 execution started on 2026-03-30. Items 1 and 3 are complete; ite
 
 - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` failed during the mandatory preflight because `scripts/check_migration_boundary.ps1` found live `crate::app::` references under `src/app_core/**` outside `src/app_core/app_api.rs`.
 - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` reproduced the same failure directly.
-- `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` failed with 29 active-scope file-budget violations across the root repo and `vendor/radiant/src`.
+- `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` originally failed with 29 active-scope file-budget violations across the root repo and `vendor/radiant/src`; after the safe root-side burn-down it now fails with 16 remaining violations limited to one dirty root test, the clarification-gated `src/gui_test/runner.rs`, and dirty `vendor/radiant` files.
 - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` refreshed `tmp/cleanup_audit_hotspots.md`, which now reports 59 broader over-budget Rust files, 1263 scanned Rust files, and several non-allowlisted production hotspots.
 - `scripts/check_docs_index.ps1` and `scripts/check_codeowners_coverage.ps1` still pass, so the current top issues are code/contract debt rather than missing index wiring.
 - Item 3 validation now passes:
@@ -47,11 +50,16 @@ Status: Phase 2 execution started on 2026-03-30. Items 1 and 3 are complete; ite
   - `cargo test -p sempal --lib -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Item 8 safe-scope validation now passes:
+  - `cargo test -p sempal --lib -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` (still red, but only for the dirty/blocked files listed above)
 
 ## Intent Boundaries
 
 - What the repo clearly is: a Rust desktop application for listening to, navigating, editing, and curating local sample libraries with strong emphasis on responsiveness and reversible workflows.
-- What the repo appears to be moving toward: Strongly implied by code/docs. Tighter `app_core` migration boundaries, broader snapshot-based undo coverage for meaningful UI workflows, a truthful semantic GUI test platform, and ongoing file-size/hotspot burn-down.
+- What the repo appears to be moving toward: Strongly implied by code/docs. Tighter `app_core` migration boundaries, broader snapshot-based undo coverage for meaningful UI workflows, a truthful semantic GUI test platform, and ongoing file-size/hotspot burn-down with root-side clean debt kept small.
 - What is merely possible but unsupported: broad `app_core` redesigns, replacing the vendored runtime strategy, or promoting unstable desktop-AIV coverage into default CI now.
 
 ## Ordered Backlog
@@ -130,7 +138,7 @@ Status: Phase 2 execution started on 2026-03-30. Items 1 and 3 are complete; ite
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-30
-- Commit: pending
+- Commit: `95364b39` (`fix: unify crop export history restore`)
 - Assumptions:
   - crop-to-new-sample should follow the same pending sample-creation snapshot contract as other async selection exports.
   - tightening `gui_test` unit coverage to deterministic named fixtures is an acceptable validation prerequisite because those assertions do not rely on persisted-startup behavior.
@@ -234,7 +242,7 @@ Status: Phase 2 execution started on 2026-03-30. Items 1 and 3 are complete; ite
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
 - Product clarification required: No
 
-### 8. [ ] Burn down the unsupported live file-size budget debt in current production modules
+### 8. [~] Burn down the unsupported live file-size budget debt in current production modules
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -242,20 +250,58 @@ Status: Phase 2 execution started on 2026-03-30. Items 1 and 3 are complete; ite
 - Effort: L
 - Why it matters: the full-scan budget is red again, and the current unsupported debt is no longer confined to a few intentional allowlist entries. Several active production modules now sit above the 400-line budget, which is already reflected in the quality score and hotspot snapshot.
 - Evidence:
-  - `scripts/check_file_size_budget.ps1 -All` currently reports 29 active-scope violations.
-  - `docs/QUALITY_SCORE.md:28-30` now records degraded guardrail posture and a code-size discipline score of `2`.
-  - `tmp/cleanup_audit_hotspots.md:11` and `tmp/cleanup_audit_hotspots.md:67` show the broader hotspot cluster, including non-allowlisted production files.
-  - Current non-allowlisted production offenders include `src/app/controller/history.rs` (422), `src/app/controller/library/wavs/entry_mutation.rs` (448), `src/app/controller/library/wavs/audio_loading.rs` (419), `vendor/radiant/src/gui/native_shell/layout_adapter/sidebar_header.rs` (579), `vendor/radiant/src/gui/native_shell/layout_adapter/waveform_annotations.rs` (457), `vendor/radiant/src/gui/native_shell/state/hit_testing/waveform.rs` (475), and `vendor/radiant/src/gui_runtime/native_vello/text_bpm.rs` (489).
-  - `docs/file_size_budget_allowlist.txt` intentionally keeps cohesive exceptions explicit, so the unsupported debt is the remaining live target rather than the already-justified allowlisted files.
-- Recommended change: burn down the current unsupported production debt in phased, behavior-preserving splits, starting with the root modules and non-allowlisted `vendor/radiant` modules above, and keep intentional allowlisted catalogs/hotkey tables out of scope unless new correctness evidence appears.
-- Expected impact: restores code-structure discipline in actively changing modules, improves reviewability, and moves the repo back toward a truthful green budget without sweeping rewrites.
-- Risks / tradeoffs: medium; splitting high-churn modules can create mechanical noise if the boundaries are not chosen around stable responsibilities.
-- Dependencies: item 7 for `src/gui_test/runner.rs`; otherwise independent
+  - `scripts/check_file_size_budget.ps1 -All` originally reported 29 active-scope violations.
+  - After the current root-side burn-down, `scripts/check_file_size_budget.ps1 -All` now reports only 16 remaining violations:
+    - `src/app_core/controller/tests/browser_sources.rs` (dirty in the current worktree)
+    - `src/gui_test/runner.rs` (still blocked behind item 6 and item 7)
+    - `vendor/radiant/src/gui/native_shell/layout_adapter/sidebar_header.rs`
+    - `vendor/radiant/src/gui/native_shell/layout_adapter/waveform_annotations.rs`
+    - `vendor/radiant/src/gui/native_shell/state/frame_build/overlay/focus.rs`
+    - `vendor/radiant/src/gui/native_shell/state/hit_testing/waveform.rs`
+    - `vendor/radiant/src/gui/native_shell/state/tests/browser_scrollbars.rs`
+    - `vendor/radiant/src/gui/native_shell/state/tests/chrome_layout/waveform_toolbar.rs`
+    - `vendor/radiant/src/gui/native_shell/state/tests/frame_build.rs`
+    - `vendor/radiant/src/gui/native_shell/state/tests/overlay_controls.rs`
+    - `vendor/radiant/src/gui/native_shell/state/tests/sidebar.rs`
+    - `vendor/radiant/src/gui/native_shell/state/tests/waveform_selection.rs`
+    - `vendor/radiant/src/gui_runtime/native_vello/runtime_events/pointer.rs`
+    - `vendor/radiant/src/gui_runtime/native_vello/tests/key_bindings.rs`
+    - `vendor/radiant/src/gui_runtime/native_vello/tests/runtime_core.rs`
+    - `vendor/radiant/src/gui_runtime/native_vello/text_bpm.rs`
+  - The root-side clean offenders were split into focused modules across `src/analysis/audio/exact_duplicates/**`, `src/app/controller/state/runtime/**`, `src/app/controller/library/wavs/audio_loading.rs`, `src/app/controller/library/wavs/entry_mutation/**`, `src/app/controller/library/background_jobs/polling/tests/**`, `src/app/controller/library/slices/slices_tests/**`, `src/app/controller/library/selection_export/selection_export_tests/waveform_selection_export_tests/**`, `src/app/controller/playback/tests/waveform_actions/**`, `src/app/controller/tests/drag_drop_folders/**`, `src/app/controller/tests/browser_actions/row_actions/**`, `src/app/controller/tests/folders_core/rename_delete_recovery/**`, `src/app_core/controller/tests/waveform/**`, and `src/app_core/native_bridge/tests/bridge_runtime/**`.
+  - `docs/file_size_budget_allowlist.txt` still keeps cohesive exceptions explicit, so the remaining debt is now limited to blocked or unrelated-dirty files rather than the broader root tree.
+- Recommended change: keep item 8 blocked until the user either resolves the `GuiScenarioStep::CaptureSnapshot` contract for `src/gui_test/runner.rs` or allows work in the currently dirty `src/app_core/controller/tests/browser_sources.rs` and `vendor/radiant/**` files.
+- Expected impact: the clean root repo is now back under the budget guardrail except for blocked/dirty files, which sharply reduces future review noise and local structural debt.
+- Risks / tradeoffs: low for the completed root-side splits; the remaining risk is mostly coordination risk if blocked or user-dirty files are edited without a clarified owner or contract.
+- Dependencies: item 7 for `src/gui_test/runner.rs`; a clean or explicitly approved worktree for `src/app_core/controller/tests/browser_sources.rs` and `vendor/radiant/**`
 - Suggested validation:
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
   - targeted module/unit tests in one cargo process per split
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Blocked: 2026-03-30
+- Commits:
+  - `30326f28` (`refactor: split audio loading module`)
+  - `ee6cd2b7` (`refactor: split slice tests into focused modules`)
+  - `38bed509` (`refactor: split polling tests into focused modules`)
+- Assumptions:
+  - behavior-preserving file splits inside the clean root-side test and helper modules are still in scope for item 8 even though the original title emphasized production modules.
+  - the unrelated dirty files in `src/app_core/controller/tests/browser_sources.rs` and `vendor/radiant/**` should not be touched without explicit coordination.
+- Validation:
+  - `cargo test exact_duplicate --lib -- --test-threads=1`
+  - `cargo test app::controller::state::runtime::performance::tests:: --lib -- --test-threads=1`
+  - `cargo test entry_mutation --lib -- --test-threads=1`
+  - `cargo test waveform_selection_export_tests --lib -- --test-threads=1`
+  - `cargo test waveform_actions:: --lib -- --test-threads=1`
+  - `cargo test drag_drop_folders:: --lib -- --test-threads=1`
+  - `cargo test row_actions:: --lib -- --test-threads=1`
+  - `cargo test rename_delete_recovery:: --lib -- --test-threads=1`
+  - `cargo test app_core::controller::tests::waveform:: --lib -- --test-threads=1`
+  - `cargo test bridge_runtime:: --lib -- --test-threads=1`
+  - `cargo test -p sempal --lib -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: items 4-7 remained blocked on clarification/dependency, so item 8 was executed next as the highest-value safe item.
 
 ## Open Questions / Missing Definitions
 

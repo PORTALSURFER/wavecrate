@@ -2,13 +2,20 @@
 
 /// Incremental derived-state dirty graph model used by native projection paths.
 mod derived_graph;
+mod deferred;
+mod performance;
 
 use crate::app::controller::jobs;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::state::audio::PendingAgeUpdate;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
+pub(crate) use deferred::{
+    AnalysisProgressUiCache, PendingFocusedSimilarityQuery, PendingFocusedSimilarityRefresh,
+    PendingLoadedDurationMetadata, PendingLoadedSimilarityQuery, PendingSimilarityFilterRebuild,
+};
 pub(crate) use derived_graph::{DerivedNodeId, DerivedStateGraph, DirtyReason};
+pub(crate) use performance::PerformanceGovernorState;
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -195,179 +202,6 @@ impl ControllerRuntimeState {
     /// Return true when waveform refresh requests should be deferred.
     pub(crate) fn waveform_refresh_batch_active(&self) -> bool {
         self.waveform_refresh_batch_depth > 0
-    }
-}
-
-/// Deferred focused-similarity refresh request for the current browser selection.
-#[derive(Clone, Debug)]
-pub(crate) struct PendingFocusedSimilarityRefresh {
-    /// Sample id used to query near-duplicate highlights.
-    pub(crate) sample_id: String,
-    /// Selected relative wav path expected to still be focused when flushing.
-    pub(crate) relative_path: PathBuf,
-    /// Optional absolute entry index for the focused row.
-    pub(crate) anchor_index: Option<usize>,
-}
-
-/// In-flight focused-similarity highlight query owned by a background worker.
-#[derive(Clone, Debug)]
-pub(crate) struct PendingFocusedSimilarityQuery {
-    /// Monotonic request identifier used to drop stale async results.
-    pub(crate) request_id: u64,
-    /// Source that owned the focused sample when the query started.
-    pub(crate) source_id: SourceId,
-    /// Focused relative wav path expected to still be selected on apply.
-    pub(crate) relative_path: PathBuf,
-}
-
-/// In-flight follow-loaded similarity query owned by a background worker.
-#[derive(Clone, Debug)]
-pub(crate) struct PendingLoadedSimilarityQuery {
-    /// Monotonic request identifier used to drop stale async results.
-    pub(crate) request_id: u64,
-    /// Source that owned the loaded sample when the query started.
-    pub(crate) source_id: SourceId,
-    /// Loaded relative wav path expected to still be active on apply.
-    pub(crate) relative_path: PathBuf,
-}
-
-/// Pending manual similarity-filter rebuild waiting for wav-entry reload to finish.
-#[derive(Clone, Debug)]
-pub(crate) struct PendingSimilarityFilterRebuild {
-    /// Source that owned the similarity filter when it was scheduled.
-    pub(crate) source_id: SourceId,
-    /// Relative path that should anchor the rebuilt similarity filter.
-    pub(crate) anchor_relative_path: PathBuf,
-}
-
-/// Cached selected-source analysis progress data reused across controller frames.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct AnalysisProgressUiCache {
-    /// Source id that owns the cached progress snapshot.
-    pub(crate) source_id: Option<SourceId>,
-    /// Last source-scoped progress snapshot used for the overlay.
-    pub(crate) scoped_progress: Option<analysis_jobs::AnalysisProgress>,
-    /// When the scoped progress snapshot was last refreshed from a worker or DB.
-    pub(crate) scoped_progress_refreshed_at: Option<Instant>,
-    /// Last snapshot of running jobs shown in the overlay.
-    pub(crate) running_jobs: Vec<crate::app::state::RunningJobSnapshot>,
-    /// When the running-job snapshot list was last refreshed from the DB.
-    pub(crate) running_jobs_refreshed_at: Option<Instant>,
-}
-
-/// Deferred source-analysis metadata write queued after waveform load completes.
-#[derive(Clone, Debug)]
-pub(crate) struct PendingLoadedDurationMetadata {
-    /// Source id used to construct a stable sample id.
-    pub(crate) source_id: SourceId,
-    /// Source root used to open the per-source analysis database.
-    pub(crate) source_root: PathBuf,
-    /// Relative sample path for the loaded waveform.
-    pub(crate) relative_path: PathBuf,
-    /// Loaded waveform duration in seconds.
-    pub(crate) duration_seconds: f32,
-    /// Loaded waveform sample rate in Hz.
-    pub(crate) sample_rate: u32,
-    /// Cached long-sample mark when this path is still selected.
-    pub(crate) long_sample_mark: Option<bool>,
-}
-
-pub(crate) struct PerformanceGovernorState {
-    /// Last user interaction timestamp used for governor hysteresis.
-    pub(crate) last_user_activity_at: Option<Instant>,
-    /// Most recent slow-frame timestamp used to raise worker priority.
-    pub(crate) last_slow_frame_at: Option<Instant>,
-    /// Last frame timestamp for inter-frame interval sampling.
-    pub(crate) last_frame_at: Option<Instant>,
-    /// Smoothed frame time in milliseconds.
-    pub(crate) avg_frame_ms: f64,
-    /// Number of valid frame samples captured so far.
-    pub(crate) frame_sample_count: u32,
-    pub(crate) last_worker_count: Option<u32>,
-    pub(crate) idle_worker_override: Option<u32>,
-}
-
-impl PerformanceGovernorState {
-    pub(crate) fn new() -> Self {
-        Self {
-            last_user_activity_at: None,
-            last_slow_frame_at: None,
-            last_frame_at: None,
-            avg_frame_ms: 0.0,
-            frame_sample_count: 0,
-            last_worker_count: None,
-            idle_worker_override: None,
-        }
-    }
-
-    /// Update moving-frame metrics from one inter-frame duration sample.
-    ///
-    /// Uses an EWMA-style filter to keep short-term spikes from dominating the average.
-    pub(crate) fn observe_frame_interval(&mut self, frame_interval: Duration) {
-        let frame_ms = frame_interval.as_secs_f64() * 1_000.0;
-        if frame_ms <= 0.0 {
-            return;
-        }
-        if self.frame_sample_count == 0 {
-            self.avg_frame_ms = frame_ms;
-            self.frame_sample_count = 1;
-            return;
-        }
-        const FRAME_RATE_ALPHA: f64 = 0.2;
-        self.avg_frame_ms = self
-            .avg_frame_ms
-            .mul_add(1.0 - FRAME_RATE_ALPHA, frame_ms * FRAME_RATE_ALPHA);
-        self.frame_sample_count = self.frame_sample_count.saturating_add(1);
-    }
-
-    /// Return the averaged frame rate across collected frame-time samples.
-    pub(crate) fn average_fps(&self) -> Option<f64> {
-        if self.avg_frame_ms <= 0.0 || self.frame_sample_count == 0 {
-            return None;
-        }
-        Some(1_000.0 / self.avg_frame_ms)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::PerformanceGovernorState;
-    use std::time::Duration;
-
-    #[test]
-    fn average_fps_is_none_before_samples() {
-        let state = PerformanceGovernorState::new();
-        assert!(state.average_fps().is_none());
-        assert_eq!(state.frame_sample_count, 0);
-        assert_eq!(state.avg_frame_ms, 0.0);
-    }
-
-    #[test]
-    fn observe_frame_interval_initializes_average() {
-        let mut state = PerformanceGovernorState::new();
-        state.observe_frame_interval(Duration::from_millis(16));
-        assert_eq!(state.frame_sample_count, 1);
-        assert_eq!(state.avg_frame_ms, 16.0);
-        assert!((state.average_fps().expect("fps") - 62.5).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn observe_frame_interval_skips_non_positive_samples() {
-        let mut state = PerformanceGovernorState::new();
-        state.observe_frame_interval(Duration::ZERO);
-        state.observe_frame_interval(Duration::from_nanos(500));
-        assert_eq!(state.frame_sample_count, 1);
-        assert!(state.avg_frame_ms > 0.0);
-    }
-
-    #[test]
-    fn observe_frame_interval_uses_ewma_update() {
-        let mut state = PerformanceGovernorState::new();
-        state.observe_frame_interval(Duration::from_millis(10));
-        state.observe_frame_interval(Duration::from_millis(20));
-        let expected = 12.0;
-        assert!((state.avg_frame_ms - expected).abs() < 1e-9);
-        assert_eq!(state.frame_sample_count, 2);
     }
 }
 

@@ -1,128 +1,5 @@
-use super::super::*;
-use crate::app::controller::test_support;
-use crate::app_core::actions::NativeUiAction;
-use crate::app_core::controller::AppControllerNativeRuntimeExt;
-use crate::waveform::DecodedWaveform;
+use super::*;
 use std::path::PathBuf;
-
-/// Seed minimal decoded waveform state so zoom tests can exercise view math.
-fn seed_waveform_for_zoom(controller: &mut AppController) {
-    controller.sample_view.waveform.size = [240, 24];
-    controller.sample_view.waveform.decoded = Some(std::sync::Arc::new(DecodedWaveform {
-        cache_token: 1,
-        samples: std::sync::Arc::from(vec![0.0; 10_000]),
-        analysis_samples: std::sync::Arc::from(Vec::new()),
-        analysis_sample_rate: 0,
-        analysis_stride: 1,
-        peaks: None,
-        duration_seconds: 1.0,
-        sample_rate: 48_000,
-        channels: 1,
-    }));
-}
-
-/// UI zoom should preserve the cursor's relative viewport position as the zoom anchor.
-#[test]
-fn zoom_steps_from_ui_preserves_cursor_anchor_ratio() {
-    let (mut controller, _source) = test_support::dummy_controller();
-    seed_waveform_for_zoom(&mut controller);
-    controller.ui.waveform.view = crate::app::state::WaveformView {
-        start: 0.2,
-        end: 0.8,
-    };
-    controller.ui.waveform.cursor = Some(0.35);
-
-    let before = controller.ui.waveform.view;
-    let cursor = f64::from(controller.ui.waveform.cursor.unwrap_or(0.0));
-    let before_ratio = (cursor - before.start) / (before.end - before.start);
-
-    controller.zoom_waveform_steps_from_ui(true, 1);
-
-    let after = controller.ui.waveform.view;
-    let after_ratio = (cursor - after.start) / (after.end - after.start);
-    assert!((before_ratio - after_ratio).abs() < 1.0e-4);
-}
-
-/// Pointer-anchored UI zoom should preserve the hovered ratio across zoom steps.
-#[test]
-fn zoom_steps_from_ui_with_anchor_ratio_preserves_pointer_position() {
-    let (mut controller, _source) = test_support::dummy_controller();
-    seed_waveform_for_zoom(&mut controller);
-    controller.ui.waveform.view = crate::app::state::WaveformView {
-        start: 0.2,
-        end: 0.8,
-    };
-    controller.ui.waveform.cursor = Some(0.9);
-    let anchor_ratio_micros = 250_000;
-    let anchor = 0.35f64;
-
-    controller.zoom_waveform_steps_from_ui_with_anchor(true, 1, Some(anchor_ratio_micros));
-
-    let after = controller.ui.waveform.view;
-    let after_ratio = (anchor - after.start) / (after.end - after.start);
-    assert!((after_ratio - 0.25).abs() < 1.0e-6);
-    assert!(
-        controller
-            .ui
-            .waveform
-            .cursor
-            .is_some_and(|cursor| (f64::from(cursor) - anchor).abs() < 1.0e-6)
-    );
-}
-
-/// UI zoom should initialize cursor at view center when none exists.
-#[test]
-fn zoom_steps_from_ui_initializes_cursor_at_view_center() {
-    let (mut controller, _source) = test_support::dummy_controller();
-    seed_waveform_for_zoom(&mut controller);
-    controller.ui.waveform.view = crate::app::state::WaveformView {
-        start: 0.1,
-        end: 0.9,
-    };
-    controller.ui.waveform.cursor = None;
-
-    controller.zoom_waveform_steps_from_ui(true, 1);
-
-    assert_eq!(controller.ui.waveform.cursor, Some(0.5));
-}
-
-#[test]
-fn native_waveform_view_center_does_not_snap_back_to_visible_playhead() {
-    let (mut controller, _source) = test_support::dummy_controller();
-    seed_waveform_for_zoom(&mut controller);
-    controller.ui.waveform.view = crate::app::state::WaveformView {
-        start: 0.2,
-        end: 0.4,
-    };
-    controller.ui.waveform.playhead.visible = true;
-    controller.ui.waveform.playhead.position = 0.0;
-
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformViewCenter {
-        center_micros: 700_000,
-        center_nanos: None,
-    });
-
-    assert!((controller.ui.waveform.view.start - 0.6).abs() < 1.0e-6);
-    assert!((controller.ui.waveform.view.end - 0.8).abs() < 1.0e-6);
-}
-
-#[test]
-fn native_waveform_view_center_uses_precise_nanos_when_available() {
-    let (mut controller, _source) = test_support::dummy_controller();
-    seed_waveform_for_zoom(&mut controller);
-    controller.ui.waveform.view = crate::app::state::WaveformView {
-        start: 0.5,
-        end: 0.500_000_2,
-    };
-
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformViewCenter {
-        center_micros: 500_000,
-        center_nanos: Some(500_000_050),
-    });
-
-    assert!((controller.ui.waveform.view.start - 0.499_999_95).abs() < 1.0e-9);
-    assert!((controller.ui.waveform.view.end - 0.500_000_15).abs() < 1.0e-9);
-}
 
 #[test]
 fn native_waveform_selection_begin_does_not_snap_to_visible_playhead() {
@@ -163,20 +40,6 @@ fn native_waveform_selection_update_does_not_snap_to_visible_playhead() {
 
     assert!((controller.ui.waveform.view.start - 0.2).abs() < 1.0e-6);
     assert!((controller.ui.waveform.view.end - 0.4).abs() < 1.0e-6);
-}
-
-/// Tiny floating-point drift should not be treated as a waveform view change.
-#[test]
-fn waveform_view_changed_ignores_tiny_float_noise() {
-    let base = crate::app::state::WaveformView {
-        start: 0.25,
-        end: 0.75,
-    };
-    let nearly_equal = crate::app::state::WaveformView {
-        start: 0.25 + (WAVEFORM_VIEW_NOOP_EPSILON * 0.25),
-        end: 0.75 - (WAVEFORM_VIEW_NOOP_EPSILON * 0.25),
-    };
-    assert!(!waveform_actions::waveform_view_changed(base, nearly_equal));
 }
 
 /// Cursor updates should no-op when the cursor is unchanged and waveform is focused.
@@ -323,8 +186,8 @@ fn set_waveform_selection_range_milli_snaps_new_selection_to_global_grid_when_re
     assert!((updated.end() - 0.5).abs() < 0.001);
 }
 
-#[test]
 /// In-bounds selection updates should still BPM-snap even when they land on the visible edge.
+#[test]
 fn set_waveform_selection_range_milli_snaps_visible_edge_without_preserve_flag() {
     let (mut controller, source) = test_support::dummy_controller();
     controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
@@ -356,8 +219,8 @@ fn set_waveform_selection_range_milli_snaps_visible_edge_without_preserve_flag()
     assert!((updated.end() - 0.5).abs() < 0.001);
 }
 
-#[test]
 /// Native out-of-bounds drags should pin to the visible left waveform edge.
+#[test]
 fn set_waveform_selection_range_milli_preserves_left_view_edge_when_requested() {
     let (mut controller, source) = test_support::dummy_controller();
     controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
@@ -389,8 +252,8 @@ fn set_waveform_selection_range_milli_preserves_left_view_edge_when_requested() 
     assert!((updated.end() - 0.5).abs() < 0.001);
 }
 
-#[test]
 /// Selection-translation updates should snap the moved range to BPM steps.
+#[test]
 fn set_waveform_selection_range_milli_snaps_translated_range_when_bpm_snap_enabled() {
     let (mut controller, source) = test_support::dummy_controller();
     controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
@@ -445,51 +308,4 @@ fn set_waveform_selection_range_milli_snaps_translated_range_to_global_grid_when
         .expect("selection should remain");
     assert!((updated.start() - 0.25).abs() < 0.001);
     assert!((updated.end() - 0.45).abs() < 0.001);
-}
-
-/// Clearing edit selection via native helper should clear edit state and preserve focus.
-#[test]
-fn clear_waveform_edit_selection_with_focus_clears_edit_selection() {
-    let (mut controller, _source) = test_support::dummy_controller();
-    controller
-        .selection_state
-        .edit_range
-        .set_range(Some(SelectionRange::new(0.1, 0.4)));
-    controller.ui.waveform.edit_selection = Some(SelectionRange::new(0.1, 0.4));
-
-    controller.clear_waveform_edit_selection_with_focus();
-
-    assert!(controller.selection_state.edit_range.range().is_none());
-    assert!(controller.ui.waveform.edit_selection.is_none());
-}
-
-/// Clearing both waveform mark types should leave the waveform panel focused and empty.
-#[test]
-fn clear_waveform_marks_with_focus_clears_playback_and_edit_selection() {
-    let (mut controller, _source) = test_support::dummy_controller();
-    let playback = SelectionRange::new(0.2, 0.6);
-    let edit = SelectionRange::new(0.3, 0.5);
-    controller.selection_state.range.set_range(Some(playback));
-    controller.ui.waveform.selection = Some(playback);
-    controller.selection_state.edit_range.set_range(Some(edit));
-    controller.ui.waveform.edit_selection = Some(edit);
-
-    controller.clear_waveform_marks_with_focus();
-
-    assert!(controller.selection_state.range.range().is_none());
-    assert!(controller.ui.waveform.selection.is_none());
-    assert!(controller.selection_state.edit_range.range().is_none());
-    assert!(controller.ui.waveform.edit_selection.is_none());
-}
-
-#[test]
-fn apply_selection_updates_persisted_bpm_grid_origin_and_clear_preserves_it() {
-    let (mut controller, _source) = test_support::dummy_controller();
-    let selection = SelectionRange::new(0.31, 0.56);
-
-    controller.apply_selection(Some(selection));
-    controller.clear_waveform_selection_with_focus();
-
-    assert!((controller.ui.waveform.last_bpm_grid_origin - 0.31).abs() < 1.0e-6);
-    assert!(controller.ui.waveform.selection.is_none());
 }
