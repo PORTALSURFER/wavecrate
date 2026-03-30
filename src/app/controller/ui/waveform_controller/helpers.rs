@@ -57,6 +57,17 @@ impl WaveformController<'_> {
         (self.ui.waveform.view.width() as f32) * px_fraction
     }
 
+    pub(crate) fn waveform_sample_frame_step(&self) -> f32 {
+        let Some(decoded) = self.sample_view.waveform.decoded.as_deref() else {
+            return 0.0;
+        };
+        let frame_count = decoded.frame_count();
+        if frame_count == 0 {
+            return 0.0;
+        }
+        1.0 / frame_count as f32
+    }
+
     pub(crate) fn bpm_snap_step(&self) -> Option<f32> {
         crate::app::controller::playback::waveform_bpm_snap_step(self)
     }

@@ -59,7 +59,7 @@ impl WaveformActions for WaveformController<'_> {
             return;
         }
         let step = if fine {
-            self.waveform_step_size(true)
+            self.waveform_sample_frame_step()
         } else {
             self.bpm_snap_step()
                 .unwrap_or_else(|| self.waveform_step_size(false))

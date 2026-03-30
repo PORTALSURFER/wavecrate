@@ -83,3 +83,42 @@ fn play_from_start_auditions_focused_review_slice_without_selection() {
     assert!((controller.ui.waveform.playhead.position - 0.42).abs() < 1e-6);
     assert_eq!(controller.ui.waveform.playhead.active_span_end, Some(0.48));
 }
+
+#[test]
+fn fine_slide_native_action_bypasses_slice_review_navigation() {
+    let (mut controller, _source) = dummy_controller();
+    controller.set_loaded_audio_duration_for_tests(1.0);
+    controller.sample_view.waveform.decoded =
+        Some(std::sync::Arc::new(crate::waveform::DecodedWaveform {
+            cache_token: 1,
+            samples: std::sync::Arc::from(vec![0.0; 8]),
+            analysis_samples: std::sync::Arc::from(Vec::new()),
+            analysis_sample_rate: 0,
+            analysis_stride: 1,
+            peaks: None,
+            duration_seconds: 1.0,
+            sample_rate: 48_000,
+            channels: 1,
+        }));
+    controller.set_selection_range(SelectionRange::new(0.25, 0.5));
+    controller.ui.waveform.slices =
+        vec![SelectionRange::new(0.1, 0.2), SelectionRange::new(0.3, 0.4)];
+    controller.start_slice_review();
+
+    controller.apply_native_ui_action(NativeUiAction::SlideWaveformSelection {
+        delta: 1,
+        fine: true,
+    });
+
+    let moved = controller
+        .ui
+        .waveform
+        .selection
+        .expect("selection should remain active");
+    assert!((moved.start() - 0.375).abs() < 1.0e-6);
+    assert!((moved.end() - 0.625).abs() < 1.0e-6);
+    assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(0));
+
+    controller.apply_native_ui_action(NativeUiAction::MoveWaveformSliceFocus { delta: 1 });
+    assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(1));
+}
