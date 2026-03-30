@@ -42,10 +42,7 @@ pub(crate) struct FolderHistorySnapshot {
 }
 
 /// Reversible subset of controller state that represents meaningful UI context.
-///
-/// This snapshot intentionally excludes transient playback helpers such as the
-/// compare anchor. Only selection, navigation, editing, and curation context
-/// that participates in the live undo/redo contract belongs here.
+/// This intentionally excludes transient playback helpers such as compare-anchor state.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MeaningfulUiSnapshot {
     /// Currently selected source id.
