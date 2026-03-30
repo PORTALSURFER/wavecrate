@@ -109,7 +109,9 @@ Screenshot fields are present in the schema but currently left empty. AIV remain
 The in-process scenario contracts live in:
 
 - [src/gui_test/scenario.rs](/C:/dev/sempal/src/gui_test/scenario.rs)
-- [src/gui_test/runner.rs](/C:/dev/sempal/src/gui_test/runner.rs)
+- [src/gui_test/runner/mod.rs](/C:/dev/sempal/src/gui_test/runner/mod.rs)
+- [src/gui_test/runner/assertions.rs](/C:/dev/sempal/src/gui_test/runner/assertions.rs)
+- [src/gui_test/runner/bundle.rs](/C:/dev/sempal/src/gui_test/runner/bundle.rs)
 
 The CLI entrypoint lives in:
 
@@ -128,6 +130,7 @@ Supported commands:
 Notes:
 
 - `dispatch-action` accepts serialized `UiAction` JSON directly, so the CLI does not need a second payload parser.
+- scenario steps are intentionally limited to `dispatch_action` and `assert`; snapshot capture is provided by the dedicated `snapshot` command instead of an in-band `capture_snapshot` step.
 - `run-scenario` uses the same bridge/action path as the catalog and artifact code.
 - `run-scenario-pack` executes named packs over deterministic fixture seeds and writes one artifact per scenario.
 - `resolve-node-target` translates one semantic node id into window-relative target geometry for AIV wrappers.

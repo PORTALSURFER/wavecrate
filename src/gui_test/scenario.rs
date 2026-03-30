@@ -15,14 +15,13 @@ pub struct GuiScenario {
 }
 
 /// One executable step in a declarative GUI scenario.
+///
+/// Scenario runs intentionally support only deterministic action dispatch and
+/// semantic assertions. Snapshot capture lives on the dedicated `snapshot`
+/// command instead of as an in-band scenario step.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum GuiScenarioStep {
-    /// Capture the latest automation snapshot without mutating state.
-    CaptureSnapshot {
-        /// Stable artifact label used to name the captured snapshot output.
-        label: String,
-    },
     /// Dispatch a concrete native UI action.
     DispatchAction {
         /// Concrete native UI action to apply to the in-process GUI harness.
