@@ -38,6 +38,7 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
     let search_query = controller.ui.browser.search.search_query.clone();
     let active_rating_filters =
         browser_rating_filter_flags(&controller.ui.browser.search.rating_filter);
+    let marked_filter_active = controller.ui.browser.search.marked_only;
     let search_placeholder = Some(super::browser_search_placeholder(
         controller.ui.browser.search.search_focus_requested,
     ));
@@ -66,6 +67,7 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         selected_path_count,
         search_query,
         active_rating_filters,
+        marked_filter_active,
         search_placeholder,
         busy,
         similarity_filtered,

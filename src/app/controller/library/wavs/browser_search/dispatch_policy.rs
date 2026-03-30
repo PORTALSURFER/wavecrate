@@ -50,6 +50,8 @@ impl AppController {
         let query = self.ui.browser.search.search_query.clone();
         let filter = self.ui.browser.search.filter;
         let rating_filter = self.ui.browser.search.rating_filter.clone();
+        let marked_only = self.ui.browser.search.marked_only;
+        let marked_paths = self.ui.browser.marks.paths_for_source(&source.id);
         let sort = self.ui.browser.search.sort;
         let similar_query = self.ui.browser.search.similar_query.clone();
         let duplicate_cleanup = self.ui.browser.duplicate_cleanup.clone();
@@ -68,6 +70,8 @@ impl AppController {
                 query,
                 filter,
                 rating_filter,
+                marked_only,
+                marked_paths,
                 sort,
                 similar_query,
                 duplicate_cleanup,

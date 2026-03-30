@@ -84,6 +84,7 @@ pub(crate) fn project_browser_rows_model_into(
                     focused,
                     false,
                     false,
+                    false,
                 ),
             );
             continue;
@@ -107,6 +108,7 @@ pub(crate) fn project_browser_rows_model_into(
                 focused,
                 cached_row.missing,
                 cached_row.locked,
+                cached_row.marked,
             ),
         );
     }
@@ -190,7 +192,7 @@ fn browser_duplicate_cleanup_bucket_label(
 fn write_browser_row_into_slot(
     rows: &mut Vec<BrowserRowModel>,
     offset: usize,
-    projection: (usize, &str, usize, i8, &str, bool, bool, bool, bool),
+    projection: (usize, &str, usize, i8, &str, bool, bool, bool, bool, bool),
 ) {
     let (
         visible_row,
@@ -202,6 +204,7 @@ fn write_browser_row_into_slot(
         focused,
         missing,
         locked,
+        marked,
     ) = projection;
     let bucket_label = (!bucket_label.is_empty()).then_some(bucket_label);
     let clamped_column_index = column_index.min(2);
@@ -211,6 +214,7 @@ fn write_browser_row_into_slot(
             row.focused = focused;
             row.missing = missing;
             row.locked = locked;
+            row.marked = marked;
             row.rating_level = rating_level.clamp(-3, 3);
             if row.label == row_label && row.bucket_label.as_deref() == bucket_label {
                 return;
@@ -227,6 +231,7 @@ fn write_browser_row_into_slot(
         row.focused = focused;
         row.missing = missing;
         row.locked = locked;
+        row.marked = marked;
         if let Some(bucket_label) = bucket_label {
             if let Some(existing_bucket_label) = row.bucket_label.as_mut() {
                 if existing_bucket_label != bucket_label {
@@ -244,7 +249,8 @@ fn write_browser_row_into_slot(
     let mut row = BrowserRowModel::new(visible_row, row_label, column_index, selected, focused)
         .with_rating_level(rating_level)
         .with_missing(missing)
-        .with_locked(locked);
+        .with_locked(locked)
+        .with_marked(marked);
     if let Some(bucket_label) = bucket_label {
         row = row.with_bucket_label(bucket_label);
     }

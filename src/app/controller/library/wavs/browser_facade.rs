@@ -66,6 +66,16 @@ impl AppController {
         browser_search::clear_browser_rating_filter(self);
     }
 
+    /// Toggle whether the browser shows only session-marked samples.
+    pub fn toggle_browser_marked_filter(&mut self) {
+        self.toggle_browser_marked_filter_action();
+    }
+
+    /// Toggle the session mark for the focused row or current multi-selection.
+    pub fn toggle_browser_sample_mark(&mut self) {
+        self.toggle_browser_sample_mark_action();
+    }
+
     /// Apply a new sample browser sort mode and refresh visible rows.
     pub fn set_browser_sort(&mut self, sort: SampleBrowserSort) {
         browser_search::set_browser_sort(self, sort);

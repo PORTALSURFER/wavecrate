@@ -54,6 +54,8 @@ pub(super) fn apply_sort_for_similar(
 pub(super) fn filter_accepts(
     filter: TriageFlagFilter,
     rating_filter: &std::collections::BTreeSet<i8>,
+    marked_only: bool,
+    marked: bool,
     tag: crate::sample_sources::Rating,
     locked: bool,
 ) -> bool {
@@ -65,7 +67,8 @@ pub(super) fn filter_accepts(
     };
     let rating_level = browser_rating_filter_level(tag, locked);
     let rating_ok = rating_filter.is_empty() || rating_filter.contains(&rating_level);
-    triage_ok && rating_ok
+    let marked_ok = !marked_only || marked;
+    triage_ok && rating_ok && marked_ok
 }
 
 /// Return the effective browser rating-filter level for one sample row.

@@ -12,5 +12,5 @@ pub(crate) use dispatch_policy::with_browser_async_pipeline_enabled_for_tests;
 pub(crate) use mutations::{
     blur_browser_search, clear_browser_rating_filter, focus_browser_search,
     invert_browser_rating_filter, set_browser_filter, set_browser_rating_filter,
-    set_browser_search, set_browser_sort,
+    set_browser_search, set_browser_sort, toggle_browser_marked_filter,
 };

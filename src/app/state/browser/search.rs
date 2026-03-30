@@ -7,6 +7,8 @@ pub struct BrowserSearchState {
     pub filter: TriageFlagFilter,
     /// Rating levels selected for filtering (`-3..=3`, plus `4` for locked keeps).
     pub rating_filter: BTreeSet<i8>,
+    /// Whether only session-marked rows should remain visible.
+    pub marked_only: bool,
     /// Text query applied to visible rows via fuzzy search.
     pub search_query: String,
     /// Flag to request focus for the search field in the UI.
@@ -34,6 +36,7 @@ impl Default for BrowserSearchState {
         Self {
             filter: TriageFlagFilter::All,
             rating_filter: BTreeSet::new(),
+            marked_only: false,
             search_query: String::new(),
             search_focus_requested: false,
             random_navigation_mode: false,

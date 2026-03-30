@@ -19,6 +19,9 @@ pub(crate) fn build_visible_rows(
     let filter = controller.ui.browser.search.filter;
     let rating_filter = controller.ui.browser.search.rating_filter.clone();
     let rating_filter_hash = helpers::hash_value(&rating_filter);
+    let marked_only = controller.ui.browser.search.marked_only;
+    let marked_revision = controller.ui.browser.marks.revision;
+    let selected_source_id = controller.selection_state.ctx.selected_source.clone();
     let folder_selection = controller.folder_selection_for_filter().cloned();
     let folder_negated = controller.folder_negation_for_filter().cloned();
     let file_scope_mode = controller
@@ -52,6 +55,7 @@ pub(crate) fn build_visible_rows(
         && sort_mode == SampleBrowserSort::ListOrder
         && filter == TriageFlagFilter::All
         && controller.ui.browser.search.rating_filter.is_empty()
+        && !marked_only
         && !has_folder_filters
     {
         let total = controller.wav_entries_len();
@@ -63,6 +67,9 @@ pub(crate) fn build_visible_rows(
         filter,
         &rating_filter,
         rating_filter_hash,
+        marked_only,
+        marked_revision,
+        selected_source_id.as_ref(),
         folder_hash,
     );
 
@@ -105,6 +112,9 @@ fn ensure_filtered_stage(
     filter: TriageFlagFilter,
     rating_filter: &std::collections::BTreeSet<i8>,
     rating_filter_hash: u64,
+    marked_only: bool,
+    marked_revision: u64,
+    selected_source_id: Option<&crate::sample_sources::SourceId>,
     folder_hash: u64,
 ) -> u64 {
     let base_fingerprint_hash =
@@ -113,6 +123,8 @@ fn ensure_filtered_stage(
         base_fingerprint_hash,
         helpers::filter_key(filter),
         rating_filter_hash,
+        marked_only,
+        marked_revision,
         folder_hash,
     ));
     if controller.ui_cache.browser.pipeline.filtered_fingerprint != Some(filtered_fingerprint) {
@@ -120,10 +132,22 @@ fn ensure_filtered_stage(
         let mut filtered_rows = Vec::with_capacity(base_len);
         for row in 0..base_len {
             let index = controller.ui_cache.browser.pipeline.base_rows[row];
-            let Some(entry) = controller.wav_entry(index) else {
+            let Some((tag, locked, relative_path)) = controller
+                .wav_entry(index)
+                .map(|entry| (entry.tag, entry.locked, entry.relative_path.clone()))
+            else {
                 continue;
             };
-            if !helpers::filter_accepts(filter, rating_filter, entry.tag, entry.locked) {
+            let marked = selected_source_id
+                .is_some_and(|source_id| controller.browser_sample_marked(source_id, &relative_path));
+            if !helpers::filter_accepts(
+                filter,
+                rating_filter,
+                marked_only,
+                marked,
+                tag,
+                locked,
+            ) {
                 continue;
             }
             if !folder_accepts(controller, index) {
@@ -156,12 +180,27 @@ fn ensure_sorted_stage_for_similar(
 
     let rating_filter = controller.ui.browser.search.rating_filter.clone();
     let filter = controller.ui.browser.search.filter;
+    let marked_only = controller.ui.browser.search.marked_only;
+    let selected_source_id = controller.selection_state.ctx.selected_source.clone();
     let mut visible = Vec::with_capacity(similar.indices.len());
     for index in similar.indices.iter().copied() {
-        let Some(entry) = controller.wav_entry(index) else {
+        let Some((tag, locked, relative_path)) = controller
+            .wav_entry(index)
+            .map(|entry| (entry.tag, entry.locked, entry.relative_path.clone()))
+        else {
             continue;
         };
-        if !helpers::filter_accepts(filter, &rating_filter, entry.tag, entry.locked) {
+        let marked = selected_source_id
+            .as_ref()
+            .is_some_and(|source_id| controller.browser_sample_marked(source_id, &relative_path));
+        if !helpers::filter_accepts(
+            filter,
+            &rating_filter,
+            marked_only,
+            marked,
+            tag,
+            locked,
+        ) {
             continue;
         }
         if !folder_accepts(controller, index) {

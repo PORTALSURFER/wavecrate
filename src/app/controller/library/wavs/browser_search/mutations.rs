@@ -21,6 +21,14 @@ pub(crate) fn set_browser_filter(controller: &mut AppController, filter: TriageF
     }
 }
 
+/// Toggle the browser marked-only filter and refresh visible rows when it changes.
+pub(crate) fn toggle_browser_marked_filter(controller: &mut AppController) {
+    controller.ui.browser.search.marked_only = !controller.ui.browser.search.marked_only;
+    crate::app::controller::library::wavs::cancel_pending_similarity_filter_rebuild(controller);
+    controller.mark_browser_search_projection_revision_dirty();
+    refresh_browser_search_results(controller);
+}
+
 /// Update the browser rating filter selection.
 pub(crate) fn set_browser_rating_filter(controller: &mut AppController, level: i8, additive: bool) {
     if !(-3..=4).contains(&level) {

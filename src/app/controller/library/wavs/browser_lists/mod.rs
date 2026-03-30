@@ -12,6 +12,7 @@ impl AppController {
     pub(crate) fn rebuild_browser_lists(&mut self) {
         self.clear_invalid_browser_duplicate_cleanup();
         self.prune_browser_selection();
+        self.prune_browser_marks_for_selected_source();
         if self.should_rebuild_browser_lists_async() {
             self.dispatch_search_job();
             return;

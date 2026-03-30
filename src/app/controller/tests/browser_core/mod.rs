@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 mod filters;
 mod loading;
+mod marks;
 mod selection;
 mod tagging;
 

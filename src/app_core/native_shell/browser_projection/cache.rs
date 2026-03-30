@@ -96,6 +96,7 @@ struct BrowserRowCacheFingerprint {
     missing: bool,
     looped: bool,
     locked: bool,
+    marked: bool,
     bpm_value_bits: Option<u32>,
     long_sample_mark: bool,
 }
@@ -111,6 +112,7 @@ fn cached_browser_row_matches_entry(
         && cached.missing == fingerprint.missing
         && cached.looped == fingerprint.looped
         && cached.locked == fingerprint.locked
+        && cached.marked == fingerprint.marked
         && cached.bpm_value_bits == fingerprint.bpm_value_bits
         && cached.long_sample_mark == fingerprint.long_sample_mark
 }
@@ -120,16 +122,27 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
     controller: &mut AppController,
     absolute_index: usize,
 ) -> Option<(&ProjectedBrowserRowCacheEntry, bool)> {
-    let (entry_tag, row_identity_hash, missing, looped, locked) =
-        controller.wav_entry(absolute_index).map(|entry| {
+    let selected_source_id = controller.selected_source_id();
+    let (entry_tag, row_identity_hash, missing, looped, locked, marked) = controller
+        .wav_entry(absolute_index)
+        .map(|entry| {
             (
                 entry.tag,
                 browser_row_identity_hash(entry.relative_path.as_path()),
                 entry.missing,
                 entry.looped,
                 entry.locked,
+                entry.relative_path.clone(),
             )
-        })?;
+        })
+        .map(
+            |(entry_tag, row_identity_hash, missing, looped, locked, relative_path)| {
+                let marked = selected_source_id
+                    .as_ref()
+                    .is_some_and(|source_id| controller.browser_sample_marked(source_id, &relative_path));
+                (entry_tag, row_identity_hash, missing, looped, locked, marked)
+            },
+        )?;
     let column_index = super::browser_column_index(entry_tag);
     let rating_level = entry_tag.val();
     let long_sample_mark = controller
@@ -156,6 +169,7 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
         missing,
         looped,
         locked,
+        marked,
         bpm_value_bits,
         long_sample_mark,
     };
@@ -180,6 +194,7 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
             missing,
             looped,
             locked,
+            marked,
             bpm_value_bits,
             long_sample_mark,
         };

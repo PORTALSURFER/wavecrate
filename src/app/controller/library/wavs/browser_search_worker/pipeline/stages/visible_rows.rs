@@ -7,6 +7,7 @@ use super::super::super::telemetry::{
 use super::super::folders::{filter_accepts_tag, folder_accepts_for_job, folder_accepts_index};
 use super::super::results::sort_visible_by_playback_age;
 use super::super::*;
+use std::path::Path;
 
 /// Return an `All` visible-rows result when no filtering/sorting/scoring work is required.
 pub(in super::super) fn build_fast_path_result_if_applicable(
@@ -23,6 +24,7 @@ pub(in super::super) fn build_fast_path_result_if_applicable(
         || job.duplicate_cleanup.is_some()
         || job.sort != SampleBrowserSort::ListOrder
         || !job.rating_filter.is_empty()
+        || job.marked_only
     {
         return None;
     }
@@ -120,7 +122,17 @@ pub(in super::super) fn build_visible_rows_for_job(
         if search_job_canceled_for_index(queue, generation, index) {
             return None;
         }
-        if !filter_accepts_tag(job.filter, &job.rating_filter, entry.tag, entry.locked)
+        let marked = job
+            .marked_paths
+            .contains(Path::new(entry.relative_path.as_ref()));
+        if !filter_accepts_tag(
+            job.filter,
+            &job.rating_filter,
+            job.marked_only,
+            marked,
+            entry.tag,
+            entry.locked,
+        )
             || !folder_accepts_index(folder_accepts.as_ref(), index)
         {
             continue;
@@ -202,7 +214,19 @@ fn build_visible_rows_for_similar(
             return None;
         }
         if let Some(entry) = entries.get(index)
-            && filter_accepts_tag(job.filter, &job.rating_filter, entry.tag, entry.locked)
+            && {
+                let marked = job
+                    .marked_paths
+                    .contains(Path::new(entry.relative_path.as_ref()));
+                filter_accepts_tag(
+                    job.filter,
+                    &job.rating_filter,
+                    job.marked_only,
+                    marked,
+                    entry.tag,
+                    entry.locked,
+                )
+            }
             && folder_accepts_index(folder_accepts, index)
         {
             visible.push(index);
@@ -232,7 +256,15 @@ fn build_visible_rows_for_similar(
 
         if let Some(anchor) = similar.anchor_index
             && let Some(entry) = entries.get(anchor)
-            && filter_accepts_tag(job.filter, &job.rating_filter, entry.tag, entry.locked)
+            && filter_accepts_tag(
+                job.filter,
+                &job.rating_filter,
+                job.marked_only,
+                job.marked_paths
+                    .contains(Path::new(entry.relative_path.as_ref())),
+                entry.tag,
+                entry.locked,
+            )
             && folder_accepts_index(folder_accepts, anchor)
         {
             if let Some(pos) = visible.iter().position(|index| *index == anchor) {

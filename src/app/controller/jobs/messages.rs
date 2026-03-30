@@ -42,6 +42,10 @@ pub(crate) struct SearchJob {
     pub(crate) filter: crate::app::state::TriageFlagFilter,
     /// Rating levels selected for filtering (`-3..=3`, plus `4` for locked keeps).
     pub(crate) rating_filter: BTreeSet<i8>,
+    /// Whether the result set should keep only session-marked samples.
+    pub(crate) marked_only: bool,
+    /// Session-marked sample paths for the active source.
+    pub(crate) marked_paths: BTreeSet<PathBuf>,
     pub(crate) sort: crate::app::state::SampleBrowserSort,
     pub(crate) similar_query: Option<crate::app::state::SimilarQuery>,
     pub(crate) duplicate_cleanup: Option<crate::app::state::BrowserDuplicateCleanupState>,

@@ -164,6 +164,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
             }
             flags
         },
+        marked_filter_active: controller.ui.browser.search.marked_only,
         waveform_selection_milli: controller.ui.waveform.selection.map(|selection| {
             crate::app_core::actions::NativeNormalizedRangeModel::from_micros(
                 waveform_projection::normalized_to_micros(selection.start()),

@@ -86,6 +86,8 @@ pub(crate) struct ProjectedBrowserRowCacheEntry {
     pub looped: bool,
     /// Whether the backing sample is marked as a confirmed keep lock.
     pub locked: bool,
+    /// Whether the backing sample is session-marked for later review.
+    pub marked: bool,
     /// Cached BPM bits used to detect metadata changes without rebuilding label text.
     pub bpm_value_bits: Option<u32>,
     /// Whether the backing sample currently carries the long-sample marker.

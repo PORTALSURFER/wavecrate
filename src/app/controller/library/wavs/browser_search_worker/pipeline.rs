@@ -194,6 +194,8 @@ mod tests {
             query: query.to_string(),
             filter: TriageFlagFilter::All,
             rating_filter: BTreeSet::new(),
+            marked_only: false,
+            marked_paths: BTreeSet::new(),
             sort: SampleBrowserSort::ListOrder,
             similar_query: None,
             duplicate_cleanup: None,

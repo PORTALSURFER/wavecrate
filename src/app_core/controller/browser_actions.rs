@@ -185,6 +185,14 @@ pub(super) fn apply_browser_native_ui_action(
                 controller.set_browser_rating_filter(level, true);
             }
         }
+        NativeUiAction::ToggleBrowserSampleMark => {
+            controller.focus_browser_list();
+            controller.toggle_browser_sample_mark();
+        }
+        NativeUiAction::ToggleBrowserMarkedFilter => {
+            controller.focus_browser_list();
+            controller.toggle_browser_marked_filter();
+        }
         NativeUiAction::ToggleRandomNavigationMode => controller.toggle_random_navigation_mode(),
         NativeUiAction::ToggleBrowserDuplicateCleanupMode => {
             controller.toggle_browser_duplicate_cleanup_mode()

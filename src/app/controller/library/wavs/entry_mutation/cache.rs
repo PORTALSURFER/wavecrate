@@ -136,6 +136,7 @@ pub(crate) fn update_selection_paths(
     new_path: &Path,
 ) {
     controller.update_compare_anchor_path(&source.id, old_path, new_path);
+    controller.remap_browser_marked_path(&source.id, old_path, new_path);
     if controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
         if !controller.ui.browser.selection.selected_paths.is_empty() {
             let mut updated =

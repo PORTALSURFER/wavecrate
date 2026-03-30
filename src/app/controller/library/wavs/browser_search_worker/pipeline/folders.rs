@@ -7,6 +7,8 @@ use std::path::Path;
 pub(super) fn filter_accepts_tag(
     filter: TriageFlagFilter,
     rating_filter: &std::collections::BTreeSet<i8>,
+    marked_only: bool,
+    marked: bool,
     tag: Rating,
     locked: bool,
 ) -> bool {
@@ -18,7 +20,8 @@ pub(super) fn filter_accepts_tag(
     };
     let rating_level = browser_rating_filter_level(tag, locked);
     let rating_ok = rating_filter.is_empty() || rating_filter.contains(&rating_level);
-    triage_ok && rating_ok
+    let marked_ok = !marked_only || marked;
+    triage_ok && rating_ok && marked_ok
 }
 
 /// Return the effective browser rating-filter level for one worker entry.
@@ -139,30 +142,40 @@ mod tests {
         assert!(filter_accepts_tag(
             TriageFlagFilter::All,
             &rating_filter,
+            false,
+            true,
             Rating::KEEP_3,
             true,
         ));
         assert!(!filter_accepts_tag(
             TriageFlagFilter::All,
             &rating_filter,
+            false,
+            false,
             Rating::KEEP_3,
             false,
         ));
         assert!(!filter_accepts_tag(
             TriageFlagFilter::All,
             &rating_filter,
+            false,
+            false,
             Rating::TRASH_3,
             true,
         ));
         assert!(!filter_accepts_tag(
             TriageFlagFilter::All,
             &BTreeSet::from([3]),
+            false,
+            true,
             Rating::KEEP_3,
             true,
         ));
         assert!(filter_accepts_tag(
             TriageFlagFilter::All,
             &BTreeSet::from([3, 4]),
+            false,
+            true,
             Rating::KEEP_3,
             true,
         ));
@@ -213,6 +226,8 @@ mod tests {
             query: query.to_string(),
             filter: TriageFlagFilter::All,
             rating_filter: BTreeSet::new(),
+            marked_only: false,
+            marked_paths: BTreeSet::new(),
             sort: SampleBrowserSort::ListOrder,
             similar_query: None,
             duplicate_cleanup: None,

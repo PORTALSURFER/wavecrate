@@ -9,6 +9,7 @@ mod browser_actions;
 mod browser_facade;
 mod browser_history;
 mod browser_lists;
+mod browser_marks;
 /// Staged browser row pipeline caching and deterministic recompute helpers.
 mod browser_pipeline;
 mod browser_search;
