@@ -57,6 +57,7 @@ impl AppController {
             history_relative_path,
             history_absolute_path,
             history_tag,
+            None,
         ) {
             self.set_status(
                 format!("Selection export undo failed: {err}"),
@@ -70,6 +71,14 @@ impl AppController {
         &mut self,
         success: SelectionCropExportSuccess,
     ) {
+        let history_key =
+            crate::app::controller::history::PendingHistoryTransactionKey::SelectionExport {
+                request_id: success.request_id,
+            };
+        let history_source_id = success.source_id.clone();
+        let history_relative_path = success.entry.relative_path.clone();
+        let history_absolute_path = success.absolute_path.clone();
+        let history_tag = success.tag;
         self.record_selection_export_timings(
             "crop_new_sample",
             &success.entry.relative_path,
@@ -86,21 +95,6 @@ impl AppController {
             success.entry.file_size,
             success.entry.modified_ns,
         );
-        if let Ok(backup) = undo::OverwriteBackup::capture_before(&success.absolute_path)
-            && backup.capture_after(&success.absolute_path).is_ok()
-        {
-            self.push_undo_entry(self.crop_new_sample_undo_entry(
-                format!(
-                    "Cropped to new sample {}",
-                    success.entry.relative_path.display()
-                ),
-                source.id.clone(),
-                success.entry.relative_path.clone(),
-                success.absolute_path.clone(),
-                success.tag,
-                backup,
-            ));
-        }
         self.ui.browser.selection.autoscroll = true;
         self.selection_state.suppress_autoplay_once = true;
         self.select_wav_by_path(&success.entry.relative_path);
@@ -123,6 +117,19 @@ impl AppController {
             ),
             StatusTone::Info,
         );
+        if let Err(err) = self.finish_pending_sample_creation_transaction(
+            &history_key,
+            history_source_id,
+            history_relative_path.clone(),
+            history_absolute_path,
+            history_tag,
+            Some(format!(
+                "Cropped to new sample {}",
+                history_relative_path.display()
+            )),
+        ) {
+            self.set_status(format!("Crop export undo failed: {err}"), StatusTone::Error);
+        }
     }
 
     #[cfg(target_os = "windows")]

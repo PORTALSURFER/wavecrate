@@ -4,7 +4,7 @@ Generated: 2026-03-30
 Observed superproject commit: `4be4051e`
 Observed `vendor/radiant` commit: `dd22ac1c`
 Observed workspace state: clean worktree in the superproject at audit time.
-Status: Phase 2 execution started on 2026-03-30. Item 1 is complete; item 2 remains clarification-gated, and the remaining backlog is pending or blocked behind those gates.
+Status: Phase 2 execution started on 2026-03-30. Items 1 and 3 are complete; item 2 remains clarification-gated; items 4-7 are blocked by clarification or dependency; item 8 is the next safe executable backlog item.
 
 ## Scope
 
@@ -16,7 +16,9 @@ Status: Phase 2 execution started on 2026-03-30. Item 1 is complete; item 2 rema
 
 - 2026-03-30: Rebuilt the backlog from the current clean `next` tree after the documented preflight surfaced a new migration-boundary failure at `HEAD`.
 - 2026-03-30: Kept already-fixed 2026-03-29 items out of the new backlog unless the live tree still showed an active gap.
-- 2026-03-30: Did not start Phase 2. This file is a planning artifact only until the user explicitly confirms implementation.
+- 2026-03-30: Started Phase 2 after user confirmation and landed item 1 in commit `7fa92ac6`.
+- 2026-03-30: Landed item 3 after routing crop-to-new-sample through the shared pending-history snapshot path and adding focused crop-history regression coverage.
+- 2026-03-30: While validating item 3, the repo-wide serial lib suite exposed a pre-existing `gui_test` test-harness instability tied to repeated `default` fixture usage; tightening those unit tests and the shell smoke pack to deterministic named fixtures restored stable `gui_test::` and `ci_agent` coverage without changing the product contract under audit.
 
 ## Repository Context
 
@@ -37,6 +39,14 @@ Status: Phase 2 execution started on 2026-03-30. Item 1 is complete; item 2 rema
 - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` failed with 29 active-scope file-budget violations across the root repo and `vendor/radiant/src`.
 - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` refreshed `tmp/cleanup_audit_hotspots.md`, which now reports 59 broader over-budget Rust files, 1263 scanned Rust files, and several non-allowlisted production hotspots.
 - `scripts/check_docs_index.ps1` and `scripts/check_codeowners_coverage.ps1` still pass, so the current top issues are code/contract debt rather than missing index wiring.
+- Item 3 validation now passes:
+  - `cargo test crop_export_history_tests --lib`
+  - `cargo test apply_selection_crop_export_success_restores_focus_playback_and_undo_state --lib`
+  - `cargo test crop_to_new_sample_queues_export_and_async_loads_new_clip --lib`
+  - `cargo test gui_test:: --lib -- --test-threads=1`
+  - `cargo test -p sempal --lib -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 
 ## Intent Boundaries
 
@@ -69,6 +79,7 @@ Status: Phase 2 execution started on 2026-03-30. Item 1 is complete; item 2 rema
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: 2026-03-30
+- Commit: `7fa92ac6` (`fix: restore app_core migration boundary`)
 - Assumptions: routing these projection helpers back through `app_core::app_api::state` is the intended minimal repair for the documented boundary, even though broader type-ownership narrowing may remain future work.
 - Validation:
   - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1`
@@ -96,7 +107,7 @@ Status: Phase 2 execution started on 2026-03-30. Item 1 is complete; item 2 rema
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: Yes
 
-### 3. [ ] Put crop-to-new-sample undo/redo on the same snapshot-restore path as other async selection exports
+### 3. [x] Put crop-to-new-sample undo/redo on the same snapshot-restore path as other async selection exports
 
 - Classification: Bug fix
 - Confidence: Medium
@@ -118,6 +129,20 @@ Status: Phase 2 execution started on 2026-03-30. Item 1 is complete; item 2 rema
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: 2026-03-30
+- Commit: pending
+- Assumptions:
+  - crop-to-new-sample should follow the same pending sample-creation snapshot contract as other async selection exports.
+  - tightening `gui_test` unit coverage to deterministic named fixtures is an acceptable validation prerequisite because those assertions do not rely on persisted-startup behavior.
+- Validation:
+  - `cargo test crop_export_history_tests --lib`
+  - `cargo test apply_selection_crop_export_success_restores_focus_playback_and_undo_state --lib`
+  - `cargo test crop_to_new_sample_queues_export_and_async_loads_new_clip --lib`
+  - `cargo test gui_test:: --lib -- --test-threads=1`
+  - `cargo test -p sempal --lib -- --test-threads=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Plan order deviation: fixed a small prerequisite `gui_test` validation instability before landing item 3 so the documented serial lib suite and `ci_agent` lane could run green again.
 
 ### 4. [~] Deepen regression coverage for `MeaningfulUiSnapshot` restore and async history completion
 

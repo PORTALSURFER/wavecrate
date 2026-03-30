@@ -59,13 +59,13 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `X:\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: evidence-driven improvement audit planning for the current live tree
+- Program: evidence-driven improvement audit execution for the current live tree
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-30 ROI-ranked backlog for this tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
-- Current status: Phase 2 execution started on `2026-03-30`; item 1 fixed the live `app_core` migration-boundary failure at `HEAD`, item 2 remains clarification-gated, and `tmp/improvement_audit_plan.md` is the live execution record.
+- Current status: Phase 2 execution started on `2026-03-30`; items 1 and 3 are complete; repo-wide validation is green again; item 2 remains clarification-gated; items 5-7 still need clarification or dependency resolution; item 8 is the next safe executable backlog item; and `tmp/improvement_audit_plan.md` is the live execution record.
 
 ## Immediate Next Actions
-1. Record the item 1 commit in `tmp/improvement_audit_plan.md`, then handle the item 2 clarification gate and continue with the next safe backlog item.
-2. Keep `tmp/improvement_audit_plan.md` updated as the live execution record for the active lane.
+1. Commit and push the item 3 work after updating `tmp/improvement_audit_plan.md` with the resulting commit hash.
+2. Mark item 2, item 5, item 6, and item 7 blocked honestly, then continue with item 8 as the next safe executable backlog item.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 5. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized when the active lane changes or one of the clarification-gated items is resolved.
@@ -74,7 +74,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; regenerated on `2026-03-30` and awaiting explicit implementation confirmation
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; regenerated on `2026-03-30`, items 1 and 3 are complete, and item 8 is the next safe executable item
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation

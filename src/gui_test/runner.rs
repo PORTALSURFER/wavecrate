@@ -255,6 +255,13 @@ mod tests {
     use radiant::app::AutomationBounds;
     use std::collections::BTreeMap;
 
+    fn deterministic_test_config(fixture_tag: &str) -> GuiTestModeConfig {
+        GuiTestModeConfig {
+            fixture_tag: String::from(fixture_tag),
+            ..GuiTestModeConfig::default()
+        }
+    }
+
     fn snapshot_with_child() -> NativeGuiAutomationSnapshot {
         NativeGuiAutomationSnapshot {
             schema_version: 1,
@@ -309,8 +316,8 @@ mod tests {
 
     #[test]
     fn capture_default_bundle_exposes_root_snapshot_and_catalog() {
-        let bundle =
-            capture_default_bundle(&GuiTestModeConfig::default()).expect("capture should succeed");
+        let bundle = capture_default_bundle(&deterministic_test_config("browser"))
+            .expect("capture should succeed");
         assert_eq!(bundle.automation_snapshot.root.id.0, "shell.root");
         assert_eq!(bundle.action_catalog.len(), GUI_ACTION_CATALOG.len());
     }
@@ -319,15 +326,15 @@ mod tests {
     fn scenario_runner_accepts_root_presence_assertion() {
         let scenario = GuiScenario {
             name: String::from("root-smoke"),
-            fixture_tag: String::from("default"),
+            fixture_tag: String::from("browser"),
             steps: vec![GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodePresent {
                     node_id: String::from("shell.root"),
                 },
             }],
         };
-        let bundle =
-            run_scenario(&GuiTestModeConfig::default(), &scenario).expect("scenario should pass");
+        let bundle = run_scenario(&deterministic_test_config("browser"), &scenario)
+            .expect("scenario should pass");
         assert!(bundle.failure_summary.is_none());
     }
 

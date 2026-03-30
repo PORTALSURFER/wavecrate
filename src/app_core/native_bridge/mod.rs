@@ -85,6 +85,8 @@ pub struct SempalNativeBridge {
     consecutive_local_model_pulls: u8,
     /// Optional live GUI test artifact recorder.
     gui_test_recorder: Option<gui_test::BridgeGuiTestRecorder>,
+    /// Whether runtime shutdown hooks have already been flushed.
+    runtime_exit_emitted: bool,
 }
 
 impl SempalNativeBridge {
@@ -100,6 +102,7 @@ impl SempalNativeBridge {
             pending_model_pull_preparation: PendingModelPullPreparation::Full,
             consecutive_local_model_pulls: 0,
             gui_test_recorder: None,
+            runtime_exit_emitted: false,
         }
     }
 
@@ -197,12 +200,17 @@ impl NativeAppBridge for SempalNativeBridge {
 
     /// Flush pending work and persist config during runtime shutdown.
     fn on_runtime_exit(&mut self) {
+        if self.runtime_exit_emitted {
+            return;
+        }
+        self.runtime_exit_emitted = true;
         self.flush_pending_input_actions();
         if let Err(err) = self.controller.persist_native_exit_config() {
             error!(err = %err, "Failed to persist config on native exit");
-            return;
+        } else {
+            info!("Persisted config on native exit");
         }
-        info!("Persisted config on native exit");
+        self.controller.shutdown();
     }
 }
 

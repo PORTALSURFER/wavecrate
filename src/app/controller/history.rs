@@ -381,6 +381,7 @@ impl AppController {
         relative_path: PathBuf,
         absolute_path: PathBuf,
         tag: crate::sample_sources::Rating,
+        label_override: Option<String>,
     ) -> Result<(), String> {
         let Some(PendingHistoryTransaction::SampleCreation(pending)) =
             self.history.pending_transactions.remove(key)
@@ -391,7 +392,7 @@ impl AppController {
         backup.capture_after(&absolute_path)?;
         let after = self.capture_meaningful_ui_snapshot();
         let entry = self.crop_new_sample_undo_entry(
-            pending.label,
+            label_override.unwrap_or(pending.label),
             source_id,
             relative_path,
             absolute_path,

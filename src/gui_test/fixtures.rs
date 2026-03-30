@@ -24,6 +24,7 @@ use tempfile::TempDir;
 pub struct GuiFixtureBridge {
     bridge: SempalNativeBridge,
     _sandbox_guards: Vec<TempDir>,
+    shutdown_emitted: bool,
 }
 
 impl GuiFixtureBridge {
@@ -40,6 +41,7 @@ impl GuiFixtureBridge {
             return Ok(Self {
                 bridge,
                 _sandbox_guards: Vec::new(),
+                shutdown_emitted: false,
             });
         }
         let bundle = build_named_gui_fixture_controller(
@@ -49,6 +51,7 @@ impl GuiFixtureBridge {
         Ok(Self {
             bridge: new_native_bridge_with_controller(bundle.controller),
             _sandbox_guards: bundle.sandbox_guards,
+            shutdown_emitted: false,
         })
     }
 
@@ -60,6 +63,15 @@ impl GuiFixtureBridge {
     /// Enable live GUI test artifact emission for this bridge instance.
     pub fn install_gui_test_mode(&mut self, config: GuiTestModeConfig) {
         self.bridge.install_gui_test_mode(config);
+    }
+
+    /// Flush one bridge shutdown hook exactly once before fixture teardown.
+    fn emit_runtime_exit(&mut self) {
+        if self.shutdown_emitted {
+            return;
+        }
+        self.bridge.on_runtime_exit();
+        self.shutdown_emitted = true;
     }
 }
 
@@ -101,6 +113,12 @@ impl NativeAppBridge for GuiFixtureBridge {
     }
 
     fn on_runtime_exit(&mut self) {
-        self.bridge.on_runtime_exit();
+        self.emit_runtime_exit();
+    }
+}
+
+impl Drop for GuiFixtureBridge {
+    fn drop(&mut self) {
+        self.emit_runtime_exit();
     }
 }

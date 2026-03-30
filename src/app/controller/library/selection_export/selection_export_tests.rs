@@ -58,5 +58,6 @@ fn written_entry(root: &Path, relative_path: &Path, tag: Rating) -> WavEntry {
 
 mod audio_payload_tests;
 mod clip_export_tests;
+mod crop_export_history_tests;
 mod slice_batch_export_tests;
 mod waveform_selection_export_tests;

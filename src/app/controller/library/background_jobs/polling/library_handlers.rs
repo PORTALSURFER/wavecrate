@@ -215,9 +215,14 @@ impl AppController {
                 self.set_status(err, StatusTone::Error);
             }
             crate::app::controller::jobs::SelectionExportResult::CropNewSample {
+                request_id,
                 result: Err(err),
-                ..
             } => {
+                self.cancel_pending_history_transaction(
+                    &crate::app::controller::history::PendingHistoryTransactionKey::SelectionExport {
+                        request_id,
+                    },
+                );
                 self.set_status(err, StatusTone::Error);
             }
             crate::app::controller::jobs::SelectionExportResult::SliceBatch {

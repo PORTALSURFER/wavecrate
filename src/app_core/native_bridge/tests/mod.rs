@@ -61,5 +61,6 @@ fn test_bridge(size: u32) -> SempalNativeBridge {
         pending_model_pull_preparation: PendingModelPullPreparation::Full,
         consecutive_local_model_pulls: 0,
         gui_test_recorder: None,
+        runtime_exit_emitted: false,
     }
 }

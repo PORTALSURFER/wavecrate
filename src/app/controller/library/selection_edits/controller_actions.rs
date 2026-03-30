@@ -112,32 +112,25 @@ impl AppController {
 
     /// Write the cropped selection to a new sample file alongside the original.
     pub(crate) fn crop_waveform_selection_to_new_sample(&mut self) -> Result<(), String> {
-        let target = self.selection_target()?;
-        let tag = self.sample_tag_for(&target.source, &target.relative_path)?;
+        let session = self.begin_crop_new_sample_session()?;
         let request_id = self.runtime.jobs.next_selection_export_request_id();
+        self.begin_pending_sample_creation_transaction(
+            crate::app::controller::history::PendingHistoryTransactionKey::SelectionExport {
+                request_id,
+            },
+            "Cropped to new sample",
+        );
         self.runtime.jobs.begin_selection_export(
             crate::app::controller::jobs::SelectionExportJob::CropNewSample {
                 request_id,
-                snapshot: self.capture_selection_export_snapshot(target.selection, Some(tag))?,
+                snapshot: self.capture_selection_export_snapshot(
+                    session.target.selection,
+                    Some(session.tag),
+                )?,
                 playback: crate::app::controller::jobs::SelectionExportPlaybackState {
-                    was_playing: self.is_playing(),
-                    was_looping: if self.ui.waveform.loop_enabled {
-                        true
-                    } else if self.audio.pending_loop_disable_at.is_some() {
-                        false
-                    } else {
-                        self.audio
-                            .player
-                            .as_ref()
-                            .is_some_and(|player| player.borrow().is_looping())
-                    },
-                    start_override: self
-                        .ui
-                        .waveform
-                        .playhead
-                        .position
-                        .is_finite()
-                        .then(|| f64::from(self.ui.waveform.playhead.position.clamp(0.0, 1.0))),
+                    was_playing: session.playback.was_playing,
+                    was_looping: session.playback.was_looping,
+                    start_override: session.playback.start_override,
                 },
             },
         );

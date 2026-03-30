@@ -6,7 +6,7 @@ use crate::gui_test::{GuiAssertion, GuiScenario, GuiScenarioStep};
 pub(super) fn options_open_close_scenario() -> GuiScenario {
     GuiScenario {
         name: String::from("options_open_close"),
-        fixture_tag: String::from("default"),
+        fixture_tag: String::from("browser"),
         steps: vec![
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeActionAvailable {

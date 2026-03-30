@@ -81,6 +81,7 @@ fn apply_browser_focus_delta_immediate_noop_keeps_projection_cache_key() {
         pending_model_pull_preparation: PendingModelPullPreparation::Full,
         consecutive_local_model_pulls: 0,
         gui_test_recorder: None,
+        runtime_exit_emitted: false,
     };
     bridge.apply_browser_focus_delta_immediately(1);
     assert_eq!(bridge.projection_cache.app_key, Some(key));
@@ -495,6 +496,7 @@ fn flush_pending_waveform_actions_clears_queue_and_marks_waveform_dirty() {
         pending_model_pull_preparation: PendingModelPullPreparation::Full,
         consecutive_local_model_pulls: 0,
         gui_test_recorder: None,
+        runtime_exit_emitted: false,
     };
 
     assert!(
@@ -671,6 +673,7 @@ fn flush_derived_updates_clears_nodes_and_invalidates_key() {
         pending_model_pull_preparation: PendingModelPullPreparation::Full,
         consecutive_local_model_pulls: 0,
         gui_test_recorder: None,
+        runtime_exit_emitted: false,
     };
     let _ = bridge.projection_key_snapshot();
     assert!(bridge.projection_key_snapshot.is_some());
