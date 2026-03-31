@@ -94,7 +94,7 @@ struct BrowserRowCacheFingerprint {
     row_identity_hash: u64,
     column_index: usize,
     rating_level: i8,
-    playback_age_bucket: crate::app::state::PlaybackAgeBucket,
+    playback_age_bucket: PlaybackAgeBucket,
     missing: bool,
     looped: bool,
     locked: bool,
@@ -169,10 +169,8 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
         )?;
     let column_index = super::browser_column_index(entry_tag);
     let rating_level = entry_tag.val();
-    let playback_age_bucket = crate::app::state::PlaybackAgeBucket::from_last_played_at(
-        last_played_at,
-        playback_age_now_unix_secs,
-    );
+    let playback_age_bucket =
+        PlaybackAgeBucket::from_last_played_at(last_played_at, playback_age_now_unix_secs);
     let long_sample_mark = controller
         .cached_feature_status_for_entry(absolute_index)
         .and_then(|status| status.long_sample_mark)

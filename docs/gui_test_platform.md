@@ -176,7 +176,7 @@ The wrapper now retries foreground recovery before focus-sensitive desktop steps
 Desktop packs:
 
 - `desktop-smoke`: `startup_ready`, `options_open_close`, `browser_search_type_smoke`
-- `desktop-regression`: `startup_ready`, `browser_search_select_commit`, `browser_tabs_and_rating_filters`, browser scroll/refocus cases, `browser_map_point_focus`, `options_open_close`, `prompt_confirm`, `prompt_cancel`, `waveform_transport_button`, `transport_volume_slider_drag`, `waveform_transport_cursor_selection_zoom`, `waveform_outside_click_clears_both_marks`, `update_panel_actions`
+- `desktop-regression`: `startup_ready`, `browser_search_select_commit`, `browser_tabs_and_rating_filters`, `browser_playback_age_filters`, browser scroll/refocus cases, `browser_map_point_focus`, `options_open_close`, `prompt_confirm`, `prompt_cancel`, `waveform_transport_button`, `transport_volume_slider_drag`, `waveform_transport_cursor_selection_zoom`, `waveform_outside_click_clears_both_marks`, `update_panel_actions`
 
 Desktop runner outputs:
 

@@ -133,13 +133,16 @@ fn queue_or_load_explicit_pending_playback(
             pending.source_id == source.id && pending.relative_path.as_path() == relative_path
         })
     {
-        controller.runtime.jobs.set_pending_playback(Some(PendingPlayback {
-            source_id: source.id.clone(),
-            relative_path: relative_path.to_path_buf(),
-            looped,
-            start_override,
-            force_loaded_audio,
-        }));
+        controller
+            .runtime
+            .jobs
+            .set_pending_playback(Some(PendingPlayback {
+                source_id: source.id.clone(),
+                relative_path: relative_path.to_path_buf(),
+                looped,
+                start_override,
+                force_loaded_audio,
+            }));
         controller.set_status("Loading audio…", StatusTone::Busy);
         return Ok(());
     }
@@ -160,11 +163,20 @@ fn queue_or_load_explicit_pending_playback(
         AudioLoadIntent::Selection,
         Some(pending_playback),
     )?;
-    controller.set_status(format!("Loading {}", relative_path.display()), StatusTone::Busy);
+    controller.set_status(
+        format!("Loading {}", relative_path.display()),
+        StatusTone::Busy,
+    );
     Ok(())
 }
 
-fn browser_selection_playback_target(controller: &mut AppController) -> Option<(SampleSource, PathBuf)> {
+/// Return the currently selected browser sample when browser focus should start new playback.
+///
+/// This suppresses redundant reloads when the selected browser row already
+/// matches the loaded sample for the active source.
+fn browser_selection_playback_target(
+    controller: &mut AppController,
+) -> Option<(SampleSource, PathBuf)> {
     if !matches!(
         controller.ui.focus.context,
         crate::app::state::FocusContext::SampleBrowser

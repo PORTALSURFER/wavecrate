@@ -14,7 +14,7 @@ description: How to set up Sempal, triage samples, edit waveforms, and manage so
 - Add a source folder with **+** or by dropping it onto the Sources panel; the first `.wav` row auto-loads and starts playback.
 - Drag on the waveform to create a selection, then right-click it for destructive edits (crop, trim, reverse, fades, mute, smooth, normalize).
 - Drag the selection handle onto Samples or a folder to export a trimmed clip (saved into the selected folder when applicable).
-- Use filter chips (All/Keep/Trash/Untagged) and arrow-key tagging to triage quickly; `Space` toggles play/pause, `Esc` stops playback (or exits slice review first), and `Silence Split` opens a keyboard slice-review loop.
+- Use the browser filter chips to triage quickly: `All/Keep/Trash/Untagged` for tags, `NVR/1M/1W` for playback age, and `MARK` for the temporary marked set. `Space` toggles play/pause, `Esc` stops playback (or exits slice review first), and `Silence Split` opens a keyboard slice-review loop.
 - Use **Find similar** or the **Similarity map** tab to explore related samples after similarity prep finishes.
 
 ## Layout at a glance
@@ -44,11 +44,14 @@ description: How to set up Sempal, triage samples, edit waveforms, and manage so
 - Use the **Folders** tree to filter which subfolders appear in the Samples list. Drag samples onto folders to move files on disk.
 
 ## Browse and triage
-- Filter chips (All/Keep/Trash/Untagged) change the visible list. Rows show number columns and right-edge keep/trash markers.
+- Triage chips (`All/Keep/Trash/Untagged`) change the visible list. Rows show number columns and right-edge keep/trash markers.
+- Playback-age chips use the current native toolbar labels: `NVR` (never played), `1M` (last played at least 30 days ago), and `1W` (last played at least 7 days ago but less than 30 days ago). Current behavior lets you combine these chips; `Alt + click` on one chip inverts the selection to the other playback-age chips.
+- `MARK` toggles a marked-only browser filter. Temporary sample marks are session-scoped and do not retag the source files.
 - Search box performs fuzzy matching within the current filter; clear to restore the full list.
 - Dice button in the browser toolbar: click 🎲 to play a random visible sample; **Shift + click** toggles sticky random navigation (same as `Alt + R`).
 - Selection basics: click to focus; **Shift + click** extends; **Ctrl/Cmd + click** toggles multi-select while keeping focus. **Up/Down** moves focus; **Shift + Up/Down** extends. Toggle **Alt + R** to lock random navigation so **Down** plays random visible samples and **Up** steps backward through random history.
 - Tagging: **Right Arrow** → Keep (Trash → Neutral, others → Keep). **Left Arrow** → Trash (Keep → Neutral, others → Trash). **Ctrl/Cmd + Right/Left** moves the selection across triage columns.
+- Press `;` to toggle the temporary sample mark for the focused row or current multi-selection. Current behavior advances browser review after a single-row mark: outside `MARK` mode it moves focus/loading to the next visible row, and inside `MARK` mode it tries to keep review on another still-visible row.
 - Row context menu: **Open in file explorer**, **Find similar**, Tag Keep/Neutral/Trash, **Normalize (overwrite)**, **Rename**, **Delete file**. Applies to the focused row or multi-select.
 - **Ctrl/Cmd + C** copies the focused or selected sample file(s) to the clipboard as file drops (for DAWs/file managers). Dragging a row into the browser retags it to the active filter (All/Untagged → Neutral).
 
@@ -84,6 +87,6 @@ description: How to set up Sempal, triage samples, edit waveforms, and manage so
 
 ## Hotkeys (focus-aware)
 - **Global:** `Space` play/pause; `Ctrl/Cmd + Space` play from cursor; `Shift + Space` replay from last start; `Esc` stop playback / clear selection; `Ctrl/Cmd + Z` or `U` undo; `Ctrl/Cmd + Y` or `Shift + U` redo; `L` toggle loop; `Shift + L` enter/cycle locked loop override; `P` or `Shift + P` move trashed samples to the trash folder; `[` trash selected sample(s); `]` keep selected sample(s); `'` tag selected sample(s) as neutral; `Shift + R` play a random visible sample and auto-play; `Alt + R` toggle sticky random navigation; `Ctrl/Cmd + Shift + R` step backward through random history; `Ctrl/Cmd + Shift + L` copy status log; `Ctrl/Cmd + /` toggle hotkey overlay; `Shift + F1` submit a GitHub issue (connect GitHub first); `F11` toggle maximized window; focus chords (press `G` then): `W` waveform, `S` sample browser, `Shift + S` sources list.
-- **Sample browser focus:** `Up/Down` move (or jump randomly when sticky mode is on); `Shift + Up/Down` extend; `Right Arrow` Keep; `Left Arrow` Trash; `Ctrl/Cmd + Right/Left` move across triage columns; `Ctrl/Cmd + C` copy focused/selected sample file(s); `X` toggle selection; `Ctrl/Cmd + A` select all; `F` focus search box; `R` rename focused sample; `N` normalize (overwrite); `D` delete.
+- **Sample browser focus:** `Up/Down` move (or jump randomly when sticky mode is on); `Shift + Up/Down` extend; `Right Arrow` Keep; `Left Arrow` Trash; `Ctrl/Cmd + Right/Left` move across triage columns; `;` toggle the temporary sample mark; `Ctrl/Cmd + C` copy focused/selected sample file(s); `X` toggle selection; `Ctrl/Cmd + A` select all; `F` focus search box; `R` rename focused sample; `N` normalize (overwrite); `D` delete.
 - **Source folders focus:** `Up/Down` move focus; `Shift + Up/Down` extend selection; `Left/Right` collapse/expand focused folder; click the disclosure gutter to toggle subfolders with the mouse; `X` toggle folder selection; `N` new folder; `F` focus folder search; `R` rename folder; `D` delete folder.
 - **Waveform focus:** `Space` auditions the focused slice while slice review is active; `Left/Right` move between review slices or slide the current selection when review is inactive; `Shift + Left/Right` nudge the current selection; `Ctrl/Cmd + C` copy the current selection as an exported wav clip; `A` marks the focused review slice for export; `E` exports the marked review slices or the current selection/slice batch and marks the new file(s) keep x1; `Shift + E` exports the same clip(s) and immediately marks them keep x2; `Esc` exits slice review before other waveform clearing behavior; `C` crop selection (overwrite), `Shift + C` crop selection as new sample; `T` trim selection; `\\` fade selection (left to right); `/` fade selection (right to left); `M` mute selection / merge selected slices; `N` normalize selection/sample.

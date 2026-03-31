@@ -60,22 +60,21 @@ Write for future selves: be precise, kind, and clear.
 - Product: Sempal
 - Branch: `next`
 - Program: evidence-driven improvement audit execution for the current live tree
-- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-30 ROI-ranked backlog for this tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
-- Current status: Phase 2 completed on `2026-03-31`. Items 1-8 are complete, including the previously blocked file-budget cleanup in superproject commit `572beac8` and `vendor/radiant` commit `bb734080`. `scripts/check_file_size_budget.ps1 -All`, `cargo test -p radiant --lib --no-run`, `scripts/devcheck.ps1`, and `scripts/ci_agent.ps1` are green again, and `tmp/improvement_audit_plan.md` is now the completed execution record for this audit lane.
+- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-31 ROI-ranked backlog and completed execution record for this tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
+- Current status: Phase 2 completed on `2026-03-31`. The migration boundary, full-scan file-size budget, quality-score drift lane, GUI contract, agent request preflight, and `ci_agent` are green again. `tmp/improvement_audit_plan.md` is now the completed execution record for this audit lane.
 
 ## Immediate Next Actions
 1. Wait for the user to choose the next lane.
 2. Keep `tmp/improvement_audit_plan.md` as the completed execution record for this audit lane.
-3. Wait for the user to choose the next lane.
-4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
-5. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
-6. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized when a new active lane starts.
+3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
+4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
+5. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized when a new active lane starts.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; Phase 2 is complete on `2026-03-31`, item 8 is now closed, and the document is retained as the completed execution record
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; Phase 2 completed on `2026-03-31` and the document is retained as the completed execution record
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation

@@ -54,6 +54,11 @@ pub type PlaybackAgeFilterChip = app_state::PlaybackAgeFilterChip;
 /// Browser playback-age row-visual bucket state.
 pub type PlaybackAgeBucket = app_state::PlaybackAgeBucket;
 
+/// Return the fixed browser playback-age chip order used across migration-facing UI surfaces.
+pub fn browser_playback_age_filter_chips() -> [PlaybackAgeFilterChip; 3] {
+    app_state::browser_playback_age_filter_chips()
+}
+
 /// Update status exposed by migration-facing projections.
 pub type UpdateStatus = app_state::UpdateStatus;
 

@@ -38,8 +38,9 @@ use crate::app_core::state::{
 };
 use crate::app_core::state::{
     DragTarget, FolderActionPrompt, InlineFolderEditKind, MapBounds, MapPoint, MapQueryBounds,
-    MapRenderMode, SampleBrowserActionPrompt, SampleBrowserSort, SampleBrowserTab,
-    TriageFlagColumn, UiState, UpdateStatus,
+    MapRenderMode, PlaybackAgeBucket, PlaybackAgeFilterChip, SampleBrowserActionPrompt,
+    SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
+    browser_playback_age_filter_chips,
 };
 use crate::app_core::ui::{MAX_RENDERED_BROWSER_ROWS, MAX_RENDERED_MAP_POINTS};
 use crate::gui::types::ImageRgba;
@@ -166,10 +167,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         },
         active_playback_age_filters: {
             let mut flags = [false; 3];
-            for (index, chip) in crate::app::state::browser_playback_age_filter_chips()
-                .into_iter()
-                .enumerate()
-            {
+            for (index, chip) in browser_playback_age_filter_chips().into_iter().enumerate() {
                 flags[index] = controller.ui.browser.search.playback_age_filter.contains(&chip);
             }
             flags

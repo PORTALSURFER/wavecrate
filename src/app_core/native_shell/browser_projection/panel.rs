@@ -106,13 +106,10 @@ fn browser_rating_filter_flags(rating_filter: &std::collections::BTreeSet<i8>) -
 
 /// Project active browser playback-age filters into a fixed chip-state array.
 fn browser_playback_age_filter_flags(
-    playback_age_filter: &std::collections::BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
+    playback_age_filter: &std::collections::BTreeSet<PlaybackAgeFilterChip>,
 ) -> [bool; 3] {
     let mut flags = [false; 3];
-    for (index, chip) in crate::app::state::browser_playback_age_filter_chips()
-        .into_iter()
-        .enumerate()
-    {
+    for (index, chip) in browser_playback_age_filter_chips().into_iter().enumerate() {
         flags[index] = playback_age_filter.contains(&chip);
     }
     flags

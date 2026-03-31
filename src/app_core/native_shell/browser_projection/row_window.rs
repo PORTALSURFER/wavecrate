@@ -79,7 +79,7 @@ pub(crate) fn project_browser_rows_model_into(
                     &format!("row {}", visible_row + 1),
                     1,
                     0,
-                    crate::app::state::PlaybackAgeBucket::Fresh,
+                    PlaybackAgeBucket::Fresh,
                     "",
                     false,
                     focused,
@@ -192,19 +192,17 @@ fn browser_duplicate_cleanup_bucket_label(
 
 /// Convert one app-core playback-age bucket into the native radiant contract enum.
 fn native_playback_age_bucket(
-    bucket: crate::app::state::PlaybackAgeBucket,
+    bucket: PlaybackAgeBucket,
 ) -> crate::app_core::actions::NativePlaybackAgeBucket {
     match bucket {
-        crate::app::state::PlaybackAgeBucket::Fresh => {
-            crate::app_core::actions::NativePlaybackAgeBucket::Fresh
-        }
-        crate::app::state::PlaybackAgeBucket::OlderThanWeek => {
+        PlaybackAgeBucket::Fresh => crate::app_core::actions::NativePlaybackAgeBucket::Fresh,
+        PlaybackAgeBucket::OlderThanWeek => {
             crate::app_core::actions::NativePlaybackAgeBucket::OlderThanWeek
         }
-        crate::app::state::PlaybackAgeBucket::OlderThanMonth => {
+        PlaybackAgeBucket::OlderThanMonth => {
             crate::app_core::actions::NativePlaybackAgeBucket::OlderThanMonth
         }
-        crate::app::state::PlaybackAgeBucket::NeverPlayed => {
+        PlaybackAgeBucket::NeverPlayed => {
             crate::app_core::actions::NativePlaybackAgeBucket::NeverPlayed
         }
     }
@@ -219,7 +217,7 @@ fn write_browser_row_into_slot(
         &str,
         usize,
         i8,
-        crate::app::state::PlaybackAgeBucket,
+        PlaybackAgeBucket,
         &str,
         bool,
         bool,

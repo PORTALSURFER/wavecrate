@@ -4,8 +4,9 @@
 
 mod audio;
 mod browser;
-mod controls;
 mod compare;
+/// Input-monitoring, volume, and transport control state.
+mod controls;
 mod drag;
 mod feedback_issue;
 mod focus;
@@ -24,8 +25,8 @@ mod waveform;
 
 pub use audio::*;
 pub use browser::*;
-pub use controls::*;
 pub use compare::*;
+pub use controls::*;
 pub use drag::*;
 pub use feedback_issue::*;
 pub use focus::*;

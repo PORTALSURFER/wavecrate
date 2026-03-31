@@ -6,7 +6,7 @@
 use super::AppController;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::state::{DragSource, DragTarget, UiPoint};
-use crate::app_core::state::StatusTone;
+use crate::app_core::state::{PlaybackAgeFilterChip, StatusTone};
 
 /// Try to dispatch browser-and-sources native actions.
 pub(super) fn apply_browser_native_ui_action(
@@ -188,14 +188,12 @@ pub(super) fn apply_browser_native_ui_action(
         NativeUiAction::ToggleBrowserPlaybackAgeFilter { bucket, invert } => {
             controller.focus_browser_list();
             let chip = match bucket {
-                radiant::app::PlaybackAgeFilterChip::NeverPlayed => {
-                    crate::app::state::PlaybackAgeFilterChip::NeverPlayed
-                }
+                radiant::app::PlaybackAgeFilterChip::NeverPlayed => PlaybackAgeFilterChip::NeverPlayed,
                 radiant::app::PlaybackAgeFilterChip::OlderThanMonth => {
-                    crate::app::state::PlaybackAgeFilterChip::OlderThanMonth
+                    PlaybackAgeFilterChip::OlderThanMonth
                 }
                 radiant::app::PlaybackAgeFilterChip::OlderThanWeek => {
-                    crate::app::state::PlaybackAgeFilterChip::OlderThanWeek
+                    PlaybackAgeFilterChip::OlderThanWeek
                 }
             };
             if invert {
