@@ -19,8 +19,9 @@ Updated By: Codex
 - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1 -SkipCi` is green on the current tree.
 - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` refreshed `tmp/cleanup_audit_hotspots.md`.
 - Item 2 is complete: loaded-sample similarity query construction now goes through one shared helper module, and a parity test compares the sync and background builders against the same seeded source snapshot.
-- Item 3 is next: add a repo-wide automation-snapshot to action-catalog consistency guard for advertised action ids.
-- The remaining backlog in `tmp/improvement_audit_plan.md` then covers deeper hotkey coverage, non-allowlisted file-size debt burn-down, and `app_core` native dispatch-hub splits.
+- Item 3 is complete: a real runtime snapshot guard now walks advertised `available_actions` across the named GUI fixtures and resolves each id through the host action catalog.
+- Item 4 is next: expand direct hotkey contract characterization around focus scope, chord routing, and collision-prone bindings.
+- The remaining backlog in `tmp/improvement_audit_plan.md` then covers non-allowlisted file-size debt burn-down and `app_core` native dispatch-hub splits.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -28,7 +29,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Execute item 3 from `tmp/improvement_audit_plan.md`: add a repo-wide automation-snapshot to action-catalog consistency guard for advertised action ids.
+1. Execute item 4 from `tmp/improvement_audit_plan.md`: expand direct hotkey contract characterization around focus scope, chord routing, and collision-prone bindings.
 2. Keep `tmp/improvement_audit_plan.md` honest as the live audit backlog and execution record for this lane.
 3. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` aligned while Phase 2 is active.
 4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
@@ -36,7 +37,7 @@ Updated By: Codex
 
 ## Work Notes
 
-- Active audit plan: `tmp/improvement_audit_plan.md` (rebuilt on 2026-03-31; Phase 2 active, items 1-2 complete)
+- Active audit plan: `tmp/improvement_audit_plan.md` (rebuilt on 2026-03-31; Phase 2 active, items 1-3 complete)
 - Current hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`

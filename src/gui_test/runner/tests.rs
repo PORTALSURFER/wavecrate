@@ -2,7 +2,7 @@ use super::assertions::assert_scenario_state;
 use super::*;
 use crate::app_core::actions::{
     GUI_ACTION_CATALOG, NativeAutomationNodeId, NativeAutomationNodeSnapshot, NativeAutomationRole,
-    NativeGuiAutomationSnapshot,
+    NativeGuiAutomationSnapshot, action_catalog_entry_by_id,
 };
 use crate::gui_test::{GuiActionTraceEvent, GuiAssertion, GuiScenario, GuiScenarioStep};
 use radiant::app::AutomationBounds;
@@ -67,12 +67,49 @@ fn trace_with_action(action_id: &str) -> Vec<GuiActionTraceEvent> {
     }]
 }
 
+fn collect_advertised_actions<'a>(
+    node: &'a NativeAutomationNodeSnapshot,
+    actions: &mut Vec<(&'a str, &'a str)>,
+) {
+    for action_id in &node.available_actions {
+        actions.push((node.id.0.as_str(), action_id.as_str()));
+    }
+    for child in &node.children {
+        collect_advertised_actions(child, actions);
+    }
+}
+
 #[test]
 fn capture_default_bundle_exposes_root_snapshot_and_catalog() {
-    let bundle =
-        capture_default_bundle(&deterministic_test_config("browser")).expect("capture should succeed");
+    let bundle = capture_default_bundle(&deterministic_test_config("browser"))
+        .expect("capture should succeed");
     assert_eq!(bundle.automation_snapshot.root.id.0, "shell.root");
     assert_eq!(bundle.action_catalog.len(), GUI_ACTION_CATALOG.len());
+}
+
+#[test]
+fn capture_default_bundle_advertises_only_cataloged_actions_across_named_fixtures() {
+    for fixture_tag in [
+        "browser",
+        "transport",
+        "map",
+        "waveform",
+        "waveform_mixed",
+        "options",
+        "prompt",
+        "update",
+    ] {
+        let bundle = capture_default_bundle(&deterministic_test_config(fixture_tag))
+            .unwrap_or_else(|err| panic!("fixture {fixture_tag} capture failed: {err}"));
+        let mut advertised_actions = Vec::new();
+        collect_advertised_actions(&bundle.automation_snapshot.root, &mut advertised_actions);
+        for (node_id, action_id) in advertised_actions {
+            assert!(
+                action_catalog_entry_by_id(action_id).is_some(),
+                "fixture {fixture_tag} node {node_id} advertises uncataloged action {action_id}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -86,8 +123,8 @@ fn scenario_runner_accepts_root_presence_assertion() {
             },
         }],
     };
-    let bundle =
-        run_scenario(&deterministic_test_config("browser"), &scenario).expect("scenario should pass");
+    let bundle = run_scenario(&deterministic_test_config("browser"), &scenario)
+        .expect("scenario should pass");
     assert!(bundle.failure_summary.is_none());
 }
 

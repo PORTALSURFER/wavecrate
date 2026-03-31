@@ -135,7 +135,7 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Execution date: `2026-03-31`
-- Commit hash: `pending until the item-2 commit is created`
+- Commit hash: `404e0320` (`refactor: share loaded similarity query construction`)
 - Assumptions used:
   - `build_similarity_query_for_loaded_sample(...)` remains a valid sync entrypoint even though current call sites are concentrated on the background follow-loaded path.
   - Preserving the exact loaded-query payload (`sample_id`, label, indices, scores, anchor placement, and missing-entry fallback ordering) is more important than reducing every small setup duplication around job/controller input acquisition.
@@ -144,7 +144,7 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
 - Plan-order deviation: none
 
-### 3. [ ] Add a repo-wide automation-snapshot to action-catalog consistency guard for advertised action ids
+### 3. [x] Add a repo-wide automation-snapshot to action-catalog consistency guard for advertised action ids
 
 - Classification: Test gap
 - Confidence: High
@@ -164,6 +164,15 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution date: `2026-03-31`
+- Commit hash: `pending until the item-3 commit is created`
+- Assumptions used:
+  - The named deterministic GUI fixtures are the safest real runtime snapshot surface for a blanket catalog-consistency guard in this repository.
+  - A one-way guard that proves every advertised `available_actions` id resolves through `action_catalog_entry_by_id(...)` is sufficient for this backlog item, even though it does not prove every catalog action is advertised somewhere.
+- Validation outcome:
+  - `cargo test -p sempal capture_default_bundle_advertises_only_cataloged_actions_across_named_fixtures -- --test-threads=1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
+- Plan-order deviation: none
 
 ### 4. [ ] Expand direct hotkey contract characterization around focus scope, chord routing, and collision-prone bindings
 
