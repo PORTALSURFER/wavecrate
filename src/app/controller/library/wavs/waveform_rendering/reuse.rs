@@ -107,6 +107,7 @@ impl AppController {
         self.projected_waveform_image_signature = signature;
         self.projected_waveform_image = projected_image;
         self.sample_view.waveform.render_meta = Some(meta);
+        self.mark_waveform_projection_dirty();
     }
 
     /// Store a pre-rendered waveform image and projected RGBA payload from a worker result.
@@ -132,6 +133,7 @@ impl AppController {
         self.projected_waveform_image_signature = signature;
         self.projected_waveform_image = projected_image;
         self.sample_view.waveform.render_meta = meta;
+        self.mark_waveform_projection_dirty();
     }
 
     /// Reuse a previous waveform image by translating unchanged pixels and rendering only the edge strip.

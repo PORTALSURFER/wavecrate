@@ -159,5 +159,6 @@ impl AppController {
         self.selection_state.range.clear();
         self.selection_state.edit_range.clear();
         self.clear_waveform_slices();
+        self.mark_waveform_projection_dirty();
     }
 }

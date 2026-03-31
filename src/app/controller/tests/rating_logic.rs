@@ -1,6 +1,7 @@
 use super::super::test_support::{
     dummy_controller, prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
 };
+use crate::app::controller::state::history::RandomHistoryEntry;
 use crate::app::state::TriageFlagFilter;
 use crate::sample_sources::Rating;
 use std::path::{Path, PathBuf};
@@ -164,6 +165,100 @@ fn advance_after_rating_respects_random_navigation() {
     assert_eq!(
         controller.sample_view.wav.loaded_wav.as_deref(),
         Some(Path::new("c.wav"))
+    );
+    assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.ui.waveform.loading.is_none());
+    assert!(controller.ui.waveform.image.is_some());
+}
+
+#[test]
+fn rating_previous_random_history_entry_restores_waveform_for_replacement() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("a.wav", Rating::NEUTRAL),
+        sample_entry("b.wav", Rating::NEUTRAL),
+        sample_entry("c.wav", Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("a.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("b.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("c.wav"), &[0.0, 0.1]);
+
+    controller.settings.controls.advance_after_rating = true;
+    controller.settings.feature_flags.autoplay_selection = false;
+    controller.set_browser_rating_filter(0, false);
+    controller.toggle_random_navigation_mode();
+
+    let source_id = source.id.clone();
+    controller
+        .history
+        .random_history
+        .mark_played(&source_id, Path::new("b.wav"));
+    controller
+        .history
+        .random_history
+        .mark_played(&source_id, Path::new("c.wav"));
+    controller
+        .history
+        .random_history
+        .entries
+        .push_back(RandomHistoryEntry {
+            source_id: source_id.clone(),
+            relative_path: PathBuf::from("b.wav"),
+        });
+    controller
+        .history
+        .random_history
+        .entries
+        .push_back(RandomHistoryEntry {
+            source_id,
+            relative_path: PathBuf::from("c.wav"),
+        });
+    controller.history.random_history.cursor = Some(1);
+
+    controller.play_previous_random_sample();
+
+    for _ in 0..50 {
+        controller.poll_background_jobs();
+        if controller.sample_view.wav.loaded_wav.as_deref() == Some(Path::new("b.wav"))
+            && controller.ui.waveform.loading.is_none()
+            && controller.ui.waveform.image.is_some()
+        {
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("b.wav"))
+    );
+    assert!(controller.ui.waveform.image.is_some());
+
+    controller.adjust_selected_rating(1);
+
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("a.wav"))
+    );
+    assert_eq!(
+        controller.ui.waveform.loading.as_deref(),
+        Some(Path::new("a.wav"))
+    );
+    assert!(controller.ui.waveform.image.is_none());
+
+    for _ in 0..50 {
+        controller.poll_background_jobs();
+        if controller.sample_view.wav.loaded_wav.as_deref() == Some(Path::new("a.wav"))
+            && controller.ui.waveform.loading.is_none()
+            && controller.ui.waveform.image.is_some()
+        {
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("a.wav"))
     );
     assert!(controller.runtime.jobs.pending_audio.is_none());
     assert!(controller.ui.waveform.loading.is_none());

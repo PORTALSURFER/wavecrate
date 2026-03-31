@@ -83,6 +83,7 @@ impl AppController {
         self.ui.waveform.last_bpm_grid_origin = 0.0;
         self.stop_playback_if_active();
         self.clear_waveform_selection();
+        self.mark_waveform_projection_dirty();
         self.set_status(
             format!("Loading {}", relative_path.display()),
             StatusTone::Busy,

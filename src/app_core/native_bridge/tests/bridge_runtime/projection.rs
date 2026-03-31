@@ -15,6 +15,38 @@ fn bridge_reprojects_after_async_loaded_wav_revision_change() {
     assert_eq!(second.waveform.loaded_label.as_deref(), Some("fresh_take"));
 }
 
+/// Async waveform-image completion must invalidate the retained waveform segment.
+#[test]
+fn bridge_reprojects_after_async_waveform_image_arrival() {
+    let mut bridge = test_bridge(32);
+
+    bridge
+        .controller
+        .set_ui_loaded_wav(Some(PathBuf::from("fresh_take.wav")));
+    let initial = bridge.project_model();
+    assert_eq!(initial.waveform.loaded_label.as_deref(), Some("fresh_take"));
+    assert!(initial.waveform.waveform_image.is_none());
+
+    bridge.controller.ui.waveform.image = Some(crate::waveform::WaveformImage::new(
+        [1, 1],
+        vec![crate::waveform::WaveformRgba::from_rgb(12, 34, 56)],
+    ));
+    bridge.controller.ui.waveform.waveform_image_signature = Some(1);
+    bridge.controller.projected_waveform_image = None;
+    bridge.controller.projected_waveform_image_signature = None;
+    bridge.controller.mark_waveform_projection_dirty();
+
+    let updated = bridge.project_model();
+    assert_eq!(updated.waveform.loaded_label.as_deref(), Some("fresh_take"));
+    let waveform_image = updated
+        .waveform
+        .waveform_image
+        .as_ref()
+        .expect("async waveform image should be projected");
+    assert_eq!(waveform_image.width, 1);
+    assert_eq!(waveform_image.height, 1);
+}
+
 /// Initial full projection should bump all static segment revisions.
 #[test]
 fn pull_model_bumps_segment_revisions_on_first_projection() {

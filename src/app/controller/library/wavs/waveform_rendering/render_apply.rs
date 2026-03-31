@@ -91,6 +91,7 @@ impl AppController {
             self.ui.waveform.waveform_image_signature = None;
             self.projected_waveform_image_signature = None;
             self.projected_waveform_image = None;
+            self.mark_waveform_projection_dirty();
             return;
         }
         let start_frame = ((view.start * total_frames as f64).floor() as usize)
