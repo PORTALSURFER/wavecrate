@@ -97,7 +97,7 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - script-guardrail fixture coverage for blank-line counting
 - Product clarification required: No
 - Execution date: `2026-03-31`
-- Commit hash: `pending until the item-1 commit is created`
+- Commit hash: `a5faedbe` (`fix: align file-size guardrails with physical line counts`)
 - Assumptions used:
   - `docs/QUALITY_SCORE.md` should describe the current observed guardrail state, even when the truthful full-scan budget is red.
   - `check_quality_score_drift.*` is intended to validate the full-scan budget state because its score note already references `check_file_size_budget.* --all`.
@@ -109,7 +109,7 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
 - Plan-order deviation: none
 
-### 2. [ ] Deduplicate loaded-sample similarity query construction so sync and background similarity sort share one implementation
+### 2. [x] Deduplicate loaded-sample similarity query construction so sync and background similarity sort share one implementation
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -134,6 +134,15 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - regression coverage around `ensure_anchor_similarity_result(...)`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Execution date: `2026-03-31`
+- Commit hash: `pending until the item-2 commit is created`
+- Assumptions used:
+  - `build_similarity_query_for_loaded_sample(...)` remains a valid sync entrypoint even though current call sites are concentrated on the background follow-loaded path.
+  - Preserving the exact loaded-query payload (`sample_id`, label, indices, scores, anchor placement, and missing-entry fallback ordering) is more important than reducing every small setup duplication around job/controller input acquisition.
+- Validation outcome:
+  - `cargo test -p sempal loaded_similarity -- --test-threads=1` passed, including a new parity test that seeds one source snapshot and compares the sync and background loaded-query builders.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
+- Plan-order deviation: none
 
 ### 3. [ ] Add a repo-wide automation-snapshot to action-catalog consistency guard for advertised action ids
 

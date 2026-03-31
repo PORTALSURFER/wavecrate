@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 mod apply;
 mod background;
+mod loaded;
 mod query;
 mod resolve;
 

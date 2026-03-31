@@ -1,12 +1,7 @@
-use super::resolve::{
-    ResolvedSimilarity, cosine_similarity, load_embedding_for_sample, load_light_dsp_for_sample,
-    normalize_l2, open_source_db_for_id, rerank_with_dsp,
-};
+use super::resolve::{ResolvedSimilarity, normalize_l2, open_source_db_for_id, rerank_with_dsp};
 use super::*;
 use crate::app::state::SimilarQuery;
-use crate::app::view_model;
-use rusqlite::params;
-use std::collections::HashMap;
+use std::path::PathBuf;
 
 pub(crate) fn build_similar_query_for_sample_id(
     controller: &mut AppController,
@@ -36,98 +31,16 @@ pub(crate) fn build_similarity_query_for_loaded_sample(
         .wav
         .loaded_audio
         .as_ref()
+        .cloned()
         .ok_or_else(|| "Load a sample to sort by similarity".to_string())?;
     let source_id: crate::sample_sources::SourceId = loaded_audio.source_id.clone();
     if controller.selection_state.ctx.selected_source.as_ref() != Some(&source_id) {
         return Err("Select the loaded sample's source to sort by similarity".to_string());
     }
-    let loaded_path = loaded_audio.relative_path.clone();
-    let sample_id = super::analysis_jobs::build_sample_id(source_id.as_str(), &loaded_path);
     let conn = open_source_db_for_id(controller, &source_id)?;
-    let query_embedding = load_embedding_for_sample(&conn, &sample_id)?
-        .ok_or_else(|| "Similarity data missing for the loaded sample".to_string())?;
-    let query_dsp = load_light_dsp_for_sample(&conn, &sample_id)?;
-    let total = controller.wav_entries_len();
-    let mut indices = Vec::with_capacity(total);
-    let mut scores = Vec::with_capacity(total);
-    let mut has_embedding = vec![false; total];
-    let mut path_lookup = HashMap::new();
-    controller.for_each_wav_entry(|index, entry| {
-        path_lookup.insert(entry.relative_path.clone(), index);
-    })?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT embeddings.sample_id, embeddings.vec, features.vec_blob
-             FROM embeddings
-             LEFT JOIN features ON features.sample_id = embeddings.sample_id
-             WHERE embeddings.model_id = ?1",
-        )
-        .map_err(|err| format!("Load similarity embeddings failed: {err}"))?;
-    let mut rows = stmt
-        .query(params![crate::analysis::similarity::SIMILARITY_MODEL_ID])
-        .map_err(|err| format!("Load similarity embeddings failed: {err}"))?;
-    while let Some(row) = rows
-        .next()
-        .map_err(|err| format!("Load embeddings failed: {err}"))?
-    {
-        let candidate_id: String = row
-            .get(0)
-            .map_err(|err| format!("Load embeddings failed: {err}"))?;
-        let blob: Vec<u8> = row
-            .get(1)
-            .map_err(|err| format!("Load embeddings failed: {err}"))?;
-        let features_blob: Option<Vec<u8>> = row
-            .get(2)
-            .map_err(|err| format!("Load embeddings failed: {err}"))?;
-        let (candidate_source, relative_path) =
-            super::analysis_jobs::parse_sample_id(&candidate_id)?;
-        if candidate_source.as_str() != source_id.as_str() {
-            continue;
-        }
-        let Some(index) = path_lookup.get(&relative_path).copied() else {
-            continue;
-        };
-        let candidate =
-            crate::analysis::decode_f32_le_blob(&blob).map_err(|err| err.to_string())?;
-        let embed_sim = cosine_similarity(&query_embedding, &candidate).clamp(-1.0, 1.0);
-        let dsp_sim = query_dsp.as_deref().and_then(|query_dsp| {
-            features_blob
-                .as_ref()
-                .and_then(|blob| crate::analysis::decode_f32_le_blob(blob).ok())
-                .and_then(|features| crate::analysis::light_dsp_from_features_v1(&features))
-                .map(normalize_l2)
-                .map(|candidate| cosine_similarity(query_dsp, &candidate))
-        });
-        let score = if let Some(dsp_sim) = dsp_sim {
-            EMBED_WEIGHT * embed_sim + DSP_WEIGHT * dsp_sim
-        } else {
-            embed_sim
-        };
-        indices.push(index);
-        scores.push(score);
-        if index < has_embedding.len() {
-            has_embedding[index] = true;
-        }
-    }
-    for (index, has) in has_embedding.iter().enumerate() {
-        if !*has {
-            indices.push(index);
-            scores.push(MISSING_SIMILARITY_SCORE);
-        }
-    }
-    if indices.is_empty() {
-        return Err("No similarity data available for the current source".to_string());
-    }
-    let label = view_model::sample_display_label(&loaded_path);
-    let anchor_index = controller.wav_index_for_path(&loaded_path);
-    let (indices, scores) = ensure_anchor_similarity_result(indices, scores, anchor_index);
-    Ok(SimilarQuery {
-        sample_id,
-        label: format!("Loaded: {label}"),
-        indices,
-        scores,
-        anchor_index,
-    })
+    let entry_paths = collect_wav_entry_paths(controller)?;
+    let request = loaded::loaded_audio_request(&loaded_audio, &entry_paths);
+    loaded::build_loaded_similarity_query(&conn, request)
 }
 
 pub(crate) fn build_similarity_query_for_audio_path(
@@ -208,6 +121,14 @@ fn resolve_anchor_index(
     anchor_override: Option<usize>,
 ) -> Option<usize> {
     anchor_override.or_else(|| controller.wav_index_for_path(relative_path))
+}
+
+fn collect_wav_entry_paths(controller: &mut AppController) -> Result<Vec<PathBuf>, String> {
+    let mut entry_paths = Vec::with_capacity(controller.wav_entries_len());
+    controller.for_each_wav_entry(|_, entry| {
+        entry_paths.push(entry.relative_path.clone());
+    })?;
+    Ok(entry_paths)
 }
 
 /// Ensure the anchor sample remains present in similarity results with self-similarity.
