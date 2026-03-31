@@ -38,6 +38,7 @@ pub(crate) use async_decode::AsyncSource;
 pub(crate) use fade::{EdgeFade, FadeOutHandle, FadeOutOnRequest, fade_duration};
 #[cfg(test)]
 pub(crate) use routing::normalized_progress;
+pub(crate) use source::OutputAdapter;
 pub use source::{SamplesBuffer, Source};
 
 pub(crate) const DEFAULT_ANTI_CLIP_FADE: Duration = Duration::from_millis(2);

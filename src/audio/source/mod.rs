@@ -4,6 +4,7 @@ mod accounting;
 mod buffered;
 mod fade;
 mod limit;
+mod output_adapter;
 mod repeat;
 mod samples_buffer;
 
@@ -13,6 +14,7 @@ use std::time::Duration;
 pub use self::buffered::Buffered;
 pub use self::fade::FadeIn;
 pub use self::limit::{TakeDuration, TakeSamples};
+pub(crate) use self::output_adapter::OutputAdapter;
 pub use self::repeat::RepeatInfinite;
 pub use self::samples_buffer::SamplesBuffer;
 

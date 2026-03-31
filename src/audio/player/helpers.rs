@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::audio::Source;
+use crate::audio::{OutputAdapter, Source};
 use tracing::warn;
 
 #[cfg(test)]
@@ -41,6 +41,18 @@ impl AudioPlayer {
         source: S,
     ) -> (FadeOutHandle, (u32, u16)) {
         let _volume = self.effective_volume();
+        let target_sample_rate = self.output.sample_rate.max(1);
+        let target_channels = self.output.channel_count.max(1);
+        let source: Box<dyn Source + Send> =
+            if source.sample_rate() == target_sample_rate && source.channels() == target_channels {
+                Box::new(source)
+            } else {
+                Box::new(OutputAdapter::new(
+                    source,
+                    target_sample_rate,
+                    target_channels,
+                ))
+            };
         let format = (source.sample_rate(), source.channels());
         let handle = FadeOutHandle::new();
 
