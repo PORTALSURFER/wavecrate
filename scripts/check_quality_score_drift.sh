@@ -138,7 +138,7 @@ fi
 file_size_status=0
 taste_status=0
 
-run_check "scripts/check_file_size_budget.sh" ./scripts/check_file_size_budget.sh "${script_args[@]}" || file_size_status=1
+run_check "scripts/check_file_size_budget.sh" ./scripts/check_file_size_budget.sh --all "${script_args[@]}" || file_size_status=1
 run_check "scripts/check_rust_taste_invariants.sh" ./scripts/check_rust_taste_invariants.sh "${script_args[@]}" || taste_status=1
 
 guardrail_failed=0

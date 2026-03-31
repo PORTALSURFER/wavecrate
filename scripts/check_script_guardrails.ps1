@@ -200,11 +200,18 @@ try {
       "    println!(`"budget`");",
       "}"
     )
+    Set-Content -Path (Join-Path $repoDir "src/blank_lines_count.rs") -Value @(
+      "fn keep_blank_lines() {",
+      "",
+      "    println!(`"count me`");",
+      "",
+      "}"
+    )
 
     git -C $repoDir init -q
     git -C $repoDir config user.name "sempal-ci"
     git -C $repoDir config user.email "ci@sempal.test"
-    git -C $repoDir add src/too_many_lines.rs
+    git -C $repoDir add src/too_many_lines.rs src/blank_lines_count.rs
     git -C $repoDir commit -qm "seed"
 
     $vendorRepoDir = Join-Path $repoDir "vendor/radiant"
@@ -226,6 +233,7 @@ try {
 
     Invoke-ExpectExitCode -Label "file size budget catches over-limit nested vendor file" -ExpectedCode 1 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_file_size_budget.ps1") -Arguments @("-All", "-Limit", "3")
     Invoke-ExpectExitCode -Label "file size budget passes under limit" -ExpectedCode 0 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_file_size_budget.ps1") -Arguments @("-All", "-Limit", "10")
+    Invoke-ExpectExitCode -Label "file size budget counts blank lines in project files" -ExpectedCode 1 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_file_size_budget.ps1") -Arguments @("-All", "-Limit", "4")
   } finally {
     Remove-Item -Recurse -Force $fixtureDir -ErrorAction SilentlyContinue
   }

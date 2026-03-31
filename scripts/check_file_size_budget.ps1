@@ -81,6 +81,11 @@ try {
     }
   }
 
+  function Get-PhysicalLineCount([string]$RelativePath) {
+    $resolvedPath = (Resolve-Path -LiteralPath $RelativePath).Path
+    return ([System.IO.File]::ReadAllLines($resolvedPath)).Count
+  }
+
   function Get-RepoTrackedFiles([string]$RepoPath, [string]$ScopePath) {
     if (Test-GitRepo $RepoPath) {
       return @(git -C $RepoPath ls-files -- $ScopePath)
@@ -156,7 +161,7 @@ try {
 
     if ($allowlist.Contains($file)) { continue }
 
-    $lineCount = (Get-Content -LiteralPath $file | Measure-Object -Line).Lines
+    $lineCount = Get-PhysicalLineCount -RelativePath $file
     if ($lineCount -gt $Limit) {
       $violations += ("{0}: {1}" -f $file, $lineCount)
     }

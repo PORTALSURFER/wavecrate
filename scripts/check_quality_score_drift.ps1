@@ -44,11 +44,13 @@ function Invoke-GuardrailCheck {
     [string]$Label,
     [Parameter(Mandatory = $true)]
     [string]$ScriptPath,
+    [string[]]$ExtraArguments = @(),
     [string]$BaseRef = "",
     [string]$HeadRef = "HEAD"
   )
 
   $args = @("-NoProfile", "-File", $ScriptPath)
+  $args += $ExtraArguments
   if (-not [string]::IsNullOrWhiteSpace($BaseRef)) {
     $args += @("-Base", $BaseRef)
   }
@@ -144,6 +146,7 @@ function Assert-ScoreInRange {
 $fileBudgetOk = Invoke-GuardrailCheck `
   -Label "scripts/check_file_size_budget.ps1" `
   -ScriptPath (Join-Path $rootDir "scripts/check_file_size_budget.ps1") `
+  -ExtraArguments @("-All") `
   -BaseRef $Base `
   -HeadRef $Head
 

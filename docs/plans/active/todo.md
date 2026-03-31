@@ -10,15 +10,15 @@ Purpose:
 
 ## Current lane
 
-- The active lane is the completed Phase 2 execution record for the refreshed evidence-driven improvement audit of the current live tree.
+- The active lane is the refreshed evidence-driven improvement audit backlog for the current live tree.
 - `tmp/improvement_audit_plan.md` is the live source of truth for the ranked backlog rebuilt on 2026-03-31.
-- All four plan items are complete in the working tree.
-- `scripts/check_migration_boundary.ps1`, `scripts/check_file_size_budget.ps1 -All`, `scripts/check_quality_score_drift.ps1`, `scripts/run_gui_contract.ps1`, `scripts/run_agent_request.ps1`, and `scripts/ci_agent.ps1` are green again.
+- Phase 2 is active; item 1 is complete and item 2 is next.
+- `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1 -SkipCi` is green on the current tree, and `tmp/cleanup_audit_hotspots.md` has been refreshed for the current audit.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Wait for the user to choose the next lane.
-2. Keep `tmp/improvement_audit_plan.md` as the completed execution record for this audit lane.
+1. Execute item 2 from `tmp/improvement_audit_plan.md`: deduplicate loaded-sample similarity query construction across the sync and background paths.
+2. Keep the ranked order and open questions in `tmp/improvement_audit_plan.md` intact unless implementation evidence requires an honest update.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
 4. Keep `AGENTS.md`, `MEMORY.md`, this file, and `docs/plans/index.md` synchronized when a new lane starts.

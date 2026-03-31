@@ -25,9 +25,9 @@ the same guardrail posture.
 | --- | ---: | --- |
 | Developer entrypoints (docs/scripts) | 4 | `docs/README.md`, `scripts/ci_local.*`, `scripts/doctor.*`, `scripts/run_sandbox.*` exist and are wired into CI/local flows. |
 | Documentation hygiene | 4 | Knowledge lint exists; still some doc drift risk outside the checked scope. |
-| Agent-facing guardrails | 4 | The high-visibility drift gates are truthful again for the current tree: `scripts/check_migration_boundary.ps1`, `scripts/check_file_size_budget.ps1 -All`, and `scripts/check_quality_score_drift.ps1` all pass after the Phase 2 repair work. |
+| Agent-facing guardrails | 3 | The guardrail stack is present and enforced, but the now-truthful full-scan file-size budget is currently red on the live tree because non-allowlisted oversized Rust files remain. |
 | Legacy boundary enforcement | 4 | `crate::app` coupling and `app_core` boundaries are enforced diff-aware in CI; the current browser playback-age drift was repaired back onto the intended `app_core` boundary. |
-| Code size discipline | 3 | The observed full-scan file-size budget is green again for the current tree after splitting the three live non-allowlisted hotspots, but broader allowlisted and parked cleanup debt still exists. |
+| Code size discipline | 2 | The repository has an explicit 400-line policy and allowlist, but the refreshed full-scan audit currently shows `25` non-allowlisted over-budget Rust files that still need behavior-preserving splits. |
 | Testing posture | 3 | Focused unit coverage improved in transport/browser actions, but some critical flows remain integration-heavy. |
 | Observability & diagnostics | 3 | Structured logging via `tracing` exists; log bundling helpers added; could improve targeted debug tooling. |
 | Performance guardrails | 3 | `scripts/run_perf_guard.sh` is part of local CI; warning drift (for example `wheel_latency`) still needs ongoing burn-down. |
@@ -35,7 +35,7 @@ the same guardrail posture.
 
 ## Known gaps (actionable)
 
-- Keep the enforced full-scan file-size budget green on a clean baseline; the current live tree is back to green, but `tmp/cleanup_audit_hotspots.md` still records broader over-budget debt outside the active allowlist.
+- Burn down the current non-allowlisted full-scan file-size backlog; the now-truthful live tree currently has `25` non-allowlisted over-budget Rust files in `tmp/cleanup_audit_hotspots.md`.
 - Continue burning down the suppression debt now surfaced in the refreshed hotspot snapshot; the observed tree currently has `#[allow(dead_code)]` in 2 files and `clippy::too_many_arguments` in 3 files.
 - Add a scheduled doc review cadence: review this file monthly and update scores based on current reality.
 - Add one performance regression harness for a representative large dataset/view and run it in CI (even if it is a coarse threshold test).
