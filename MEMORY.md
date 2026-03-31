@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-03-31T12:03:11Z
+Last Updated: 2026-03-31T12:23:45Z
 Updated By: Codex
 
 ## Purpose
@@ -15,14 +15,15 @@ Updated By: Codex
 - I am executing Phase 2 of the refreshed evidence-driven improvement audit for the current live tree.
 - `tmp/improvement_audit_plan.md` is the current source of truth and execution record for this lane.
 - Item 1 is complete: the Windows file-size budget now counts physical lines, the script guardrail fixture covers blank lines, and the quality-score drift checks now evaluate the full-scan budget state.
-- The truthful full-scan budget is currently red and reports `25` non-allowlisted over-budget Rust files on the live tree.
+- The truthful full-scan budget is currently red and reports `20` non-allowlisted over-budget Rust files on the live tree.
 - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1 -SkipCi` is green on the current tree.
 - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` refreshed `tmp/cleanup_audit_hotspots.md`.
 - Item 2 is complete: loaded-sample similarity query construction now goes through one shared helper module, and a parity test compares the sync and background builders against the same seeded source snapshot.
 - Item 3 is complete: a real runtime snapshot guard now walks advertised `available_actions` across the named GUI fixtures and resolves each id through the host action catalog.
 - Item 4 is complete: `vendor/radiant/src/app/hotkeys.rs` now has direct resolver coverage for collision-prone focus-sensitive bindings around `C`, `D`, `N`, `R`, and arrow-key routing across browser, folder, source-list, and waveform contexts.
-- Item 5 is next: burn down the highest-ROI non-allowlisted full-scan file-size backlog.
-- The remaining backlog in `tmp/improvement_audit_plan.md` then covers that file-size debt burn-down and the `app_core` native dispatch-hub splits.
+- Item 5 is complete: the highest-ROI root-controller file-size hotspots named in the plan are now under budget (`seek.rs`, `playback_start.rs`, `history.rs`, and delete recovery), and the truthful non-allowlisted full-scan backlog dropped from `25` to `20`.
+- Item 6 is next: split the migration-facing native action dispatch hubs in `app_core` into smaller surface-specific helpers with direct local tests.
+- The remaining backlog in `tmp/improvement_audit_plan.md` now centers on the `app_core` native dispatch-hub split while the still-red file-size lane keeps the remaining debt visible.
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -30,7 +31,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Execute item 5 from `tmp/improvement_audit_plan.md`: burn down the highest-ROI non-allowlisted full-scan file-size backlog in strict ROI order.
+1. Execute item 6 from `tmp/improvement_audit_plan.md`: split the migration-facing native action dispatch hubs in `app_core` into smaller surface-specific helpers with direct local tests.
 2. Keep `tmp/improvement_audit_plan.md` honest as the live audit backlog and execution record for this lane.
 3. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` aligned while Phase 2 is active.
 4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
@@ -38,7 +39,7 @@ Updated By: Codex
 
 ## Work Notes
 
-- Active audit plan: `tmp/improvement_audit_plan.md` (rebuilt on 2026-03-31; Phase 2 active, items 1-4 complete)
+- Active audit plan: `tmp/improvement_audit_plan.md` (rebuilt on 2026-03-31; Phase 2 active, items 1-5 complete)
 - Current hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`

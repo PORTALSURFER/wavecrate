@@ -195,7 +195,7 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Execution date: `2026-03-31`
-- Commit hash: `vendor/radiant ff9ae90b` (`test: cover hotkey routing collisions by focus`); superproject pointer commit pending until the item-4 superproject commit is created
+- Commit hash: `fc3c9fa7` (`test: record hotkey routing coverage`); `vendor/radiant ff9ae90b` (`test: cover hotkey routing collisions by focus`)
 - Assumptions used:
   - The highest-ROI gap for this item is direct focus-routing characterization inside the shared resolver, not a broader end-to-end keyboard-runtime expansion that would entangle unrelated prompt/text-input suppression rules.
   - Representative coverage for collision-prone single-key bindings across browser, folder, source-list, and waveform contexts is sufficient for this item even though deeper pending-chord restart semantics remain a possible future follow-up.
@@ -204,7 +204,7 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed after the hotkey test expansion.
 - Plan-order deviation: none
 
-### 5. [ ] Burn down the highest-ROI non-allowlisted full-scan file-size backlog once the measurement bug is fixed
+### 5. [x] Burn down the highest-ROI non-allowlisted full-scan file-size backlog once the measurement bug is fixed
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -232,6 +232,20 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - targeted unit/integration tests for each split cluster
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Execution date: `2026-03-31`
+- Commit hash: `pending until the item-5 commit is created`
+- Assumptions used:
+  - The highest-ROI behavior-preserving slice for this item is the root-controller production set explicitly called out in the evidence list (`seek.rs`, `history.rs`, `recovery.rs`, and `playback_start.rs`), because those files are both over budget and directly aligned with the repo’s controller-ownership guidance.
+  - The remaining over-budget vendor/runtime files should stay visible in the still-red truthful budget lane for a later pass rather than be folded into this commit without stronger locality or decomposition evidence.
+- Validation outcome:
+  - `cargo test -p sempal history_transactions -- --test-threads=1` passed.
+  - `cargo test -p sempal delete_recovery -- --test-threads=1` passed.
+  - `cargo test -p sempal waveform_seek -- --test-threads=1` passed.
+  - `cargo test -p sempal normalized_audition -- --test-threads=1` passed.
+  - `cargo test -p sempal max_abs_from_samples_span -- --test-threads=1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` still fails truthfully, but the non-allowlisted violation count dropped from `25` to `20` and the four root-controller hotspots named above are now under budget.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
+- Plan-order deviation: none
 
 ### 6. [ ] Split the migration-facing native action dispatch hubs in `app_core` into smaller surface-specific helpers with direct local tests
 

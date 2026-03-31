@@ -19,6 +19,9 @@ use crate::sample_sources::{SampleSource, SourceId, WavEntry};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod retained;
+mod scan;
+
 const RESTORE_SUFFIX: &str = ".restored";
 const DELETE_JOURNAL_FILE: &str = "delete_journal.json";
 /// Recovery action taken for a staged delete.
@@ -184,10 +187,16 @@ fn recover_journaled_entry(
     let original = source.root.join(&original_relative);
     let (action, outcome) = match entry.stage {
         DeleteJournalStage::Deleted => {
-            return recover_retained_delete(source, &original_relative, &staged, &original, entry);
+            return retained::recover_retained_delete(
+                source,
+                &original_relative,
+                &staged,
+                &original,
+                entry,
+            );
         }
         DeleteJournalStage::RestorePendingDb => {
-            return Some(recover_pending_retained_restore(
+            return Some(retained::recover_pending_retained_restore(
                 source,
                 staging_root,
                 &original_relative,
@@ -244,106 +253,6 @@ fn restore_staged_folder(staged: &Path, original: &Path) -> Result<Option<String
     Ok(detail)
 }
 
-fn recover_retained_delete(
-    source: &SampleSource,
-    original_relative: &Path,
-    staged: &Path,
-    original: &Path,
-    entry: &DeleteJournalEntry,
-) -> Option<JournaledRecoveryOutcome> {
-    if staged.exists() && !original.exists() {
-        return Some(JournaledRecoveryOutcome::Retained(RetainedRecovery {
-            retained_entry: RetainedDeleteEntry {
-                id: entry.id.clone(),
-                source_id: source.id.clone(),
-                source_root: source.root.clone(),
-                original_relative: original_relative.to_path_buf(),
-                staged_relative: PathBuf::from(entry.staged_relative.clone()),
-                deleted_entries: entry.deleted_entries.clone(),
-            },
-        }));
-    }
-    if !staged.exists() && original.exists() {
-        return Some(JournaledRecoveryOutcome::Completed(JournaledRecovery {
-            report_entry: recovery_entry(
-                source,
-                original_relative.to_path_buf(),
-                DeleteRecoveryAction::Restore,
-                Ok(Some("Already restored".into())),
-            ),
-            remove_from_journal: true,
-        }));
-    }
-    Some(JournaledRecoveryOutcome::Completed(JournaledRecovery {
-        report_entry: recovery_entry(
-            source,
-            original_relative.to_path_buf(),
-            DeleteRecoveryAction::Restore,
-            Err(format!(
-                "Retained delete state is inconsistent (original exists: {}, staged exists: {})",
-                original.exists(),
-                staged.exists()
-            )),
-        ),
-        remove_from_journal: false,
-    }))
-}
-
-fn recover_pending_retained_restore(
-    source: &SampleSource,
-    staging_root: &Path,
-    original_relative: &Path,
-    staged: &Path,
-    original: &Path,
-    entry: &DeleteJournalEntry,
-) -> JournaledRecoveryOutcome {
-    let outcome = (|| -> Result<Option<String>, String> {
-        let stamp = entry
-            .restore_stamp
-            .as_deref()
-            .ok_or_else(|| "Retained restore stamp missing".to_string())?;
-        let existing_entries = snapshot_existing_restore_entries(source, &entry.deleted_entries)?;
-        if staged.exists() {
-            let staged_info = DeleteStagingInfo {
-                id: entry.id.clone(),
-                original_relative: original_relative.to_path_buf(),
-                staged_relative: PathBuf::from(entry.staged_relative.clone()),
-                staged_absolute: staged.to_path_buf(),
-            };
-            restore_retained_folder_with_merge_with_stamp(
-                &staged_info,
-                &source.root,
-                original,
-                staging_root,
-                stamp,
-            )?;
-        }
-        let merge = infer_retained_restore_merge_report(
-            &source.root,
-            &entry.deleted_entries,
-            &existing_entries,
-            stamp,
-        )?;
-        apply_retained_restore_db_entries(
-            source,
-            &entry.deleted_entries,
-            &existing_entries,
-            &merge,
-        )?;
-        Ok(Some("Completed retained restore after restart".into()))
-    })();
-    let remove_from_journal = outcome.is_ok();
-    JournaledRecoveryOutcome::Completed(JournaledRecovery {
-        report_entry: recovery_entry(
-            source,
-            original_relative.to_path_buf(),
-            DeleteRecoveryAction::Restore,
-            outcome,
-        ),
-        remove_from_journal,
-    })
-}
-
 fn unique_restore_path(original: &Path) -> (PathBuf, Option<String>) {
     if !original.exists() {
         return (original.to_path_buf(), None);
@@ -370,11 +279,7 @@ fn unique_restore_path(original: &Path) -> (PathBuf, Option<String>) {
 }
 
 fn journaled_staged_roots(journal: &DeleteJournal) -> Vec<PathBuf> {
-    journal
-        .entries
-        .iter()
-        .map(|entry| PathBuf::from(&entry.staged_relative))
-        .collect()
+    scan::journaled_staged_roots(journal)
 }
 
 fn find_unjournaled_staged_roots(
@@ -382,37 +287,7 @@ fn find_unjournaled_staged_roots(
     source_root: &Path,
     journaled_roots: &[PathBuf],
 ) -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    let mut stack = vec![PathBuf::new()];
-    while let Some(relative) = stack.pop() {
-        let current = staging_root.join(&relative);
-        let Ok(entries) = fs::read_dir(&current) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            if entry.file_name().to_string_lossy() == DELETE_JOURNAL_FILE {
-                continue;
-            }
-            let path = entry.path();
-            if !path.is_dir() {
-                continue;
-            }
-            let child_relative = relative.join(entry.file_name());
-            if path_is_under_roots(&child_relative, journaled_roots) {
-                continue;
-            }
-            if source_root.join(&child_relative).exists() {
-                stack.push(child_relative);
-            } else {
-                roots.push(child_relative);
-            }
-        }
-    }
-    roots
-}
-
-fn path_is_under_roots(candidate: &Path, roots: &[PathBuf]) -> bool {
-    roots.iter().any(|root| candidate.starts_with(root))
+    scan::find_unjournaled_staged_roots(staging_root, source_root, journaled_roots)
 }
 
 #[cfg(test)]
