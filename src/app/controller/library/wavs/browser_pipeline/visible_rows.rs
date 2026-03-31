@@ -54,7 +54,12 @@ pub(crate) fn build_visible_rows(
     );
 
     if let Some(cleanup) = duplicate_cleanup {
-        return visible_result_for_duplicate_cleanup(controller, focused_index, loaded_index, &cleanup);
+        return visible_result_for_duplicate_cleanup(
+            controller,
+            focused_index,
+            loaded_index,
+            &cleanup,
+        );
     }
 
     if query.is_none()

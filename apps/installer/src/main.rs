@@ -82,8 +82,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{InstallerEntryCommand, run_with_args, select_entry_command};
     use super::install::{PlanAction, plan_install};
+    use super::{InstallerEntryCommand, run_with_args, select_entry_command};
     use std::cell::Cell;
     use std::fs;
 
@@ -167,10 +167,7 @@ mod tests {
         let ui_called = Cell::new(false);
 
         let result = run_with_args(
-            vec![
-                String::from("sempal-installer"),
-                String::from("--dry-run"),
-            ],
+            vec![String::from("sempal-installer"), String::from("--dry-run")],
             || {
                 uninstall_called.set(true);
                 Ok(())

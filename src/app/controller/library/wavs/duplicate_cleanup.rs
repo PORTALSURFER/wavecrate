@@ -67,8 +67,11 @@ impl AppController {
             .wav_entry(anchor_index)
             .map(|entry| entry.relative_path.clone())
             .ok_or_else(|| "Focused sample entry missing".to_string())?;
-        let query =
-            super::similar::build_duplicate_query_for_sample_id(self, &sample_id, Some(anchor_index))?;
+        let query = super::similar::build_duplicate_query_for_sample_id(
+            self,
+            &sample_id,
+            Some(anchor_index),
+        )?;
         let cleanup = BrowserDuplicateCleanupState::new(
             source_id,
             sample_id,
@@ -165,7 +168,9 @@ impl AppController {
             .duplicate_cleanup
             .clone()
             .ok_or_else(|| "Duplicate cleanup is not active".to_string())?;
-        let Some(source) = self.current_source().filter(|source| source.id == cleanup.source_id)
+        let Some(source) = self
+            .current_source()
+            .filter(|source| source.id == cleanup.source_id)
         else {
             return Err("Duplicate cleanup source is no longer selected".to_string());
         };

@@ -1,4 +1,6 @@
-use super::super::test_support::{prepare_with_source_and_wav_entries, sample_entry, write_test_wav};
+use super::super::test_support::{
+    prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
+};
 use crate::app::controller::state::audio::LoadedAudio;
 use crate::app::controller::state::selection::CompareAnchorSample;
 use crate::app::state::{CompareAnchorState, FocusContext, StatusTone};

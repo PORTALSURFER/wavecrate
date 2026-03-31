@@ -78,12 +78,28 @@ fn main() -> Result<(), String> {
 
 #[derive(Debug)]
 enum CliCommand {
-    Snapshot { output: PathBuf },
-    DispatchAction { action_json: String, output: PathBuf },
-    RunScenario { scenario_path: PathBuf, output: PathBuf },
-    RunScenarioPack { pack_name: String, output_dir: PathBuf },
-    ExportAivSuite { args: Vec<String> },
-    ResolveNodeTarget { artifact: PathBuf, node_id: String },
+    Snapshot {
+        output: PathBuf,
+    },
+    DispatchAction {
+        action_json: String,
+        output: PathBuf,
+    },
+    RunScenario {
+        scenario_path: PathBuf,
+        output: PathBuf,
+    },
+    RunScenarioPack {
+        pack_name: String,
+        output_dir: PathBuf,
+    },
+    ExportAivSuite {
+        args: Vec<String>,
+    },
+    ResolveNodeTarget {
+        artifact: PathBuf,
+        node_id: String,
+    },
 }
 
 fn parse_command(args: Vec<String>) -> Result<CliCommand, String> {
@@ -107,7 +123,9 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, String> {
             pack_name: required_arg(args.next(), "scenario pack name")?,
             output_dir: required_path(args.next(), "scenario pack output dir")?,
         }),
-        "export-aiv-suite" => Ok(CliCommand::ExportAivSuite { args: args.collect() }),
+        "export-aiv-suite" => Ok(CliCommand::ExportAivSuite {
+            args: args.collect(),
+        }),
         "resolve-node-target" => Ok(CliCommand::ResolveNodeTarget {
             artifact: required_path(args.next(), "GUI artifact path")?,
             node_id: required_arg(args.next(), "automation node id")?,
@@ -263,10 +281,7 @@ mod tests {
         match command {
             CliCommand::ExportAivSuite { args } => assert_eq!(
                 args,
-                vec![
-                    String::from("desktop-regression"),
-                    String::from("out.json")
-                ]
+                vec![String::from("desktop-regression"), String::from("out.json")]
             ),
             _ => panic!("expected export-aiv-suite command"),
         }

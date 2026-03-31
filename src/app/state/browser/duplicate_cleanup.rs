@@ -88,7 +88,10 @@ impl BrowserDuplicateCleanupState {
 
     /// Return the raw duplicate score for one absolute entry index.
     pub fn score_for_index(&self, entry_index: usize) -> Option<f32> {
-        let position = self.indices.iter().position(|index| *index == entry_index)?;
+        let position = self
+            .indices
+            .iter()
+            .position(|index| *index == entry_index)?;
         self.scores.get(position).copied()
     }
 

@@ -187,7 +187,12 @@ mod tests {
             Some("two")
         );
         assert_eq!(
-            controller.sample_view.wav.compare_anchor.as_ref().map(|anchor| anchor.relative_path.as_path()),
+            controller
+                .sample_view
+                .wav
+                .compare_anchor
+                .as_ref()
+                .map(|anchor| anchor.relative_path.as_path()),
             Some(Path::new("two.wav"))
         );
     }

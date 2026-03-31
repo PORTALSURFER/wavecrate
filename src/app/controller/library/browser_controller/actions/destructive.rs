@@ -68,7 +68,8 @@ impl BrowserController<'_> {
         let pending_audio = self.runtime.jobs.pending_audio();
         let blocked = contexts.iter().find(|ctx| {
             pending_audio.as_ref().is_some_and(|pending| {
-                pending.source_id == ctx.source.id && pending.relative_path == ctx.entry.relative_path
+                pending.source_id == ctx.source.id
+                    && pending.relative_path == ctx.entry.relative_path
             }) || self.ui.waveform.loading.as_deref() == Some(ctx.entry.relative_path.as_path())
         })?;
         Some(format!(

@@ -28,14 +28,22 @@ fn rewrite_db_entry_for_source_moves_metadata_and_preserves_flags() {
         .unwrap();
 
     assert_eq!(db.index_for_path(Path::new("old.wav")).unwrap(), None);
-    assert!(db.index_for_path(Path::new("renamed.wav")).unwrap().is_some());
+    assert!(
+        db.index_for_path(Path::new("renamed.wav"))
+            .unwrap()
+            .is_some()
+    );
     assert_eq!(
         db.tag_for_path(Path::new("renamed.wav")).unwrap(),
         Some(Rating::KEEP_3)
     );
-    assert_eq!(db.looped_for_path(Path::new("renamed.wav")).unwrap(), Some(true));
     assert_eq!(
-        db.last_played_at_for_path(Path::new("renamed.wav")).unwrap(),
+        db.looped_for_path(Path::new("renamed.wav")).unwrap(),
+        Some(true)
+    );
+    assert_eq!(
+        db.last_played_at_for_path(Path::new("renamed.wav"))
+            .unwrap(),
         Some(42)
     );
 }
@@ -79,7 +87,10 @@ fn update_selection_paths_rewrites_compare_anchor_and_loaded_state() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(new_path)
     );
-    assert_eq!(controller.sample_view.wav.loaded_wav.as_deref(), Some(new_path));
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(new_path)
+    );
     assert_eq!(controller.ui.loaded_wav.as_deref(), Some(new_path));
     assert_eq!(
         controller
@@ -122,11 +133,12 @@ fn update_cached_entry_rewrites_cache_lookup_db_and_focus_path_on_rename() {
     db.set_last_played_at(Path::new("old.wav"), 77).unwrap();
 
     let mut cache = WavEntriesState::new(1, 50);
-    cache.insert_page(
-        0,
-        vec![sample_entry("old.wav", Rating::NEUTRAL)],
-    );
-    controller.cache.wav.entries.insert(source.id.clone(), cache);
+    cache.insert_page(0, vec![sample_entry("old.wav", Rating::NEUTRAL)]);
+    controller
+        .cache
+        .wav
+        .entries
+        .insert(source.id.clone(), cache);
     controller.ui.browser.selection.selected_paths = vec![PathBuf::from("old.wav")];
     controller.ui.browser.selection.last_focused_index = Some(0);
     controller.ui.browser.selection.last_focused_path = Some(PathBuf::from("old.wav"));
@@ -146,8 +158,16 @@ fn update_cached_entry_rewrites_cache_lookup_db_and_focus_path_on_rename() {
     updated.modified_ns = 99;
     controller.update_cached_entry(&source, Path::new("old.wav"), updated);
 
-    assert!(controller.wav_index_for_path(Path::new("old.wav")).is_none());
-    assert!(controller.wav_index_for_path(Path::new("renamed.wav")).is_some());
+    assert!(
+        controller
+            .wav_index_for_path(Path::new("old.wav"))
+            .is_none()
+    );
+    assert!(
+        controller
+            .wav_index_for_path(Path::new("renamed.wav"))
+            .is_some()
+    );
     assert_eq!(
         controller.ui.browser.selection.selected_paths,
         vec![PathBuf::from("renamed.wav")]
@@ -175,14 +195,22 @@ fn update_cached_entry_rewrites_cache_lookup_db_and_focus_path_on_rename() {
         None
     );
     assert_eq!(db.index_for_path(Path::new("old.wav")).unwrap(), None);
-    assert!(db.index_for_path(Path::new("renamed.wav")).unwrap().is_some());
+    assert!(
+        db.index_for_path(Path::new("renamed.wav"))
+            .unwrap()
+            .is_some()
+    );
     assert_eq!(
         db.tag_for_path(Path::new("renamed.wav")).unwrap(),
         Some(Rating::KEEP_1)
     );
-    assert_eq!(db.looped_for_path(Path::new("renamed.wav")).unwrap(), Some(true));
     assert_eq!(
-        db.last_played_at_for_path(Path::new("renamed.wav")).unwrap(),
+        db.looped_for_path(Path::new("renamed.wav")).unwrap(),
+        Some(true)
+    );
+    assert_eq!(
+        db.last_played_at_for_path(Path::new("renamed.wav"))
+            .unwrap(),
         Some(77)
     );
     assert_eq!(

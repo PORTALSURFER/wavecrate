@@ -180,7 +180,10 @@ fn waveform_chrome_projection_reflects_loop_hint() {
         radiant::app::WaveformChannelViewModel::Stereo
     );
     assert!(projected.compare_anchor_available);
-    assert_eq!(projected.compare_anchor_label.as_deref(), Some("anchor.wav"));
+    assert_eq!(
+        projected.compare_anchor_label.as_deref(),
+        Some("anchor.wav")
+    );
     assert!(projected.loop_lock_enabled);
     assert!(projected.normalized_audition_enabled);
     assert!(projected.bpm_snap_enabled);
