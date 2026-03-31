@@ -61,10 +61,10 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: evidence-driven improvement audit execution for the current live tree
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-30 ROI-ranked backlog for this tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
-- Current status: Phase 2 completed on `2026-03-31`. Items 1-8 are complete, including the previously blocked file-budget cleanup in superproject commit `8a111da9` and `vendor/radiant` commit `bb734080`. `scripts/check_file_size_budget.ps1 -All`, `cargo test -p radiant --lib --no-run`, `scripts/devcheck.ps1`, and `scripts/ci_agent.ps1` are green again, and `tmp/improvement_audit_plan.md` is now the completed execution record for this audit lane.
+- Current status: Phase 2 completed on `2026-03-31`. Items 1-8 are complete, including the previously blocked file-budget cleanup in superproject commit `572beac8` and `vendor/radiant` commit `bb734080`. `scripts/check_file_size_budget.ps1 -All`, `cargo test -p radiant --lib --no-run`, `scripts/devcheck.ps1`, and `scripts/ci_agent.ps1` are green again, and `tmp/improvement_audit_plan.md` is now the completed execution record for this audit lane.
 
 ## Immediate Next Actions
-1. Push the validated `vendor/radiant` `next` commit and then push the matching superproject `next` commits.
+1. Wait for the user to choose the next lane.
 2. Keep `tmp/improvement_audit_plan.md` as the completed execution record for this audit lane.
 3. Wait for the user to choose the next lane.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.

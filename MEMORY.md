@@ -21,9 +21,9 @@ Updated By: Codex
 - Item 4 is complete in local commit `d46bd589`: `MeaningfulUiSnapshot` and deferred async history restore coverage is broader and the history module is back under the file-size budget.
 - Item 5 is complete in local commit `f50a0fe9`: unmatched `pending_wav_renames` rows now survive quick scans but are pruned on hard rescan.
 - Items 6 and 7 are complete together in local commit `80b132fc`: `GuiScenarioStep::CaptureSnapshot` was removed from the supported scenario contract, the GUI runner was split into focused modules, and `src/gui_test/runner.rs` is no longer a live file-budget violation.
-- Item 8 is complete in superproject commit `8a111da9` plus `vendor/radiant` commit `bb734080`: the remaining `browser_sources` and `vendor/radiant` file-budget hotspots are split into focused modules, and the full file-size budget is green again.
+- Item 8 is complete in superproject commit `572beac8` plus `vendor/radiant` commit `bb734080`: the remaining `browser_sources` and `vendor/radiant` file-budget hotspots are split into focused modules, and the full file-size budget is green again.
 - Validation is green again for the completed lane: `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`, `cargo test -p radiant --lib --no-run`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` all pass.
-- The local audit commit stack after `772861f8` is now validated and ready to push.
+- The completed audit commit stack is now pushed on `origin/next`.
 - A small prerequisite test-harness fix was needed while validating item 3: `gui_test` unit coverage and the shell smoke pack now use deterministic named fixtures instead of the unstable persisted-startup `default` fixture where the assertions did not depend on it.
 - The improvement-audit backlog is complete.
 - The live full-scan file-size budget is green on this tree.
@@ -35,7 +35,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Push the validated `vendor/radiant` `next` commit and then push the matching superproject `next` commits.
+1. Wait for the user to choose the next lane.
 2. Keep `tmp/improvement_audit_plan.md` honest as the completed execution record for this lane.
 3. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` aligned once the push step is complete or a new lane starts.
 4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.

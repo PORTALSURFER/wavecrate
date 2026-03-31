@@ -4,7 +4,7 @@ Generated: 2026-03-30
 Observed superproject commit: `4be4051e`
 Observed `vendor/radiant` commit: `dd22ac1c`
 Observed workspace state: clean worktree in the superproject at audit start; the lane later required explicit permission to work inside previously dirty `src/app_core/controller/tests/browser_sources.rs` and `vendor/radiant/**` scopes.
-Status: Phase 2 execution completed on 2026-03-31. Items 1-8 are complete. The remaining file-budget debt landed in superproject commit `8a111da9` and `vendor/radiant` commit `bb734080`. `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`, `cargo test -p radiant --lib --no-run`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` are green again.
+Status: Phase 2 execution completed on 2026-03-31. Items 1-8 are complete. The remaining file-budget debt landed in superproject commit `572beac8` and `vendor/radiant` commit `bb734080`. `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`, `cargo test -p radiant --lib --no-run`, `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` are green again.
 
 ## Scope
 
@@ -29,7 +29,7 @@ Status: Phase 2 execution completed on 2026-03-31. Items 1-8 are complete. The r
 - 2026-03-30: Re-ran the file-budget scan after the GUI runner split; the only remaining full-scan violations are now the unrelated dirty `src/app_core/controller/tests/browser_sources.rs` file and dirty `vendor/radiant/**` hotspots.
 - 2026-03-30: Focused history, scanner, and `gui_test` validation remains green, but the late full serial lib lane now exits with `STATUS_ACCESS_VIOLATION`, which also keeps `scripts/ci_agent.ps1` red and blocks push under the repo workflow rules.
 - 2026-03-31: After the user granted permission to work inside the previously dirty `browser_sources.rs` and `vendor/radiant/**` scopes, item 8 resumed.
-- 2026-03-31: Landed the remaining `vendor/radiant` file-budget cleanup in commit `bb734080` and the matching superproject `browser_sources` split plus submodule pointer in commit `8a111da9`.
+- 2026-03-31: Landed the remaining `vendor/radiant` file-budget cleanup in commit `bb734080` and the matching superproject `browser_sources` split plus submodule pointer in commit `572beac8`.
 - 2026-03-31: Re-ran `scripts/check_file_size_budget.ps1 -All`, `cargo test -p radiant --lib --no-run`, `scripts/devcheck.ps1`, and `scripts/ci_agent.ps1`; all are green again and the backlog is complete.
 
 ## Repository Context
@@ -331,7 +331,7 @@ Status: Phase 2 execution completed on 2026-03-31. Items 1-8 are complete. The r
 - Completed: 2026-03-31
 - Commits:
   - `bb734080` in `vendor/radiant` (`refactor: split remaining file budget hotspots`)
-  - `8a111da9` in the superproject (`refactor: finish remaining file budget cleanup`)
+  - `572beac8` in the superproject (`refactor: finish remaining file budget cleanup`)
 - Assumptions:
   - behavior-preserving file splits inside the clean root-side test and helper modules are still in scope for item 8 even though the original title emphasized production modules.
   - once the user granted permission, the remaining dirty-scope cleanup could be completed without trying to preserve unrelated unstaged work in those exact touched files.
