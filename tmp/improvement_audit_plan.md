@@ -165,7 +165,7 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
 - Execution date: `2026-03-31`
-- Commit hash: `pending until the item-3 commit is created`
+- Commit hash: `76cfdbbe` (`test: guard automation actions with real snapshot coverage`)
 - Assumptions used:
   - The named deterministic GUI fixtures are the safest real runtime snapshot surface for a blanket catalog-consistency guard in this repository.
   - A one-way guard that proves every advertised `available_actions` id resolves through `action_catalog_entry_by_id(...)` is sufficient for this backlog item, even though it does not prove every catalog action is advertised somewhere.
@@ -174,7 +174,7 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
 - Plan-order deviation: none
 
-### 4. [ ] Expand direct hotkey contract characterization around focus scope, chord routing, and collision-prone bindings
+### 4. [x] Expand direct hotkey contract characterization around focus scope, chord routing, and collision-prone bindings
 
 - Classification: Test gap
 - Confidence: High
@@ -194,6 +194,15 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - `cargo test --manifest-path vendor/radiant/Cargo.toml hotkeys -- --test-threads=1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Execution date: `2026-03-31`
+- Commit hash: `vendor/radiant ff9ae90b` (`test: cover hotkey routing collisions by focus`); superproject pointer commit pending until the item-4 superproject commit is created
+- Assumptions used:
+  - The highest-ROI gap for this item is direct focus-routing characterization inside the shared resolver, not a broader end-to-end keyboard-runtime expansion that would entangle unrelated prompt/text-input suppression rules.
+  - Representative coverage for collision-prone single-key bindings across browser, folder, source-list, and waveform contexts is sufficient for this item even though deeper pending-chord restart semantics remain a possible future follow-up.
+- Validation outcome:
+  - `cargo test -p radiant hotkeys -- --test-threads=1` passed with the new direct resolver coverage in `vendor/radiant/src/app/hotkeys.rs`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed after the hotkey test expansion.
+- Plan-order deviation: none
 
 ### 5. [ ] Burn down the highest-ROI non-allowlisted full-scan file-size backlog once the measurement bug is fixed
 
