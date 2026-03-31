@@ -8,7 +8,8 @@
 # - files still over the file-size budget limit
 # - dead-code and clippy::too_many_arguments suppression density
 # - likely test-gap hotspots (large files without local test modules)
-#   excluding dedicated test paths like `tests/**`, `*_test.rs`, and `tests.rs`
+#   excluding dedicated test paths like `tests/**`, `*_test.rs`, `*_tests.rs`,
+#   and `tests.rs`, plus sibling module tests declared via `mod.rs` + `tests.rs`
 #
 # Output defaults to `tmp/cleanup_audit_hotspots.md`.
 
@@ -147,6 +148,29 @@ collect_rust_files() {
   fi
 }
 
+is_dedicated_test_path() {
+  local file="$1"
+  [[ "$file" == */tests/* || "$file" == tests/* || "$file" == *_test.rs || "$file" == *_tests.rs || "$file" == */tests.rs || "$file" == tests.rs ]]
+}
+
+has_local_test_markers() {
+  local file="$1"
+  rg -q '^\s*#\s*\[cfg\(test\)\]|^\s*mod\s+tests\b' "$file"
+}
+
+has_sibling_module_tests() {
+  local file="$1"
+  local dir
+  dir="$(dirname "$file")"
+  [[ "$dir" != "." ]] || return 1
+
+  local tests_file="$dir/tests.rs"
+  local mod_file="$dir/mod.rs"
+  [[ -f "$tests_file" && -f "$mod_file" ]] || return 1
+
+  has_local_test_markers "$mod_file"
+}
+
 mapfile -t rust_files < <(collect_rust_files | LC_ALL=C sort -u)
 
 for file in "${rust_files[@]}"; do
@@ -208,10 +232,13 @@ while IFS=$'\t' read -r line_count file; do
   if (( line_count < TEST_GAP_MIN_LINES )); then
     continue
   fi
-  if [[ "$file" == */tests/* || "$file" == tests/* || "$file" == *_test.rs || "$file" == */tests.rs || "$file" == tests.rs ]]; then
+  if is_dedicated_test_path "$file"; then
     continue
   fi
-  if rg -q '^\s*#\s*\[cfg\(test\)\]|^\s*mod\s+tests\b' "$file"; then
+  if has_local_test_markers "$file"; then
+    continue
+  fi
+  if has_sibling_module_tests "$file"; then
     continue
   fi
   printf "%s\t%s\n" "$line_count" "$file" >>"$tmp_test_gaps"
@@ -312,7 +339,7 @@ function_span_count="$(wc -l <"$tmp_function_spans" | tr -d '[:space:]')"
   echo "## Likely test-gap hotspots (heuristic)"
   echo
   echo "Files with at least \`$TEST_GAP_MIN_LINES\` lines and no local \`#[cfg(test)]\` or \`mod tests\` marker."
-  echo "Skips dedicated test modules/paths (\`tests/**\`, \`tests.rs\`, \`*_test.rs\`)."
+  echo "Skips dedicated test modules/paths (\`tests/**\`, \`tests.rs\`, \`*_test.rs\`, \`*_tests.rs\`) and sibling module tests declared through \`mod.rs\` + \`tests.rs\`."
   echo
   if (( test_gap_count == 0 )); then
     echo "None."

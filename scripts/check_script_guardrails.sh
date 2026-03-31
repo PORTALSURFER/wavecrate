@@ -37,6 +37,93 @@ run_expect_exit_code() {
   rm -f "$output_file"
 }
 
+run_cleanup_audit_fixture() {
+  local fixture_dir
+  fixture_dir="$(mktemp -d)"
+  trap 'rm -rf "$fixture_dir"' RETURN
+
+  local repo_dir="$fixture_dir/repo"
+  local script_path="$repo_dir/scripts/audit_cleanup_hotspots.sh"
+  local output_path="$repo_dir/tmp/cleanup.md"
+  mkdir -p "$repo_dir/src/analysis" "$repo_dir/src/selection" "$repo_dir/scripts" "$repo_dir/tmp"
+  cp "scripts/audit_cleanup_hotspots.sh" "$script_path"
+  chmod +x "$script_path"
+
+  cat >"$repo_dir/src/analysis/ann_index_tests.rs" <<'EOF'
+fn alpha() {}
+fn beta() {}
+fn gamma() {}
+EOF
+  cat >"$repo_dir/src/selection/mod.rs" <<'EOF'
+#[cfg(test)]
+mod tests;
+EOF
+  cat >"$repo_dir/src/selection/tests.rs" <<'EOF'
+#[test]
+fn selection_is_covered() {}
+EOF
+  cat >"$repo_dir/src/selection/range.rs" <<'EOF'
+pub fn start() {}
+pub fn end() {}
+pub fn clamp() {}
+EOF
+  cat >"$repo_dir/src/real_gap.rs" <<'EOF'
+pub fn one() {}
+pub fn two() {}
+pub fn three() {}
+EOF
+
+  git -C "$repo_dir" init -q
+  git -C "$repo_dir" config user.name "sempal-ci"
+  git -C "$repo_dir" config user.email "ci@sempal.test"
+  git -C "$repo_dir" add .
+  git -C "$repo_dir" commit -qm "seed"
+
+  run_expect_exit_code \
+    "cleanup-audit fixture succeeds" \
+    0 \
+    "$repo_dir" \
+    "$script_path" \
+    --output \
+    "$output_path" \
+    --test-gap-min-lines \
+    3 \
+    --top-files \
+    10
+
+  if grep -Fq 'Likely large-file test-gap hotspots (heuristic): 1' "$output_path"; then
+    echo "[guardrails] PASS: cleanup-audit fixture reports only one heuristic gap"
+  else
+    echo "[guardrails] FAIL: cleanup-audit fixture reports unexpected heuristic gap count" >&2
+    cat "$output_path" >&2
+    failures=$((failures + 1))
+  fi
+
+  if grep -Fq '`src/real_gap.rs`' "$output_path"; then
+    echo "[guardrails] PASS: cleanup-audit fixture keeps the real gap"
+  else
+    echo "[guardrails] FAIL: cleanup-audit fixture missed the real gap" >&2
+    cat "$output_path" >&2
+    failures=$((failures + 1))
+  fi
+
+  if grep -Fq '`src/analysis/ann_index_tests.rs`' "$output_path"; then
+    echo "[guardrails] FAIL: cleanup-audit fixture still flags *_tests.rs files" >&2
+    cat "$output_path" >&2
+    failures=$((failures + 1))
+  else
+    echo "[guardrails] PASS: cleanup-audit fixture skips *_tests.rs files"
+  fi
+
+  if grep -Fq '`src/selection/range.rs`' "$output_path"; then
+    echo "[guardrails] FAIL: cleanup-audit fixture still flags sibling module tests" >&2
+    cat "$output_path" >&2
+    failures=$((failures + 1))
+  else
+    echo "[guardrails] PASS: cleanup-audit fixture skips sibling module tests"
+  fi
+}
+
 run_file_size_budget_fixture() {
   local fixture_dir
   fixture_dir="$(mktemp -d)"
@@ -537,6 +624,14 @@ run_expect_exit_code \
   scripts/check_file_size_budget.sh
 
 run_expect_exit_code \
+  "bash -n scripts/audit_cleanup_hotspots.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/audit_cleanup_hotspots.sh
+
+run_expect_exit_code \
   "bash -n scripts/check_rust_taste_invariants.sh" \
   0 \
   "$ROOT_DIR" \
@@ -609,6 +704,7 @@ run_expect_exit_code \
   scripts/run_sandbox.sh
 
 run_file_size_budget_fixture
+run_cleanup_audit_fixture
 run_taste_invariants_fixture
 run_run_contract_smoke_fixture
 run_quality_score_drift_fixture

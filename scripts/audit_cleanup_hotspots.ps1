@@ -139,6 +139,7 @@ function Test-IsDedicatedTestPath {
   return $FilePath -like "tests/*" -or
     $FilePath -like "*/tests/*" -or
     $FilePath -like "*_test.rs" -or
+    $FilePath -like "*_tests.rs" -or
     $FilePath -like "tests.rs" -or
     $FilePath -like "*/tests.rs"
 }
@@ -151,6 +152,34 @@ function Test-HasLocalTestMarkers {
     }
   }
   return $false
+}
+
+function Test-HasSiblingModuleTests {
+  param([string]$FilePath)
+
+  $moduleDir = Split-Path -Parent $FilePath
+  if ([string]::IsNullOrWhiteSpace($moduleDir)) {
+    return $false
+  }
+
+  $testsFile = Join-Path $moduleDir "tests.rs"
+  $moduleFile = Join-Path $moduleDir "mod.rs"
+  if (-not (Test-Path -LiteralPath $testsFile) -or -not (Test-Path -LiteralPath $moduleFile)) {
+    return $false
+  }
+
+  $moduleLines = [System.IO.File]::ReadAllLines((Resolve-Path -LiteralPath $moduleFile))
+  return Test-HasLocalTestMarkers -Lines $moduleLines
+}
+
+function Test-HasTestCoverageHint {
+  param(
+    [string]$FilePath,
+    [string[]]$Lines
+  )
+
+  return (Test-HasLocalTestMarkers -Lines $Lines) -or
+    (Test-HasSiblingModuleTests -FilePath $FilePath)
 }
 
 function Write-MarkdownTable {
@@ -223,7 +252,7 @@ try {
   $testGaps = $sortedFileEntries | Where-Object {
     $_.LineCount -ge $TestGapMinLines -and
     -not (Test-IsDedicatedTestPath $_.File) -and
-    -not (Test-HasLocalTestMarkers $_.Lines)
+    -not (Test-HasTestCoverageHint -FilePath $_.File -Lines $_.Lines)
   }
 
   $timestampUtc = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -313,7 +342,7 @@ try {
     $writer.WriteLine("## Likely test-gap hotspots (heuristic)")
     $writer.WriteLine()
     $writer.WriteLine(("Files with at least {0} lines and no local {1} or {2} marker." -f (Format-Code ([string]$TestGapMinLines)), (Format-Code "#[cfg(test)]"), (Format-Code "mod tests")))
-    $writer.WriteLine(("Skips dedicated test modules/paths ({0}, {1}, {2})." -f (Format-Code "tests/**"), (Format-Code "tests.rs"), (Format-Code "*_test.rs")))
+    $writer.WriteLine(("Skips dedicated test modules/paths ({0}, {1}, {2}, {3}) and sibling module tests declared through {4} + {5}." -f (Format-Code "tests/**"), (Format-Code "tests.rs"), (Format-Code "*_test.rs"), (Format-Code "*_tests.rs"), (Format-Code "mod.rs"), (Format-Code "tests.rs")))
     $writer.WriteLine()
     if (($testGaps | Measure-Object).Count -eq 0) {
       $writer.WriteLine("None.")

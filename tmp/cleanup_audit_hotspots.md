@@ -1,50 +1,50 @@
 # Cleanup Hotspot Audit Snapshot
 
-- Generated (UTC): `2026-03-31T10:46:17Z`
+- Generated (UTC): `2026-03-31T12:44:49Z`
 - Branch: `next`
-- Commit: `ce005592`
-- Rust files scanned: 1357
+- Commit: `4c99a8c5`
+- Rust files scanned: 1364
 - File-size budget limit: `400`
 
 ## Summary
 
-- Over file-size budget: 32
-- Function spans captured: 8604
+- Over file-size budget: 27
+- Function spans captured: 8632
 - Files with `dead_code` suppressions: 3
 - Files with `clippy::too_many_arguments` suppressions: 3
-- Likely large-file test-gap hotspots (heuristic): 148
+- Likely large-file test-gap hotspots (heuristic): 124
 
 ## Largest Rust files
 
 | Lines | File |
 | --- | --- |
 | 1636 | `vendor/radiant/src/gui_runtime/native_vello/tests/queue_runtime.rs` |
-| 954 | `vendor/radiant/src/app/hotkeys.rs` |
+| 1133 | `vendor/radiant/src/app/hotkeys.rs` |
 | 765 | `vendor/radiant/src/app/actions/mod.rs` |
 | 763 | `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_drag_finish.rs` |
 | 713 | `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer/selection_creation.rs` |
 | 564 | `src/app_core/actions/catalog/kinds.rs` |
 | 475 | `src/app/controller/playback/transport/selection.rs` |
-| 432 | `src/app/controller/playback/transport/seek.rs` |
 | 432 | `src/app/controller/playback/recording/waveform_loader/tests.rs` |
 | 430 | `src/app/controller/tests/browser_core/filters.rs` |
-| 424 | `src/app/controller/history.rs` |
 | 423 | `src/sample_sources/db/file_ops_journal/tests.rs` |
 | 422 | `src/app/controller/tests/waveform_cache_loading.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
 | 421 | `vendor/radiant/src/gui/native_shell/state/toolbar_helpers/browser_toolbar.rs` |
-| 419 | `src/app/controller/library/source_folders/delete_recovery/recovery.rs` |
 | 413 | `vendor/radiant/src/gui/layout_core/engine/context.rs` |
 | 412 | `vendor/radiant/src/gui_runtime/native_vello/tests/browser_pointer/surface_routes.rs` |
 | 409 | `src/app_core/native_shell/tests/overlays.rs` |
 | 409 | `src/app/controller/tests/browser_selection.rs` |
+| 407 | `vendor/radiant/src/gui/native_shell/state/automation.rs` |
+| 407 | `src/selection/range.rs` |
+| 407 | `src/sample_sources/scanner/scan/tests.rs` |
 
 ## Largest function spans (heuristic)
 
 | Span (lines) | Function |
 | --- | --- |
 | 635 | `is_active` (`vendor/radiant/src/app/hotkeys.rs:153`) |
-| 340 | `render_browser_frame` (`vendor/radiant/src/gui/native_shell/state/frame_build/browser/panel.rs:3`) |
+| 342 | `render_browser_frame` (`vendor/radiant/src/gui/native_shell/state/frame_build/browser/panel.rs:3`) |
 | 282 | `render_browser_rows_window` (`vendor/radiant/src/gui/native_shell/state/frame_build/browser/rows.rs:3`) |
 | 279 | `apply_waveform_native_ui_action` (`src/app_core/controller/waveform_actions.rs:12`) |
 | 275 | `waveform_toolbar_buttons` (`vendor/radiant/src/gui/native_shell/state/toolbar_helpers/waveform_toolbar.rs:16`) |
@@ -69,21 +69,18 @@
 | Lines | File |
 | --- | --- |
 | 1636 | `vendor/radiant/src/gui_runtime/native_vello/tests/queue_runtime.rs` |
-| 954 | `vendor/radiant/src/app/hotkeys.rs` |
+| 1133 | `vendor/radiant/src/app/hotkeys.rs` |
 | 765 | `vendor/radiant/src/app/actions/mod.rs` |
 | 763 | `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_drag_finish.rs` |
 | 713 | `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer/selection_creation.rs` |
 | 564 | `src/app_core/actions/catalog/kinds.rs` |
 | 475 | `src/app/controller/playback/transport/selection.rs` |
-| 432 | `src/app/controller/playback/transport/seek.rs` |
 | 432 | `src/app/controller/playback/recording/waveform_loader/tests.rs` |
 | 430 | `src/app/controller/tests/browser_core/filters.rs` |
-| 424 | `src/app/controller/history.rs` |
 | 423 | `src/sample_sources/db/file_ops_journal/tests.rs` |
 | 422 | `src/app/controller/tests/waveform_cache_loading.rs` |
 | 422 | `src/analysis/ann_index_tests.rs` |
 | 421 | `vendor/radiant/src/gui/native_shell/state/toolbar_helpers/browser_toolbar.rs` |
-| 419 | `src/app/controller/library/source_folders/delete_recovery/recovery.rs` |
 | 413 | `vendor/radiant/src/gui/layout_core/engine/context.rs` |
 | 412 | `vendor/radiant/src/gui_runtime/native_vello/tests/browser_pointer/surface_routes.rs` |
 | 409 | `src/app_core/native_shell/tests/overlays.rs` |
@@ -94,11 +91,9 @@
 | 406 | `vendor/radiant/src/gui/native_shell/state/tests/browser_rows/virtualization.rs` |
 | 406 | `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves/worker.rs` |
 | 406 | `src/app/controller/tests/folders_core/tree_projection.rs` |
-| 404 | `src/app/controller/playback/player/playback_start.rs` |
 | 403 | `vendor/radiant/src/gui_runtime/native_vello/runtime_events/keyboard.rs` |
 | 403 | `vendor/radiant/src/gui_runtime/native_vello/input.rs` |
 | 403 | `vendor/radiant/src/gui/native_shell/state/tests/overlays/waveform_hover.rs` |
-| 403 | `src/app/controller/library/wavs/similar/background.rs` |
 | 402 | `src/app/controller/tests/browser_actions/focus_navigation.rs` |
 
 ## dead_code suppression density
@@ -120,17 +115,12 @@
 ## Likely test-gap hotspots (heuristic)
 
 Files with at least `200` lines and no local `#[cfg(test)]` or `mod tests` marker.
-Skips dedicated test modules/paths (`tests/**`, `tests.rs`, `*_test.rs`).
+Skips dedicated test modules/paths (`tests/**`, `tests.rs`, `*_test.rs`, `*_tests.rs`) and sibling module tests declared through `mod.rs` + `tests.rs`.
 
 | Lines | File |
 | --- | --- |
 | 564 | `src/app_core/actions/catalog/kinds.rs` |
-| 422 | `src/analysis/ann_index_tests.rs` |
 | 421 | `vendor/radiant/src/gui/native_shell/state/toolbar_helpers/browser_toolbar.rs` |
-| 413 | `vendor/radiant/src/gui/layout_core/engine/context.rs` |
-| 407 | `src/selection/range.rs` |
-| 404 | `src/app/controller/playback/player/playback_start.rs` |
-| 403 | `src/app/controller/library/wavs/similar/background.rs` |
 | 390 | `src/app/controller/jobs/file_ops_types.rs` |
 | 388 | `vendor/radiant/src/gui/native_shell/state/toolbar_helpers/waveform_toolbar.rs` |
 | 386 | `tools/bench-cli/src/bench/gui/interactions.rs` |
@@ -138,12 +128,17 @@ Skips dedicated test modules/paths (`tests/**`, `tests.rs`, `*_test.rs`).
 | 364 | `src/app/controller/library/wavs/browser_pipeline/visible_rows.rs` |
 | 360 | `src/app_core/controller/waveform_actions.rs` |
 | 357 | `vendor/radiant/src/gui/native_shell/state/waveform_segments/fades.rs` |
-| 355 | `vendor/radiant/src/gui/native_shell/state/frame_build/browser/panel.rs` |
+| 357 | `vendor/radiant/src/gui/native_shell/state/frame_build/browser/panel.rs` |
 | 355 | `src/app_core/native_shell/waveform_projection.rs` |
-| 354 | `vendor/radiant/src/gui/layout_core/engine/virtualization_tests.rs` |
 | 354 | `src/app/controller/library/browser_controller/helpers.rs` |
 | 352 | `vendor/radiant/src/gui/native_shell/state/frame_build/overlay/focus.rs` |
 | 351 | `vendor/radiant/src/gui_runtime/native_vello/input/waveform_handles.rs` |
+| 351 | `src/app/controller/library/wavs/browser_facade.rs` |
+| 349 | `src/app/controller/gui_fixtures.rs` |
+| 348 | `vendor/radiant/src/gui_runtime/native_vello/text_runtime.rs` |
+| 346 | `vendor/radiant/src/gui/native_shell/state/automation/browser.rs` |
+| 346 | `src/app/controller/library/source_folders/delete_recovery/restore_merge/ops.rs` |
+| 345 | `src/app/controller/library/background_jobs/polling/library_handlers.rs` |
 
 ## Suggested follow-up
 

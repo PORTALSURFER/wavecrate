@@ -1,267 +1,112 @@
 # Improvement Audit Plan
 
 Generated: 2026-03-31
-Observed superproject commit: `ce005592`
-Observed `vendor/radiant` commit: `6f4b87d2`
-Observed workspace state at audit start: clean worktree
-Status: Phase 2 implementation is in progress on the approved backlog.
+Observed superproject commit: `4c99a8c5`
+Observed `vendor/radiant` commit: `ff9ae90b`
+Observed workspace state at audit start: dirty worktree (`tmp/improvement_audit_plan.md`, dirty `vendor/radiant` submodule)
+Status: Phase 2 active on `2026-03-31`. Item 1 is complete; item 2 is next in sequence.
 
 ## Scope
 
-- This plan supersedes the previous completed execution record that lived at this path.
-- Findings are ranked in strict execution order by expected ROI for the current live tree.
-- Recommendations stay inside repository-supported direction. Broad rewrites, speculative features, and preference-only cleanup are excluded.
-- No implementation is included in this phase.
+- This plan audits the current live tree only.
+- Findings are ranked in strict execution order by expected ROI for the current repository state.
+- Recommendations stay inside documented or strongly implied repository intent.
+- Broad rewrites, speculative features, and preference-only cleanup are excluded.
 
 ## Repository Context
 
 - Project purpose: Explicitly documented. `README.md` and `docs/design_principles.md` describe Sempal as an early-alpha Rust desktop tool for triaging, auditioning, editing, and curating local audio samples.
-- Maturity level: Explicitly documented. `README.md` warns that the app is early alpha and can modify, rename, or delete sample-library files.
-- Primary languages / frameworks / tooling: Explicitly documented. `Cargo.toml` defines a Rust 2024 workspace with the root `sempal` crate, workspace apps/tools, and the vendored `radiant` GUI/runtime submodule.
-- Repository shape: Explicitly documented. `docs/ARCHITECTURE.md` routes domain/controller work through `src/`, migration-facing projection/runtime glue through `src/app_core` and `src/gui_runtime`, GUI/runtime behavior through `vendor/radiant/`, and support tooling through `apps/` and `tools/`.
+- Maturity level: Explicitly documented. `README.md` warns that the app is early alpha and can modify, rename, or delete library files.
+- Primary languages / frameworks / tooling: Explicitly documented. `Cargo.toml` defines a Rust 2024 workspace with the root `sempal` crate, companion apps/tools, and the vendored `radiant` GUI/runtime submodule.
+- Repository shape: Explicitly documented. `docs/ARCHITECTURE.md` routes domain/controller logic through `src/`, migration-facing projection/runtime glue through `src/app_core` and `src/gui_runtime`, GUI/runtime behavior through `vendor/radiant/`, and support tooling through `apps/` and `tools/`.
 - Architectural boundaries: Explicitly documented. `docs/ARCHITECTURE.md` says domain state and UI intent belong in `src`, while `vendor/radiant` owns widget behavior, layout, hit testing, input routing, and rendering coordination.
-- Test strategy: Strongly implied by code/docs. `docs/TEST.md` and `.github/workflows/ci.yml` center the repo on deterministic Rust unit tests, `cargo nextest`, targeted GUI contract tests, and optional desktop-AIV loops.
-- Canonical local validation commands: Explicitly documented. Windows flows center on `scripts/devcheck.ps1`, `scripts/ci_agent.ps1`, `scripts/ci_quick.ps1`, and `scripts/ci_local.ps1`.
+- Test strategy: Strongly implied by code/docs. `docs/TEST.md` and `.github/workflows/ci.yml` center the repo on deterministic Rust unit tests, `cargo nextest`, focused GUI contract tests, and optional local-only desktop-AIV loops.
+- Canonical local validation commands: Explicitly documented. Windows flows center on `scripts/devcheck.ps1`, `scripts/ci_agent.ps1`, `scripts/ci_quick.ps1`, `scripts/ci_local.ps1`, and GUI-specific wrappers such as `scripts/run_gui_contract.ps1`.
 - Documented priorities: Explicitly documented. `docs/design_principles.md` prioritizes responsiveness, non-blocking execution, predictability, reversibility, and data integrity.
 - Explicit non-goals: Explicitly documented. `docs/design_principles.md` says Sempal is not a DAW replacement, cloud platform, social network, or attention-retention product.
 
 ## Audit Baseline
 
-- `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1 -SkipCi` is green on the current tree, so the repo is not currently blocked by the mandatory preflight lane.
-- `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` regenerated `tmp/cleanup_audit_hotspots.md` and reports `32` Rust files over the 400-line budget on a full physical-line scan.
-- The Windows file-size budget guardrail does not currently agree with that hotspot snapshot:
-  - `scripts/check_file_size_budget.ps1:159` measures line count with `Get-Content -LiteralPath $file | Measure-Object -Line`, which ignores blank lines.
-  - `scripts/audit_cleanup_hotspots.ps1` uses `[System.IO.File]::ReadAllLines(...).Count`, and the bash side uses `wc -l`, so the repo currently has two definitions of “line count”.
-  - Direct comparisons on the live tree show the mismatch clearly:
-    - `src/app/controller/tests/browser_core/filters.rs`: `381` in the enforced PowerShell check vs `430` physical lines.
-    - `src/app/controller/history.rs`: `398` vs `424`.
-    - `vendor/radiant/src/gui/native_shell/state/toolbar_helpers/browser_toolbar.rs`: `395` vs `421`.
-- Using physical-line counts and excluding the explicit allowlist in `docs/file_size_budget_allowlist.txt`, the live tree still has `25` non-allowlisted over-budget Rust files. The highest-value production hotspots are:
-  - `src/app/controller/playback/transport/seek.rs` (`432`)
-  - `src/app/controller/history.rs` (`424`)
-  - `src/app/controller/library/source_folders/delete_recovery/recovery.rs` (`419`)
-  - `src/app/controller/playback/player/playback_start.rs` (`404`)
-  - `vendor/radiant/src/gui/native_shell/state/toolbar_helpers/browser_toolbar.rs` (`421`)
-  - `vendor/radiant/src/gui/layout_core/engine/context.rs` (`413`)
-  - `vendor/radiant/src/gui_runtime/native_vello/input.rs` (`403`)
-  - `vendor/radiant/src/gui_runtime/native_vello/runtime_events/keyboard.rs` (`403`)
-- The loaded-sample similarity sort currently has duplicated query-building logic:
-  - `src/app/controller/library/wavs/similar/query.rs:31` `build_similarity_query_for_loaded_sample`
-  - `src/app/controller/library/wavs/similar/background.rs:198` `compute_loaded_similarity_query`
-  - Both paths load the same embedding/features rows, compute the same embed/DSP blend, backfill missing rows with the same sentinel, and finish with `ensure_anchor_similarity_result(...)`.
-- The GUI automation/action-id contract is still duplicated across the host catalog and native-shell automation surfaces:
-  - `src/app_core/actions/catalog/entries.rs` is the canonical action-id catalog.
-  - `vendor/radiant/src/gui/native_shell/state/automation/helpers.rs:98` keeps a second manual `action_slug(...)` matcher.
-  - `vendor/radiant/src/gui/native_shell/state/automation/browser.rs`, `dialogs.rs`, `sidebar.rs`, and `waveform.rs` also hardcode `available_actions` strings directly.
-  - `src/gui_test/runner/assertions.rs:86` can validate one action id against the host catalog, but no blanket test traverses a real runtime automation snapshot and proves every advertised action resolves through `action_catalog_entry_by_id(...)`.
-- Contextual hotkeys are a first-class documented interaction contract, but their direct local characterization remains thin relative to the surface area:
-  - `docs/design_principles.md` calls contextual hotkeys and focus-sensitive keyboard semantics first-class.
-  - `vendor/radiant/src/app/hotkeys.rs` is `954` physical lines and defines `82` `HotkeyBinding` entries plus the shared `resolve_hotkey_press(...)` resolver.
-  - The same file currently contains only `6` local test functions.
-- The migration-facing native dispatch layer still concentrates broad UI behavior in two large match tables:
-  - `src/app_core/controller/browser_actions.rs:12` `apply_browser_native_ui_action(...)` spans the browser/source/folder action surface in one function.
-  - `src/app_core/controller/waveform_actions.rs:12` `apply_waveform_native_ui_action(...)` spans waveform, edit, drag, zoom, and destructive actions in one function.
-  - Coverage is currently indirect through `src/app_core/controller/tests/dispatch/**` rather than local dispatch-focused tests beside those modules.
+- `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` currently fails with `20` non-allowlisted over-budget Rust files.
+- `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` currently passes with a downgraded guardrail score of `3`, so the repo recognizes degraded guardrails but not every stale detail inside `docs/QUALITY_SCORE.md`.
+- `tmp/cleanup_audit_hotspots.md` reports `27` total over-budget Rust files, `3` files with `dead_code` suppressions, and `3` files with `clippy::too_many_arguments` suppressions.
+- The cleanup-hotspot snapshot currently contains at least two heuristic false positives in its “Likely test-gap hotspots” section:
+  - `src/analysis/ann_index_tests.rs` is itself a test file.
+  - `src/selection/range.rs` is backed by `src/selection/mod.rs` and `src/selection/tests.rs`.
+- Mutable handoff docs are currently inconsistent:
+  - `AGENTS.md`, `MEMORY.md`, `docs/plans/index.md`, and `docs/plans/active/todo.md` describe Phase 2 as active with item 6 next.
+  - `docs/README.md` says the same lane’s Phase 2 is complete.
 
 ## Intent Boundaries
 
 - What the repo clearly is: a Rust desktop application for listening to, navigating, editing, and curating local sample libraries with strong emphasis on responsiveness and reversible workflows.
-- What the repo appears to be moving toward: Strongly implied by code/docs. More truthful guardrails, a stable `app_core`/`radiant` contract surface, deterministic GUI automation, and continued file-size/ownership discipline without reopening speculative runtime rewrites.
-- What is merely possible but unsupported: broad GUI/runtime redesigns, a forced split of every centralized contract table, or promotion of desktop AIV into CI without stronger stability evidence.
+- What the repo appears to be moving toward: Strongly implied by code/docs. More truthful audit tooling, smaller migration/runtime surfaces, deterministic GUI automation, and continued file-size discipline without reopening broad runtime rewrites.
+- What is merely possible but unsupported: promoting desktop AIV into CI now, forcing all centralized tables to split, or introducing new product features not already implied by the existing sample-triage workflow.
 
 ## Ordered Backlog
 
-### 1. [x] Fix the Windows file-size budget check so the guardrail counts physical lines instead of non-empty lines
+### 1. [x] Fix the cleanup-hotspot audit heuristic so it stops misclassifying tested modules as “test-gap” hotspots
 
 - Classification: Bug fix
 - Confidence: High
 - ROI: High
 - Effort: S
-- Why it matters: the repository’s Windows-first guardrail lane can currently report a green 400-line budget while the live tree still violates the documented limit. That makes the audit, quality-score drift check, and local preflight disagree about the actual state of the codebase.
+- Why it matters: this repository now relies on `tmp/cleanup_audit_hotspots.md` for ROI planning, but the current heuristic can overstate missing-test risk and skew cleanup priorities.
 - Evidence:
-  - `scripts/check_file_size_budget.ps1:159` uses `Get-Content -LiteralPath $file | Measure-Object -Line`.
-  - `scripts/audit_cleanup_hotspots.ps1` uses `[System.IO.File]::ReadAllLines(...).Count`.
-  - Direct comparisons on the live tree:
-    - `src/app/controller/tests/browser_core/filters.rs`: `381` vs `430`.
-    - `src/app/controller/history.rs`: `398` vs `424`.
-    - `vendor/radiant/src/gui/native_shell/state/toolbar_helpers/browser_toolbar.rs`: `395` vs `421`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1 -SkipCi` is green while `tmp/cleanup_audit_hotspots.md` reports `32` over-budget files.
-- Recommended change: make the PowerShell budget check use the same physical-line counting rule as the hotspot audit and bash lane, then add a script-guardrail fixture that includes blank lines so this regression cannot silently return.
-- Expected impact: restores trust in the Windows guardrail lane, makes `check_quality_score_drift.ps1` meaningful again, and exposes the real backlog instead of hiding it behind a counting bug.
-- Risks / tradeoffs: low. The likely side effect is a temporary red lane because the current tree will be measured truthfully.
+  - `tmp/cleanup_audit_hotspots.md` lists `src/analysis/ann_index_tests.rs` and `src/selection/range.rs` under “Likely test-gap hotspots”.
+  - `scripts/audit_cleanup_hotspots.ps1` only skips `*_test.rs`, `tests.rs`, and `tests/**`, so it misses `*_tests.rs`.
+  - `scripts/audit_cleanup_hotspots.ps1` only looks for `#[cfg(test)]` or `mod tests` inside the same file.
+  - `src/selection/mod.rs` already declares `mod tests;`, and `src/selection/tests.rs` exists.
+- Recommended change: teach the audit script to recognize `*_tests.rs` as dedicated test files and to treat module-level sibling tests (`mod.rs` plus `tests.rs`) as real local coverage.
+- Expected impact: makes future audit snapshots more trustworthy and prevents false-positive planning churn.
+- Risks / tradeoffs: low. This should only narrow false positives; it does not weaken the file-size scan itself.
 - Dependencies: none
 - Suggested validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1 -SkipCi`
-  - script-guardrail fixture coverage for blank-line counting
+  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
+  - targeted script-guardrail coverage for `*_tests.rs` and sibling `mod.rs` / `tests.rs` layouts
 - Product clarification required: No
-- Execution date: `2026-03-31`
-- Commit hash: `a5faedbe` (`fix: align file-size guardrails with physical line counts`)
-- Assumptions used:
-  - `docs/QUALITY_SCORE.md` should describe the current observed guardrail state, even when the truthful full-scan budget is red.
-  - `check_quality_score_drift.*` is intended to validate the full-scan budget state because its score note already references `check_file_size_budget.* --all`.
-- Validation outcome:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1` passed, including the new blank-line-count regression fixture.
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` now fails truthfully and reports `25` non-allowlisted over-budget Rust files on the live tree.
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` passed and now reports a downgraded guardrail score of `3` while the truthful full-scan budget remains red.
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1 -SkipCi` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
-- Plan-order deviation: none
+- Execution record (`2026-03-31`):
+  - Outcome: updated `scripts/audit_cleanup_hotspots.ps1` and `scripts/audit_cleanup_hotspots.sh` to recognize `*_tests.rs` and sibling module coverage declared through `mod.rs` plus `tests.rs`, and added matching fixture coverage in `scripts/check_script_guardrails.ps1` and `scripts/check_script_guardrails.sh`.
+  - Assumption used: when a module directory contains both `mod.rs` with local test markers and a sibling `tests.rs`, that layout counts as local coverage for sibling files in the same module.
+  - Validation outcome: `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` all passed; the regenerated `tmp/cleanup_audit_hotspots.md` no longer lists `src/analysis/ann_index_tests.rs` or `src/selection/range.rs` in the heuristic test-gap section.
+  - Commit note: the item is committed as one focused Conventional Commit in Git history for this lane.
 
-### 2. [x] Deduplicate loaded-sample similarity query construction so sync and background similarity sort share one implementation
+### 2. [ ] Re-synchronize mutable lane-state docs and add one lightweight consistency guard or single source of truth
 
-- Classification: Architecture improvement
+- Classification: Developer-experience improvement
 - Confidence: High
 - ROI: High
-- Effort: M
-- Why it matters: loaded-sample similarity sort is a user-visible ranking feature, and today the same SQL, score blending, missing-entry fallback, and anchor-restoration logic exist in two places. That is a real drift risk: a future change can silently make “sort by loaded sample” behave differently depending on whether it runs synchronously or through the follow-loaded background refresh path.
-- Evidence:
-  - `src/app/controller/library/wavs/similar/query.rs:31` `build_similarity_query_for_loaded_sample(...)`
-  - `src/app/controller/library/wavs/similar/background.rs:198` `compute_loaded_similarity_query(...)`
-  - Both implementations:
-    - load the current sample embedding and optional DSP features
-    - query `embeddings` + `features`
-    - compute `EMBED_WEIGHT * embed_sim + DSP_WEIGHT * dsp_sim`
-    - append `MISSING_SIMILARITY_SCORE` for entries without embeddings
-    - finish through `ensure_anchor_similarity_result(...)`
-- Recommended change: extract a shared pure helper for loaded-sample similarity query construction and reuse it from both codepaths, leaving only the controller/job wiring separate. Add one parity test that proves both entrypoints produce the same `SimilarQuery` for the same source snapshot.
-- Expected impact: removes a correctness drift risk from a visible ranking feature and lowers the maintenance cost of future similarity-policy changes.
-- Risks / tradeoffs: medium. Shared extraction must preserve current sort order, sentinel behavior, and anchor placement exactly.
-- Dependencies: none
-- Suggested validation:
-  - targeted controller similarity tests for both loaded-sort entrypoints
-  - regression coverage around `ensure_anchor_similarity_result(...)`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Product clarification required: No
-- Execution date: `2026-03-31`
-- Commit hash: `404e0320` (`refactor: share loaded similarity query construction`)
-- Assumptions used:
-  - `build_similarity_query_for_loaded_sample(...)` remains a valid sync entrypoint even though current call sites are concentrated on the background follow-loaded path.
-  - Preserving the exact loaded-query payload (`sample_id`, label, indices, scores, anchor placement, and missing-entry fallback ordering) is more important than reducing every small setup duplication around job/controller input acquisition.
-- Validation outcome:
-  - `cargo test -p sempal loaded_similarity -- --test-threads=1` passed, including a new parity test that seeds one source snapshot and compares the sync and background loaded-query builders.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
-- Plan-order deviation: none
-
-### 3. [x] Add a repo-wide automation-snapshot to action-catalog consistency guard for advertised action ids
-
-- Classification: Test gap
-- Confidence: High
-- ROI: Medium-High
-- Effort: S
-- Why it matters: the GUI automation tree is now a contract surface for the CLI runner, scenario packs, and desktop AIV. Today the host catalog and native-shell automation snapshot still carry duplicated action-id strings without one blanket test proving they stay aligned.
-- Evidence:
-  - `src/app_core/actions/catalog/entries.rs` is the canonical host action-id catalog.
-  - `vendor/radiant/src/gui/native_shell/state/automation/helpers.rs:98` keeps a second manual `action_slug(...)` matcher.
-  - `vendor/radiant/src/gui/native_shell/state/automation/browser.rs`, `dialogs.rs`, `sidebar.rs`, and `waveform.rs` hardcode `available_actions` strings directly.
-  - `src/gui_test/runner/assertions.rs:86` can validate one action id against the catalog, but `src/gui_test/runner/tests.rs` only exercises synthetic snapshots and vendor automation tests cover only selected nodes/strings.
-- Recommended change: add one real-snapshot consistency test that traverses every `available_actions` id emitted by the native shell and proves each resolves through `action_catalog_entry_by_id(...)`; if practical, reduce string duplication by routing more action-id generation through one shared source.
-- Expected impact: turns a manual contract surface into an enforced one and makes future GUI-action additions safer for the CLI, semantic runner, and desktop-AIV packs.
-- Risks / tradeoffs: low. The main risk is exposing existing mismatches that require a small follow-up cleanup.
-- Dependencies: none
-- Suggested validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Product clarification required: No
-- Execution date: `2026-03-31`
-- Commit hash: `76cfdbbe` (`test: guard automation actions with real snapshot coverage`)
-- Assumptions used:
-  - The named deterministic GUI fixtures are the safest real runtime snapshot surface for a blanket catalog-consistency guard in this repository.
-  - A one-way guard that proves every advertised `available_actions` id resolves through `action_catalog_entry_by_id(...)` is sufficient for this backlog item, even though it does not prove every catalog action is advertised somewhere.
-- Validation outcome:
-  - `cargo test -p sempal capture_default_bundle_advertises_only_cataloged_actions_across_named_fixtures -- --test-threads=1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
-- Plan-order deviation: none
-
-### 4. [x] Expand direct hotkey contract characterization around focus scope, chord routing, and collision-prone bindings
-
-- Classification: Test gap
-- Confidence: High
-- ROI: Medium
 - Effort: S-M
-- Why it matters: Sempal’s design principles treat contextual hotkeys as part of the core interaction model, but the direct hotkey tests still cover only a small sample of a large shared binding surface. That makes future keyboard changes easier to regress silently.
+- Why it matters: Sempal explicitly depends on stateless-agent handoff docs, so conflicting phase/status text can send future sessions down the wrong lane before code inspection even starts.
 - Evidence:
-  - `docs/design_principles.md` defines hotkeys as contextual, focus-dependent, and central to the UI model.
-  - `vendor/radiant/src/app/hotkeys.rs` is `954` physical lines and defines `82` `HotkeyBinding` entries plus `resolve_hotkey_press(...)`.
-  - `docs/file_size_budget_allowlist.txt` explicitly keeps this file centralized for now, which makes direct characterization more important.
-  - The same file currently has only `6` local test functions.
-- Recommended change: keep the central table for now, but add focused tests for scope-sensitive gesture reuse (`C`, `D`, `N`, `R`, arrow keys), chord handling, and representative browser/folder/waveform conflicts so future additions fail loudly when they violate the intended focus contract.
-- Expected impact: increases confidence in a first-class interaction surface without forcing a premature structural rewrite of an intentionally centralized table.
-- Risks / tradeoffs: low. More tests will slow hotkey churn slightly, but they match the repo’s stated interaction priorities.
+  - `AGENTS.md`, `MEMORY.md`, `docs/plans/index.md`, and `docs/plans/active/todo.md` describe the improvement-audit Phase 2 as active with item 6 next.
+  - `docs/README.md` says the same lane’s “Phase 2 is complete”.
+  - `docs/README.md` is part of the documented wake-up path in `AGENTS.md`.
+  - Current automated doc checks (`scripts/check_docs_index.*`) validate references, not cross-file lane-state consistency.
+- Recommended change: either designate one mutable file as the canonical lane-status source and have the others point at it, or add a small consistency check for the duplicated phase/status fields that the repo treats as wake-up-critical.
+- Expected impact: reduces stateless-agent drift and makes future audits/execution sessions safer to resume.
+- Risks / tradeoffs: low. The main tradeoff is choosing between stronger enforcement and less duplicated status text.
 - Dependencies: none
 - Suggested validation:
-  - `cargo test --manifest-path vendor/radiant/Cargo.toml hotkeys -- --test-threads=1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
+  - a new or updated lane-state consistency check if one is added
 - Product clarification required: No
-- Execution date: `2026-03-31`
-- Commit hash: `fc3c9fa7` (`test: record hotkey routing coverage`); `vendor/radiant ff9ae90b` (`test: cover hotkey routing collisions by focus`)
-- Assumptions used:
-  - The highest-ROI gap for this item is direct focus-routing characterization inside the shared resolver, not a broader end-to-end keyboard-runtime expansion that would entangle unrelated prompt/text-input suppression rules.
-  - Representative coverage for collision-prone single-key bindings across browser, folder, source-list, and waveform contexts is sufficient for this item even though deeper pending-chord restart semantics remain a possible future follow-up.
-- Validation outcome:
-  - `cargo test -p radiant hotkeys -- --test-threads=1` passed with the new direct resolver coverage in `vendor/radiant/src/app/hotkeys.rs`.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed after the hotkey test expansion.
-- Plan-order deviation: none
 
-### 5. [x] Burn down the highest-ROI non-allowlisted full-scan file-size backlog once the measurement bug is fixed
-
-- Classification: Refactor / cleanup
-- Confidence: High
-- ROI: Medium-High
-- Effort: L
-- Why it matters: the repo’s 400-line policy is real, but the current Windows guardrail bug is hiding a production/test backlog of `25` non-allowlisted files. Leaving that debt hidden encourages more drift in areas the project explicitly wants to keep small and focused.
-- Evidence:
-  - Physical-line full scan on the current tree shows `25` non-allowlisted over-budget Rust files.
-  - Highest-value production hotspots:
-    - `src/app/controller/playback/transport/seek.rs` (`432`)
-    - `src/app/controller/history.rs` (`424`)
-    - `src/app/controller/library/source_folders/delete_recovery/recovery.rs` (`419`)
-    - `src/app/controller/playback/player/playback_start.rs` (`404`)
-    - `vendor/radiant/src/gui/native_shell/state/toolbar_helpers/browser_toolbar.rs` (`421`)
-    - `vendor/radiant/src/gui/layout_core/engine/context.rs` (`413`)
-    - `vendor/radiant/src/gui_runtime/native_vello/input.rs` (`403`)
-    - `vendor/radiant/src/gui_runtime/native_vello/runtime_events/keyboard.rs` (`403`)
-  - The repo explicitly treats oversized allowlisted stability surfaces separately in `docs/file_size_budget_allowlist.txt`, so these non-allowlisted files are the sharper current debt.
-- Recommended change: after item 1 restores truthful measurement, split the non-allowlisted backlog in ROI order, starting with production hotspots before test hubs. Preserve the explicit allowlist distinction instead of reopening intentionally centralized contract tables.
-- Expected impact: restores the credibility of the 400-line policy on the live tree and reduces future merge/debug friction in active controller/runtime areas.
-- Risks / tradeoffs: medium. This is behavior-preserving structural work with regression risk if boundaries are chosen weakly.
-- Dependencies: item 1
-- Suggested validation:
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
-  - targeted unit/integration tests for each split cluster
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-- Product clarification required: No
-- Execution date: `2026-03-31`
-- Commit hash: `pending until the item-5 commit is created`
-- Assumptions used:
-  - The highest-ROI behavior-preserving slice for this item is the root-controller production set explicitly called out in the evidence list (`seek.rs`, `history.rs`, `recovery.rs`, and `playback_start.rs`), because those files are both over budget and directly aligned with the repo’s controller-ownership guidance.
-  - The remaining over-budget vendor/runtime files should stay visible in the still-red truthful budget lane for a later pass rather than be folded into this commit without stronger locality or decomposition evidence.
-- Validation outcome:
-  - `cargo test -p sempal history_transactions -- --test-threads=1` passed.
-  - `cargo test -p sempal delete_recovery -- --test-threads=1` passed.
-  - `cargo test -p sempal waveform_seek -- --test-threads=1` passed.
-  - `cargo test -p sempal normalized_audition -- --test-threads=1` passed.
-  - `cargo test -p sempal max_abs_from_samples_span -- --test-threads=1` passed.
-  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` still fails truthfully, but the non-allowlisted violation count dropped from `25` to `20` and the four root-controller hotspots named above are now under budget.
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
-- Plan-order deviation: none
-
-### 6. [ ] Split the migration-facing native action dispatch hubs in `app_core` into smaller surface-specific helpers with direct local tests
+### 3. [ ] Split the migration-facing native action dispatch hubs in `app_core` into smaller surface-specific helpers with direct local tests
 
 - Classification: Architecture improvement
-- Confidence: Medium-High
-- ROI: Medium
+- Confidence: High
+- ROI: Medium-High
 - Effort: M
-- Why it matters: `app_core` is the migration-facing native dispatch boundary, but two large match tables still own most browser/source/folder and waveform/edit/zoom behavior. That concentration makes boundary work and UI-action changes harder to reason about than the surrounding module decomposition suggests.
+- Why it matters: `app_core` is the migration-facing dispatch boundary, but the heaviest browser and waveform action routing still lives in large branch-heavy hubs with mostly indirect coverage.
 - Evidence:
-  - `src/app_core/controller/browser_actions.rs` is `320` lines and keeps `apply_browser_native_ui_action(...)` as one broad match over browser, source, folder, options, drag, and duplicate-cleanup actions.
-  - `src/app_core/controller/waveform_actions.rs` is `360` lines and keeps `apply_waveform_native_ui_action(...)` as one broad match over waveform playback, selection, drag, edit, slice, zoom, and destructive actions.
-  - Coverage is indirect through `src/app_core/controller/tests/dispatch/**` rather than direct tests beside the dispatch modules themselves.
-  - The repo guidance in `AGENTS.md` asks for small focused modules and short functions, while these two migration-facing entrypoints remain branch-heavy hubs.
-- Recommended change: split the browser/source/folder/options and waveform/edit/zoom/slice/destructive branches into focused helpers or submodules, then add local dispatch tests that characterize status/error/focus behavior without routing every assertion through the larger omnibus dispatch suite.
-- Expected impact: lowers the maintenance cost of future native-action work in `app_core` and makes migration-boundary changes easier to localize and validate.
-- Risks / tradeoffs: medium. The action tables are compatibility-sensitive, so refactors must preserve exact routing and status semantics.
+  - `src/app_core/controller/browser_actions.rs` keeps `apply_browser_native_ui_action(...)` as a broad browser/source/folder/options/drag/cleanup matcher.
+  - `src/app_core/controller/waveform_actions.rs` keeps `apply_waveform_native_ui_action(...)` as a broad waveform/edit/zoom/slice/destructive matcher.
+  - `tmp/cleanup_audit_hotspots.md` reports `254` lines for `apply_browser_native_ui_action` and `279` lines for `apply_waveform_native_ui_action`.
+  - Direct coverage today is concentrated in omnibus suites such as `src/app_core/controller/tests/dispatch/core.rs` rather than narrowly scoped tests beside the dispatch helpers.
+- Recommended change: split browser/source/folder/options and waveform/edit/zoom/slice/destructive routes into focused helpers or submodules, then add local dispatch tests that characterize status/focus/error behavior without routing every assertion through the omnibus dispatch harness.
+- Expected impact: lowers maintenance cost for future migration work and makes runtime-action regressions easier to localize.
+- Risks / tradeoffs: medium. These tables are compatibility-sensitive and must preserve routing/status semantics exactly.
 - Dependencies: none
 - Suggested validation:
   - targeted `app_core` dispatch tests
@@ -269,67 +114,173 @@ Status: Phase 2 implementation is in progress on the approved backlog.
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
 - Product clarification required: No
 
+### 4. [ ] Collapse duplicated keyboard-path logic in `vendor/radiant` so tests and production use the same hotkey/text-input behavior
+
+- Classification: Architecture improvement
+- Confidence: High
+- ROI: Medium-High
+- Effort: M
+- Why it matters: the native runtime’s keyboard path is both over budget and partially duplicated across test-only helpers and the real event handler, which creates a drift risk in a focus-sensitive interaction surface.
+- Evidence:
+  - `vendor/radiant/src/gui_runtime/native_vello/runtime_events/keyboard.rs` is `403` lines and currently fails the full file-size budget.
+  - The file defines `handle_hotkey_press_for_tests`, `handle_character_key_for_tests`, `handle_enter_for_tests`, and `handle_escape_for_tests`.
+  - The same enter/escape/text-target/hotkey branches also appear inside `handle_keyboard_input(...)`.
+  - `docs/design_principles.md` treats contextual hotkeys and deterministic interaction as first-class behavior.
+- Recommended change: extract shared helpers for escape/enter/text-input/hotkey routing and make both tests and the real event path exercise the same branch logic.
+- Expected impact: reduces test-vs-runtime drift risk while shrinking one of the current non-allowlisted runtime files.
+- Risks / tradeoffs: medium. Keyboard behavior is user-facing and regression-sensitive, so refactoring must preserve exact focus and prompt semantics.
+- Dependencies: none
+- Suggested validation:
+  - targeted `cargo test -p radiant` coverage for keyboard/runtime paths
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- Product clarification required: No
+
+### 5. [ ] Burn down the remaining non-allowlisted production/runtime file-size backlog before the oversized test hubs
+
+- Classification: Refactor / cleanup
+- Confidence: High
+- ROI: Medium-High
+- Effort: L
+- Why it matters: the full-scan file-size lane is still red, and the remaining production hotspots sit in active runtime/layout/browser surfaces where smaller modules would improve both guardrail health and day-to-day reasoning.
+- Evidence:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` currently reports `20` non-allowlisted over-budget files.
+  - Production/runtime hotspots inside that set include:
+    - `vendor/radiant/src/gui/native_shell/state/toolbar_helpers/browser_toolbar.rs` (`421`)
+    - `vendor/radiant/src/gui/layout_core/engine/context.rs` (`413`)
+    - `vendor/radiant/src/gui_runtime/native_vello/input.rs` (`403`)
+    - `vendor/radiant/src/gui_runtime/native_vello/runtime_events/keyboard.rs` (`403`)
+    - `vendor/radiant/src/gui/native_shell/state/automation.rs` (`407`)
+    - `src/app/controller/ui/drag_drop_controller/drag_effects/source_moves/worker.rs` (`406`)
+    - `src/selection/range.rs` (`407`)
+  - `docs/file_size_budget_allowlist.txt` already documents the intentionally centralized exceptions separately, so these non-allowlisted files are the sharper current debt.
+- Recommended change: split this backlog in production-first order, starting with the vendor runtime/native-shell/layout files and the source-move worker; leave intentionally cohesive surfaces such as `src/selection/range.rs` for a later slice unless a clearer sub-boundary emerges.
+- Expected impact: reduces the remaining truthful guardrail backlog and makes active runtime code easier to review and change safely.
+- Risks / tradeoffs: medium. Behavior-preserving structural work in runtime/input/layout code is regression-sensitive.
+- Dependencies: item 4 should be folded into this lane for `runtime_events/keyboard.rs`
+- Suggested validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
+  - targeted unit/runtime tests for each split cluster
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Product clarification required: No
+
+### 6. [ ] Split the oversized regression/test hubs so coverage stays discoverable and the file-size policy remains credible
+
+- Classification: Refactor / cleanup
+- Confidence: High
+- ROI: Medium
+- Effort: L
+- Why it matters: most of the remaining non-allowlisted backlog is now test code, and the largest suites bundle many behaviors together in ways that make failures, ownership, and future audit work harder to navigate.
+- Evidence:
+  - Oversized test hubs currently include:
+    - `src/analysis/ann_index_tests.rs` (`422`)
+    - `src/app/controller/playback/recording/waveform_loader/tests.rs` (`432`)
+    - `src/app/controller/tests/browser_core/filters.rs` (`430`)
+    - `src/app/controller/tests/browser_selection.rs` (`409`)
+    - `src/app/controller/tests/waveform_cache_loading.rs` (`422`)
+    - `src/sample_sources/db/file_ops_journal/tests.rs` (`423`)
+    - `src/sample_sources/scanner/scan/tests.rs` (`407`)
+    - `src/app_core/native_shell/tests/overlays.rs` (`409`)
+    - `vendor/radiant/src/gui_runtime/native_vello/tests/browser_pointer/surface_routes.rs` (`412`)
+    - `vendor/radiant/src/gui/native_shell/state/tests/browser_rows/virtualization.rs` (`406`)
+    - `vendor/radiant/src/gui/native_shell/state/tests/overlays/waveform_hover.rs` (`403`)
+  - These suites already contain meaningful behavior coverage; the current problem is size, discoverability, and maintenance friction rather than missing assertions.
+- Recommended change: split the largest test hubs by sub-behavior or fixture family while preserving the current assertions and helper reuse.
+- Expected impact: improves navigability of the remaining regression surface and supports the repo’s explicit small-file policy without sacrificing coverage.
+- Risks / tradeoffs: medium. This is mostly mechanical, but careless moves can damage fixture readability or test helper reuse.
+- Dependencies: none
+- Suggested validation:
+  - targeted test invocations for each split suite
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- Product clarification required: No
+
+### 7. [ ] Tighten `QUALITY_SCORE` drift enforcement or remove volatile exact counts from the scorecard narrative
+
+- Classification: Documentation gap
+- Confidence: High
+- ROI: Medium
+- Effort: S-M
+- Why it matters: the score row is kept honest, but the surrounding narrative still cites stale exact counts, which weakens the value of the scorecard as a wake-up and prioritization artifact.
+- Evidence:
+  - `docs/QUALITY_SCORE.md` still says the live tree has `25` non-allowlisted over-budget Rust files and `2` files with `dead_code` suppressions.
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` currently reports `20` non-allowlisted violations.
+  - `tmp/cleanup_audit_hotspots.md` currently reports `27` total over-budget Rust files and `3` files with `dead_code` suppressions.
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` still passes because it only checks the area score, not the narrative counts.
+- Recommended change: either make the drift check validate the cited counts against the current audit output, or rewrite the narrative notes to avoid brittle exact numbers that are expected to change frequently.
+- Expected impact: keeps the scorecard truthful without forcing humans to rediscover which parts of it are enforced versus advisory.
+- Risks / tradeoffs: low. Stronger validation increases maintenance cost slightly; looser narrative wording reduces precision.
+- Dependencies: none
+- Suggested validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
+- Product clarification required: No
+
 ## Open Questions / Missing Definitions
 
-### [!] 1. Which oversized centralized tables are intentionally exempt from the repo’s “small file” preference, and which are still fair cleanup targets?
+### [!] 1. Are playback-age filter inversion and temporary-mark review-advance semantics deliberate product contracts or only current behavior?
 
 - Evidence:
-  - `docs/file_size_budget_allowlist.txt` explicitly preserves `src/app_core/actions/catalog/kinds.rs`, `vendor/radiant/src/app/hotkeys.rs`, and `vendor/radiant/src/app/actions/mod.rs` as centralized compatibility surfaces for now.
-  - The same repo guidance also states a strong 400-line preference and small-focused modules in `AGENTS.md`.
-- Why this matters: the next cleanup lane should not waste effort splitting files that the repo has consciously centralized unless there is clear correctness or ownership pressure beyond raw size.
-- Affected files/modules:
-  - `docs/file_size_budget_allowlist.txt`
-  - `src/app_core/actions/catalog/kinds.rs`
-  - `vendor/radiant/src/app/hotkeys.rs`
-  - `vendor/radiant/src/app/actions/mod.rs`
-- Risk if guessed incorrectly: either the audit overreaches into intentional compatibility surfaces, or it keeps avoidable debt indefinitely by treating all large central tables as untouchable.
-- Most conservative provisional assumption: keep explicitly allowlisted compatibility surfaces centralized until a concrete correctness, ownership, or discoverability problem justifies a different shape.
-
-### [!] 2. Are the browser playback-age and temporary mark behaviors now long-term product contracts, or are they still “current behavior” only?
-
-- Evidence:
-  - `manual/usage.md` documents playback-age and mark flows using “Current behavior” wording.
-  - `src/app/controller/library/wavs/browser_search/mutations.rs` still contains additive/invert playback-age behavior and marked-only navigation side effects.
-  - `src/app_core/actions/catalog/entries.rs` and the GUI automation/AIV packs expose those actions as stable runtime surfaces.
-- Why this matters: future docs, hotkey changes, and GUI assertions should know whether they are preserving a deliberate UX contract or merely today’s implementation.
+  - `manual/usage.md` describes these flows using “Current behavior” wording.
+  - `src/app/controller/library/wavs/browser_search/mutations.rs` implements additive/invert playback-age selection and marked-only browser behavior.
+  - `src/app_core/actions/catalog/entries.rs` and `src/gui_test/aiv/packs/cases/browser.rs` expose these actions as stable runtime/test surfaces.
+- Why this matters: safe future changes to browser filters, hotkeys, docs, and AIV assertions depend on knowing whether these semantics are intentional UX contracts or just today’s implementation.
 - Affected files/modules:
   - `manual/usage.md`
   - `src/app/controller/library/wavs/browser_search/mutations.rs`
   - `src/app_core/actions/catalog/entries.rs`
   - `src/gui_test/aiv/packs/cases/browser.rs`
-- Risk if guessed incorrectly: either future work overcommits to incidental behavior or accidentally regresses a deliberate fast-triage workflow.
-- Most conservative provisional assumption: preserve current playback-age and mark behavior, but avoid turning it into a broader product promise without explicit clarification.
+- Risk if guessed incorrectly: future work could accidentally lock in incidental behavior or regress a deliberate fast-triage workflow.
+- Most conservative provisional assumption: preserve the current semantics exactly, but avoid broadening them into stronger product promises without explicit clarification.
 
-### [!] 3. Should desktop AIV remain a local-only evidence lane, or is there a documented path to promoting part of it into CI?
+### [!] 2. Should active-lane status have one canonical source, or is duplicated phase text across wake-up docs still intentional?
 
 - Evidence:
-  - `docs/gui_test_platform.md` explicitly calls desktop AIV local-only and says it is not yet stable enough for CI.
-  - The same doc also keeps `desktop-regression` as an important broader evidence lane.
-- Why this matters: some future testing investments make sense only if there is intent to promote a stable subset, while others should stay focused on local triage ergonomics.
+  - `AGENTS.md`, `MEMORY.md`, `docs/plans/index.md`, and `docs/plans/active/todo.md` currently agree with each other.
+  - `docs/README.md` currently disagrees and says the same lane is complete.
+  - `AGENTS.md` explicitly treats these docs as stateless-agent wake-up artifacts.
+- Why this matters: implementing item 2 safely requires knowing whether the repo wants duplicated mutable status text with stronger enforcement or a single canonical source with lightweight pointers.
+- Affected files/modules:
+  - `AGENTS.md`
+  - `MEMORY.md`
+  - `docs/README.md`
+  - `docs/plans/index.md`
+  - `docs/plans/active/todo.md`
+- Risk if guessed incorrectly: the repo could either keep recurring status drift or add unnecessary process overhead to docs that were meant to stay lightweight.
+- Most conservative provisional assumption: keep one short canonical lane-status source and make the other wake-up docs point to it rather than restating mutable phase details.
+
+### [!] 3. Should stable action identifiers remain duplicated across the host catalog and vendor automation layer, or is a shared lower-layer contract intended?
+
+- Evidence:
+  - `docs/gui_test_platform.md` says the host action catalog in `src/app_core/actions` is canonical.
+  - `vendor/radiant/src/gui/native_shell/state/automation/helpers.rs` still keeps a manual `action_slug(...)` matcher.
+  - `vendor/radiant/src/gui/native_shell/state/automation/*.rs` also hardcode several `available_actions` strings.
+  - `src/gui_test/runner/tests.rs` now guards that advertised action ids resolve through the host catalog.
+- Why this matters: safe cleanup of the remaining automation duplication depends on whether the boundary should stay split with tests as the safety net, or whether the repo wants a shared lower-layer action-id source.
 - Affected files/modules:
   - `docs/gui_test_platform.md`
-  - `scripts/run_gui_aiv_smoke.ps1`
-  - `scripts/run_gui_aiv_suite.ps1`
-  - `src/gui_test/aiv/**`
-- Risk if guessed incorrectly: the project could spend effort engineering CI around a lane that intentionally remains local-only, or miss the chance to harden a subset that is intended for eventual promotion.
-- Most conservative provisional assumption: keep desktop AIV local-only and avoid CI-promotion work unless the docs or user direction become more explicit.
+  - `src/app_core/actions/catalog/entries.rs`
+  - `vendor/radiant/src/gui/native_shell/state/automation.rs`
+  - `vendor/radiant/src/gui/native_shell/state/automation/helpers.rs`
+- Risk if guessed incorrectly: a cleanup could either violate the intended `src`/`vendor` ownership boundary or preserve needless duplication longer than necessary.
+- Most conservative provisional assumption: preserve the current boundary split and rely on stronger consistency tests unless the repo explicitly documents a shared lower-layer contract.
 
 ## Rejected Ideas
 
-### [-] 1. Split explicitly allowlisted stability surfaces just to satisfy the file-size target
+### [-] 1. Split the explicitly allowlisted centralized tables just to satisfy the file-size budget
 
 - Why it was considered: `src/app_core/actions/catalog/kinds.rs`, `vendor/radiant/src/app/hotkeys.rs`, and `vendor/radiant/src/app/actions/mod.rs` are all large enough to attract cleanup attention.
-- Why it was rejected: `docs/file_size_budget_allowlist.txt` explicitly justifies those files as centralized compatibility surfaces, so raw size alone is not enough evidence to make them the top lane.
+- Why it was rejected: `docs/file_size_budget_allowlist.txt` explicitly justifies them as centralized compatibility surfaces, so raw size alone is not enough evidence to make them the next lane.
 - What evidence was missing: concrete correctness, ownership, or discoverability failures caused by their current centralization.
 
-### [-] 2. Reopen the parked perf lane or promote desktop AIV into CI as the next lane
+### [-] 2. Treat `src/selection/range.rs` as an untested hotspot and move it to the top of the backlog
 
-- Why it was considered: the repo has a completed perf execution record and a broader desktop-AIV regression pack.
-- Why it was rejected: `tmp/perf_plan.md` is parked/completed, `docs/gui_test_platform.md` still marks desktop AIV local-only, and the current stronger evidence is around guardrail truthfulness and contract drift.
-- What evidence was missing: current-tree proof that performance or CI-promotion work is a higher-ROI need than the guardrail/contract issues above.
+- Why it was considered: `tmp/cleanup_audit_hotspots.md` currently lists `src/selection/range.rs` under “Likely test-gap hotspots”.
+- Why it was rejected: `src/selection/mod.rs` declares `mod tests;`, and `src/selection/tests.rs` already covers `SelectionRange` and related behavior. The audit heuristic is the real issue.
+- What evidence was missing: proof that `SelectionRange` currently lacks targeted tests or that its current cohesion comment is false.
 
-### [-] 3. Make the native-shell overlay test hub the first cleanup slice
+### [-] 3. Promote desktop AIV into CI or make it the next primary lane
 
-- Why it was considered: `src/app_core/native_shell/tests/overlays.rs` is `409` physical lines and sits in a migration-sensitive GUI contract area.
-- Why it was rejected: it is a reasonable cleanup candidate, but the current repo has sharper cross-cutting issues first: a false-green Windows guardrail, duplicated loaded-similarity logic, and missing cross-surface contract guards.
-- What evidence was missing: proof that the overlay test hub is causing a more immediate correctness or workflow failure than the higher-ranked items.
+- Why it was considered: the repo now has a broader `desktop-regression` pack and dedicated PowerShell wrappers.
+- Why it was rejected: `docs/gui_test_platform.md` still describes desktop AIV as local-only because foreground activation remains unstable on the current Windows setup.
+- What evidence was missing: repeatable local stability data and an explicit documented promotion bar for CI.

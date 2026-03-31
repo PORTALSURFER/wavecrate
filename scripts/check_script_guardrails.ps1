@@ -163,6 +163,36 @@ function New-TempDir {
   return $tempPath
 }
 
+function Assert-TextContains {
+  param(
+    [string]$Label,
+    [string]$Text,
+    [string]$Fragment
+  )
+
+  if ($Text -like "*$Fragment*") {
+    Write-Pass $Label
+    return
+  }
+
+  Add-Failure "$Label (missing fragment: $Fragment)"
+}
+
+function Assert-TextNotContains {
+  param(
+    [string]$Label,
+    [string]$Text,
+    [string]$Fragment
+  )
+
+  if ($Text -notlike "*$Fragment*") {
+    Write-Pass $Label
+    return
+  }
+
+  Add-Failure "$Label (unexpected fragment: $Fragment)"
+}
+
 Push-Location $rootDir
 try {
   $scriptsToParse = @(
@@ -173,6 +203,7 @@ try {
     (Join-Path $scriptsDir "ci_agent.ps1"),
     (Join-Path $scriptsDir "ci_quick.ps1"),
     (Join-Path $scriptsDir "ci_local.ps1"),
+    (Join-Path $scriptsDir "audit_cleanup_hotspots.ps1"),
     (Join-Path $scriptsDir "refresh_memory_md.ps1")
   )
   foreach ($scriptPath in $scriptsToParse) {
@@ -236,6 +267,65 @@ try {
     Invoke-ExpectExitCode -Label "file size budget counts blank lines in project files" -ExpectedCode 1 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_file_size_budget.ps1") -Arguments @("-All", "-Limit", "4")
   } finally {
     Remove-Item -Recurse -Force $fixtureDir -ErrorAction SilentlyContinue
+  }
+
+  $cleanupAuditFixtureDir = New-TempDir
+  try {
+    $repoDir = Join-Path $cleanupAuditFixtureDir "repo"
+    New-Item -ItemType Directory -Path $repoDir | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "src/analysis") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "src/selection") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "scripts") | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "tmp") | Out-Null
+
+    Copy-Item (Join-Path $scriptsDir "audit_cleanup_hotspots.ps1") (Join-Path $repoDir "scripts/audit_cleanup_hotspots.ps1")
+
+    Set-Content -Path (Join-Path $repoDir "src/analysis/ann_index_tests.rs") -Value @(
+      "fn alpha() {}",
+      "fn beta() {}",
+      "fn gamma() {}"
+    )
+    Set-Content -Path (Join-Path $repoDir "src/selection/mod.rs") -Value @(
+      "#[cfg(test)]",
+      "mod tests;"
+    )
+    Set-Content -Path (Join-Path $repoDir "src/selection/tests.rs") -Value @(
+      "#[test]",
+      "fn selection_is_covered() {}"
+    )
+    Set-Content -Path (Join-Path $repoDir "src/selection/range.rs") -Value @(
+      "pub fn start() {}",
+      "pub fn end() {}",
+      "pub fn clamp() {}"
+    )
+    Set-Content -Path (Join-Path $repoDir "src/real_gap.rs") -Value @(
+      "pub fn one() {}",
+      "pub fn two() {}",
+      "pub fn three() {}"
+    )
+
+    git -C $repoDir init -q
+    git -C $repoDir config user.name "sempal-ci"
+    git -C $repoDir config user.email "ci@sempal.test"
+    git -C $repoDir add .
+    git -C $repoDir commit -qm "seed"
+
+    $outputPath = Join-Path $repoDir "tmp/cleanup.md"
+    Invoke-ExpectExitCode -Label "cleanup audit fixture succeeds" -ExpectedCode 0 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/audit_cleanup_hotspots.ps1") -Arguments @("-Output", $outputPath, "-TestGapMinLines", "3", "-TopFiles", "10")
+    $reportText = Get-Content -Path $outputPath -Raw
+    $sectionStart = $reportText.IndexOf("## Likely test-gap hotspots (heuristic)")
+    $sectionEnd = $reportText.IndexOf("## Suggested follow-up")
+    $testGapSection = if ($sectionStart -ge 0 -and $sectionEnd -gt $sectionStart) {
+      $reportText.Substring($sectionStart, $sectionEnd - $sectionStart)
+    } else {
+      $reportText
+    }
+    Assert-TextContains -Label "cleanup audit fixture reports only one heuristic gap" -Text $reportText -Fragment "Likely large-file test-gap hotspots (heuristic): 1"
+    Assert-TextContains -Label "cleanup audit fixture keeps the real gap" -Text $testGapSection -Fragment 'src/real_gap.rs'
+    Assert-TextNotContains -Label "cleanup audit fixture skips *_tests.rs files" -Text $testGapSection -Fragment 'src/analysis/ann_index_tests.rs'
+    Assert-TextNotContains -Label "cleanup audit fixture skips sibling module tests" -Text $testGapSection -Fragment 'src/selection/range.rs'
+  } finally {
+    Remove-Item -Recurse -Force $cleanupAuditFixtureDir -ErrorAction SilentlyContinue
   }
 
   $migrationFixtureDir = New-TempDir
