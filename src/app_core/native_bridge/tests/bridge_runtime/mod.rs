@@ -151,24 +151,20 @@ mod projection_folder_edits {
             });
 
         let initial = bridge.project_model();
-        assert!(
-            initial
-                .sources
-                .folder_rows
-                .iter()
-                .any(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::CreateDraft)
-        );
+        assert!(initial
+            .sources
+            .folder_rows
+            .iter()
+            .any(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::CreateDraft));
 
         bridge.on_action(NativeUiAction::CancelFolderCreate);
 
         let updated = bridge.project_model();
-        assert!(
-            updated
-                .sources
-                .folder_rows
-                .iter()
-                .all(|row| row.kind != crate::app_core::actions::NativeFolderRowKind::CreateDraft)
-        );
+        assert!(updated
+            .sources
+            .folder_rows
+            .iter()
+            .all(|row| row.kind != crate::app_core::actions::NativeFolderRowKind::CreateDraft));
     }
 
     /// Starting folder rename should immediately project an inline rename row.

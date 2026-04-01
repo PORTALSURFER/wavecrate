@@ -148,4 +148,3 @@ fn drag_overlay_projection_clears_pointer_anchor_without_active_drag() {
     assert_eq!(projected.pointer_x, None);
     assert_eq!(projected.pointer_y, None);
 }
-

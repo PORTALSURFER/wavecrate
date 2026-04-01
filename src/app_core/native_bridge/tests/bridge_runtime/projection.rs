@@ -210,4 +210,3 @@ fn toggle_loop_playback_refreshes_loaded_sample_bpm_and_loop_badges_immediately(
         Some(String::from("128 BPM · LOOP"))
     );
 }
-
