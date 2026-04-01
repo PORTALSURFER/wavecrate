@@ -281,3 +281,29 @@ fn is_transient_benchmark_source(source: &crate::sample_sources::SampleSource) -
             .and_then(|name| name.to_str())
             .is_some_and(|name| name.eq_ignore_ascii_case("gui-source"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn prune_transient_benchmark_sources_keeps_user_sources() {
+        let retained_dir = tempdir().expect("retained tempdir");
+        let retained_root = retained_dir.path().join("user-source");
+        std::fs::create_dir_all(&retained_root).expect("create retained source");
+        let transient_dir = tempdir().expect("transient tempdir");
+        let transient_root = transient_dir.path().join("gui-source");
+        std::fs::create_dir_all(&transient_root).expect("create transient source");
+        let retained_source = crate::sample_sources::SampleSource::new(retained_root.clone());
+
+        let (sources, removed) = prune_transient_benchmark_sources(vec![
+            crate::sample_sources::SampleSource::new(transient_root),
+            retained_source.clone(),
+        ]);
+
+        assert_eq!(removed, 1);
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].root, retained_source.root);
+    }
+}

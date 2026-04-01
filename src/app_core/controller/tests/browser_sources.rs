@@ -38,6 +38,5 @@ fn browser_visible_paths(controller: &mut AppController) -> Vec<PathBuf> {
 }
 
 mod browser_row_actions;
-mod config;
 mod folder_actions;
 mod source_row_actions;
