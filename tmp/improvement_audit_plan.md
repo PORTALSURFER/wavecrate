@@ -4,7 +4,7 @@ Generated: 2026-04-01
 Observed superproject commit: `b79a2869`
 Observed `vendor/radiant` commit: `d4dac5da`
 Observed workspace state at audit start: dirty worktree (`MEMORY.md`)
-Status: Phase 2 active on `2026-04-01`; items 1, 2, 3, and 4 are complete, item 5 is next, and execution is proceeding in backlog order.
+Status: Phase 2 complete on `2026-04-02`; all ranked backlog items are complete for the current live tree.
 
 ## Scope
 
@@ -183,7 +183,7 @@ Status: Phase 2 active on `2026-04-01`; items 1, 2, 3, and 4 are complete, item 
   - Replaced the monolithic `browser_actions.rs` and `waveform_actions.rs` files with smaller surface-specific module trees under `src/app_core/controller/`.
   - Moved focused similarity toggling, waveform BPM-snap fallback seeding, transient-marker toggling, and waveform-selection drag origin handling behind narrower legacy-controller helpers so `app_core` no longer needs its own dispatch-state shim.
 
-### 5. [ ] Burn down the remaining non-allowlisted production/runtime file-size debt before touching explicitly allowlisted exceptions
+### 5. [x] Burn down the remaining non-allowlisted production/runtime file-size debt before touching explicitly allowlisted exceptions
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -208,8 +208,23 @@ Status: Phase 2 active on `2026-04-01`; items 1, 2, 3, and 4 are complete, item 
   - targeted runtime/native-shell tests for each split cluster
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Date completed: `2026-04-02`
+- Commits:
+  - `a218f432` (`vendor/radiant`: `refactor: split vendor runtime and ui test suites`)
+  - `1f8bafa9` (`test: clear remaining file-size budget debt`)
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` passed
+  - `cargo check --manifest-path vendor/radiant/Cargo.toml` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Assumptions used:
+  - `src/selection/range.rs` remains a cohesive domain-model exception and should be allowlisted rather than split absent a clearer sub-boundary.
+  - The safest production/runtime cleanup was to split the remaining `vendor/radiant` layout/input/native-shell files without changing behavior or ownership boundaries.
+- Execution notes:
+  - Added an explicit allowlist rationale for `src/selection/range.rs`.
+  - Split `vendor/radiant` layout context, browser toolbar helpers, and native waveform drag routing into smaller modules.
+  - Cleared the final non-allowlisted production/runtime debt while keeping the repo-wide file-size budget green.
 
-### 6. [ ] Split the oversized test hubs and inline-test modules so the file-size policy remains credible
+### 6. [x] Split the oversized test hubs and inline-test modules so the file-size policy remains credible
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -241,8 +256,28 @@ Status: Phase 2 active on `2026-04-01`; items 1, 2, 3, and 4 are complete, item 
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Date completed: `2026-04-02`
+- Commits:
+  - `8dfced1c` (`test: split browser core suites`)
+  - `1b3bfa46` (`test: split app_core native projection suites`)
+  - `a218f432` (`vendor/radiant`: `refactor: split vendor runtime and ui test suites`)
+  - `1f8bafa9` (`test: clear remaining file-size budget debt`)
+- Validation outcome:
+  - `cargo test -p sempal browser_core:: -- --test-threads=1` passed
+  - `cargo test -p sempal focus_hotkey_does_not_autoplay_browser_sample -- --test-threads=1` passed
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml map_point_click_routes_to_focus_map_sample -- --test-threads=1` passed
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml metadata_omits_empty_values -- --test-threads=1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Assumptions used:
+  - Behavioral regrouping inside the test tree was safer than changing controller/runtime semantics to appease the size budget.
+  - Large inline test blocks should move beside dedicated test files without widening production-module visibility.
+- Execution notes:
+  - Split the remaining oversized superproject and `vendor/radiant` test hubs by behavior family.
+  - Moved the large inline `automation.rs` and `source_moves/worker.rs` test blocks into dedicated sibling test files.
+  - Fixed one browser-core fixture regression caught by `ci_agent` before marking the lane complete.
 
-### 7. [ ] Tighten `QUALITY_SCORE` drift enforcement or remove volatile exact counts from the scorecard narrative
+### 7. [x] Tighten `QUALITY_SCORE` drift enforcement or remove volatile exact counts from the scorecard narrative
 
 - Classification: Documentation gap
 - Confidence: High
@@ -261,8 +296,17 @@ Status: Phase 2 active on `2026-04-01`; items 1, 2, 3, and 4 are complete, item 
   - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`
 - Product clarification required: No
+- Date completed: `2026-04-02`
+- Commit: `406db6e3` (`docs: refresh quality score narrative`)
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` passed
+- Assumptions used:
+  - The scorecard should describe the live dirty workspace truthfully without brittle exact counts that drift faster than the enforced row.
+- Execution notes:
+  - Removed volatile exact-count language from `docs/QUALITY_SCORE.md`.
+  - Refreshed the score notes to reflect the current mixed state: file-size guardrails are green again, but the live dirty workspace still downgrades the overall guardrail score through diff-aware taste checks.
 
-### 8. [ ] Reconcile shell-specific validation/doc-tooling drift so the same named workflow does not imply different guarantees
+### 8. [x] Reconcile shell-specific validation/doc-tooling drift so the same named workflow does not imply different guarantees
 
 - Classification: Developer-experience improvement
 - Confidence: Medium-High
@@ -283,6 +327,17 @@ Status: Phase 2 active on `2026-04-01`; items 1, 2, 3, and 4 are complete, item 
   - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1`
   - spot-check help output for the affected wrappers
 - Product clarification required: No
+- Date completed: `2026-04-02`
+- Commit: `5765ff37` (`chore: align script wrapper expectations`)
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1` passed
+- Assumptions used:
+  - The smallest safe fix was to make the shell wrappers and helper output truthful about their current guarantees rather than force broad cross-shell behavior parity in one pass.
+- Execution notes:
+  - Clarified that `scripts/ci_quick.sh` omits the Windows-only GUI contract step that the PowerShell wrapper includes.
+  - Narrowed `scripts/ci_local.ps1` wording so it no longer claims full GitHub Actions parity.
+  - Aligned `fix_trivial_doc_links.ps1` with the Bash rewrite targets for `docs/plans/active/*`.
+  - Updated both manual-doc-scope helpers so their failure output advertises the actual allowlisted redirect-stub path pattern.
 
 ## Open Questions / Missing Definitions
 
