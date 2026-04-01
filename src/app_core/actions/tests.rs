@@ -1,5 +1,6 @@
 use super::{
-    GUI_ACTION_CATALOG, GuiActionKind, GuiCoverageLayer, GuiEffectClass, GuiSurface,
+    GUI_ACTION_CATALOG, GuiActionKind, GuiCoverageLayer, GuiDispatchPolicy, GuiEffectClass,
+    GuiSurface,
     action_catalog_entry_by_id, action_kind, representative_action_for_kind,
 };
 use crate::app_core::app_api::controller_state::DerivedNodeId;
@@ -196,6 +197,17 @@ fn local_model_pull_fast_path_catalog_entries_remain_ui_only_actions() {
             entry.effect_class,
             GuiEffectClass::Projection | GuiEffectClass::StateOnly
         ));
+    }
+}
+
+#[test]
+fn runtime_internal_waveform_shift_actions_are_not_public_dispatch() {
+    for action_id in [
+        "begin_waveform_selection_shift",
+        "begin_waveform_edit_selection_shift",
+    ] {
+        let entry = action_catalog_entry_by_id(action_id).expect("catalog entry");
+        assert_eq!(entry.dispatch_policy, GuiDispatchPolicy::RuntimeInternal);
     }
 }
 

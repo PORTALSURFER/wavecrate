@@ -60,12 +60,12 @@ Write for future selves: be precise, kind, and clear.
 - Product: Sempal
 - Branch: `next`
 - Program: evidence-driven improvement audit execution for the current live tree
-- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-03-31 ROI-ranked backlog and execution record for this tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
-- Current status: Phase 2 is active on `2026-03-31`. Items 1 and 2 are complete, and item 3 (the `app_core` native dispatch-hub split) is next in sequence.
+- Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-04-01 ROI-ranked backlog and execution record for this tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
+- Current status: Phase 2 is active on `2026-04-01`. Item 1 is complete, item 2 (GUI action-trace handled/unhandled assertions) is next, and execution is proceeding in backlog order.
 
 ## Immediate Next Actions
-1. Execute item 3 from `tmp/improvement_audit_plan.md`: split the migration-facing native action dispatch hubs in `app_core` into smaller surface-specific helpers with direct local tests.
-2. Keep `tmp/improvement_audit_plan.md` current as the live backlog and execution record as Phase 2 advances.
+1. Execute item 2 from `tmp/improvement_audit_plan.md`: make GUI action-trace assertions distinguish handled behavior from mere dispatch attempts.
+2. Continue the backlog strictly in order after item 2, with item 3 (`vendor/radiant` keyboard-path deduplication) next.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 5. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized when the lane status changes.
@@ -74,7 +74,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog and execution record for the live tree; Phase 2 is active, items 1 and 2 are complete, and item 3 is next
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog and execution record for the live tree; Phase 2 is active, item 1 is complete, and item 2 is next
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation

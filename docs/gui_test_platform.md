@@ -4,7 +4,7 @@ This document describes the layered GUI test platform used to make Sempal's nati
 
 ## Goals
 
-- Give every `radiant::app::UiAction` a host-owned catalog entry with explicit coverage requirements.
+- Give every `radiant::app::UiAction` a host-owned catalog entry with explicit coverage requirements and a clear public-dispatch policy.
 - Emit a deterministic semantic automation tree from the native shell so code and AI tools can target controls by stable ids instead of screenshots alone.
 - Produce machine-readable GUI artifacts that correlate with existing run contracts instead of creating a parallel logging system.
 - Support multiple loops:
@@ -22,10 +22,15 @@ The canonical host catalog lives in [src/app_core/actions/mod.rs](/C:/dev/sempal
 What it provides:
 
 - `GuiActionKind`: payload-free identity for every `UiAction` variant
-- `GuiActionCatalogEntry`: stable action id, surface, effect class, coverage layers, fixture tags
+- `GuiActionCatalogEntry`: stable action id, surface, effect class, coverage layers, fixture tags, and dispatch policy
 - `GUI_ACTION_CATALOG`: machine-readable coverage report input
 - `action_kind(...)`: exhaustive matcher that breaks compilation when a new `UiAction` is added without catalog support
 - coverage guard tests in [src/app_core/actions/tests.rs](/C:/dev/sempal/src/app_core/actions/tests.rs)
+
+Dispatch-policy note:
+
+- most catalog entries are public host-dispatch actions and may be used by `gui-test-cli dispatch-action` and in-process scenarios
+- runtime-internal gesture-arm actions are still cataloged for coverage/tracing, but the public GUI runner rejects them explicitly instead of silently dispatching them into an unhandled no-op path
 
 Why it lives in `app_core`:
 

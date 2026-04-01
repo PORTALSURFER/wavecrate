@@ -9,7 +9,9 @@ use super::{
     GuiScenario, GuiScenarioStep, GuiStepTimingSample, GuiTestArtifactBundle, GuiTestModeConfig,
 };
 use crate::{
-    app_core::actions::{NativeAppBridge, NativeUiAction, action_catalog_entry},
+    app_core::actions::{
+        GuiDispatchPolicy, NativeAppBridge, NativeUiAction, action_catalog_entry,
+    },
     gui_test::{GuiFixtureBridge, trace_event_for_action},
 };
 use std::{
@@ -39,6 +41,7 @@ pub fn dispatch_action_bundle(
     config: &GuiTestModeConfig,
     action: NativeUiAction,
 ) -> Result<GuiTestArtifactBundle, String> {
+    ensure_public_dispatch_action(&action)?;
     let mut bridge = make_bridge_for_fixture(&config.fixture_tag, config.viewport)?;
     let started = Instant::now();
     bridge.reduce_action(action.clone());
@@ -63,6 +66,7 @@ pub fn run_scenario(
         let started = Instant::now();
         match step {
             GuiScenarioStep::DispatchAction { action } => {
+                ensure_public_dispatch_action(action)?;
                 bridge.reduce_action(action.clone());
                 trace.push(trace_event_for_action(action));
             }
@@ -102,6 +106,17 @@ fn make_bridge_for_fixture(
     viewport: [u32; 2],
 ) -> Result<GuiFixtureBridge, String> {
     GuiFixtureBridge::new_with_viewport(fixture_tag, viewport)
+}
+
+fn ensure_public_dispatch_action(action: &NativeUiAction) -> Result<(), String> {
+    let entry = action_catalog_entry(action);
+    if entry.dispatch_policy == GuiDispatchPolicy::Public {
+        return Ok(());
+    }
+    Err(format!(
+        "action {} is cataloged for runtime-internal use and cannot be dispatched through the public GUI runner",
+        entry.action_id
+    ))
 }
 
 fn elapsed_ms(started: Instant) -> u64 {

@@ -1,8 +1,8 @@
 use super::assertions::assert_scenario_state;
 use super::*;
 use crate::app_core::actions::{
-    GUI_ACTION_CATALOG, NativeAutomationNodeId, NativeAutomationNodeSnapshot, NativeAutomationRole,
-    NativeGuiAutomationSnapshot, action_catalog_entry_by_id,
+    GUI_ACTION_CATALOG, NativeAutomationNodeId, NativeAutomationNodeSnapshot,
+    NativeAutomationRole, NativeGuiAutomationSnapshot, action_catalog_entry_by_id,
 };
 use crate::gui_test::{GuiActionTraceEvent, GuiAssertion, GuiScenario, GuiScenarioStep};
 use radiant::app::AutomationBounds;
@@ -126,6 +126,40 @@ fn scenario_runner_accepts_root_presence_assertion() {
     let bundle = run_scenario(&deterministic_test_config("browser"), &scenario)
         .expect("scenario should pass");
     assert!(bundle.failure_summary.is_none());
+}
+
+#[test]
+fn dispatch_action_bundle_rejects_runtime_internal_actions() {
+    let err = dispatch_action_bundle(
+        &deterministic_test_config("waveform"),
+        radiant::app::UiAction::BeginWaveformSelectionShift {
+            pointer_micros: 200_000,
+            start_micros: 100_000,
+            end_micros: 300_000,
+        },
+    )
+    .expect_err("internal dispatch should be rejected");
+    assert!(err.contains("begin_waveform_selection_shift"));
+    assert!(err.contains("runtime-internal"));
+}
+
+#[test]
+fn scenario_runner_rejects_runtime_internal_actions() {
+    let scenario = GuiScenario {
+        name: String::from("reject-runtime-internal"),
+        fixture_tag: String::from("waveform"),
+        steps: vec![GuiScenarioStep::DispatchAction {
+            action: radiant::app::UiAction::BeginWaveformEditSelectionShift {
+                pointer_micros: 200_000,
+                start_micros: 100_000,
+                end_micros: 300_000,
+            },
+        }],
+    };
+    let err = run_scenario(&deterministic_test_config("waveform"), &scenario)
+        .expect_err("internal dispatch should be rejected");
+    assert!(err.contains("begin_waveform_edit_selection_shift"));
+    assert!(err.contains("runtime-internal"));
 }
 
 #[test]

@@ -55,6 +55,16 @@ pub enum GuiCoverageLayer {
     DesktopAiv,
 }
 
+/// Public-dispatch policy for one cataloged GUI action.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GuiDispatchPolicy {
+    /// Hosts may dispatch this action directly through the public GUI test/automation surface.
+    Public,
+    /// The runtime may use this action internally, but hosts should not dispatch it directly.
+    RuntimeInternal,
+}
+
 /// Undo/redo transaction policy for one GUI action in the v1 history model.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -84,4 +94,6 @@ pub struct GuiActionCatalogEntry {
     pub coverage_layers: &'static [GuiCoverageLayer],
     /// Default fixture or scenario tags to seed targeted suites.
     pub default_fixture_tags: &'static [&'static str],
+    /// Whether hosts may dispatch this action directly through public tooling.
+    pub dispatch_policy: GuiDispatchPolicy,
 }

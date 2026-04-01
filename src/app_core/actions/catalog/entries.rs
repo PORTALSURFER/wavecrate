@@ -2,8 +2,8 @@
 
 use super::super::NativeUiAction;
 use super::{
-    GuiActionCatalogEntry, GuiActionKind, GuiCoverageLayer, GuiEffectClass, GuiHistoryPolicy,
-    GuiSurface,
+    GuiActionCatalogEntry, GuiActionKind, GuiCoverageLayer, GuiDispatchPolicy, GuiEffectClass,
+    GuiHistoryPolicy, GuiSurface,
 };
 
 macro_rules! gui_action_catalog {
@@ -25,6 +25,7 @@ macro_rules! gui_action_catalog {
                     action_id: $id,
                     surface: GuiSurface::$surface,
                     effect_class: GuiEffectClass::$effect,
+                    dispatch_policy: gui_dispatch_policy(GuiActionKind::$kind),
                     history_policy: gui_history_policy(
                         GuiActionKind::$kind,
                         GuiEffectClass::$effect,
@@ -55,6 +56,14 @@ macro_rules! gui_action_catalog {
     (@match $kind:ident { $($field:ident),+ }) => {
         NativeUiAction::$kind { $($field: _),+ }
     };
+}
+
+const fn gui_dispatch_policy(kind: GuiActionKind) -> GuiDispatchPolicy {
+    match kind {
+        GuiActionKind::BeginWaveformSelectionShift
+        | GuiActionKind::BeginWaveformEditSelectionShift => GuiDispatchPolicy::RuntimeInternal,
+        _ => GuiDispatchPolicy::Public,
+    }
 }
 
 const fn gui_history_policy(kind: GuiActionKind, _effect: GuiEffectClass) -> GuiHistoryPolicy {
