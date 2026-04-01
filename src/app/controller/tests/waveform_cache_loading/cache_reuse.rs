@@ -164,7 +164,10 @@ fn selection_load_reuses_cached_decode_after_visual_reset() {
             .cache_token,
         initial_token
     );
-    assert_eq!(controller.sample_view.wav.loaded_wav.as_deref(), Some(rel.as_path()));
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(rel.as_path())
+    );
     assert!(controller.runtime.jobs.pending_audio().is_none());
     assert!(controller.ui.waveform.loading.is_none());
 }

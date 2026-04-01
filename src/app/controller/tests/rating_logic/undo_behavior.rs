@@ -24,7 +24,10 @@ fn undo_adjust_rating_refocuses_original_sample_under_filter() {
 
     controller.undo();
 
-    assert_eq!(controller.visible_row_for_path(Path::new("two.wav")), Some(1));
+    assert_eq!(
+        controller.visible_row_for_path(Path::new("two.wav")),
+        Some(1)
+    );
     assert_eq!(controller.wav_entry(1).unwrap().tag, Rating::NEUTRAL);
     assert_eq!(
         controller.sample_view.wav.selected_wav.as_deref(),

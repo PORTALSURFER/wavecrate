@@ -186,10 +186,8 @@ fn keep_three_filter_excludes_locked_keep_rows() {
     let (mut controller, _source) = browser_rating_filter_fixture(true);
     let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
     locked_keep.locked = true;
-    controller.set_wav_entries_for_tests(vec![
-        sample_entry("keep3.wav", Rating::KEEP_3),
-        locked_keep,
-    ]);
+    controller
+        .set_wav_entries_for_tests(vec![sample_entry("keep3.wav", Rating::KEEP_3), locked_keep]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
 
