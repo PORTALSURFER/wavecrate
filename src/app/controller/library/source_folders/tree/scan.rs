@@ -1,6 +1,7 @@
 //! Folder-browser disk-scan orchestration and refresh policy.
 
 use super::*;
+use crate::app::controller::state::cache::FolderBrowserCacheKey;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -21,7 +22,10 @@ impl AppController {
         let pending_source = self.runtime.jobs.pending_folder_scan_source();
         if let Some(pending_source) = pending_source.as_ref()
             && pending_source != source_id
-            && let Some(model) = self.ui_cache.folders.models.get_mut(pending_source)
+            && let Some(model) = self.ui_cache.folders.models.get_mut(&FolderBrowserCacheKey {
+                pane: self.active_folder_pane(),
+                source_id: pending_source.clone(),
+            })
         {
             model.disk_refresh_in_progress = false;
         }
@@ -30,7 +34,10 @@ impl AppController {
                 .ui_cache
                 .folders
                 .models
-                .entry(source_id.clone())
+                .entry(FolderBrowserCacheKey {
+                    pane: self.active_folder_pane(),
+                    source_id: source_id.clone(),
+                })
                 .or_default();
             model.show_all_folders
                 && model
@@ -41,7 +48,10 @@ impl AppController {
         if !should_request {
             return;
         }
-        if let Some(model) = self.ui_cache.folders.models.get_mut(source_id) {
+        if let Some(model) = self.ui_cache.folders.models.get_mut(&FolderBrowserCacheKey {
+            pane: self.active_folder_pane(),
+            source_id: source_id.clone(),
+        }) {
             model.disk_refresh_in_progress = true;
         }
         self.runtime
@@ -55,7 +65,11 @@ impl AppController {
         &mut self,
         result: crate::app::controller::jobs::FolderScanResult,
     ) {
-        let Some(model) = self.ui_cache.folders.models.get_mut(&result.source_id) else {
+        let key = FolderBrowserCacheKey {
+            pane: self.active_folder_pane(),
+            source_id: result.source_id.clone(),
+        };
+        let Some(model) = self.ui_cache.folders.models.get_mut(&key) else {
             return;
         };
         model.disk_folders = result.folders;
@@ -84,7 +98,10 @@ impl AppController {
                 .ui_cache
                 .folders
                 .models
-                .entry(source_id.clone())
+                .entry(FolderBrowserCacheKey {
+                    pane: self.active_folder_pane(),
+                    source_id: source_id.clone(),
+                })
                 .or_default();
             model.disk_folders = disk_folders;
             model.last_disk_refresh = Some(Instant::now());
@@ -104,7 +121,10 @@ impl AppController {
             .ui_cache
             .folders
             .models
-            .get(&source_id)
+            .get(&FolderBrowserCacheKey {
+                pane: self.active_folder_pane(),
+                source_id: source_id.clone(),
+            })
             .map(|model| {
                 model.show_all_folders
                     && model

@@ -1,7 +1,9 @@
 use super::stages::{BuildVisibleRowsParams, build_visible_rows_for_job};
 use super::*;
+use crate::app::controller::state::cache::FolderBrowserCacheKey;
 use crate::app::controller::library::source_folders::FolderBrowserModel;
 use crate::app::controller::test_support::prepare_with_source_and_wav_entries;
+use crate::app::state::FolderPaneId;
 use crate::sample_sources::{Rating, WavEntry};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -60,7 +62,10 @@ fn folder_filter_visible_rows_match_sync_pipeline() {
     ];
     let (mut controller, source) = prepare_with_source_and_wav_entries(entries.clone());
     controller.ui_cache.folders.models.insert(
-        source.id.clone(),
+        FolderBrowserCacheKey {
+            pane: FolderPaneId::Upper,
+            source_id: source.id.clone(),
+        },
         FolderBrowserModel {
             selected: BTreeSet::from([PathBuf::from(""), PathBuf::from("drums")]),
             negated: BTreeSet::from([PathBuf::from("hits")]),

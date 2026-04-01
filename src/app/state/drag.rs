@@ -1,4 +1,4 @@
-use super::UiPoint;
+use super::{FolderPaneId, UiPoint};
 use super::browser::TriageFlagColumn;
 use crate::sample_sources::SourceId;
 use crate::selection::SelectionRange;
@@ -85,6 +85,8 @@ pub enum DragTarget {
     SourcesRow(SourceId),
     /// Folder panel target (optional path).
     FolderPanel {
+        /// Folder pane currently targeted by the drag.
+        pane: FolderPaneId,
         /// Optional folder path hovered.
         folder: Option<PathBuf>,
     },
@@ -238,7 +240,10 @@ impl DragState {
 
     /// Set (or update) the drag target for a given source and recompute the active target.
     pub fn set_target(&mut self, source: DragSource, target: DragTarget) {
-        if let DragTarget::FolderPanel { folder: Some(path) } = &target {
+        if let DragTarget::FolderPanel {
+            folder: Some(path), ..
+        } = &target
+        {
             self.last_folder_target = Some(path.clone());
         }
         self.targets.insert(source, target.clone());

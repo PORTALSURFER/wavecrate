@@ -111,6 +111,7 @@ fn finish_browser_drag_to_folder_moves_single_sample() {
         UiPoint::new(40.0, 80.0),
         DragSource::Browser,
         DragTarget::FolderPanel {
+            pane: crate::app::state::FolderPaneId::Upper,
             folder: Some(PathBuf::from("dest")),
         },
         false,
@@ -143,6 +144,7 @@ fn finish_browser_drag_to_folder_moves_selected_samples_and_remaps_selection() {
         UiPoint::new(40.0, 80.0),
         DragSource::Browser,
         DragTarget::FolderPanel {
+            pane: crate::app::state::FolderPaneId::Upper,
             folder: Some(PathBuf::from("dest")),
         },
         false,

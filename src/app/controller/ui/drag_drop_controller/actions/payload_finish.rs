@@ -61,8 +61,26 @@ impl DragDropController<'_> {
             && matches!(active_target, DragTarget::BrowserTriage(_))
         {
             self.handle_waveform_sample_drop_to_browser(source_id, relative_path);
+        } else if let Some(target_source) = resolved_target.folder_source_target.clone() {
+            self.handle_samples_transfer_to_source_folder(
+                &[DragSample {
+                    source_id,
+                    relative_path,
+                }],
+                target_source,
+                resolved_target.folder_target.unwrap_or_default(),
+                copy_requested,
+            );
         } else if let Some(target) = resolved_target.source_target {
-            self.handle_sample_drop_to_source(source_id, relative_path, target);
+            self.handle_samples_transfer_to_source_folder(
+                &[DragSample {
+                    source_id,
+                    relative_path,
+                }],
+                target,
+                PathBuf::new(),
+                copy_requested,
+            );
         } else if let Some(target_path) = resolved_target.drop_target_path {
             self.handle_sample_drop_to_drop_target(
                 source_id,
@@ -88,8 +106,14 @@ impl DragDropController<'_> {
         resolved_target: ResolvedDropTarget,
         copy_requested: bool,
     ) {
-        if let Some(target) = resolved_target.source_target {
-            self.handle_samples_drop_to_source(&samples, target);
+        if let Some(target) = resolved_target.folder_source_target.or(resolved_target.source_target)
+        {
+            self.handle_samples_transfer_to_source_folder(
+                &samples,
+                target,
+                resolved_target.folder_target.unwrap_or_default(),
+                copy_requested,
+            );
         } else if let Some(target_path) = resolved_target.drop_target_path {
             self.handle_samples_drop_to_drop_target(&samples, target_path, copy_requested);
         } else if let Some(folder) = resolved_target.folder_target {
@@ -148,6 +172,7 @@ impl DragDropController<'_> {
         }
         if !resolved_target.browser_list_target
             && resolved_target.triage_target.is_none()
+            && resolved_target.folder_source_target.is_none()
             && resolved_target.folder_target.is_none()
         {
             return;
@@ -159,6 +184,7 @@ impl DragDropController<'_> {
             SelectionDropDestination {
                 browser_list_target: resolved_target.browser_list_target,
                 triage_target: resolved_target.triage_target,
+                target_source_id: resolved_target.folder_source_target.or(resolved_target.source_target),
                 folder_target: resolved_target.folder_target,
             },
             keep_source_focused,

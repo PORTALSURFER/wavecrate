@@ -5,31 +5,16 @@ use std::hash::{Hash, Hasher};
 
 impl AppController {
     pub(crate) fn folder_selection_for_filter(&self) -> Option<&BTreeSet<PathBuf>> {
-        let id = self.selection_state.ctx.selected_source.as_ref()?;
-        self.ui_cache
-            .folders
-            .models
-            .get(id)
-            .map(|model| &model.selected)
+        self.current_folder_model().map(|model| &model.selected)
     }
 
     /// Read the active folder file-scope mode for the current source.
     pub(crate) fn folder_file_scope_mode_for_filter(&self) -> Option<FolderFileScopeMode> {
-        let id = self.selection_state.ctx.selected_source.as_ref()?;
-        self.ui_cache
-            .folders
-            .models
-            .get(id)
-            .map(|model| model.file_scope_mode)
+        self.current_folder_model().map(|model| model.file_scope_mode)
     }
 
     pub(crate) fn folder_negation_for_filter(&self) -> Option<&BTreeSet<PathBuf>> {
-        let id = self.selection_state.ctx.selected_source.as_ref()?;
-        self.ui_cache
-            .folders
-            .models
-            .get(id)
-            .map(|model| &model.negated)
+        self.current_folder_model().map(|model| &model.negated)
     }
 
     pub(crate) fn folder_filter_accepts(&self, relative_path: &Path) -> bool {

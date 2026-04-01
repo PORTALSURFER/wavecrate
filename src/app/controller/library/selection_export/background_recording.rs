@@ -20,9 +20,14 @@ pub(super) fn next_clip_export_path(
         SelectionClipDestination::Browser {
             folder_override: Some(folder),
             ..
-        }
-        | SelectionClipDestination::Folder { folder, .. } => next_selection_path_in_dir(
+        } => next_selection_path_in_dir(
             &snapshot.source_root,
+            &folder.join(file_name_hint(snapshot)),
+        ),
+        SelectionClipDestination::Folder {
+            source_root, folder, ..
+        } => next_selection_path_in_dir(
+            source_root,
             &folder.join(file_name_hint(snapshot)),
         ),
         SelectionClipDestination::Browser { .. } | SelectionClipDestination::ExternalDrag => {
@@ -34,15 +39,32 @@ pub(super) fn next_clip_export_path(
 /// Register one newly written selection clip in the source database.
 pub(super) fn record_clip_entry(
     snapshot: &SelectionExportSnapshot,
+    destination: &SelectionClipDestination,
     relative_path: PathBuf,
 ) -> Result<WavEntry, String> {
+    let (source_root, source) = match destination {
+        SelectionClipDestination::Folder {
+            source_id,
+            source_root,
+            ..
+        } => (
+            source_root.as_path(),
+            SampleSource {
+                id: source_id.clone(),
+                root: source_root.clone(),
+            },
+        ),
+        SelectionClipDestination::Browser { .. } | SelectionClipDestination::ExternalDrag => (
+            snapshot.source_root.as_path(),
+            sample_source(snapshot),
+        ),
+    };
     let entry = build_written_entry(
-        &snapshot.source_root,
+        source_root,
         relative_path,
         snapshot.target_tag.unwrap_or(Rating::NEUTRAL),
         snapshot.looped,
     )?;
-    let source = sample_source(snapshot);
     let db = SourceDatabase::open_fast(&source.root)
         .map_err(|err| format!("Database unavailable: {err}"))?;
     db.upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)

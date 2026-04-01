@@ -11,6 +11,8 @@ pub(crate) struct SelectionDropDestination {
     pub browser_list_target: bool,
     /// Optional triage bucket target when dropping into triage columns.
     pub triage_target: Option<TriageFlagColumn>,
+    /// Optional target source for exporting into another source root or folder.
+    pub target_source_id: Option<SourceId>,
     /// Optional folder target when dropping into the source tree.
     pub folder_target: Option<PathBuf>,
 }
@@ -26,6 +28,7 @@ impl DragDropController<'_> {
     ) {
         if !destination.browser_list_target
             && destination.triage_target.is_none()
+            && destination.target_source_id.is_none()
             && destination.folder_target.is_none()
         {
             self.set_status(
@@ -39,14 +42,13 @@ impl DragDropController<'_> {
             TriageFlagColumn::Neutral => Rating::NEUTRAL,
             TriageFlagColumn::Keep => Rating::KEEP_1,
         });
-        if let Some(folder) = destination.folder_target.as_deref()
-            && !folder.as_os_str().is_empty()
-        {
+        if let Some(target_source_id) = destination.target_source_id.as_ref() {
             self.handle_selection_drop_to_folder(
                 &source_id,
                 &relative_path,
                 bounds,
-                folder,
+                target_source_id,
+                destination.folder_target.as_deref().unwrap_or_else(|| Path::new("")),
                 keep_source_focused,
             );
             return;
@@ -62,17 +64,18 @@ impl DragDropController<'_> {
 
     fn handle_selection_drop_to_folder(
         &mut self,
-        source_id: &SourceId,
+        _source_id: &SourceId,
         _relative_path: &Path,
         bounds: SelectionRange,
+        target_source_id: &SourceId,
         folder: &Path,
         keep_source_focused: bool,
     ) {
-        let Some(source) = self
+        let Some(target_source) = self
             .library
             .sources
             .iter()
-            .find(|s| &s.id == source_id)
+            .find(|s| &s.id == target_source_id)
             .cloned()
         else {
             self.set_status(
@@ -81,20 +84,7 @@ impl DragDropController<'_> {
             );
             return;
         };
-        if self
-            .selection_state
-            .ctx
-            .selected_source
-            .as_ref()
-            .is_some_and(|selected| selected != &source.id)
-        {
-            self.set_status(
-                "Switch to the sample's source before saving into its folders",
-                StatusTone::Warning,
-            );
-            return;
-        }
-        let destination = source.root.join(folder);
+        let destination = target_source.root.join(folder);
         if !destination.is_dir() {
             self.set_status(
                 format!("Folder not found: {}", folder.display()),
@@ -111,6 +101,8 @@ impl DragDropController<'_> {
                         snapshot,
                         destination:
                             crate::app::controller::jobs::SelectionClipDestination::Folder {
+                                source_id: target_source.id.clone(),
+                                source_root: target_source.root.clone(),
                                 folder: folder.to_path_buf(),
                                 keep_source_focused,
                             },

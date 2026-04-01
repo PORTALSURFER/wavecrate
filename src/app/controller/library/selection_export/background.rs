@@ -80,19 +80,29 @@ fn run_clip_export_job(
     let prepare = prepare_started.elapsed();
 
     let target_relative = next_clip_export_path(&snapshot, &destination);
-    let absolute_path = snapshot.source_root.join(&target_relative);
+    let (target_source_id, target_source_root) = match &destination {
+        SelectionClipDestination::Folder {
+            source_id,
+            source_root,
+            ..
+        } => (source_id.clone(), source_root.clone()),
+        SelectionClipDestination::Browser { .. } | SelectionClipDestination::ExternalDrag => {
+            (snapshot.source_id.clone(), snapshot.source_root.clone())
+        }
+    };
+    let absolute_path = target_source_root.join(&target_relative);
     let write_started = Instant::now();
     write_selection_clip(&absolute_path, &mut prepared, &snapshot)?;
     let write = write_started.elapsed();
 
     let register_started = Instant::now();
-    let entry = record_clip_entry(&snapshot, target_relative.clone())?;
+    let entry = record_clip_entry(&snapshot, &destination, target_relative.clone())?;
     let register = register_started.elapsed();
 
     Ok(SelectionClipExportSuccess {
         request_id,
-        source_id: snapshot.source_id,
-        source_root: snapshot.source_root,
+        source_id: target_source_id,
+        source_root: target_source_root,
         entry,
         absolute_path,
         destination,

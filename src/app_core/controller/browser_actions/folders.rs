@@ -1,7 +1,9 @@
 //! Folder-panel routing for native browser actions.
 
 use super::super::AppController;
+use crate::app::state::FolderPaneId;
 use crate::app_core::actions::NativeUiAction;
+use radiant::app::FolderPaneIdModel;
 
 /// Try to dispatch folder-panel native actions.
 pub(super) fn apply_folder_native_ui_action(
@@ -9,15 +11,36 @@ pub(super) fn apply_folder_native_ui_action(
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
-        NativeUiAction::FocusFolderPanel => controller
-            .focus_context_from_ui(crate::app_core::app_api::state::FocusContext::SourceFolders),
-        NativeUiAction::FocusFolderSearch => controller.focus_folder_search(),
-        NativeUiAction::SetFolderSearch { query } => controller.set_folder_search(query),
-        NativeUiAction::ToggleShowAllFolders => controller.toggle_show_all_folders(),
-        NativeUiAction::ToggleFolderFlattenedView => controller.toggle_folder_flattened_view(),
-        NativeUiAction::FocusFolderRow { index } => controller.replace_folder_selection(index),
-        NativeUiAction::ActivateFolderRow { index } => controller.activate_folder_row(index),
-        NativeUiAction::ToggleFolderRowExpanded { index } => {
+        NativeUiAction::FocusFolderPanel { pane } => {
+            select_folder_pane_if_needed(controller, pane);
+            controller.focus_context_from_ui(crate::app_core::app_api::state::FocusContext::SourceFolders)
+        }
+        NativeUiAction::FocusFolderSearch { pane } => {
+            select_folder_pane_if_needed(controller, pane);
+            controller.focus_folder_search();
+        }
+        NativeUiAction::SetFolderSearch { pane, query } => {
+            select_folder_pane_if_needed(controller, pane);
+            controller.set_folder_search(query);
+        }
+        NativeUiAction::ToggleShowAllFolders { pane } => {
+            select_folder_pane_if_needed(controller, pane);
+            controller.toggle_show_all_folders();
+        }
+        NativeUiAction::ToggleFolderFlattenedView { pane } => {
+            select_folder_pane_if_needed(controller, pane);
+            controller.toggle_folder_flattened_view();
+        }
+        NativeUiAction::FocusFolderRow { pane, index } => {
+            select_folder_pane_if_needed(controller, pane);
+            controller.replace_folder_selection(index);
+        }
+        NativeUiAction::ActivateFolderRow { pane, index } => {
+            select_folder_pane_if_needed(controller, pane);
+            controller.activate_folder_row(index);
+        }
+        NativeUiAction::ToggleFolderRowExpanded { pane, index } => {
+            select_folder_pane_if_needed(controller, pane);
             controller.toggle_folder_expanded(index)
         }
         NativeUiAction::ExpandFocusedFolder => controller.expand_focused_folder(),
@@ -27,7 +50,8 @@ pub(super) fn apply_folder_native_ui_action(
         }
         NativeUiAction::MoveFolderFocus { delta } => controller.nudge_folder_focus_action(delta),
         NativeUiAction::StartNewFolder => controller.start_new_folder(),
-        NativeUiAction::StartNewFolderAtFolderRow { index } => {
+        NativeUiAction::StartNewFolderAtFolderRow { pane, index } => {
+            select_folder_pane_if_needed(controller, pane);
             controller.start_new_folder_at_folder_row(index)
         }
         NativeUiAction::StartNewFolderAtRoot => {
@@ -52,4 +76,18 @@ pub(super) fn apply_folder_native_ui_action(
         action => return Err(action),
     }
     Ok(())
+}
+
+fn select_folder_pane_if_needed(controller: &mut AppController, pane: Option<FolderPaneIdModel>) {
+    let Some(pane) = pane.map(folder_pane_id_from_native) else {
+        return;
+    };
+    controller.select_folder_pane(pane);
+}
+
+fn folder_pane_id_from_native(pane: FolderPaneIdModel) -> FolderPaneId {
+    match pane {
+        FolderPaneIdModel::Upper => FolderPaneId::Upper,
+        FolderPaneIdModel::Lower => FolderPaneId::Lower,
+    }
 }

@@ -28,6 +28,7 @@ fn folder_drop_to_folder_moves_tree() {
     controller.ui.drag.set_target(
         DragSource::Folders,
         DragTarget::FolderPanel {
+            pane: crate::app::state::FolderPaneId::Upper,
             folder: Some(PathBuf::from("dest")),
         },
     );

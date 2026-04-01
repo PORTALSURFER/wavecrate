@@ -2,6 +2,7 @@ use super::{
     ControllerUiCacheState, LibraryCacheState, MissingState, SourceDatabase, SourceId,
     controller_state::FeatureCache,
 };
+use crate::app::controller::state::cache::FolderBrowserCacheKey;
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -18,10 +19,8 @@ pub(crate) struct SourceCacheInvalidator<'a> {
     feature_cache: &'a mut HashMap<SourceId, FeatureCache>,
     browser_pipeline_cache: &'a mut crate::app::controller::library::wavs::BrowserPipelineCache,
     missing_wavs: &'a mut HashMap<SourceId, HashSet<PathBuf>>,
-    folder_browsers: &'a mut HashMap<
-        SourceId,
-        crate::app::controller::library::source_folders::FolderBrowserModel,
-    >,
+    folder_browsers: &'a mut
+        HashMap<FolderBrowserCacheKey, crate::app::controller::library::source_folders::FolderBrowserModel>,
 }
 
 impl<'a> SourceCacheInvalidator<'a> {
@@ -60,7 +59,8 @@ impl<'a> SourceCacheInvalidator<'a> {
     }
 
     pub(crate) fn invalidate_folder_browser(&mut self, source_id: &SourceId) {
-        self.folder_browsers.remove(source_id);
+        self.folder_browsers
+            .retain(|key, _| &key.source_id != source_id);
     }
 
     pub(crate) fn invalidate_all(&mut self, source_id: &SourceId) {

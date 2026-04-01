@@ -158,6 +158,9 @@ fn settings_round_trip_preserves_fields() {
                 DropTargetConfig::new(std::path::PathBuf::from("drops/b")),
             ],
             last_selected_source: Some(source_id.clone()),
+            upper_folder_pane_source: Some(source_id.clone()),
+            lower_folder_pane_source: None,
+            active_folder_pane: Some(String::from("upper")),
             audio_output: AudioOutputConfig {
                 host: Some("coreaudio".into()),
                 device: Some("Test Interface".into()),

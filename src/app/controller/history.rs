@@ -9,7 +9,7 @@ mod pending;
 mod transactions;
 
 use super::*;
-use crate::app::state::{FolderFileScopeMode, WaveformView};
+use crate::app::state::{FolderFileScopeMode, FolderPaneId, WaveformView};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]
@@ -48,6 +48,12 @@ pub(crate) struct FolderHistorySnapshot {
 pub(crate) struct MeaningfulUiSnapshot {
     /// Currently selected source id.
     pub selected_source: Option<SourceId>,
+    /// Upper pane source assignment.
+    pub upper_folder_pane_source: Option<SourceId>,
+    /// Lower pane source assignment.
+    pub lower_folder_pane_source: Option<SourceId>,
+    /// Pane currently driving the browser/waveform.
+    pub active_folder_pane: FolderPaneId,
     /// Last selected browsable source id.
     pub last_selected_browsable_source: Option<SourceId>,
     /// Browser-selected relative paths.
@@ -114,12 +120,15 @@ impl AppController {
 
     /// Capture the meaningful UI context that should be restored by undo/redo.
     pub(crate) fn capture_meaningful_ui_snapshot(&self) -> MeaningfulUiSnapshot {
-        let folder_state = self
-            .selection_state
-            .ctx
-            .selected_source
+        let folder_cache_key = self.selection_state.ctx.selected_source.as_ref().map(|source_id| {
+            crate::app::controller::state::cache::FolderBrowserCacheKey {
+                pane: self.ui.sources.active_folder_pane,
+                source_id: source_id.clone(),
+            }
+        });
+        let folder_state = folder_cache_key
             .as_ref()
-            .and_then(|source_id| self.ui_cache.folders.models.get(source_id))
+            .and_then(|key| self.ui_cache.folders.models.get(key))
             .map(|model| FolderHistorySnapshot {
                 selected: model.selected.clone(),
                 negated: model.negated.clone(),
@@ -134,6 +143,9 @@ impl AppController {
 
         MeaningfulUiSnapshot {
             selected_source: self.selection_state.ctx.selected_source.clone(),
+            upper_folder_pane_source: self.folder_pane_source(FolderPaneId::Upper),
+            lower_folder_pane_source: self.folder_pane_source(FolderPaneId::Lower),
+            active_folder_pane: self.ui.sources.active_folder_pane,
             last_selected_browsable_source: self
                 .selection_state
                 .ctx
@@ -173,14 +185,24 @@ impl AppController {
                 .selection_state
                 .ctx
                 .last_selected_browsable_source = snapshot.last_selected_browsable_source.clone();
+            controller.sync_active_folder_ui_to_pane();
+            controller.ui.sources.folder_panes.upper.source_id =
+                snapshot.upper_folder_pane_source.clone();
+            controller.ui.sources.folder_panes.lower.source_id =
+                snapshot.lower_folder_pane_source.clone();
+            controller.ui.sources.active_folder_pane = snapshot.active_folder_pane;
             controller.selection_state.ctx.selected_source = snapshot.selected_source.clone();
+            controller.load_active_folder_ui_from_pane();
 
             if let Some(source_id) = snapshot.selected_source.clone() {
                 let model = controller
                     .ui_cache
                     .folders
                     .models
-                    .entry(source_id)
+                    .entry(crate::app::controller::state::cache::FolderBrowserCacheKey {
+                        pane: controller.ui.sources.active_folder_pane,
+                        source_id,
+                    })
                     .or_default();
                 if let Some(folder_state) = snapshot.folder_state.as_ref() {
                     model.selected = folder_state.selected.clone();

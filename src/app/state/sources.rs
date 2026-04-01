@@ -1,6 +1,34 @@
 use crate::sample_sources::{SourceId, WavEntry};
 use std::path::PathBuf;
 
+/// Stable identifier for one of the two sidebar folder panes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum FolderPaneId {
+    /// Upper folder pane shown directly beneath the shared sources list.
+    #[default]
+    Upper,
+    /// Lower folder pane shown beneath the upper pane.
+    Lower,
+}
+
+impl FolderPaneId {
+    /// Return the opposite pane for simple upper/lower toggles.
+    pub fn other(self) -> Self {
+        match self {
+            Self::Upper => Self::Lower,
+            Self::Lower => Self::Upper,
+        }
+    }
+
+    /// Return a small stable string used by config persistence and logs.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Upper => "upper",
+            Self::Lower => "lower",
+        }
+    }
+}
+
 /// Sidebar list of sample sources.
 #[derive(Clone, Debug, Default)]
 pub struct SourcePanelState {
@@ -16,10 +44,26 @@ pub struct SourcePanelState {
     pub sources_height_override: Option<f32>,
     /// Cached list height at the start of a sources resize drag for stable deltas.
     pub sources_resize_origin_height: Option<f32>,
-    /// Folder browser sub-state.
+    /// Active folder browser sub-state kept for controller compatibility.
     pub folders: FolderBrowserUiState,
+    /// Retained folder-pane assignments and inactive-pane UI state.
+    pub folder_panes: FolderPaneStateSet,
+    /// Folder pane that currently drives the sample browser and waveform.
+    pub active_folder_pane: FolderPaneId,
     /// Drop target sub-state.
     pub drop_targets: DropTargetsUiState,
+}
+
+impl SourcePanelState {
+    /// Borrow one pane assignment by id.
+    pub fn folder_pane(&self, pane: FolderPaneId) -> &FolderPaneState {
+        self.folder_panes.get(pane)
+    }
+
+    /// Mutably borrow one pane assignment by id.
+    pub fn folder_pane_mut(&mut self, pane: FolderPaneId) -> &mut FolderPaneState {
+        self.folder_panes.get_mut(pane)
+    }
 }
 
 /// Display data for a single source row.
@@ -62,6 +106,42 @@ pub struct FolderBrowserUiState {
     pub header_height: f32,
     /// Delete recovery queue state for staged folder deletes.
     pub delete_recovery: FolderDeleteRecoveryUiState,
+}
+
+/// Folder-pane assignment plus retained tree/search state for one pane.
+#[derive(Clone, Debug, Default)]
+pub struct FolderPaneState {
+    /// Source currently shown in this pane, if any.
+    pub source_id: Option<SourceId>,
+    /// Retained browser state for this pane when it is not active.
+    pub browser: FolderBrowserUiState,
+}
+
+/// Fixed set of the two folder panes shown in the sidebar.
+#[derive(Clone, Debug, Default)]
+pub struct FolderPaneStateSet {
+    /// Upper folder pane state.
+    pub upper: FolderPaneState,
+    /// Lower folder pane state.
+    pub lower: FolderPaneState,
+}
+
+impl FolderPaneStateSet {
+    /// Borrow one pane state by id.
+    pub fn get(&self, pane: FolderPaneId) -> &FolderPaneState {
+        match pane {
+            FolderPaneId::Upper => &self.upper,
+            FolderPaneId::Lower => &self.lower,
+        }
+    }
+
+    /// Mutably borrow one pane state by id.
+    pub fn get_mut(&mut self, pane: FolderPaneId) -> &mut FolderPaneState {
+        match pane {
+            FolderPaneId::Upper => &mut self.upper,
+            FolderPaneId::Lower => &mut self.lower,
+        }
+    }
 }
 
 impl Default for FolderBrowserUiState {

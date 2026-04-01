@@ -1,5 +1,6 @@
 use super::ui::interaction_options::{clamp_scroll_speed, clamp_zoom_factor};
 use super::*;
+use crate::app::state::FolderPaneId;
 
 impl AppController {
     /// Load persisted configuration and populate initial UI state.
@@ -105,12 +106,43 @@ impl AppController {
             );
         }
         self.stage_deferred_startup_source_db_maintenance();
-        self.selection_state.ctx.selected_source = cfg
+        let persisted_selected = cfg
             .core
             .last_selected_source
             .filter(|id| self.library.sources.iter().any(|s| &s.id == id));
-        self.selection_state.ctx.last_selected_browsable_source =
-            self.selection_state.ctx.selected_source.clone();
+        let upper_source = cfg
+            .core
+            .upper_folder_pane_source
+            .clone()
+            .filter(|id| self.library.sources.iter().any(|s| &s.id == id))
+            .or_else(|| persisted_selected.clone())
+            .or_else(|| self.library.sources.first().map(|source| source.id.clone()));
+        let lower_source = cfg
+            .core
+            .lower_folder_pane_source
+            .clone()
+            .filter(|id| self.library.sources.iter().any(|s| &s.id == id))
+            .or_else(|| {
+                self.library
+                    .sources
+                    .iter()
+                    .find(|source| Some(&source.id) != upper_source.as_ref())
+                    .map(|source| source.id.clone())
+            })
+            .or_else(|| upper_source.clone());
+        self.ui.sources.folder_panes.upper.source_id = upper_source;
+        self.ui.sources.folder_panes.lower.source_id = lower_source;
+        self.ui.sources.active_folder_pane =
+            parse_active_folder_pane(cfg.core.active_folder_pane.as_deref());
+        self.load_active_folder_ui_from_pane();
+        self.selection_state.ctx.selected_source =
+            self.folder_pane_source(self.ui.sources.active_folder_pane);
+        self.selection_state.ctx.last_selected_browsable_source = self
+            .selection_state
+            .ctx
+            .selected_source
+            .clone()
+            .or_else(|| persisted_selected.clone());
         self.refresh_sources_ui();
         if self.selection_state.ctx.selected_source.is_some() {
             let _ = self.refresh_wavs();
@@ -207,6 +239,9 @@ impl AppController {
                 app_data_dir: self.settings.app_data_dir.clone(),
                 trash_folder: self.settings.trash_folder.clone(),
                 drop_targets: self.settings.drop_targets.clone(),
+                upper_folder_pane_source: self.folder_pane_source(FolderPaneId::Upper),
+                lower_folder_pane_source: self.folder_pane_source(FolderPaneId::Lower),
+                active_folder_pane: Some(self.ui.sources.active_folder_pane.as_str().to_string()),
                 last_selected_source: self
                     .selection_state
                     .ctx
@@ -245,6 +280,13 @@ impl AppController {
                 );
             }
         }
+    }
+}
+
+fn parse_active_folder_pane(value: Option<&str>) -> FolderPaneId {
+    match value {
+        Some("lower") => FolderPaneId::Lower,
+        _ => FolderPaneId::Upper,
     }
 }
 

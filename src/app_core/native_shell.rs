@@ -316,7 +316,7 @@ pub(crate) fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
             TriageFlagColumn::Keep => String::from("Keep column"),
         },
         DragTarget::SourcesRow(_) => String::from("Sources list"),
-        DragTarget::FolderPanel { folder } => folder
+        DragTarget::FolderPanel { folder, .. } => folder
             .as_ref()
             .map(|path| format!("Folder: {}", path.display()))
             .unwrap_or_else(|| String::from("Folder panel")),

@@ -130,6 +130,77 @@ impl DragDropController<'_> {
         );
     }
 
+    /// Transfer dragged samples into one explicit source folder, optionally copying instead of moving.
+    pub(crate) fn handle_samples_transfer_to_source_folder(
+        &mut self,
+        samples: &[DragSample],
+        target_source_id: SourceId,
+        target_relative_folder: PathBuf,
+        copy_requested: bool,
+    ) {
+        if samples.is_empty() {
+            return;
+        }
+        let Some(target_source) = self
+            .library
+            .sources
+            .iter()
+            .find(|source| source.id == target_source_id)
+            .cloned()
+        else {
+            self.set_status("Target source not available for drop", StatusTone::Error);
+            return;
+        };
+        let target_dir = if target_relative_folder.as_os_str().is_empty() {
+            target_source.root.clone()
+        } else {
+            target_source.root.join(&target_relative_folder)
+        };
+        if !target_dir.is_dir() {
+            self.set_status(
+                format!("Folder not found: {}", target_relative_folder.display()),
+                StatusTone::Error,
+            );
+            return;
+        }
+        if !copy_requested
+            && samples
+                .iter()
+                .all(|sample| sample.source_id == target_source.id)
+        {
+            self.handle_samples_drop_to_folder(samples, &target_relative_folder);
+            return;
+        }
+        let kind = if copy_requested {
+            DropTargetTransferKind::Copy
+        } else {
+            DropTargetTransferKind::Move
+        };
+        let (requests, errors) = self.collect_drop_target_transfer_requests(samples);
+        if requests.is_empty() {
+            if let Some(err) = errors.first() {
+                self.set_status(err.clone(), StatusTone::Error);
+            }
+            return;
+        }
+        let progress_title = progress_title(kind, requests.len());
+        self.set_status(format!("{progress_title}..."), StatusTone::Busy);
+        self.show_status_progress(
+            ProgressTaskKind::FileOps,
+            progress_title.to_string(),
+            requests.len(),
+            true,
+        );
+        self.spawn_drop_target_transfer_job(
+            kind,
+            target_source.id,
+            target_source.root,
+            target_relative_folder,
+            requests,
+            errors,
+        );
+    }
+
     /// Resolve drag samples into worker requests and collect preflight validation errors.
     fn collect_drop_target_transfer_requests(
         &mut self,

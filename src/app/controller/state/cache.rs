@@ -2,6 +2,7 @@
 
 use super::super::{SampleSource, SourceDatabase, SourceDbError, SourceId, WavEntry};
 use crate::app::controller::library::{source_folders, wavs};
+use crate::app::state::FolderPaneId;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -97,8 +98,14 @@ pub(crate) struct FeatureCache {
     pub(crate) rows: Vec<Option<FeatureStatus>>,
 }
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub(crate) struct FolderBrowserCacheKey {
+    pub(crate) pane: FolderPaneId,
+    pub(crate) source_id: SourceId,
+}
+
 pub(crate) struct FolderBrowsersState {
-    pub(crate) models: HashMap<SourceId, source_folders::FolderBrowserModel>,
+    pub(crate) models: HashMap<FolderBrowserCacheKey, source_folders::FolderBrowserModel>,
 }
 
 pub(crate) struct ControllerUiCacheState {

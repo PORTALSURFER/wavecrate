@@ -1,7 +1,57 @@
 use super::super::*;
+use crate::app::state::FolderPaneId;
 use std::path::{Path, PathBuf};
 
 impl AppController {
+    /// Return the folder pane that currently owns the browser/waveform source.
+    pub(crate) fn active_folder_pane(&self) -> FolderPaneId {
+        self.ui.sources.active_folder_pane
+    }
+
+    /// Return the source currently assigned to `pane`.
+    pub(crate) fn folder_pane_source(&self, pane: FolderPaneId) -> Option<SourceId> {
+        self.ui
+            .sources
+            .folder_pane(pane)
+            .source_id
+            .clone()
+            .filter(|id| self.library.sources.iter().any(|source| source.id == *id))
+    }
+
+    /// Copy the active compatibility folder UI back into the retained pane slot.
+    pub(crate) fn sync_active_folder_ui_to_pane(&mut self) {
+        let pane = self.ui.sources.active_folder_pane;
+        self.ui.sources.folder_pane_mut(pane).browser = self.ui.sources.folders.clone();
+    }
+
+    /// Load one retained pane UI into the active compatibility folder slot.
+    pub(crate) fn load_active_folder_ui_from_pane(&mut self) {
+        let pane = self.ui.sources.active_folder_pane;
+        self.ui.sources.folders = self.ui.sources.folder_pane(pane).browser.clone();
+    }
+
+    /// Change which pane drives the sample browser and waveform.
+    pub(crate) fn select_folder_pane(&mut self, pane: FolderPaneId) {
+        if self.ui.sources.active_folder_pane == pane {
+            return;
+        }
+        self.sync_active_folder_ui_to_pane();
+        self.ui.sources.active_folder_pane = pane;
+        self.selection_state.ctx.selected_source = self.folder_pane_source(pane);
+        self.selection_state.ctx.last_selected_browsable_source =
+            self.selection_state.ctx.selected_source.clone();
+        self.load_active_folder_ui_from_pane();
+        self.refresh_sources_ui();
+        self.refresh_folder_browser();
+        let _ = self.refresh_wavs();
+        let _ = self.persist_config("Failed to save selection");
+    }
+
+    /// Assign a source to one pane without immediately changing the active pane.
+    pub(crate) fn assign_source_to_folder_pane(&mut self, pane: FolderPaneId, id: Option<SourceId>) {
+        self.ui.sources.folder_pane_mut(pane).source_id = id;
+    }
+
     /// Select the first available source or refresh the current one.
     pub fn select_first_source(&mut self) {
         if self.selection_state.ctx.selected_source.is_none() {
@@ -81,6 +131,7 @@ impl AppController {
     /// Select a source id directly in tests without requiring full source hydration.
     #[cfg(test)]
     pub(crate) fn select_browser_source_for_tests(&mut self, source_id: SourceId) {
+        self.assign_source_to_folder_pane(self.active_folder_pane(), Some(source_id.clone()));
         self.selection_state.ctx.selected_source = Some(source_id);
     }
 
@@ -110,6 +161,7 @@ impl AppController {
         {
             self.selection_state.ctx.last_selected_browsable_source = Some(source_id.clone());
         }
+        self.assign_source_to_folder_pane(self.active_folder_pane(), id.clone());
         self.selection_state.ctx.selected_source = id;
         self.sample_view.wav.selected_wav = None;
         self.runtime.pending_similarity_filter_rebuild = None;
@@ -149,6 +201,7 @@ impl AppController {
         self.clear_focused_similarity_highlight();
         self.ui.browser = SampleBrowserState::default();
         self.ui.sources.folders = FolderBrowserUiState::default();
+        self.sync_active_folder_ui_to_pane();
         self.clear_waveform_view();
         if let Some(selected) = self.selection_state.ctx.selected_source.as_ref() {
             self.library.missing.wavs.remove(selected);

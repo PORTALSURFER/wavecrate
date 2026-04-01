@@ -1,8 +1,10 @@
 //! Waveform selection and drag routing for native actions.
 
 use super::super::AppController;
+use crate::app::state::FolderPaneId;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::state::{DragSource, DragTarget, UiPoint};
+use radiant::app::FolderPaneIdModel;
 
 /// Try to dispatch waveform selection and edit-selection native actions.
 pub(super) fn apply_waveform_selection_action(
@@ -64,13 +66,22 @@ pub(super) fn apply_waveform_selection_action(
         NativeUiAction::UpdateWaveformSelectionDrag {
             pointer_x,
             pointer_y,
+            hovered_folder_pane,
+            hovered_folder_row,
+            over_folder_panel,
             over_browser_list,
             shift_down,
             alt_down,
         } => controller.update_active_drag(
             native_drag_point(pointer_x, pointer_y),
             DragSource::Browser,
-            if over_browser_list {
+            if let Some(pane) = hovered_folder_pane.or(over_folder_panel) {
+                DragTarget::FolderPanel {
+                    pane: folder_pane_id_from_native(pane),
+                    folder: hovered_folder_row
+                        .and_then(|row| folder_row_path(controller, pane, row)),
+                }
+            } else if over_browser_list {
                 DragTarget::BrowserList
             } else {
                 DragTarget::None
@@ -102,4 +113,37 @@ fn normalize_waveform_micros(position_micros: u32) -> f32 {
 /// Convert native action pointer coordinates into controller UI points.
 fn native_drag_point(pointer_x: u16, pointer_y: u16) -> UiPoint {
     UiPoint::new(f32::from(pointer_x), f32::from(pointer_y))
+}
+
+fn folder_pane_id_from_native(pane: FolderPaneIdModel) -> FolderPaneId {
+    match pane {
+        FolderPaneIdModel::Upper => FolderPaneId::Upper,
+        FolderPaneIdModel::Lower => FolderPaneId::Lower,
+    }
+}
+
+fn folder_row_path(
+    controller: &AppController,
+    pane: FolderPaneIdModel,
+    row: usize,
+) -> Option<std::path::PathBuf> {
+    let pane = folder_pane_id_from_native(pane);
+    if controller.active_folder_pane() == pane {
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .get(row)
+            .map(|folder| folder.path.clone())
+    } else {
+        controller
+            .ui
+            .sources
+            .folder_pane(pane)
+            .browser
+            .rows
+            .get(row)
+            .map(|folder| folder.path.clone())
+    }
 }

@@ -146,12 +146,12 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::FocusBrowserPanel
             | NativeUiAction::FocusSourcesPanel
             | NativeUiAction::FocusWaveformPanel
-            | NativeUiAction::FocusFolderPanel
+            | NativeUiAction::FocusFolderPanel { .. }
             | NativeUiAction::FocusBrowserSearch
             | NativeUiAction::BlurBrowserSearch
-            | NativeUiAction::FocusFolderSearch
-            | NativeUiAction::ToggleShowAllFolders
-            | NativeUiAction::ToggleFolderFlattenedView
+            | NativeUiAction::FocusFolderSearch { .. }
+            | NativeUiAction::ToggleShowAllFolders { .. }
+            | NativeUiAction::ToggleFolderFlattenedView { .. }
             | NativeUiAction::StartNewFolder
             | NativeUiAction::StartNewFolderAtFolderRow { .. }
             | NativeUiAction::StartNewFolderAtRoot

@@ -19,6 +19,7 @@ use super::{AnalysisSettings, InteractionOptions, UpdateSettings};
 ///
 /// Config keys (TOML): `feature_flags`, `analysis`, `updates`, `app_data_dir`,
 /// `trash_folder`, `drop_targets`, `last_selected_source`,
+/// `upper_folder_pane_source`, `lower_folder_pane_source`, `active_folder_pane`,
 /// `volume`, `audio_output`, `audio_input`, `controls`, `job_message_queue_capacity`.
 ///
 /// `sources` are stored in the library database.
@@ -91,6 +92,15 @@ pub struct AppSettingsCore {
     #[serde(default)]
     /// Last selected source id.
     pub last_selected_source: Option<SourceId>,
+    #[serde(default)]
+    /// Source assigned to the upper sidebar folder pane.
+    pub upper_folder_pane_source: Option<SourceId>,
+    #[serde(default)]
+    /// Source assigned to the lower sidebar folder pane.
+    pub lower_folder_pane_source: Option<SourceId>,
+    #[serde(default)]
+    /// Active folder pane id encoded as `"upper"` or `"lower"`.
+    pub active_folder_pane: Option<String>,
     #[serde(default = "default_audio_output")]
     /// Output audio configuration.
     pub audio_output: AudioOutputConfig,
@@ -183,6 +193,9 @@ impl Default for AppSettingsCore {
             trash_folder: None,
             drop_targets: Vec::new(),
             last_selected_source: None,
+            upper_folder_pane_source: None,
+            lower_folder_pane_source: None,
+            active_folder_pane: None,
             audio_output: default_audio_output(),
             audio_input: default_audio_input(),
             volume: default_volume(),

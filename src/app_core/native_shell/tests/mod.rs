@@ -209,7 +209,15 @@ mod overlay_folder_actions {
     #[test]
     fn folder_actions_require_non_root_focus_for_destructive_actions() {
         let mut ui = UiState::default();
+        let source_id = crate::sample_sources::SourceId::from_string("test-source");
+        ui.sources.rows.push(crate::app::state::SourceRowView {
+            id: source_id.clone(),
+            name: String::from("Test Source"),
+            path: String::from("source"),
+            missing: false,
+        });
         ui.sources.selected = Some(0);
+        ui.sources.folder_panes.upper.source_id = Some(source_id);
         ui.sources.folders.rows.push(FolderRowView {
             path: std::path::PathBuf::new(),
             name: String::from("Root"),

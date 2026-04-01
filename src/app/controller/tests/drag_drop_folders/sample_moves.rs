@@ -38,6 +38,7 @@ fn sample_drop_to_folder_moves_and_updates_state() {
     controller.ui.drag.set_target(
         DragSource::Folders,
         DragTarget::FolderPanel {
+            pane: crate::app::state::FolderPaneId::Upper,
             folder: Some(PathBuf::from("dest")),
         },
     );
@@ -82,6 +83,7 @@ fn sample_drop_to_folder_conflict_opens_prompt_with_numbered_name() {
     controller.ui.drag.set_target(
         DragSource::Folders,
         DragTarget::FolderPanel {
+            pane: crate::app::state::FolderPaneId::Upper,
             folder: Some(PathBuf::from("dest")),
         },
     );
@@ -147,6 +149,7 @@ fn confirming_folder_drop_conflict_prompt_moves_with_prompt_name() {
     controller.ui.drag.set_target(
         DragSource::Folders,
         DragTarget::FolderPanel {
+            pane: crate::app::state::FolderPaneId::Upper,
             folder: Some(PathBuf::from("dest")),
         },
     );
@@ -193,6 +196,7 @@ fn folder_drop_conflict_prompt_keeps_inline_error_for_duplicate_name() {
     controller.ui.drag.set_target(
         DragSource::Folders,
         DragTarget::FolderPanel {
+            pane: crate::app::state::FolderPaneId::Upper,
             folder: Some(PathBuf::from("dest")),
         },
     );
@@ -246,6 +250,7 @@ fn cancelling_folder_drop_conflict_prompt_leaves_files_unchanged() {
     controller.ui.drag.set_target(
         DragSource::Folders,
         DragTarget::FolderPanel {
+            pane: crate::app::state::FolderPaneId::Upper,
             folder: Some(PathBuf::from("dest")),
         },
     );

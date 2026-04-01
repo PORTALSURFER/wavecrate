@@ -88,6 +88,10 @@ pub(crate) enum SelectionClipDestination {
     },
     /// Save the clip into one source-relative folder and register it in the browser.
     Folder {
+        /// Destination source that will own the new clip.
+        source_id: SourceId,
+        /// Destination source root.
+        source_root: PathBuf,
         /// Destination folder relative to the source root.
         folder: PathBuf,
         /// Keep waveform focus on the original source sample after completion.

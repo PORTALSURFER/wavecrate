@@ -1,9 +1,10 @@
 use super::*;
 use crate::app::controller::jobs::{FolderScanResult, SearchResult};
+use crate::app::controller::state::cache::FolderBrowserCacheKey;
 use crate::app::controller::test_support::{
     dummy_controller, prepare_with_source_and_wav_entries, sample_entry,
 };
-use crate::app::state::{TriageFlagColumn, VisibleRows};
+use crate::app::state::{FolderPaneId, TriageFlagColumn, VisibleRows};
 use crate::sample_sources::Rating;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -17,7 +18,10 @@ fn stale_folder_scan_message_keeps_pending_request_and_cached_state() {
         .ui_cache
         .folders
         .models
-        .entry(source.id.clone())
+        .entry(FolderBrowserCacheKey {
+            pane: FolderPaneId::Upper,
+            source_id: source.id.clone(),
+        })
         .or_default()
         .disk_refresh_in_progress = true;
     let request_id = controller
@@ -39,7 +43,10 @@ fn stale_folder_scan_message_keeps_pending_request_and_cached_state() {
         .ui_cache
         .folders
         .models
-        .get(&source.id)
+        .get(&FolderBrowserCacheKey {
+            pane: FolderPaneId::Upper,
+            source_id: source.id.clone(),
+        })
         .expect("folder model");
     assert!(model.disk_refresh_in_progress);
     assert!(model.disk_folders.is_empty());

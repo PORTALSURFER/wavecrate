@@ -174,8 +174,7 @@ impl DragDropActions for DragDropController<'_> {
 
         let active_target = self.ui.drag.active_target.clone();
         let copy_requested = self.ui.drag.copy_on_drop;
-        let resolved_target =
-            resolve_drop_target(&active_target, self.ui.drag.last_folder_target.clone());
+        let resolved_target = resolve_drop_target(self, &active_target);
 
         info!(
             "Finish drag payload={:?} active_target={:?} last_folder_target={:?}",
