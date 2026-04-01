@@ -3,7 +3,7 @@ pub(crate) use super::{AppController, BPM_MIN_SELECTION_DIVISOR, StatusTone};
 pub(crate) use crate::sample_sources::*;
 pub(crate) use crate::selection::SelectionRange;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 pub(crate) mod audio_cache;
@@ -276,6 +276,20 @@ impl AppController {
     /// Focus a random visible sample without starting playback (used for navigation flows).
     pub fn focus_random_visible_sample(&mut self) {
         random_nav::focus_random_visible_sample(self);
+    }
+
+    /// Resolve the next random visible sample path without changing browser focus.
+    pub(crate) fn next_random_visible_sample_path(&mut self) -> Option<PathBuf> {
+        random_nav::next_random_visible_sample_path(self)
+    }
+
+    /// Record one chosen random-navigation destination in the visit/history state.
+    pub(crate) fn record_random_navigation_target_for_source(
+        &mut self,
+        source_id: &SourceId,
+        relative_path: &Path,
+    ) {
+        random_nav::record_random_navigation_target_for_source(self, source_id, relative_path);
     }
 
     /// Play the previous entry from the random history stack.

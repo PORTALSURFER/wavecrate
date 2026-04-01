@@ -22,12 +22,7 @@ impl AppController {
         let Some(target_paths) = self.browser_mark_target_paths() else {
             return;
         };
-        let fallback_path = self.browser_mark_fallback_path(&target_paths);
-        let follow_up = self.browser_mark_follow_up_plan(
-            primary_row,
-            target_paths.len(),
-            fallback_path.is_some(),
-        );
+        let follow_up = self.browser_mark_follow_up_plan(&source_id, primary_row, &target_paths);
         if !self
             .ui
             .browser
@@ -35,9 +30,6 @@ impl AppController {
             .toggle_paths(&source_id, &target_paths)
         {
             return;
-        }
-        if let Some(path) = fallback_path {
-            self.focus_wav_by_path_preview_with_rebuild(&path, false);
         }
         if let Some(plan) = follow_up {
             self.apply_browser_review_follow_up(plan, BrowserReviewLinearMode::Preview);
@@ -139,23 +131,42 @@ impl AppController {
     }
 
     fn browser_mark_follow_up_plan(
-        &self,
+        &mut self,
+        source_id: &SourceId,
         primary_row: Option<usize>,
-        target_len: usize,
-        has_fallback_path: bool,
+        target_paths: &[PathBuf],
     ) -> Option<BrowserReviewFollowUpPlan> {
-        if target_len != 1 {
+        if target_paths.len() != 1 {
             return None;
         }
         if self.random_navigation_mode_enabled() {
-            return primary_row.map(|primary_row| {
-                BrowserReviewFollowUpPlan::AdvanceFromPrimaryRow { primary_row }
+            return self.next_random_visible_sample_path().map(|path| {
+                BrowserReviewFollowUpPlan::FocusPath {
+                    path,
+                    random_history_source_id: Some(source_id.clone()),
+                }
             });
         }
         if self.ui.browser.search.marked_only {
-            return has_fallback_path.then_some(BrowserReviewFollowUpPlan::UseFocusedReplacement);
+            return self.browser_mark_fallback_path(target_paths).map(|path| {
+                BrowserReviewFollowUpPlan::FocusPath {
+                    path,
+                    random_history_source_id: None,
+                }
+            });
         }
-        primary_row
-            .map(|primary_row| BrowserReviewFollowUpPlan::AdvanceFromPrimaryRow { primary_row })
+        self.browser_mark_linear_follow_up_path(primary_row?)
+            .map(|path| BrowserReviewFollowUpPlan::FocusPath {
+                path,
+                random_history_source_id: None,
+            })
+    }
+
+    fn browser_mark_linear_follow_up_path(&mut self, primary_row: usize) -> Option<PathBuf> {
+        let next_row = primary_row + 1;
+        if next_row >= self.ui.browser.viewport.visible.len() {
+            return None;
+        }
+        self.browser_path_for_visible(next_row)
     }
 }

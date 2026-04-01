@@ -5,6 +5,16 @@ use rand::seq::IteratorRandom;
 use rand::{SeedableRng, rngs::StdRng};
 use std::path::{Path, PathBuf};
 
+/// Resolved random-navigation target chosen from the visible browser rows.
+struct RandomVisibleTarget {
+    /// Source that owns the chosen browser row.
+    source_id: SourceId,
+    /// Visible browser row selected for the next random jump.
+    visible_row: usize,
+    /// Source-relative path for the chosen sample.
+    path: PathBuf,
+}
+
 pub(crate) fn play_random_visible_sample(controller: &mut AppController) {
     let mut rng = rand::rng();
     play_random_visible_sample_internal(controller, &mut rng, super::SHOULD_PLAY_RANDOM_SAMPLE);
@@ -19,6 +29,25 @@ pub(crate) fn play_random_visible_sample_with_seed(controller: &mut AppControlle
 pub(crate) fn focus_random_visible_sample(controller: &mut AppController) {
     let mut rng = rand::rng();
     play_random_visible_sample_internal(controller, &mut rng, false);
+}
+
+/// Return the next random visible sample path without changing browser focus.
+pub(crate) fn next_random_visible_sample_path(controller: &mut AppController) -> Option<PathBuf> {
+    let mut rng = rand::rng();
+    next_random_visible_target(controller, &mut rng).map(|target| target.path)
+}
+
+/// Record one path as the newest random-navigation destination.
+pub(crate) fn record_random_navigation_target_for_source(
+    controller: &mut AppController,
+    source_id: &SourceId,
+    relative_path: &Path,
+) {
+    controller
+        .history
+        .random_history
+        .mark_played(source_id, relative_path);
+    push_random_history(controller, source_id.clone(), relative_path.to_path_buf());
 }
 
 pub(crate) fn play_previous_random_sample(controller: &mut AppController) {
@@ -76,57 +105,49 @@ fn play_random_visible_sample_internal<R: Rng + ?Sized>(
     rng: &mut R,
     start_playback: bool,
 ) {
-    let Some(source_id) = controller.selection_state.ctx.selected_source.clone() else {
-        controller.set_status_message(StatusMessage::SelectSourceFirst {
-            tone: StatusTone::Info,
-        });
+    let Some(target) = next_random_visible_target(controller, rng) else {
         return;
     };
-    let total = controller.visible_browser_len();
-    if total == 0 {
-        controller.set_status_message(StatusMessage::NoSamplesToRandomize);
-        return;
-    }
-
-    let current_path = current_random_navigation_path(controller);
-    let mut available_indices =
-        available_random_visible_rows(controller, &source_id, current_path.as_deref());
-
-    if available_indices.is_empty() {
-        controller
-            .history
-            .random_history
-            .reset_played_for_source(&source_id);
-        available_indices =
-            available_random_visible_rows(controller, &source_id, current_path.as_deref());
-    }
-
-    let Some(&visible_row) = available_indices.iter().choose(rng) else {
-        return;
-    };
-
-    let Some(entry_index) = controller.visible_browser_index(visible_row) else {
-        return;
-    };
-
-    let Some(path) = controller
-        .wav_entry(entry_index)
-        .map(|entry| entry.relative_path.clone())
-    else {
-        return;
-    };
-
-    controller
-        .history
-        .random_history
-        .mark_played(&source_id, &path);
-    push_random_history(controller, source_id, path.clone());
-    controller.focus_browser_row_only(visible_row);
+    record_random_navigation_target_for_source(controller, &target.source_id, &target.path);
+    controller.focus_browser_row_only(target.visible_row);
     if start_playback
         && let Err(err) = controller.play_audio(controller.ui.waveform.loop_enabled, None)
     {
         controller.set_status(err, StatusTone::Error);
     }
+}
+
+fn next_random_visible_target<R: Rng + ?Sized>(
+    controller: &mut AppController,
+    rng: &mut R,
+) -> Option<RandomVisibleTarget> {
+    let Some(source_id) = controller.selection_state.ctx.selected_source.clone() else {
+        controller.set_status_message(StatusMessage::SelectSourceFirst {
+            tone: StatusTone::Info,
+        });
+        return None;
+    };
+    let total = controller.visible_browser_len();
+    if total == 0 {
+        controller.set_status_message(StatusMessage::NoSamplesToRandomize);
+        return None;
+    }
+
+    let current_path = current_random_navigation_path(controller);
+    let mut available_rows =
+        available_random_visible_rows(controller, &source_id, current_path.as_deref());
+
+    if available_rows.is_empty() {
+        controller
+            .history
+            .random_history
+            .reset_played_for_source(&source_id);
+        available_rows =
+            available_random_visible_rows(controller, &source_id, current_path.as_deref());
+    }
+
+    let &visible_row = available_rows.iter().choose(rng)?;
+    random_visible_target_for_row(controller, &source_id, visible_row)
 }
 
 fn available_random_visible_rows(
@@ -160,6 +181,22 @@ fn available_random_visible_rows(
         rows.push(row);
     }
     rows
+}
+
+fn random_visible_target_for_row(
+    controller: &mut AppController,
+    source_id: &SourceId,
+    visible_row: usize,
+) -> Option<RandomVisibleTarget> {
+    let entry_index = controller.visible_browser_index(visible_row)?;
+    let path = controller
+        .wav_entry(entry_index)
+        .map(|entry| entry.relative_path.clone())?;
+    Some(RandomVisibleTarget {
+        source_id: source_id.clone(),
+        visible_row,
+        path,
+    })
 }
 
 fn current_random_navigation_path(controller: &AppController) -> Option<PathBuf> {

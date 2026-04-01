@@ -4,14 +4,22 @@ use super::*;
 use crate::app::controller::StatusTone;
 use crate::app::state::FocusContext;
 use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
+use std::path::{Path, PathBuf};
 
 /// Follow-up plans for browser review actions that mutate the focused sample.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) enum BrowserReviewFollowUpPlan {
     /// Move away from the current row using the next visible-browser target.
     AdvanceFromPrimaryRow { primary_row: usize },
     /// Reuse the already-refocused replacement sample after a filter removes the current row.
     UseFocusedReplacement,
+    /// Focus one explicit target path instead of relying on pre-mutation row state.
+    FocusPath {
+        /// Source-relative path to focus next.
+        path: PathBuf,
+        /// Random-navigation source to record when the path came from a random jump.
+        random_history_source_id: Option<SourceId>,
+    },
 }
 
 /// Linear-mode loading policy for browser review follow-up navigation.
@@ -267,6 +275,14 @@ impl AppController {
             BrowserReviewFollowUpPlan::UseFocusedReplacement => {
                 self.follow_browser_review_replacement(linear_mode);
             }
+            BrowserReviewFollowUpPlan::FocusPath {
+                path,
+                random_history_source_id,
+            } => self.follow_browser_review_path(
+                &path,
+                linear_mode,
+                random_history_source_id.as_ref(),
+            ),
         }
     }
 
@@ -301,6 +317,32 @@ impl AppController {
             return;
         }
         let _ = self.commit_focused_browser_row();
+    }
+
+    fn follow_browser_review_path(
+        &mut self,
+        path: &Path,
+        linear_mode: BrowserReviewLinearMode,
+        random_history_source_id: Option<&SourceId>,
+    ) {
+        if let Some(source_id) = random_history_source_id {
+            self.record_random_navigation_target_for_source(source_id, path);
+        }
+        self.focus_browser_context();
+        self.ui.browser.selection.autoscroll = true;
+        match linear_mode {
+            BrowserReviewLinearMode::Commit => self.select_wav_by_path_with_rebuild(path, false),
+            BrowserReviewLinearMode::Preview => {
+                self.focus_wav_by_path_preview_with_rebuild(path, false);
+            }
+        }
+        if let Some(row) = self.visible_row_for_path(path) {
+            self.ui.browser.selection.selection_anchor_visible = Some(row);
+        }
+        self.refresh_browser_selection_markers();
+        if matches!(linear_mode, BrowserReviewLinearMode::Preview) {
+            self.request_async_preview_playback_for_focused_selection();
+        }
     }
 
     /// Clear sample browser focus/selection when another surface takes focus.
