@@ -97,7 +97,7 @@ Status: Phase 2 active on `2026-04-01`; items 1 and 2 are complete, item 3 is ne
   - one focused live-artifact assertion path through `src/app_core/native_bridge/tests`
 - Product clarification required: No
 - Date completed: `2026-04-01`
-- Commit: pending until the Phase 2 item-2 commit is created
+- Commit: `3f9a41cf` (`test: require handled GUI action traces`)
 - Validation outcome:
   - `cargo test app_core::native_bridge::tests::bridge_runtime::gui_test -- --test-threads=1` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` passed
@@ -109,6 +109,7 @@ Status: Phase 2 active on `2026-04-01`; items 1 and 2 are complete, item 3 is ne
   - Added handled-state reporting to `NativeAppBridge`, `SempalNativeBridge`, and `GuiFixtureBridge`.
   - Extended GUI trace events and AIV artifact checks to persist and require handled status.
   - Replaced the debug panic on unhandled native actions with explicit error logging so live artifacts can record `handled: false`.
+  - Updated `vendor/radiant` in commit `80cc200c` (`feat: expose last action handled state`) so the superproject bridge can query handled status through the shared trait.
 
 ### 3. [ ] Collapse the duplicated keyboard-routing paths in `vendor/radiant` so tests and production execute the same logic
 

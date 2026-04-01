@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-01T18:33:00Z
+Last Updated: 2026-04-01T19:12:00Z
 Updated By: Codex
 
 ## Purpose
@@ -19,6 +19,7 @@ Updated By: Codex
 - Item 1 is recorded in commit `b9e312ad` (`fix: reject runtime-internal waveform shift actions`).
 - `docs/gui_test_platform.md` now documents that the action catalog is exhaustive but not every cataloged action is publicly dispatchable.
 - Item 2 records handled state in GUI action traces, makes `ActionRecorded` require a handled event, and preserves `handled: false` in live artifacts instead of panicking on unhandled native actions.
+- Item 2 is recorded in superproject commit `3f9a41cf` (`test: require handled GUI action traces`) and `vendor/radiant` commit `80cc200c` (`feat: expose last action handled state`).
 - The remaining backlog starts with the GUI action-trace false-green risk, then keyboard-path deduplication in `vendor/radiant`, the remaining production file-size debt, oversized test hubs, `QUALITY_SCORE` drift, and shell-specific tooling drift.
 - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed during audit startup.
 - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` refreshed `tmp/cleanup_audit_hotspots.md`.
