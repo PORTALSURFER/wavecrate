@@ -4,7 +4,7 @@ Generated: 2026-04-01
 Observed superproject commit: `b79a2869`
 Observed `vendor/radiant` commit: `d4dac5da`
 Observed workspace state at audit start: dirty worktree (`MEMORY.md`)
-Status: Phase 2 active on `2026-04-01`; items 1, 2, and 3 are complete, item 4 is next, and execution is proceeding in backlog order.
+Status: Phase 2 active on `2026-04-01`; items 1, 2, 3, and 4 are complete, item 5 is next, and execution is proceeding in backlog order.
 
 ## Scope
 
@@ -147,7 +147,7 @@ Status: Phase 2 active on `2026-04-01`; items 1, 2, and 3 are complete, item 4 i
   - Routed both production key events and focused test hooks through shared `handle_*` helpers plus a single `finish_keyboard_input(...)` invalidation path.
   - Reduced `vendor/radiant/src/gui_runtime/native_vello/runtime_events/keyboard.rs` to `337` lines, clearing the file-size budget violation called out in the audit evidence.
 
-### 4. [ ] Finish the `app_core` dispatch-hub split so migration-facing routing depends on narrower controller seams
+### 4. [x] Finish the `app_core` dispatch-hub split so migration-facing routing depends on narrower controller seams
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -169,6 +169,20 @@ Status: Phase 2 active on `2026-04-01`; items 1, 2, and 3 are complete, item 4 i
   - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
 - Product clarification required: No
+- Date completed: `2026-04-01`
+- Commit: `6dd61dc9` (`refactor: split app core native dispatch hubs`)
+- Validation outcome:
+  - `cargo test app_core::controller::tests -- --test-threads=1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Assumptions used:
+  - The safest migration step is to split the `app_core` dispatch hubs into route-group modules while keeping top-level dispatch ordering and controller behavior unchanged.
+  - Existing legacy-controller methods such as browser similarity toggling, waveform BPM input updates, and drag delegates are the right ownership seams for the remaining native-dispatch state mutations.
+- Execution notes:
+  - Replaced the monolithic `browser_actions.rs` and `waveform_actions.rs` files with smaller surface-specific module trees under `src/app_core/controller/`.
+  - Moved focused similarity toggling, waveform BPM-snap fallback seeding, transient-marker toggling, and waveform-selection drag origin handling behind narrower legacy-controller helpers so `app_core` no longer needs its own dispatch-state shim.
+  - Added one focused regression update in `src/app_core/controller/tests/dispatch/core.rs` so the BPM-snap seed test still exercises the no-BPM branch after the controller’s default waveform tempo initialization changed.
 
 ### 5. [ ] Burn down the remaining non-allowlisted production/runtime file-size debt before touching explicitly allowlisted exceptions
 
