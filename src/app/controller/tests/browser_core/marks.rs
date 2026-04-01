@@ -1,34 +1,9 @@
 use super::*;
-use crate::app::controller::AppController;
 use crate::sample_sources::SampleSource;
-use std::thread;
-use std::time::Duration;
-
-fn visible_paths(controller: &mut AppController) -> Vec<PathBuf> {
-    (0..controller.visible_browser_len())
-        .filter_map(|row| controller.browser_path_for_visible(row))
-        .collect()
-}
-
-fn wait_for_waveform_image(controller: &mut AppController, path: &Path) {
-    for _ in 0..50 {
-        controller.poll_background_jobs();
-        if controller.sample_view.wav.loaded_wav.as_deref() == Some(path)
-            && controller.ui.waveform.loading.is_none()
-            && controller.ui.waveform.image.is_some()
-        {
-            return;
-        }
-        thread::sleep(Duration::from_millis(10));
-    }
-}
 
 #[test]
 fn browser_sample_mark_toggle_marks_and_unmarks_focused_row() {
-    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
-        sample_entry("one.wav", Rating::NEUTRAL),
-        sample_entry("two.wav", Rating::NEUTRAL),
-    ]);
+    let (mut controller, source) = browser_mark_fixture();
 
     controller.focus_browser_row_only(1);
     controller.toggle_browser_sample_mark();
@@ -43,11 +18,7 @@ fn browser_sample_mark_toggle_marks_and_unmarks_focused_row() {
 
 #[test]
 fn browser_sample_mark_toggle_applies_to_selection_and_focused_row() {
-    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
-        sample_entry("one.wav", Rating::NEUTRAL),
-        sample_entry("two.wav", Rating::NEUTRAL),
-        sample_entry("three.wav", Rating::NEUTRAL),
-    ]);
+    let (mut controller, source) = browser_mark_fixture();
 
     controller.focus_browser_row_only(0);
     controller.toggle_browser_row_selection(1);
@@ -60,14 +31,8 @@ fn browser_sample_mark_toggle_applies_to_selection_and_focused_row() {
 
 #[test]
 fn focused_browser_mark_advances_and_previews_next_sample() {
-    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
-        sample_entry("one.wav", Rating::NEUTRAL),
-        sample_entry("two.wav", Rating::NEUTRAL),
-        sample_entry("three.wav", Rating::NEUTRAL),
-    ]);
-    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
-    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
-    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+    let (mut controller, source) = browser_mark_fixture();
+    write_browser_mark_wavs(&source.root);
     controller.settings.feature_flags.autoplay_selection = false;
 
     controller.focus_browser_row_only(0);
@@ -155,11 +120,7 @@ fn marked_filter_composes_with_rating_search_and_folder_filters() -> Result<(), 
 
 #[test]
 fn unmarking_focused_marked_row_under_marked_filter_refocuses_next_visible_row() {
-    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
-        sample_entry("one.wav", Rating::NEUTRAL),
-        sample_entry("two.wav", Rating::NEUTRAL),
-        sample_entry("three.wav", Rating::NEUTRAL),
-    ]);
+    let (mut controller, source) = browser_mark_fixture();
 
     controller.focus_browser_row_only(0);
     controller.toggle_browser_sample_mark();
@@ -190,14 +151,8 @@ fn unmarking_focused_marked_row_under_marked_filter_refocuses_next_visible_row()
 
 #[test]
 fn focused_browser_mark_uses_random_preview_follow_up() {
-    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
-        sample_entry("one.wav", Rating::NEUTRAL),
-        sample_entry("two.wav", Rating::NEUTRAL),
-        sample_entry("three.wav", Rating::NEUTRAL),
-    ]);
-    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
-    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
-    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+    let (mut controller, source) = browser_mark_fixture();
+    write_browser_mark_wavs(&source.root);
     controller.settings.feature_flags.autoplay_selection = false;
     controller.ui.browser.search.random_navigation_mode = true;
     controller
@@ -242,14 +197,8 @@ fn focused_browser_mark_uses_random_preview_follow_up() {
 
 #[test]
 fn marked_filter_mark_review_uses_random_follow_up_when_random_mode_is_enabled() {
-    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
-        sample_entry("one.wav", Rating::NEUTRAL),
-        sample_entry("two.wav", Rating::NEUTRAL),
-        sample_entry("three.wav", Rating::NEUTRAL),
-    ]);
-    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
-    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
-    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+    let (mut controller, source) = browser_mark_fixture();
+    write_browser_mark_wavs(&source.root);
     controller.settings.feature_flags.autoplay_selection = false;
 
     controller.focus_browser_row_only(0);
@@ -310,14 +259,8 @@ fn marked_filter_mark_review_uses_random_follow_up_when_random_mode_is_enabled()
 
 #[test]
 fn unmarking_focused_marked_row_under_marked_filter_previews_replacement_sample() {
-    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
-        sample_entry("one.wav", Rating::NEUTRAL),
-        sample_entry("two.wav", Rating::NEUTRAL),
-        sample_entry("three.wav", Rating::NEUTRAL),
-    ]);
-    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
-    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
-    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+    let (mut controller, source) = browser_mark_fixture();
+    write_browser_mark_wavs(&source.root);
     controller.settings.feature_flags.autoplay_selection = false;
 
     controller.focus_browser_row_only(0);
@@ -363,11 +306,7 @@ fn unmarking_focused_marked_row_under_marked_filter_previews_replacement_sample(
 
 #[test]
 fn multi_selection_mark_does_not_auto_advance() {
-    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
-        sample_entry("one.wav", Rating::NEUTRAL),
-        sample_entry("two.wav", Rating::NEUTRAL),
-        sample_entry("three.wav", Rating::NEUTRAL),
-    ]);
+    let (mut controller, source) = browser_mark_fixture();
 
     controller.focus_browser_row_only(0);
     controller.toggle_browser_row_selection(1);

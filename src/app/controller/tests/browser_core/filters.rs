@@ -47,6 +47,8 @@ fn sample_browser_indices_track_tags() {
         sample_entry("neutral.wav", crate::sample_sources::Rating::NEUTRAL),
         sample_entry("keep.wav", crate::sample_sources::Rating::KEEP_1),
     ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
     controller.sample_view.wav.selected_wav = Some(PathBuf::from("neutral.wav"));
     controller.sample_view.wav.loaded_wav = Some(PathBuf::from("keep.wav"));
     controller.rebuild_wav_lookup();
@@ -92,22 +94,7 @@ fn browser_filter_limits_visible_rows() {
 
 #[test]
 fn browser_rating_filter_limits_visible_rows() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source);
-    let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
-    locked_keep.locked = true;
-    controller.set_wav_entries_for_tests(vec![
-        sample_entry("trash3.wav", Rating::TRASH_3),
-        sample_entry("trash2.wav", Rating::new(-2)),
-        sample_entry("trash1.wav", Rating::TRASH_1),
-        sample_entry("neutral.wav", Rating::NEUTRAL),
-        sample_entry("keep1.wav", Rating::KEEP_1),
-        sample_entry("keep2.wav", Rating::new(2)),
-        sample_entry("keep3.wav", Rating::KEEP_3),
-        locked_keep,
-    ]);
-    controller.rebuild_wav_lookup();
-    controller.rebuild_browser_lists();
+    let (mut controller, _source) = browser_rating_filter_fixture(true);
 
     controller.set_browser_rating_filter(-2, false);
     assert_eq!(visible_indices(&controller), vec![1]);
@@ -133,22 +120,7 @@ fn browser_rating_filter_limits_visible_rows() {
 
 #[test]
 fn invert_browser_rating_filter_selects_every_level_except_clicked_keep_chip() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source);
-    let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
-    locked_keep.locked = true;
-    controller.set_wav_entries_for_tests(vec![
-        sample_entry("trash3.wav", Rating::TRASH_3),
-        sample_entry("trash2.wav", Rating::new(-2)),
-        sample_entry("trash1.wav", Rating::TRASH_1),
-        sample_entry("neutral.wav", Rating::NEUTRAL),
-        sample_entry("keep1.wav", Rating::KEEP_1),
-        sample_entry("keep2.wav", Rating::new(2)),
-        sample_entry("keep3.wav", Rating::KEEP_3),
-        locked_keep,
-    ]);
-    controller.rebuild_wav_lookup();
-    controller.rebuild_browser_lists();
+    let (mut controller, _source) = browser_rating_filter_fixture(true);
 
     controller.invert_browser_rating_filter(4);
 
@@ -168,22 +140,7 @@ fn invert_browser_rating_filter_selects_every_level_except_clicked_keep_chip() {
 
 #[test]
 fn invert_browser_rating_filter_clears_when_same_exclusion_is_reclicked() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source);
-    let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
-    locked_keep.locked = true;
-    controller.set_wav_entries_for_tests(vec![
-        sample_entry("trash3.wav", Rating::TRASH_3),
-        sample_entry("trash2.wav", Rating::new(-2)),
-        sample_entry("trash1.wav", Rating::TRASH_1),
-        sample_entry("neutral.wav", Rating::NEUTRAL),
-        sample_entry("keep1.wav", Rating::KEEP_1),
-        sample_entry("keep2.wav", Rating::new(2)),
-        sample_entry("keep3.wav", Rating::KEEP_3),
-        locked_keep,
-    ]);
-    controller.rebuild_wav_lookup();
-    controller.rebuild_browser_lists();
+    let (mut controller, _source) = browser_rating_filter_fixture(true);
 
     controller.invert_browser_rating_filter(4);
     assert_eq!(
@@ -206,15 +163,12 @@ fn invert_browser_rating_filter_clears_when_same_exclusion_is_reclicked() {
 
 #[test]
 fn locked_keep_filter_only_matches_locked_keep_rows() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source);
-    let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
-    locked_keep.locked = true;
+    let (mut controller, _source) = browser_rating_filter_fixture(true);
     let mut locked_trash = sample_entry("locked_trash.wav", Rating::TRASH_3);
     locked_trash.locked = true;
     controller.set_wav_entries_for_tests(vec![
         sample_entry("keep3.wav", Rating::KEEP_3),
-        locked_keep,
+        sample_entry("locked_keep.wav", Rating::KEEP_3),
         locked_trash,
     ]);
     controller.rebuild_wav_lookup();
@@ -227,12 +181,11 @@ fn locked_keep_filter_only_matches_locked_keep_rows() {
 
 #[test]
 fn keep_three_filter_excludes_locked_keep_rows() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source);
-    let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
-    locked_keep.locked = true;
-    controller
-        .set_wav_entries_for_tests(vec![sample_entry("keep3.wav", Rating::KEEP_3), locked_keep]);
+    let (mut controller, _source) = browser_rating_filter_fixture(true);
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("keep3.wav", Rating::KEEP_3),
+        sample_entry("locked_keep.wav", Rating::KEEP_3),
+    ]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
 
@@ -245,22 +198,7 @@ fn keep_three_filter_excludes_locked_keep_rows() {
 
 #[test]
 fn invert_browser_rating_filter_selects_every_level_except_clicked_trash_chip() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source);
-    let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
-    locked_keep.locked = true;
-    controller.set_wav_entries_for_tests(vec![
-        sample_entry("trash3.wav", Rating::TRASH_3),
-        sample_entry("trash2.wav", Rating::new(-2)),
-        sample_entry("trash1.wav", Rating::TRASH_1),
-        sample_entry("neutral.wav", Rating::NEUTRAL),
-        sample_entry("keep1.wav", Rating::KEEP_1),
-        sample_entry("keep2.wav", Rating::new(2)),
-        sample_entry("keep3.wav", Rating::KEEP_3),
-        locked_keep,
-    ]);
-    controller.rebuild_wav_lookup();
-    controller.rebuild_browser_lists();
+    let (mut controller, _source) = browser_rating_filter_fixture(true);
 
     controller.invert_browser_rating_filter(-2);
 
@@ -280,22 +218,7 @@ fn invert_browser_rating_filter_selects_every_level_except_clicked_trash_chip() 
 
 #[test]
 fn invert_browser_rating_filter_selects_every_level_except_clicked_neutral_chip() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source);
-    let mut locked_keep = sample_entry("locked_keep.wav", Rating::KEEP_3);
-    locked_keep.locked = true;
-    controller.set_wav_entries_for_tests(vec![
-        sample_entry("trash3.wav", Rating::TRASH_3),
-        sample_entry("trash2.wav", Rating::new(-2)),
-        sample_entry("trash1.wav", Rating::TRASH_1),
-        sample_entry("neutral.wav", Rating::NEUTRAL),
-        sample_entry("keep1.wav", Rating::KEEP_1),
-        sample_entry("keep2.wav", Rating::new(2)),
-        sample_entry("keep3.wav", Rating::KEEP_3),
-        locked_keep,
-    ]);
-    controller.rebuild_wav_lookup();
-    controller.rebuild_browser_lists();
+    let (mut controller, _source) = browser_rating_filter_fixture(true);
 
     controller.invert_browser_rating_filter(0);
 
@@ -315,8 +238,7 @@ fn invert_browser_rating_filter_selects_every_level_except_clicked_neutral_chip(
 
 #[test]
 fn browser_playback_age_filter_limits_visible_rows_and_composes_with_other_filters() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source.clone());
+    let (mut controller, source) = browser_rating_filter_fixture(false);
     let now_unix_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -361,8 +283,7 @@ fn browser_playback_age_filter_limits_visible_rows_and_composes_with_other_filte
 
 #[test]
 fn invert_browser_playback_age_filter_selects_other_buckets_and_reclick_clears() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source);
+    let (mut controller, _source) = browser_rating_filter_fixture(false);
     controller.set_wav_entries_for_tests(vec![
         sample_entry("never.wav", Rating::NEUTRAL),
         sample_entry("month.wav", Rating::NEUTRAL),
@@ -371,8 +292,9 @@ fn invert_browser_playback_age_filter_selects_other_buckets_and_reclick_clears()
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
 
-    controller
-        .invert_browser_playback_age_filter(crate::app::state::PlaybackAgeFilterChip::OlderThanWeek);
+    controller.invert_browser_playback_age_filter(
+        crate::app::state::PlaybackAgeFilterChip::OlderThanWeek,
+    );
 
     assert_eq!(
         controller
@@ -389,16 +311,16 @@ fn invert_browser_playback_age_filter_selects_other_buckets_and_reclick_clears()
         ]
     );
 
-    controller
-        .invert_browser_playback_age_filter(crate::app::state::PlaybackAgeFilterChip::OlderThanWeek);
+    controller.invert_browser_playback_age_filter(
+        crate::app::state::PlaybackAgeFilterChip::OlderThanWeek,
+    );
 
     assert!(controller.ui.browser.search.playback_age_filter.is_empty());
 }
 
 #[test]
 fn browser_search_limits_visible_rows() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source);
+    let (mut controller, _source) = browser_rating_filter_fixture(false);
     controller.set_wav_entries_for_tests(vec![
         sample_entry("kick.wav", crate::sample_sources::Rating::NEUTRAL),
         sample_entry("snare.wav", crate::sample_sources::Rating::NEUTRAL),
@@ -414,8 +336,7 @@ fn browser_search_limits_visible_rows() {
 
 #[test]
 fn browser_search_orders_results_by_score_then_index() {
-    let (mut controller, source) = dummy_controller();
-    controller.library.sources.push(source);
+    let (mut controller, _source) = browser_rating_filter_fixture(false);
     controller.set_wav_entries_for_tests(vec![
         sample_entry("abc.wav", crate::sample_sources::Rating::NEUTRAL),
         sample_entry("abc_extra.wav", crate::sample_sources::Rating::NEUTRAL),
