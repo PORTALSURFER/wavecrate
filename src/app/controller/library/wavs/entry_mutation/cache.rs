@@ -19,7 +19,9 @@ pub(crate) fn update_cached_entry(
     if old_path == new_entry.relative_path {
         let mut updated = false;
         if controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
-            updated |= controller.wav_entries.update_entry(old_path, new_entry.clone());
+            updated |= controller
+                .wav_entries
+                .update_entry(old_path, new_entry.clone());
         }
         if let Some(cache) = controller.cache.wav.entries.get_mut(&source.id) {
             updated |= cache.update_entry(old_path, new_entry.clone());
@@ -56,7 +58,8 @@ pub(crate) fn update_cached_entry(
             || controller.ui.browser.selection.last_focused_path.as_deref() == Some(old_path)
         {
             controller.ui.browser.selection.last_focused_index = Some(index);
-            controller.ui.browser.selection.last_focused_path = Some(new_entry.relative_path.clone());
+            controller.ui.browser.selection.last_focused_path =
+                Some(new_entry.relative_path.clone());
         }
     }
     if let Some(cache) = controller.cache.wav.entries.get_mut(&source.id)

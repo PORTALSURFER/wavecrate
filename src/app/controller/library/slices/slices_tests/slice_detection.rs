@@ -38,12 +38,14 @@ fn detect_waveform_slices_ignores_transient_settings() {
     assert!(controller.ui.waveform.selected_slices.is_empty());
     assert!(controller.ui.waveform.slice_review.active);
     assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(0));
-    assert!(controller
-        .ui
-        .waveform
-        .slice_review
-        .marked_indices
-        .is_empty());
+    assert!(
+        controller
+            .ui
+            .waveform
+            .slice_review
+            .marked_indices
+            .is_empty()
+    );
     assert!(controller.ui.status.text.contains("Space audition"));
 }
 

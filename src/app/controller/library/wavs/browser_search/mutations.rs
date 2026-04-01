@@ -66,17 +66,43 @@ pub(crate) fn set_browser_playback_age_filter(
 ) {
     let mut changed = false;
     if additive {
-        if controller.ui.browser.search.playback_age_filter.contains(&chip) {
-            controller.ui.browser.search.playback_age_filter.remove(&chip);
+        if controller
+            .ui
+            .browser
+            .search
+            .playback_age_filter
+            .contains(&chip)
+        {
+            controller
+                .ui
+                .browser
+                .search
+                .playback_age_filter
+                .remove(&chip);
         } else {
-            controller.ui.browser.search.playback_age_filter.insert(chip);
+            controller
+                .ui
+                .browser
+                .search
+                .playback_age_filter
+                .insert(chip);
         }
         changed = true;
     } else if controller.ui.browser.search.playback_age_filter.len() != 1
-        || !controller.ui.browser.search.playback_age_filter.contains(&chip)
+        || !controller
+            .ui
+            .browser
+            .search
+            .playback_age_filter
+            .contains(&chip)
     {
         controller.ui.browser.search.playback_age_filter.clear();
-        controller.ui.browser.search.playback_age_filter.insert(chip);
+        controller
+            .ui
+            .browser
+            .search
+            .playback_age_filter
+            .insert(chip);
         changed = true;
     }
     if changed {
@@ -108,9 +134,7 @@ fn replace_browser_playback_age_filter(
     controller: &mut AppController,
     chips: impl IntoIterator<Item = PlaybackAgeFilterChip>,
 ) {
-    let next_filter = chips
-        .into_iter()
-        .collect::<std::collections::BTreeSet<_>>();
+    let next_filter = chips.into_iter().collect::<std::collections::BTreeSet<_>>();
     if controller.ui.browser.search.playback_age_filter == next_filter {
         return;
     }

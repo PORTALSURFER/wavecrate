@@ -1,7 +1,6 @@
 use super::{
     GUI_ACTION_CATALOG, GuiActionKind, GuiCoverageLayer, GuiDispatchPolicy, GuiEffectClass,
-    GuiSurface,
-    action_catalog_entry_by_id, action_kind, representative_action_for_kind,
+    GuiSurface, action_catalog_entry_by_id, action_kind, representative_action_for_kind,
 };
 use crate::app_core::app_api::controller_state::DerivedNodeId;
 use crate::app_core::native_bridge::{

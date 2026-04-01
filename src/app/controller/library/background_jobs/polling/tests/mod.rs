@@ -1,12 +1,10 @@
 use super::*;
 use crate::app::controller::AppController;
-use crate::app::controller::jobs::{
-    JobMessage, SelectionExportMessage,
-};
-use crate::app::controller::library::analysis_jobs::AnalysisJobMessage;
-use crate::app::controller::state::audio::PendingAudio;
 use crate::app::controller::AudioLoadIntent;
+use crate::app::controller::jobs::{JobMessage, SelectionExportMessage};
+use crate::app::controller::library::analysis_jobs::AnalysisJobMessage;
 use crate::app::controller::playback::audio_loader::{AudioLoadOutcome, AudioLoadResult};
+use crate::app::controller::state::audio::PendingAudio;
 use crate::sample_sources::SampleSource;
 use std::path::Path;
 use std::sync::Arc;

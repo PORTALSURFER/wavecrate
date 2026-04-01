@@ -1,5 +1,7 @@
 use super::*;
-use crate::app::controller::jobs::{FocusedSimilarityPaths, FocusedSimilarityResult, LoadedSimilarityQueryResult};
+use crate::app::controller::jobs::{
+    FocusedSimilarityPaths, FocusedSimilarityResult, LoadedSimilarityQueryResult,
+};
 use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
 use crate::app::state::{SampleBrowserSort, SimilarQuery};
 use crate::sample_sources::Rating;

@@ -183,7 +183,11 @@ fn save_waveform_selection_to_browser_action_persists_keep1_tag() {
             && controller.ui.status.text.contains("Saved clip")
     });
 
-    let rows = controller.database_for(&source).unwrap().list_files().unwrap();
+    let rows = controller
+        .database_for(&source)
+        .unwrap()
+        .list_files()
+        .unwrap();
     let exported = rows
         .iter()
         .find(|row| row.relative_path == PathBuf::from("clip_selection_001.wav"))
@@ -221,7 +225,11 @@ fn save_waveform_selection_to_browser_with_keep2_persists_keep2_tag() {
             && controller.ui.status.text.contains("Saved clip")
     });
 
-    let rows = controller.database_for(&source).unwrap().list_files().unwrap();
+    let rows = controller
+        .database_for(&source)
+        .unwrap()
+        .list_files()
+        .unwrap();
     let exported = rows
         .iter()
         .find(|row| row.relative_path == PathBuf::from("clip_selection_001.wav"))

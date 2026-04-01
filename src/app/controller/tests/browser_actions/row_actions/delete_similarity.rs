@@ -244,13 +244,16 @@ fn delete_hotkey_waits_for_loading_sample() {
     write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
     controller.focus_browser_row_only(0);
     controller.ui.waveform.loading = Some(PathBuf::from("one.wav"));
-    controller.runtime.jobs.set_pending_audio(Some(PendingAudio {
-        request_id: 1,
-        source_id: source.id.clone(),
-        root: source.root.clone(),
-        relative_path: PathBuf::from("one.wav"),
-        intent: AudioLoadIntent::Selection,
-    }));
+    controller
+        .runtime
+        .jobs
+        .set_pending_audio(Some(PendingAudio {
+            request_id: 1,
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: PathBuf::from("one.wav"),
+            intent: AudioLoadIntent::Selection,
+        }));
     let action = hotkeys::iter_actions()
         .find(|action| action.id == "delete-browser")
         .expect("delete-browser hotkey");

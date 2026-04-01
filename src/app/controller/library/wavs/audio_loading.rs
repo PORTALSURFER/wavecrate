@@ -2,5 +2,5 @@
 
 mod cache_load;
 mod completion;
-mod queueing;
 mod playback;
+mod queueing;

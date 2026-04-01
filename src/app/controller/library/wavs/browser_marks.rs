@@ -148,8 +148,9 @@ impl AppController {
             return None;
         }
         if self.random_navigation_mode_enabled() {
-            return primary_row
-                .map(|primary_row| BrowserReviewFollowUpPlan::AdvanceFromPrimaryRow { primary_row });
+            return primary_row.map(|primary_row| {
+                BrowserReviewFollowUpPlan::AdvanceFromPrimaryRow { primary_row }
+            });
         }
         if self.ui.browser.search.marked_only {
             return has_fallback_path.then_some(BrowserReviewFollowUpPlan::UseFocusedReplacement);

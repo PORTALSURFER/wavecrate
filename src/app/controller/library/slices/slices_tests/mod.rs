@@ -1,5 +1,5 @@
-use crate::app::controller::test_support::write_test_wav;
 use crate::app::controller::AppController;
+use crate::app::controller::test_support::write_test_wav;
 use crate::app::state::WaveformSliceBatchProfile;
 use crate::sample_sources::SampleSource;
 use crate::selection::SelectionRange;

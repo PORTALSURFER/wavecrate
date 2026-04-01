@@ -2,9 +2,9 @@ use super::super::test_support::{
     dummy_controller, prepare_with_source_and_wav_entries, sample_entry,
 };
 use super::super::*;
+use crate::app::controller::jobs::{FileOpResult, UndoFileJob, UndoFileOpResult, UndoFileOutcome};
 use crate::app::controller::state::selection::CompareAnchorSample;
 use crate::app::controller::undo::{UndoEntry, UndoExecution};
-use crate::app::controller::jobs::{FileOpResult, UndoFileJob, UndoFileOpResult, UndoFileOutcome};
 use crate::app::state::CompareAnchorState;
 use std::path::PathBuf;
 
@@ -149,7 +149,10 @@ fn meaningful_ui_undo_keeps_compare_anchor_transient_state() {
     controller.toggle_browser_row_selection(1);
 
     controller.undo();
-    assert_eq!(controller.sample_view.wav.compare_anchor, Some(expected_sample.clone()));
+    assert_eq!(
+        controller.sample_view.wav.compare_anchor,
+        Some(expected_sample.clone())
+    );
     assert_eq!(controller.ui.compare_anchor, Some(expected_ui.clone()));
     assert_eq!(
         controller.ui.waveform.compare_anchor_label.as_deref(),
@@ -157,7 +160,10 @@ fn meaningful_ui_undo_keeps_compare_anchor_transient_state() {
     );
 
     controller.redo();
-    assert_eq!(controller.sample_view.wav.compare_anchor, Some(expected_sample));
+    assert_eq!(
+        controller.sample_view.wav.compare_anchor,
+        Some(expected_sample)
+    );
     assert_eq!(controller.ui.compare_anchor, Some(expected_ui));
     assert_eq!(
         controller.ui.waveform.compare_anchor_label.as_deref(),
@@ -232,8 +238,14 @@ fn restore_meaningful_ui_snapshot_recovers_browser_folder_and_waveform_context()
         Some(std::path::Path::new("a/one.wav"))
     );
     assert!(!controller.ui.browser.selection.autoscroll);
-    assert_eq!(controller.selection_state.range.range(), Some(waveform_selection));
-    assert_eq!(controller.selection_state.edit_range.range(), Some(edit_selection));
+    assert_eq!(
+        controller.selection_state.range.range(),
+        Some(waveform_selection)
+    );
+    assert_eq!(
+        controller.selection_state.edit_range.range(),
+        Some(edit_selection)
+    );
     assert_eq!(controller.ui.waveform.selection, Some(waveform_selection));
     assert_eq!(controller.ui.waveform.edit_selection, Some(edit_selection));
     assert_eq!(
@@ -259,7 +271,10 @@ fn restore_meaningful_ui_snapshot_recovers_browser_folder_and_waveform_context()
 fn deferred_meaningful_ui_restore_hooks_reapply_before_and_after_snapshots() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("clip.wav", crate::sample_sources::Rating::NEUTRAL),
-        sample_entry("clip_selection_001.wav", crate::sample_sources::Rating::KEEP_1),
+        sample_entry(
+            "clip_selection_001.wav",
+            crate::sample_sources::Rating::KEEP_1,
+        ),
     ]);
     let before_selection = SelectionRange::new(0.2, 0.6);
     let before_edit = SelectionRange::new(0.25, 0.55);
@@ -267,7 +282,10 @@ fn deferred_meaningful_ui_restore_hooks_reapply_before_and_after_snapshots() {
     controller.set_browser_selected_paths(vec![PathBuf::from("clip.wav")]);
     controller.ui.browser.selection.autoscroll = false;
     controller.sample_view.wav.selected_wav = Some(PathBuf::from("clip.wav"));
-    controller.selection_state.range.set_range(Some(before_selection));
+    controller
+        .selection_state
+        .range
+        .set_range(Some(before_selection));
     controller.apply_selection(Some(before_selection));
     controller.set_edit_selection_range(before_edit);
     controller.ui.waveform.view = crate::app::state::WaveformView {
@@ -349,8 +367,14 @@ fn deferred_meaningful_ui_restore_hooks_reapply_before_and_after_snapshots() {
         Some(std::path::Path::new("clip.wav"))
     );
     assert!(!controller.ui.browser.selection.autoscroll);
-    assert_eq!(controller.selection_state.range.range(), Some(before_selection));
-    assert_eq!(controller.selection_state.edit_range.range(), Some(before_edit));
+    assert_eq!(
+        controller.selection_state.range.range(),
+        Some(before_selection)
+    );
+    assert_eq!(
+        controller.selection_state.edit_range.range(),
+        Some(before_edit)
+    );
     assert_eq!(
         controller.ui.waveform.view,
         crate::app::state::WaveformView {

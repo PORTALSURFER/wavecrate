@@ -1,8 +1,8 @@
 //! Runtime state and job coordination for the controller.
 
+mod deferred;
 /// Incremental derived-state dirty graph model used by native projection paths.
 mod derived_graph;
-mod deferred;
 mod performance;
 
 use crate::app::controller::jobs;

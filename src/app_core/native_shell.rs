@@ -168,7 +168,12 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         active_playback_age_filters: {
             let mut flags = [false; 3];
             for (index, chip) in browser_playback_age_filter_chips().into_iter().enumerate() {
-                flags[index] = controller.ui.browser.search.playback_age_filter.contains(&chip);
+                flags[index] = controller
+                    .ui
+                    .browser
+                    .search
+                    .playback_age_filter
+                    .contains(&chip);
             }
             flags
         },

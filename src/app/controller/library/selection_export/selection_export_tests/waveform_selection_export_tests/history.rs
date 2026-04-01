@@ -50,7 +50,12 @@ fn save_waveform_selection_to_browser_success_finishes_pending_history_and_suppo
 
     controller.undo();
 
-    match controller.history.pending_undo.as_ref().map(|pending| &pending.job) {
+    match controller
+        .history
+        .pending_undo
+        .as_ref()
+        .map(|pending| &pending.job)
+    {
         Some(UndoFileJob::RemoveSample {
             source_id,
             relative_path,
@@ -62,7 +67,11 @@ fn save_waveform_selection_to_browser_success_finishes_pending_history_and_suppo
         other => panic!("expected deferred remove undo job, got {other:?}"),
     }
     assert!(
-        controller.ui.status.text.contains("Undoing Saved selection clip"),
+        controller
+            .ui
+            .status
+            .text
+            .contains("Undoing Saved selection clip"),
         "status was {:?}",
         controller.ui.status.text
     );

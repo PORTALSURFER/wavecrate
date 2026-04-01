@@ -136,8 +136,7 @@ pub(in super::super) fn build_visible_rows_for_job(
             entry.locked,
             entry.last_played_at,
             job.playback_age_now_unix_secs,
-        )
-            || !folder_accepts_index(folder_accepts.as_ref(), index)
+        ) || !folder_accepts_index(folder_accepts.as_ref(), index)
         {
             continue;
         }

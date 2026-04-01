@@ -1,6 +1,8 @@
 use super::*;
 use crate::app::controller::jobs::{FolderScanResult, SearchResult};
-use crate::app::controller::test_support::{dummy_controller, prepare_with_source_and_wav_entries, sample_entry};
+use crate::app::controller::test_support::{
+    dummy_controller, prepare_with_source_and_wav_entries, sample_entry,
+};
 use crate::app::state::{TriageFlagColumn, VisibleRows};
 use crate::sample_sources::Rating;
 use std::collections::BTreeSet;

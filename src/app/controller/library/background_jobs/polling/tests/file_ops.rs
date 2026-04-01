@@ -6,7 +6,7 @@ use crate::app::controller::jobs::{
 use crate::app::controller::test_support::dummy_controller;
 use crate::app::state::ProgressTaskKind;
 use std::path::PathBuf;
-use std::sync::{atomic::AtomicBool, mpsc::channel, Arc};
+use std::sync::{Arc, atomic::AtomicBool, mpsc::channel};
 
 #[test]
 fn file_ops_messages_update_progress_and_clear_active_overlay_on_finish() {
@@ -76,11 +76,12 @@ fn retained_delete_resolution_result_clears_busy_scope_and_progress() {
         affected_sources: vec![source.id],
         scan_sources: Vec::new(),
         failures: Vec::new(),
-        recovery_report: crate::app::controller::library::source_folders::delete_recovery::DeleteRecoveryReport {
-            entries: Vec::new(),
-            retained_entries: Vec::new(),
-            errors: Vec::new(),
-        },
+        recovery_report:
+            crate::app::controller::library::source_folders::delete_recovery::DeleteRecoveryReport {
+                entries: Vec::new(),
+                retained_entries: Vec::new(),
+                errors: Vec::new(),
+            },
     });
     controller.handle_background_job_message(JobMessage::FileOps(FileOpMessage::Finished(result)));
 

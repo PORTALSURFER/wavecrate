@@ -28,12 +28,14 @@ fn duplicate_cleanup_exemption_keeps_preview_but_reduces_cleanup_count() {
     assert!(exempted);
     assert_eq!(controller.ui.waveform.slices.len(), 1);
     assert_eq!(controller.ui.waveform.slice_batch_beat_count, 0);
-    assert!(controller
-        .ui
-        .waveform
-        .duplicate_cleanup
-        .as_ref()
-        .is_some_and(|state| state.previews[0].exempted));
+    assert!(
+        controller
+            .ui
+            .waveform
+            .duplicate_cleanup
+            .as_ref()
+            .is_some_and(|state| state.previews[0].exempted)
+    );
 }
 
 #[test]

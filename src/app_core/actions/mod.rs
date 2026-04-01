@@ -6,9 +6,9 @@
 mod catalog;
 
 pub use self::catalog::{
-    GUI_ACTION_CATALOG, GuiActionCatalogEntry, GuiActionKind, GuiCoverageLayer,
-    GuiDispatchPolicy, GuiEffectClass, GuiHistoryPolicy, GuiSurface, action_catalog_entry,
-    action_catalog_entry_by_id, action_kind, representative_action_for_kind,
+    GUI_ACTION_CATALOG, GuiActionCatalogEntry, GuiActionKind, GuiCoverageLayer, GuiDispatchPolicy,
+    GuiEffectClass, GuiHistoryPolicy, GuiSurface, action_catalog_entry, action_catalog_entry_by_id,
+    action_kind, representative_action_for_kind,
 };
 
 /// Native runtime browser action metadata model.

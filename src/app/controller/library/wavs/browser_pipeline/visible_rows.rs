@@ -153,9 +153,8 @@ fn ensure_filtered_stage(
         let mut filtered_rows = Vec::with_capacity(base_len);
         for row in 0..base_len {
             let index = controller.ui_cache.browser.pipeline.base_rows[row];
-            let Some((tag, locked, last_played_at, relative_path)) = controller
-                .wav_entry(index)
-                .map(|entry| {
+            let Some((tag, locked, last_played_at, relative_path)) =
+                controller.wav_entry(index).map(|entry| {
                     (
                         entry.tag,
                         entry.locked,
@@ -166,8 +165,9 @@ fn ensure_filtered_stage(
             else {
                 continue;
             };
-            let marked = selected_source_id
-                .is_some_and(|source_id| controller.browser_sample_marked(source_id, &relative_path));
+            let marked = selected_source_id.is_some_and(|source_id| {
+                controller.browser_sample_marked(source_id, &relative_path)
+            });
             if !helpers::filter_accepts(
                 filter,
                 rating_filter,
@@ -220,9 +220,8 @@ fn ensure_sorted_stage_for_similar(
     let selected_source_id = controller.selection_state.ctx.selected_source.clone();
     let mut visible = Vec::with_capacity(similar.indices.len());
     for index in similar.indices.iter().copied() {
-        let Some((tag, locked, last_played_at, relative_path)) = controller
-            .wav_entry(index)
-            .map(|entry| {
+        let Some((tag, locked, last_played_at, relative_path)) =
+            controller.wav_entry(index).map(|entry| {
                 (
                     entry.tag,
                     entry.locked,

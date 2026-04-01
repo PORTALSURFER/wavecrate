@@ -51,14 +51,18 @@ fn toggle_focused_folder_selection_action_preserves_focus_and_anchor() {
     controller.apply_native_ui_action(NativeUiAction::ToggleFocusedFolderSelection);
 
     assert_eq!(controller.ui.sources.folders.focused, Some(row_index));
-    assert!(controller
-        .folder_selection_for_filter()
-        .cloned()
-        .unwrap_or_default()
-        .is_empty());
-    assert!(controller
-        .current_folder_model()
-        .is_some_and(|model| model.selection_anchor.is_none()));
+    assert!(
+        controller
+            .folder_selection_for_filter()
+            .cloned()
+            .unwrap_or_default()
+            .is_empty()
+    );
+    assert!(
+        controller
+            .current_folder_model()
+            .is_some_and(|model| model.selection_anchor.is_none())
+    );
 }
 
 #[test]
@@ -163,13 +167,15 @@ fn activate_folder_row_action_selects_and_toggles_expansion() {
         .unwrap_or_default();
     assert_eq!(selected, [folder_path].into_iter().collect::<BTreeSet<_>>());
     assert_eq!(controller.ui.sources.folders.focused, Some(row_index));
-    assert!(controller
-        .ui
-        .sources
-        .folders
-        .rows
-        .iter()
-        .any(|row| row.path == nested_path));
+    assert!(
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .any(|row| row.path == nested_path)
+    );
 }
 
 #[test]
@@ -241,24 +247,28 @@ fn toggle_show_all_folders_action_updates_folder_tree_mode() {
     controller.refresh_folder_browser_for_tests();
 
     assert!(!controller.ui.sources.folders.show_all_folders);
-    assert!(controller
-        .ui
-        .sources
-        .folders
-        .rows
-        .iter()
-        .all(|row| row.path != PathBuf::from("drums/empty")));
+    assert!(
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .all(|row| row.path != PathBuf::from("drums/empty"))
+    );
 
     controller.apply_native_ui_action(NativeUiAction::ToggleShowAllFolders);
 
     assert!(controller.ui.sources.folders.show_all_folders);
-    assert!(controller
-        .ui
-        .sources
-        .folders
-        .rows
-        .iter()
-        .any(|row| row.path == PathBuf::from("drums/empty")));
+    assert!(
+        controller
+            .ui
+            .sources
+            .folders
+            .rows
+            .iter()
+            .any(|row| row.path == PathBuf::from("drums/empty"))
+    );
 }
 
 #[test]

@@ -130,43 +130,44 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
-    let (entry_tag, row_identity_hash, missing, looped, locked, last_played_at, marked) = controller
-        .wav_entry(absolute_index)
-        .map(|entry| {
-            (
-                entry.tag,
-                browser_row_identity_hash(entry.relative_path.as_path()),
-                entry.missing,
-                entry.looped,
-                entry.locked,
-                entry.last_played_at,
-                entry.relative_path.clone(),
-            )
-        })
-        .map(
-            |(
-                entry_tag,
-                row_identity_hash,
-                missing,
-                looped,
-                locked,
-                last_played_at,
-                relative_path,
-            )| {
-                let marked = selected_source_id
-                    .as_ref()
-                    .is_some_and(|source_id| controller.browser_sample_marked(source_id, &relative_path));
+    let (entry_tag, row_identity_hash, missing, looped, locked, last_played_at, marked) =
+        controller
+            .wav_entry(absolute_index)
+            .map(|entry| {
                 (
+                    entry.tag,
+                    browser_row_identity_hash(entry.relative_path.as_path()),
+                    entry.missing,
+                    entry.looped,
+                    entry.locked,
+                    entry.last_played_at,
+                    entry.relative_path.clone(),
+                )
+            })
+            .map(
+                |(
                     entry_tag,
                     row_identity_hash,
                     missing,
                     looped,
                     locked,
                     last_played_at,
-                    marked,
-                )
-            },
-        )?;
+                    relative_path,
+                )| {
+                    let marked = selected_source_id.as_ref().is_some_and(|source_id| {
+                        controller.browser_sample_marked(source_id, &relative_path)
+                    });
+                    (
+                        entry_tag,
+                        row_identity_hash,
+                        missing,
+                        looped,
+                        locked,
+                        last_played_at,
+                        marked,
+                    )
+                },
+            )?;
     let column_index = super::browser_column_index(entry_tag);
     let rating_level = entry_tag.val();
     let playback_age_bucket =

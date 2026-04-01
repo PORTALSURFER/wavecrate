@@ -1,8 +1,6 @@
 use super::super::*;
 use crate::app::controller::playback::audio_cache::CacheKey;
-use crate::app::controller::playback::audio_loader::{
-    AudioTransientResult, AudioVisualResult,
-};
+use crate::app::controller::playback::audio_loader::{AudioTransientResult, AudioVisualResult};
 use crate::app::controller::playback::persistent_waveform_cache::persist_waveform_cache_entry;
 use std::sync::Arc;
 use std::thread;

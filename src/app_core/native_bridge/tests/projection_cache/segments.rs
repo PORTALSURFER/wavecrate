@@ -79,12 +79,18 @@ fn projection_segment_browser_frame_copies_active_playback_age_filters() {
     let mut cache = NativeProjectionCache::default();
     let _ = cache.resolve_or_project(&mut controller);
 
-    controller.ui.browser.search.playback_age_filter.insert(
-        crate::app::state::PlaybackAgeFilterChip::NeverPlayed,
-    );
-    controller.ui.browser.search.playback_age_filter.insert(
-        crate::app::state::PlaybackAgeFilterChip::OlderThanWeek,
-    );
+    controller
+        .ui
+        .browser
+        .search
+        .playback_age_filter
+        .insert(crate::app::state::PlaybackAgeFilterChip::NeverPlayed);
+    controller
+        .ui
+        .browser
+        .search
+        .playback_age_filter
+        .insert(crate::app::state::PlaybackAgeFilterChip::OlderThanWeek);
     controller.mark_browser_search_projection_revision_dirty();
 
     let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
@@ -94,7 +100,10 @@ fn projection_segment_browser_frame_copies_active_playback_age_filters() {
             NativeDirtySegments::STATUS_BAR | NativeDirtySegments::BROWSER_FRAME
         )
     );
-    assert_eq!(model.browser.active_playback_age_filters, [true, false, true]);
+    assert_eq!(
+        model.browser.active_playback_age_filters,
+        [true, false, true]
+    );
 }
 
 #[test]

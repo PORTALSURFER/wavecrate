@@ -72,7 +72,12 @@ fn apply_selection_crop_export_success_restores_focus_playback_and_undo_state() 
 
     controller.undo();
 
-    match controller.history.pending_undo.as_ref().map(|pending| &pending.job) {
+    match controller
+        .history
+        .pending_undo
+        .as_ref()
+        .map(|pending| &pending.job)
+    {
         Some(UndoFileJob::RemoveSample {
             source_id,
             relative_path,
