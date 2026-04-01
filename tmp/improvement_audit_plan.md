@@ -4,7 +4,7 @@ Generated: 2026-04-01
 Observed superproject commit: `b79a2869`
 Observed `vendor/radiant` commit: `d4dac5da`
 Observed workspace state at audit start: dirty worktree (`MEMORY.md`)
-Status: Phase 2 active on `2026-04-01`; items 1 and 2 are complete, item 3 is next, and execution is proceeding in backlog order.
+Status: Phase 2 active on `2026-04-01`; items 1, 2, and 3 are complete, item 4 is next, and execution is proceeding in backlog order.
 
 ## Scope
 
@@ -111,7 +111,7 @@ Status: Phase 2 active on `2026-04-01`; items 1 and 2 are complete, item 3 is ne
   - Replaced the debug panic on unhandled native actions with explicit error logging so live artifacts can record `handled: false`.
   - Updated `vendor/radiant` in commit `80cc200c` (`feat: expose last action handled state`) so the superproject bridge can query handled status through the shared trait.
 
-### 3. [ ] Collapse the duplicated keyboard-routing paths in `vendor/radiant` so tests and production execute the same logic
+### 3. [x] Collapse the duplicated keyboard-routing paths in `vendor/radiant` so tests and production execute the same logic
 
 - Classification: Architecture improvement
 - Confidence: High
@@ -132,6 +132,20 @@ Status: Phase 2 active on `2026-04-01`; items 1 and 2 are complete, item 3 is ne
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Date completed: `2026-04-01`
+- Commit: `89c41e58` (`refactor: share native keyboard routing helpers`)
+- Validation outcome:
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml key_bindings -- --test-threads=1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Assumptions used:
+  - Test-only key routing should preserve runtime behavior exactly rather than maintain a looser parallel implementation.
+  - Shared helper extraction is safer than introducing a new keyboard abstraction layer in this regression-sensitive path.
+- Execution notes:
+  - Replaced the duplicated test-only escape, enter, character, and hotkey branches with shared runtime helpers.
+  - Routed both production key events and focused test hooks through shared `handle_*` helpers plus a single `finish_keyboard_input(...)` invalidation path.
+  - Reduced `vendor/radiant/src/gui_runtime/native_vello/runtime_events/keyboard.rs` to `337` lines, clearing the file-size budget violation called out in the audit evidence.
 
 ### 4. [ ] Finish the `app_core` dispatch-hub split so migration-facing routing depends on narrower controller seams
 

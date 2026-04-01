@@ -61,11 +61,11 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: evidence-driven improvement audit execution for the current live tree
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-04-01 ROI-ranked backlog and execution record for this tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
-- Current status: Phase 2 is active on `2026-04-01`. Items 1 and 2 are complete, item 3 (`vendor/radiant` keyboard-path deduplication) is next, and execution is proceeding in backlog order.
+- Current status: Phase 2 is active on `2026-04-01`. Items 1, 2, and 3 are complete, item 4 (`app_core` dispatch-hub splitting) is next, and execution is proceeding in backlog order.
 
 ## Immediate Next Actions
-1. Execute item 3 from `tmp/improvement_audit_plan.md`: collapse the duplicated keyboard-routing paths in `vendor/radiant` so tests and production execute the same logic.
-2. Continue the backlog strictly in order after item 3, with item 4 (`app_core` dispatch-hub splitting) next.
+1. Execute item 4 from `tmp/improvement_audit_plan.md`: finish the `app_core` dispatch-hub split so migration-facing routing depends on narrower controller seams.
+2. Continue the backlog strictly in order after item 4, with the remaining production/runtime file-size debt next.
 3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 5. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized when the lane status changes.
@@ -74,7 +74,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog and execution record for the live tree; Phase 2 is active, items 1 and 2 are complete, and item 3 is next
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog and execution record for the live tree; Phase 2 is active, items 1, 2, and 3 are complete, and item 4 is next
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation
