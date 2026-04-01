@@ -172,17 +172,16 @@ Status: Phase 2 active on `2026-04-01`; items 1, 2, 3, and 4 are complete, item 
 - Date completed: `2026-04-01`
 - Commit: `6dd61dc9` (`refactor: split app core native dispatch hubs`)
 - Validation outcome:
-  - `cargo test app_core::controller::tests -- --test-threads=1` passed
+  - `cargo test -p sempal app_core::controller::tests:: -- --test-threads=1` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` passed
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed after clearing stale `target\\debug\\deps\\sempal-da12d40fcaf8753c.exe` test processes that were holding a linker lock
 - Assumptions used:
   - The safest migration step is to split the `app_core` dispatch hubs into route-group modules while keeping top-level dispatch ordering and controller behavior unchanged.
   - Existing legacy-controller methods such as browser similarity toggling, waveform BPM input updates, and drag delegates are the right ownership seams for the remaining native-dispatch state mutations.
 - Execution notes:
   - Replaced the monolithic `browser_actions.rs` and `waveform_actions.rs` files with smaller surface-specific module trees under `src/app_core/controller/`.
   - Moved focused similarity toggling, waveform BPM-snap fallback seeding, transient-marker toggling, and waveform-selection drag origin handling behind narrower legacy-controller helpers so `app_core` no longer needs its own dispatch-state shim.
-  - Added one focused regression update in `src/app_core/controller/tests/dispatch/core.rs` so the BPM-snap seed test still exercises the no-BPM branch after the controller’s default waveform tempo initialization changed.
 
 ### 5. [ ] Burn down the remaining non-allowlisted production/runtime file-size debt before touching explicitly allowlisted exceptions
 
