@@ -13,16 +13,16 @@ Inspired by a microchip die
 ## 1. Color Palette (Current App Palette)
 
 ### Core surfaces
-- **#0D0E10** — primary background for the app canvas and modal bases  
-- **#121417** — secondary background for panels and cards  
-- **#191C20** — tertiary background for controls and list rows to add depth  
-- **#3E444C** — panel outline for outer frames and strong dividers  
-- **#4A5058** — grid strong for primary lines in displays and separators  
-- **#2D3238** — grid soft for secondary lines and subtle row backing
+- **#0D0D0D** — primary background for the app canvas and modal bases  
+- **#121212** — secondary background for panels and cards  
+- **#191919** — tertiary background for controls and list rows to add depth  
+- **#3E3E3E** — panel outline for outer frames and strong dividers  
+- **#4A4A4A** — grid strong for primary lines in displays and separators  
+- **#2D2D2D** — grid soft for secondary lines and subtle row backing
 
 ### Text
-- **#E7ECF2** — primary text for labels, buttons, and inputs  
-- **#A1AAB5** — muted text for helper copy and secondary metadata  
+- **#E8E8E8** — primary text for labels, buttons, and inputs  
+- **#A6A6A6** — muted text for helper copy and secondary metadata  
 - **#FFFFFF** — high-contrast text on tinted badges/overlays
 
 ### Accents and feedback
@@ -150,16 +150,16 @@ Inspired by a microchip die
   - With 1–2 nested inner borders to mimic multi-layer chip regions
   - Optional 45° bevels on outer corners only if you need visual hierarchy
 - Use a slightly lighter background than the main app:
-  - **#121417 – #191C20**
+  - **#121212 – #191919**
 
 ### 6.2 Waveform View Style
 
 **Background**
-- Dark panel: **#0D0E10 – #191C20**  
+- Dark panel: **#0D0D0D – #191919**  
 - Overlay subtle vertical grid lines (beats/frames):
-  - Primary grid: **#4A5058** (1px)  
-  - Secondary grid: **#2D3238** (thinner or lower opacity)  
-- Optional horizontal zero line: **#3E444C** (1px)
+  - Primary grid: **#4A4A4A** (1px)  
+  - Secondary grid: **#2D2D2D** (thinner or lower opacity)  
+- Optional horizontal zero line: **#3E3E3E** (1px)
 
 **Waveform Curve**
 - Curved line is allowed here, but must feel “instrumental”:
@@ -187,14 +187,14 @@ Inspired by a microchip die
 ### 6.3 Spectrogram / Frequency Displays
 
 **Background**
-- Same base as waveform (**#0D0E10 – #191C20**)  
+- Same base as waveform (**#0D0D0D – #191919**)  
 - Primary grid:
-  - Vertical lines for time (**#2D3238**)  
-  - Horizontal lines for frequency (**#4A5058**)
+  - Vertical lines for time (**#2D2D2D**)  
+  - Horizontal lines for frequency (**#4A4A4A**)
 
 **Color Mapping (Sci-Fi Hard Theme)**
 - Use a **cold, high-tech palette** with minimal hues:
-  - Low energy: **#0D0E10 – #191C20**
+  - Low energy: **#0D0D0D – #191919**
   - Mid energy: **#30343A**
   - High energy: **#66C2FF**
   - Saturated peaks (very sparing): **#5C9DFF** or **#F2B65C**
@@ -236,12 +236,12 @@ Inspired by a microchip die
 ### 6.5 Display Chrome & Labeling
 
 **Borders**
-- Outer border: **#3E444C** (1–2px)  
-- Inner inset border: **#0D0E10** or **#121417** to suggest depth
+- Outer border: **#3E3E3E** (1–2px)  
+- Inner inset border: **#0D0D0D** or **#121212** to suggest depth
 
 **Labels / Axis Text**
 - Typeface: monospaced or technical-looking sans-serif  
-- Color: **#A1AAB5** at 70–80% opacity  
+- Color: **#A6A6A6** at 70–80% opacity  
 - Alignment:
   - Frequency labels: left or right edge  
   - Time labels: bottom edge  
