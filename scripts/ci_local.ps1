@@ -1,11 +1,12 @@
 
 <#
 .SYNOPSIS
-Runs the local equivalent of the GitHub Actions CI checks.
+Runs the PowerShell local CI core lane.
 
 .DESCRIPTION
-Mirrors `.github/workflows/ci.yml` so developers and agents can run the same
-format/lint/test steps locally.
+Runs the core format/lint/doc/test steps available in the PowerShell
+environment. Linux-only GitHub CI advisory checks and shell-specific guardrails
+still live in `.github/workflows/ci.yml`.
 #>
 
 param(
@@ -20,7 +21,7 @@ $ErrorActionPreference = "Stop"
 
 if ($Help) {
   Write-Host "Usage: scripts/ci_local.ps1 [-SkipAgentPreflight]"
-  Write-Host "Run the local equivalent of the CI checks used by this repository."
+  Write-Host "Run the PowerShell local CI core lane used by this repository."
   Write-Host "If -SkipAgentPreflight is set, skip `scripts/run_agent_ci_checks.ps1`."
   exit 0
 }

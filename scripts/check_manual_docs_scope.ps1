@@ -106,10 +106,12 @@ try {
     Write-Host "[manual_scope] Allowlisted paths:"
     Write-Host " - manual/index.md"
     Write-Host " - manual/usage.md"
+    Write-Host " - manual/design_principles.md"
     Write-Host " - manual/_config.yml"
     Write-Host " - manual/_layouts/**"
     Write-Host " - manual/assets/**"
     Write-Host " - manual/README.md"
+    Write-Host " - manual/<redirect-stubs>.md"
     foreach ($v in ($violations | Sort-Object)) {
       Write-Host (" - {0}" -f $v)
     }

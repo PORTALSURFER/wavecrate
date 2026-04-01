@@ -2,10 +2,10 @@
 
 # Broader integrated local development checks.
 #
-# This script runs the broader integrated local lane by using the filtered
-# nextest quick profile while still skipping the slower CI-parity steps. The
-# Windows PowerShell wrapper also includes the semantic GUI contract suite. Use
-# scripts/ci_local.sh for the full gate.
+# This Unix wrapper runs the quick nextest lane only. It intentionally skips
+# the slower CI-parity steps and does not include the Windows-only semantic GUI
+# contract lane that the PowerShell wrapper adds. Use scripts/ci_local.sh for
+# the fuller Unix gate.
 
 set -euo pipefail
 
@@ -20,6 +20,8 @@ usage() {
 Usage: scripts/ci_quick.sh
 
 Run the broader integrated local development test loop.
+This Unix wrapper runs the quick nextest lane only and skips the Windows-only
+semantic GUI contract step that `scripts/ci_quick.ps1` includes.
 For the constrained agent-safe lane, use `scripts/ci_agent.sh`.
 For the compile-only smoke gate, use `scripts/devcheck.sh`.
 For full CI parity, use `scripts/ci_local.sh`.

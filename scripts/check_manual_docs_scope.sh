@@ -124,10 +124,12 @@ while IFS= read -r path; do
       echo "[manual_scope] Allowlisted paths:" >&2
       echo " - manual/index.md" >&2
       echo " - manual/usage.md" >&2
+      echo " - manual/design_principles.md" >&2
       echo " - manual/_config.yml" >&2
       echo " - manual/_layouts/**" >&2
       echo " - manual/assets/**" >&2
       echo " - manual/README.md" >&2
+      echo " - manual/<redirect-stubs>.md" >&2
     fi
     echo " - $path" >&2
     violations=$((violations + 1))

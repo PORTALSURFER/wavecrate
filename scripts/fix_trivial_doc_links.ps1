@@ -29,9 +29,9 @@ $rewrites = @(
   @{ From = "manual/styleguide.md"; To = "docs/styleguide.md" },
   @{ From = "manual/icon_assets.md"; To = "docs/icon_assets.md" },
   @{ From = "manual/hints.md"; To = "docs/hints.md" },
-  @{ From = "manual/plan.md"; To = "docs/plans/plan.md" },
-  @{ From = "manual/todo.md"; To = "docs/plans/todo.md" },
-  @{ From = "manual/transient_plan.md"; To = "docs/plans/transient_plan.md" },
+  @{ From = "manual/plan.md"; To = "docs/plans/active/plan.md" },
+  @{ From = "manual/todo.md"; To = "docs/plans/active/todo.md" },
+  @{ From = "manual/transient_plan.md"; To = "docs/plans/active/transient_plan.md" },
   @{ From = "manual/transient_audit.md"; To = "docs/audits/transient_audit.md" },
   @{ From = "manual/drag_audit.md"; To = "docs/audits/drag_audit.md" }
 )
