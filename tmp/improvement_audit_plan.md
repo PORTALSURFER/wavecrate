@@ -260,6 +260,8 @@ Status: Phase 2 complete on `2026-04-02`; all ranked backlog items are complete 
 - Commits:
   - `8dfced1c` (`test: split browser core suites`)
   - `1b3bfa46` (`test: split app_core native projection suites`)
+  - `7604db16` (`style: format split app_core native tests`)
+  - `481c33a8` (`Split controller test suites into focused modules`)
   - `a218f432` (`vendor/radiant`: `refactor: split vendor runtime and ui test suites`)
   - `1f8bafa9` (`test: clear remaining file-size budget debt`)
 - Validation outcome:

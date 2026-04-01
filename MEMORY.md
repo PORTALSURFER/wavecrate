@@ -26,7 +26,7 @@ Updated By: Codex
 - Item 4 is recorded in superproject commit `6dd61dc9` (`refactor: split app core native dispatch hubs`).
 - Items 5 and 6 cleared the repo-wide full-scan Rust file-size budget by splitting the remaining oversized production/runtime files, extracting large inline tests, and moving oversized test hubs into smaller behavior-grouped modules across both the superproject and `vendor/radiant`.
 - Item 5 is recorded in `vendor/radiant` commit `a218f432` (`refactor: split vendor runtime and ui test suites`) plus superproject commit `1f8bafa9` (`test: clear remaining file-size budget debt`).
-- Item 6 also spans worker-produced superproject commits `8dfced1c` (`test: split browser core suites`) and `1b3bfa46` (`test: split app_core native projection suites`), plus the same `a218f432` and `1f8bafa9` cleanup lane commits.
+- Item 6 also spans worker-produced superproject commits `8dfced1c` (`test: split browser core suites`), `1b3bfa46` (`test: split app_core native projection suites`), `7604db16` (`style: format split app_core native tests`), and `481c33a8` (`Split controller test suites into focused modules`), plus the same `a218f432` and `1f8bafa9` cleanup lane commits.
 - Item 7 refreshed `docs/QUALITY_SCORE.md` to remove brittle exact counts and to describe the current mixed guardrail state truthfully in commit `406db6e3` (`docs: refresh quality score narrative`).
 - Item 8 aligned shell-wrapper/help-text expectations and doc-link/manual-scope helper wording in commit `5765ff37` (`chore: align script wrapper expectations`).
 - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed during audit startup.
