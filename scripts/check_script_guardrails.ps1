@@ -204,6 +204,7 @@ try {
     (Join-Path $scriptsDir "ci_quick.ps1"),
     (Join-Path $scriptsDir "ci_local.ps1"),
     (Join-Path $scriptsDir "audit_cleanup_hotspots.ps1"),
+    (Join-Path $scriptsDir "check_docs_index.ps1"),
     (Join-Path $scriptsDir "refresh_memory_md.ps1")
   )
   foreach ($scriptPath in $scriptsToParse) {
@@ -326,6 +327,71 @@ try {
     Assert-TextNotContains -Label "cleanup audit fixture skips sibling module tests" -Text $testGapSection -Fragment 'src/selection/range.rs'
   } finally {
     Remove-Item -Recurse -Force $cleanupAuditFixtureDir -ErrorAction SilentlyContinue
+  }
+
+  $docsIndexFixtureDir = New-TempDir
+  try {
+    $repoDir = Join-Path $docsIndexFixtureDir "repo"
+    New-Item -ItemType Directory -Path $repoDir | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "docs/plans/active") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "scripts") | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "tmp") | Out-Null
+
+    Copy-Item (Join-Path $scriptsDir "check_docs_index.ps1") (Join-Path $repoDir "scripts/check_docs_index.ps1")
+
+    foreach ($path in @(
+        "docs/INDEX.md",
+        "docs/FEATURE_CHECKLIST.md",
+        "docs/ARCHITECTURE.md",
+        "docs/ENV_VARS.md",
+        "docs/TEST.md",
+        "docs/design_principles.md",
+        "docs/plans/index.md",
+        "docs/plans/TEMPLATE_execution_plan.md",
+        "docs/plans/TEMPLATE_investigation.md",
+        "docs/run_contracts.md",
+        "tmp/improvement_audit_plan.md"
+      )) {
+      New-Item -ItemType File -Path (Join-Path $repoDir $path) -Force | Out-Null
+    }
+
+    Set-Content -Path (Join-Path $repoDir "docs/README.md") -Value @(
+      "# Developer documentation",
+      "",
+      '- `docs/INDEX.md`',
+      '- `docs/FEATURE_CHECKLIST.md`',
+      '- `docs/ARCHITECTURE.md`',
+      '- `docs/ENV_VARS.md`',
+      '- `docs/TEST.md`',
+      '- `docs/design_principles.md`',
+      '- `docs/plans/index.md`',
+      '- `docs/plans/TEMPLATE_execution_plan.md`',
+      '- `docs/plans/TEMPLATE_investigation.md`',
+      '- `docs/run_contracts.md`',
+      '- `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog and execution record for the live codebase; use it as the canonical source for the current audit lane status and execution order'
+    )
+
+    Invoke-ExpectExitCode -Label "docs index fixture accepts canonical audit-plan pointer" -ExpectedCode 0 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_docs_index.ps1")
+
+    Set-Content -Path (Join-Path $repoDir "docs/README.md") -Value @(
+      "# Developer documentation",
+      "",
+      '- `docs/INDEX.md`',
+      '- `docs/FEATURE_CHECKLIST.md`',
+      '- `docs/ARCHITECTURE.md`',
+      '- `docs/ENV_VARS.md`',
+      '- `docs/TEST.md`',
+      '- `docs/design_principles.md`',
+      '- `docs/plans/index.md`',
+      '- `docs/plans/TEMPLATE_execution_plan.md`',
+      '- `docs/plans/TEMPLATE_investigation.md`',
+      '- `docs/run_contracts.md`',
+      '- `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog and execution record for the live codebase (refreshed on 2026-03-31; Phase 2 is active and item 2 is next)'
+    )
+
+    Invoke-ExpectExitCode -Label "docs index fixture rejects duplicated mutable audit status" -ExpectedCode 1 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/check_docs_index.ps1")
+  } finally {
+    Remove-Item -Recurse -Force $docsIndexFixtureDir -ErrorAction SilentlyContinue
   }
 
   $migrationFixtureDir = New-TempDir

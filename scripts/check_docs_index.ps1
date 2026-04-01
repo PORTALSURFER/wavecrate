@@ -9,6 +9,8 @@ Ensures `docs/README.md` remains a reliable system-of-record landing page.
 Checks:
 - Required docs are referenced by path in `docs/README.md`
 - Any `docs/*.md` path referenced in `docs/README.md` exists on disk
+- The improvement-audit plan entry stays phase-neutral and points readers to
+  `tmp/improvement_audit_plan.md` as the canonical audit-lane status source
 #>
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -31,11 +33,15 @@ try {
     "docs/plans/TEMPLATE_investigation.md"
     "docs/run_contracts.md"
 )
+  $requiredPointers = @(
+    "tmp/improvement_audit_plan.md"
+  )
+  $canonicalAuditPhrase = "canonical source for the current audit lane status and execution order"
 
   $text = Get-Content -LiteralPath $docsReadme -Raw
 
   $missingRefs = @()
-  foreach ($path in $required) {
+  foreach ($path in ($required + $requiredPointers)) {
     if (-not ($text -like "*$path*")) {
       $missingRefs += $path
     }
@@ -68,6 +74,25 @@ try {
     foreach ($m in ($missing | Sort-Object)) {
       Write-Host (" - {0}" -f $m)
     }
+    exit 1
+  }
+
+  $auditBullet = [regex]::Match($text, '(?ms)- `tmp/improvement_audit_plan\.md`(?<body>.*?)(?:\r?\n- |\r?\n## |\z)')
+  if (-not $auditBullet.Success) {
+    Write-Error "[docs_index] docs/README.md is missing the improvement-audit plan bullet."
+    exit 1
+  }
+
+  $normalizedAuditBullet = ($auditBullet.Value -replace '\s+', ' ').Trim()
+  if (-not ($normalizedAuditBullet -like "*$canonicalAuditPhrase*")) {
+    Write-Error "[docs_index] docs/README.md must describe tmp/improvement_audit_plan.md as the canonical audit-lane status source."
+    exit 1
+  }
+
+  if ($normalizedAuditBullet -match 'Phase\s+[0-9]+' -or
+      $normalizedAuditBullet -match 'item\s+[0-9]+' -or
+      $normalizedAuditBullet -match 'waiting\s+for\s+explicit\s+confirmation') {
+    Write-Error "[docs_index] docs/README.md should not duplicate mutable phase/item/waiting status for tmp/improvement_audit_plan.md."
     exit 1
   }
 

@@ -4,7 +4,7 @@ Generated: 2026-03-31
 Observed superproject commit: `4c99a8c5`
 Observed `vendor/radiant` commit: `ff9ae90b`
 Observed workspace state at audit start: dirty worktree (`tmp/improvement_audit_plan.md`, dirty `vendor/radiant` submodule)
-Status: Phase 2 active on `2026-03-31`. Item 1 is complete; item 2 is next in sequence.
+Status: Phase 2 active on `2026-03-31`. Items 1 and 2 are complete, and item 3 is next in sequence.
 
 ## Scope
 
@@ -71,7 +71,7 @@ Status: Phase 2 active on `2026-03-31`. Item 1 is complete; item 2 is next in se
   - Validation outcome: `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` all passed; the regenerated `tmp/cleanup_audit_hotspots.md` no longer lists `src/analysis/ann_index_tests.rs` or `src/selection/range.rs` in the heuristic test-gap section.
   - Commit note: the item is committed as one focused Conventional Commit in Git history for this lane.
 
-### 2. [ ] Re-synchronize mutable lane-state docs and add one lightweight consistency guard or single source of truth
+### 2. [x] Re-synchronize mutable lane-state docs and add one lightweight consistency guard or single source of truth
 
 - Classification: Developer-experience improvement
 - Confidence: High
@@ -91,6 +91,12 @@ Status: Phase 2 active on `2026-03-31`. Item 1 is complete; item 2 is next in se
   - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`
   - a new or updated lane-state consistency check if one is added
 - Product clarification required: No
+- Execution record (`2026-03-31`):
+  - Outcome: `docs/README.md` now points back to `tmp/improvement_audit_plan.md` as the canonical audit-lane status source instead of restating mutable phase text, `scripts/check_docs_index.ps1` and `scripts/check_docs_index.sh` enforce that phase-neutral pointer, and `scripts/check_script_guardrails.ps1` plus `scripts/check_script_guardrails.sh` now carry fixture coverage for the canonical-pointer vs stale-phase cases.
+  - Assumption used: the smallest safe way to reduce wake-up drift is to make `docs/README.md` pointer-only for the improvement lane while keeping `tmp/improvement_audit_plan.md` as the canonical mutable status source called out by the other handoff docs.
+  - Prerequisite deviation: a tiny baseline-fix prerequisite was required before sign-off because the old controller-level transient benchmark-source pruning test interacted badly with the default `gui_test` fixture and crashed `cargo test -p sempal --lib -- --test-threads=1`; that coverage now lives beside the pure helper in `src/app/controller/config.rs`, and the prerequisite landed in commit `727bf3e7`.
+  - Validation outcome: `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/check_script_guardrails.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` all passed on the repaired tree.
+  - Commit note: the item-2 docs/guardrail change is committed as one focused Conventional Commit in Git history for this lane.
 
 ### 3. [ ] Split the migration-facing native action dispatch hubs in `app_core` into smaller surface-specific helpers with direct local tests
 

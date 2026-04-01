@@ -124,6 +124,79 @@ EOF
   fi
 }
 
+run_docs_index_fixture() {
+  local fixture_dir
+  fixture_dir="$(mktemp -d)"
+  trap 'rm -rf "$fixture_dir"' RETURN
+
+  local repo_dir="$fixture_dir/repo"
+  local script_path="$repo_dir/scripts/check_docs_index.sh"
+  mkdir -p "$repo_dir/docs/plans/active" "$repo_dir/scripts" "$repo_dir/tmp"
+  cp "scripts/check_docs_index.sh" "$script_path"
+  chmod +x "$script_path"
+
+  for path in \
+    docs/INDEX.md \
+    docs/FEATURE_CHECKLIST.md \
+    docs/ARCHITECTURE.md \
+    docs/ENV_VARS.md \
+    docs/TEST.md \
+    docs/design_principles.md \
+    docs/plans/index.md \
+    docs/plans/TEMPLATE_execution_plan.md \
+    docs/plans/TEMPLATE_investigation.md \
+    docs/run_contracts.md \
+    tmp/improvement_audit_plan.md
+  do
+    mkdir -p "$repo_dir/$(dirname "$path")"
+    : >"$repo_dir/$path"
+  done
+
+  cat >"$repo_dir/docs/README.md" <<'EOF'
+# Developer documentation
+
+- `docs/INDEX.md`
+- `docs/FEATURE_CHECKLIST.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ENV_VARS.md`
+- `docs/TEST.md`
+- `docs/design_principles.md`
+- `docs/plans/index.md`
+- `docs/plans/TEMPLATE_execution_plan.md`
+- `docs/plans/TEMPLATE_investigation.md`
+- `docs/run_contracts.md`
+- `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog and execution record for the live codebase; use it as the canonical source for the current audit lane status and execution order
+EOF
+
+  run_expect_exit_code \
+    "docs-index fixture accepts canonical audit-plan pointer" \
+    0 \
+    "$repo_dir" \
+    "$script_path"
+
+  cat >"$repo_dir/docs/README.md" <<'EOF'
+# Developer documentation
+
+- `docs/INDEX.md`
+- `docs/FEATURE_CHECKLIST.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ENV_VARS.md`
+- `docs/TEST.md`
+- `docs/design_principles.md`
+- `docs/plans/index.md`
+- `docs/plans/TEMPLATE_execution_plan.md`
+- `docs/plans/TEMPLATE_investigation.md`
+- `docs/run_contracts.md`
+- `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog and execution record for the live codebase (refreshed on 2026-03-31; Phase 2 is active and item 2 is next)
+EOF
+
+  run_expect_exit_code \
+    "docs-index fixture rejects duplicated mutable audit status" \
+    1 \
+    "$repo_dir" \
+    "$script_path"
+}
+
 run_file_size_budget_fixture() {
   local fixture_dir
   fixture_dir="$(mktemp -d)"
@@ -624,6 +697,14 @@ run_expect_exit_code \
   scripts/check_file_size_budget.sh
 
 run_expect_exit_code \
+  "bash -n scripts/check_docs_index.sh" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  -n \
+  scripts/check_docs_index.sh
+
+run_expect_exit_code \
   "bash -n scripts/audit_cleanup_hotspots.sh" \
   0 \
   "$ROOT_DIR" \
@@ -705,6 +786,7 @@ run_expect_exit_code \
 
 run_file_size_budget_fixture
 run_cleanup_audit_fixture
+run_docs_index_fixture
 run_taste_invariants_fixture
 run_run_contract_smoke_fixture
 run_quality_score_drift_fixture
