@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::state::{DragSample, UiPoint};
+use crate::app::state::{DragSample, DragSource, UiPoint};
 
 impl AppController {
     /// Begin dragging a sample row from the UI.
@@ -46,6 +46,17 @@ impl AppController {
     ) {
         self.drag_drop()
             .start_selection_drag_payload(bounds, pos, keep_source_focused);
+    }
+
+    /// Begin dragging the current waveform selection and mark the waveform as
+    /// the drag origin for downstream drop handling.
+    pub(crate) fn start_waveform_selection_drag_payload(
+        &mut self,
+        bounds: SelectionRange,
+        pos: UiPoint,
+    ) {
+        self.start_selection_drag_payload(bounds, pos, true);
+        self.ui.drag.origin_source = Some(DragSource::Waveform);
     }
 
     /// Begin dragging a drop target row to reorder the list.

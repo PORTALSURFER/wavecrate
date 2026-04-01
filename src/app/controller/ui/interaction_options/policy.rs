@@ -124,6 +124,17 @@ impl AppController {
         }
     }
 
+    /// Toggle BPM snapping and seed a default BPM when enabling without one.
+    pub(crate) fn toggle_waveform_bpm_snap_with_default(&mut self, fallback: f32) {
+        let enabled = !self.ui.waveform.bpm_snap_enabled;
+        let previous_bpm = self.ui.waveform.bpm_value;
+        self.set_bpm_snap_enabled(enabled);
+        if enabled && previous_bpm.is_none() {
+            self.set_bpm_value(fallback);
+            self.set_waveform_bpm_input(Some(fallback));
+        }
+    }
+
     /// Enable/disable selection-relative BPM grid anchoring and persist the setting.
     pub fn set_relative_bpm_grid_enabled(&mut self, enabled: bool) {
         let settings_match = self.settings.controls.relative_bpm_grid_enabled == enabled;
@@ -190,6 +201,12 @@ impl AppController {
         if !settings_match {
             self.persist_controls();
         }
+    }
+
+    /// Toggle transient marker rendering while keeping snap state in sync.
+    pub(crate) fn toggle_waveform_transient_markers(&mut self) {
+        let enabled = !self.ui.waveform.transient_markers_enabled;
+        self.set_transient_markers_enabled(enabled);
     }
 
     /// Enable/disable normalized audition playback and persist the setting.

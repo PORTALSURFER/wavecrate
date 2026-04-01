@@ -37,18 +37,7 @@ pub(crate) fn handle_browser_command(
             true
         }
         HotkeyCommand::FindSimilarFocusedSample => {
-            if matches!(controller.ui.browser.active_tab, SampleBrowserTab::Map) {
-                controller.ui.browser.active_tab = SampleBrowserTab::List;
-            }
-            if controller.ui.browser.search.similar_query.is_some() {
-                controller.clear_similar_filter();
-            } else if let Some(row) = controller.focused_browser_row() {
-                if let Err(err) = controller.find_similar_for_visible_row(row) {
-                    controller.set_status(format!("Find similar failed: {err}"), StatusTone::Error);
-                }
-            } else {
-                controller.set_status("Focus a sample to find similar", StatusTone::Info);
-            }
+            controller.toggle_find_similar_focused_sample();
             true
         }
         HotkeyCommand::SelectAllBrowser => {

@@ -1,120 +1,21 @@
-//! Browser, source, and folder native action dispatch helpers.
-//!
-//! This keeps the migration controller facade focused on top-level orchestration
-//! while the branch-heavy browser/source action table lives in its own module.
+//! Browser-list routing for native browser actions.
 
-use super::AppController;
+use super::super::AppController;
 use crate::app_core::actions::NativeUiAction;
-use crate::app_core::app_api::state::{DragSource, DragTarget, UiPoint};
+use crate::app_core::app_api::state::{DragSource, DragTarget, FocusContext, UiPoint};
 use crate::app_core::state::{PlaybackAgeFilterChip, StatusTone};
 
-/// Try to dispatch browser-and-sources native actions.
-pub(super) fn apply_browser_native_ui_action(
+/// Try to dispatch browser-list native actions.
+pub(super) fn apply_browser_list_native_ui_action(
     controller: &mut AppController,
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
     match action {
         NativeUiAction::FocusBrowserPanel => controller.focus_browser_list(),
-        NativeUiAction::FocusSourcesPanel => controller.focus_sources_list(),
         NativeUiAction::FocusWaveformPanel => controller.focus_waveform(),
-        NativeUiAction::FocusFolderPanel => controller
-            .focus_context_from_ui(crate::app_core::app_api::state::FocusContext::SourceFolders),
         NativeUiAction::FocusLoadedSampleInBrowser => controller.focus_loaded_sample_in_browser(),
         NativeUiAction::FocusBrowserSearch => controller.focus_browser_search(),
         NativeUiAction::BlurBrowserSearch => controller.blur_browser_search(),
-        NativeUiAction::FocusFolderSearch => controller.focus_folder_search(),
-        NativeUiAction::SetFolderSearch { query } => controller.set_folder_search(query),
-        NativeUiAction::ToggleShowAllFolders => controller.toggle_show_all_folders(),
-        NativeUiAction::ToggleFolderFlattenedView => controller.toggle_folder_flattened_view(),
-        NativeUiAction::FocusSourceRow { index } => {
-            controller.select_source_by_index(index);
-            controller.focus_sources_context();
-        }
-        NativeUiAction::SelectSourceRow { index } => controller.select_source_by_index(index),
-        NativeUiAction::MoveSourceFocus { delta } => {
-            controller.nudge_source_selection(delta as isize)
-        }
-        NativeUiAction::ReloadFocusedSourceRow => {
-            if controller.ui.sources.selected.is_some() {
-                controller.request_quick_sync();
-            }
-        }
-        NativeUiAction::HardSyncFocusedSourceRow => {
-            if controller.ui.sources.selected.is_some() {
-                controller.request_hard_sync();
-            }
-        }
-        NativeUiAction::OpenFocusedSourceFolder => {
-            if let Some(index) = controller.ui.sources.selected {
-                controller.open_source_folder(index);
-            }
-        }
-        NativeUiAction::RemoveFocusedSourceRow => {
-            if let Some(index) = controller.ui.sources.selected {
-                controller.remove_source(index);
-            }
-        }
-        NativeUiAction::FocusFolderRow { index } => controller.replace_folder_selection(index),
-        NativeUiAction::ActivateFolderRow { index } => controller.activate_folder_row(index),
-        NativeUiAction::ToggleFolderRowExpanded { index } => {
-            controller.toggle_folder_expanded(index)
-        }
-        NativeUiAction::ExpandFocusedFolder => controller.expand_focused_folder(),
-        NativeUiAction::CollapseFocusedFolder => controller.collapse_focused_folder(),
-        NativeUiAction::ToggleFocusedFolderSelection => {
-            controller.toggle_focused_folder_selection()
-        }
-        NativeUiAction::MoveFolderFocus { delta } => controller.nudge_folder_focus_action(delta),
-        NativeUiAction::StartNewFolder => controller.start_new_folder(),
-        NativeUiAction::StartNewFolderAtFolderRow { index } => {
-            controller.start_new_folder_at_folder_row(index)
-        }
-        NativeUiAction::StartNewFolderAtRoot => {
-            if controller.current_source().is_none() {
-                controller.add_source_via_dialog();
-            } else {
-                controller.start_new_folder_at_root();
-            }
-        }
-        NativeUiAction::FocusFolderCreateInput => controller.focus_inline_folder_edit_input(),
-        NativeUiAction::StartFolderRename => controller.start_folder_rename(),
-        NativeUiAction::DeleteFocusedFolder => controller.delete_focused_folder(),
-        NativeUiAction::RestoreRetainedFolderDeletes => {
-            controller.start_restore_retained_folder_deletes()
-        }
-        NativeUiAction::PurgeRetainedFolderDeletes => {
-            controller.start_purge_retained_folder_deletes()
-        }
-        NativeUiAction::ClearFolderDeleteRecoveryLog => {
-            controller.clear_folder_delete_recovery_log()
-        }
-        NativeUiAction::ReloadSourceRow { index } => {
-            controller.select_source_by_index(index);
-            controller.request_quick_sync();
-        }
-        NativeUiAction::HardSyncSourceRow { index } => {
-            controller.select_source_by_index(index);
-            controller.request_hard_sync();
-        }
-        NativeUiAction::OpenSourceFolderRow { index } => controller.open_source_folder(index),
-        NativeUiAction::RemoveSourceRow { index } => controller.remove_source(index),
-        NativeUiAction::OpenAddSourceDialog => controller.add_source_via_dialog(),
-        NativeUiAction::OpenOptionsMenu => controller.open_options_panel(),
-        NativeUiAction::CloseOptionsPanel => controller.close_options_panel(),
-        NativeUiAction::PickTrashFolder => controller.pick_trash_folder(),
-        NativeUiAction::OpenTrashFolder => controller.open_trash_folder(),
-        NativeUiAction::SetInputMonitoringEnabled { enabled } => {
-            controller.set_input_monitoring_enabled(enabled)
-        }
-        NativeUiAction::SetAdvanceAfterRatingEnabled { enabled } => {
-            controller.set_advance_after_rating(enabled)
-        }
-        NativeUiAction::SetDestructiveYoloMode { enabled } => {
-            controller.set_destructive_yolo_mode(enabled)
-        }
-        NativeUiAction::SetInvertWaveformScroll { enabled } => {
-            controller.set_invert_waveform_scroll(enabled)
-        }
         NativeUiAction::MoveBrowserFocus { delta } => controller.focus_browser_delta_action(delta),
         NativeUiAction::SetBrowserViewStart { visible_row } => {
             controller.set_browser_view_start_action(visible_row)
@@ -125,16 +26,7 @@ pub(super) fn apply_browser_native_ui_action(
         NativeUiAction::SetCompareAnchorFromFocusedBrowserSample => {
             controller.set_compare_anchor_from_focused_browser_sample()
         }
-        NativeUiAction::CommitFocusedBrowserRow => {
-            if matches!(
-                controller.ui.focus.context,
-                crate::app_core::app_api::state::FocusContext::SampleBrowser
-            ) && controller.commit_focused_browser_row_action()
-            {
-                return Ok(());
-            }
-            controller.toggle_play_pause();
-        }
+        NativeUiAction::CommitFocusedBrowserRow => handle_commit_focused_browser_row(controller),
         NativeUiAction::ToggleBrowserRowSelection { visible_row } => {
             controller.toggle_browser_row_selection(visible_row)
         }
@@ -188,7 +80,9 @@ pub(super) fn apply_browser_native_ui_action(
         NativeUiAction::ToggleBrowserPlaybackAgeFilter { bucket, invert } => {
             controller.focus_browser_list();
             let chip = match bucket {
-                radiant::app::PlaybackAgeFilterChip::NeverPlayed => PlaybackAgeFilterChip::NeverPlayed,
+                radiant::app::PlaybackAgeFilterChip::NeverPlayed => {
+                    PlaybackAgeFilterChip::NeverPlayed
+                }
                 radiant::app::PlaybackAgeFilterChip::OlderThanMonth => {
                     PlaybackAgeFilterChip::OlderThanMonth
                 }
@@ -217,7 +111,7 @@ pub(super) fn apply_browser_native_ui_action(
         NativeUiAction::FocusPreviousBrowserHistory => controller.focus_previous_sample_history(),
         NativeUiAction::FocusNextBrowserHistory => controller.focus_next_sample_history(),
         NativeUiAction::ToggleFindSimilarFocusedSample => {
-            toggle_find_similar_focused_sample(controller)
+            controller.toggle_find_similar_focused_sample()
         }
         NativeUiAction::ToggleBrowserDuplicateCleanupKeep { visible_row } => {
             match controller.toggle_browser_duplicate_cleanup_keep_for_visible_row(visible_row) {
@@ -263,16 +157,23 @@ pub(super) fn apply_browser_native_ui_action(
     Ok(())
 }
 
+fn handle_commit_focused_browser_row(controller: &mut AppController) {
+    if controller.ui.focus.context == FocusContext::SampleBrowser
+        && controller.commit_focused_browser_row_action()
+    {
+        return;
+    }
+    controller.toggle_play_pause();
+}
+
 fn folder_drag_target(
-    controller: &mut AppController,
+    controller: &AppController,
     hovered_folder_row: Option<usize>,
     over_folder_panel: bool,
 ) -> DragTarget {
-    if let Some(folder_row) = hovered_folder_row
-        && let Some(row) = controller.ui.sources.folders.rows.get(folder_row)
-    {
+    if let Some(folder) = hovered_folder_row.and_then(|row| folder_row_path(controller, row)) {
         return DragTarget::FolderPanel {
-            folder: Some(row.path.clone()),
+            folder: Some(folder),
         };
     }
     if over_folder_panel {
@@ -282,36 +183,14 @@ fn folder_drag_target(
     }
 }
 
-fn toggle_find_similar_focused_sample(controller: &mut AppController) {
-    if controller.clear_browser_duplicate_cleanup() {
-        controller.set_status("Duplicate cleanup off", StatusTone::Info);
-    }
-    if matches!(
-        controller.ui.browser.active_tab,
-        crate::app_core::state::SampleBrowserTab::Map
-    ) {
-        controller.ui.browser.active_tab = crate::app_core::state::SampleBrowserTab::List;
-    }
-    let Some(row) = controller.focused_browser_row() else {
-        controller.set_status("Focus a sample to find similar", StatusTone::Info);
-        return;
-    };
-    let focused_sample_id = controller.sample_id_for_visible_row(row).ok();
-    let query_matches_focus = controller
+fn folder_row_path(controller: &AppController, folder_row: usize) -> Option<std::path::PathBuf> {
+    controller
         .ui
-        .browser
-        .search
-        .similar_query
-        .as_ref()
-        .zip(focused_sample_id.as_deref())
-        .is_some_and(|(query, focused_sample_id)| query.sample_id == focused_sample_id);
-    if query_matches_focus {
-        controller.clear_similar_filter();
-        return;
-    }
-    if let Err(err) = controller.find_similar_for_visible_row(row) {
-        controller.set_status(format!("Find similar failed: {err}"), StatusTone::Error);
-    }
+        .sources
+        .folders
+        .rows
+        .get(folder_row)
+        .map(|row| row.path.clone())
 }
 
 /// Convert native action pointer coordinates into controller UI points.

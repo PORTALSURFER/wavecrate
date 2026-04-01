@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::controller::jobs::LoadedSimilarityQueryResult;
+use crate::app::state::SampleBrowserTab;
 use std::path::Path;
 
 impl AppController {
@@ -204,6 +205,39 @@ impl AppController {
     /// Clear any active similar-sounds filter.
     pub fn clear_similar_filter(&mut self) {
         similar::clear_similar_filter(self);
+    }
+
+    /// Toggle similarity filtering for the focused browser sample.
+    ///
+    /// This normalizes browser tab state first so both native dispatchers and
+    /// hotkeys rely on the same focused-sample similarity contract.
+    pub(crate) fn toggle_find_similar_focused_sample(&mut self) {
+        if self.clear_browser_duplicate_cleanup() {
+            self.set_status("Duplicate cleanup off", StatusTone::Info);
+        }
+        if matches!(self.ui.browser.active_tab, SampleBrowserTab::Map) {
+            self.set_browser_tab(false);
+        }
+        let Some(row) = self.focused_browser_row() else {
+            self.set_status("Focus a sample to find similar", StatusTone::Info);
+            return;
+        };
+        let focused_sample_id = self.sample_id_for_visible_row(row).ok();
+        let query_matches_focus = self
+            .ui
+            .browser
+            .search
+            .similar_query
+            .as_ref()
+            .zip(focused_sample_id.as_deref())
+            .is_some_and(|(query, focused_sample_id)| query.sample_id == focused_sample_id);
+        if query_matches_focus {
+            self.clear_similar_filter();
+            return;
+        }
+        if let Err(err) = self.find_similar_for_visible_row(row) {
+            self.set_status(format!("Find similar failed: {err}"), StatusTone::Error);
+        }
     }
 
     /// Build a library sample_id for the visible browser row.
