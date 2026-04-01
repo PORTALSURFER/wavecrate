@@ -4,7 +4,7 @@ This document is a lightweight scorecard for key domains/layers in Sempal. The
 goal is to make quality gaps explicit so agents and humans can prioritize the
 next improvements without rediscovering context.
 
-Last reviewed: 2026-03-31
+Last reviewed: 2026-04-02
 
 Scope note: this review describes the live observed workspace on 2026-03-31,
 which is currently dirty. It is not a claim that the last clean baseline has
@@ -25,9 +25,9 @@ the same guardrail posture.
 | --- | ---: | --- |
 | Developer entrypoints (docs/scripts) | 4 | `docs/README.md`, `scripts/ci_local.*`, `scripts/doctor.*`, `scripts/run_sandbox.*` exist and are wired into CI/local flows. |
 | Documentation hygiene | 4 | Knowledge lint exists; still some doc drift risk outside the checked scope. |
-| Agent-facing guardrails | 3 | The guardrail stack is present and enforced, but the now-truthful full-scan file-size budget is currently red on the live tree because non-allowlisted oversized Rust files remain. |
+| Agent-facing guardrails | 3 | The guardrail stack is present and enforced, and the full-scan file-size budget is green again after the active split pass, but the live dirty workspace still trips diff-aware taste guardrails outside this backlog. |
 | Legacy boundary enforcement | 4 | `crate::app` coupling and `app_core` boundaries are enforced diff-aware in CI; the current browser playback-age drift was repaired back onto the intended `app_core` boundary. |
-| Code size discipline | 2 | The repository has an explicit 400-line policy and allowlist, but the refreshed full-scan audit currently shows `25` non-allowlisted over-budget Rust files that still need behavior-preserving splits. |
+| Code size discipline | 3 | The repository has an explicit 400-line policy and allowlist, and the live full-scan file-size budget is currently green. Ongoing hotspot review still matters because several intentional exceptions and large test clusters remain easy to regress. |
 | Testing posture | 3 | Focused unit coverage improved in transport/browser actions, but some critical flows remain integration-heavy. |
 | Observability & diagnostics | 3 | Structured logging via `tracing` exists; log bundling helpers added; could improve targeted debug tooling. |
 | Performance guardrails | 3 | `scripts/run_perf_guard.sh` is part of local CI; warning drift (for example `wheel_latency`) still needs ongoing burn-down. |
@@ -35,8 +35,8 @@ the same guardrail posture.
 
 ## Known gaps (actionable)
 
-- Burn down the current non-allowlisted full-scan file-size backlog; the now-truthful live tree currently has `25` non-allowlisted over-budget Rust files in `tmp/cleanup_audit_hotspots.md`.
-- Continue burning down the suppression debt now surfaced in the refreshed hotspot snapshot; the observed tree currently has `#[allow(dead_code)]` in 2 files and `clippy::too_many_arguments` in 3 files.
+- Keep the full-scan file-size budget green and use `tmp/cleanup_audit_hotspots.md` as the live hotspot snapshot when new large-file debt appears.
+- Continue burning down the suppression debt surfaced in the refreshed hotspot snapshot instead of restating brittle exact counts here.
 - Add a scheduled doc review cadence: review this file monthly and update scores based on current reality.
 - Add one performance regression harness for a representative large dataset/view and run it in CI (even if it is a coarse threshold test).
 - The guardrail drift checks now live in `scripts/check_quality_score_drift.sh` and `scripts/check_quality_score_drift.ps1`, and are wired into local CI and GitHub CI.
