@@ -62,7 +62,7 @@ Status: Phase 2 active on `2026-04-01`; item 1 is complete, item 2 is next, and 
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Date completed: `2026-04-01`
-- Commit: pending until the first Phase 2 item-1 commit is created
+- Commit: `b9e312ad` (`fix: reject runtime-internal waveform shift actions`)
 - Validation outcome:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed

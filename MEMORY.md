@@ -16,6 +16,7 @@ Updated By: Codex
 - `tmp/improvement_audit_plan.md` is the current source of truth for the refreshed 2026-04-01 ROI-ranked backlog and execution record.
 - Phase 2 is active. Item 1 is complete, and item 2 is next.
 - Item 1 resolved the public waveform-shift contract mismatch by marking `begin_waveform_selection_shift` and `begin_waveform_edit_selection_shift` as runtime-internal catalog entries and by rejecting them from the public GUI runner instead of dispatching them into the unhandled `app_core` path.
+- Item 1 is recorded in commit `b9e312ad` (`fix: reject runtime-internal waveform shift actions`).
 - `docs/gui_test_platform.md` now documents that the action catalog is exhaustive but not every cataloged action is publicly dispatchable.
 - The remaining backlog starts with the GUI action-trace false-green risk, then keyboard-path deduplication in `vendor/radiant`, the remaining production file-size debt, oversized test hubs, `QUALITY_SCORE` drift, and shell-specific tooling drift.
 - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1` passed during audit startup.
