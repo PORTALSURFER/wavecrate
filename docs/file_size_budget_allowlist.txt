@@ -19,6 +19,11 @@ src/app_core/actions/catalog/kinds.rs
 # emerges than the current gesture/playback coupling.
 src/app/controller/playback/transport/selection.rs
 
+# Selection range geometry, fade parameters, and gain evaluation intentionally
+# stay together as one waveform-editing domain model. Revisit only if a
+# genuinely separate subdomain emerges beyond the current cohesion note.
+src/selection/range.rs
+
 # Vendored Radiant still contains a small set of oversized legacy modules and
 # contract-heavy test files. Keep them explicit so the repaired budget script
 # can enforce everything else in `vendor/radiant/src`.

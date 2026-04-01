@@ -3,7 +3,10 @@ use crate::sample_sources::SampleSource;
 
 #[test]
 fn browser_sample_mark_toggle_marks_and_unmarks_focused_row() {
-    let (mut controller, source) = browser_mark_fixture();
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+    ]);
 
     controller.focus_browser_row_only(1);
     controller.toggle_browser_sample_mark();
