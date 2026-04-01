@@ -104,6 +104,10 @@ impl NativeAppBridge for GuiFixtureBridge {
         self.bridge.reduce_action(action);
     }
 
+    fn take_last_action_handled(&mut self) -> Option<bool> {
+        self.bridge.take_last_action_handled()
+    }
+
     fn install_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
         self.bridge.install_repaint_signal(signal);
     }

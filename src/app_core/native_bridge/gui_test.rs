@@ -39,8 +39,14 @@ impl BridgeGuiTestRecorder {
     }
 
     /// Record one reduced action and the resulting projected model snapshot.
-    pub(super) fn record_action(&mut self, action: &NativeUiAction, model: &NativeAppModel) {
-        self.action_trace.push(trace_event_for_action(action));
+    pub(super) fn record_action(
+        &mut self,
+        action: &NativeUiAction,
+        handled: bool,
+        model: &NativeAppModel,
+    ) {
+        self.action_trace
+            .push(trace_event_for_action(action, handled));
         self.write_bundle(model, None);
     }
 

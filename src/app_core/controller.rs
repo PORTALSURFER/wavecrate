@@ -95,7 +95,10 @@ pub trait AppControllerNativeRuntimeExt {
     fn persist_native_exit_config(&self) -> Result<(), String>;
 
     /// Apply a native runtime UI action to the controller.
-    fn apply_native_ui_action(&mut self, action: NativeUiAction);
+    ///
+    /// Returns `true` when one dispatcher group accepted the action and `false`
+    /// when every dispatcher rejected it as unhandled.
+    fn apply_native_ui_action(&mut self, action: NativeUiAction) -> bool;
 }
 
 impl AppControllerNativeRuntimeExt for AppController {
@@ -150,43 +153,48 @@ impl AppControllerNativeRuntimeExt for AppController {
             .map_err(|err| format!("Failed to persist config on native runtime exit: {err}"))
     }
 
-    fn apply_native_ui_action(&mut self, action: NativeUiAction) {
+    fn apply_native_ui_action(&mut self, action: NativeUiAction) -> bool {
         self.begin_waveform_refresh_batch();
         let action = match apply_transport_native_ui_action(self, action) {
             Ok(()) => {
                 self.end_waveform_refresh_batch();
-                return;
+                return true;
             }
             Err(action) => action,
         };
         let action = match apply_browser_native_ui_action(self, action) {
             Ok(()) => {
                 self.end_waveform_refresh_batch();
-                return;
+                return true;
             }
             Err(action) => action,
         };
         let action = match apply_map_native_ui_action(self, action) {
             Ok(()) => {
                 self.end_waveform_refresh_batch();
-                return;
+                return true;
             }
             Err(action) => action,
         };
         let action = match apply_waveform_native_ui_action(self, action) {
             Ok(()) => {
                 self.end_waveform_refresh_batch();
-                return;
+                return true;
             }
             Err(action) => action,
         };
-        if let Err(unhandled) = apply_prompt_and_update_native_ui_action(self, action) {
-            debug_assert!(
-                false,
-                "native ui action was not handled by any dispatcher group: {unhandled:?}"
-            );
-        }
+        let handled = match apply_prompt_and_update_native_ui_action(self, action) {
+            Ok(()) => true,
+            Err(unhandled) => {
+                error!(
+                    ?unhandled,
+                    "native ui action was not handled by any dispatcher group"
+                );
+                false
+            }
+        };
         self.end_waveform_refresh_batch();
+        handled
     }
 }
 

@@ -102,7 +102,7 @@ Artifact contents live in:
 Each bundle currently includes:
 
 - automation snapshot
-- action trace
+- action trace with handled/unhandled dispatch status
 - projected model summary
 - action catalog coverage report
 - run id / run manifest path when available

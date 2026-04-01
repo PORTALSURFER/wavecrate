@@ -1,7 +1,9 @@
 function Test-ActionRecorded {
     param([string]$ArtifactPath, [string]$ActionId)
     $artifact = Read-JsonFile -Path $ArtifactPath
-    return $artifact.action_trace | Where-Object { $_.action_id -eq $ActionId } | Select-Object -First 1
+    return $artifact.action_trace |
+        Where-Object { $_.action_id -eq $ActionId -and $_.handled -eq $true } |
+        Select-Object -First 1
 }
 
 function Invoke-AssertionCheck {

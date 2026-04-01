@@ -4,7 +4,7 @@ Generated: 2026-04-01
 Observed superproject commit: `b79a2869`
 Observed `vendor/radiant` commit: `d4dac5da`
 Observed workspace state at audit start: dirty worktree (`MEMORY.md`)
-Status: Phase 2 active on `2026-04-01`; item 1 is complete, item 2 is next, and execution is proceeding in backlog order.
+Status: Phase 2 active on `2026-04-01`; items 1 and 2 are complete, item 3 is next, and execution is proceeding in backlog order.
 
 ## Scope
 
@@ -74,7 +74,7 @@ Status: Phase 2 active on `2026-04-01`; item 1 is complete, item 2 is next, and 
   - Updated the in-process GUI runner to reject runtime-internal actions explicitly instead of dispatching them into the unhandled path.
   - Updated `docs/gui_test_platform.md` so the catalog contract distinguishes exhaustive coverage from public-dispatch support.
 
-### 2. [ ] Make GUI action-trace assertions distinguish handled behavior from mere dispatch attempts
+### 2. [x] Make GUI action-trace assertions distinguish handled behavior from mere dispatch attempts
 
 - Classification: Test gap
 - Confidence: High
@@ -96,6 +96,19 @@ Status: Phase 2 active on `2026-04-01`; item 1 is complete, item 2 is next, and 
   - targeted `src/gui_test/runner/tests.rs`
   - one focused live-artifact assertion path through `src/app_core/native_bridge/tests`
 - Product clarification required: No
+- Date completed: `2026-04-01`
+- Commit: pending until the Phase 2 item-2 commit is created
+- Validation outcome:
+  - `cargo test app_core::native_bridge::tests::bridge_runtime::gui_test -- --test-threads=1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Assumptions used:
+  - A queued waveform action still counts as handled for trace/assertion purposes because the bridge accepted it and applies it before projection.
+  - `ActionRecorded` should represent handled behavior; a mere dispatch attempt should not satisfy semantic coverage assertions.
+- Execution notes:
+  - Added handled-state reporting to `NativeAppBridge`, `SempalNativeBridge`, and `GuiFixtureBridge`.
+  - Extended GUI trace events and AIV artifact checks to persist and require handled status.
+  - Replaced the debug panic on unhandled native actions with explicit error logging so live artifacts can record `handled: false`.
 
 ### 3. [ ] Collapse the duplicated keyboard-routing paths in `vendor/radiant` so tests and production execute the same logic
 

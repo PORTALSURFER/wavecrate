@@ -20,6 +20,7 @@ fn apply_browser_focus_delta_immediate_noop_keeps_projection_cache_key() {
         pending_model_pull_preparation: PendingModelPullPreparation::Full,
         consecutive_local_model_pulls: 0,
         gui_test_recorder: None,
+        last_action_handled: None,
         runtime_exit_emitted: false,
     };
     bridge.apply_browser_focus_delta_immediately(1);

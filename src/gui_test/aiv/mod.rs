@@ -163,7 +163,7 @@ pub enum GuiAivAssertion {
         /// Expected text fragment inside the metadata value.
         needle: String,
     },
-    /// Assert that the live action trace contains one stable action id.
+    /// Assert that the live action trace contains one handled stable action id.
     AssertActionRecorded {
         /// Stable action identifier from the GUI action catalog.
         action_id: String,

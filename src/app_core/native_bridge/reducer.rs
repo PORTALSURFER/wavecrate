@@ -61,24 +61,25 @@ impl SempalNativeBridge {
     }
 
     /// Apply one action immediately using the standard dirty + queue-flush flow.
-    fn apply_action_immediately(&mut self, action: NativeUiAction) {
+    fn apply_action_immediately(&mut self, action: NativeUiAction) -> bool {
         let use_local_pull_fast_path = uses_local_model_pull_fast_path(&action);
         let before_key = use_local_pull_fast_path.then(|| self.projection_key_snapshot());
         if !use_local_pull_fast_path {
             self.mark_dirty_for_action(&action);
         }
         self.flush_pending_input_actions();
-        self.controller.apply_native_ui_action(action);
+        let handled = self.controller.apply_native_ui_action(action);
         self.invalidate_projection_key_snapshot();
         if !use_local_pull_fast_path {
             self.schedule_full_model_pull_preparation();
-            return;
+            return handled;
         }
         let after_key = self.projection_key_snapshot();
         if before_key != Some(after_key) {
             self.projection_cache.invalidate_key_only();
             self.schedule_local_model_pull_fast_path();
         }
+        handled
     }
 
     /// Mark derived graph sources affected by one action.
@@ -179,7 +180,10 @@ impl SempalNativeBridge {
     }
 
     /// Reduce immediate waveform-preview actions that bypass per-frame coalescing.
-    pub(super) fn reduce_immediate_waveform_preview_action(&mut self, action: NativeUiAction) {
+    pub(super) fn reduce_immediate_waveform_preview_action(
+        &mut self,
+        action: NativeUiAction,
+    ) -> bool {
         let call = trace_action_call();
         let profiling = bridge_profiling_enabled();
         let action_start = profiling.then(Instant::now);
@@ -187,13 +191,14 @@ impl SempalNativeBridge {
             debug!(call, action = ?action, "native bridge: apply waveform preview action");
         }
         self.schedule_full_model_pull_preparation();
-        self.apply_action_immediately(action);
+        let handled = self.apply_action_immediately(action);
         if profiling {
             let action_duration =
                 action_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
             trace_action_duration(action_duration);
             trace_action_interaction(InteractionActionClass::Waveform, action_duration);
         }
+        handled
     }
 
     /// Reduce coalescable waveform actions and return whether they were queued.
@@ -218,7 +223,7 @@ impl SempalNativeBridge {
     }
 
     /// Reduce non-coalesced actions through immediate controller application.
-    pub(super) fn reduce_default_action(&mut self, action: NativeUiAction) {
+    pub(super) fn reduce_default_action(&mut self, action: NativeUiAction) -> bool {
         let call = trace_action_call();
         let profiling = bridge_profiling_enabled();
         let interaction_class = classify_action_interaction(&action);
@@ -226,7 +231,7 @@ impl SempalNativeBridge {
         if call <= 64 {
             debug!(call, action = ?action, "native bridge: reduce_action");
         }
-        self.apply_action_immediately(action);
+        let handled = self.apply_action_immediately(action);
         if profiling {
             let action_duration =
                 action_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
@@ -235,5 +240,6 @@ impl SempalNativeBridge {
                 trace_action_interaction(kind, action_duration);
             }
         }
+        handled
     }
 }

@@ -178,6 +178,7 @@ fn flush_derived_updates_clears_nodes_and_invalidates_key() {
         pending_model_pull_preparation: PendingModelPullPreparation::Full,
         consecutive_local_model_pulls: 0,
         gui_test_recorder: None,
+        last_action_handled: None,
         runtime_exit_emitted: false,
     };
     let _ = bridge.projection_key_snapshot();

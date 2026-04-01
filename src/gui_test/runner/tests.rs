@@ -1,8 +1,8 @@
 use super::assertions::assert_scenario_state;
 use super::*;
 use crate::app_core::actions::{
-    GUI_ACTION_CATALOG, NativeAutomationNodeId, NativeAutomationNodeSnapshot,
-    NativeAutomationRole, NativeGuiAutomationSnapshot, action_catalog_entry_by_id,
+    GUI_ACTION_CATALOG, NativeAutomationNodeId, NativeAutomationNodeSnapshot, NativeAutomationRole,
+    NativeGuiAutomationSnapshot, action_catalog_entry_by_id,
 };
 use crate::gui_test::{GuiActionTraceEvent, GuiAssertion, GuiScenario, GuiScenarioStep};
 use radiant::app::AutomationBounds;
@@ -59,10 +59,11 @@ fn snapshot_with_child() -> NativeGuiAutomationSnapshot {
     }
 }
 
-fn trace_with_action(action_id: &str) -> Vec<GuiActionTraceEvent> {
+fn trace_with_action(action_id: &str, handled: bool) -> Vec<GuiActionTraceEvent> {
     vec![GuiActionTraceEvent {
         action_id: String::from(action_id),
         action: serde_json::json!({"kind": action_id}),
+        handled,
         observed_utc_secs: 1,
     }]
 }
@@ -166,7 +167,7 @@ fn scenario_runner_rejects_runtime_internal_actions() {
 fn assert_scenario_state_accepts_each_assertion_variant() {
     let snapshot = snapshot_with_child();
     let catalog_action = GUI_ACTION_CATALOG[0].action_id;
-    let trace = trace_with_action("browser.search.commit");
+    let trace = trace_with_action("browser.search.commit", true);
     let assertions = vec![
         GuiAssertion::NodePresent {
             node_id: String::from("browser.search"),
@@ -214,7 +215,7 @@ fn assert_scenario_state_accepts_each_assertion_variant() {
 #[test]
 fn assert_scenario_state_reports_missing_node_for_node_based_assertions() {
     let snapshot = snapshot_with_child();
-    let trace = trace_with_action("browser.search.commit");
+    let trace = trace_with_action("browser.search.commit", true);
     let assertions = vec![
         GuiAssertion::NodePresent {
             node_id: String::from("missing.node"),
@@ -254,7 +255,7 @@ fn assert_scenario_state_reports_missing_node_for_node_based_assertions() {
 #[test]
 fn assert_scenario_state_reports_trace_and_catalog_failures() {
     let snapshot = snapshot_with_child();
-    let trace = trace_with_action("browser.search.commit");
+    let trace = trace_with_action("browser.search.commit", true);
 
     let recorded_err = assert_scenario_state(
         &snapshot,
@@ -264,7 +265,7 @@ fn assert_scenario_state_reports_trace_and_catalog_failures() {
         },
     )
     .unwrap_err();
-    assert!(recorded_err.contains("action trace does not contain missing.action"));
+    assert!(recorded_err.contains("handled action missing.action"));
 
     let catalog_err = assert_scenario_state(
         &snapshot,
@@ -275,4 +276,20 @@ fn assert_scenario_state_reports_trace_and_catalog_failures() {
     )
     .unwrap_err();
     assert!(catalog_err.contains("missing catalog action missing.action"));
+}
+
+#[test]
+fn action_recorded_assertion_rejects_unhandled_trace_events() {
+    let snapshot = snapshot_with_child();
+    let trace = trace_with_action("browser.search.commit", false);
+
+    let err = assert_scenario_state(
+        &snapshot,
+        &trace,
+        &GuiAssertion::ActionRecorded {
+            action_id: String::from("browser.search.commit"),
+        },
+    )
+    .unwrap_err();
+    assert!(err.contains("handled action browser.search.commit"));
 }

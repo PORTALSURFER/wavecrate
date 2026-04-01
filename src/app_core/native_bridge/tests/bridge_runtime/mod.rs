@@ -3,6 +3,7 @@ use crate::app::state::BrowserDuplicateCleanupState;
 use crate::app_core::state::{InlineFolderEdit, InlineFolderEditKind};
 
 mod dirty_graph;
+mod gui_test;
 mod projection;
 mod pull_prep;
 mod waveform_queue;

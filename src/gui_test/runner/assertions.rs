@@ -88,8 +88,8 @@ pub(super) fn assert_scenario_state(
             .ok_or_else(|| format!("missing catalog action {action_id}")),
         GuiAssertion::ActionRecorded { action_id } => trace
             .iter()
-            .any(|event| event.action_id == *action_id)
+            .any(|event| event.action_id == *action_id && event.handled)
             .then_some(())
-            .ok_or_else(|| format!("action trace does not contain {action_id}")),
+            .ok_or_else(|| format!("action trace does not contain handled action {action_id}")),
     }
 }

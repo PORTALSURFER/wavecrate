@@ -50,6 +50,7 @@ fn flush_pending_waveform_actions_clears_queue_and_marks_waveform_dirty() {
         pending_model_pull_preparation: PendingModelPullPreparation::Full,
         consecutive_local_model_pulls: 0,
         gui_test_recorder: None,
+        last_action_handled: None,
         runtime_exit_emitted: false,
     };
 

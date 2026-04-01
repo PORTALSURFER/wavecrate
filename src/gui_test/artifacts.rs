@@ -23,6 +23,8 @@ pub struct GuiActionTraceEvent {
     pub action_id: String,
     /// Concrete serialized action payload.
     pub action: serde_json::Value,
+    /// Whether the bridge accepted and handled the action.
+    pub handled: bool,
     /// Unix-seconds timestamp for the event.
     pub observed_utc_secs: u64,
 }
@@ -164,11 +166,15 @@ pub(crate) fn catalog_report() -> Vec<GuiActionCatalogEntry> {
     GUI_ACTION_CATALOG.to_vec()
 }
 
-pub(crate) fn trace_event_for_action(action: &NativeUiAction) -> GuiActionTraceEvent {
+pub(crate) fn trace_event_for_action(
+    action: &NativeUiAction,
+    handled: bool,
+) -> GuiActionTraceEvent {
     GuiActionTraceEvent {
         action_id: String::from(action_catalog_entry(action).action_id),
         action: serde_json::to_value(action)
             .unwrap_or_else(|_| serde_json::json!({"error": "serialize"})),
+        handled,
         observed_utc_secs: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()

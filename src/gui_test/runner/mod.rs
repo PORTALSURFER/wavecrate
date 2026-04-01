@@ -9,9 +9,7 @@ use super::{
     GuiScenario, GuiScenarioStep, GuiStepTimingSample, GuiTestArtifactBundle, GuiTestModeConfig,
 };
 use crate::{
-    app_core::actions::{
-        GuiDispatchPolicy, NativeAppBridge, NativeUiAction, action_catalog_entry,
-    },
+    app_core::actions::{GuiDispatchPolicy, NativeAppBridge, NativeUiAction, action_catalog_entry},
     gui_test::{GuiFixtureBridge, trace_event_for_action},
 };
 use std::{
@@ -45,7 +43,8 @@ pub fn dispatch_action_bundle(
     let mut bridge = make_bridge_for_fixture(&config.fixture_tag, config.viewport)?;
     let started = Instant::now();
     bridge.reduce_action(action.clone());
-    let trace = vec![trace_event_for_action(&action)];
+    let handled = bridge.take_last_action_handled().unwrap_or(true);
+    let trace = vec![trace_event_for_action(&action, handled)];
     let timings = vec![GuiStepTimingSample {
         label: String::from("dispatch_action"),
         duration_ms: elapsed_ms(started),
@@ -68,7 +67,8 @@ pub fn run_scenario(
             GuiScenarioStep::DispatchAction { action } => {
                 ensure_public_dispatch_action(action)?;
                 bridge.reduce_action(action.clone());
-                trace.push(trace_event_for_action(action));
+                let handled = bridge.take_last_action_handled().unwrap_or(true);
+                trace.push(trace_event_for_action(action, handled));
             }
             GuiScenarioStep::Assert { assertion } => {
                 let deadline = Instant::now() + SCENARIO_ASSERT_TIMEOUT;

@@ -85,6 +85,8 @@ pub struct SempalNativeBridge {
     consecutive_local_model_pulls: u8,
     /// Optional live GUI test artifact recorder.
     gui_test_recorder: Option<gui_test::BridgeGuiTestRecorder>,
+    /// Handling state for the most recently reduced action.
+    last_action_handled: Option<bool>,
     /// Whether runtime shutdown hooks have already been flushed.
     runtime_exit_emitted: bool,
 }
@@ -102,6 +104,7 @@ impl SempalNativeBridge {
             pending_model_pull_preparation: PendingModelPullPreparation::Full,
             consecutive_local_model_pulls: 0,
             gui_test_recorder: None,
+            last_action_handled: None,
             runtime_exit_emitted: false,
         }
     }
@@ -171,20 +174,28 @@ impl NativeAppBridge for SempalNativeBridge {
 
     /// Reduce one runtime UI action into controller state.
     fn reduce_action(&mut self, action: NativeUiAction) {
-        if let NativeUiAction::MoveBrowserFocus { delta } = action.clone() {
+        let handled = if let NativeUiAction::MoveBrowserFocus { delta } = action.clone() {
             self.reduce_browser_focus_action(delta);
+            true
         } else if action_classification::is_immediate_waveform_preview_action(&action)
             && immediate_waveform_preview_enabled()
         {
-            self.reduce_immediate_waveform_preview_action(action.clone());
+            self.reduce_immediate_waveform_preview_action(action.clone())
         } else if !self.reduce_queued_waveform_action(&action) {
-            self.reduce_default_action(action.clone());
-        }
+            self.reduce_default_action(action.clone())
+        } else {
+            true
+        };
+        self.last_action_handled = Some(handled);
         let should_record_gui_test = self.gui_test_recorder.is_some();
         let model = should_record_gui_test.then(|| self.pull_model_arc_snapshot());
         if let (Some(recorder), Some(model)) = (self.gui_test_recorder.as_mut(), model) {
-            recorder.record_action(&action, model.as_ref());
+            recorder.record_action(&action, handled, model.as_ref());
         }
+    }
+
+    fn take_last_action_handled(&mut self) -> Option<bool> {
+        self.last_action_handled.take()
     }
 
     /// Observe one frame-build result for optional profiling telemetry.
