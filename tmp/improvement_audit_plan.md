@@ -115,7 +115,7 @@ Status: Phase 1 complete on `2026-04-02`; awaiting explicit user confirmation be
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` ✅
 - Deviation from original plan order: none
 
-### 3. [ ] Split folder chrome hit-testing into row/editor/scrollbar/header seams
+### 3. [x] Split folder chrome hit-testing into row/editor/scrollbar/header seams
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -140,6 +140,13 @@ Status: Phase 1 complete on `2026-04-02`; awaiting explicit user confirmation be
   - targeted runtime pointer/viewport tests touching folder hit-testing
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: `2026-04-02`
+- Commit hash: `vendor/radiant` `75b6d980` (`refactor(hit-testing): split folder chrome helpers`); superproject pointer commit pending local commit for this item and recorded after that commit lands.
+- Assumption used: the surrounding `chrome.rs` module split is the intended organizational pattern for folder hit-testing too, so preserving the existing `NativeShellState` method names while moving their implementations into `rows`, `editor`, `scrollbar`, and `header` submodules is a behavior-preserving cleanup.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` ✅ for this item’s target file; the full scan now fails only on the two remaining ranked test files (`browser_core/marks.rs` and `waveform_nav_render.rs`).
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` ✅
+- Deviation from original plan order: none
 
 ### 4. [ ] Split `waveform_nav_render.rs` by render-meta versus async load behavior
 
