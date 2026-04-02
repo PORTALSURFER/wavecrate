@@ -71,8 +71,9 @@ Status: Phase 2 in progress. Item 1 is implemented and validated locally; remain
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 - Plan-order deviation: none
+- Pushed commit: `8b8dd2d1` (`fix(browser): stabilize playback-age filter invalidation`)
 
-### 2. [ ] Add direct visible-row pipeline coverage for query, similarity, marked-only, and playback-age branches
+### 2. [x] Add direct visible-row pipeline coverage for query, similarity, marked-only, and playback-age branches
 
 - Classification: Test gap
 - Confidence: High
@@ -93,6 +94,16 @@ Status: Phase 2 in progress. Item 1 is implemented and validated locally; remain
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed on: `2026-04-02`
+- Commit: pending until this item's focused commit is created
+- Assumptions used:
+  - exact-match filename queries such as `snare` are stable enough in the current fuzzy-matcher contract to anchor one direct query-path test
+  - the existing folder-stage acceptance test remains sufficient for folder-map construction while this item closes the remaining direct `build_visible_rows(...)` branch gaps
+- Validation outcome:
+  - `cargo test browser_pipeline -- --test-threads=1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Plan-order deviation: none
 
 ### 3. [ ] Expand automation action-id parity checks from representative nodes to panel-wide contract coverage
 

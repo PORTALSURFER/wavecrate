@@ -3,10 +3,12 @@ use super::folder_stage::ensure_folder_acceptance_stage;
 use super::*;
 use crate::app::controller::test_support::prepare_with_source_and_wav_entries;
 use crate::app::state::{
-    FolderFileScopeMode, PlaybackAgeFilterChip, SampleBrowserSort, VisibleRows,
+    BrowserDuplicateCleanupState, FolderFileScopeMode, PlaybackAgeFilterChip, SampleBrowserSort,
+    SimilarQuery, TriageFlagFilter, VisibleRows,
 };
 use crate::sample_sources::Rating;
 use std::collections::BTreeSet;
+use std::path::Path;
 use std::path::PathBuf;
 
 #[test]
@@ -220,6 +222,105 @@ fn older_than_month_filter_ignores_the_week_rollover_cache_boundary() {
     }
     assert_eq!(fingerprint_before_week, fingerprint_after_week);
     assert_ne!(fingerprint_before_week, fingerprint_after_month);
+}
+
+#[test]
+fn duplicate_cleanup_projection_filters_missing_indices_and_remaps_focus() {
+    let entries = vec![
+        search_entry("keep.wav", Rating::KEEP_1, None),
+        search_entry("neutral.wav", Rating::NEUTRAL, None),
+        search_entry("trash.wav", Rating::TRASH_1, None),
+    ];
+    let (mut controller, source) = prepare_with_source_and_wav_entries(entries);
+    controller.ui.browser.duplicate_cleanup = Some(BrowserDuplicateCleanupState::new(
+        source.id,
+        String::from("sample-1"),
+        PathBuf::from("trash.wav"),
+        String::from("trash.wav"),
+        vec![2, 99, 0],
+        vec![1.0, 0.8, 0.6],
+        2,
+    ));
+
+    let (visible, focused, loaded) = build_visible_rows(&mut controller, Some(0), Some(2));
+
+    match visible {
+        VisibleRows::List(rows) => assert_eq!(&*rows, &[2usize, 0usize]),
+        VisibleRows::All { total } => panic!("expected duplicate-cleanup rows, got all {total}"),
+    }
+    assert_eq!(focused, Some(1));
+    assert_eq!(loaded, Some(0));
+}
+
+#[test]
+fn marked_only_filter_keeps_only_session_marked_rows() {
+    let entries = vec![
+        search_entry("one.wav", Rating::NEUTRAL, None),
+        search_entry("two.wav", Rating::NEUTRAL, None),
+        search_entry("three.wav", Rating::NEUTRAL, None),
+    ];
+    let (mut controller, source) = prepare_with_source_and_wav_entries(entries);
+    controller.focus_browser_row_only(1);
+    controller.toggle_browser_sample_mark();
+    assert!(controller.browser_sample_marked(&source.id, Path::new("two.wav")));
+    controller.ui.browser.search.marked_only = true;
+
+    let (visible, focused, loaded) = build_visible_rows(&mut controller, Some(1), None);
+
+    match visible {
+        VisibleRows::List(rows) => assert_eq!(&*rows, &[1usize]),
+        VisibleRows::All { total } => panic!("expected marked-only rows, got all {total}"),
+    }
+    assert_eq!(focused, Some(0));
+    assert_eq!(loaded, None);
+}
+
+#[test]
+fn text_query_branch_uses_search_scores_to_filter_visible_rows() {
+    let entries = vec![
+        search_entry("kick.wav", Rating::NEUTRAL, None),
+        search_entry("snare.wav", Rating::NEUTRAL, None),
+        search_entry("hat.wav", Rating::NEUTRAL, None),
+    ];
+    let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
+    controller.ui.browser.search.search_query = String::from("snare");
+
+    let (visible, focused, loaded) = build_visible_rows(&mut controller, Some(1), Some(0));
+
+    match visible {
+        VisibleRows::List(rows) => assert_eq!(&*rows, &[1usize]),
+        VisibleRows::All { total } => panic!("expected query-filtered rows, got all {total}"),
+    }
+    assert_eq!(focused, Some(0));
+    assert_eq!(loaded, None);
+}
+
+#[test]
+fn similar_query_branch_applies_similarity_order_after_filters() {
+    let entries = vec![
+        search_entry("keep_a.wav", Rating::KEEP_1, None),
+        search_entry("neutral.wav", Rating::NEUTRAL, None),
+        search_entry("keep_b.wav", Rating::KEEP_3, None),
+    ];
+    let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
+    controller.ui.browser.search.filter = TriageFlagFilter::Keep;
+    controller.ui.browser.search.sort = SampleBrowserSort::Similarity;
+    controller.ui.browser.search.similar_query = Some(SimilarQuery {
+        sample_id: String::from("sample-keep"),
+        label: String::from("keep"),
+        indices: vec![0, 1, 2],
+        scores: vec![0.4, 1.0, 0.9],
+        anchor_index: None,
+    });
+
+    let (visible, focused, loaded) = build_visible_rows(&mut controller, Some(2), Some(0));
+
+    match visible {
+        VisibleRows::List(rows) => assert_eq!(&*rows, &[2usize, 0usize]),
+        VisibleRows::All { total } => panic!("expected similarity-sorted rows, got all {total}"),
+    }
+    assert_eq!(focused, Some(0));
+    assert_eq!(loaded, Some(1));
 }
 
 fn search_entry(
