@@ -61,7 +61,7 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: sequential execution of the evidence-driven improvement audit backlog for the current live tree
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-04-02 ROI-ranked backlog and execution record for this tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
-- Current status: Phase 2 is in progress. Item 1 (restore the `app_core` migration boundary for folder-pane state types) landed in commit `222eda75`, the migration-boundary preflight is green again, and the remaining live blockers are four non-allowlisted file-size regressions plus stale long-form migration/quality status docs.
+- Current status: Phase 2 is in progress. Item 1 (restore the `app_core` migration boundary for folder-pane state types) landed in commit `222eda75`; item 2 (split drop-target transfer orchestration) landed in commit `ffb70a38`; the migration-boundary preflight is green again; and the remaining live blockers are three non-allowlisted file-size regressions plus stale long-form migration/quality status docs.
 
 ## Immediate Next Actions
 1. Treat `tmp/improvement_audit_plan.md` as the current Phase 2 source of truth and implement the remaining ranked items strictly in order unless one is blocked.
@@ -73,7 +73,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; Phase 2 is now in progress and item 1 completed in commit `222eda75`
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; Phase 2 is now in progress, item 1 completed in `222eda75`, and item 2 completed in `ffb70a38`
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation
