@@ -1,9 +1,10 @@
 //! Browser-list routing for native browser actions.
 
 use super::super::AppController;
-use crate::app::state::FolderPaneId;
 use crate::app_core::actions::NativeUiAction;
-use crate::app_core::app_api::state::{DragSource, DragTarget, FocusContext, UiPoint};
+use crate::app_core::app_api::state::{
+    DragSource, DragTarget, FocusContext, FolderBrowserUiState, FolderPaneId, UiPoint,
+};
 use crate::app_core::state::{PlaybackAgeFilterChip, StatusTone};
 use radiant::app::FolderPaneIdModel;
 
@@ -224,7 +225,7 @@ fn folder_pane_id_from_native(pane: FolderPaneIdModel) -> FolderPaneId {
 fn folder_browser_for_pane(
     controller: &AppController,
     pane: FolderPaneIdModel,
-) -> &crate::app::state::FolderBrowserUiState {
+) -> &FolderBrowserUiState {
     let pane = folder_pane_id_from_native(pane);
     if controller.active_folder_pane() == pane {
         &controller.ui.sources.folders
