@@ -61,7 +61,7 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: sequential execution of the evidence-driven improvement audit backlog for the current live tree
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-04-02 ROI-ranked backlog and execution record for this tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
-- Current status: Phase 2 is in progress. Item 1 (restore the `app_core` migration boundary for folder-pane state types) landed in commit `222eda75`; item 2 (split drop-target transfer orchestration) landed in commit `ffb70a38`; item 3 (split `vendor/radiant` folder chrome hit-testing) landed in vendor commit `75b6d980` and superproject commit `ad3a487a`; item 4 (split `waveform_nav_render.rs`) landed in commit `41cee5b5`; the migration-boundary preflight is green again; and the remaining live blockers are one non-allowlisted file-size regression plus the ranked automation-parity and long-form-doc items.
+- Current status: Phase 2 is in progress. Item 1 (restore the `app_core` migration boundary for folder-pane state types) landed in commit `222eda75`; item 2 (split drop-target transfer orchestration) landed in commit `ffb70a38`; item 3 (split `vendor/radiant` folder chrome hit-testing) landed in vendor commit `75b6d980` and superproject commit `ad3a487a`; item 4 (split `waveform_nav_render.rs`) landed in commit `41cee5b5`; item 5 (split `browser_core/marks.rs`) landed in commit `48a52f50`; the migration-boundary preflight and file-size budget are green again; and the remaining ranked work is the automation-parity test gap plus the stale long-form status docs.
 
 ## Immediate Next Actions
 1. Treat `tmp/improvement_audit_plan.md` as the current Phase 2 source of truth and implement the remaining ranked items strictly in order unless one is blocked.
@@ -73,7 +73,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; Phase 2 is now in progress, items 1-4 completed in `222eda75`, `ffb70a38`, `ad3a487a`, and `41cee5b5` (with `vendor/radiant` commit `75b6d980`)
+- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; Phase 2 is now in progress, items 1-5 completed in `222eda75`, `ffb70a38`, `ad3a487a`, `41cee5b5`, and `48a52f50` (with `vendor/radiant` commit `75b6d980`)
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation

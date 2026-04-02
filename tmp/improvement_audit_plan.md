@@ -4,7 +4,7 @@ Generated: 2026-04-02
 Observed superproject commit: `2205ff4e`
 Observed `vendor/radiant` commit: `f6f722ab`
 Observed workspace state at audit start: dirty worktree (modified `src/**`, dirty `vendor/radiant`, regenerated `tmp/cleanup_audit_hotspots.md`)
-Status: Phase 2 in progress on `2026-04-02`; items 1-4 are complete and items 5-7 remain pending.
+Status: Phase 2 in progress on `2026-04-02`; items 1-5 are complete and items 6-7 remain pending.
 
 ## Scope
 
@@ -179,7 +179,7 @@ Status: Phase 2 in progress on `2026-04-02`; items 1-4 are complete and items 5-
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` ✅
 - Deviation from original plan order: none
 
-### 5. [ ] Split the oversized browser-mark test hub by behavior family
+### 5. [x] Split the oversized browser-mark test hub by behavior family
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -204,6 +204,13 @@ Status: Phase 2 in progress on `2026-04-02`; items 1-4 are complete and items 5-
   - targeted browser-core mark coverage
   - `cargo test -p sempal browser_core:: -- --test-threads=1`
 - Product clarification required: No
+- Completed: `2026-04-02`
+- Commit hash: `48a52f50` (`refactor(tests): split browser mark coverage`)
+- Assumption used: the existing `browser_core::marks` module should stay as the stable top-level home for mark behavior, with its current tests split into focused child modules for basic marking, preview flow, random follow-up flow, and persistence/filter interactions.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` ✅
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` ✅
+- Deviation from original plan order: none
 
 ### 6. [ ] Strengthen automation action-id parity checks where the native shell still hardcodes stable action strings
 

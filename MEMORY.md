@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-02T21:06:00Z
+Last Updated: 2026-04-02T21:19:00Z
 Updated By: Codex
 
 ## Purpose
@@ -14,12 +14,11 @@ Updated By: Codex
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
 - I have refreshed the evidence-driven improvement audit for the current live tree and written the new Phase 1 plan to `tmp/improvement_audit_plan.md`.
 - `tmp/improvement_audit_plan.md` is now the source of truth for the 2026-04-02 ROI-ranked backlog and execution record for the current tree.
-- Phase 2 is in progress. Item 1 (`restore the app_core migration boundary for folder-pane state types`) is complete in commit `222eda75` (`fix(app-core): restore folder-pane migration boundary`), item 2 (`split drop-target transfer orchestration`) is complete in commit `ffb70a38` (`refactor(drag-drop): split drop-target transfer planning`), item 3 (`split vendor/radiant folder chrome hit-testing`) is complete in vendor commit `75b6d980` plus superproject commit `ad3a487a` (`refactor(radiant): split folder chrome hit testing`), and item 4 (`split waveform_nav_render.rs`) is complete in commit `41cee5b5` (`refactor(tests): split waveform nav render coverage`); all are already pushed to `origin/next`.
+- Phase 2 is in progress. Item 1 (`restore the app_core migration boundary for folder-pane state types`) is complete in commit `222eda75` (`fix(app-core): restore folder-pane migration boundary`), item 2 (`split drop-target transfer orchestration`) is complete in commit `ffb70a38` (`refactor(drag-drop): split drop-target transfer planning`), item 3 (`split vendor/radiant folder chrome hit-testing`) is complete in vendor commit `75b6d980` plus superproject commit `ad3a487a` (`refactor(radiant): split folder chrome hit testing`), item 4 (`split waveform_nav_render.rs`) is complete in commit `41cee5b5` (`refactor(tests): split waveform nav render coverage`), and item 5 (`split browser_core/marks.rs`) is complete in commit `48a52f50` (`refactor(tests): split browser mark coverage`); all are already pushed to `origin/next`.
 - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` now passes after the item 1 alias repair.
 - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` also passes after item 1.
-- `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` currently fails on one non-allowlisted file:
-  - `src/app/controller/tests/browser_core/marks.rs`
-- `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` currently downgrades the quality score to `3` because the file-size budget is red.
+- `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` now passes.
+- `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` still fails, but now because the recorded `docs/QUALITY_SCORE.md` value (`3`) is too low for the healthy guardrail state instead of because the file-size budget is red.
 - `powershell -ExecutionPolicy Bypass -File scripts/audit_cleanup_hotspots.ps1` refreshed `tmp/cleanup_audit_hotspots.md` on `2026-04-02`; the live full scan shows `12` over-budget files total, with `8` documented allowlist exceptions and the `4` current non-allowlisted regressions above.
 - `docs/QUALITY_SCORE.md` currently overstates the live guardrail state by saying the full-scan file-size budget is green.
 - `docs/gui_migration_parity.md` currently names older playback-age migration blockers instead of the live folder-pane `app_core` violations.
@@ -29,8 +28,7 @@ Updated By: Codex
   - `powershell -ExecutionPolicy Bypass -File scripts/check_app_core_dependency_boundary.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/check_rust_public_docs.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/check_rust_no_todos.ps1`
-- The remaining backlog ranks three pending items:
-  - split `browser_core/marks.rs`
+- The remaining backlog ranks two pending items:
   - strengthen automation action-id parity tests
   - refresh stale long-form migration/quality status docs
 - The new audit also records three open questions:
@@ -44,7 +42,7 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Treat `tmp/improvement_audit_plan.md` as the current Phase 2 source of truth and continue with item 5 unless a new blocker appears.
+1. Treat `tmp/improvement_audit_plan.md` as the current Phase 2 source of truth and continue with item 6 unless a new blocker appears.
 2. Keep `AGENTS.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` aligned with the live Phase 2 state.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 5. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
