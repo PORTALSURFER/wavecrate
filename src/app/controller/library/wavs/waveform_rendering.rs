@@ -24,6 +24,7 @@ pub(crate) const DEFAULT_TRANSIENT_SENSITIVITY: f32 = 0.6;
 pub(crate) struct InitialWaveformRenderSpec {
     pub size: [u32; 2],
     pub channel_view: WaveformChannelView,
+    pub transient_markers_enabled: bool,
 }
 
 /// Fully prepared waveform visual payload ready for cheap controller-thread apply.
@@ -46,8 +47,9 @@ pub(crate) fn prepare_initial_waveform_visual(
     renderer: &WaveformRenderer,
     decoded: &DecodedWaveform,
     spec: InitialWaveformRenderSpec,
+    transients: &[f32],
 ) -> PreparedWaveformVisual {
-    initial::prepare_initial_waveform_visual(renderer, decoded, spec)
+    initial::prepare_initial_waveform_visual(renderer, decoded, spec, transients)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -61,6 +63,8 @@ pub(crate) struct WaveformRenderMeta {
     pub channels: u16,
     /// Optional edit-fade preview range used to invalidate cached renders.
     pub edit_fade: Option<crate::selection::SelectionRange>,
+    /// Cache token for the transient visual state used by this render, when enabled.
+    pub transient_visual_token: Option<u64>,
 }
 
 impl WaveformRenderMeta {
@@ -80,6 +84,7 @@ impl WaveformRenderMeta {
             && self_start_bucket == other_start_bucket
             && self_end_bucket == other_end_bucket
             && edit_fade_matches(self.edit_fade, other.edit_fade, fade_eps)
+            && self.transient_visual_token == other.transient_visual_token
     }
 }
 

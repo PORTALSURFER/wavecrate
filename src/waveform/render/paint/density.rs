@@ -14,6 +14,7 @@ impl WaveformRenderer {
         foreground: WaveformRgba,
         background: WaveformRgba,
         frames_per_column: f32,
+        transient_glow: Option<super::super::TransientGlow<'_>>,
     ) -> WaveformImage {
         let fill =
             WaveformRgba::from_rgba_unmultiplied(background.r(), background.g(), background.b(), 0);
@@ -82,6 +83,7 @@ impl WaveformRenderer {
             &bottom_outline,
             outline_color,
         );
+        Self::apply_transient_glow_style(&mut image, foreground, transient_glow);
         image
     }
 
@@ -97,6 +99,7 @@ impl WaveformRenderer {
         foreground: WaveformRgba,
         background: WaveformRgba,
         frames_per_column: f32,
+        transient_glow: Option<super::super::TransientGlow<'_>>,
     ) -> WaveformImage {
         let gap = if height >= 3 { 2 } else { 0 };
         let split_height = height.saturating_sub(gap);
@@ -110,6 +113,7 @@ impl WaveformRenderer {
             foreground,
             background,
             frames_per_column,
+            transient_glow,
         );
         let bottom = Self::paint_color_image_for_size_with_density(
             right,
@@ -118,6 +122,7 @@ impl WaveformRenderer {
             foreground,
             background,
             frames_per_column,
+            transient_glow,
         );
 
         let fill =

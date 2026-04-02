@@ -196,8 +196,13 @@ impl AppController {
             return;
         }
         self.settings.controls.transient_markers_enabled = enabled;
+        let waveform_changed = self.ui.waveform.transient_markers_enabled != enabled;
         self.ui.waveform.transient_markers_enabled = enabled;
         self.ui.waveform.transient_snap_enabled = expected_transient_snap_enabled;
+        if waveform_changed && self.sample_view.waveform.decoded.is_some() {
+            self.sample_view.waveform.render_meta = None;
+            self.refresh_waveform_image();
+        }
         if !settings_match {
             self.persist_controls();
         }

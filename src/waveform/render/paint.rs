@@ -2,7 +2,7 @@ mod density;
 mod lines;
 
 use super::WaveformImage;
-use super::WaveformRenderer;
+use super::{TransientGlow, WaveformRenderer};
 use crate::waveform::WaveformRgba;
 
 pub(super) use self::lines::{LinePaintConfig, SplitLinePaintConfig};
@@ -159,6 +159,75 @@ impl WaveformRenderer {
                 }
                 let run_end = y.saturating_sub(1);
                 Self::style_waveform_column_run(image, width, x, run_start, run_end, palette);
+            }
+        }
+    }
+
+    /// Brighten existing waveform pixels near detected transient positions.
+    ///
+    /// This styling pass never paints into transparent background pixels. Instead it
+    /// computes a short horizontal falloff around each transient inside the current
+    /// viewport and brightens only the already rendered waveform body/outline.
+    pub(super) fn apply_transient_glow_style(
+        image: &mut WaveformImage,
+        foreground: WaveformRgba,
+        glow: Option<TransientGlow<'_>>,
+    ) {
+        let Some(glow) = glow else {
+            return;
+        };
+        let width = image.size[0];
+        if width == 0 || image.size[1] == 0 || glow.positions.is_empty() {
+            return;
+        }
+        let span = (glow.view_end - glow.view_start).max(1e-6);
+        let radius = ((width as f32) * 0.0015).clamp(2.0, 6.0);
+        let mut weights = vec![0.0_f32; width];
+        for &position in glow.positions {
+            let ratio = (position - glow.view_start) / span;
+            if !ratio.is_finite() || !(-0.05..=1.05).contains(&ratio) {
+                continue;
+            }
+            let center = ratio.clamp(0.0, 1.0) * (width.saturating_sub(1)) as f32;
+            let start = (center - radius).floor().max(0.0) as usize;
+            let end = (center + radius)
+                .ceil()
+                .min((width.saturating_sub(1)) as f32) as usize;
+            for (x, weight) in weights.iter_mut().enumerate().take(end + 1).skip(start) {
+                let distance = (x as f32 - center).abs();
+                let falloff = (1.0 - distance / radius).clamp(0.0, 1.0);
+                *weight = (*weight).max(falloff * falloff);
+            }
+        }
+        if weights.iter().all(|weight| *weight <= 0.0) {
+            return;
+        }
+        let highlight = Self::mix_rgb(foreground, WaveformRgba::from_rgb(255, 248, 229), 0.45);
+        for (x, weight) in weights.iter().copied().enumerate() {
+            if weight <= 0.0 {
+                continue;
+            }
+            for y in 0..image.size[1] {
+                let idx = y * width + x;
+                let pixel = image.pixels[idx];
+                let alpha = pixel.a() as f32 / 255.0;
+                if alpha <= 0.0 {
+                    continue;
+                }
+                let current = [
+                    pixel.r() as f32 / 255.0,
+                    pixel.g() as f32 / 255.0,
+                    pixel.b() as f32 / 255.0,
+                ];
+                let mix = (0.16 + 0.42 * alpha) * weight;
+                let rgb = Self::mix_rgb_triplet(current, highlight, mix);
+                let boosted_alpha = (alpha + (1.0 - alpha) * (0.10 * weight)).clamp(0.0, 1.0);
+                image.pixels[idx] = WaveformRgba::from_rgba_unmultiplied(
+                    Self::to_u8(rgb[0]),
+                    Self::to_u8(rgb[1]),
+                    Self::to_u8(rgb[2]),
+                    Self::to_u8(boosted_alpha),
+                );
             }
         }
     }

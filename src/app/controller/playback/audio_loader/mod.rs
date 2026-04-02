@@ -324,7 +324,12 @@ fn build_visual_result(
         image,
         projected_image,
         render_meta,
-    } = prepare_initial_waveform_visual(renderer, pending.decoded.as_ref(), pending.render_spec);
+    } = prepare_initial_waveform_visual(
+        renderer,
+        pending.decoded.as_ref(),
+        pending.render_spec,
+        transients.as_ref(),
+    );
     if stale_and_record(
         pending.request_id,
         latest_request_id,

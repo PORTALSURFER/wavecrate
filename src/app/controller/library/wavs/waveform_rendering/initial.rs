@@ -19,6 +19,7 @@ pub(crate) fn prepare_initial_waveform_visual(
     renderer: &WaveformRenderer,
     decoded: &DecodedWaveform,
     spec: InitialWaveformRenderSpec,
+    transients: &[f32],
 ) -> PreparedWaveformVisual {
     let [width, height] = spec.size;
     let total_frames = decoded.frame_count();
@@ -52,8 +53,11 @@ pub(crate) fn prepare_initial_waveform_visual(
         channel_view: spec.channel_view,
         channels: decoded.channels,
         edit_fade: None,
+        transient_visual_token: spec
+            .transient_markers_enabled
+            .then_some(decoded.cache_token),
     };
-    let image = renderer.render_color_image_for_view_with_size_and_fade(
+    let image = renderer.render_color_image_for_view_with_size_and_fade_and_transients(
         decoded,
         spec.channel_view,
         WaveformRenderViewport {
@@ -62,6 +66,7 @@ pub(crate) fn prepare_initial_waveform_visual(
             view_end: 1.0,
             edit_fade: None,
         },
+        spec.transient_markers_enabled.then_some(transients),
     );
     let projected_image = waveform_image_to_native_rgba(&image);
     PreparedWaveformVisual {

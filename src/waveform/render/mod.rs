@@ -12,6 +12,32 @@ pub use viewport::WaveformRenderViewport;
 /// Maximum frames-per-column where high-zoom line rendering is preferred.
 pub(super) const LINE_RENDER_MAX_FRAMES_PER_COLUMN: f32 = 1.5;
 
+/// View-local transient highlight inputs for one waveform render pass.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct TransientGlow<'a> {
+    /// Normalized transient positions for the loaded waveform.
+    pub positions: &'a [f32],
+    /// Normalized start of the visible waveform window.
+    pub view_start: f32,
+    /// Normalized end of the visible waveform window.
+    pub view_end: f32,
+}
+
+impl<'a> TransientGlow<'a> {
+    /// Build a transient-glow config when there are positions to highlight.
+    pub(super) fn new(
+        positions: Option<&'a [f32]>,
+        view_start: f32,
+        view_end: f32,
+    ) -> Option<Self> {
+        positions.map(|positions| Self {
+            positions,
+            view_start,
+            view_end,
+        })
+    }
+}
+
 impl WaveformRenderer {
     /// Render a waveform image at an explicit size for a view window.
     ///
@@ -24,6 +50,17 @@ impl WaveformRenderer {
         view: WaveformChannelView,
         viewport: WaveformRenderViewport,
     ) -> WaveformImage {
+        self.render_color_image_with_size_and_transients(samples, channels, view, viewport, None)
+    }
+
+    fn render_color_image_with_size_and_transients(
+        &self,
+        samples: &[f32],
+        channels: usize,
+        view: WaveformChannelView,
+        viewport: WaveformRenderViewport,
+        transients: Option<&[f32]>,
+    ) -> WaveformImage {
         let WaveformRenderViewport {
             size: [width, height],
             view_start,
@@ -34,6 +71,7 @@ impl WaveformRenderer {
         let height = height.max(1);
         let frame_count = samples.len() / channels.max(1);
         let frames_per_column = (frame_count as f32 / width as f32).max(1.0);
+        let transient_glow = TransientGlow::new(transients, view_start, view_end);
         if frames_per_column <= LINE_RENDER_MAX_FRAMES_PER_COLUMN {
             return self.render_line_or_faded_line_image(
                 samples,
@@ -45,6 +83,7 @@ impl WaveformRenderer {
                     view_end,
                     edit_fade,
                 },
+                transient_glow,
             );
         }
         self.render_column_image(
@@ -58,6 +97,7 @@ impl WaveformRenderer {
                 edit_fade,
             },
             frames_per_column,
+            transient_glow,
         )
     }
 
@@ -67,6 +107,7 @@ impl WaveformRenderer {
         channels: usize,
         view: WaveformChannelView,
         viewport: WaveformRenderViewport,
+        transient_glow: Option<TransientGlow<'_>>,
     ) -> WaveformImage {
         let WaveformRenderViewport {
             size: [width, height],
@@ -97,6 +138,7 @@ impl WaveformRenderer {
                     foreground: self.foreground,
                     background: self.background,
                     channel_index: None,
+                    transient_glow,
                 },
             ),
             WaveformChannelView::SplitStereo => Self::paint_split_line_image(
@@ -107,6 +149,7 @@ impl WaveformRenderer {
                     height,
                     foreground: self.foreground,
                     background: self.background,
+                    transient_glow,
                 },
             ),
         }
@@ -119,6 +162,7 @@ impl WaveformRenderer {
         view: WaveformChannelView,
         viewport: WaveformRenderViewport,
         frames_per_column: f32,
+        transient_glow: Option<TransientGlow<'_>>,
     ) -> WaveformImage {
         let WaveformRenderViewport {
             size: [width, height],
@@ -139,6 +183,7 @@ impl WaveformRenderer {
                     self.foreground,
                     self.background,
                     frames_per_column,
+                    transient_glow,
                 )
             }
             WaveformColumnView::SplitStereo { left, right } => {
@@ -154,6 +199,7 @@ impl WaveformRenderer {
                     self.foreground,
                     self.background,
                     frames_per_column,
+                    transient_glow,
                 )
             }
         }

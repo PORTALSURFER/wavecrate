@@ -52,51 +52,69 @@ impl AppController {
         let decoded = Arc::clone(decoded);
         self.ui.waveform.transients = result.transients.clone();
         self.ui.waveform.transient_cache_token = Some(result.cache_token);
-        self.store_prepared_waveform_image(
-            result.image,
-            result.projected_image,
-            result.render_meta,
-        );
-        self.ui.waveform.loading = None;
-        if !result.stretched {
-            let key = CacheKey::new(&result.source_id, &result.relative_path);
-            self.audio.cache.insert(
-                key,
-                result.metadata,
-                Arc::clone(&decoded),
-                loaded_bytes,
-                result.transients.clone(),
+        let expected_transient_visual_token = self
+            .ui
+            .waveform
+            .transient_cache_token
+            .filter(|_| self.ui.waveform.transient_markers_enabled);
+        let render_matches_current_state = result
+            .render_meta
+            .as_ref()
+            .is_some_and(|meta| meta.transient_visual_token == expected_transient_visual_token);
+        if render_matches_current_state {
+            self.store_prepared_waveform_image(
+                result.image,
+                result.projected_image,
+                result.render_meta,
             );
-            let source_id = result.source_id.clone();
-            let relative_path = result.relative_path.clone();
-            let metadata = result.metadata;
-            let decoded = Arc::clone(&decoded);
-            let transients = result.transients.clone();
-            thread::spawn(move || {
-                persist_waveform_cache_entry(
-                    &source_id,
-                    &relative_path,
-                    metadata,
-                    &decoded,
-                    &transients,
-                );
-            });
+        } else if self.sample_view.waveform.decoded.is_some() {
+            self.sample_view.waveform.render_meta = None;
+            self.refresh_waveform_image();
         }
+        self.ui.waveform.loading = None;
+        self.cache_loaded_waveform_transients(
+            &result.source_id,
+            &result.relative_path,
+            result.metadata,
+            &decoded,
+            loaded_bytes,
+            result.transients,
+            result.stretched,
+        );
     }
 
     pub(crate) fn handle_audio_transients_loaded(&mut self, result: AudioTransientResult) {
-        self.handle_audio_visual_loaded(AudioVisualResult {
-            request_id: result.request_id,
-            source_id: result.source_id,
-            relative_path: result.relative_path,
-            metadata: result.metadata,
-            cache_token: result.cache_token,
-            transients: result.transients,
-            image: None,
-            projected_image: None,
-            render_meta: None,
-            stretched: result.stretched,
-        });
+        let Some(loaded_audio) = self.sample_view.wav.loaded_audio.as_ref() else {
+            return;
+        };
+        if loaded_audio.source_id != result.source_id
+            || loaded_audio.relative_path != result.relative_path
+        {
+            return;
+        }
+        let loaded_bytes = Arc::clone(&loaded_audio.bytes);
+        let Some(decoded) = self.sample_view.waveform.decoded.as_ref() else {
+            return;
+        };
+        if decoded.cache_token != result.cache_token {
+            return;
+        }
+        let decoded = Arc::clone(decoded);
+        self.ui.waveform.transients = result.transients.clone();
+        self.ui.waveform.transient_cache_token = Some(result.cache_token);
+        if self.ui.waveform.transient_markers_enabled {
+            self.sample_view.waveform.render_meta = None;
+            self.refresh_waveform_image();
+        }
+        self.cache_loaded_waveform_transients(
+            &result.source_id,
+            &result.relative_path,
+            result.metadata,
+            &decoded,
+            loaded_bytes,
+            result.transients,
+            result.stretched,
+        );
     }
 
     pub(crate) fn handle_audio_load_error(&mut self, pending: PendingAudio, error: AudioLoadError) {
@@ -150,5 +168,40 @@ impl AppController {
             self.refresh_similarity_sort_for_loaded_sample();
         }
         Ok(())
+    }
+
+    fn cache_loaded_waveform_transients(
+        &mut self,
+        source_id: &SourceId,
+        relative_path: &Path,
+        metadata: crate::app::controller::playback::audio_cache::FileMetadata,
+        decoded: &Arc<DecodedWaveform>,
+        loaded_bytes: Arc<[u8]>,
+        transients: Arc<[f32]>,
+        stretched: bool,
+    ) {
+        if stretched {
+            return;
+        }
+        let key = CacheKey::new(source_id, relative_path);
+        self.audio.cache.insert(
+            key,
+            metadata,
+            Arc::clone(decoded),
+            loaded_bytes,
+            transients.clone(),
+        );
+        let source_id = source_id.clone();
+        let relative_path = relative_path.to_path_buf();
+        let decoded = Arc::clone(decoded);
+        thread::spawn(move || {
+            persist_waveform_cache_entry(
+                &source_id,
+                &relative_path,
+                metadata,
+                &decoded,
+                &transients,
+            );
+        });
     }
 }

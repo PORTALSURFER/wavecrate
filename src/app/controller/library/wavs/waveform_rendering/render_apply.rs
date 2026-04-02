@@ -129,6 +129,11 @@ impl AppController {
                 .waveform
                 .edit_selection
                 .filter(|selection| selection.has_edit_effects()),
+            transient_visual_token: self
+                .ui
+                .waveform
+                .transient_cache_token
+                .filter(|_| self.ui.waveform.transient_markers_enabled),
         };
         if self
             .sample_view
@@ -154,7 +159,7 @@ impl AppController {
         let color_image = self
             .sample_view
             .renderer
-            .render_color_image_for_view_with_size_and_fade(
+            .render_color_image_for_view_with_size_and_fade_and_transients(
                 decoded,
                 self.ui.waveform.channel_view,
                 crate::waveform::WaveformRenderViewport {
@@ -163,6 +168,9 @@ impl AppController {
                     view_end: view.end as f32,
                     edit_fade: desired_meta.edit_fade,
                 },
+                desired_meta
+                    .transient_visual_token
+                    .map(|_| self.ui.waveform.transients.as_ref()),
             );
         // Keep waveform image metadata in the renderer to preserve precision.
         self.store_waveform_image(color_image, desired_meta);

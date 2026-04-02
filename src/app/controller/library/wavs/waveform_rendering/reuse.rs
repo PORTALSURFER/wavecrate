@@ -149,6 +149,7 @@ impl AppController {
             || previous_meta.channels != desired_meta.channels
             || previous_meta.size[1] != desired_meta.size[1]
             || previous_meta.texture_width != desired_meta.texture_width
+            || previous_meta.transient_visual_token != desired_meta.transient_visual_token
             || !edit_fade_matches(previous_meta.edit_fade, desired_meta.edit_fade, 1e-6)
         {
             return None;

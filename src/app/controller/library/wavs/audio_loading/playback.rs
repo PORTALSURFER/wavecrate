@@ -34,6 +34,7 @@ impl AppController {
         crate::app::controller::library::wavs::waveform_rendering::InitialWaveformRenderSpec {
             size: self.sample_view.waveform.size,
             channel_view: self.ui.waveform.channel_view,
+            transient_markers_enabled: self.ui.waveform.transient_markers_enabled,
         }
     }
 }

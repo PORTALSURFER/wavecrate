@@ -15,6 +15,7 @@ fn render_spec()
     crate::app::controller::library::wavs::waveform_rendering::InitialWaveformRenderSpec {
         size: [16, 16],
         channel_view: crate::waveform::WaveformChannelView::Mono,
+        transient_markers_enabled: true,
     }
 }
 

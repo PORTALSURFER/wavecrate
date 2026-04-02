@@ -71,6 +71,7 @@ fn waveform_render_meta_rejects_small_shifts_when_zoomed_in() {
         channel_view: crate::waveform::WaveformChannelView::Mono,
         channels: 2,
         edit_fade: None,
+        transient_visual_token: None,
     };
     let shifted = wavs::WaveformRenderMeta {
         view_start: 0.10095,
@@ -91,6 +92,7 @@ fn waveform_render_meta_allows_small_shifts_on_full_view() {
         channel_view: crate::waveform::WaveformChannelView::Mono,
         channels: 1,
         edit_fade: None,
+        transient_visual_token: None,
     };
     let minor_shift = wavs::WaveformRenderMeta {
         view_start: 0.0005,
@@ -98,6 +100,31 @@ fn waveform_render_meta_allows_small_shifts_on_full_view() {
         ..base
     };
     assert!(base.matches(&minor_shift));
+}
+
+#[test]
+fn waveform_render_meta_rejects_transient_visual_token_changes() {
+    let base = wavs::WaveformRenderMeta {
+        view_start: 0.0,
+        view_end: 1.0,
+        size: [240, 32],
+        samples_len: 10_000,
+        texture_width: 2_000,
+        channel_view: crate::waveform::WaveformChannelView::Mono,
+        channels: 1,
+        edit_fade: None,
+        transient_visual_token: Some(7),
+    };
+    let changed = wavs::WaveformRenderMeta {
+        transient_visual_token: Some(8),
+        ..base
+    };
+    let disabled = wavs::WaveformRenderMeta {
+        transient_visual_token: None,
+        ..base
+    };
+    assert!(!base.matches(&changed));
+    assert!(!base.matches(&disabled));
 }
 
 #[test]

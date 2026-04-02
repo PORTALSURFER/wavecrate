@@ -1,5 +1,5 @@
 use super::WaveformImage;
-use super::{WaveformChannelView, WaveformRenderViewport, WaveformRenderer};
+use super::{TransientGlow, WaveformChannelView, WaveformRenderViewport, WaveformRenderer};
 use crate::waveform::DecodedWaveform;
 use crate::waveform::render::LINE_RENDER_MAX_FRAMES_PER_COLUMN;
 use crate::waveform::zoom_cache::CachedColumns;
@@ -15,6 +15,7 @@ impl WaveformRenderer {
         decoded: &DecodedWaveform,
         view: WaveformChannelView,
         viewport: WaveformRenderViewport,
+        transients: Option<&[f32]>,
     ) -> Option<WaveformImage> {
         let [width, height] = viewport.size;
         let view_start = viewport.view_start;
@@ -32,6 +33,7 @@ impl WaveformRenderer {
             full_width,
         );
         let frames_per_column = (frame_count as f32 / full_width as f32).max(1.0);
+        let transient_glow = TransientGlow::new(transients, view_start, view_end);
         // Match the direct render path: avoid stepped-density quantization at high zoom.
         if frames_per_column <= LINE_RENDER_MAX_FRAMES_PER_COLUMN {
             return None;
@@ -50,6 +52,7 @@ impl WaveformRenderer {
                     self.foreground,
                     self.background,
                     frames_per_column,
+                    transient_glow,
                 )
             }
             CachedColumns::SplitStereo { left, right } => {
@@ -69,6 +72,7 @@ impl WaveformRenderer {
                     self.foreground,
                     self.background,
                     frames_per_column,
+                    transient_glow,
                 )
             }
         };
@@ -148,6 +152,7 @@ mod tests {
                 view_end: 1.0,
                 edit_fade: None,
             },
+            None,
         );
         assert!(image.is_none());
     }
@@ -166,6 +171,7 @@ mod tests {
                 view_end: 1.0,
                 edit_fade: None,
             },
+            None,
         );
         assert!(image.is_some());
     }

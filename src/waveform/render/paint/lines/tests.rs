@@ -113,3 +113,119 @@ fn draw_line_aa_handles_steep_segment_with_coverage() {
         "expected multiple covered pixels for steep line, got {lit_pixels}"
     );
 }
+
+#[test]
+fn paint_line_image_fills_between_center_and_trace() {
+    let image = WaveformRenderer::paint_line_image(
+        &[0.0_f32, 0.0, 1.0, 1.0],
+        1,
+        LinePaintConfig {
+            width: 4,
+            height: 9,
+            foreground: WaveformRgba::from_rgb(255, 194, 71),
+            background: WaveformRgba::from_rgb(14, 14, 14),
+            channel_index: None,
+            transient_glow: None,
+        },
+    );
+
+    let stride = image.size[0];
+    let interior = image.pixels[2 * stride + 2];
+    let outside = image.pixels[8 * stride + 2];
+    assert!(
+        interior.a() > 0,
+        "expected filled body pixel, got {interior:?}"
+    );
+    assert_eq!(
+        outside.a(),
+        0,
+        "expected transparent background outside fill"
+    );
+}
+
+#[test]
+fn paint_split_line_image_fills_both_channel_bands() {
+    let samples = [0.0_f32, 0.0, 0.0, 0.0, 1.0, -1.0, 1.0, -1.0];
+    let image = WaveformRenderer::paint_split_line_image(
+        &samples,
+        2,
+        SplitLinePaintConfig {
+            width: 4,
+            height: 12,
+            foreground: WaveformRgba::from_rgb(255, 194, 71),
+            background: WaveformRgba::from_rgb(14, 14, 14),
+            transient_glow: None,
+        },
+    );
+
+    let stride = image.size[0];
+    let top_band = image.pixels[1 * stride + 2];
+    let bottom_band = image.pixels[9 * stride + 2];
+    assert!(
+        top_band.a() > 0,
+        "expected filled top band, got {top_band:?}"
+    );
+    assert!(
+        bottom_band.a() > 0,
+        "expected filled bottom band, got {bottom_band:?}"
+    );
+}
+
+#[test]
+fn transient_glow_brightens_existing_pixels_only() {
+    let foreground = WaveformRgba::from_rgb(255, 194, 71);
+    let background = WaveformRgba::from_rgb(14, 14, 14);
+    let samples = vec![1.0_f32; 64];
+    let plain = WaveformRenderer::paint_line_image(
+        &samples,
+        1,
+        LinePaintConfig {
+            width: 32,
+            height: 9,
+            foreground,
+            background,
+            channel_index: None,
+            transient_glow: None,
+        },
+    );
+    let glowed = WaveformRenderer::paint_line_image(
+        &samples,
+        1,
+        LinePaintConfig {
+            width: 32,
+            height: 9,
+            foreground,
+            background,
+            channel_index: None,
+            transient_glow: Some(super::super::super::TransientGlow {
+                positions: &[0.5],
+                view_start: 0.0,
+                view_end: 1.0,
+            }),
+        },
+    );
+
+    let stride = glowed.size[0];
+    let glow_idx = 1 * stride + 16;
+    let glow_plain = plain.pixels[glow_idx];
+    let glow_glowed = glowed.pixels[glow_idx];
+    assert!(
+        glow_glowed.r() > glow_plain.r()
+            || glow_glowed.g() > glow_plain.g()
+            || glow_glowed.b() > glow_plain.b()
+            || glow_glowed.a() > glow_plain.a(),
+        "expected transient glow near highlighted column"
+    );
+
+    let transparent_idx = 8 * stride + 16;
+    assert_eq!(
+        plain.pixels[transparent_idx].a(),
+        0,
+        "expected baseline transparent background"
+    );
+    assert_eq!(
+        glowed.pixels[transparent_idx].a(),
+        0,
+        "expected glow to preserve transparent background"
+    );
+}

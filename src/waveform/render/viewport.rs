@@ -83,6 +83,20 @@ impl WaveformRenderer {
         view: WaveformChannelView,
         viewport: WaveformRenderViewport,
     ) -> WaveformImage {
+        self.render_color_image_for_view_with_size_and_fade_and_transients(
+            decoded, view, viewport, None,
+        )
+    }
+
+    /// Render a waveform image for a decoded waveform over a normalized view window
+    /// with optional edit-fade preview and transient-aware highlight styling.
+    pub(crate) fn render_color_image_for_view_with_size_and_fade_and_transients(
+        &self,
+        decoded: &DecodedWaveform,
+        view: WaveformChannelView,
+        viewport: WaveformRenderViewport,
+        transients: Option<&[f32]>,
+    ) -> WaveformImage {
         let normalized = normalize_viewport(decoded, viewport);
         let Some((viewport, frame_count, channels, fade)) = normalized else {
             return self.render_color_image_with_size(
@@ -99,18 +113,27 @@ impl WaveformRenderer {
         };
 
         if decoded.samples.is_empty() {
-            return render_peak_only_view(self, decoded, view, viewport, frame_count, fade);
+            return render_peak_only_view(
+                self,
+                decoded,
+                view,
+                viewport,
+                frame_count,
+                fade,
+                transients,
+            );
         }
-        if let Some(image) = self.render_cached_view(decoded, view, viewport) {
+        if let Some(image) = self.render_cached_view(decoded, view, viewport, transients) {
             return image;
         }
         let (start_idx, end_idx) =
             visible_sample_bounds(viewport, frame_count, channels, decoded.samples.len());
-        self.render_color_image_with_size(
+        self.render_color_image_with_size_and_transients(
             &decoded.samples[start_idx..end_idx],
             channels,
             view,
             viewport,
+            transients,
         )
     }
 }
@@ -152,6 +175,7 @@ fn render_peak_only_view(
     viewport: WaveformRenderViewport,
     frame_count: usize,
     fade: Option<SelectionRange>,
+    transients: Option<&[f32]>,
 ) -> WaveformImage {
     let WaveformRenderViewport {
         size: [width, height],
@@ -168,6 +192,7 @@ fn render_peak_only_view(
             WaveformColumnView::Mono(cols) => {
                 let mut cols = WaveformRenderer::smooth_columns(&cols, smooth_radius);
                 apply_fade_to_columns(&mut cols, view_start, view_end, fade);
+                let transient_glow = super::TransientGlow::new(transients, view_start, view_end);
                 WaveformRenderer::paint_color_image_for_size_with_density(
                     &cols,
                     width,
@@ -175,6 +200,7 @@ fn render_peak_only_view(
                     renderer.foreground,
                     renderer.background,
                     frames_per_column,
+                    transient_glow,
                 )
             }
             WaveformColumnView::SplitStereo { left, right } => {
@@ -182,6 +208,7 @@ fn render_peak_only_view(
                 let mut right = WaveformRenderer::smooth_columns(&right, smooth_radius);
                 apply_fade_to_columns(&mut left, view_start, view_end, fade);
                 apply_fade_to_columns(&mut right, view_start, view_end, fade);
+                let transient_glow = super::TransientGlow::new(transients, view_start, view_end);
                 WaveformRenderer::paint_split_color_image_with_density(
                     &left,
                     &right,
@@ -190,6 +217,7 @@ fn render_peak_only_view(
                     renderer.foreground,
                     renderer.background,
                     frames_per_column,
+                    transient_glow,
                 )
             }
         };
