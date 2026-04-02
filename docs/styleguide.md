@@ -13,35 +13,38 @@ Inspired by a microchip die
 ## 1. Color Palette (Current App Palette)
 
 ### Core surfaces
-- **#0D0D0D** — primary background for the app canvas and modal bases  
+- **#0A0A0A** — primary background for the app canvas and modal bases  
 - **#121212** — secondary background for panels and cards  
-- **#191919** — tertiary background for controls and list rows to add depth  
-- **#3E3E3E** — panel outline for outer frames and strong dividers  
+- **#1C1C1C** — tertiary background for controls and list rows to add depth  
+- **#3A3A3A** — panel outline for outer frames and strong dividers  
 - **#4A4A4A** — grid strong for primary lines in displays and separators  
-- **#2D2D2D** — grid soft for secondary lines and subtle row backing
+- **#2B2B2B** — grid soft for secondary lines and subtle row backing
 
 ### Text
-- **#E8E8E8** — primary text for labels, buttons, and inputs  
-- **#A6A6A6** — muted text for helper copy and secondary metadata  
+- **#EAEAEA** — primary text for labels, buttons, and inputs  
+- **#A9A9A9** — muted text for helper copy and secondary metadata  
 - **#FFFFFF** — high-contrast text on tinted badges/overlays
 
 ### Accents and feedback
-- **#66C2FF** — accent mint; active selection fills, positive focus, and cool-state emphasis  
-- **#9CE7FF** — accent ice; focus strokes, hyperlinks, and high-visibility cool highlights  
-- **#5C9DFF** — accent copper; secondary cool accent for waveform/playhead and tool-state contrast  
-- **#54D6FF** — cyan highlight used for marked/active overlays and similarity emphasis  
-- **#F2B65C** — warning foregrounds and attention strokes  
-- **#FFCC7D** — soft warning/informational fills  
-- **#E86565** — destructive/error strokes and text
+- **#FF7A1A** — `accent_mint`; primary active selection, keep-state emphasis, and focus accents under the existing token name  
+- **#FFC247** — `accent_copper`; waveform/playhead emphasis and secondary active tooling contrast  
+- **#E14B32** — `accent_trash`; destructive/error strokes and text  
+- **#FFB347** — `accent_warning`; warning foregrounds and attention strokes  
+- **#FF922B** — `highlight_orange`; bright ember highlight for prompts, inputs, and hot actions  
+- **#FFD08A** — `highlight_orange_soft`; soft warm informational fills  
+- **#C63C1E** — `highlight_blue`; deep ember/red contrast for edit overlays under the existing token name  
+- **#FF9A5C** — `highlight_blue_soft`; softened orange-red text/overlay tint  
+- **#FFC83D** — `highlight_cyan`; hot gold used for marked/active overlays and similarity emphasis  
+- **#FFE08A** — `highlight_cyan_soft`; pale gold used for focus strokes and elevated highlights
 
 ### Badges and chips
-- Idle **#2F343A**; Busy **#F2B65C**; Info **#66C2FF**; Warning **#FFCC7D**; Error **#E86565**
+- Idle **#303030**; Busy **#FFB347**; Info **#FF7A1A**; Warning **#FFD08A**; Error **#E14B32**
 
 ### Interaction overlays & triage
-- Drag highlight **#66C2FF** (outline alpha varies by state)  
-- Duplicate hover: fill **#1E2227**, stroke **#9CE7FF**  
-- Triage: Trash **#E86565** (subtle **#A94D4D**), Keep **#66C2FF**  
-- Missing marker **#E86565**  
+- Drag highlight **#FF7A1A** (outline alpha varies by state)  
+- Duplicate hover: fill **#1E1E1E**, stroke **#FFC83D**  
+- Triage: Trash **#E14B32** (subtle **#8F3B31**), Keep **#FF7A1A**  
+- Missing marker **#E14B32**  
 - Palette source of truth: `vendor/radiant/src/gui/native_shell/style/palette.rs` — keep these values in sync when the theme shifts.
 
 ---
@@ -150,55 +153,55 @@ Inspired by a microchip die
   - With 1–2 nested inner borders to mimic multi-layer chip regions
   - Optional 45° bevels on outer corners only if you need visual hierarchy
 - Use a slightly lighter background than the main app:
-  - **#121212 – #191919**
+  - **#121212 – #1C1C1C**
 
 ### 6.2 Waveform View Style
 
 **Background**
-- Dark panel: **#0D0D0D – #191919**  
+- Dark panel: **#0A0A0A – #1C1C1C**  
 - Overlay subtle vertical grid lines (beats/frames):
   - Primary grid: **#4A4A4A** (1px)  
-  - Secondary grid: **#2D2D2D** (thinner or lower opacity)  
-- Optional horizontal zero line: **#3E3E3E** (1px)
+  - Secondary grid: **#2B2B2B** (thinner or lower opacity)  
+- Optional horizontal zero line: **#3A3A3A** (1px)
 
 **Waveform Curve**
 - Curved line is allowed here, but must feel “instrumental”:
   - 1–2px line
   - Primary color:
-    - Default: **#5C9DFF** (accent copper, repurposed as a cool waveform accent)
-    - Alternative highlight: **#66C2FF** (accent mint) for selected/armed
+    - Default: **#FFC247** (`accent_copper`, repurposed as a gold waveform accent)
+    - Alternative highlight: **#FF7A1A** (`accent_mint`) for selected/armed
   - No blur, no glow; if you need emphasis, use:
     - double-line effect (bright core, darker outline)
     - or stepped opacity segments
 
 **Filling / Energy**
 - Optional under-curve fill:
-  - Very subtle, 5–15% opacity of the waveform color (cool blue by default)
+  - Very subtle, 5–15% opacity of the waveform color (gold by default)
   - Hard clipped at zero (no soft feathering)
 - For selection regions:
-  - Rectangular bands with sharp edges, using **#F2B65C** for warning/attention states or **#5C9DFF** for edit/active tooling states
+  - Rectangular bands with sharp edges, using **#FFB347** for warning/attention states or **#C63C1E** for edit/active tooling states
 
 **Additional Details**
 - Peaks or markers depicted as:
-  - Thin vertical bars (no rounded markers), **#9CE7FF**
+  - Thin vertical bars (no rounded markers), **#FFE08A**
   - Small blocky ticks along the top or bottom
 - Zoom/pan handles: small square grips aligned to frame edges
 
 ### 6.3 Spectrogram / Frequency Displays
 
 **Background**
-- Same base as waveform (**#0D0D0D – #191919**)  
+- Same base as waveform (**#0A0A0A – #1C1C1C**)  
 - Primary grid:
-  - Vertical lines for time (**#2D2D2D**)  
+  - Vertical lines for time (**#2B2B2B**)  
   - Horizontal lines for frequency (**#4A4A4A**)
 
-**Color Mapping (Sci-Fi Hard Theme)**
-- Use a **cold, high-tech palette** with minimal hues:
-  - Low energy: **#0D0D0D – #191919**
-  - Mid energy: **#30343A**
-  - High energy: **#66C2FF**
-  - Saturated peaks (very sparing): **#5C9DFF** or **#F2B65C**
-- Avoid rainbow spectrums; keep it within blue–cyan range for coherence.
+**Color Mapping (Ember Industrial Theme)**
+- Use a **warm, restrained palette** with minimal hues:
+  - Low energy: **#0A0A0A – #1C1C1C**
+  - Mid energy: **#303030**
+  - High energy: **#FF7A1A**
+  - Saturated peaks (very sparing): **#FFC247** or **#FFB347**
+- Avoid rainbow spectrums; keep it within red-orange-gold for coherence.
 
 **Rendering Style**
 - Rectangular “pixels” or tiles:
@@ -208,7 +211,7 @@ Inspired by a microchip die
 
 **Curves / Overlays**
 - Overlays like EQ curves or analysis lines:
-  - Thin 1px lines, **#5C9DFF** (secondary cool accent) or **#66C2FF** (mint)
+  - Thin 1px lines, **#FFC247** (secondary gold accent) or **#FF7A1A** (ember orange)
   - Allow smooth curves but:
     - No dot handles with circles — use small squares/diamonds
     - No glow; emphasize with line thickness or double-line effect
@@ -220,28 +223,28 @@ Inspired by a microchip die
 - Curves allowed but:
   - Use crisp lines, no blur
   - Colors:
-    - Main: **#5C9DFF** (accent copper, cool waveform accent)
-    - Secondary/ghost: **#66C2FF** with low opacity
+    - Main: **#FFC247** (`accent_copper`, gold waveform accent)
+    - Secondary/ghost: **#FF7A1A** with low opacity
 - Optional trail effect:
   - Simulated with alpha decay, not blur
 
 **Bar / Column Meters**
 - Use vertical or horizontal **rectangular segments**  
 - Segment colors:
-  - Low: **#30343A**
-  - Mid: **#4A5058**
-  - High: **#66C2FF** / **#5C9DFF** for peaks
+  - Low: **#303030**
+  - Mid: **#4A4A4A**
+  - High: **#FF7A1A** / **#FFC247** for peaks
 - Peak hold indicator: small rectangular cap, no rounded shapes
 
 ### 6.5 Display Chrome & Labeling
 
 **Borders**
-- Outer border: **#3E3E3E** (1–2px)  
-- Inner inset border: **#0D0D0D** or **#121212** to suggest depth
+- Outer border: **#3A3A3A** (1–2px)  
+- Inner inset border: **#0A0A0A** or **#121212** to suggest depth
 
 **Labels / Axis Text**
 - Typeface: monospaced or technical-looking sans-serif  
-- Color: **#A6A6A6** at 70–80% opacity  
+- Color: **#A9A9A9** at 70–80% opacity  
 - Alignment:
   - Frequency labels: left or right edge  
   - Time labels: bottom edge  
@@ -297,6 +300,6 @@ Interactions should feel:
 - Partitioned Complexity  
 - High-Frequency Patterns  
 - Dark Circuit Board  
-- Cold, Technical, Mechanical  
+- Warm, Technical, Mechanical  
 
 ---
