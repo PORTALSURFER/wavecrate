@@ -4,7 +4,7 @@ Generated: 2026-04-02
 Observed superproject commit: `2205ff4e`
 Observed `vendor/radiant` commit: `f6f722ab`
 Observed workspace state at audit start: dirty worktree (modified `src/**`, dirty `vendor/radiant`, regenerated `tmp/cleanup_audit_hotspots.md`)
-Status: Phase 1 complete on `2026-04-02`; awaiting explicit user confirmation before any implementation.
+Status: Phase 2 in progress on `2026-04-02`; items 1-3 are complete and items 4-7 remain pending.
 
 ## Scope
 
@@ -141,7 +141,7 @@ Status: Phase 1 complete on `2026-04-02`; awaiting explicit user confirmation be
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: `2026-04-02`
-- Commit hash: `vendor/radiant` `75b6d980` (`refactor(hit-testing): split folder chrome helpers`); superproject pointer commit pending local commit for this item and recorded after that commit lands.
+- Commit hash: `vendor/radiant` `75b6d980` (`refactor(hit-testing): split folder chrome helpers`); superproject `ad3a487a` (`refactor(radiant): split folder chrome hit testing`)
 - Assumption used: the surrounding `chrome.rs` module split is the intended organizational pattern for folder hit-testing too, so preserving the existing `NativeShellState` method names while moving their implementations into `rows`, `editor`, `scrollbar`, and `header` submodules is a behavior-preserving cleanup.
 - Validation outcome:
   - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` ✅ for this item’s target file; the full scan now fails only on the two remaining ranked test files (`browser_core/marks.rs` and `waveform_nav_render.rs`).
