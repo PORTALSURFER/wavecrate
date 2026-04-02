@@ -1,18 +1,18 @@
 # Cleanup Hotspot Audit Snapshot
 
-- Generated (UTC): `2026-04-02T16:51:39Z`
+- Generated (UTC): `2026-04-02T21:06:06Z`
 - Branch: `next`
-- Commit: `dad1b568`
-- Rust files scanned: 1418
+- Commit: `79fb5c7f`
+- Rust files scanned: 1431
 - File-size budget limit: `400`
 
 ## Summary
 
-- Over file-size budget: 11
-- Function spans captured: 8763
+- Over file-size budget: 8
+- Function spans captured: 8788
 - Files with `dead_code` suppressions: 3
 - Files with `clippy::too_many_arguments` suppressions: 3
-- Likely large-file test-gap hotspots (heuristic): 129
+- Likely large-file test-gap hotspots (heuristic): 130
 
 ## Largest Rust files
 
@@ -24,10 +24,7 @@
 | 763 | `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_drag_finish.rs` |
 | 713 | `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer/selection_creation.rs` |
 | 564 | `src/app_core/actions/catalog/kinds.rs` |
-| 514 | `src/app/controller/tests/browser_core/marks.rs` |
 | 475 | `src/app/controller/playback/transport/selection.rs` |
-| 410 | `vendor/radiant/src/gui/native_shell/state/hit_testing/chrome/folders.rs` |
-| 408 | `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs` |
 | 407 | `src/selection/range.rs` |
 | 400 | `src/app/controller/playback/persistent_waveform_cache.rs` |
 | 399 | `tests/unit/audio_output_tests.rs` |
@@ -38,6 +35,9 @@
 | 395 | `vendor/radiant/src/gui_runtime/native_vello/runtime_events/pointer.rs` |
 | 394 | `src/app/controller/library/source_folders/delete_recovery/journal.rs` |
 | 394 | `src/app/controller/library/selection_edits/ops.rs` |
+| 393 | `src/issue_gateway/token_store/tests.rs` |
+| 393 | `src/app/controller/tests/drag_drop_folders/sample_moves.rs` |
+| 392 | `vendor/radiant/src/gui_runtime/native_vello.rs` |
 
 ## Largest function spans (heuristic)
 
@@ -58,7 +58,7 @@
 | 190 | `render_browser_focus_overlay` (`vendor/radiant/src/gui/native_shell/state/frame_build/overlay/focus.rs:201`) |
 | 188 | `compute_browser_toolbar_sections` (`vendor/radiant/src/gui/native_shell/layout_adapter/controls/browser_toolbar.rs:27`) |
 | 185 | `build_with_style_and_runtime` (`vendor/radiant/src/gui/native_shell/layout/mod.rs:116`) |
-| 178 | `folder_browser_group` (`vendor/radiant/src/gui/native_shell/state/automation/sidebar.rs:128`) |
+| 181 | `folder_browser_group` (`vendor/radiant/src/gui/native_shell/state/automation/sidebar.rs:134`) |
 | 175 | `render_confirm_prompt` (`vendor/radiant/src/gui/native_shell/state/overlays/prompt.rs:6`) |
 | 174 | `push_waveform_playhead_overlay` (`vendor/radiant/src/gui/native_shell/state/waveform_segments/overlay.rs:8`) |
 | 171 | `render_status_bar` (`vendor/radiant/src/gui/native_shell/state/frame_build/status_bar.rs:5`) |
@@ -74,10 +74,7 @@
 | 763 | `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_drag_finish.rs` |
 | 713 | `vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer/selection_creation.rs` |
 | 564 | `src/app_core/actions/catalog/kinds.rs` |
-| 514 | `src/app/controller/tests/browser_core/marks.rs` |
 | 475 | `src/app/controller/playback/transport/selection.rs` |
-| 410 | `vendor/radiant/src/gui/native_shell/state/hit_testing/chrome/folders.rs` |
-| 408 | `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets.rs` |
 | 407 | `src/selection/range.rs` |
 
 ## dead_code suppression density
