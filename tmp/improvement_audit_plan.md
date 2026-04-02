@@ -76,7 +76,7 @@ Status: Phase 1 complete on `2026-04-02`; awaiting explicit user confirmation be
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
 - Completed: `2026-04-02`
-- Commit hash: pending local commit for this item; recorded in the session report after commit because the final Git commit id cannot be embedded self-referentially in the same commit payload.
+- Commit hash: `222eda75` (`fix(app-core): restore folder-pane migration boundary`)
 - Assumption used: `crate::app_core::app_api::state` remains the intended migration-facing alias surface for `FolderPaneId` and `FolderBrowserUiState`, so routing those four callers through it preserves the documented boundary without changing behavior.
 - Validation outcome:
   - `powershell -ExecutionPolicy Bypass -File scripts/check_migration_boundary.ps1` ✅
