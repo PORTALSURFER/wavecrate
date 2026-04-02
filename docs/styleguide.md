@@ -26,25 +26,25 @@ Inspired by a microchip die
 - **#FFFFFF** — high-contrast text on tinted badges/overlays
 
 ### Accents and feedback
-- **#FF7A1A** — `accent_mint`; primary active selection, keep-state emphasis, and focus accents under the existing token name  
-- **#FFC247** — `accent_copper`; waveform/playhead emphasis and secondary active tooling contrast  
-- **#E14B32** — `accent_trash`; destructive/error strokes and text  
-- **#FFB347** — `accent_warning`; warning foregrounds and attention strokes  
-- **#FF922B** — `highlight_orange`; bright ember highlight for prompts, inputs, and hot actions  
-- **#FFD08A** — `highlight_orange_soft`; soft warm informational fills  
-- **#C63C1E** — `highlight_blue`; deep ember/red contrast for edit overlays under the existing token name  
-- **#FF9A5C** — `highlight_blue_soft`; softened orange-red text/overlay tint  
-- **#FFC83D** — `highlight_cyan`; hot gold used for marked/active overlays and similarity emphasis  
-- **#FFE08A** — `highlight_cyan_soft`; pale gold used for focus strokes and elevated highlights
+- **#C47A3F** — `accent_mint`; restrained ember accent for active selection, keep-state emphasis, and focus under the existing token name  
+- **#D4AA60** — `accent_copper`; burnished brass accent for waveform/playhead emphasis and secondary active tooling contrast  
+- **#AB4E39** — `accent_trash`; muted terracotta for destructive/error strokes and text  
+- **#E09954** — `accent_warning`; warm amber for warning foregrounds and attention strokes  
+- **#B66834** — `highlight_orange`; deep ember highlight for prompts, inputs, and hot actions  
+- **#C69667** — `highlight_orange_soft`; softened bronze informational fill  
+- **#964D34** — `highlight_blue`; low-chroma rust contrast for edit overlays under the existing token name  
+- **#BC8059** — `highlight_blue_soft`; softened rust text/overlay tint  
+- **#D6A053** — `highlight_cyan`; mellow gold used for marked/active overlays and similarity emphasis  
+- **#E0B87E** — `highlight_cyan_soft`; pale brass used for focus strokes and elevated highlights
 
 ### Badges and chips
-- Idle **#303030**; Busy **#FFB347**; Info **#FF7A1A**; Warning **#FFD08A**; Error **#E14B32**
+- Idle **#303030**; Busy **#E09954**; Info **#C47A3F**; Warning **#C69667**; Error **#AB4E39**
 
 ### Interaction overlays & triage
-- Drag highlight **#FF7A1A** (outline alpha varies by state)  
-- Duplicate hover: fill **#1E1E1E**, stroke **#FFC83D**  
-- Triage: Trash **#E14B32** (subtle **#8F3B31**), Keep **#FF7A1A**  
-- Missing marker **#E14B32**  
+- Drag highlight **#C47A3F** (outline alpha varies by state)  
+- Duplicate hover: fill **#1E1E1E**, stroke **#D6A053**  
+- Triage: Trash **#AB4E39** (subtle **#6E4034**), Keep **#C47A3F**  
+- Missing marker **#AB4E39**  
 - Palette source of truth: `vendor/radiant/src/gui/native_shell/style/palette.rs` — keep these values in sync when the theme shifts.
 
 ---
@@ -168,8 +168,8 @@ Inspired by a microchip die
 - Curved line is allowed here, but must feel “instrumental”:
   - 1–2px line
   - Primary color:
-    - Default: **#FFC247** (`accent_copper`, repurposed as a gold waveform accent)
-    - Alternative highlight: **#FF7A1A** (`accent_mint`) for selected/armed
+    - Default: **#D4AA60** (`accent_copper`, repurposed as a burnished brass waveform accent)
+    - Alternative highlight: **#C47A3F** (`accent_mint`) for selected/armed
   - No blur, no glow; if you need emphasis, use:
     - double-line effect (bright core, darker outline)
     - or stepped opacity segments
@@ -179,11 +179,11 @@ Inspired by a microchip die
   - Very subtle, 5–15% opacity of the waveform color (gold by default)
   - Hard clipped at zero (no soft feathering)
 - For selection regions:
-  - Rectangular bands with sharp edges, using **#FFB347** for warning/attention states or **#C63C1E** for edit/active tooling states
+  - Rectangular bands with sharp edges, using **#E09954** for warning/attention states or **#964D34** for edit/active tooling states
 
 **Additional Details**
 - Peaks or markers depicted as:
-  - Thin vertical bars (no rounded markers), **#FFE08A**
+  - Thin vertical bars (no rounded markers), **#E0B87E**
   - Small blocky ticks along the top or bottom
 - Zoom/pan handles: small square grips aligned to frame edges
 
@@ -199,9 +199,9 @@ Inspired by a microchip die
 - Use a **warm, restrained palette** with minimal hues:
   - Low energy: **#0A0A0A – #1C1C1C**
   - Mid energy: **#303030**
-  - High energy: **#FF7A1A**
-  - Saturated peaks (very sparing): **#FFC247** or **#FFB347**
-- Avoid rainbow spectrums; keep it within red-orange-gold for coherence.
+  - High energy: **#C47A3F**
+  - Saturated peaks (very sparing): **#D4AA60** or **#E09954**
+- Avoid rainbow spectrums; keep it within rust-amber-brass for coherence.
 
 **Rendering Style**
 - Rectangular “pixels” or tiles:
@@ -211,7 +211,7 @@ Inspired by a microchip die
 
 **Curves / Overlays**
 - Overlays like EQ curves or analysis lines:
-  - Thin 1px lines, **#FFC247** (secondary gold accent) or **#FF7A1A** (ember orange)
+  - Thin 1px lines, **#D4AA60** (secondary brass accent) or **#C47A3F** (ember bronze)
   - Allow smooth curves but:
     - No dot handles with circles — use small squares/diamonds
     - No glow; emphasize with line thickness or double-line effect
@@ -223,8 +223,8 @@ Inspired by a microchip die
 - Curves allowed but:
   - Use crisp lines, no blur
   - Colors:
-    - Main: **#FFC247** (`accent_copper`, gold waveform accent)
-    - Secondary/ghost: **#FF7A1A** with low opacity
+    - Main: **#D4AA60** (`accent_copper`, brass waveform accent)
+    - Secondary/ghost: **#C47A3F** with low opacity
 - Optional trail effect:
   - Simulated with alpha decay, not blur
 
@@ -233,7 +233,7 @@ Inspired by a microchip die
 - Segment colors:
   - Low: **#303030**
   - Mid: **#4A4A4A**
-  - High: **#FF7A1A** / **#FFC247** for peaks
+  - High: **#C47A3F** / **#D4AA60** for peaks
 - Peak hold indicator: small rectangular cap, no rounded shapes
 
 ### 6.5 Display Chrome & Labeling

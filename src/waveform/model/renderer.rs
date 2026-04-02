@@ -21,7 +21,7 @@ impl WaveformRenderer {
             width,
             height,
             background: WaveformRgba::from_rgb(14, 14, 14),
-            foreground: WaveformRgba::from_rgb(255, 194, 71),
+            foreground: WaveformRgba::from_rgb(212, 170, 96),
             zoom_cache: std::sync::Arc::new(zoom_cache::WaveformZoomCache::new()),
             decode_cache: std::sync::Arc::new(decode::default_decode_cache()),
         }
