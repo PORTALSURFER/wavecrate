@@ -4,7 +4,7 @@ Generated: 2026-04-02
 Observed superproject commit: `2205ff4e`
 Observed `vendor/radiant` commit: `f6f722ab`
 Observed workspace state at audit start: dirty worktree (modified `src/**`, dirty `vendor/radiant`, regenerated `tmp/cleanup_audit_hotspots.md`)
-Status: Phase 2 in progress on `2026-04-02`; items 1-5 are complete and items 6-7 remain pending.
+Status: Phase 2 in progress on `2026-04-02`; items 1-6 are complete and item 7 remains pending.
 
 ## Scope
 
@@ -212,7 +212,7 @@ Status: Phase 2 in progress on `2026-04-02`; items 1-5 are complete and items 6-
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` ✅
 - Deviation from original plan order: none
 
-### 6. [ ] Strengthen automation action-id parity checks where the native shell still hardcodes stable action strings
+### 6. [x] Strengthen automation action-id parity checks where the native shell still hardcodes stable action strings
 
 - Classification: Test gap
 - Confidence: Medium
@@ -234,6 +234,13 @@ Status: Phase 2 in progress on `2026-04-02`; items 1-5 are complete and items 6-
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No, if scoped to parity tests only
+- Completed: `2026-04-02`
+- Commit hash: `6b0f889d` (`test(gui): strengthen automation action parity checks`)
+- Assumption used: representative semantic nodes across the browser, sources sidebar, transport, waveform, prompt, options, and update fixtures are sufficient to catch the most important "valid but wrong action id" regressions without crossing the current `src` versus `vendor/radiant` ownership boundary.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` ⚠️ partially blocked by pre-existing unrelated dirty-`vendor/radiant` test compile failures after the catalog and `gui_test::` slices, including the new parity coverage, passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` ✅
+- Deviation from original plan order: none
 
 ### 7. [ ] Refresh long-form guardrail docs that now contradict the live tree
 
