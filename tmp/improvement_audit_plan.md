@@ -83,7 +83,7 @@ Status: Phase 1 complete on `2026-04-02`; awaiting explicit user confirmation be
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` ✅
 - Deviation from original plan order: none
 
-### 2. [ ] Split drop-target transfer orchestration to clear the production file-size regression
+### 2. [x] Split drop-target transfer orchestration to clear the production file-size regression
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -107,6 +107,13 @@ Status: Phase 1 complete on `2026-04-02`; awaiting explicit user confirmation be
   - targeted worker coverage under `src/app/controller/ui/drag_drop_controller/drag_effects/drop_targets/worker/tests.rs`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed: `2026-04-02`
+- Commit hash: pending local commit for this item; recorded in the session report after commit because the final Git commit id cannot be embedded self-referentially in the same commit payload.
+- Assumption used: the existing `drop_targets/` subtree is the intended home for request-planning and destination-path helpers, so extracting those helpers there preserves the current worker/controller boundary better than inventing a new drag-effect layer.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` ✅ for this item’s target file; the full scan still fails only on the three remaining ranked size-budget items (`browser_core/marks.rs`, `waveform_nav_render.rs`, and `vendor/radiant/.../folders.rs`).
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` ✅
+- Deviation from original plan order: none
 
 ### 3. [ ] Split folder chrome hit-testing into row/editor/scrollbar/header seams
 
