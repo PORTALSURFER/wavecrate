@@ -4,7 +4,7 @@ Generated: 2026-04-02
 Observed superproject commit: `2205ff4e`
 Observed `vendor/radiant` commit: `f6f722ab`
 Observed workspace state at audit start: dirty worktree (modified `src/**`, dirty `vendor/radiant`, regenerated `tmp/cleanup_audit_hotspots.md`)
-Status: Phase 2 in progress on `2026-04-02`; items 1-3 are complete and items 4-7 remain pending.
+Status: Phase 2 in progress on `2026-04-02`; items 1-4 are complete and items 5-7 remain pending.
 
 ## Scope
 
@@ -148,7 +148,7 @@ Status: Phase 2 in progress on `2026-04-02`; items 1-3 are complete and items 4-
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` ✅
 - Deviation from original plan order: none
 
-### 4. [ ] Split `waveform_nav_render.rs` by render-meta versus async load behavior
+### 4. [x] Split `waveform_nav_render.rs` by render-meta versus async load behavior
 
 - Classification: Refactor / cleanup
 - Confidence: High
@@ -171,6 +171,13 @@ Status: Phase 2 in progress on `2026-04-02`; items 1-3 are complete and items 4-
   - targeted waveform render/loading controller tests
   - `cargo test -p sempal waveform -- --test-threads=1`
 - Product clarification required: No
+- Completed: `2026-04-02`
+- Commit hash: `41cee5b5` (`refactor(tests): split waveform nav render coverage`)
+- Assumption used: the existing `waveform_nav_render` module name should remain the stable entrypoint for these tests, with render-behavior and async-loading cases split into focused child modules instead of being retaxed into a broader test taxonomy.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_file_size_budget.ps1 -All` ✅ for this item’s target file; the full scan now fails only on `src/app/controller/tests/browser_core/marks.rs`.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` ✅
+- Deviation from original plan order: none
 
 ### 5. [ ] Split the oversized browser-mark test hub by behavior family
 
