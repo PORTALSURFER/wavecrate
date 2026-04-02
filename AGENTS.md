@@ -59,21 +59,21 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `X:\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: sequential execution of the evidence-driven improvement audit backlog for the current live tree
+- Program: evidence-driven improvement audit execution record for the current live tree
 - Source of truth: `tmp/improvement_audit_plan.md` for the refreshed 2026-04-02 ROI-ranked backlog and execution record for this tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `docs/gui_test_platform.md`, `tmp/cleanup_plan.md`, and `tmp/perf_plan.md` remain relevant background references
-- Current status: Phase 2 is in progress. Item 1 (restore the `app_core` migration boundary for folder-pane state types) landed in commit `222eda75`; item 2 (split drop-target transfer orchestration) landed in commit `ffb70a38`; item 3 (split `vendor/radiant` folder chrome hit-testing) landed in vendor commit `75b6d980` and superproject commit `ad3a487a`; item 4 (split `waveform_nav_render.rs`) landed in commit `41cee5b5`; item 5 (split `browser_core/marks.rs`) landed in commit `48a52f50`; item 6 (strengthen automation action-id parity checks) landed in commit `6b0f889d`; the migration-boundary preflight and file-size budget are green again; and the only remaining ranked work is the long-form status-doc refresh.
+- Current status: Phase 2 completed on `2026-04-03`. Item 1 landed in `222eda75`; item 2 in `ffb70a38`; item 3 in vendor `75b6d980` plus superproject `ad3a487a`; item 4 in `41cee5b5`; item 5 in `48a52f50`; item 6 in `6b0f889d` plus follow-up isolation commit `33b7f493`; and item 7 in `d07f6079`. The migration-boundary preflight, file-size budget, quality-score drift check, docs index, and markdown link checks are green. `run_gui_contract.ps1` is still partially blocked only by unrelated dirty `vendor/radiant` test compile failures outside this lane.
 
 ## Immediate Next Actions
-1. Treat `tmp/improvement_audit_plan.md` as the current Phase 2 source of truth and implement the remaining ranked items strictly in order unless one is blocked.
+1. Treat `tmp/improvement_audit_plan.md` as the completed Phase 2 execution record for the 2026-04-02 audit lane.
 2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
-4. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized with the execution lane state.
+4. Keep `AGENTS.md`, `MEMORY.md`, `docs/plans/active/todo.md`, and `docs/plans/index.md` synchronized if a new execution lane starts.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: refreshed evidence-driven ROI-ranked improvement backlog for the live tree; Phase 2 is now in progress, items 1-6 completed in `222eda75`, `ffb70a38`, `ad3a487a`, `41cee5b5`, `48a52f50`, and `6b0f889d` (with `vendor/radiant` commit `75b6d980`)
+- `tmp/improvement_audit_plan.md`: completed evidence-driven ROI-ranked improvement execution record for the live tree; items 1-7 are complete, with the final docs item in `d07f6079`
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
 - `tmp/cleanup_plan.md`: parked strict ROI-ranked cleanup backlog rebuilt on `2026-03-12`; resume only after explicit cleanup confirmation

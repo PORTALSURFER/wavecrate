@@ -4,7 +4,7 @@ Generated: 2026-04-02
 Observed superproject commit: `2205ff4e`
 Observed `vendor/radiant` commit: `f6f722ab`
 Observed workspace state at audit start: dirty worktree (modified `src/**`, dirty `vendor/radiant`, regenerated `tmp/cleanup_audit_hotspots.md`)
-Status: Phase 2 in progress on `2026-04-02`; items 1-6 are complete and item 7 remains pending.
+Status: Phase 2 complete on `2026-04-03`; items 1-7 are complete.
 
 ## Scope
 
@@ -235,14 +235,14 @@ Status: Phase 2 in progress on `2026-04-02`; items 1-6 are complete and item 7 r
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No, if scoped to parity tests only
 - Completed: `2026-04-02`
-- Commit hash: `6b0f889d` (`test(gui): strengthen automation action parity checks`)
+- Commit hash: `6b0f889d` (`test(gui): strengthen automation action parity checks`) plus follow-up isolation commit `33b7f493` (`test(gui): isolate automation action parity coverage`)
 - Assumption used: representative semantic nodes across the browser, sources sidebar, transport, waveform, prompt, options, and update fixtures are sufficient to catch the most important "valid but wrong action id" regressions without crossing the current `src` versus `vendor/radiant` ownership boundary.
 - Validation outcome:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` ⚠️ partially blocked by pre-existing unrelated dirty-`vendor/radiant` test compile failures after the catalog and `gui_test::` slices, including the new parity coverage, passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` ✅
 - Deviation from original plan order: none
 
-### 7. [ ] Refresh long-form guardrail docs that now contradict the live tree
+### 7. [x] Refresh long-form guardrail docs that now contradict the live tree
 
 - Classification: Documentation gap
 - Confidence: High
@@ -262,6 +262,14 @@ Status: Phase 2 in progress on `2026-04-02`; items 1-6 are complete and item 7 r
   - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1`
 - Product clarification required: No
+- Completed: `2026-04-03`
+- Commit hash: `d07f6079` (`docs(status): refresh guardrail drift notes`)
+- Assumption used: these long-form docs should describe the live guardrail posture and link readers back to the machine-checked sources instead of preserving stale blocker snapshots.
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_docs_index.ps1` ✅
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_quality_score_drift.ps1` ✅
+  - `powershell -ExecutionPolicy Bypass -File scripts/check_markdown_links.ps1` ✅
+- Deviation from original plan order: none
 
 ## Open Questions / Missing Definitions
 
