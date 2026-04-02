@@ -158,16 +158,18 @@ This contract is enforced by native-shell style tests in `vendor/radiant/src/gui
 plus layout geometry tests in `vendor/radiant/src/gui/native_shell/mod.rs`,
 and row-label rendering tests in `vendor/radiant/src/gui/native_shell/state.rs`.
 
-## Remaining migration blockers
+## Current migration-boundary status
 
-- `src/app_core/controller/browser_actions.rs`, `src/app_core/native_shell.rs`,
-  `src/app_core/native_shell/browser_projection/cache.rs`,
-  `src/app_core/native_shell/browser_projection/panel.rs`, and
-  `src/app_core/native_shell/browser_projection/row_window.rs` currently still
-  carry direct `crate::app::state` references outside `app_core::app_api`, so
-  the migration-boundary preflight remains the active blocker until those
-  playback-age callers are routed back through the migration-facing alias
-  surface.
+- `scripts/check_migration_boundary.sh` and
+  `scripts/check_migration_boundary.ps1` are green again on `2026-04-02`.
+- The latest repaired live callers were the folder-pane state references in:
+  - `src/app_core/controller/browser_actions/browser.rs`
+  - `src/app_core/controller/browser_actions/folders.rs`
+  - `src/app_core/controller/waveform_actions/selection.rs`
+  - `src/app_core/native_shell/sources_projection.rs`
+- Treat the live migration-boundary scripts and
+  `tmp/improvement_audit_plan.md` as authoritative for current blocker lists,
+  because exact file lists change faster than this narrative parity doc.
 
 ## Legacy Removal Checklist
 
