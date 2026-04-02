@@ -158,3 +158,25 @@ pub(super) fn similarity_fingerprint(query: &crate::app::state::SimilarQuery) ->
         query.anchor_index,
     ))
 }
+
+/// Return the next playback-age timestamp that should invalidate the cached
+/// filtered-stage rows for the current base snapshot.
+pub(super) fn playback_age_filter_cache_token(
+    controller: &mut AppController,
+    filters: &std::collections::BTreeSet<PlaybackAgeFilterChip>,
+    now_unix_secs: i64,
+) -> Option<i64> {
+    let base_rows = controller.ui_cache.browser.pipeline.base_rows.clone();
+    base_rows
+        .iter()
+        .filter_map(|index| {
+            controller.wav_entry(*index).and_then(|entry| {
+                crate::app::state::next_playback_age_filter_change_unix_secs(
+                    filters,
+                    entry.last_played_at,
+                    now_unix_secs,
+                )
+            })
+        })
+        .min()
+}

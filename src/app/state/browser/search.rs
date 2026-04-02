@@ -74,6 +74,42 @@ pub fn playback_age_bucket_matches_filters(
     filters.is_empty() || filters.iter().any(|chip| bucket.matches_filter_chip(*chip))
 }
 
+/// Return the next Unix-second boundary where one row's playback-age filter
+/// match result can change for the active chip set.
+pub(crate) fn next_playback_age_filter_change_unix_secs(
+    filters: &BTreeSet<PlaybackAgeFilterChip>,
+    last_played_at: Option<i64>,
+    now_unix_secs: i64,
+) -> Option<i64> {
+    if filters.is_empty() {
+        return None;
+    }
+    let Some(last_played_at) = last_played_at else {
+        return None;
+    };
+
+    let current_matches = playback_age_bucket_matches_filters(
+        filters,
+        PlaybackAgeBucket::from_last_played_at(Some(last_played_at), now_unix_secs),
+    );
+    for transition_unix_secs in [
+        last_played_at.saturating_add(PlaybackAgeBucket::WEEK_SECS),
+        last_played_at.saturating_add(PlaybackAgeBucket::MONTH_SECS),
+    ] {
+        if transition_unix_secs <= now_unix_secs {
+            continue;
+        }
+        let future_matches = playback_age_bucket_matches_filters(
+            filters,
+            PlaybackAgeBucket::from_last_played_at(Some(last_played_at), transition_unix_secs),
+        );
+        if future_matches != current_matches {
+            return Some(transition_unix_secs);
+        }
+    }
+    None
+}
+
 /// Search, filter, and similarity state for the sample browser.
 #[derive(Clone, Debug)]
 pub struct BrowserSearchState {

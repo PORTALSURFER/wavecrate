@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (local): 2026-04-03T00:09:00+02:00
+Last updated (local): 2026-04-02T23:33:00+02:00
 Owner: Codex agent sessions
 
 Purpose:
@@ -12,13 +12,13 @@ Purpose:
 
 - The active lane is the refreshed evidence-driven improvement audit backlog for the current live tree.
 - `tmp/improvement_audit_plan.md` is the live source of truth for the repo-wide improvement backlog rebuilt on 2026-04-02.
-- Phase 1 is complete and waiting for explicit user confirmation before any Phase 2 implementation starts.
+- Phase 2 is active and item 1 from `tmp/improvement_audit_plan.md` is implemented locally and validated.
 - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`, `scripts/check_file_size_budget.ps1 -All`, and `scripts/check_quality_score_drift.ps1` are green on the live tree.
 - `tmp/cleanup_audit_hotspots.md` was refreshed during this audit and is the current supporting hotspot snapshot.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Wait for explicit user confirmation before starting Phase 2 implementation from `tmp/improvement_audit_plan.md`.
-2. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.
-3. Start a new active TODO only when the user confirms a new lane.
+1. Commit and push the completed item-1 playback-age invalidation fix plus its plan updates.
+2. Continue with item 2 from `tmp/improvement_audit_plan.md` after the item-1 commit lands.
+3. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.

@@ -2,7 +2,9 @@ use super::base_stage::ensure_base_stage;
 use super::folder_stage::ensure_folder_acceptance_stage;
 use super::*;
 use crate::app::controller::test_support::prepare_with_source_and_wav_entries;
-use crate::app::state::{FolderFileScopeMode, SampleBrowserSort, VisibleRows};
+use crate::app::state::{
+    FolderFileScopeMode, PlaybackAgeFilterChip, SampleBrowserSort, VisibleRows,
+};
 use crate::sample_sources::Rating;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -97,6 +99,127 @@ fn build_visible_rows_sort_stage_maps_focus_and_loaded_positions() {
     }
     assert_eq!(focused, Some(1));
     assert_eq!(loaded, Some(2));
+}
+
+#[test]
+fn playback_age_filter_cache_stays_stable_until_the_next_week_boundary() {
+    const WEEK_SECS: i64 = 7 * 24 * 60 * 60;
+
+    let entries = vec![search_entry("aging.wav", Rating::NEUTRAL, Some(100))];
+    let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
+    controller
+        .ui
+        .browser
+        .search
+        .playback_age_filter
+        .insert(PlaybackAgeFilterChip::OlderThanWeek);
+
+    let pre_boundary_now = 100 + WEEK_SECS - 2;
+    let (visible_before, _, _) = super::visible_rows::build_visible_rows_with_now(
+        &mut controller,
+        None,
+        None,
+        pre_boundary_now,
+    );
+    let fingerprint_before = controller.ui_cache.browser.pipeline.filtered_fingerprint;
+
+    let (visible_still_before, _, _) = super::visible_rows::build_visible_rows_with_now(
+        &mut controller,
+        None,
+        None,
+        pre_boundary_now + 1,
+    );
+    let fingerprint_still_before = controller.ui_cache.browser.pipeline.filtered_fingerprint;
+
+    let (visible_after, _, _) = super::visible_rows::build_visible_rows_with_now(
+        &mut controller,
+        None,
+        None,
+        pre_boundary_now + 2,
+    );
+    let fingerprint_after = controller.ui_cache.browser.pipeline.filtered_fingerprint;
+
+    match visible_before {
+        VisibleRows::List(rows) => assert!(rows.is_empty()),
+        VisibleRows::All { total } => {
+            panic!("expected filtered list before boundary, got all {total}")
+        }
+    }
+    match visible_still_before {
+        VisibleRows::List(rows) => assert!(rows.is_empty()),
+        VisibleRows::All { total } => {
+            panic!("expected filtered list before boundary, got all {total}")
+        }
+    }
+    match visible_after {
+        VisibleRows::List(rows) => assert_eq!(&*rows, &[0usize]),
+        VisibleRows::All { total } => {
+            panic!("expected filtered list after boundary, got all {total}")
+        }
+    }
+    assert_eq!(fingerprint_before, fingerprint_still_before);
+    assert_ne!(fingerprint_before, fingerprint_after);
+}
+
+#[test]
+fn older_than_month_filter_ignores_the_week_rollover_cache_boundary() {
+    const WEEK_SECS: i64 = 7 * 24 * 60 * 60;
+    const MONTH_SECS: i64 = 30 * 24 * 60 * 60;
+
+    let entries = vec![search_entry("aging.wav", Rating::NEUTRAL, Some(200))];
+    let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
+    controller
+        .ui
+        .browser
+        .search
+        .playback_age_filter
+        .insert(PlaybackAgeFilterChip::OlderThanMonth);
+
+    let just_before_week = 200 + WEEK_SECS - 1;
+    let (visible_before_week, _, _) = super::visible_rows::build_visible_rows_with_now(
+        &mut controller,
+        None,
+        None,
+        just_before_week,
+    );
+    let fingerprint_before_week = controller.ui_cache.browser.pipeline.filtered_fingerprint;
+
+    let (visible_after_week, _, _) = super::visible_rows::build_visible_rows_with_now(
+        &mut controller,
+        None,
+        None,
+        just_before_week + 1,
+    );
+    let fingerprint_after_week = controller.ui_cache.browser.pipeline.filtered_fingerprint;
+
+    let (visible_after_month, _, _) = super::visible_rows::build_visible_rows_with_now(
+        &mut controller,
+        None,
+        None,
+        200 + MONTH_SECS,
+    );
+    let fingerprint_after_month = controller.ui_cache.browser.pipeline.filtered_fingerprint;
+
+    match visible_before_week {
+        VisibleRows::List(rows) => assert!(rows.is_empty()),
+        VisibleRows::All { total } => {
+            panic!("expected filtered list before month boundary, got all {total}")
+        }
+    }
+    match visible_after_week {
+        VisibleRows::List(rows) => assert!(rows.is_empty()),
+        VisibleRows::All { total } => {
+            panic!("expected filtered list after week boundary, got all {total}")
+        }
+    }
+    match visible_after_month {
+        VisibleRows::List(rows) => assert_eq!(&*rows, &[0usize]),
+        VisibleRows::All { total } => {
+            panic!("expected filtered list after month boundary, got all {total}")
+        }
+    }
+    assert_eq!(fingerprint_before_week, fingerprint_after_week);
+    assert_ne!(fingerprint_before_week, fingerprint_after_month);
 }
 
 fn search_entry(

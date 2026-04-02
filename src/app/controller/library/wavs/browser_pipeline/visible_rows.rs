@@ -11,6 +11,16 @@ pub(crate) fn build_visible_rows(
     focused_index: Option<usize>,
     loaded_index: Option<usize>,
 ) -> (VisibleRows, Option<usize>, Option<usize>) {
+    build_visible_rows_with_now(controller, focused_index, loaded_index, current_unix_secs())
+}
+
+/// Build browser visible rows using one explicit playback-age timestamp.
+pub(super) fn build_visible_rows_with_now(
+    controller: &mut AppController,
+    focused_index: Option<usize>,
+    loaded_index: Option<usize>,
+    playback_age_now_unix_secs: i64,
+) -> (VisibleRows, Option<usize>, Option<usize>) {
     ensure_base_stage(controller);
 
     let duplicate_cleanup = controller.ui.browser.duplicate_cleanup.clone();
@@ -22,11 +32,12 @@ pub(crate) fn build_visible_rows(
     let rating_filter_hash = helpers::hash_value(&rating_filter);
     let playback_age_filter = controller.ui.browser.search.playback_age_filter.clone();
     let playback_age_filter_hash = helpers::hash_value(&playback_age_filter);
+    let playback_age_cache_token = helpers::playback_age_filter_cache_token(
+        controller,
+        &playback_age_filter,
+        playback_age_now_unix_secs,
+    );
     let marked_only = controller.ui.browser.search.marked_only;
-    let playback_age_now_unix_secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
     let marked_revision = controller.ui.browser.marks.revision;
     let selected_source_id = controller.selection_state.ctx.selected_source.clone();
     let folder_selection = controller.folder_selection_for_filter().cloned();
@@ -82,6 +93,7 @@ pub(crate) fn build_visible_rows(
         rating_filter_hash,
         &playback_age_filter,
         playback_age_filter_hash,
+        playback_age_cache_token,
         marked_only,
         playback_age_now_unix_secs,
         marked_revision,
@@ -90,7 +102,13 @@ pub(crate) fn build_visible_rows(
     );
 
     if let Some(similar) = similar_query {
-        ensure_sorted_stage_for_similar(controller, filtered_fingerprint, sort_mode, &similar);
+        ensure_sorted_stage_for_similar(
+            controller,
+            filtered_fingerprint,
+            sort_mode,
+            &similar,
+            playback_age_now_unix_secs,
+        );
         return visible_result_from_sorted(controller, focused_index, loaded_index);
     }
 
@@ -130,6 +148,7 @@ fn ensure_filtered_stage(
     rating_filter_hash: u64,
     playback_age_filter: &std::collections::BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
     playback_age_filter_hash: u64,
+    playback_age_cache_token: Option<i64>,
     marked_only: bool,
     playback_age_now_unix_secs: i64,
     marked_revision: u64,
@@ -143,7 +162,7 @@ fn ensure_filtered_stage(
         helpers::filter_key(filter),
         rating_filter_hash,
         playback_age_filter_hash,
-        (!playback_age_filter.is_empty()).then_some(playback_age_now_unix_secs),
+        playback_age_cache_token,
         marked_only,
         marked_revision,
         folder_hash,
@@ -199,6 +218,7 @@ fn ensure_sorted_stage_for_similar(
     filtered_fingerprint: u64,
     sort_mode: SampleBrowserSort,
     similar: &crate::app::state::SimilarQuery,
+    playback_age_now_unix_secs: i64,
 ) {
     let sorted_fingerprint = helpers::hash_value(&(
         filtered_fingerprint,
@@ -213,10 +233,6 @@ fn ensure_sorted_stage_for_similar(
     let playback_age_filter = controller.ui.browser.search.playback_age_filter.clone();
     let filter = controller.ui.browser.search.filter;
     let marked_only = controller.ui.browser.search.marked_only;
-    let playback_age_now_unix_secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
     let selected_source_id = controller.selection_state.ctx.selected_source.clone();
     let mut visible = Vec::with_capacity(similar.indices.len());
     for index in similar.indices.iter().copied() {
@@ -256,6 +272,13 @@ fn ensure_sorted_stage_for_similar(
     helpers::apply_sort_for_similar(controller, &mut visible, sort_mode, similar);
     controller.ui_cache.browser.pipeline.sorted_rows = visible.into();
     controller.ui_cache.browser.pipeline.sorted_fingerprint = Some(sorted_fingerprint);
+}
+
+fn current_unix_secs() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
 }
 
 fn ensure_sorted_stage_for_query(
