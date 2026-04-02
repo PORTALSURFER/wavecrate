@@ -181,7 +181,8 @@ impl WaveformRenderer {
             return;
         }
         let span = (glow.view_end - glow.view_start).max(1e-6);
-        let radius = ((width as f32) * 0.0015).clamp(2.0, 6.0);
+        let radius = ((width as f32) * 0.010).clamp(6.0, 24.0);
+        let core_radius = (radius * 0.28).max(2.0);
         let mut weights = vec![0.0_f32; width];
         for &position in glow.positions {
             let ratio = (position - glow.view_start) / span;
@@ -195,14 +196,19 @@ impl WaveformRenderer {
                 .min((width.saturating_sub(1)) as f32) as usize;
             for (x, weight) in weights.iter_mut().enumerate().take(end + 1).skip(start) {
                 let distance = (x as f32 - center).abs();
-                let falloff = (1.0 - distance / radius).clamp(0.0, 1.0);
-                *weight = (*weight).max(falloff * falloff);
+                let falloff = if distance <= core_radius {
+                    1.0
+                } else {
+                    let shoulder = 1.0 - ((distance - core_radius) / (radius - core_radius));
+                    shoulder.clamp(0.0, 1.0).powf(0.7)
+                };
+                *weight = (*weight).max(falloff);
             }
         }
         if weights.iter().all(|weight| *weight <= 0.0) {
             return;
         }
-        let highlight = Self::mix_rgb(foreground, WaveformRgba::from_rgb(255, 248, 229), 0.45);
+        let highlight = Self::mix_rgb(foreground, WaveformRgba::from_rgb(255, 252, 242), 0.82);
         for (x, weight) in weights.iter().copied().enumerate() {
             if weight <= 0.0 {
                 continue;
@@ -219,9 +225,9 @@ impl WaveformRenderer {
                     pixel.g() as f32 / 255.0,
                     pixel.b() as f32 / 255.0,
                 ];
-                let mix = (0.16 + 0.42 * alpha) * weight;
+                let mix = (0.45 + 0.40 * alpha) * weight;
                 let rgb = Self::mix_rgb_triplet(current, highlight, mix);
-                let boosted_alpha = (alpha + (1.0 - alpha) * (0.10 * weight)).clamp(0.0, 1.0);
+                let boosted_alpha = (alpha + (1.0 - alpha) * (0.28 * weight)).clamp(0.0, 1.0);
                 image.pixels[idx] = WaveformRgba::from_rgba_unmultiplied(
                     Self::to_u8(rgb[0]),
                     Self::to_u8(rgb[1]),
