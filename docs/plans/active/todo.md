@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (local): 2026-04-03T23:20:00+02:00
+Last updated (local): 2026-04-03T23:55:00+02:00
 Owner: Codex agent sessions
 
 Purpose:
@@ -13,13 +13,13 @@ Purpose:
 - The active lane is the refreshed runtime performance audit backlog for the current live tree.
 - `tmp/perf_plan.md` is the live source of truth for the ROI-ranked performance backlog rebuilt on 2026-04-03.
 - Phase 2 is active and the ranked items are being implemented sequentially.
-- Items 1-3 are complete in commits `9fe71ec9`, `58e5fe24`, and `2bb31ea2`.
-- The latest `target/perf/bench.json` run after item 3 shows `interactive_projection.p95_us = 2911`, `app_model_projection.p95_us = 2408`, `hover_latency.p95_us = 2376`, `wheel_latency.p95_us = 2549`, and `browser_filter_churn_latency.p95_us = 2420`.
+- Items 1-4 are complete in commits `9fe71ec9`, `58e5fe24`, `2bb31ea2`, and `8cf293b0`.
+- The latest `target/perf/bench.json` run after item 4 shows `browser_filter_churn_latency.p95_us = 2687`, `browser_query_churn_latency.p95_us = 99`, `browser_sort_toggle_latency.p95_us = 98`, `hover_latency.p95_us = 2595`, `wheel_latency.p95_us = 2899`, `browser_focus_commit_latency.p95_us = 93`, and `waveform_pan_zoom_adjacent_latency.p95_us = 92`.
 - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` is green again after restoring the missing `snap_override` benchmark action field.
 - `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` are parked while the performance lane is under review.
 
 ## Next tasks (ordered)
 
-1. Continue with item 4 from `tmp/perf_plan.md`: remove path-clone-heavy whole-list work from the browser filter and mark lanes.
+1. Continue with item 5 from `tmp/perf_plan.md`: split browser commit focus into an immediate UI update and deferred heavy side effects.
 2. Record each completed item back into `tmp/perf_plan.md`, `AGENTS.md`, `MEMORY.md`, and this TODO with validation status.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` dormant unless the user explicitly reopens those lanes.

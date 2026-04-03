@@ -1,7 +1,7 @@
 # Runtime Performance Audit Backlog
 
 Generated: 2026-04-03 (Europe/Amsterdam)
-Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored and items 1-3 are complete with item 4 next in strict ROI order.
+Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored and items 1-4 are complete with item 5 next in strict ROI order.
 
 ## Validation Baseline
 
@@ -117,7 +117,7 @@ Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored 
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
     - `target/perf/bench.json`: `interactive_projection.p95_us = 2911`, `app_model_projection.p95_us = 2408`, `hover_latency.p95_us = 2376`, `wheel_latency.p95_us = 2549`, `browser_focus_commit_latency.p95_us = 145`, `browser_filter_churn_latency.p95_us = 2420`, `waveform_pan_zoom_adjacent_latency.p95_us = 92`
 
-- [ ] 4. Remove path-clone-heavy whole-list work from the browser filter and mark lanes
+- [x] 4. Remove path-clone-heavy whole-list work from the browser filter and mark lanes
   - ROI: High
   - Effort: M
   - Expected impact: p95 interaction latency, memory, CPU
@@ -137,6 +137,13 @@ Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored 
     - Extend browser filter and mark persistence tests.
     - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
     - Re-measure `browser_filter_churn_latency`, including tail behavior.
+  - Completed: 2026-04-03, commit `8cf293b0`
+  - Validation status:
+    - `cargo test -p sempal browser_pipeline::tests -- --nocapture`
+    - `cargo test -p sempal browser_sample_marks_follow_renames_and_prune_deleted_entries -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+    - `target/perf/bench.json`: `browser_filter_churn_latency.p95_us = 2687`, `browser_query_churn_latency.p95_us = 99`, `browser_sort_toggle_latency.p95_us = 98`, `hover_latency.p95_us = 2595`, `wheel_latency.p95_us = 2899`, `browser_focus_commit_latency.p95_us = 93`, `map_pan_proxy_latency.p95_us = 121`, `waveform_pan_zoom_adjacent_latency.p95_us = 92`
 
 - [ ] 5. Split browser commit focus into an immediate UI update and deferred heavy side effects
   - ROI: High
