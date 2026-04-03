@@ -120,12 +120,17 @@ impl AppController {
 
     /// Capture the meaningful UI context that should be restored by undo/redo.
     pub(crate) fn capture_meaningful_ui_snapshot(&self) -> MeaningfulUiSnapshot {
-        let folder_cache_key = self.selection_state.ctx.selected_source.as_ref().map(|source_id| {
-            crate::app::controller::state::cache::FolderBrowserCacheKey {
-                pane: self.ui.sources.active_folder_pane,
-                source_id: source_id.clone(),
-            }
-        });
+        let folder_cache_key = self
+            .selection_state
+            .ctx
+            .selected_source
+            .as_ref()
+            .map(
+                |source_id| crate::app::controller::state::cache::FolderBrowserCacheKey {
+                    pane: self.ui.sources.active_folder_pane,
+                    source_id: source_id.clone(),
+                },
+            );
         let folder_state = folder_cache_key
             .as_ref()
             .and_then(|key| self.ui_cache.folders.models.get(key))
@@ -199,10 +204,12 @@ impl AppController {
                     .ui_cache
                     .folders
                     .models
-                    .entry(crate::app::controller::state::cache::FolderBrowserCacheKey {
-                        pane: controller.ui.sources.active_folder_pane,
-                        source_id,
-                    })
+                    .entry(
+                        crate::app::controller::state::cache::FolderBrowserCacheKey {
+                            pane: controller.ui.sources.active_folder_pane,
+                            source_id,
+                        },
+                    )
                     .or_default();
                 if let Some(folder_state) = snapshot.folder_state.as_ref() {
                     model.selected = folder_state.selected.clone();

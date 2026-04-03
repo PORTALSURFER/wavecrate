@@ -48,7 +48,11 @@ impl AppController {
     }
 
     /// Assign a source to one pane without immediately changing the active pane.
-    pub(crate) fn assign_source_to_folder_pane(&mut self, pane: FolderPaneId, id: Option<SourceId>) {
+    pub(crate) fn assign_source_to_folder_pane(
+        &mut self,
+        pane: FolderPaneId,
+        id: Option<SourceId>,
+    ) {
         self.ui.sources.folder_pane_mut(pane).source_id = id;
     }
 

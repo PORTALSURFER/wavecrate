@@ -25,11 +25,10 @@ pub(super) fn next_clip_export_path(
             &folder.join(file_name_hint(snapshot)),
         ),
         SelectionClipDestination::Folder {
-            source_root, folder, ..
-        } => next_selection_path_in_dir(
             source_root,
-            &folder.join(file_name_hint(snapshot)),
-        ),
+            folder,
+            ..
+        } => next_selection_path_in_dir(source_root, &folder.join(file_name_hint(snapshot))),
         SelectionClipDestination::Browser { .. } | SelectionClipDestination::ExternalDrag => {
             next_selection_path_in_dir(&snapshot.source_root, &snapshot.relative_path)
         }
@@ -54,10 +53,9 @@ pub(super) fn record_clip_entry(
                 root: source_root.clone(),
             },
         ),
-        SelectionClipDestination::Browser { .. } | SelectionClipDestination::ExternalDrag => (
-            snapshot.source_root.as_path(),
-            sample_source(snapshot),
-        ),
+        SelectionClipDestination::Browser { .. } | SelectionClipDestination::ExternalDrag => {
+            (snapshot.source_root.as_path(), sample_source(snapshot))
+        }
     };
     let entry = build_written_entry(
         source_root,

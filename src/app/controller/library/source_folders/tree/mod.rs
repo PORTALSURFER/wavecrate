@@ -72,12 +72,7 @@ impl AppController {
             available = cached_available;
         }
         let snapshot = {
-            let model = self
-                .ui_cache
-                .folders
-                .models
-                .entry(cache_key)
-                .or_default();
+            let model = self.ui_cache.folders.models.entry(cache_key).or_default();
             model
                 .manual_folders
                 .retain(|path| source.root.join(path).is_dir());
@@ -128,10 +123,10 @@ impl AppController {
 
     pub(crate) fn current_folder_model(&self) -> Option<&FolderBrowserModel> {
         let id = self.selection_state.ctx.selected_source.as_ref()?;
-        self.ui_cache
-            .folders
-            .models
-            .get(&folder_browser_cache_key(self.active_folder_pane(), id.clone()))
+        self.ui_cache.folders.models.get(&folder_browser_cache_key(
+            self.active_folder_pane(),
+            id.clone(),
+        ))
     }
 }
 

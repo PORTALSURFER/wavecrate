@@ -48,7 +48,10 @@ impl DragDropController<'_> {
                 &relative_path,
                 bounds,
                 target_source_id,
-                destination.folder_target.as_deref().unwrap_or_else(|| Path::new("")),
+                destination
+                    .folder_target
+                    .as_deref()
+                    .unwrap_or_else(|| Path::new("")),
                 keep_source_focused,
             );
             return;

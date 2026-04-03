@@ -181,7 +181,8 @@ fn project_folder_rows(folder_ui: &FolderBrowserUiState) -> Vec<FolderRowModel> 
                 }
             }
             InlineFolderEditKind::Rename { target } => {
-                if let Some(target_index) = folder_ui.rows.iter().position(|row| row.path == *target)
+                if let Some(target_index) =
+                    folder_ui.rows.iter().position(|row| row.path == *target)
                     && let Some(row) = folder_ui.rows.get(target_index)
                     && let Some(projected_row) = projected.get_mut(target_index)
                 {

@@ -22,10 +22,14 @@ impl AppController {
         let pending_source = self.runtime.jobs.pending_folder_scan_source();
         if let Some(pending_source) = pending_source.as_ref()
             && pending_source != source_id
-            && let Some(model) = self.ui_cache.folders.models.get_mut(&FolderBrowserCacheKey {
-                pane: self.active_folder_pane(),
-                source_id: pending_source.clone(),
-            })
+            && let Some(model) = self
+                .ui_cache
+                .folders
+                .models
+                .get_mut(&FolderBrowserCacheKey {
+                    pane: self.active_folder_pane(),
+                    source_id: pending_source.clone(),
+                })
         {
             model.disk_refresh_in_progress = false;
         }
@@ -48,10 +52,15 @@ impl AppController {
         if !should_request {
             return;
         }
-        if let Some(model) = self.ui_cache.folders.models.get_mut(&FolderBrowserCacheKey {
-            pane: self.active_folder_pane(),
-            source_id: source_id.clone(),
-        }) {
+        if let Some(model) = self
+            .ui_cache
+            .folders
+            .models
+            .get_mut(&FolderBrowserCacheKey {
+                pane: self.active_folder_pane(),
+                source_id: source_id.clone(),
+            })
+        {
             model.disk_refresh_in_progress = true;
         }
         self.runtime

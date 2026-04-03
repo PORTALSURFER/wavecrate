@@ -1,7 +1,7 @@
 //! Request planning and cache-backed metadata lookups for drop-target transfers.
 
-use crate::app::controller::ui::drag_drop_controller::DragDropController;
 use crate::app::controller::jobs::{DropTargetTransferMetadata, DropTargetTransferRequest};
+use crate::app::controller::ui::drag_drop_controller::DragDropController;
 use crate::app::state::DragSample;
 use crate::sample_sources::SampleSource;
 use std::path::Path;

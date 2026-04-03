@@ -1,4 +1,5 @@
 use super::*;
+use crate::sample_sources::Rating;
 use crate::sample_sources::db::file_ops_journal;
 
 pub(super) struct DbCommittedSourcePaste {
@@ -21,7 +22,7 @@ pub(super) fn commit_source_copy(
             ));
         }
     };
-    if let Err(err) = batch.upsert_file(
+    if let Err(err) = batch.upsert_file_without_hash(
         &staged.prepared.relative,
         staged.file_size,
         staged.modified_ns,
@@ -31,6 +32,38 @@ pub(super) fn commit_source_copy(
             &staged.prepared.staged_absolute,
             &staged.prepared.op_id,
             format!("Failed to register file: {err}"),
+        ));
+    }
+    if let Err(err) = batch.set_tag(&staged.prepared.relative, Rating::NEUTRAL) {
+        return Err(report_staged_copy_failure(
+            db,
+            &staged.prepared.staged_absolute,
+            &staged.prepared.op_id,
+            format!("Failed to reset imported tag: {err}"),
+        ));
+    }
+    if let Err(err) = batch.set_looped(&staged.prepared.relative, false) {
+        return Err(report_staged_copy_failure(
+            db,
+            &staged.prepared.staged_absolute,
+            &staged.prepared.op_id,
+            format!("Failed to clear imported loop marker: {err}"),
+        ));
+    }
+    if let Err(err) = batch.set_locked(&staged.prepared.relative, false) {
+        return Err(report_staged_copy_failure(
+            db,
+            &staged.prepared.staged_absolute,
+            &staged.prepared.op_id,
+            format!("Failed to clear imported keep lock: {err}"),
+        ));
+    }
+    if let Err(err) = batch.clear_last_played_at(&staged.prepared.relative) {
+        return Err(report_staged_copy_failure(
+            db,
+            &staged.prepared.staged_absolute,
+            &staged.prepared.op_id,
+            format!("Failed to clear imported playback age: {err}"),
         ));
     }
     if let Err(err) = batch.commit() {

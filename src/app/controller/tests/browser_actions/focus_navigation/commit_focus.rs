@@ -38,6 +38,35 @@ fn commit_focus_debounces_similarity_refresh_flush() {
 }
 
 #[test]
+fn commit_focused_browser_row_ignores_hidden_stale_focus() {
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.settings.feature_flags.autoplay_selection = false;
+
+    controller.focus_browser_row_only(1);
+    controller.runtime.jobs.pending_audio = None;
+    controller.runtime.jobs.pending_playback = None;
+
+    controller.set_browser_search("one");
+
+    assert_eq!(controller.ui.browser.selection.selected_visible, None);
+    assert_eq!(
+        controller.ui.browser.selection.last_focused_path.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+
+    assert!(!controller.commit_focused_browser_row());
+    assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.runtime.jobs.pending_playback.is_none());
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+}
+
+#[test]
 fn commit_focus_flush_queues_async_similarity_query_without_immediate_highlight() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),

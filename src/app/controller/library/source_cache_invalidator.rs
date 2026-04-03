@@ -19,8 +19,10 @@ pub(crate) struct SourceCacheInvalidator<'a> {
     feature_cache: &'a mut HashMap<SourceId, FeatureCache>,
     browser_pipeline_cache: &'a mut crate::app::controller::library::wavs::BrowserPipelineCache,
     missing_wavs: &'a mut HashMap<SourceId, HashSet<PathBuf>>,
-    folder_browsers: &'a mut
-        HashMap<FolderBrowserCacheKey, crate::app::controller::library::source_folders::FolderBrowserModel>,
+    folder_browsers: &'a mut HashMap<
+        FolderBrowserCacheKey,
+        crate::app::controller::library::source_folders::FolderBrowserModel,
+    >,
 }
 
 impl<'a> SourceCacheInvalidator<'a> {

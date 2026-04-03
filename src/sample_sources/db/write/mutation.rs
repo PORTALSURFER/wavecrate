@@ -46,6 +46,19 @@ pub(super) fn update_path_i64_statement(
     Ok(())
 }
 
+pub(super) fn update_path_null_statement(
+    tx: &Transaction<'_>,
+    sql: &str,
+    relative_path: &Path,
+) -> Result<(), SourceDbError> {
+    let path = normalize_relative_path(relative_path)?;
+    tx.prepare_cached(sql)
+        .map_err(map_sql_error)?
+        .execute(params![path])
+        .map_err(map_sql_error)?;
+    Ok(())
+}
+
 pub(super) fn delete_path_statement(
     tx: &Transaction<'_>,
     relative_path: &Path,

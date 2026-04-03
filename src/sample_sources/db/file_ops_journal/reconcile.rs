@@ -104,9 +104,14 @@ fn reconcile_target_entry(
     if target_absolute.is_file() {
         let (file_size, modified_ns) = file_metadata(target_absolute)?;
         let mut batch = db.write_batch().map_err(|err| err.to_string())?;
-        batch
-            .upsert_file(&entry.target_relative, file_size, modified_ns)
-            .map_err(|err| err.to_string())?;
+        match entry.kind {
+            FileOpKind::Copy => batch
+                .upsert_file_without_hash(&entry.target_relative, file_size, modified_ns)
+                .map_err(|err| err.to_string())?,
+            FileOpKind::Move => batch
+                .upsert_file(&entry.target_relative, file_size, modified_ns)
+                .map_err(|err| err.to_string())?,
+        }
         if let Some(tag) = entry.tag {
             batch
                 .set_tag(&entry.target_relative, tag)
@@ -125,6 +130,10 @@ fn reconcile_target_entry(
         if let Some(last_played_at) = entry.last_played_at {
             batch
                 .set_last_played_at(&entry.target_relative, last_played_at)
+                .map_err(|err| err.to_string())?;
+        } else {
+            batch
+                .clear_last_played_at(&entry.target_relative)
                 .map_err(|err| err.to_string())?;
         }
         batch.commit().map_err(|err| err.to_string())?;

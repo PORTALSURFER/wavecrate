@@ -11,7 +11,10 @@ mod upsert;
 #[cfg(test)]
 mod tests;
 
-use mutation::{delete_path_statement, update_flag_statement, update_path_i64_statement};
+use mutation::{
+    delete_path_statement, update_flag_statement, update_path_i64_statement,
+    update_path_null_statement,
+};
 use upsert::{ContentHashPolicy, TagPolicy, WavFileWriteSpec, execute_wav_upsert};
 
 const UPDATE_TAG_SQL: &str = "UPDATE wav_files SET tag = ?1 WHERE path = ?2";
@@ -19,6 +22,7 @@ const UPDATE_LOOPED_SQL: &str = "UPDATE wav_files SET looped = ?1 WHERE path = ?
 const UPDATE_LOCKED_SQL: &str = "UPDATE wav_files SET locked = ?1 WHERE path = ?2";
 const UPDATE_MISSING_SQL: &str = "UPDATE wav_files SET missing = ?1 WHERE path = ?2";
 const UPDATE_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = ?1 WHERE path = ?2";
+const CLEAR_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = NULL WHERE path = ?1";
 
 impl SourceDatabase {
     /// Upsert a wav file row using the path relative to the source root.
@@ -70,6 +74,11 @@ impl SourceDatabase {
         played_at: i64,
     ) -> Result<(), SourceDbError> {
         self.mutate_with_batch(|batch| batch.set_last_played_at(relative_path, played_at))
+    }
+
+    /// Clear the recorded most recent playback timestamp for a wav file.
+    pub fn clear_last_played_at(&self, relative_path: &Path) -> Result<(), SourceDbError> {
+        self.mutate_with_batch(|batch| batch.clear_last_played_at(relative_path))
     }
 
     /// Remove a wav file row by relative path.
@@ -245,6 +254,11 @@ impl<'conn> SourceWriteBatch<'conn> {
             relative_path,
             played_at,
         )
+    }
+
+    /// Clear the last played timestamp for a wav row within the batch.
+    pub fn clear_last_played_at(&mut self, relative_path: &Path) -> Result<(), SourceDbError> {
+        update_path_null_statement(&self.tx, CLEAR_LAST_PLAYED_AT_SQL, relative_path)
     }
 
     /// Remove a wav row within the batch.

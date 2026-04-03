@@ -1,5 +1,5 @@
-use super::{FolderPaneId, UiPoint};
 use super::browser::TriageFlagColumn;
+use super::{FolderPaneId, UiPoint};
 use crate::sample_sources::SourceId;
 use crate::selection::SelectionRange;
 use std::collections::HashMap;

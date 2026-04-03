@@ -31,6 +31,7 @@ pub(crate) fn build_named_gui_fixture_controller(
 ) -> Result<GuiFixtureControllerBundle, String> {
     match fixture_tag {
         "browser" => build_browser_fixture(renderer),
+        "sources" => build_sources_fixture(renderer),
         "transport" => build_transport_fixture(renderer),
         "map" => build_map_fixture(renderer),
         "waveform" => build_waveform_fixture(renderer),
@@ -44,6 +45,60 @@ pub(crate) fn build_named_gui_fixture_controller(
 
 fn build_browser_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
     build_browser_fixture_with_source_id(renderer, None)
+}
+
+fn build_sources_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
+    let mut controller = AppController::new(renderer, None);
+    controller.settings.controls.advance_after_rating = false;
+    let sandbox =
+        tempfile::tempdir().map_err(|err| format!("create sources fixture tempdir: {err}"))?;
+    let source_root = sandbox.path().join("sources-source");
+    fs::create_dir_all(source_root.join("drums").join("kicks")).map_err(|err| {
+        format!(
+            "create sources fixture nested folder {}: {err}",
+            source_root.join("drums").join("kicks").display()
+        )
+    })?;
+    fs::create_dir_all(source_root.join("drums").join("snares")).map_err(|err| {
+        format!(
+            "create sources fixture nested folder {}: {err}",
+            source_root.join("drums").join("snares").display()
+        )
+    })?;
+    fs::create_dir_all(source_root.join("loops")).map_err(|err| {
+        format!(
+            "create sources fixture nested folder {}: {err}",
+            source_root.join("loops").display()
+        )
+    })?;
+    let source = SampleSource::new(source_root);
+    let entries = vec![
+        write_fixture_entry(
+            &source.root,
+            "drums/kicks/tight.wav",
+            &[0.15, -0.20, 0.10, -0.05],
+            crate::sample_sources::Rating::NEUTRAL,
+        )?,
+        write_fixture_entry(
+            &source.root,
+            "drums/snares/snap.wav",
+            &[0.10, -0.08, 0.14, -0.12],
+            crate::sample_sources::Rating::KEEP_1,
+        )?,
+        write_fixture_entry(
+            &source.root,
+            "loops/house_loop.wav",
+            &[0.22, -0.16, 0.18, -0.14],
+            crate::sample_sources::Rating::TRASH_1,
+        )?,
+    ];
+    seed_source_fixture(&mut controller, &source, entries)?;
+    controller.refresh_folder_browser();
+    controller.focus_folder_row(1);
+    Ok(GuiFixtureControllerBundle {
+        controller,
+        sandbox_guards: vec![sandbox],
+    })
 }
 
 fn build_browser_fixture_with_source_id(

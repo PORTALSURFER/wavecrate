@@ -3,13 +3,13 @@
 use super::super::move_transaction::{
     load_sample_move_metadata, move_sample_file, prepare_staged_copy, prepare_staged_move,
 };
+use super::DroppedSampleMetadata;
+use super::paths::{copy_destination_relative, move_destination_relative};
 use super::transactions::{
     clear_file_op_journal_entry, register_drop_target_target_entry, rollback_staged_copy,
     rollback_staged_move, rollback_staged_move_after_target_db_stage, sample_move_metadata,
     warn_on_journal_stage_update,
 };
-use super::paths::{copy_destination_relative, move_destination_relative};
-use super::DroppedSampleMetadata;
 use crate::app::controller::jobs::{
     DropTargetTransferKind, DropTargetTransferMetadata, DropTargetTransferRequest,
     DropTargetTransferResult, DropTargetTransferSuccess, FileOpMessage,

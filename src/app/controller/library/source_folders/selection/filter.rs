@@ -10,7 +10,8 @@ impl AppController {
 
     /// Read the active folder file-scope mode for the current source.
     pub(crate) fn folder_file_scope_mode_for_filter(&self) -> Option<FolderFileScopeMode> {
-        self.current_folder_model().map(|model| model.file_scope_mode)
+        self.current_folder_model()
+            .map(|model| model.file_scope_mode)
     }
 
     pub(crate) fn folder_negation_for_filter(&self) -> Option<&BTreeSet<PathBuf>> {

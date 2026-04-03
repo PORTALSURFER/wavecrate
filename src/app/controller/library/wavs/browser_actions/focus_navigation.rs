@@ -174,14 +174,30 @@ impl AppController {
     /// Returns `true` when a focused row was committed, or `false` when no row
     /// is focused in the current browser projection.
     pub fn commit_focused_browser_row(&mut self) -> bool {
-        let Some(entry_index) = self
+        let Some(visible_row) = self
             .ui
             .browser
             .selection
             .selected_visible
-            .and_then(|visible_row| self.visible_browser_index(visible_row))
-            .or(self.ui.browser.selection.last_focused_index)
+            .or_else(|| {
+                self.ui
+                    .browser
+                    .selection
+                    .last_focused_index
+                    .and_then(|entry_index| self.browser_visible_row_for_entry(entry_index))
+            })
+            .or_else(|| {
+                self.ui
+                    .browser
+                    .selection
+                    .last_focused_path
+                    .clone()
+                    .and_then(|path| self.visible_row_for_path(&path))
+            })
         else {
+            return false;
+        };
+        let Some(entry_index) = self.visible_browser_index(visible_row) else {
             return false;
         };
         let Some(path) = self
@@ -192,9 +208,7 @@ impl AppController {
         };
         self.focus_browser_context();
         self.ui.browser.selection.autoscroll = true;
-        if let Some(row) = self.browser_visible_row_for_entry(entry_index) {
-            self.ui.browser.selection.selection_anchor_visible = Some(row);
-        }
+        self.ui.browser.selection.selection_anchor_visible = Some(visible_row);
         self.select_wav_by_path_with_rebuild(&path, false);
         self.refresh_browser_selection_markers();
         true

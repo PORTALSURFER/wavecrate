@@ -94,6 +94,7 @@ fn capture_default_bundle_exposes_root_snapshot_and_catalog() {
 fn capture_default_bundle_advertises_only_cataloged_actions_across_named_fixtures() {
     for fixture_tag in [
         "browser",
+        "sources",
         "transport",
         "map",
         "waveform",

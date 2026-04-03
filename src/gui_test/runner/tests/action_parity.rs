@@ -8,8 +8,7 @@ fn assert_fixture_node_actions(fixture_tag: &str, node_id: &str, expected_action
         .unwrap_or_else(|| panic!("fixture {fixture_tag} missing automation node {node_id}"));
     let actual_actions: Vec<_> = node.available_actions.iter().map(String::as_str).collect();
     assert_eq!(
-        actual_actions,
-        expected_actions,
+        actual_actions, expected_actions,
         "fixture {fixture_tag} node {node_id} advertised unexpected actions"
     );
     for action_id in expected_actions {
@@ -60,6 +59,16 @@ fn capture_default_bundle_advertises_expected_action_ids_for_representative_node
             &["toggle_show_all_folders"],
         ),
         (
+            "sources",
+            "sources.upper.folder_row.1",
+            &[
+                "focus_folder_row",
+                "activate_folder_row",
+                "start_new_folder_at_folder_row",
+                "toggle_folder_row_expanded",
+            ],
+        ),
+        (
             "transport",
             "shell.top_bar.volume_slider",
             &["set_volume", "commit_volume_setting"],
@@ -102,17 +111,21 @@ fn capture_default_bundle_advertises_expected_action_ids_for_representative_node
             "waveform.edit_selection",
             &["clear_waveform_edit_selection"],
         ),
-        (
-            "options",
-            "overlay.options_panel",
-            &["close_options_panel"],
-        ),
+        ("options", "overlay.options_panel", &["close_options_panel"]),
         ("prompt", "overlay.prompt.confirm", &["confirm_prompt"]),
         ("prompt", "overlay.prompt.cancel", &["cancel_prompt"]),
         ("prompt", "overlay.prompt.input", &["set_prompt_input"]),
         ("update", "shell.top_bar.update.open", &["open_update_link"]),
-        ("update", "shell.top_bar.update.install", &["install_update"]),
-        ("update", "shell.top_bar.update.dismiss", &["dismiss_update"]),
+        (
+            "update",
+            "shell.top_bar.update.install",
+            &["install_update"],
+        ),
+        (
+            "update",
+            "shell.top_bar.update.dismiss",
+            &["dismiss_update"],
+        ),
     ];
 
     for (fixture_tag, node_id, expected_actions) in cases {

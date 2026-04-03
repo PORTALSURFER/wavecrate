@@ -61,11 +61,7 @@ impl AppController {
             } else {
                 let mut model = FolderBrowserModel::default();
                 model.file_scope_mode = model.file_scope_mode.toggle();
-                controller
-                    .ui_cache
-                    .folders
-                    .models
-                    .insert(cache_key, model);
+                controller.ui_cache.folders.models.insert(cache_key, model);
             }
             controller.refresh_folder_browser();
             controller.rebuild_browser_lists();

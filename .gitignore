@@ -18,4 +18,4 @@ assets/ml/panns_cnn14_16k/*.pth
 # Generated desktop GUI test artifacts and exports.
 /artifacts/
 /desktop-smoke
-/tmp/gui_snapshot.json
+/tmp

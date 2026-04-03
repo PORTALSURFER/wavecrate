@@ -111,6 +111,7 @@ Current named fixture tags:
 
 - `default`
 - `browser`
+- `sources`
 - `waveform`
 - `options`
 - `prompt`

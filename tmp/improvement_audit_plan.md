@@ -71,6 +71,7 @@ Status: Phase 2 in progress. Item 1 is implemented and validated locally; remain
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 - Plan-order deviation: none
+- Pushed commit: `c748b0cf` (`test(browser): cover visible row pipeline branches`)
 - Pushed commit: `8b8dd2d1` (`fix(browser): stabilize playback-age filter invalidation`)
 
 ### 2. [x] Add direct visible-row pipeline coverage for query, similarity, marked-only, and playback-age branches

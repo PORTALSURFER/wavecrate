@@ -106,7 +106,9 @@ impl DragDropController<'_> {
         resolved_target: ResolvedDropTarget,
         copy_requested: bool,
     ) {
-        if let Some(target) = resolved_target.folder_source_target.or(resolved_target.source_target)
+        if let Some(target) = resolved_target
+            .folder_source_target
+            .or(resolved_target.source_target)
         {
             self.handle_samples_transfer_to_source_folder(
                 &samples,
@@ -184,7 +186,9 @@ impl DragDropController<'_> {
             SelectionDropDestination {
                 browser_list_target: resolved_target.browser_list_target,
                 triage_target: resolved_target.triage_target,
-                target_source_id: resolved_target.folder_source_target.or(resolved_target.source_target),
+                target_source_id: resolved_target
+                    .folder_source_target
+                    .or(resolved_target.source_target),
                 folder_target: resolved_target.folder_target,
             },
             keep_source_focused,

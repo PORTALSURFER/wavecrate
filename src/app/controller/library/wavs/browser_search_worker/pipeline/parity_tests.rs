@@ -1,7 +1,7 @@
 use super::stages::{BuildVisibleRowsParams, build_visible_rows_for_job};
 use super::*;
-use crate::app::controller::state::cache::FolderBrowserCacheKey;
 use crate::app::controller::library::source_folders::FolderBrowserModel;
+use crate::app::controller::state::cache::FolderBrowserCacheKey;
 use crate::app::controller::test_support::prepare_with_source_and_wav_entries;
 use crate::app::state::FolderPaneId;
 use crate::sample_sources::{Rating, WavEntry};
