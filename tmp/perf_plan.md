@@ -1,7 +1,7 @@
 # Runtime Performance Audit Backlog
 
 Generated: 2026-04-03 (Europe/Amsterdam)
-Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored and items 1-5 are complete with item 6 next in strict ROI order.
+Status: Phase 2 complete on 2026-04-04; prerequisite perf-harness parity remained green, the dense-waveform benchmark fixture is fixed, and all 7 ranked items are complete in strict ROI order.
 
 ## Validation Baseline
 
@@ -12,11 +12,11 @@ Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored 
   - full parity/perf lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
   - perf benchmark lane: `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 - Live benchmark artifact used for this audit: `target/perf/bench.json`
-  - `gui.interactive_projection.p95_us = 4535`
-  - `gui.hover_latency.p95_us = 2955`
-  - `gui.wheel_latency.p95_us = 3094`
-  - `gui.browser_focus_commit_latency.p95_us = 98`
-  - `gui.waveform_pan_zoom_adjacent_latency.p95_us = 169`
+  - `gui.browser_filter_churn_latency.p95_us = 2999`
+  - `gui.hover_latency.p95_us = 2545`
+  - `gui.wheel_latency.p95_us = 2694`
+  - `gui.browser_focus_commit_latency.p95_us = 57`
+  - `gui.waveform_pan_zoom_adjacent_latency.p95_us = 165`
 - Validation blocker resolved on 2026-04-03
   - `scripts/run_perf_guard.ps1` is compiling again after `tools/bench-cli/src/bench/gui/interactions/step_patterns.rs` restored the required `snap_override` field for `NativeUiAction::SetWaveformSelectionRange`.
 
@@ -175,7 +175,7 @@ Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored 
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
     - `target/perf/bench.json`: `browser_focus_commit_latency.p95_us = 91`, `browser_focus_preview_latency.p95_us = 85`, `browser_filter_churn_latency.p95_us = 2477`, `hover_latency.p95_us = 2399`, `wheel_latency.p95_us = 2566`, `waveform_pan_zoom_adjacent_latency.p95_us = 111`
 
-- [ ] 6. Increase waveform adjacent-view cache locality instead of recomputing dense columns on pan/zoom churn
+- [x] 6. Increase waveform adjacent-view cache locality instead of recomputing dense columns on pan/zoom churn
   - ROI: Medium
   - Effort: M
   - Expected impact: p95 interaction latency, frame time, CPU
@@ -195,8 +195,17 @@ Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored 
     - Add/extend zoom-cache eviction and adjacent-view reuse tests.
     - Run waveform-focused unit tests, then `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
     - Re-measure `waveform_pan_zoom_adjacent_latency`.
+  - Completed: 2026-04-04, commits `ffe0651c` and `c615c664`
+  - Validation status:
+    - `cargo test -p sempal-bench-cli seeded_wavs_exceed_dense_cache_threshold -- --nocapture`
+    - `cargo test -p sempal cached_full_width_stays_stable_for_adjacent_zoom_fractions -- --nocapture`
+    - `cargo test -p sempal cache_token_prevents_stale_hits_when_memory_is_reused -- --nocapture`
+    - `cargo test -p sempal adjacent_pan_translation_matches_full_render_output -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+    - `target/perf/bench.json`: `waveform_pan_zoom_adjacent_latency.p95_us = 165`, `browser_focus_commit_latency.p95_us = 57`, `browser_focus_preview_latency.p95_us = 60`, `browser_filter_churn_latency.p95_us = 2999`, `hover_latency.p95_us = 2545`, `wheel_latency.p95_us = 2694`
 
-- [ ] 7. Move browser feature-cache priming off the row-projection hot path
+- [x] 7. Move browser feature-cache priming off the row-projection hot path
   - ROI: Medium
   - Effort: M
   - Expected impact: p95 interaction latency, memory, CPU
@@ -217,3 +226,12 @@ Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored 
     - Add feature-cache refresh and stale-cache fallback tests.
     - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
     - Re-measure `browser_filter_churn_latency` and first-hit browser interaction outliers after the perf harness is restored.
+  - Completed: 2026-04-04, commit `75f8294d`
+  - Validation status:
+    - `cargo test -p sempal browser_feature_cache_refresh_updates_row_metadata -- --nocapture`
+    - `cargo test -p sempal stale_browser_feature_cache_refresh_is_dropped -- --nocapture`
+    - `cargo test -p sempal cached_browser_row_metadata_prefers_bpm_loop_and_long_without_rating_text -- --nocapture`
+    - `cargo test -p sempal source_hydration -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+    - `target/perf/bench.json`: `browser_filter_churn_latency.p95_us = 2999`, `browser_query_churn_latency.p95_us = 74`, `browser_sort_toggle_latency.p95_us = 77`, `hover_latency.p95_us = 2545`, `wheel_latency.p95_us = 2694`, `browser_focus_preview_latency.p95_us = 60`, `browser_focus_commit_latency.p95_us = 57`, `waveform_pan_zoom_adjacent_latency.p95_us = 165`

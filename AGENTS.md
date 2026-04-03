@@ -61,19 +61,18 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: runtime performance audit refresh for the current live tree
 - Source of truth: `tmp/perf_plan.md` for the 2026-04-03 ROI-ranked runtime performance backlog and execution record; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
-- Current status: Phase 2 is active on `2026-04-03`. Items 1-5 are complete in commits `9fe71ec9` (`vendor/radiant`), `58e5fe24` (`vendor/radiant`), `2bb31ea2` (`sempal`), `8cf293b0` (`sempal`), and `7a91afd2` (`sempal`), the perf harness is green, and the ranked items continue in strict order from item 6.
+- Current status: Phase 2 is complete on `2026-04-04`. Item 6 is finalized by commits `ffe0651c` and `c615c664`, item 7 is complete in commit `75f8294d`, and `tmp/perf_plan.md` is now the completed execution record for this runtime-performance lane.
 
 ## Immediate Next Actions
-1. Treat `tmp/perf_plan.md` as the active runtime-performance source of truth for this lane while Phase 2 runs.
-2. Continue with item 6 in `tmp/perf_plan.md`: increase waveform adjacent-view cache locality instead of recomputing dense columns on pan/zoom churn.
-3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
-4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
+1. Treat `tmp/perf_plan.md` as the completed runtime-performance execution record until the user opens a new lane.
+2. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
+3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/perf_plan.md`: active ROI-ranked runtime performance backlog for the live tree; items 1-5 are complete and item 6 is next
+- `tmp/perf_plan.md`: completed ROI-ranked runtime performance execution record for the live tree
 - `tmp/improvement_audit_plan.md`: separate evidence-driven repo-wide improvement backlog and execution record; resume only when the user reopens that lane
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
