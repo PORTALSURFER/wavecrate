@@ -29,7 +29,8 @@ Start here:
   for the current audit lane status and execution order
 - `tmp/cleanup_plan.md` — parked ROI-ranked cleanup backlog
   (Phase 1 complete on 2026-03-12; resume only after explicit Phase 2 confirmation)
-- `tmp/perf_plan.md` — completed runtime performance execution record through item 11
+- `tmp/perf_plan.md` — current ROI-ranked runtime performance backlog for the live tree
+  (refreshed on 2026-04-03; Phase 1 complete and awaiting explicit Phase 2 confirmation)
 - `docs/plans/TEMPLATE_execution_plan.md` — template for multi-step work
 - `docs/plans/TEMPLATE_investigation.md` — template for bug/perf investigations
 - `docs/run_contracts.md` — machine-readable app-run artifact contract
@@ -92,6 +93,10 @@ Use these scripts as the default entrypoints for local work (humans and agents).
   - Run:
     - macOS/Linux/WSL: `bash scripts/run_sandbox.sh --`
     - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --`
+- Pull latest `next` and then do a release sandbox run:
+  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/pull_and_run_release.ps1 --`
+  - Fast-forwards both the main repo and `vendor/radiant` with `git pull --ff-only origin next`, then delegates to `scripts/run_sandbox.ps1`.
+  - Requires both repos to be clean and on local `next` tracking `origin/next`.
 - Clean sandbox state (delete `<repo>/.sandbox/sempal`):
   - macOS/Linux/WSL: `bash scripts/clean_sandbox.sh`
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/clean_sandbox.ps1`
