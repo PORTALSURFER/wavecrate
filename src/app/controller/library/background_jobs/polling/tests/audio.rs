@@ -72,6 +72,38 @@ fn audio_primary_message_ignores_stale_completion_then_applies_matching_result()
 }
 
 #[test]
+/// Selection audio completion should only queue one follow-loaded similarity refresh.
+fn audio_primary_message_queues_one_follow_loaded_similarity_refresh() {
+    let (mut controller, source) =
+        prepare_with_source_and_wav_entries(vec![sample_entry("match.wav", Rating::NEUTRAL)]);
+    let relative_path = Path::new("match.wav");
+    write_test_wav(&source.root.join(relative_path), &[0.0, 0.25, -0.25, 0.5]);
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.ui.browser.search.sort = crate::app::state::SampleBrowserSort::Similarity;
+    controller.ui.browser.search.similarity_sort_follow_loaded = true;
+
+    controller.handle_audio_loaded(
+        PendingAudio {
+            request_id: 17,
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: relative_path.to_path_buf(),
+            intent: AudioLoadIntent::Selection,
+        },
+        decode_audio_outcome(&controller, &source, relative_path),
+    );
+
+    let pending = controller
+        .runtime
+        .pending_loaded_similarity_query
+        .as_ref()
+        .expect("follow-loaded similarity query should be queued");
+    assert_eq!(pending.request_id, 1);
+    assert_eq!(pending.source_id, source.id);
+    assert_eq!(pending.relative_path, relative_path);
+}
+
+#[test]
 /// Transient completions should route through the controller and refresh the active waveform UI.
 fn audio_transients_message_routes_to_loaded_waveform_state() {
     let (mut controller, source) =

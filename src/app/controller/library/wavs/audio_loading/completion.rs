@@ -165,7 +165,6 @@ impl AppController {
         if matches!(intent, AudioLoadIntent::Selection) {
             self.apply_loaded_sample_bpm(relative_path);
             self.apply_loaded_sample_loop_marker(source, relative_path);
-            self.refresh_similarity_sort_for_loaded_sample();
         }
         Ok(())
     }
