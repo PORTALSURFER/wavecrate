@@ -71,8 +71,6 @@ impl DerivedProjectionState {
 pub(crate) struct NativeProjectionCache {
     pub(crate) app_key: Option<NativeProjectionCacheKey>,
     pub(crate) app_model: Option<Arc<NativeAppModel>>,
-    /// Mutable retained model reused on projection misses to avoid Arc clone fallback paths.
-    pub(crate) app_model_working: Option<NativeAppModel>,
     pub(crate) status_key: Option<StatusProjectionCacheKey>,
     pub(crate) browser_frame_key: Option<BrowserFrameProjectionCacheKey>,
     pub(crate) browser_rows_key: Option<BrowserRowsProjectionCacheKey>,
@@ -116,7 +114,6 @@ impl NativeProjectionCache {
     pub(crate) fn invalidate(&mut self) {
         self.app_key = None;
         self.app_model = None;
-        self.app_model_working = None;
         self.status_key = None;
         self.browser_frame_key = None;
         self.browser_rows_key = None;

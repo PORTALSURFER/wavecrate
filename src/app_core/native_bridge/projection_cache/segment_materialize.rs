@@ -34,40 +34,34 @@ pub(super) fn resolve_or_project_with_derived(
         return (model, NativeDirtySegments::empty());
     }
     trace_projection_cache_lookup(false);
-    let has_retained_model = cache.app_model_working.is_some() || cache.app_model.is_some();
-    let mut model = cache
-        .app_model_working
+    let has_retained_model = cache.app_model.is_some();
+    let mut snapshot = cache
+        .app_model
         .take()
-        .or_else(|| cache.app_model.as_ref().map(|model| model.as_ref().clone()))
-        .unwrap_or_default();
+        .unwrap_or_else(|| Arc::new(NativeAppModel::default()));
+    let model = Arc::make_mut(&mut snapshot);
 
     let mut dirty_segments = NativeDirtySegments::empty();
 
-    if materialize_status_segment(cache, &mut model, controller, derived, has_retained_model) {
+    if materialize_status_segment(cache, model, controller, derived, has_retained_model) {
         dirty_segments.insert(NativeDirtySegments::STATUS_BAR);
     }
 
-    let browser_frame_changed = materialize_browser_frame_segment(
-        cache,
-        &mut model,
-        controller,
-        derived,
-        has_retained_model,
-    );
+    let browser_frame_changed =
+        materialize_browser_frame_segment(cache, model, controller, derived, has_retained_model);
     if browser_frame_changed {
         dirty_segments.insert(NativeDirtySegments::BROWSER_FRAME);
     }
 
-    if materialize_browser_rows_segment(cache, &mut model, controller, derived, has_retained_model)
-    {
+    if materialize_browser_rows_segment(cache, model, controller, derived, has_retained_model) {
         dirty_segments.insert(NativeDirtySegments::BROWSER_ROWS_WINDOW);
     }
 
-    if materialize_map_segment(cache, &mut model, controller, derived, has_retained_model) {
+    if materialize_map_segment(cache, model, controller, derived, has_retained_model) {
         dirty_segments.insert(NativeDirtySegments::MAP_PANEL);
     }
 
-    if materialize_waveform_segment(cache, &mut model, controller, derived, has_retained_model) {
+    if materialize_waveform_segment(cache, model, controller, derived, has_retained_model) {
         dirty_segments.insert(NativeDirtySegments::WAVEFORM_OVERLAY);
     }
 
@@ -75,15 +69,13 @@ pub(super) fn resolve_or_project_with_derived(
         update_non_segment_static_key(cache, derived, has_retained_model);
     if non_segment_static_changed {
         dirty_segments.insert(NativeDirtySegments::GLOBAL_STATIC);
-        refresh_non_segment_static_fields(&mut model, controller);
+        refresh_non_segment_static_fields(model, controller);
     }
 
-    refresh_non_segment_always_fields(&mut model, derived.selected_column);
-    refresh_non_segment_overlay_fields(&mut model, controller);
+    refresh_non_segment_always_fields(model, derived.selected_column);
+    refresh_non_segment_overlay_fields(model, controller);
     cache.app_key = Some(derived.app_key.clone());
-    let snapshot = Arc::new(model.clone());
     cache.app_model = Some(Arc::clone(&snapshot));
-    cache.app_model_working = Some(model);
     (snapshot, dirty_segments)
 }
 

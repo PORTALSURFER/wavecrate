@@ -165,7 +165,6 @@ fn projection_overlay_only_miss_skips_static_non_segment_refresh() {
     let (first_model, _) = cache.resolve_or_project(&mut controller);
     let mut retained = Arc::unwrap_or_clone(first_model);
     retained.sources_label = String::from("sentinel");
-    cache.app_model_working = Some(retained.clone());
     cache.app_model = Some(Arc::new(retained));
 
     controller.ui.progress.visible = true;
@@ -187,7 +186,6 @@ fn projection_overlay_only_miss_refreshes_options_panel_fields() {
     let mut retained = Arc::unwrap_or_clone(first_model);
     retained.options_panel.visible = false;
     retained.options_panel.trash_folder_label = None;
-    cache.app_model_working = Some(retained.clone());
     cache.app_model = Some(Arc::new(retained));
 
     controller.ui.options_panel.open = true;
@@ -200,6 +198,46 @@ fn projection_overlay_only_miss_refreshes_options_panel_fields() {
         model.options_panel.trash_folder_label.as_deref(),
         Some("trash_bin")
     );
+}
+
+#[test]
+fn projection_overlay_only_miss_reuses_unique_snapshot_arc() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let mut cache = NativeProjectionCache::default();
+    let (first_model, _) = cache.resolve_or_project(&mut controller);
+    let first_ptr = Arc::as_ptr(&first_model);
+    drop(first_model);
+
+    controller.ui.progress.visible = true;
+    controller.ui.progress.modal = true;
+    controller.ui.progress.completed = 1;
+    controller.ui.progress.total = 3;
+
+    let (second_model, dirty_segments) = cache.resolve_or_project(&mut controller);
+
+    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert_eq!(Arc::as_ptr(&second_model), first_ptr);
+    assert!(second_model.progress_overlay.visible);
+}
+
+#[test]
+fn projection_overlay_only_miss_clones_when_prior_snapshot_is_aliased() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let mut cache = NativeProjectionCache::default();
+    let (first_model, _) = cache.resolve_or_project(&mut controller);
+    assert!(!first_model.progress_overlay.visible);
+
+    controller.ui.progress.visible = true;
+    controller.ui.progress.modal = true;
+    controller.ui.progress.completed = 2;
+    controller.ui.progress.total = 5;
+
+    let (second_model, dirty_segments) = cache.resolve_or_project(&mut controller);
+
+    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert!(!Arc::ptr_eq(&first_model, &second_model));
+    assert!(!first_model.progress_overlay.visible);
+    assert!(second_model.progress_overlay.visible);
 }
 
 /// Status-key misses should still refresh selected-column metadata.
