@@ -32,6 +32,11 @@ pub(crate) struct TriageSampleContext {
     pub(crate) absolute_path: PathBuf,
 }
 
+pub(crate) struct DeleteBrowserFocusPlan {
+    pub(crate) preferred_path: Option<PathBuf>,
+    pub(crate) fallback_visible_row: Option<usize>,
+}
+
 impl BrowserController<'_> {
     pub(crate) fn try_normalize_browser_sample(&mut self, row: usize) -> Result<(), String> {
         let ctx = self.resolve_browser_sample(row)?;
@@ -164,7 +169,10 @@ impl BrowserController<'_> {
         ));
         Ok(())
     }
-    pub(crate) fn next_browser_focus_after_delete(&mut self, rows: &[usize]) -> Option<PathBuf> {
+    pub(crate) fn next_browser_focus_after_delete(
+        &mut self,
+        rows: &[usize],
+    ) -> Option<DeleteBrowserFocusPlan> {
         if rows.is_empty() || self.ui.browser.viewport.visible.len() == 0 {
             return None;
         }
@@ -177,14 +185,25 @@ impl BrowserController<'_> {
             .and_then(|idx| self.ui.browser.viewport.visible.get(idx))
             .and_then(|entry_idx| self.wav_entry(entry_idx))
             .map(|entry| entry.relative_path.clone());
-        if after.is_some() {
-            return after;
+        let fallback_visible_row = if after.is_some() {
+            Some(first)
+        } else {
+            first.checked_sub(1)
+        };
+        let preferred_path = after.or_else(|| {
+            first
+                .checked_sub(1)
+                .and_then(|idx| self.ui.browser.viewport.visible.get(idx))
+                .and_then(|entry_idx| self.wav_entry(entry_idx))
+                .map(|entry| entry.relative_path.clone())
+        });
+        if preferred_path.is_none() && fallback_visible_row.is_none() {
+            return None;
         }
-        first
-            .checked_sub(1)
-            .and_then(|idx| self.ui.browser.viewport.visible.get(idx))
-            .and_then(|entry_idx| self.wav_entry(entry_idx))
-            .map(|entry| entry.relative_path.clone())
+        Some(DeleteBrowserFocusPlan {
+            preferred_path,
+            fallback_visible_row,
+        })
     }
 
     pub(crate) fn try_delete_browser_sample_ctx(

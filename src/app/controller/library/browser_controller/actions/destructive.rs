@@ -58,7 +58,7 @@ impl BrowserController<'_> {
 
     fn delete_browser_contexts_action(
         &mut self,
-        next_focus: Option<PathBuf>,
+        next_focus: Option<super::super::helpers::DeleteBrowserFocusPlan>,
         contexts: Vec<super::super::helpers::TriageSampleContext>,
         initial_error: Option<String>,
     ) -> Result<(), String> {
@@ -148,18 +148,27 @@ impl BrowserController<'_> {
         Err(message)
     }
 
-    fn restore_browser_focus_after_delete(&mut self, next_focus: Option<PathBuf>) {
-        let Some(path) = next_focus else {
+    fn restore_browser_focus_after_delete(
+        &mut self,
+        next_focus: Option<super::super::helpers::DeleteBrowserFocusPlan>,
+    ) {
+        let Some(next_focus) = next_focus else {
             return;
         };
-        if self.wav_index_for_path(&path).is_none() {
+        if let Some(path) = next_focus.preferred_path.as_ref()
+            && let Some(row) = self.visible_row_for_path(path)
+        {
+            self.focus_browser_row_only(row);
             return;
         }
-        if let Some(row) = self.visible_row_for_path(&path) {
-            self.focus_browser_row_only(row);
-        } else {
-            self.select_wav_by_path_with_rebuild(&path, true);
+        let Some(fallback_visible_row) = next_focus.fallback_visible_row else {
+            return;
+        };
+        let visible_len = self.ui.browser.viewport.visible.len();
+        if visible_len == 0 {
+            return;
         }
+        self.focus_browser_row_only(fallback_visible_row.min(visible_len.saturating_sub(1)));
     }
 }
 
@@ -169,4 +178,51 @@ fn sample_label(count: usize) -> &'static str {
 
 fn error_label(count: usize) -> &'static str {
     if count == 1 { "error" } else { "errors" }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
+    use crate::app::state::{SampleBrowserSort, SimilarQuery};
+    use crate::sample_sources::Rating;
+
+    #[test]
+    fn restore_browser_focus_after_delete_uses_visible_fallback_when_preferred_path_is_hidden() {
+        let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+            sample_entry("a.wav", Rating::NEUTRAL),
+            sample_entry("b.wav", Rating::NEUTRAL),
+            sample_entry("c.wav", Rating::NEUTRAL),
+        ]);
+        controller.focus_browser_row_only(0);
+        let next_focus = {
+            let mut browser = BrowserController::new(&mut controller);
+            browser.next_browser_focus_after_delete(&[0])
+        };
+        controller.runtime.jobs.pending_audio = None;
+        controller.runtime.jobs.pending_playback = None;
+        controller.ui.browser.search.similar_query = Some(SimilarQuery {
+            sample_id: "source::c.wav".to_string(),
+            label: "c.wav".to_string(),
+            indices: vec![2],
+            scores: vec![1.0],
+            anchor_index: Some(2),
+        });
+        controller.ui.browser.search.sort = SampleBrowserSort::Similarity;
+        controller.rebuild_browser_lists();
+
+        {
+            let mut browser = BrowserController::new(&mut controller);
+            browser.restore_browser_focus_after_delete(next_focus);
+        }
+
+        assert_eq!(
+            controller.focused_browser_path().as_deref(),
+            Some(Path::new("c.wav"))
+        );
+        assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
+        assert!(controller.runtime.jobs.pending_audio.is_none());
+        assert!(controller.runtime.jobs.pending_playback.is_none());
+        assert!(controller.ui.browser.selection.commit_focus_pending);
+    }
 }
