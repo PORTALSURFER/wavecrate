@@ -49,7 +49,7 @@ impl AppController {
                     .as_ref()
                     .and_then(|path| self.visible_row_for_path(path))
             })
-            .or_else(|| self.ui.browser.viewport.visible.get(0));
+            .or_else(|| (visible_len > 0).then_some(0));
         let Some(target_row) = target_row else {
             self.set_status_message(StatusMessage::AddSourceWithSamplesFirst);
             return;

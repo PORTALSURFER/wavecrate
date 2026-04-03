@@ -61,6 +61,12 @@ pub(super) struct DeleteJournal {
     pub(super) entries: Vec<DeleteJournalEntry>,
 }
 
+#[cfg(test)]
+use std::sync::atomic::{AtomicBool, Ordering};
+
+#[cfg(test)]
+static FAIL_SAVE_BEFORE_REPLACE: AtomicBool = AtomicBool::new(false);
+
 /// Stage a folder for deletion and record it in the journal.
 pub(crate) fn stage_folder_for_delete(
     absolute: &Path,
@@ -318,11 +324,59 @@ fn save_journal(staging_root: &Path, journal: &DeleteJournal) -> Result<(), Stri
         .map_err(|err| format!("Failed to serialize delete journal: {err}"))?;
     let tmp_path = path.with_extension("tmp");
     fs::write(&tmp_path, bytes).map_err(|err| format!("Failed to write delete journal: {err}"))?;
-    if path.exists() {
-        let _ = fs::remove_file(&path);
-    }
-    fs::rename(&tmp_path, &path).map_err(|err| format!("Failed to save delete journal: {err}"))?;
+    fail_save_before_replace()?;
+    replace_journal_file(&tmp_path, &path)?;
     Ok(())
+}
+
+fn replace_journal_file(tmp_path: &Path, path: &Path) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::{
+            Win32::Storage::FileSystem::{
+                MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+            },
+            core::PCWSTR,
+        };
+
+        let from = wide_path(tmp_path);
+        let to = wide_path(path);
+        let flags = MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH;
+        unsafe { MoveFileExW(PCWSTR(from.as_ptr()), PCWSTR(to.as_ptr()), flags) }
+            .map_err(|err| format!("Failed to save delete journal: {err}"))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        fs::rename(tmp_path, path).map_err(|err| format!("Failed to save delete journal: {err}"))
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn wide_path(path: &Path) -> Vec<u16> {
+    let mut wide: Vec<u16> =
+        <std::ffi::OsStr as std::os::windows::ffi::OsStrExt>::encode_wide(path.as_os_str())
+            .collect();
+    wide.push(0);
+    wide
+}
+
+#[cfg(not(test))]
+fn fail_save_before_replace() -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(test)]
+fn fail_save_before_replace() -> Result<(), String> {
+    if FAIL_SAVE_BEFORE_REPLACE.swap(false, Ordering::Relaxed) {
+        return Err("Injected delete journal save failure before replace".into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+pub(super) fn fail_next_save_before_replace_for_tests() {
+    FAIL_SAVE_BEFORE_REPLACE.store(true, Ordering::Relaxed);
 }
 
 fn journal_path(staging_root: &Path) -> PathBuf {
@@ -362,7 +416,6 @@ fn ensure_staging_parent(staged: &Path, staging_root: &Path) -> Result<(), Strin
 fn mark_staging_root_hidden(staging_root: &Path) {
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::ffi::OsStrExt;
         use windows::{
             Win32::Storage::FileSystem::{FILE_ATTRIBUTE_HIDDEN, SetFileAttributesW},
             core::PCWSTR,
@@ -373,7 +426,11 @@ fn mark_staging_root_hidden(staging_root: &Path) {
             .and_then(|value| value.to_str())
             .is_some_and(|value| value == super::DELETE_STAGING_DIR)
         {
-            let mut wide: Vec<u16> = staging_root.as_os_str().encode_wide().collect();
+            let mut wide: Vec<u16> =
+                <std::ffi::OsStr as std::os::windows::ffi::OsStrExt>::encode_wide(
+                    staging_root.as_os_str(),
+                )
+                .collect();
             wide.push(0);
             let _ = unsafe { SetFileAttributesW(PCWSTR(wide.as_ptr()), FILE_ATTRIBUTE_HIDDEN) };
         }
@@ -392,3 +449,7 @@ fn now_epoch_seconds() -> Result<i64, String> {
         .map_err(|err| format!("System time error: {err}"))?;
     Ok(now.as_secs() as i64)
 }
+
+#[cfg(test)]
+#[path = "tests.rs"]
+mod tests;

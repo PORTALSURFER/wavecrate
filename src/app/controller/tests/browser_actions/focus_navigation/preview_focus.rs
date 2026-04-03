@@ -22,6 +22,29 @@ fn focus_hotkey_does_not_autoplay_browser_sample() {
 }
 
 #[test]
+fn focus_browser_list_uses_first_visible_row_when_filters_hide_absolute_row_zero() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+    controller.set_browser_search("two");
+
+    controller.focus_browser_list();
+
+    assert_eq!(controller.ui.focus.context, FocusContext::SampleBrowser);
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
+    assert!(controller.runtime.jobs.pending_playback.is_none());
+}
+
+#[test]
 fn moving_browser_focus_queues_async_preview_playback() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
