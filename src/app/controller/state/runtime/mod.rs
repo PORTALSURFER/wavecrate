@@ -9,6 +9,7 @@ use crate::app::controller::jobs;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::state::audio::PendingAgeUpdate;
 use crate::app::state::FolderPaneId;
+use crate::sample_sources::Rating;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 pub(crate) use deferred::{
@@ -18,7 +19,7 @@ pub(crate) use deferred::{
 pub(crate) use derived_graph::{DerivedNodeId, DerivedStateGraph, DirtyReason};
 pub(crate) use performance::PerformanceGovernorState;
 use rusqlite::Connection;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -77,12 +78,16 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) volume_persist_deadline: Option<Instant>,
     /// Last persisted volume in milli-units (`0..=1000`).
     pub(crate) last_persisted_volume_milli: Option<u16>,
+    /// Active deferred volume/config persistence request, when any.
+    pub(crate) pending_config_persist: Option<PendingConfigPersist>,
     /// True when a waveform image rebuild is queued for the next frame prep.
     pub(crate) waveform_refresh_pending: bool,
     /// Last known cause for a queued waveform refresh request.
     pub(crate) waveform_refresh_pending_reason: Option<WaveformRefreshReason>,
     /// Nesting depth for waveform refresh batching.
     pub(crate) waveform_refresh_batch_depth: u16,
+    /// Latest queued waveform render request, when any.
+    pub(crate) pending_waveform_render: Option<PendingWaveformRender>,
     /// Incremental derived-state dirty graph used by native projection paths.
     pub(crate) derived_graph: DerivedStateGraph,
     /// Pending playback-age DB update moved out of input action handlers.
@@ -131,6 +136,14 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) pending_inactive_source_hydration: Option<PendingSourceHydration>,
     /// Pending pane-scoped folder projection jobs keyed by owning sidebar pane.
     pub(crate) pending_folder_projections: HashMap<FolderPaneId, PendingFolderProjection>,
+    /// Controller-owned metadata writes awaiting background completion by request id.
+    pub(crate) pending_metadata_mutations: HashMap<u64, PendingMetadataMutation>,
+    /// Relative sample paths currently carrying optimistic metadata writes.
+    pub(crate) pending_metadata_paths: HashSet<(SourceId, PathBuf)>,
+    /// Source ids currently owning background file or folder mutations.
+    pub(crate) pending_file_mutation_sources: HashSet<SourceId>,
+    /// Relative paths currently carrying background file or folder mutations.
+    pub(crate) pending_file_mutation_paths: HashSet<(SourceId, PathBuf)>,
     #[cfg(test)]
     pub(crate) progress_cancel_after: Option<usize>,
     #[cfg(test)]
@@ -161,9 +174,11 @@ impl ControllerRuntimeState {
             volume_persist_dirty: false,
             volume_persist_deadline: None,
             last_persisted_volume_milli: None,
+            pending_config_persist: None,
             waveform_refresh_pending: false,
             waveform_refresh_pending_reason: None,
             waveform_refresh_batch_depth: 0,
+            pending_waveform_render: None,
             derived_graph: DerivedStateGraph::new(),
             pending_age_update_commit: None,
             pending_age_update_commit_not_before: None,
@@ -188,6 +203,10 @@ impl ControllerRuntimeState {
             pending_active_source_hydration: None,
             pending_inactive_source_hydration: None,
             pending_folder_projections: HashMap::new(),
+            pending_metadata_mutations: HashMap::new(),
+            pending_metadata_paths: HashSet::new(),
+            pending_file_mutation_sources: HashSet::new(),
+            pending_file_mutation_paths: HashSet::new(),
             #[cfg(test)]
             progress_cancel_after: None,
             #[cfg(test)]
@@ -213,6 +232,88 @@ impl ControllerRuntimeState {
     pub(crate) fn waveform_refresh_batch_active(&self) -> bool {
         self.waveform_refresh_batch_depth > 0
     }
+}
+
+/// One optimistic metadata request awaiting background persistence.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingMetadataMutation {
+    /// Request id used to match completion messages.
+    pub(crate) request_id: u64,
+    /// Source that owns the optimistic metadata updates.
+    pub(crate) source_id: SourceId,
+    /// Paths touched by this request for pending-state cleanup.
+    pub(crate) paths: BTreeSet<PathBuf>,
+    /// Rollback entries applied only when the background write fails.
+    pub(crate) rollback: Vec<MetadataRollback>,
+    /// Whether the browser filter/sort projection should refresh when the write completes.
+    pub(crate) refresh_browser_projection: bool,
+}
+
+/// Rollback payload for one optimistic metadata update.
+#[derive(Clone, Debug)]
+pub(crate) enum MetadataRollback {
+    /// Restore one tag plus keep-lock state if the optimistic value is still current.
+    TagAndLocked {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// Value before the optimistic mutation.
+        before_tag: Rating,
+        /// Lock state before the optimistic mutation.
+        before_locked: bool,
+        /// Value written optimistically before persistence completed.
+        expected_tag: Rating,
+        /// Lock state written optimistically before persistence completed.
+        expected_locked: bool,
+    },
+    /// Restore one loop-marker state if the optimistic value is still current.
+    Looped {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// Value before the optimistic mutation.
+        before_looped: bool,
+        /// Value written optimistically before persistence completed.
+        expected_looped: bool,
+    },
+    /// Restore one playback-age value if the optimistic value is still current.
+    LastPlayedAt {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// Value before the optimistic mutation.
+        before_last_played_at: Option<i64>,
+        /// Value written optimistically before persistence completed.
+        expected_last_played_at: Option<i64>,
+    },
+    /// Restore one BPM value if the optimistic value is still current.
+    Bpm {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// Value before the optimistic mutation.
+        before_bpm: Option<f32>,
+        /// Value written optimistically before persistence completed.
+        expected_bpm: Option<f32>,
+    },
+}
+
+/// Active deferred configuration persistence request.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingConfigPersist {
+    /// Request id used to discard stale completions.
+    pub(crate) request_id: u64,
+    /// Last queued normalized volume value.
+    pub(crate) volume: f32,
+    /// Time when the request was queued.
+    pub(crate) queued_at: Instant,
+}
+
+/// Latest-only waveform render request owned by the controller.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingWaveformRender {
+    /// Request id used to discard stale completions.
+    pub(crate) request_id: u64,
+    /// Stable render key used for staleness checks.
+    pub(crate) key: jobs::WaveformRenderKey,
+    /// Time when the render request was queued.
+    pub(crate) queued_at: Instant,
 }
 
 /// Active controller-side tracking for one source hydration request.

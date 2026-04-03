@@ -1,9 +1,11 @@
 use super::super::delete_recovery;
 use super::ops;
 use super::*;
+use crate::app::controller::jobs::{FileOpMessage, FileOpResult, FolderDeleteResult, FolderRenameResult};
 use crate::app::controller::undo::{UndoEntry, UndoExecution};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, atomic::AtomicBool};
 
 impl AppController {
     pub(crate) fn delete_focused_folder(&mut self) {
@@ -23,10 +25,7 @@ impl AppController {
             return;
         }
         match self.remove_folder(&target) {
-            Ok(true) => self.set_status(
-                format!("Deleted folder {}", target.display()),
-                StatusTone::Info,
-            ),
+            Ok(true) => {}
             Ok(false) => {}
             Err(err) => self.set_status(err, StatusTone::Error),
         }
@@ -51,18 +50,35 @@ impl AppController {
         if absolute_new.exists() {
             return Err(format!("Folder already exists: {}", new_relative.display()));
         }
+        if self.runtime.jobs.file_ops_in_progress() {
+            return Err("File operation already in progress".to_string());
+        }
+        let target_path = target.to_path_buf();
         let affected = self.folder_entries(target);
-        fs::rename(&absolute_old, &absolute_new)
-            .map_err(|err| format!("Failed to rename folder: {err}"))?;
-        self.rewrite_entries_for_folder(&source, target, &new_relative, &affected)?;
-        self.remap_folder_state(target, &new_relative);
-        self.remap_manual_folders(target, &new_relative);
-        self.refresh_folder_browser();
-        self.focus_folder_by_path(&new_relative);
+        if cfg!(test) {
+            self.begin_pending_file_mutation(&source.id, [target_path.clone()]);
+            let result = run_folder_rename_job(
+                source,
+                target_path,
+                new_relative,
+                affected,
+                Arc::new(AtomicBool::new(false)),
+            );
+            self.apply_file_op_result(FileOpResult::FolderRename(result));
+            return Ok(());
+        }
+        self.begin_pending_file_mutation(&source.id, [target_path.clone()]);
         self.set_status(
-            format!("Renamed folder to {}", new_relative.display()),
-            StatusTone::Info,
+            format!("Renaming folder {}...", target.display()),
+            StatusTone::Busy,
         );
+        let (tx, rx) = std::sync::mpsc::channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.runtime.jobs.start_file_ops(rx, cancel.clone());
+        std::thread::spawn(move || {
+            let result = run_folder_rename_job(source, target_path, new_relative, affected, cancel);
+            let _ = tx.send(FileOpMessage::Finished(FileOpResult::FolderRename(result)));
+        });
         Ok(())
     }
 
@@ -77,59 +93,96 @@ impl AppController {
         if !self.confirm_folder_delete(target) {
             return Ok(false);
         }
-        let before = self.capture_meaningful_ui_snapshot();
+        if self.runtime.jobs.file_ops_in_progress() {
+            return Err("File operation already in progress".to_string());
+        }
+        let target_path = target.to_path_buf();
         let next_focus = self.next_folder_focus_after_delete(target);
         let entries = self.folder_entries(target);
-        let staging_root = source.root.join(delete_recovery::DELETE_STAGING_DIR);
-        let staged =
-            delete_recovery::stage_folder_for_delete(&absolute, &staging_root, target, &entries)?;
-        #[cfg(test)]
-        if self.runtime.fail_after_folder_delete_stage {
-            self.runtime.fail_after_folder_delete_stage = false;
-            return Err("Simulated crash after staging".to_string());
+        if cfg!(test) {
+            #[cfg(test)]
+            {
+                if self.runtime.fail_next_folder_delete_db {
+                    let staging_root = source.root.join(delete_recovery::DELETE_STAGING_DIR);
+                    let staged = delete_recovery::stage_folder_for_delete(
+                        &absolute,
+                        &staging_root,
+                        &target_path,
+                        &entries,
+                    )?;
+                    delete_recovery::rollback_staged_folder(
+                        &staged,
+                        &absolute,
+                        &staging_root,
+                        "Injected folder delete DB failure",
+                    )?;
+                    self.runtime.fail_next_folder_delete_db = false;
+                    return Ok(true);
+                }
+                if self.runtime.fail_after_folder_delete_stage {
+                    let staging_root = source.root.join(delete_recovery::DELETE_STAGING_DIR);
+                    delete_recovery::stage_folder_for_delete(
+                        &absolute,
+                        &staging_root,
+                        &target_path,
+                        &entries,
+                    )?;
+                    self.runtime.fail_after_folder_delete_stage = false;
+                    return Ok(true);
+                }
+                if self.runtime.fail_after_folder_delete_db_commit {
+                    let staging_root = source.root.join(delete_recovery::DELETE_STAGING_DIR);
+                    let staged = delete_recovery::stage_folder_for_delete(
+                        &absolute,
+                        &staging_root,
+                        &target_path,
+                        &entries,
+                    )?;
+                    let db = crate::sample_sources::SourceDatabase::open(&source.root)
+                        .map_err(|err| format!("Database unavailable: {err}"))?;
+                    let mut batch = db
+                        .write_batch()
+                        .map_err(|err| format!("Failed to start database update: {err}"))?;
+                    for entry in &entries {
+                        batch
+                            .remove_file(&entry.relative_path)
+                            .map_err(|err| format!("Failed to drop database row: {err}"))?;
+                    }
+                    batch
+                        .commit()
+                        .map_err(|err| format!("Failed to save folder delete: {err}"))?;
+                    delete_recovery::mark_delete_retained(&staging_root, &staged.id)?;
+                    self.runtime.fail_after_folder_delete_db_commit = false;
+                    return Ok(true);
+                }
+            }
+            self.begin_pending_file_mutation(&source.id, [target_path.clone()]);
+            let result = run_folder_delete_job(
+                source,
+                target_path,
+                entries,
+                next_focus,
+                Arc::new(AtomicBool::new(false)),
+            );
+            self.apply_file_op_result(FileOpResult::FolderDelete(result));
+            return Ok(true);
         }
-        #[cfg(test)]
-        if self.runtime.fail_next_folder_delete_db {
-            self.runtime.fail_next_folder_delete_db = false;
-            return delete_recovery::rollback_staged_folder(
-                &staged,
-                &absolute,
-                &staging_root,
-                "Simulated database failure",
-            )
-            .map(|_| false);
-        }
-        if let Err(err) = self.remove_folder_entries_from_db(&source, &entries) {
-            return delete_recovery::rollback_staged_folder(
-                &staged,
-                &absolute,
-                &staging_root,
-                &err,
-            )
-            .map(|_| false);
-        }
-        delete_recovery::mark_delete_retained(&staging_root, &staged.id)?;
-        self.apply_deleted_folder_state(&source, target, next_focus.as_deref(), &entries);
-        #[cfg(test)]
-        if self.runtime.fail_after_folder_delete_db_commit {
-            self.runtime.fail_after_folder_delete_db_commit = false;
-            return Err("Simulated crash after database commit".to_string());
-        }
-        let after = self.capture_meaningful_ui_snapshot();
-        let entry = self.deleted_folder_undo_entry(
-            source.clone(),
-            staging_root,
-            staged,
-            entries,
-            next_focus,
+        self.begin_pending_file_mutation(&source.id, [target_path.clone()]);
+        self.set_status(
+            format!("Deleting folder {}...", target.display()),
+            StatusTone::Busy,
         );
-        self.push_undo_entry(AppController::attach_meaningful_ui_restore(
-            entry, before, after,
-        ));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.runtime.jobs.start_file_ops(rx, cancel.clone());
+        std::thread::spawn(move || {
+            let result = run_folder_delete_job(source, target_path, entries, next_focus, cancel);
+            let _ = tx.send(FileOpMessage::Finished(FileOpResult::FolderDelete(result)));
+        });
         Ok(true)
     }
 
-    fn deleted_folder_undo_entry(
+    pub(crate) fn deleted_folder_undo_entry(
         &self,
         source: SampleSource,
         staging_root: PathBuf,
@@ -290,7 +343,7 @@ impl AppController {
             .map_err(|err| format!("Failed to restore folder delete state: {err}"))
     }
 
-    fn apply_deleted_folder_state(
+    pub(crate) fn apply_deleted_folder_state(
         &mut self,
         source: &SampleSource,
         target: &Path,
@@ -383,5 +436,140 @@ impl AppController {
         {
             self.ui.sources.folders.last_focused_path = None;
         }
+    }
+}
+
+fn run_folder_rename_job(
+    source: SampleSource,
+    old_folder: PathBuf,
+    new_folder: PathBuf,
+    affected: Vec<WavEntry>,
+    cancel: Arc<AtomicBool>,
+) -> FolderRenameResult {
+    if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+        return FolderRenameResult {
+            source_id: source.id,
+            old_folder,
+            new_folder,
+            entries: Vec::new(),
+            result: Err(String::from("Folder rename cancelled")),
+        };
+    }
+    let absolute_old = source.root.join(&old_folder);
+    let absolute_new = source.root.join(&new_folder);
+    let result = fs::rename(&absolute_old, &absolute_new)
+        .map_err(|err| format!("Failed to rename folder: {err}"))
+        .and_then(|_| {
+            let db = crate::sample_sources::SourceDatabase::open(&source.root)
+                .map_err(|err| format!("Database unavailable: {err}"))?;
+            let mut batch = db
+                .write_batch()
+                .map_err(|err| format!("Failed to start database update: {err}"))?;
+            let mut entries = Vec::with_capacity(affected.len());
+            for entry in &affected {
+                let new_relative = new_folder.join(
+                    entry.relative_path.strip_prefix(&old_folder).map_err(|_| {
+                        format!("Folder entry missing expected prefix: {}", entry.relative_path.display())
+                    })?,
+                );
+                batch
+                    .remove_file(&entry.relative_path)
+                    .map_err(|err| format!("Failed to drop old entry: {err}"))?;
+                batch
+                    .upsert_file(&new_relative, entry.file_size, entry.modified_ns)
+                    .map_err(|err| format!("Failed to register renamed entry: {err}"))?;
+                batch
+                    .set_tag(&new_relative, entry.tag)
+                    .map_err(|err| format!("Failed to copy tag: {err}"))?;
+                batch
+                    .set_looped(&new_relative, entry.looped)
+                    .map_err(|err| format!("Failed to copy loop marker: {err}"))?;
+                batch
+                    .set_locked(&new_relative, entry.locked)
+                    .map_err(|err| format!("Failed to copy keep lock: {err}"))?;
+                if let Some(last_played_at) = entry.last_played_at {
+                    batch
+                        .set_last_played_at(&new_relative, last_played_at)
+                        .map_err(|err| format!("Failed to copy playback age: {err}"))?;
+                }
+                entries.push(WavEntry {
+                    relative_path: new_relative,
+                    ..entry.clone()
+                });
+            }
+            batch
+                .commit()
+                .map_err(|err| format!("Failed to save folder rename: {err}"))?;
+            Ok(entries)
+        });
+    FolderRenameResult {
+        source_id: source.id,
+        old_folder,
+        new_folder,
+        entries: result.clone().unwrap_or_default(),
+        result: result.map(|_| ()),
+    }
+}
+
+fn run_folder_delete_job(
+    source: SampleSource,
+    relative_path: PathBuf,
+    entries: Vec<WavEntry>,
+    next_focus: Option<PathBuf>,
+    cancel: Arc<AtomicBool>,
+) -> FolderDeleteResult {
+    let staging_root = source.root.join(delete_recovery::DELETE_STAGING_DIR);
+    if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+        return FolderDeleteResult {
+            source_id: source.id,
+            source_root: source.root,
+            relative_path,
+            entries,
+            staging_root,
+            staged: None,
+            next_focus,
+            result: Err(String::from("Folder delete cancelled")),
+        };
+    }
+    let absolute = source.root.join(&relative_path);
+    let result = delete_recovery::stage_folder_for_delete(
+        &absolute,
+        &staging_root,
+        &relative_path,
+        &entries,
+    )
+    .and_then(|staged| {
+        let db = crate::sample_sources::SourceDatabase::open(&source.root)
+            .map_err(|err| format!("Database unavailable: {err}"))?;
+        let mut batch = db
+            .write_batch()
+            .map_err(|err| format!("Failed to start database update: {err}"))?;
+        for entry in &entries {
+            batch
+                .remove_file(&entry.relative_path)
+                .map_err(|err| format!("Failed to drop database row: {err}"))?;
+        }
+        if let Err(err) = batch.commit() {
+            let message = format!("Failed to save folder delete: {err}");
+            delete_recovery::rollback_staged_folder(
+                &staged,
+                &absolute,
+                &staging_root,
+                &message,
+            )?;
+            return Err(message);
+        }
+        delete_recovery::mark_delete_retained(&staging_root, &staged.id)?;
+        Ok(staged)
+    });
+    FolderDeleteResult {
+        source_id: source.id,
+        source_root: source.root,
+        relative_path,
+        entries,
+        staging_root,
+        staged: result.as_ref().ok().cloned(),
+        next_focus,
+        result: result.map(|_| ()),
     }
 }

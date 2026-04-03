@@ -117,7 +117,7 @@ fn refresh_non_segment_always_fields(model: &mut NativeAppModel, selected_column
 fn refresh_non_segment_static_fields(model: &mut NativeAppModel, controller: &mut AppController) {
     model.transport_running = controller.is_playing();
     model.volume = controller.ui.volume.clamp(0.0, 1.0);
-    model.sources = native_shell::project_sources_model(&controller.ui);
+    model.sources = native_shell::project_sources_model(controller);
     model.sources_label = format!("Sources ({})", model.sources.rows.len());
     model.focus_context = native_shell::project_focus_context_model(controller.ui.focus.context);
     model.columns = [

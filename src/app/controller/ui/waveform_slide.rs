@@ -1,8 +1,10 @@
 use super::*;
+use crate::app::controller::jobs::{FileOpMessage, FileOpResult, WaveformSlideCommitResult};
 use crate::app::controller::library::wav_io::{file_metadata, read_samples_for_normalization};
 use crate::waveform::DecodedWaveform;
 use hound::SampleFormat;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 impl AppController {
     pub(crate) fn align_waveform_start_to_last_marker(&mut self) -> Result<(), String> {
@@ -142,6 +144,27 @@ impl AppController {
         }
         let rotated =
             rotate_interleaved_samples(&state.original_samples, state.channels, offset_frames);
+        if !cfg!(test) {
+            if self.runtime.jobs.file_ops_in_progress() {
+                self.sample_view.waveform_slide = Some(state);
+                return Err("File operation already in progress".to_string());
+            }
+            self.begin_pending_file_mutation(&state.source.id, [state.relative_path.clone()]);
+            self.set_status(
+                format!("Sliding sample {}...", state.relative_path.display()),
+                StatusTone::Busy,
+            );
+            let (tx, rx) = std::sync::mpsc::channel();
+            let cancel = Arc::new(AtomicBool::new(false));
+            self.runtime.jobs.start_file_ops(rx, cancel.clone());
+            std::thread::spawn(move || {
+                let result = run_waveform_slide_job(state, rotated, cancel);
+                let _ = tx.send(FileOpMessage::Finished(FileOpResult::WaveformSlideCommit(
+                    result,
+                )));
+            });
+            return Ok(());
+        }
         let result = self.apply_waveform_slide_to_disk(&state, &rotated);
         if result.is_err() {
             self.apply_waveform_slide_preview(
@@ -257,6 +280,89 @@ impl AppController {
             StatusTone::Info,
         );
         Ok(())
+    }
+}
+
+fn run_waveform_slide_job(
+    state: WaveformSlideState,
+    rotated: Vec<f32>,
+    cancel: Arc<AtomicBool>,
+) -> WaveformSlideCommitResult {
+    if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+        return WaveformSlideCommitResult {
+            source_id: state.source.id,
+            relative_path: state.relative_path,
+            absolute_path: state.absolute_path,
+            entry: None,
+            backup: None,
+            result: Err(String::from("Circular slide cancelled")),
+        };
+    }
+    let result = (|| {
+        let backup =
+            crate::app::controller::undo::OverwriteBackup::capture_before(&state.absolute_path)?;
+        let spec = hound::WavSpec {
+            channels: state.spec_channels,
+            sample_rate: state.sample_rate.max(1),
+            bits_per_sample: 32,
+            sample_format: SampleFormat::Float,
+        };
+        write_waveform_wav(&state.absolute_path, &rotated, spec)?;
+        let (file_size, modified_ns) = file_metadata(&state.absolute_path)?;
+        let db = crate::sample_sources::SourceDatabase::open(&state.source.root)
+            .map_err(|err| format!("Database unavailable: {err}"))?;
+        let tag = db
+            .tag_for_path(&state.relative_path)
+            .map_err(|err| format!("Failed to read tag: {err}"))?
+            .ok_or_else(|| "Sample not found in database".to_string())?;
+        db.upsert_file(&state.relative_path, file_size, modified_ns)
+            .map_err(|err| format!("Failed to sync database entry: {err}"))?;
+        db.set_tag(&state.relative_path, tag)
+            .map_err(|err| format!("Failed to sync tag: {err}"))?;
+        let last_played_at = db
+            .last_played_at_for_path(&state.relative_path)
+            .map_err(|err| format!("Failed to read playback age: {err}"))?;
+        let looped = db
+            .looped_for_path(&state.relative_path)
+            .map_err(|err| format!("Failed to read loop marker: {err}"))?
+            .unwrap_or(false);
+        let locked = db
+            .locked_for_path(&state.relative_path)
+            .map_err(|err| format!("Failed to read lock state: {err}"))?
+            .unwrap_or(false);
+        backup.capture_after(&state.absolute_path)?;
+        Ok((
+            WavEntry {
+                relative_path: state.relative_path.clone(),
+                file_size,
+                modified_ns,
+                content_hash: None,
+                tag,
+                looped,
+                locked,
+                missing: false,
+                last_played_at,
+            },
+            backup,
+        ))
+    })();
+    match result {
+        Ok((entry, backup)) => WaveformSlideCommitResult {
+            source_id: state.source.id,
+            relative_path: state.relative_path,
+            absolute_path: state.absolute_path,
+            entry: Some(entry),
+            backup: Some(backup),
+            result: Ok(()),
+        },
+        Err(err) => WaveformSlideCommitResult {
+            source_id: state.source.id,
+            relative_path: state.relative_path,
+            absolute_path: state.absolute_path,
+            entry: None,
+            backup: None,
+            result: Err(err),
+        },
     }
 }
 

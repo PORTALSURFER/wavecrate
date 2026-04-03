@@ -189,6 +189,10 @@ mod tests {
         let export_relative = PathBuf::from("one_selection_001.wav");
         let export_absolute = source.root.join(&export_relative);
         std::fs::write(&export_absolute, b"wav").unwrap();
+        let backup =
+            crate::app::controller::undo::OverwriteBackup::capture_before(&export_absolute)
+                .unwrap();
+        backup.capture_after(&export_absolute).unwrap();
         controller
             .cache_db(&source)
             .unwrap()
@@ -224,6 +228,7 @@ mod tests {
                             last_played_at: None,
                         },
                         absolute_path: export_absolute,
+                        backup,
                         destination:
                             crate::app::controller::jobs::SelectionClipDestination::ExternalDrag,
                         timings: Default::default(),

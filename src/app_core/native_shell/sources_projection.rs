@@ -6,9 +6,10 @@ use radiant::app::{FolderPaneIdModel, FolderPaneModel};
 use std::path::{Path, PathBuf};
 
 /// Project source/folder panel data for the native sidebar.
-pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
-    let upper_folder_pane = project_folder_pane(ui, FolderPaneId::Upper);
-    let lower_folder_pane = project_folder_pane(ui, FolderPaneId::Lower);
+pub(crate) fn project_sources_model(controller: &AppController) -> SourcesPanelModel {
+    let ui = &controller.ui;
+    let upper_folder_pane = project_folder_pane(controller, FolderPaneId::Upper);
+    let lower_folder_pane = project_folder_pane(controller, FolderPaneId::Lower);
     let active_folder_pane = project_folder_pane_id(ui.sources.active_folder_pane);
     let active_pane_model = match active_folder_pane {
         FolderPaneIdModel::Upper => &upper_folder_pane,
@@ -41,6 +42,9 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
             .loading_source_id
             .as_ref()
             .and_then(|source_id| ui.sources.rows.iter().position(|row| row.id == *source_id)),
+        mutation_busy_row: ui.sources.rows.iter().position(|row| {
+            controller.source_has_pending_file_mutations(&row.id)
+        }),
         focused_folder_row: active_focused_folder_row,
         rows: ui
             .sources
@@ -77,7 +81,8 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
     }
 }
 
-fn project_folder_pane(ui: &UiState, pane: FolderPaneId) -> FolderPaneModel {
+fn project_folder_pane(controller: &AppController, pane: FolderPaneId) -> FolderPaneModel {
+    let ui = &controller.ui;
     let browser = folder_browser_ui_for_projection(ui, pane);
     let projected_folder_rows = project_folder_rows(browser);
     let focused_folder_row = projected_focused_folder_row(browser, &projected_folder_rows);
@@ -116,6 +121,12 @@ fn project_folder_pane(ui: &UiState, pane: FolderPaneId) -> FolderPaneModel {
         has_source,
         loading: ui.sources.folder_pane(pane).loading,
         projecting: ui.sources.folder_pane(pane).projecting,
+        mutation_busy: ui
+            .sources
+            .folder_pane(pane)
+            .source_id
+            .as_ref()
+            .is_some_and(|source_id| controller.source_has_pending_file_mutations(source_id)),
         folder_search_query: browser.search_query.clone(),
         show_all_folders: browser.show_all_folders,
         can_toggle_show_all_folders: has_source,

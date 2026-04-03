@@ -1,6 +1,8 @@
 use super::super::helpers::TriageSampleContext;
 use super::common::format_bpm_label;
 use super::*;
+use crate::app::controller::jobs::AnalysisMetadataMutationOp;
+use crate::app::controller::state::runtime::MetadataRollback;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::{info, warn};
@@ -137,7 +139,7 @@ impl BrowserController<'_> {
     fn apply_bpm_contexts(
         &mut self,
         contexts: Vec<TriageSampleContext>,
-        mut last_error: Option<String>,
+        last_error: Option<String>,
         bpm: f32,
         primary_visible_row: usize,
     ) -> Result<(), String> {
@@ -154,25 +156,35 @@ impl BrowserController<'_> {
         }
         let mut updated = 0usize;
         for (source_id, (source, paths)) in grouped {
-            let mut conn = match analysis_jobs::open_source_db(&source.root) {
-                Ok(conn) => conn,
-                Err(err) => {
-                    last_error = Some(format!("Failed to open source DB for BPM save: {err}"));
-                    continue;
-                }
-            };
-            let sample_ids: Vec<String> = paths
+            updated = updated.saturating_add(paths.len());
+            let rollback = paths
                 .iter()
-                .map(|path| analysis_jobs::build_sample_id(source_id.as_str(), path))
-                .collect();
-            match analysis_jobs::update_sample_bpms(&mut conn, &sample_ids, Some(bpm)) {
-                Ok(count) => updated = updated.saturating_add(count),
-                Err(err) => last_error = Some(err),
-            }
-            if let Some(cache) = self.ui_cache.browser.bpm_values.get_mut(&source_id) {
-                for path in &paths {
-                    cache.insert(path.clone(), Some(bpm));
-                }
+                .map(|path| MetadataRollback::Bpm {
+                    relative_path: path.clone(),
+                    before_bpm: self
+                        .ui_cache
+                        .browser
+                        .bpm_values
+                        .get(&source_id)
+                        .and_then(|cache| cache.get(path).copied().flatten()),
+                    expected_bpm: Some(bpm),
+                })
+                .collect::<Vec<_>>();
+            let analysis_ops = paths
+                .iter()
+                .map(|path| AnalysisMetadataMutationOp::SetBpm {
+                    relative_path: path.clone(),
+                    bpm: Some(bpm),
+                })
+                .collect::<Vec<_>>();
+            let cache = self
+                .ui_cache
+                .browser
+                .bpm_values
+                .entry(source_id.clone())
+                .or_default();
+            for path in &paths {
+                cache.insert(path.clone(), Some(bpm));
             }
             let loaded_matches = self
                 .sample_view
@@ -185,6 +197,13 @@ impl BrowserController<'_> {
             if loaded_matches {
                 self.set_waveform_bpm_input(Some(bpm));
             }
+            self.queue_metadata_mutation(
+                &source,
+                Vec::new(),
+                analysis_ops,
+                rollback,
+                false,
+            );
         }
         if updated > 0 {
             self.mark_browser_row_metadata_projection_revision_dirty();

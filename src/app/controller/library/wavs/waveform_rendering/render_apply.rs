@@ -1,9 +1,12 @@
 use super::*;
+use crate::app::controller::jobs::{JobMessage, WaveformRenderJob, WaveformRenderKey, WaveformRenderResult};
 use crate::app::controller::playback::audio_cache::FileMetadata;
 use crate::app::state::WaveformView;
 use crate::waveform::DecodedWaveform;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
+use std::time::Instant;
 
 fn min_view_width_for_frames(frame_count: usize, width_px: u32) -> f64 {
     if frame_count == 0 {
@@ -74,8 +77,17 @@ impl AppController {
         self.apply_waveform_image_shared(Arc::new(decoded), transients.map(Arc::from));
     }
 
-    /// Render waveform pixels for the current view immediately.
+    /// Queue or perform waveform raster generation for the current view.
     pub(super) fn refresh_waveform_image_now(&mut self) {
+        if waveform_render_async_enabled() {
+            self.queue_waveform_render_now();
+            return;
+        }
+        self.refresh_waveform_image_now_sync();
+    }
+
+    /// Render waveform pixels for the current view immediately.
+    fn refresh_waveform_image_now_sync(&mut self) {
         let Some(decoded) = self.sample_view.waveform.decoded.as_ref() else {
             return;
         };
@@ -176,6 +188,118 @@ impl AppController {
         self.store_waveform_image(color_image, desired_meta);
     }
 
+    /// Queue the latest waveform image render without blocking the GUI thread.
+    fn queue_waveform_render_now(&mut self) {
+        let Some(decoded) = self.sample_view.waveform.decoded.as_ref().cloned() else {
+            return;
+        };
+        let [width, height] = self.sample_view.waveform.size;
+        let total_frames = decoded.frame_count();
+        let view = self.ui.waveform.view.clamp();
+        let target = width
+            .saturating_mul(WAVEFORM_RENDER_SUPERSAMPLE_X)
+            .min(super::MAX_TEXTURE_WIDTH) as usize;
+
+        if (decoded.samples.is_empty() && decoded.peaks.is_none()) || total_frames == 0 {
+            self.ui.waveform.image = None;
+            self.ui.waveform.waveform_image_signature = None;
+            self.projected_waveform_image_signature = None;
+            self.projected_waveform_image = None;
+            self.runtime.pending_waveform_render = None;
+            self.mark_waveform_projection_dirty();
+            return;
+        }
+        let start_frame = ((view.start * total_frames as f64).floor() as usize)
+            .min(total_frames.saturating_sub(1));
+        let mut end_frame =
+            ((view.end * total_frames as f64).ceil() as usize).clamp(start_frame + 1, total_frames);
+        if end_frame <= start_frame {
+            end_frame = (start_frame + 1).min(total_frames);
+        }
+        let frames_in_view = end_frame.saturating_sub(start_frame).max(1);
+        let upper_width = frames_in_view.min(super::MAX_TEXTURE_WIDTH as usize);
+        let lower_bound = width.min(super::MAX_TEXTURE_WIDTH) as usize;
+        let max_texture_width = upper_width.max(lower_bound) as u32;
+        let raw_texture_width = target.min(upper_width).max(lower_bound) as u32;
+        let effective_width = reuse::stabilized_texture_width(
+            raw_texture_width,
+            lower_bound as u32,
+            max_texture_width,
+            self.sample_view
+                .waveform
+                .render_meta
+                .as_ref()
+                .map(|meta| meta.texture_width),
+        );
+        let desired_meta = WaveformRenderMeta {
+            view_start: view.start,
+            view_end: view.end,
+            size: [width, height],
+            samples_len: total_frames,
+            texture_width: effective_width,
+            channel_view: self.ui.waveform.channel_view,
+            channels: decoded.channels,
+            edit_fade: self
+                .ui
+                .waveform
+                .edit_selection
+                .filter(|selection| selection.has_edit_effects()),
+            transient_visual_token: self
+                .ui
+                .waveform
+                .transient_cache_token
+                .filter(|_| self.ui.waveform.transient_markers_enabled),
+        };
+        if self
+            .sample_view
+            .waveform
+            .render_meta
+            .as_ref()
+            .is_some_and(|meta: &WaveformRenderMeta| meta.matches(&desired_meta))
+        {
+            return;
+        }
+        let request_id = self.runtime.jobs.next_waveform_render_request_id();
+        let key = WaveformRenderKey {
+            cache_token: decoded.cache_token,
+            texture_width: effective_width,
+            height,
+            channel_view: self.ui.waveform.channel_view,
+            view_start_bits: view.start.to_bits(),
+            view_end_bits: view.end.to_bits(),
+            transient_visual_token: desired_meta.transient_visual_token,
+        };
+        self.runtime.pending_waveform_render = Some(
+            crate::app::controller::state::runtime::PendingWaveformRender {
+                request_id,
+                key,
+                queued_at: Instant::now(),
+            },
+        );
+        let job = WaveformRenderJob {
+            request_id,
+            key,
+            decoded,
+            renderer: self.sample_view.renderer.clone(),
+            channel_view: self.ui.waveform.channel_view,
+            viewport: crate::waveform::WaveformRenderViewport {
+                size: [effective_width, height],
+                view_start: view.start as f32,
+                view_end: view.end as f32,
+                edit_fade: desired_meta.edit_fade,
+            },
+            transients: desired_meta
+                .transient_visual_token
+                .map(|_| self.ui.waveform.transients.clone()),
+        };
+        self.runtime.jobs.spawn_one_shot_job(
+            true,
+            move || run_waveform_render_job(job, desired_meta),
+            JobMessage::WaveformRendered,
+        );
+        self.mark_waveform_projection_dirty();
+    }
+
     pub(crate) fn refresh_waveform_transients(&mut self) {
         let Some(decoded) = self.sample_view.waveform.decoded.as_ref() else {
             self.ui.waveform.transients = Arc::from([]);
@@ -220,5 +344,43 @@ impl AppController {
             file_size: metadata.len(),
             modified_ns,
         })
+    }
+}
+
+/// Execute one waveform render request on a background worker thread.
+pub(crate) fn run_waveform_render_job(
+    job: WaveformRenderJob,
+    render_meta: WaveformRenderMeta,
+) -> WaveformRenderResult {
+    let started_at = Instant::now();
+    let image = job
+        .renderer
+        .render_color_image_for_view_with_size_and_fade_and_transients(
+            &job.decoded,
+            job.channel_view,
+            job.viewport,
+            job.transients.as_deref(),
+        );
+    let projected_image = super::waveform_image_to_native_rgba(&image);
+    WaveformRenderResult {
+        request_id: job.request_id,
+        key: job.key,
+        elapsed: started_at.elapsed(),
+        result: Ok(super::PreparedWaveformVisual {
+            image: Some(image),
+            projected_image,
+            render_meta: Some(render_meta),
+        }),
+    }
+}
+
+fn waveform_render_async_enabled() -> bool {
+    #[cfg(test)]
+    {
+        false
+    }
+    #[cfg(not(test))]
+    {
+        true
     }
 }

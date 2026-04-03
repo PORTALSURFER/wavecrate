@@ -2,8 +2,9 @@
 
 use super::*;
 use crate::app::controller::jobs::{
-    ClipboardPasteOutcome, ClipboardPasteResult, FileOpMessage, FileOpResult, UndoFileOpResult,
-    UndoFileOutcome,
+    ClipboardPasteOutcome, ClipboardPasteResult, FileOpMessage, FileOpResult, FolderCreateResult,
+    FolderDeleteResult, FolderRenameResult, SampleDeleteResult, SampleRenameResult,
+    SelectionEditCommitResult, UndoFileOpResult, UndoFileOutcome, WaveformSlideCommitResult,
 };
 use crate::app::controller::undo::{DeferredUndo, UndoDirection};
 use crate::app::controller::undo_jobs;
@@ -29,6 +30,17 @@ impl AppController {
             }
             FileOpResult::FolderMove(result) => {
                 self.drag_drop().apply_folder_move_result(result);
+            }
+            FileOpResult::SampleDelete(result) => self.apply_sample_delete_result(result),
+            FileOpResult::SampleRename(result) => self.apply_sample_rename_result(result),
+            FileOpResult::FolderCreate(result) => self.apply_folder_create_result(result),
+            FileOpResult::FolderRename(result) => self.apply_folder_rename_result(result),
+            FileOpResult::FolderDelete(result) => self.apply_folder_delete_result(result),
+            FileOpResult::SelectionEditCommit(result) => {
+                self.apply_selection_edit_commit_result(result);
+            }
+            FileOpResult::WaveformSlideCommit(result) => {
+                self.apply_waveform_slide_commit_result(result);
             }
             FileOpResult::UndoFile(result) => self.apply_undo_file_result(result),
         }
@@ -264,6 +276,282 @@ impl AppController {
                 pending.entry.run_post_redo(self);
                 self.history.undo_stack.restore_undo_entry(pending.entry);
                 self.set_status(format!("Redid {label}"), StatusTone::Info);
+            }
+        }
+    }
+
+    fn apply_sample_delete_result(&mut self, result: SampleDeleteResult) {
+        self.finish_pending_file_mutation(&result.source_id, result.requested_paths.clone());
+        let selected_source_id = self.selected_source_id();
+        let similar_query = self.ui.browser.search.similar_query.clone();
+        for path in &result.deleted_paths {
+            if let Some(source) = self
+                .library
+                .sources
+                .iter()
+                .find(|source| source.id == result.source_id)
+                .cloned()
+            {
+                self.prune_cached_sample(&source, path);
+            }
+        }
+        if !result.deleted_paths.is_empty() {
+            crate::app::controller::library::wavs::schedule_similarity_filter_rebuild_after_delete_with_state(
+                self,
+                selected_source_id,
+                similar_query,
+                &result.deleted_paths.iter().cloned().collect::<std::collections::HashSet<_>>(),
+            );
+            crate::app::controller::library::wavs::apply_pending_similarity_filter_rebuild(self);
+            self.browser().restore_browser_focus_after_delete(result.next_focus);
+            self.set_status(
+                format!("Deleted {} sample(s)", result.deleted_paths.len()),
+                StatusTone::Info,
+            );
+        }
+        if let Some(err) = result.last_error {
+            self.set_status(format!("Delete failed: {err}"), StatusTone::Error);
+        }
+    }
+
+    fn apply_sample_rename_result(&mut self, result: SampleRenameResult) {
+        self.finish_pending_file_mutation(&result.source_id, [result.old_relative.clone()]);
+        match result.result {
+            Ok(()) => {
+                let Some(source) = self
+                    .library
+                    .sources
+                    .iter()
+                    .find(|source| source.id == result.source_id)
+                    .cloned()
+                else {
+                    self.set_status("Source not available for rename", StatusTone::Error);
+                    return;
+                };
+                if let Some(entry) = result.entry {
+                    self.update_cached_entry(&source, &result.old_relative, entry);
+                }
+                if result.resume_playback {
+                    self.runtime.jobs.set_pending_playback(Some(PendingPlayback {
+                        source_id: result.source_id.clone(),
+                        relative_path: result.new_relative.clone(),
+                        looped: result.resume_looped,
+                        start_override: result.resume_start_override,
+                        force_loaded_audio: false,
+                    }));
+                }
+                self.refresh_waveform_for_sample(&source, &result.new_relative);
+                self.set_status(
+                    format!(
+                        "Renamed {} to {}",
+                        result.old_relative.display(),
+                        result.new_relative.display()
+                    ),
+                    StatusTone::Info,
+                );
+            }
+            Err(err) => self.set_status(err, StatusTone::Error),
+        }
+    }
+
+    fn apply_folder_create_result(&mut self, result: FolderCreateResult) {
+        self.finish_pending_file_mutation(&result.source_id, [result.relative_path.clone()]);
+        match result.result {
+            Ok(()) => {
+                self.update_manual_folders(|set| {
+                    set.insert(result.relative_path.clone());
+                });
+                self.update_disk_folders(|set| {
+                    set.insert(result.relative_path.clone());
+                });
+                self.refresh_folder_browser();
+                self.focus_folder_by_path(&result.relative_path);
+                self.set_status(
+                    format!("Created folder {}", result.relative_path.display()),
+                    StatusTone::Info,
+                );
+            }
+            Err(err) => self.set_status(err, StatusTone::Error),
+        }
+    }
+
+    fn apply_folder_rename_result(&mut self, result: FolderRenameResult) {
+        self.finish_pending_file_mutation(&result.source_id, [result.old_folder.clone()]);
+        match result.result {
+            Ok(()) => {
+                let Some(source) = self
+                    .library
+                    .sources
+                    .iter()
+                    .find(|source| source.id == result.source_id)
+                    .cloned()
+                else {
+                    self.set_status("Source not available for folder rename", StatusTone::Error);
+                    return;
+                };
+                for entry in result.entries {
+                    let old_relative = result.old_folder.join(
+                        entry.relative_path
+                            .strip_prefix(&result.new_folder)
+                            .unwrap_or(entry.relative_path.as_path()),
+                    );
+                    self.update_cached_entry(&source, &old_relative, entry.clone());
+                }
+                self.remap_folder_state(&result.old_folder, &result.new_folder);
+                self.remap_manual_folders(&result.old_folder, &result.new_folder);
+                self.refresh_folder_browser();
+                self.focus_folder_by_path(&result.new_folder);
+                self.set_status(
+                    format!("Renamed folder to {}", result.new_folder.display()),
+                    StatusTone::Info,
+                );
+            }
+            Err(err) => self.set_status(err, StatusTone::Error),
+        }
+    }
+
+    fn apply_folder_delete_result(&mut self, result: FolderDeleteResult) {
+        self.finish_pending_file_mutation(&result.source_id, [result.relative_path.clone()]);
+        match result.result {
+            Ok(()) => {
+                let source = SampleSource {
+                    id: result.source_id.clone(),
+                    root: result.source_root.clone(),
+                };
+                self.apply_deleted_folder_state(
+                    &source,
+                    &result.relative_path,
+                    result.next_focus.as_deref(),
+                    &result.entries,
+                );
+                if let Some(staged) = result.staged {
+                    let before = self.capture_meaningful_ui_snapshot();
+                    let after = self.capture_meaningful_ui_snapshot();
+                    let entry = self.deleted_folder_undo_entry(
+                        source,
+                        result.staging_root,
+                        staged,
+                        result.entries,
+                        result.next_focus,
+                    );
+                    self.push_undo_entry(AppController::attach_meaningful_ui_restore(
+                        entry, before, after,
+                    ));
+                }
+                self.set_status(
+                    format!("Deleted folder {}", result.relative_path.display()),
+                    StatusTone::Info,
+                );
+            }
+            Err(err) => self.set_status(err, StatusTone::Error),
+        }
+    }
+
+    fn apply_selection_edit_commit_result(&mut self, result: SelectionEditCommitResult) {
+        self.finish_pending_file_mutation(&result.source_id, [result.relative_path.clone()]);
+        match result.result {
+            Ok(()) => {
+                let Some(source) = self
+                    .library
+                    .sources
+                    .iter()
+                    .find(|source| source.id == result.source_id)
+                    .cloned()
+                else {
+                    self.set_status("Source not available for edit", StatusTone::Error);
+                    return;
+                };
+                if let Some(entry) = result.entry {
+                    self.update_cached_entry(&source, &result.relative_path, entry);
+                }
+                self.clear_loaded_waveform_after_disk_edit();
+                self.refresh_waveform_for_sample(&source, &result.relative_path);
+                self.restore_selection_edit_visuals(result.preserve_selection, result.visual);
+                self.queue_selection_edit_playback(
+                    &crate::app::controller::library::selection_edits::SelectionTarget {
+                        source: source.clone(),
+                        relative_path: result.relative_path.clone(),
+                        absolute_path: result.absolute_path.clone(),
+                        selection: self
+                            .ui
+                            .waveform
+                            .edit_selection
+                            .or(self.ui.waveform.selection)
+                            .unwrap_or_else(|| crate::selection::SelectionRange::new(0.0, 1.0)),
+                    },
+                    &result.playback,
+                );
+                self.maybe_trigger_pending_playback();
+                if result.clear_edit_fades
+                    && let Some(selection) = self.ui.waveform.edit_selection
+                {
+                    let cleared = selection.clear_fades().with_gain(1.0);
+                    self.selection_state.edit_range.set_range(Some(cleared));
+                    self.apply_edit_selection(Some(cleared));
+                    self.record_edit_selection_apply_flash();
+                }
+                if result.clear_duplicate_cleanup {
+                    self.clear_waveform_slices();
+                    self.focus_waveform_context();
+                }
+                if let Some(backup) = result.backup {
+                    self.push_undo_entry(self.selection_edit_undo_entry(
+                        format!("{} {}", result.action_label, result.relative_path.display()),
+                        result.source_id,
+                        result.relative_path.clone(),
+                        result.absolute_path,
+                        backup,
+                    ));
+                }
+                self.set_status(result.status_message, StatusTone::Info);
+            }
+            Err(err) => self.set_status(err, StatusTone::Error),
+        }
+    }
+
+    fn apply_waveform_slide_commit_result(&mut self, result: WaveformSlideCommitResult) {
+        self.finish_pending_file_mutation(&result.source_id, [result.relative_path.clone()]);
+        match result.result {
+            Ok(()) => {
+                let Some(source) = self
+                    .library
+                    .sources
+                    .iter()
+                    .find(|source| source.id == result.source_id)
+                    .cloned()
+                else {
+                    self.set_status("Source not available for waveform slide", StatusTone::Error);
+                    return;
+                };
+                if let Some(entry) = result.entry {
+                    self.update_cached_entry(&source, &result.relative_path, entry);
+                }
+                self.refresh_waveform_for_sample(&source, &result.relative_path);
+                if let Some(backup) = result.backup {
+                    self.push_undo_entry(self.selection_edit_undo_entry(
+                        format!("Circular slide {}", result.relative_path.display()),
+                        result.source_id,
+                        result.relative_path.clone(),
+                        result.absolute_path,
+                        backup,
+                    ));
+                }
+                self.set_status(
+                    format!("Slid sample {}", result.relative_path.display()),
+                    StatusTone::Info,
+                );
+            }
+            Err(err) => {
+                if let Some(source) = self
+                    .library
+                    .sources
+                    .iter()
+                    .find(|source| source.id == result.source_id)
+                    .cloned()
+                {
+                    self.refresh_waveform_for_sample(&source, &result.relative_path);
+                }
+                self.set_status(err, StatusTone::Error);
             }
         }
     }

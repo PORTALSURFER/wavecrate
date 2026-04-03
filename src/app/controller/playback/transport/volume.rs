@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::controller::jobs::{ConfigPersistJob, ConfigPersistResult, JobMessage};
 use std::time::{Duration, Instant};
 
 /// Debounce window before persisting live volume slider updates.
@@ -32,14 +33,33 @@ pub(crate) fn commit_volume_setting(controller: &mut AppController) {
         controller.runtime.volume_persist_deadline = None;
         return;
     }
-    if let Err(err) = controller.persist_config("Failed to save volume") {
-        controller.set_status(err, StatusTone::Error);
-        controller.runtime.volume_persist_deadline = Some(Instant::now() + VOLUME_PERSIST_DEBOUNCE);
-        return;
-    }
-    controller.runtime.volume_persist_dirty = false;
-    controller.runtime.volume_persist_deadline = None;
-    controller.runtime.last_persisted_volume_milli = Some(current_milli);
+    let request_id = controller.runtime.jobs.next_config_persist_request_id();
+    let volume = controller.ui.volume.clamp(0.0, 1.0);
+    controller.runtime.pending_config_persist =
+        Some(crate::app::controller::state::runtime::PendingConfigPersist {
+            request_id,
+            volume,
+            queued_at: Instant::now(),
+        });
+    controller.runtime.jobs.spawn_one_shot_job(
+        true,
+        move || {
+            let started_at = Instant::now();
+                let result = crate::sample_sources::config::load_or_default()
+                .map_err(|err| err.to_string())
+                .and_then(|mut config| {
+                    config.core.volume = volume;
+                    crate::sample_sources::config::save(&config).map_err(|err| err.to_string())
+                });
+            ConfigPersistResult {
+                request_id,
+                job: ConfigPersistJob::SaveVolume { request_id, volume },
+                elapsed: started_at.elapsed(),
+                result,
+            }
+        },
+        JobMessage::ConfigPersistFinished,
+    );
 }
 
 /// Flush deferred volume persistence once the debounce deadline elapses.

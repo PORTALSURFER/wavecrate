@@ -7,6 +7,8 @@ pub(super) fn run_normalization_job(job: NormalizationJob) -> NormalizationResul
     let relative_path = job.relative_path.clone();
 
     let result = (|| {
+        let backup =
+            crate::app::controller::undo::OverwriteBackup::capture_before(&job.absolute_path)?;
         let (mut samples, spec) = wav_io::read_samples_for_normalization(&job.absolute_path)?;
         if samples.is_empty() {
             return Err("No audio data to normalize".to_string());
@@ -33,7 +35,8 @@ pub(super) fn run_normalization_job(job: NormalizationJob) -> NormalizationResul
             .map_err(|err| format!("Failed to read database: {err}"))?
             .ok_or_else(|| "Sample not found in database".to_string())?;
 
-        Ok((file_size, modified_ns, tag))
+        backup.capture_after(&job.absolute_path)?;
+        Ok((file_size, modified_ns, tag, backup))
     })();
 
     NormalizationResult {

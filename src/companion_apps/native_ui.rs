@@ -123,6 +123,8 @@ pub fn standard_browser_panel(config: CompanionBrowserPanelConfig) -> BrowserPan
         search_placeholder: config.search_placeholder,
         busy: config.busy,
         source_loading: false,
+        metadata_pending: false,
+        file_op_pending: false,
         similarity_filtered: false,
         duplicate_cleanup_active: false,
         sort_label: config.sort_label,

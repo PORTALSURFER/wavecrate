@@ -294,7 +294,7 @@ impl AppController {
             .and_then(|model| model.selection_anchor.clone())
     }
 
-    pub(in super::super) fn focus_folder_by_path(&mut self, path: &Path) {
+    pub(crate) fn focus_folder_by_path(&mut self, path: &Path) {
         self.clear_drop_target_selection();
         let Some(model) = self.current_folder_model_mut() else {
             return;

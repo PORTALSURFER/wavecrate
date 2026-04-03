@@ -99,9 +99,9 @@ fn projection_distinguishes_source_loading_from_browser_filtering() {
     ui.browser.search.source_loading = true;
     ui.browser.search.search_busy = false;
 
-    let projected_sources = project_sources_model(&ui);
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(8, 8), None);
     controller.ui = ui;
+    let projected_sources = project_sources_model(&controller);
     let projected_browser = project_browser_panel_frame_model(&controller);
     let status = project_status_model(&controller, 1);
 

@@ -1,6 +1,7 @@
 use super::*;
-use crate::app::controller::jobs::NormalizationJob;
+use crate::app::controller::jobs::{FileOpMessage, FileOpResult, NormalizationJob, SampleRenameResult};
 use crate::app::controller::undo;
+use std::sync::{Arc, atomic::AtomicBool};
 
 pub(crate) struct BrowserController<'a> {
     controller: &'a mut AppController,
@@ -32,6 +33,7 @@ pub(crate) struct TriageSampleContext {
     pub(crate) absolute_path: PathBuf,
 }
 
+#[derive(Clone, Debug)]
 pub(crate) struct DeleteBrowserFocusPlan {
     pub(crate) preferred_path: Option<PathBuf>,
     pub(crate) fallback_visible_row: Option<usize>,
@@ -252,42 +254,9 @@ impl BrowserController<'_> {
             &ctx.source.root,
             &full_name,
         )?;
-        self.commit_browser_rename(&ctx, &new_relative, tag)?;
-        self.set_status(
-            format!(
-                "Renamed {} to {}",
-                ctx.entry.relative_path.display(),
-                new_relative.display()
-            ),
-            StatusTone::Info,
-        );
-        Ok(())
-    }
-
-    fn commit_browser_rename(
-        &mut self,
-        ctx: &TriageSampleContext,
-        new_relative: &Path,
-        tag: crate::sample_sources::Rating,
-    ) -> Result<(), String> {
-        let (file_size, modified_ns) = self.apply_triage_rename(ctx, new_relative, tag)?;
-        let updated_path = new_relative.to_path_buf();
-        self.update_cached_entry(
-            &ctx.source,
-            &ctx.entry.relative_path,
-            WavEntry {
-                relative_path: updated_path.clone(),
-                file_size,
-                modified_ns,
-                content_hash: None,
-                tag,
-                looped: ctx.entry.looped,
-                locked: ctx.entry.locked,
-                missing: false,
-                last_played_at: ctx.entry.last_played_at,
-            },
-        );
-
+        if self.runtime.jobs.file_ops_in_progress() {
+            return Err("File operation already in progress".to_string());
+        }
         let was_playing = self.is_playing();
         let was_looping = self.ui.waveform.loop_enabled;
         let playhead_position = self.ui.waveform.playhead.position;
@@ -299,50 +268,45 @@ impl BrowserController<'_> {
             .is_some_and(|audio| {
                 audio.source_id == ctx.source.id && audio.relative_path == ctx.entry.relative_path
             });
-
-        if is_currently_loaded && was_playing {
-            let start_override = if playhead_position.is_finite() {
-                Some(f64::from(playhead_position.clamp(0.0, 1.0)))
-            } else {
-                None
-            };
-            self.runtime
-                .jobs
-                .set_pending_playback(Some(PendingPlayback {
-                    source_id: ctx.source.id.clone(),
-                    relative_path: updated_path.clone(),
-                    looped: was_looping,
-                    start_override,
-                    force_loaded_audio: false,
-                }));
+        if cfg!(test) {
+            self.begin_pending_file_mutation(&ctx.source.id, [ctx.entry.relative_path.clone()]);
+            let result = run_sample_rename_job(
+                ctx,
+                new_relative,
+                tag,
+                is_currently_loaded && was_playing,
+                was_looping,
+                playhead_position
+                    .is_finite()
+                    .then(|| f64::from(playhead_position.clamp(0.0, 1.0))),
+                Arc::new(AtomicBool::new(false)),
+            );
+            self.apply_file_op_result(FileOpResult::SampleRename(result));
+            return Ok(());
         }
-
-        self.refresh_waveform_for_sample(&ctx.source, new_relative);
+        self.begin_pending_file_mutation(&ctx.source.id, [ctx.entry.relative_path.clone()]);
+        self.set_status(
+            format!("Renaming {}...", ctx.entry.relative_path.display()),
+            StatusTone::Busy,
+        );
+        let (tx, rx) = std::sync::mpsc::channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.runtime.jobs.start_file_ops(rx, cancel.clone());
+        std::thread::spawn(move || {
+            let result = run_sample_rename_job(
+                ctx,
+                new_relative,
+                tag,
+                is_currently_loaded && was_playing,
+                was_looping,
+                playhead_position.is_finite().then(|| {
+                    f64::from(playhead_position.clamp(0.0, 1.0))
+                }),
+                cancel,
+            );
+            let _ = tx.send(FileOpMessage::Finished(FileOpResult::SampleRename(result)));
+        });
         Ok(())
-    }
-
-    fn apply_triage_rename(
-        &mut self,
-        ctx: &TriageSampleContext,
-        new_relative: &Path,
-        tag: crate::sample_sources::Rating,
-    ) -> Result<(u64, i64), String> {
-        let new_absolute = ctx.source.root.join(new_relative);
-        std::fs::rename(&ctx.absolute_path, &new_absolute)
-            .map_err(|err| format!("Failed to rename file: {err}"))?;
-        let (file_size, modified_ns) = file_metadata(&new_absolute)?;
-        if let Err(err) = self.rewrite_db_entry_for_source(
-            &ctx.source,
-            &ctx.entry.relative_path,
-            new_relative,
-            file_size,
-            modified_ns,
-            tag,
-        ) {
-            let _ = std::fs::rename(&new_absolute, &ctx.absolute_path);
-            return Err(err);
-        }
-        Ok((file_size, modified_ns))
     }
 
     pub(super) fn warn_if_any_browser_context_busy(
@@ -369,5 +333,87 @@ impl BrowserController<'_> {
             &ctx.entry.relative_path,
             action,
         )
+    }
+}
+
+fn run_sample_rename_job(
+    ctx: TriageSampleContext,
+    new_relative: PathBuf,
+    tag: crate::sample_sources::Rating,
+    resume_playback: bool,
+    resume_looped: bool,
+    resume_start_override: Option<f64>,
+    cancel: Arc<AtomicBool>,
+) -> SampleRenameResult {
+    if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+        return SampleRenameResult {
+            source_id: ctx.source.id,
+            old_relative: ctx.entry.relative_path,
+            new_relative,
+            entry: None,
+            resume_playback,
+            resume_looped,
+            resume_start_override,
+            result: Err(String::from("Rename cancelled")),
+        };
+    }
+    let new_absolute = ctx.source.root.join(&new_relative);
+    let result = std::fs::rename(&ctx.absolute_path, &new_absolute)
+        .map_err(|err| format!("Failed to rename file: {err}"))
+        .and_then(|_| {
+            let (file_size, modified_ns) = file_metadata(&new_absolute)?;
+            let db = crate::sample_sources::SourceDatabase::open(&ctx.source.root)
+                .map_err(|err| format!("Database unavailable: {err}"))?;
+            let last_played_at = db
+                .last_played_at_for_path(&ctx.entry.relative_path)
+                .map_err(|err| format!("Failed to load playback age: {err}"))?;
+            let looped = db
+                .looped_for_path(&ctx.entry.relative_path)
+                .map_err(|err| format!("Failed to load loop marker: {err}"))?
+                .unwrap_or(false);
+            let mut batch = db
+                .write_batch()
+                .map_err(|err| format!("Failed to start database update: {err}"))?;
+            batch
+                .remove_file(&ctx.entry.relative_path)
+                .map_err(|err| format!("Failed to drop old entry: {err}"))?;
+            batch
+                .upsert_file(&new_relative, file_size, modified_ns)
+                .map_err(|err| format!("Failed to register renamed file: {err}"))?;
+            batch
+                .set_tag(&new_relative, tag)
+                .map_err(|err| format!("Failed to copy tag: {err}"))?;
+            batch
+                .set_looped(&new_relative, looped)
+                .map_err(|err| format!("Failed to copy loop marker: {err}"))?;
+            if let Some(last_played_at) = last_played_at {
+                batch
+                    .set_last_played_at(&new_relative, last_played_at)
+                    .map_err(|err| format!("Failed to copy playback age: {err}"))?;
+            }
+            batch
+                .commit()
+                .map_err(|err| format!("Failed to save rename: {err}"))?;
+            Ok(WavEntry {
+                relative_path: new_relative.clone(),
+                file_size,
+                modified_ns,
+                content_hash: None,
+                tag,
+                looped: ctx.entry.looped,
+                locked: ctx.entry.locked,
+                missing: false,
+                last_played_at: ctx.entry.last_played_at,
+            })
+        });
+    SampleRenameResult {
+        source_id: ctx.source.id,
+        old_relative: ctx.entry.relative_path,
+        new_relative,
+        entry: result.as_ref().ok().cloned(),
+        resume_playback,
+        resume_looped,
+        resume_start_override,
+        result: result.map(|_| ()),
     }
 }

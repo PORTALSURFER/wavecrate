@@ -1,6 +1,7 @@
 use super::*;
 
-pub(super) struct SelectionEditVisualState {
+#[derive(Clone, Debug)]
+pub(crate) struct SelectionEditVisualState {
     pub(super) view: WaveformView,
     pub(super) selection: Option<SelectionRange>,
     pub(super) edit_selection: Option<SelectionRange>,
@@ -8,7 +9,8 @@ pub(super) struct SelectionEditVisualState {
     pub(super) loop_enabled: bool,
 }
 
-pub(super) struct PlaybackResumeState {
+#[derive(Clone, Debug)]
+pub(crate) struct PlaybackResumeState {
     pub(super) was_playing: bool,
     pub(super) was_looping: bool,
     pub(super) start_override: Option<f64>,
@@ -151,7 +153,7 @@ impl AppController {
         Ok(())
     }
 
-    pub(super) fn clear_loaded_waveform_after_disk_edit(&mut self) {
+    pub(crate) fn clear_loaded_waveform_after_disk_edit(&mut self) {
         self.sample_view.wav.loaded_wav = None;
         self.set_ui_loaded_wav(None);
     }
@@ -192,7 +194,7 @@ impl AppController {
         }
     }
 
-    pub(super) fn restore_selection_edit_visuals(
+    pub(crate) fn restore_selection_edit_visuals(
         &mut self,
         preserve_selection: bool,
         visual: SelectionEditVisualState,
@@ -213,7 +215,7 @@ impl AppController {
         self.clear_edit_selection();
     }
 
-    pub(super) fn queue_selection_edit_playback(
+    pub(crate) fn queue_selection_edit_playback(
         &mut self,
         target: &SelectionTarget,
         playback: &PlaybackResumeState,

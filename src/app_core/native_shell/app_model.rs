@@ -117,7 +117,7 @@ pub(crate) fn materialize_project_app_model_core(
     derived_inputs: &ProjectAppModelDerivedInputs,
 ) -> ProjectAppModelCoreModels {
     ProjectAppModelCoreModels {
-        sources: project_sources_model(&controller.ui),
+        sources: project_sources_model(controller),
         status: project_status_model(controller, derived_inputs.selected_column),
         browser_actions: project_browser_actions_model(&controller.ui),
         map: project_map_model(controller),

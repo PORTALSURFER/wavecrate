@@ -1,5 +1,6 @@
 use super::*;
-use tracing::{debug, warn};
+use crate::app::controller::jobs::SourceMetadataMutationOp;
+use crate::app::controller::state::runtime::MetadataRollback;
 
 fn sample_locked_for_source(
     controller: &mut AppController,
@@ -81,64 +82,36 @@ pub(crate) fn set_sample_tag_and_locked_for_source(
     path: &Path,
     target_tag: Rating,
     locked: bool,
-    require_present: bool,
+    _require_present: bool,
 ) -> Result<(), String> {
-    let db = controller.database_for(source).map_err(|err| {
-        warn!(source_id = %source.id, error = %err, "triage tag: database unavailable");
-        err.to_string()
-    })?;
-    if require_present {
-        let exists = db
-            .index_for_path(path)
-            .map_err(|err| {
-                warn!(
-                    source_id = %source.id,
-                    path = %path.display(),
-                    error = %err,
-                    "triage tag: index lookup failed"
-                );
-                err.to_string()
-            })?
-            .is_some();
-        if !exists {
-            warn!(
-                source_id = %source.id,
-                path = %path.display(),
-                "triage tag: sample missing in db"
-            );
-            return Err("Sample not found".into());
-        }
-    }
-    if let Err(err) = db.set_tag(path, target_tag) {
-        warn!(
-            source_id = %source.id,
-            path = %path.display(),
-            error = %err,
-            "triage tag: db set_tag failed"
-        );
-    } else {
-        debug!(
-            source_id = %source.id,
-            path = %path.display(),
-            ?target_tag,
-            "triage tag: db updated"
-        );
-    }
-    if let Err(err) = db.set_locked(path, locked) {
-        warn!(
-            source_id = %source.id,
-            path = %path.display(),
-            error = %err,
-            "keep lock: db set_locked failed"
-        );
-    } else {
-        debug!(
-            source_id = %source.id,
-            path = %path.display(),
-            locked,
-            "keep lock: db updated"
-        );
-    }
+    let before_tag = controller
+        .wav_index_for_path(path)
+        .and_then(|index| controller.wav_entry(index).map(|entry| entry.tag))
+        .or_else(|| {
+            controller
+                .cache
+                .wav
+                .entries
+                .get(&source.id)
+                .and_then(|cache| cache.lookup.get(path).copied())
+                .and_then(|index| controller.cache.wav.entries.get(&source.id)?.entry(index))
+                .map(|entry| entry.tag)
+        })
+        .unwrap_or(Rating::NEUTRAL);
+    let before_locked = controller
+        .wav_index_for_path(path)
+        .and_then(|index| controller.wav_entry(index).map(|entry| entry.locked))
+        .or_else(|| {
+            controller
+                .cache
+                .wav
+                .entries
+                .get(&source.id)
+                .and_then(|cache| cache.lookup.get(path).copied())
+                .and_then(|index| controller.cache.wav.entries.get(&source.id)?.entry(index))
+                .map(|entry| entry.locked)
+        })
+        .unwrap_or(false);
     let mut updated_active = false;
     if let Some(index) = controller.wav_index_for_path(path) {
         let _ = controller.ensure_wav_page_loaded(index);
@@ -155,14 +128,25 @@ pub(crate) fn set_sample_tag_and_locked_for_source(
         entry.tag = target_tag;
         entry.locked = locked;
     }
-    if updated_active {
-        debug!(
-            source_id = %source.id,
-            path = %path.display(),
-            "triage tag: rebuilding browser list"
-        );
-        controller.rebuild_browser_lists();
-    }
+    controller.mark_browser_row_metadata_projection_revision_dirty();
+    controller.mark_browser_search_projection_revision_dirty();
+    controller.queue_metadata_mutation(
+        source,
+        vec![SourceMetadataMutationOp::SetTagAndLocked {
+            relative_path: path.to_path_buf(),
+            tag: target_tag,
+            locked,
+        }],
+        Vec::new(),
+        vec![MetadataRollback::TagAndLocked {
+            relative_path: path.to_path_buf(),
+            before_tag,
+            before_locked,
+            expected_tag: target_tag,
+            expected_locked: locked,
+        }],
+        updated_active,
+    );
     Ok(())
 }
 
@@ -205,49 +189,22 @@ pub(crate) fn set_sample_looped_for_source(
     source: &SampleSource,
     path: &Path,
     looped: bool,
-    require_present: bool,
+    _require_present: bool,
 ) -> Result<(), String> {
-    let db = controller.database_for(source).map_err(|err| {
-        warn!(source_id = %source.id, error = %err, "loop marker: database unavailable");
-        err.to_string()
-    })?;
-    if require_present {
-        let exists = db
-            .index_for_path(path)
-            .map_err(|err| {
-                warn!(
-                    source_id = %source.id,
-                    path = %path.display(),
-                    error = %err,
-                    "loop marker: index lookup failed"
-                );
-                err.to_string()
-            })?
-            .is_some();
-        if !exists {
-            warn!(
-                source_id = %source.id,
-                path = %path.display(),
-                "loop marker: sample missing in db"
-            );
-            return Err("Sample not found".into());
-        }
-    }
-    if let Err(err) = db.set_looped(path, looped) {
-        warn!(
-            source_id = %source.id,
-            path = %path.display(),
-            error = %err,
-            "loop marker: db set_looped failed"
-        );
-    } else {
-        debug!(
-            source_id = %source.id,
-            path = %path.display(),
-            looped,
-            "loop marker: db updated"
-        );
-    }
+    let before_looped = controller
+        .wav_index_for_path(path)
+        .and_then(|index| controller.wav_entry(index).map(|entry| entry.looped))
+        .or_else(|| {
+            controller
+                .cache
+                .wav
+                .entries
+                .get(&source.id)
+                .and_then(|cache| cache.lookup.get(path).copied())
+                .and_then(|index| controller.cache.wav.entries.get(&source.id)?.entry(index))
+                .map(|entry| entry.looped)
+        })
+        .unwrap_or(false);
     if let Some(index) = controller.wav_index_for_path(path) {
         let _ = controller.ensure_wav_page_loaded(index);
         if let Some(entry) = controller.wav_entries.entry_mut(index) {
@@ -261,5 +218,19 @@ pub(crate) fn set_sample_looped_for_source(
         entry.looped = looped;
     }
     controller.mark_browser_row_metadata_projection_revision_dirty();
+    controller.queue_metadata_mutation(
+        source,
+        vec![SourceMetadataMutationOp::SetLooped {
+            relative_path: path.to_path_buf(),
+            looped,
+        }],
+        Vec::new(),
+        vec![MetadataRollback::Looped {
+            relative_path: path.to_path_buf(),
+            before_looped,
+            expected_looped: looped,
+        }],
+        false,
+    );
     Ok(())
 }

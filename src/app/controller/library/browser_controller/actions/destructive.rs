@@ -1,6 +1,7 @@
 use super::*;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, atomic::AtomicBool};
 
 struct DeleteAttemptSummary {
     deleted_paths: HashSet<PathBuf>,
@@ -62,8 +63,6 @@ impl BrowserController<'_> {
         contexts: Vec<super::super::helpers::TriageSampleContext>,
         initial_error: Option<String>,
     ) -> Result<(), String> {
-        let selected_source_id = self.selected_source_id();
-        let similar_query = self.ui.browser.search.similar_query.clone();
         if self.warn_if_any_browser_context_busy(&contexts, "deleting") {
             return Ok(());
         }
@@ -71,18 +70,49 @@ impl BrowserController<'_> {
             self.set_status(message, StatusTone::Info);
             return Ok(());
         }
-        let summary = self.delete_browser_contexts(contexts, initial_error);
-        if !summary.deleted_paths.is_empty() {
-            crate::app::controller::library::wavs::schedule_similarity_filter_rebuild_after_delete_with_state(
-                self,
-                selected_source_id,
-                similar_query,
-                &summary.deleted_paths,
-            );
-            crate::app::controller::library::wavs::apply_pending_similarity_filter_rebuild(self);
-            self.restore_browser_focus_after_delete(next_focus);
+        if self.runtime.jobs.file_ops_in_progress() {
+            self.set_status("File operation already in progress", StatusTone::Warning);
+            return Ok(());
         }
-        self.finish_delete_browser_samples(summary)
+        if cfg!(test) {
+            let summary = self.delete_browser_contexts(contexts, initial_error);
+            if !summary.deleted_paths.is_empty() {
+                let selected_source_id = self.selected_source_id();
+                let similar_query = self.ui.browser.search.similar_query.clone();
+                crate::app::controller::library::wavs::schedule_similarity_filter_rebuild_after_delete_with_state(
+                    self,
+                    selected_source_id,
+                    similar_query,
+                    &summary.deleted_paths,
+                );
+                crate::app::controller::library::wavs::apply_pending_similarity_filter_rebuild(
+                    self,
+                );
+                self.restore_browser_focus_after_delete(next_focus);
+            }
+            self.finish_delete_browser_samples(summary)?;
+            return Ok(());
+        }
+        if let Some(source_id) = contexts.first().map(|ctx| ctx.source.id.clone()) {
+            self.begin_pending_file_mutation(
+                &source_id,
+                contexts
+                    .iter()
+                    .map(|ctx| ctx.entry.relative_path.clone())
+                    .collect::<Vec<_>>(),
+            );
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.runtime.jobs.start_file_ops(rx, cancel.clone());
+        std::thread::spawn(move || {
+            let result = run_sample_delete_job(contexts, next_focus, initial_error, cancel);
+            let _ = tx.send(crate::app::controller::jobs::FileOpMessage::Finished(
+                crate::app::controller::jobs::FileOpResult::SampleDelete(result),
+            ));
+        });
+        self.set_status("Deleting samples...", StatusTone::Busy);
+        Ok(())
     }
 
     fn loading_delete_block_message(
@@ -148,7 +178,7 @@ impl BrowserController<'_> {
         Err(message)
     }
 
-    fn restore_browser_focus_after_delete(
+    pub(crate) fn restore_browser_focus_after_delete(
         &mut self,
         next_focus: Option<super::super::helpers::DeleteBrowserFocusPlan>,
     ) {
@@ -169,6 +199,49 @@ impl BrowserController<'_> {
             return;
         }
         self.focus_browser_row_only(fallback_visible_row.min(visible_len.saturating_sub(1)));
+    }
+}
+
+fn run_sample_delete_job(
+    contexts: Vec<super::super::helpers::TriageSampleContext>,
+    next_focus: Option<super::super::helpers::DeleteBrowserFocusPlan>,
+    initial_error: Option<String>,
+    cancel: Arc<AtomicBool>,
+) -> crate::app::controller::jobs::SampleDeleteResult {
+    let source_id = contexts
+        .first()
+        .map(|ctx| ctx.source.id.clone())
+        .unwrap_or_default();
+    let requested_paths = contexts
+        .iter()
+        .map(|ctx| ctx.entry.relative_path.clone())
+        .collect::<Vec<_>>();
+    let mut summary = DeleteAttemptSummary::new(initial_error);
+    for ctx in contexts {
+        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            break;
+        }
+        match std::fs::remove_file(&ctx.absolute_path) {
+            Ok(()) => {
+                match crate::sample_sources::SourceDatabase::open(&ctx.source.root)
+                    .map_err(|err| format!("Database unavailable: {err}"))
+                    .and_then(|db| {
+                        db.remove_file(&ctx.entry.relative_path)
+                            .map_err(|err| format!("Failed to drop database row: {err}"))
+                    }) {
+                    Ok(()) => summary.record_deleted_path(&ctx.entry.relative_path),
+                    Err(err) => summary.record_error(err),
+                }
+            }
+            Err(err) => summary.record_error(format!("Failed to delete file: {err}")),
+        }
+    }
+    crate::app::controller::jobs::SampleDeleteResult {
+        source_id,
+        requested_paths,
+        deleted_paths: summary.deleted_paths.into_iter().collect(),
+        next_focus,
+        last_error: summary.last_error,
     }
 }
 

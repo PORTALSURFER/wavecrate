@@ -111,7 +111,7 @@ impl AppController {
     }
 
     /// Store a pre-rendered waveform image and projected RGBA payload from a worker result.
-    pub(in crate::app::controller::library::wavs) fn store_prepared_waveform_image(
+    pub(crate) fn store_prepared_waveform_image(
         &mut self,
         image: Option<WaveformImage>,
         projected_image: Option<Arc<crate::gui::types::ImageRgba>>,

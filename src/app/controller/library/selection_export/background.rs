@@ -98,6 +98,8 @@ fn run_clip_export_job(
     let register_started = Instant::now();
     let entry = record_clip_entry(&snapshot, &destination, target_relative.clone())?;
     let register = register_started.elapsed();
+    let backup = crate::app::controller::undo::OverwriteBackup::capture_before(&absolute_path)?;
+    backup.capture_after(&absolute_path)?;
 
     Ok(SelectionClipExportSuccess {
         request_id,
@@ -105,6 +107,7 @@ fn run_clip_export_job(
         source_root: target_source_root,
         entry,
         absolute_path,
+        backup,
         destination,
         timings: SelectionExportTimings {
             prepare,
@@ -135,6 +138,8 @@ fn run_crop_export_job(
     let register_started = Instant::now();
     let entry = record_crop_entry(&snapshot, new_relative.clone())?;
     let register = register_started.elapsed();
+    let backup = crate::app::controller::undo::OverwriteBackup::capture_before(&absolute_path)?;
+    backup.capture_after(&absolute_path)?;
 
     Ok(SelectionCropExportSuccess {
         request_id,
@@ -143,6 +148,7 @@ fn run_crop_export_job(
         source_relative_path: snapshot.relative_path,
         entry,
         absolute_path,
+        backup,
         tag: snapshot.target_tag.unwrap_or(Rating::NEUTRAL),
         playback,
         timings: SelectionExportTimings {

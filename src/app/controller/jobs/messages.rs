@@ -2,14 +2,19 @@
 
 use super::*;
 use crate::app::controller::LoadEntriesError;
+use crate::app::controller::library::wavs::waveform_rendering::PreparedWaveformVisual;
 use crate::app::controller::library::source_folders::{FolderProjectionView, FolderTreeSnapshot};
 use crate::sample_sources::WavEntry;
+use crate::waveform::{DecodedWaveform, WaveformChannelView, WaveformRenderViewport};
 
 #[derive(Debug)]
 pub(crate) enum JobMessage {
     WavLoaded(WavLoadResult),
     SourceHydrated(SourceHydrationResult),
     FolderProjected(FolderProjectionResult),
+    MetadataMutationFinished(MetadataMutationResult),
+    ConfigPersistFinished(ConfigPersistResult),
+    WaveformRendered(WaveformRenderResult),
     AudioLoaded(AudioLoadResult),
     RecordingWaveformLoaded(RecordingWaveformLoadResult),
     Scan(ScanJobMessage),
@@ -35,6 +40,163 @@ pub(crate) enum JobMessage {
     SourceDbMaintenanceFinished(SourceDbMaintenanceResult),
     SelectionExport(SelectionExportMessage),
     Normalized(NormalizationResult),
+}
+
+/// One sample-source metadata mutation that should execute off the UI thread.
+#[derive(Clone, Debug)]
+pub(crate) enum SourceMetadataMutationOp {
+    /// Persist a tag plus keep-lock state for one sample.
+    SetTagAndLocked {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// New rating tag to store.
+        tag: crate::sample_sources::Rating,
+        /// New keep-lock state to store.
+        locked: bool,
+    },
+    /// Persist one loop-marker state change.
+    SetLooped {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// New loop-marker state to store.
+        looped: bool,
+    },
+    /// Persist one playback-age timestamp update.
+    SetLastPlayedAt {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// New playback timestamp in Unix seconds.
+        played_at: i64,
+    },
+}
+
+/// One analysis-database metadata mutation that should execute off the UI thread.
+#[derive(Clone, Debug)]
+pub(crate) enum AnalysisMetadataMutationOp {
+    /// Persist one BPM value for a sample.
+    SetBpm {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// New BPM value, or `None` to clear it.
+        bpm: Option<f32>,
+    },
+    /// Persist loaded-duration metadata for one sample.
+    SetLoadedDuration {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// Measured waveform duration in seconds.
+        duration_seconds: f32,
+        /// Sample rate associated with the decoded waveform.
+        sample_rate: u32,
+        /// Optional long-sample mark aligned with the decoded waveform.
+        long_sample_mark: Option<bool>,
+    },
+}
+
+/// Background metadata mutation request for one source.
+#[derive(Clone, Debug)]
+pub(crate) struct MetadataMutationJob {
+    /// Monotonic request identifier used for completion tracking.
+    pub(crate) request_id: u64,
+    /// Source that owns every mutation in this batch.
+    pub(crate) source_id: SourceId,
+    /// Source root used to open source and analysis databases.
+    pub(crate) source_root: PathBuf,
+    /// Source-db mutations to apply.
+    pub(crate) source_ops: Vec<SourceMetadataMutationOp>,
+    /// Analysis-db mutations to apply.
+    pub(crate) analysis_ops: Vec<AnalysisMetadataMutationOp>,
+}
+
+/// Completion payload for one background metadata mutation batch.
+#[derive(Debug)]
+pub(crate) struct MetadataMutationResult {
+    /// Request identifier echoed from the queued job.
+    pub(crate) request_id: u64,
+    /// Source that owned the batch.
+    pub(crate) source_id: SourceId,
+    /// Relative sample paths touched by the batch.
+    pub(crate) paths: BTreeSet<PathBuf>,
+    /// Worker time spent applying metadata writes.
+    pub(crate) elapsed: Duration,
+    /// Terminal mutation outcome.
+    pub(crate) result: Result<(), String>,
+}
+
+/// Deferred configuration persistence request that should never block frame prep.
+#[derive(Clone, Debug)]
+pub(crate) enum ConfigPersistJob {
+    /// Persist the current app configuration after a debounced volume change.
+    SaveVolume {
+        /// Request identifier used for stale-result handling.
+        request_id: u64,
+        /// Normalized clamped volume value.
+        volume: f32,
+    },
+}
+
+/// Completion payload for one deferred configuration persistence job.
+#[derive(Debug)]
+pub(crate) struct ConfigPersistResult {
+    /// Request identifier echoed from the queued job.
+    pub(crate) request_id: u64,
+    /// Job lane that produced this result.
+    pub(crate) job: ConfigPersistJob,
+    /// Worker time spent persisting configuration.
+    pub(crate) elapsed: Duration,
+    /// Terminal persistence outcome.
+    pub(crate) result: Result<(), String>,
+}
+
+/// Stable render key for one waveform raster request.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct WaveformRenderKey {
+    /// Decode token for the waveform sample content.
+    pub(crate) cache_token: u64,
+    /// Texture width used for raster generation.
+    pub(crate) texture_width: u32,
+    /// Viewport height used for raster generation.
+    pub(crate) height: u32,
+    /// Channel-view mode used by raster generation.
+    pub(crate) channel_view: WaveformChannelView,
+    /// Bitwise normalized view start used for reuse/staleness checks.
+    pub(crate) view_start_bits: u64,
+    /// Bitwise normalized view end used for reuse/staleness checks.
+    pub(crate) view_end_bits: u64,
+    /// Optional transient-visual token used by marker overlays.
+    pub(crate) transient_visual_token: Option<u64>,
+}
+
+/// Background waveform raster request.
+#[derive(Clone)]
+pub(crate) struct WaveformRenderJob {
+    /// Monotonic request identifier used to drop stale results.
+    pub(crate) request_id: u64,
+    /// Stable render key that describes the requested raster.
+    pub(crate) key: WaveformRenderKey,
+    /// Immutable decoded waveform payload used by the renderer.
+    pub(crate) decoded: Arc<DecodedWaveform>,
+    /// Renderer clone used to produce the raster.
+    pub(crate) renderer: crate::waveform::WaveformRenderer,
+    /// Channel-view mode used by raster generation.
+    pub(crate) channel_view: WaveformChannelView,
+    /// Render viewport used for the raster request.
+    pub(crate) viewport: WaveformRenderViewport,
+    /// Optional transient overlay input aligned with `decoded`.
+    pub(crate) transients: Option<Arc<[f32]>>,
+}
+
+/// Completion payload for one waveform render request.
+#[derive(Debug)]
+pub(crate) struct WaveformRenderResult {
+    /// Request identifier echoed from the queued job.
+    pub(crate) request_id: u64,
+    /// Stable render key that should still match on apply.
+    pub(crate) key: WaveformRenderKey,
+    /// Worker time spent rasterizing the waveform image.
+    pub(crate) elapsed: Duration,
+    /// Raster result or terminal render error.
+    pub(crate) result: Result<PreparedWaveformVisual, String>,
 }
 
 /// Controller-owned source hydration lanes used to load source snapshots off the UI thread.
@@ -382,7 +544,8 @@ pub(crate) struct NormalizationJob {
 pub(crate) struct NormalizationResult {
     pub(crate) source_id: crate::sample_sources::SourceId,
     pub(crate) relative_path: PathBuf,
-    pub(crate) result: Result<(u64, i64, crate::sample_sources::Rating), String>,
+    pub(crate) result:
+        Result<(u64, i64, crate::sample_sources::Rating, crate::app::controller::undo::OverwriteBackup), String>,
 }
 
 /// Startup-deferred source DB maintenance request.

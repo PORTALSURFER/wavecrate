@@ -34,6 +34,23 @@ impl AppController {
         let counts = self.current_duplicate_cleanup_counts();
         let removed_ranges = cleanup_ranges.len();
         let removed_windows = counts.marked_windows.max(removed_ranges);
+        if !cfg!(test) {
+            let status = format!(
+                "Removed {removed_windows} duplicate window(s) across {removed_ranges} cleanup range(s). {groups} group(s), {kept} kept.",
+                groups = counts.group_count,
+                kept = counts.exempted_windows
+            );
+            return self.queue_selection_edit_commit(
+                "Cleaned duplicate windows",
+                status,
+                false,
+                true,
+                false,
+                SelectionEditWorkerOp::CleanupDuplicates {
+                    cleanup_ranges: cleanup_ranges.clone(),
+                },
+            );
+        }
         let audio = self
             .sample_view
             .wav
@@ -104,7 +121,7 @@ impl AppController {
     }
 }
 
-fn trim_cleanup_ranges_from_buffer(
+pub(super) fn trim_cleanup_ranges_from_buffer(
     buffer: &mut SelectionEditBuffer,
     cleanup_ranges: &[SelectionRange],
 ) -> Result<(), String> {

@@ -24,6 +24,9 @@ pub(crate) struct PendingSliceBatchExport {
 pub(super) struct JobRequestCounters {
     pub(crate) next_source_hydration_request_id: u64,
     pub(crate) next_folder_projection_request_id: u64,
+    pub(crate) next_metadata_request_id: u64,
+    pub(crate) next_waveform_render_request_id: u64,
+    pub(crate) next_config_persist_request_id: u64,
     pub(crate) next_audio_request_id: u64,
     pub(crate) next_recording_waveform_request_id: u64,
     pub(crate) next_folder_scan_request_id: u64,
@@ -37,6 +40,9 @@ impl Default for JobRequestCounters {
         Self {
             next_source_hydration_request_id: 1,
             next_folder_projection_request_id: 1,
+            next_metadata_request_id: 1,
+            next_waveform_render_request_id: 1,
+            next_config_persist_request_id: 1,
             next_audio_request_id: 1,
             next_recording_waveform_request_id: 1,
             next_folder_scan_request_id: 1,

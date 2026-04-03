@@ -28,7 +28,7 @@ pub(crate) struct InitialWaveformRenderSpec {
 }
 
 /// Fully prepared waveform visual payload ready for cheap controller-thread apply.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct PreparedWaveformVisual {
     pub image: Option<WaveformImage>,
     pub projected_image: Option<Arc<ImageRgba>>,

@@ -36,8 +36,6 @@ pub(crate) struct PendingSampleOverwriteTransaction {
     pub relative_path: PathBuf,
     /// Absolute path of the overwritten sample.
     pub absolute_path: PathBuf,
-    /// Backups captured before the async overwrite completes.
-    pub backup: undo::OverwriteBackup,
 }
 
 /// Pending async history entry for one sample-creation workflow.

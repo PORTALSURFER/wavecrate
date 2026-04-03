@@ -3,6 +3,7 @@ use crate::app::state::DestructiveSelectionEdit;
 use std::time::Duration;
 
 mod buffer;
+mod background;
 mod controller_actions;
 mod controller_apply;
 mod duplicate_cleanup;
@@ -14,8 +15,10 @@ mod write_service;
 mod selection_click;
 mod selection_normalize;
 
-pub(crate) use buffer::next_crop_relative_path;
-use buffer::{SelectionEditBuffer, SelectionTarget, selection_frame_bounds};
+pub(crate) use buffer::{SelectionTarget, next_crop_relative_path};
+use buffer::{SelectionEditBuffer, selection_frame_bounds};
+use background::SelectionEditWorkerOp;
+pub(crate) use controller_apply::{PlaybackResumeState, SelectionEditVisualState};
 pub(crate) use selection_click::repair_clicks_selection as repair_clicks_buffer;
 use selection_normalize::normalize_selection;
 use write_service::{SelectionEditWriteRequest, apply_selection_edit_write};

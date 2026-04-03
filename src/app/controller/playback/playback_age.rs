@@ -1,10 +1,11 @@
 //! Deferred playback-age persistence helpers.
 
 use super::*;
+use crate::app::controller::jobs::SourceMetadataMutationOp;
+use crate::app::controller::state::runtime::MetadataRollback;
 use crate::app::controller::state::audio::PendingAgeUpdate;
 use std::path::Path;
 use std::time::Instant;
-use tracing::warn;
 
 impl AppController {
     /// Record playback for the currently loaded audio, updating caches and UI.
@@ -106,26 +107,23 @@ impl AppController {
             id: update.source_id.clone(),
             root: update.root,
         };
-        match self.database_for(&source) {
-            Ok(db) => {
-                if let Err(err) = db.set_last_played_at(&update.relative_path, update.played_at) {
-                    warn!(
-                        "Failed to update playback age for {}: {}",
-                        update.relative_path.display(),
-                        err
-                    );
-                }
-            }
-            Err(err) => {
-                warn!(
-                    "Database unavailable for playback age update {}: {}",
-                    update.relative_path.display(),
-                    err
-                );
-            }
-        }
-        if self.selection_state.ctx.selected_source.as_ref() == Some(&update.source_id) {
-            self.rebuild_browser_lists();
-        }
+        let before_last_played_at = self
+            .wav_index_for_path(&update.relative_path)
+            .and_then(|index| self.wav_entries.entry(index))
+            .and_then(|entry| entry.last_played_at);
+        self.queue_metadata_mutation(
+            &source,
+            vec![SourceMetadataMutationOp::SetLastPlayedAt {
+                relative_path: update.relative_path.clone(),
+                played_at: update.played_at,
+            }],
+            Vec::new(),
+            vec![MetadataRollback::LastPlayedAt {
+                relative_path: update.relative_path.clone(),
+                before_last_played_at,
+                expected_last_played_at: Some(update.played_at),
+            }],
+            true,
+        );
     }
 }

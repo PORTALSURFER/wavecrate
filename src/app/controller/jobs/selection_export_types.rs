@@ -179,6 +179,8 @@ pub(crate) struct SelectionClipExportSuccess {
     pub(crate) entry: WavEntry,
     /// Absolute file path of the created clip.
     pub(crate) absolute_path: PathBuf,
+    /// Deferred undo backup captured off the UI thread for the new clip.
+    pub(crate) backup: crate::app::controller::undo::OverwriteBackup,
     /// Destination behavior used for the export.
     pub(crate) destination: SelectionClipDestination,
     /// Timings recorded by the worker.
@@ -200,6 +202,8 @@ pub(crate) struct SelectionCropExportSuccess {
     pub(crate) entry: WavEntry,
     /// Absolute file path of the created clip.
     pub(crate) absolute_path: PathBuf,
+    /// Deferred undo backup captured off the UI thread for the new clip.
+    pub(crate) backup: crate::app::controller::undo::OverwriteBackup,
     /// Source tag copied onto the new clip.
     pub(crate) tag: Rating,
     /// Preserved playback state from when the crop was requested.

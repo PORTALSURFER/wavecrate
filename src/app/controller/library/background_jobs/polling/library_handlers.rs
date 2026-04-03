@@ -273,7 +273,7 @@ impl AppController {
         let was_looping = self.ui.waveform.loop_enabled;
 
         match message.result {
-            Ok((file_size, modified_ns, tag)) => {
+            Ok((file_size, modified_ns, tag, backup)) => {
                 if let Some(source) = &source {
                     let updated = WavEntry {
                         relative_path: message.relative_path.clone(),
@@ -307,6 +307,9 @@ impl AppController {
                             audio.source_id == source.id
                                 && audio.relative_path == message.relative_path
                         });
+                    let preserved_view = self.ui.waveform.view;
+                    let preserved_cursor = self.ui.waveform.cursor;
+                    let preserved_selection = self.ui.waveform.selection;
 
                     if is_currently_loaded && was_playing {
                         let start_override = if playhead_position.is_finite() {
@@ -328,15 +331,26 @@ impl AppController {
                     self.update_cached_entry(source, &message.relative_path, updated);
 
                     if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
-                        self.rebuild_browser_lists();
+                        self.mark_browser_row_metadata_projection_revision_dirty();
+                        self.mark_browser_search_projection_revision_dirty();
+                        if self.should_dispatch_browser_search_async() {
+                            self.dispatch_search_job();
+                        }
                     }
                     self.refresh_waveform_for_sample(source, &message.relative_path);
+                    if is_currently_loaded {
+                        self.ui.waveform.view = preserved_view.clamp();
+                        self.ui.waveform.cursor = preserved_cursor;
+                        self.selection_state.range.set_range(preserved_selection);
+                        self.apply_selection(preserved_selection);
+                    }
 
                     self.set_status(
                         format!("Normalized {}", message.relative_path.display()),
                         StatusTone::Info,
                     );
-                    if let Err(err) = self.finish_pending_sample_overwrite_transaction(&history_key)
+                    if let Err(err) =
+                        self.finish_pending_sample_overwrite_transaction(&history_key, backup)
                     {
                         self.set_status(
                             format!("Normalization undo failed: {err}"),

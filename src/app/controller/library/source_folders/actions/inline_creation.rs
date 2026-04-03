@@ -1,8 +1,10 @@
 use super::ops;
 use super::*;
+use crate::app::controller::jobs::{FileOpMessage, FileOpResult, FolderCreateResult};
 use crate::app::state::{InlineFolderEdit, InlineFolderEditKind};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, atomic::AtomicBool};
 
 impl AppController {
     pub(crate) fn start_new_folder(&mut self) {
@@ -284,20 +286,43 @@ impl AppController {
         if destination.exists() {
             return Err(format!("Folder already exists: {}", relative.display()));
         }
-        fs::create_dir_all(&destination)
-            .map_err(|err| format!("Failed to create folder: {err}"))?;
-        self.update_manual_folders(|set| {
-            set.insert(relative.clone());
-        });
-        self.update_disk_folders(|set| {
-            set.insert(relative.clone());
-        });
-        self.refresh_folder_browser();
-        self.focus_folder_by_path(&relative);
+        if self.runtime.jobs.file_ops_in_progress() {
+            return Err("File operation already in progress".to_string());
+        }
+        if cfg!(test) {
+            self.begin_pending_file_mutation(&source.id, [relative.clone()]);
+            let result = FolderCreateResult {
+                source_id: source.id,
+                relative_path: relative,
+                result: fs::create_dir_all(&destination)
+                    .map_err(|err| format!("Failed to create folder: {err}")),
+            };
+            self.apply_file_op_result(FileOpResult::FolderCreate(result));
+            return Ok(());
+        }
+        self.begin_pending_file_mutation(&source.id, [relative.clone()]);
         self.set_status(
-            format!("Created folder {}", relative.display()),
-            StatusTone::Info,
+            format!("Creating folder {}...", relative.display()),
+            StatusTone::Busy,
         );
+        let (tx, rx) = std::sync::mpsc::channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.runtime.jobs.start_file_ops(rx, cancel.clone());
+        std::thread::spawn(move || {
+            let result = if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                Err(String::from("Folder creation cancelled"))
+            } else {
+                fs::create_dir_all(&destination)
+                    .map_err(|err| format!("Failed to create folder: {err}"))
+            };
+            let _ = tx.send(FileOpMessage::Finished(FileOpResult::FolderCreate(
+                FolderCreateResult {
+                    source_id: source.id,
+                    relative_path: relative,
+                    result,
+                },
+            )));
+        });
         Ok(())
     }
 }

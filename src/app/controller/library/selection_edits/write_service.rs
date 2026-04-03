@@ -97,7 +97,7 @@ pub(crate) fn crop_selection_to_new_sample_write(
     })
 }
 
-fn write_buffer_to_path(
+pub(crate) fn write_buffer_to_path(
     target: &std::path::Path,
     buffer: &SelectionEditBuffer,
 ) -> Result<(), String> {
@@ -110,7 +110,7 @@ fn write_buffer_to_path(
     write_selection_wav(&target.to_path_buf(), &buffer.samples, spec)
 }
 
-fn sync_sample_entry(
+pub(crate) fn sync_sample_entry(
     db: &SourceDatabase,
     relative_path: &std::path::Path,
     absolute_path: &std::path::Path,

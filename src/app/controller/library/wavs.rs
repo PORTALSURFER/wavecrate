@@ -27,6 +27,8 @@ mod feature_cache;
 mod focus_similarity;
 /// Source DB and in-memory metadata lookup/cache helpers.
 mod metadata_cache;
+/// Async metadata persistence helpers for tag, loop, BPM, and playback-age writes.
+mod metadata_async;
 /// Metadata and entry-mutation facade methods on `AppController`.
 mod metadata_facade;
 /// Shared fuzzy-search scoring and cache-reuse helpers for sync and worker paths.

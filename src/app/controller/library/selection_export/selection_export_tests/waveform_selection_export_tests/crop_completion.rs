@@ -35,6 +35,9 @@ fn apply_selection_crop_export_success_restores_focus_playback_and_undo_state() 
     db.upsert_file(&cropped_relative, entry.file_size, entry.modified_ns)
         .unwrap();
     db.set_tag(&cropped_relative, entry.tag).unwrap();
+    let backup =
+        crate::app::controller::undo::OverwriteBackup::capture_before(&cropped_absolute).unwrap();
+    backup.capture_after(&cropped_absolute).unwrap();
     let history_key = PendingHistoryTransactionKey::SelectionExport { request_id: 7 };
     controller
         .begin_pending_sample_creation_transaction(history_key.clone(), "Cropped to new sample");
@@ -46,6 +49,7 @@ fn apply_selection_crop_export_success_restores_focus_playback_and_undo_state() 
         source_relative_path: PathBuf::from("clip.wav"),
         entry: entry.clone(),
         absolute_path: cropped_absolute,
+        backup,
         tag: Rating::KEEP_1,
         playback: SelectionExportPlaybackState {
             was_playing: true,

@@ -24,12 +24,6 @@ impl AppController {
 
     /// Normalize the currently loaded sample in-place while preserving waveform state.
     pub(crate) fn normalize_loaded_sample_like_browser(&mut self) -> Result<(), String> {
-        let preserved_view = self.ui.waveform.view;
-        let preserved_cursor = self.ui.waveform.cursor;
-        let preserved_selection = self.ui.waveform.selection;
-        let was_playing = self.is_playing();
-        let was_looping = self.ui.waveform.loop_enabled;
-        let playhead_position = self.ui.waveform.playhead.position;
         let audio = self
             .sample_view
             .wav
@@ -45,54 +39,17 @@ impl AppController {
             .ok_or_else(|| "Source not available for loaded sample".to_string())?;
         let relative_path = audio.relative_path.clone();
         let absolute_path = source.root.join(&relative_path);
-        let (file_size, modified_ns, tag) =
-            self.normalize_and_save_for_path(&source, &relative_path, &absolute_path)?;
-        self.upsert_metadata_for_source(&source, &relative_path, file_size, modified_ns)?;
-        let last_played_at = self
-            .sample_last_played_for(&source, &relative_path)
-            .unwrap_or(None);
-        let looped = self
-            .sample_looped_for(&source, &relative_path)
-            .unwrap_or(false);
-        let updated = WavEntry {
-            relative_path: relative_path.clone(),
-            file_size,
-            modified_ns,
-            content_hash: None,
-            tag,
-            looped,
-            locked: self
-                .wav_index_for_path(&relative_path)
-                .and_then(|index| self.wav_entries.entry(index))
-                .map(|entry| entry.locked)
-                .unwrap_or(false),
-            missing: false,
-            last_played_at,
+        let entry = self
+            .wav_index_for_path(&relative_path)
+            .and_then(|index| self.wav_entry(index))
+            .cloned()
+            .ok_or_else(|| "Loaded sample is not available in the browser".to_string())?;
+        let ctx = crate::app::controller::library::browser_controller::helpers::TriageSampleContext {
+            source,
+            entry,
+            absolute_path,
         };
-        self.update_cached_entry(&source, &relative_path, updated);
-        if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
-            self.rebuild_browser_lists();
-        }
-        self.refresh_waveform_for_sample(&source, &relative_path);
-        self.ui.waveform.view = preserved_view.clamp();
-        self.ui.waveform.cursor = preserved_cursor;
-        self.selection_state.range.set_range(preserved_selection);
-        self.apply_selection(preserved_selection);
-        if was_playing {
-            let start_override = if playhead_position.is_finite() {
-                Some(f64::from(playhead_position.clamp(0.0, 1.0)))
-            } else {
-                None
-            };
-            if let Err(err) = self.play_audio(was_looping, start_override) {
-                self.set_status(err, StatusTone::Error);
-            }
-        }
-        self.set_status(
-            format!("Normalized {}", relative_path.display()),
-            StatusTone::Info,
-        );
-        Ok(())
+        self.browser().try_normalize_browser_sample_ctx(&ctx)
     }
 
     /// Delete the currently loaded sample and move focus/playback to the next candidate.

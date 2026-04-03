@@ -50,6 +50,20 @@ impl AppController {
         if !selection.has_edit_effects() {
             return Ok(false);
         }
+        if !cfg!(test) {
+            self.queue_selection_edit_commit(
+                "Applied edit fades",
+                format!(
+                    "Applied edit fades {}",
+                    self.selection_target()?.relative_path.display()
+                ),
+                true,
+                false,
+                true,
+                SelectionEditWorkerOp::ApplySelectionFades { selection },
+            )?;
+            return Ok(true);
+        }
         let result = self.apply_selection_edit("Applied edit fades", true, |buffer| {
             apply_selection_fades(SelectionFadeRequest {
                 samples: &mut buffer.samples,
@@ -93,7 +107,7 @@ impl AppController {
     }
 
     /// Emit one success token so native shells can flash the edit selection.
-    fn record_edit_selection_apply_flash(&mut self) {
+    pub(crate) fn record_edit_selection_apply_flash(&mut self) {
         self.ui.waveform.edit_selection_apply_flash_nonce = self
             .ui
             .waveform
@@ -103,6 +117,19 @@ impl AppController {
 
     /// Crop the loaded sample to the active selection range and refresh caches/exports.
     pub(crate) fn crop_waveform_selection(&mut self) -> Result<(), String> {
+        if !cfg!(test) {
+            return self.queue_selection_edit_commit(
+                "Cropped selection",
+                format!(
+                    "Cropped selection {}",
+                    self.selection_target()?.relative_path.display()
+                ),
+                false,
+                false,
+                false,
+                SelectionEditWorkerOp::Crop,
+            );
+        }
         let result = self.apply_selection_edit("Cropped selection", false, crop_buffer);
         if let Err(err) = &result {
             self.set_status(err.clone(), StatusTone::Error);
@@ -140,6 +167,19 @@ impl AppController {
 
     /// Remove the selected span from the loaded sample.
     pub(crate) fn trim_waveform_selection(&mut self) -> Result<(), String> {
+        if !cfg!(test) {
+            return self.queue_selection_edit_commit(
+                "Trimmed selection",
+                format!(
+                    "Trimmed selection {}",
+                    self.selection_target()?.relative_path.display()
+                ),
+                false,
+                false,
+                false,
+                SelectionEditWorkerOp::Trim,
+            );
+        }
         let result = self.apply_selection_edit("Trimmed selection", false, trim_buffer);
         if let Err(err) = &result {
             self.set_status(err.clone(), StatusTone::Error);
@@ -152,6 +192,16 @@ impl AppController {
         &mut self,
         direction: FadeDirection,
     ) -> Result<(), String> {
+        if !cfg!(test) {
+            return self.queue_selection_edit_commit(
+                "Applied fade",
+                format!("Applied fade {}", self.selection_target()?.relative_path.display()),
+                true,
+                false,
+                false,
+                SelectionEditWorkerOp::Fade { direction },
+            );
+        }
         let result = self.apply_selection_edit("Applied fade", true, |buffer| {
             apply_directional_fade(
                 &mut buffer.samples,
@@ -170,6 +220,21 @@ impl AppController {
 
     /// Normalize the active selection and apply short fades at the edges.
     pub(crate) fn normalize_waveform_selection(&mut self) -> Result<(), String> {
+        if !cfg!(test) {
+            return self.queue_selection_edit_commit(
+                "Normalized selection",
+                format!(
+                    "Normalized selection {}",
+                    self.selection_target()?.relative_path.display()
+                ),
+                true,
+                false,
+                false,
+                SelectionEditWorkerOp::Normalize {
+                    edge_fade: Duration::from_millis(5),
+                },
+            );
+        }
         let result = self.apply_selection_edit("Normalized selection", true, |buffer| {
             normalize_selection(buffer, Duration::from_millis(5))
         });
@@ -183,6 +248,19 @@ impl AppController {
     pub(crate) fn soften_waveform_selection_edges(&mut self) -> Result<(), String> {
         let fade_ms = self.ui.controls.anti_clip_fade_ms.max(0.0);
         let fade_duration = Duration::from_secs_f32(fade_ms / 1000.0);
+        if !cfg!(test) {
+            return self.queue_selection_edit_commit(
+                "Applied short fades",
+                format!(
+                    "Applied short fades {}",
+                    self.selection_target()?.relative_path.display()
+                ),
+                true,
+                false,
+                false,
+                SelectionEditWorkerOp::ShortEdgeFades { fade_duration },
+            );
+        }
         let result = self.apply_selection_edit("Applied short fades", true, |buffer| {
             let selection_frames = buffer.end_frame.saturating_sub(buffer.start_frame);
             let fade_frames =
@@ -207,6 +285,19 @@ impl AppController {
 
     /// Repair clicks inside the selection by interpolating the span.
     pub(crate) fn repair_clicks_selection(&mut self) -> Result<(), String> {
+        if !cfg!(test) {
+            return self.queue_selection_edit_commit(
+                "Removed clicks",
+                format!(
+                    "Removed clicks {}",
+                    self.selection_target()?.relative_path.display()
+                ),
+                true,
+                false,
+                false,
+                SelectionEditWorkerOp::RepairClicks,
+            );
+        }
         let result = self.apply_selection_edit("Removed clicks", true, |buffer| {
             repair_clicks_buffer(buffer)
         });
@@ -218,6 +309,19 @@ impl AppController {
 
     /// Silence the selected span without applying fades.
     pub(crate) fn mute_waveform_selection(&mut self) -> Result<(), String> {
+        if !cfg!(test) {
+            return self.queue_selection_edit_commit(
+                "Muted selection",
+                format!(
+                    "Muted selection {}",
+                    self.selection_target()?.relative_path.display()
+                ),
+                true,
+                false,
+                false,
+                SelectionEditWorkerOp::Mute,
+            );
+        }
         let result = self.apply_selection_edit("Muted selection", true, ops::mute_buffer);
         if let Err(err) = &result {
             self.set_status(err.clone(), StatusTone::Error);
@@ -227,6 +331,19 @@ impl AppController {
 
     /// Reverse the selected span in time.
     pub(crate) fn reverse_waveform_selection(&mut self) -> Result<(), String> {
+        if !cfg!(test) {
+            return self.queue_selection_edit_commit(
+                "Reversed selection",
+                format!(
+                    "Reversed selection {}",
+                    self.selection_target()?.relative_path.display()
+                ),
+                true,
+                false,
+                false,
+                SelectionEditWorkerOp::Reverse,
+            );
+        }
         let result = self.apply_selection_edit("Reversed selection", true, reverse_buffer);
         if let Err(err) = &result {
             self.set_status(err.clone(), StatusTone::Error);

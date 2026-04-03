@@ -105,6 +105,9 @@ fn persist_loop_toggle_markers(controller: &mut AppController, state: LoopToggle
         persist_browser_loop_markers(controller, &action_targets, state);
     } else {
         persist_loaded_sample_loop_marker(controller, state.loop_enabled);
+        if state.toggled_to_enabled() {
+            persist_loaded_sample_bpm(controller);
+        }
     }
 }
 
@@ -126,10 +129,24 @@ fn persist_browser_loop_markers(
         && let Some(bpm) = controller.ui.waveform.bpm_value
         && bpm.is_finite()
         && bpm > 0.0
-        && let Err(err) =
-            controller.set_bpm_browser_sample_paths(&action_targets.paths, bpm, primary_row)
     {
-        tracing::warn!("Failed to save BPM to browser samples: {err}");
+        if let Some(source_id) = controller.selected_source_id() {
+            let cache = controller
+                .ui_cache
+                .browser
+                .bpm_values
+                .entry(source_id)
+                .or_default();
+            for path in &action_targets.paths {
+                cache.insert(path.clone(), Some(bpm));
+            }
+            controller.mark_browser_row_metadata_projection_revision_dirty();
+        }
+        if let Err(err) =
+            controller.set_bpm_browser_sample_paths(&action_targets.paths, bpm, primary_row)
+        {
+            tracing::warn!("Failed to save BPM to browser samples: {err}");
+        }
     }
 }
 
@@ -155,6 +172,62 @@ fn persist_loaded_sample_loop_marker(controller: &mut AppController, loop_enable
     {
         tracing::warn!("Failed to update loop marker: {err}");
     }
+}
+
+/// Persist BPM metadata for the loaded sample when loop-enable falls back to sample scope.
+fn persist_loaded_sample_bpm(controller: &mut AppController) {
+    let Some(bpm) = controller
+        .ui
+        .waveform
+        .bpm_value
+        .filter(|bpm| bpm.is_finite() && *bpm > 0.0)
+    else {
+        return;
+    };
+    let bpm_update = controller
+        .sample_view
+        .wav
+        .loaded_audio
+        .as_ref()
+        .and_then(|loaded_audio| {
+            controller
+                .library
+                .sources
+                .iter()
+                .find(|source| source.id == loaded_audio.source_id)
+                .map(|source| (source.clone(), loaded_audio.relative_path.clone()))
+        });
+    let Some((source, relative_path)) = bpm_update else {
+        return;
+    };
+    let before_bpm = controller
+        .ui_cache
+        .browser
+        .bpm_values
+        .get(&source.id)
+        .and_then(|cache| cache.get(&relative_path).copied().flatten());
+    controller
+        .ui_cache
+        .browser
+        .bpm_values
+        .entry(source.id.clone())
+        .or_default()
+        .insert(relative_path.clone(), Some(bpm));
+    controller.queue_metadata_mutation(
+        &source,
+        Vec::new(),
+        vec![crate::app::controller::jobs::AnalysisMetadataMutationOp::SetBpm {
+            relative_path: relative_path.clone(),
+            bpm: Some(bpm),
+        }],
+        vec![crate::app::controller::state::runtime::MetadataRollback::Bpm {
+            relative_path,
+            before_bpm,
+            expected_bpm: Some(bpm),
+        }],
+        false,
+    );
+    controller.mark_browser_row_metadata_projection_revision_dirty();
 }
 
 /// Apply loop-toggle playback policy (restart looping playback or defer disable).

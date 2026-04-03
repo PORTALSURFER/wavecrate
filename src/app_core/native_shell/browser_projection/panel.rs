@@ -70,6 +70,9 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         search_placeholder,
         busy,
         source_loading: controller.ui.browser.search.source_loading,
+        metadata_pending: controller.selected_source_has_pending_metadata_mutations(),
+        file_op_pending: controller.selected_source_has_pending_file_mutations()
+            || controller.file_ops_in_progress_for_projection(),
         similarity_filtered,
         duplicate_cleanup_active,
         sort_label,

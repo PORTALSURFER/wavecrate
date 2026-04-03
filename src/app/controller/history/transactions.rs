@@ -14,7 +14,6 @@ impl AppController {
             return Ok(());
         }
         let before = self.capture_meaningful_ui_snapshot();
-        let backup = undo::OverwriteBackup::capture_before(&absolute_path)?;
         self.history.pending_transactions.insert(
             key,
             PendingHistoryTransaction::SampleOverwrite(PendingSampleOverwriteTransaction {
@@ -23,7 +22,6 @@ impl AppController {
                 source_id,
                 relative_path,
                 absolute_path,
-                backup,
             }),
         );
         Ok(())
@@ -60,20 +58,20 @@ impl AppController {
     pub(crate) fn finish_pending_sample_overwrite_transaction(
         &mut self,
         key: &PendingHistoryTransactionKey,
+        backup: undo::OverwriteBackup,
     ) -> Result<(), String> {
         let Some(PendingHistoryTransaction::SampleOverwrite(pending)) =
             self.history.pending_transactions.remove(key)
         else {
             return Ok(());
         };
-        pending.backup.capture_after(&pending.absolute_path)?;
         let after = self.capture_meaningful_ui_snapshot();
         let entry = self.selection_edit_undo_entry(
             pending.label,
             pending.source_id,
             pending.relative_path,
             pending.absolute_path,
-            pending.backup,
+            backup,
         );
         self.push_undo_entry(Self::attach_meaningful_ui_restore(
             entry,
@@ -91,6 +89,7 @@ impl AppController {
         relative_path: PathBuf,
         absolute_path: PathBuf,
         tag: crate::sample_sources::Rating,
+        backup: undo::OverwriteBackup,
         label_override: Option<String>,
     ) -> Result<(), String> {
         let Some(PendingHistoryTransaction::SampleCreation(pending)) =
@@ -98,8 +97,6 @@ impl AppController {
         else {
             return Ok(());
         };
-        let backup = undo::OverwriteBackup::capture_before(&absolute_path)?;
-        backup.capture_after(&absolute_path)?;
         let after = self.capture_meaningful_ui_snapshot();
         let entry = self.crop_new_sample_undo_entry(
             label_override.unwrap_or(pending.label),

@@ -40,6 +40,7 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
     WaveformPanelModel {
         loaded_label: project_waveform_target_label(ui),
         loading: ui.waveform.loading.is_some(),
+        image_rendering: controller.waveform_render_in_progress_for_projection(),
         cursor_milli: ui.waveform.cursor.map(normalized_to_milli),
         playhead_milli: projected_playhead.map(normalized_to_milli),
         playhead_micros: projected_playhead.map(normalized_to_micros),

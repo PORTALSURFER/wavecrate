@@ -31,8 +31,153 @@ pub(crate) enum FileOpResult {
     FolderSampleMove(FolderSampleMoveResult),
     /// Folder move results from drag/drop actions.
     FolderMove(FolderMoveResult),
+    /// Browser sample delete results.
+    SampleDelete(SampleDeleteResult),
+    /// Browser sample rename results.
+    SampleRename(SampleRenameResult),
+    /// Folder creation results.
+    FolderCreate(FolderCreateResult),
+    /// Folder rename results.
+    FolderRename(FolderRenameResult),
+    /// Folder delete results.
+    FolderDelete(FolderDeleteResult),
+    /// Destructive in-place selection edit results.
+    SelectionEditCommit(SelectionEditCommitResult),
+    /// Circular waveform slide overwrite results.
+    WaveformSlideCommit(WaveformSlideCommitResult),
     /// Undo/redo filesystem results.
     UndoFile(UndoFileOpResult),
+}
+
+/// Result of deleting one browser sample file in the background.
+#[derive(Debug)]
+pub(crate) struct SampleDeleteResult {
+    /// Source that owned the deleted samples.
+    pub(crate) source_id: crate::sample_sources::SourceId,
+    /// Relative sample paths that were requested for deletion.
+    pub(crate) requested_paths: Vec<PathBuf>,
+    /// Relative sample paths that were deleted successfully.
+    pub(crate) deleted_paths: Vec<PathBuf>,
+    /// Follow-up browser focus plan captured before deletion.
+    pub(crate) next_focus: Option<crate::app::controller::library::browser_controller::helpers::DeleteBrowserFocusPlan>,
+    /// Final error reported by the worker when any deletion failed.
+    pub(crate) last_error: Option<String>,
+}
+
+/// Result of renaming one browser sample file in the background.
+#[derive(Debug)]
+pub(crate) struct SampleRenameResult {
+    /// Source that owned the renamed sample.
+    pub(crate) source_id: crate::sample_sources::SourceId,
+    /// Previous relative sample path.
+    pub(crate) old_relative: PathBuf,
+    /// New relative sample path.
+    pub(crate) new_relative: PathBuf,
+    /// Updated entry metadata aligned to the renamed file.
+    pub(crate) entry: Option<crate::sample_sources::WavEntry>,
+    /// Whether playback should resume once the renamed sample reloads.
+    pub(crate) resume_playback: bool,
+    /// Loop state that should be restored for playback resume.
+    pub(crate) resume_looped: bool,
+    /// Optional playback start override to restore after rename.
+    pub(crate) resume_start_override: Option<f64>,
+    /// Terminal rename outcome.
+    pub(crate) result: Result<(), String>,
+}
+
+/// Result of creating one folder in the background.
+#[derive(Debug)]
+pub(crate) struct FolderCreateResult {
+    /// Source that owns the created folder.
+    pub(crate) source_id: crate::sample_sources::SourceId,
+    /// Relative folder path that was created.
+    pub(crate) relative_path: PathBuf,
+    /// Terminal creation outcome.
+    pub(crate) result: Result<(), String>,
+}
+
+/// Result of renaming one folder in the background.
+#[derive(Debug)]
+pub(crate) struct FolderRenameResult {
+    /// Source that owns the renamed folder.
+    pub(crate) source_id: crate::sample_sources::SourceId,
+    /// Previous relative folder path.
+    pub(crate) old_folder: PathBuf,
+    /// New relative folder path.
+    pub(crate) new_folder: PathBuf,
+    /// Updated sample entries aligned to the renamed folder paths.
+    pub(crate) entries: Vec<crate::sample_sources::WavEntry>,
+    /// Terminal rename outcome.
+    pub(crate) result: Result<(), String>,
+}
+
+/// Result of deleting one folder in the background.
+#[derive(Debug)]
+pub(crate) struct FolderDeleteResult {
+    /// Source that owned the deleted folder.
+    pub(crate) source_id: crate::sample_sources::SourceId,
+    /// Source root used for undo and recovery application.
+    pub(crate) source_root: PathBuf,
+    /// Deleted folder path relative to the source root.
+    pub(crate) relative_path: PathBuf,
+    /// Folder entries removed alongside the folder delete.
+    pub(crate) entries: Vec<crate::sample_sources::WavEntry>,
+    /// Staging root that retains the deleted folder for recovery.
+    pub(crate) staging_root: PathBuf,
+    /// Delete staging info returned by the recovery layer.
+    pub(crate) staged: Option<crate::app::controller::library::source_folders::delete_recovery::DeleteStagingInfo>,
+    /// Optional next-focused folder path captured before deletion.
+    pub(crate) next_focus: Option<PathBuf>,
+    /// Terminal delete outcome.
+    pub(crate) result: Result<(), String>,
+}
+
+/// Result of one background destructive selection edit commit.
+#[derive(Debug)]
+pub(crate) struct SelectionEditCommitResult {
+    /// Source that owns the edited sample.
+    pub(crate) source_id: crate::sample_sources::SourceId,
+    /// Edited sample path relative to the source root.
+    pub(crate) relative_path: PathBuf,
+    /// Absolute path overwritten by the worker.
+    pub(crate) absolute_path: PathBuf,
+    /// Human-readable undo label and status prefix.
+    pub(crate) action_label: String,
+    /// Status message to show after the commit succeeds.
+    pub(crate) status_message: String,
+    /// Whether the pre-edit selection/view should be restored after apply.
+    pub(crate) preserve_selection: bool,
+    /// Visual state snapshot captured before the edit started.
+    pub(crate) visual: crate::app::controller::library::selection_edits::SelectionEditVisualState,
+    /// Playback state captured before the edit started.
+    pub(crate) playback: crate::app::controller::library::selection_edits::PlaybackResumeState,
+    /// Whether the edit should clear duplicate-cleanup overlays after apply.
+    pub(crate) clear_duplicate_cleanup: bool,
+    /// Whether the edit should clear preview fade handles and flash the edit selection.
+    pub(crate) clear_edit_fades: bool,
+    /// Updated entry metadata for the overwritten sample.
+    pub(crate) entry: Option<crate::sample_sources::WavEntry>,
+    /// Deferred undo backup captured off the UI thread.
+    pub(crate) backup: Option<crate::app::controller::undo::OverwriteBackup>,
+    /// Terminal commit outcome.
+    pub(crate) result: Result<(), String>,
+}
+
+/// Result of one background circular-slide overwrite commit.
+#[derive(Debug)]
+pub(crate) struct WaveformSlideCommitResult {
+    /// Source that owns the edited sample.
+    pub(crate) source_id: crate::sample_sources::SourceId,
+    /// Edited sample path relative to the source root.
+    pub(crate) relative_path: PathBuf,
+    /// Absolute path overwritten by the worker.
+    pub(crate) absolute_path: PathBuf,
+    /// Updated entry metadata for the overwritten sample.
+    pub(crate) entry: Option<crate::sample_sources::WavEntry>,
+    /// Deferred undo backup captured off the UI thread.
+    pub(crate) backup: Option<crate::app::controller::undo::OverwriteBackup>,
+    /// Terminal slide outcome.
+    pub(crate) result: Result<(), String>,
 }
 
 /// Copy-vs-move mode for a background drop-target transfer.

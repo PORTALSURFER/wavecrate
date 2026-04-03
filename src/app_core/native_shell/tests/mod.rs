@@ -8,6 +8,12 @@ mod overlays;
 mod status_motion;
 mod waveform;
 
+fn project_sources_for_ui(ui: &UiState) -> radiant::app::SourcesPanelModel {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(8, 8), None);
+    controller.ui = ui.clone();
+    project_sources_model(&controller)
+}
+
 /// Focused tests for inline folder-row projection behavior.
 mod overlay_folder_rows {
     use super::*;
@@ -62,7 +68,7 @@ mod overlay_folder_rows {
             focus_requested: true,
             select_all_on_focus_requested: false,
         });
-        let projected = project_sources_model(&ui);
+        let projected = project_sources_for_ui(&ui);
         let draft = projected
             .folder_rows
             .iter()
@@ -81,7 +87,7 @@ mod overlay_folder_rows {
         if let Some(edit) = ui.sources.folders.inline_edit.as_mut() {
             edit.name = String::from("bad/name");
         }
-        let projected = project_sources_model(&ui);
+        let projected = project_sources_for_ui(&ui);
         let draft = projected
             .folder_rows
             .iter()
@@ -131,7 +137,7 @@ mod overlay_folder_rows {
             select_all_on_focus_requested: false,
         });
 
-        let projected = project_sources_model(&ui);
+        let projected = project_sources_for_ui(&ui);
 
         assert_eq!(projected.folder_rows[1].kind, FolderRowKind::CreateDraft);
         assert_eq!(projected.folder_rows[1].depth, 1);
@@ -174,7 +180,7 @@ mod overlay_folder_rows {
             focus_requested: true,
             select_all_on_focus_requested: true,
         });
-        let projected = project_sources_model(&ui);
+        let projected = project_sources_for_ui(&ui);
         assert_eq!(projected.focused_folder_row, Some(0));
         let draft = &projected.folder_rows[0];
         assert_eq!(draft.kind, FolderRowKind::RenameDraft);
@@ -192,7 +198,7 @@ mod overlay_folder_rows {
             edit.name = String::from("../bad");
             edit.select_all_on_focus_requested = false;
         }
-        let projected = project_sources_model(&ui);
+        let projected = project_sources_for_ui(&ui);
         let draft = &projected.folder_rows[0];
         assert_eq!(
             draft.input_error.as_deref(),
@@ -231,7 +237,7 @@ mod overlay_folder_actions {
             file_scope_mode: None,
         });
         ui.sources.folders.focused = Some(0);
-        let projected = project_sources_model(&ui);
+        let projected = project_sources_for_ui(&ui);
         assert!(projected.folder_actions.can_create_folder);
         assert!(projected.folder_actions.can_create_folder_at_root);
         assert!(!projected.folder_actions.can_rename_folder);
@@ -250,7 +256,7 @@ mod overlay_folder_actions {
             file_scope_mode: None,
         });
         ui.sources.folders.focused = Some(1);
-        let projected = project_sources_model(&ui);
+        let projected = project_sources_for_ui(&ui);
         assert!(projected.folder_actions.can_rename_folder);
         assert!(projected.folder_actions.can_delete_folder);
     }
@@ -259,7 +265,7 @@ mod overlay_folder_actions {
     #[test]
     fn folder_actions_allow_root_creation_when_no_sources_exist() {
         let ui = UiState::default();
-        let projected = project_sources_model(&ui);
+        let projected = project_sources_for_ui(&ui);
         assert!(!projected.folder_actions.can_create_folder);
         assert!(projected.folder_actions.can_create_folder_at_root);
     }
@@ -280,7 +286,7 @@ mod overlay_folder_actions {
                 detail: None,
             });
         ui.sources.folders.delete_recovery.in_progress = true;
-        let projected = project_sources_model(&ui);
+        let projected = project_sources_for_ui(&ui);
         assert!(!projected.folder_actions.can_clear_recovery_log);
     }
 }

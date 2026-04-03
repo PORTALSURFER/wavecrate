@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::controller::jobs::AnalysisMetadataMutationOp;
 
 impl AppController {
     /// Invalidate in-memory and persisted waveform caches for one sample path.
@@ -63,74 +64,21 @@ impl AppController {
         let Some(pending) = self.runtime.pending_loaded_duration_metadata.take() else {
             return;
         };
-        self.persist_loaded_duration_metadata(pending);
-    }
-
-    /// Persist deferred loaded-duration metadata to the source analysis database.
-    fn persist_loaded_duration_metadata(
-        &mut self,
-        pending: crate::app::controller::state::runtime::PendingLoadedDurationMetadata,
-    ) {
         let source = SampleSource {
             id: pending.source_id.clone(),
             root: pending.source_root.clone(),
         };
-        let metadata = match self.current_file_metadata(&source, &pending.relative_path) {
-            Ok(metadata) => metadata,
-            Err(err) => {
-                tracing::warn!(
-                    "Failed to read file metadata for deferred duration update ({}): {err}",
-                    pending.relative_path.display()
-                );
-                return;
-            }
-        };
-        let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), &pending.relative_path);
-        let content_hash =
-            analysis_jobs::fast_content_hash(metadata.file_size, metadata.modified_ns);
-        let mut conn = match analysis_jobs::open_source_db(&source.root) {
-            Ok(conn) => conn,
-            Err(err) => {
-                tracing::warn!(
-                    "Failed to open source DB for deferred duration update ({}): {err}",
-                    pending.relative_path.display()
-                );
-                return;
-            }
-        };
-        if let Err(err) = analysis_jobs::upsert_samples(
-            &mut conn,
-            &[analysis_jobs::SampleMetadata {
-                sample_id: sample_id.clone(),
-                content_hash,
-                size: metadata.file_size,
-                mtime_ns: metadata.modified_ns,
+        self.queue_metadata_mutation(
+            &source,
+            Vec::new(),
+            vec![AnalysisMetadataMutationOp::SetLoadedDuration {
+                relative_path: pending.relative_path,
+                duration_seconds: pending.duration_seconds,
+                sample_rate: pending.sample_rate,
+                long_sample_mark: pending.long_sample_mark,
             }],
-        ) {
-            tracing::warn!(
-                "Failed to ensure analysis row for {}: {err}",
-                pending.relative_path.display()
-            );
-        }
-        if let Err(err) = analysis_jobs::update_sample_duration(
-            &conn,
-            &sample_id,
-            pending.duration_seconds,
-            pending.sample_rate,
-        ) {
-            tracing::warn!(
-                "Failed to store duration metadata for {}: {err}",
-                pending.relative_path.display()
-            );
-        }
-        if let Some(long_sample_mark) = pending.long_sample_mark
-            && let Err(err) =
-                analysis_jobs::update_sample_long_mark(&conn, &sample_id, long_sample_mark)
-        {
-            tracing::warn!(
-                "Failed to store long sample mark for {}: {err}",
-                pending.relative_path.display()
-            );
-        }
+            Vec::new(),
+            false,
+        );
     }
 }
