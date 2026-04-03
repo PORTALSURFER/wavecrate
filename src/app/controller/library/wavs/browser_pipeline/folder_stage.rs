@@ -31,19 +31,23 @@ pub(super) fn ensure_folder_acceptance_stage(
     }
 
     let accepts = if has_folder_filters {
-        let relative_paths: Vec<_> = (0..entries_len)
-            .map(|index| {
-                controller
-                    .wav_entry(index)
-                    .map(|entry| entry.relative_path.clone())
-            })
-            .collect();
-        crate::app::controller::library::source_folders::build_folder_filter_acceptance_map(
-            relative_paths.iter().map(|path| path.as_deref()),
-            folder_selection,
-            folder_negated,
-            file_scope_mode,
-        )
+        let mut accepts = Vec::with_capacity(entries_len);
+        for index in 0..entries_len {
+            let accepted = controller
+                .ensure_wav_page_loaded(index)
+                .ok()
+                .and_then(|_| controller.wav_entries.entry(index))
+                .is_some_and(|entry| {
+                    crate::app::controller::library::source_folders::folder_filter_accepts(
+                        &entry.relative_path,
+                        folder_selection,
+                        folder_negated,
+                        file_scope_mode,
+                    )
+                });
+            accepts.push(accepted);
+        }
+        accepts
     } else {
         vec![true; entries_len]
     };

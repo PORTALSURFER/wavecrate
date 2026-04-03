@@ -164,7 +164,7 @@ fn ensure_filtered_stage(
         playback_age_filter_hash,
         playback_age_cache_token,
         marked_only,
-        marked_revision,
+        marked_only.then_some(marked_revision),
         folder_hash,
     ));
     if controller.ui_cache.browser.pipeline.filtered_fingerprint != Some(filtered_fingerprint) {
@@ -172,21 +172,13 @@ fn ensure_filtered_stage(
         let mut filtered_rows = Vec::with_capacity(base_len);
         for row in 0..base_len {
             let index = controller.ui_cache.browser.pipeline.base_rows[row];
-            let Some((tag, locked, last_played_at, relative_path)) =
-                controller.wav_entry(index).map(|entry| {
-                    (
-                        entry.tag,
-                        entry.locked,
-                        entry.last_played_at,
-                        entry.relative_path.clone(),
-                    )
-                })
-            else {
+            let Some((tag, locked, last_played_at, marked)) = filter_stage_entry(
+                controller,
+                index,
+                marked_only.then_some(selected_source_id).flatten(),
+            ) else {
                 continue;
             };
-            let marked = selected_source_id.is_some_and(|source_id| {
-                controller.browser_sample_marked(source_id, &relative_path)
-            });
             if !helpers::filter_accepts(
                 filter,
                 rating_filter,
@@ -236,21 +228,13 @@ fn ensure_sorted_stage_for_similar(
     let selected_source_id = controller.selection_state.ctx.selected_source.clone();
     let mut visible = Vec::with_capacity(similar.indices.len());
     for index in similar.indices.iter().copied() {
-        let Some((tag, locked, last_played_at, relative_path)) =
-            controller.wav_entry(index).map(|entry| {
-                (
-                    entry.tag,
-                    entry.locked,
-                    entry.last_played_at,
-                    entry.relative_path.clone(),
-                )
-            })
-        else {
+        let Some((tag, locked, last_played_at, marked)) = filter_stage_entry(
+            controller,
+            index,
+            marked_only.then_some(selected_source_id.as_ref()).flatten(),
+        ) else {
             continue;
         };
-        let marked = selected_source_id
-            .as_ref()
-            .is_some_and(|source_id| controller.browser_sample_marked(source_id, &relative_path));
         if !helpers::filter_accepts(
             filter,
             &rating_filter,
@@ -272,6 +256,23 @@ fn ensure_sorted_stage_for_similar(
     helpers::apply_sort_for_similar(controller, &mut visible, sort_mode, similar);
     controller.ui_cache.browser.pipeline.sorted_rows = visible.into();
     controller.ui_cache.browser.pipeline.sorted_fingerprint = Some(sorted_fingerprint);
+}
+
+fn filter_stage_entry(
+    controller: &mut AppController,
+    index: usize,
+    selected_source_id: Option<&crate::sample_sources::SourceId>,
+) -> Option<(Rating, bool, Option<i64>, bool)> {
+    controller.ensure_wav_page_loaded(index).ok()?;
+    let entry = controller.wav_entries.entry(index)?;
+    let marked = selected_source_id.is_some_and(|source_id| {
+        controller
+            .ui
+            .browser
+            .marks
+            .contains(source_id, &entry.relative_path)
+    });
+    Some((entry.tag, entry.locked, entry.last_played_at, marked))
 }
 
 fn current_unix_secs() -> i64 {

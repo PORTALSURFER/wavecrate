@@ -8,7 +8,8 @@ mod selection;
 mod tree;
 
 pub(crate) use selection::{
-    build_folder_filter_acceptance_map, folder_filter_fingerprint, folder_filters_active,
+    build_folder_filter_acceptance_map, folder_filter_accepts, folder_filter_fingerprint,
+    folder_filters_active,
 };
 pub(crate) use tree::scan_disk_folders;
 #[cfg(test)]

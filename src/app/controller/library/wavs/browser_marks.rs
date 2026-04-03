@@ -81,11 +81,13 @@ impl AppController {
         let Some(source_id) = self.selection_state.ctx.selected_source.clone() else {
             return;
         };
-        let retained: std::collections::HashSet<PathBuf> = (0..self.wav_entries_len())
-            .filter_map(|index| {
-                self.wav_entry(index)
-                    .map(|entry| entry.relative_path.clone())
-            })
+        let retained: std::collections::BTreeSet<PathBuf> = self
+            .ui
+            .browser
+            .marks
+            .paths_for_source(&source_id)
+            .into_iter()
+            .filter(|path| self.wav_index_for_path(path).is_some())
             .collect();
         let changed = self
             .ui
