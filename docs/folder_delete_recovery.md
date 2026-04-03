@@ -41,6 +41,9 @@ Each journal row moves through these stages:
 - If a `Deleted` entry has no staged folder but the original folder is already
   present, recovery records `Already restored` and removes the journal row.
 - Staged folders without journal rows are conservatively restored.
+- If `delete_journal.json` exists but is unreadable, recovery reports an error
+  and leaves the staging area untouched instead of guessing which folders were
+  safe to auto-restore.
 - Startup restore collisions are resolved by appending `.restored-N` to the folder
   name.
 - Explicit restore from Recovery is merged file-by-file instead of blindly
@@ -59,6 +62,9 @@ Each journal row moves through these stages:
   filesystem merge and metadata replay complete, so restart recovery can finish
   the operation if the app crashes after files move but before DB state is
   rebuilt.
+- Startup completion of `RestorePendingDb` requests a hard sync when the retained
+  snapshot was empty, because there is no durable metadata payload to replay
+  directly into the source database.
 - Explicit restore or purge after restart is a best-effort recovery action, not
   a resurrection of the prior-session undo/redo stack.
 

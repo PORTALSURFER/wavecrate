@@ -19,6 +19,7 @@ fn applying_recovery_report_updates_ui_entries() {
             detail: Some("Already restored".into()),
         }],
         retained_entries: Vec::new(),
+        scan_sources: Vec::new(),
         errors: Vec::new(),
     };
 
@@ -65,6 +66,25 @@ fn clear_folder_delete_recovery_log_removes_entries() {
 }
 
 #[test]
+fn applying_recovery_report_requests_hard_sync_for_scan_sources() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+
+    controller.apply_folder_delete_recovery_report(DeleteRecoveryReport {
+        entries: Vec::new(),
+        retained_entries: Vec::new(),
+        scan_sources: vec![source.id.clone()],
+        errors: Vec::new(),
+    });
+
+    assert!(controller.runtime.jobs.scan_in_progress());
+    assert_eq!(
+        controller.ui.progress.task,
+        Some(crate::app::state::ProgressTaskKind::Scan)
+    );
+}
+
+#[test]
 fn applying_recovery_uses_source_name_when_source_is_still_loaded() {
     let (mut controller, source) = named_source_controller("Drums");
     controller.ui.sources.folders.delete_recovery.in_progress = true;
@@ -79,6 +99,7 @@ fn applying_recovery_uses_source_name_when_source_is_still_loaded() {
             detail: None,
         }],
         retained_entries: Vec::new(),
+        scan_sources: Vec::new(),
         errors: Vec::new(),
     });
 
@@ -123,6 +144,7 @@ fn applying_recovery_report_tracks_retained_delete_entries() {
             staged_relative: "gone".into(),
             deleted_entries: deleted_entries.clone(),
         }],
+        scan_sources: Vec::new(),
         errors: Vec::new(),
     });
 

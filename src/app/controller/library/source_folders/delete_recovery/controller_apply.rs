@@ -55,6 +55,9 @@ impl AppController {
         for error in &errors {
             warn!(error = %error, "Delete recovery error");
         }
+        for source_id in &summary.scan_sources {
+            self.request_hard_sync_for_source(source_id);
+        }
         self.refresh_recovered_sources(&summary.affected_sources);
     }
 
@@ -118,6 +121,7 @@ struct RecoverySummary {
     ui_entries: Vec<UiDeleteRecoveryEntry>,
     retained_entries: Vec<UiRetainedFolderDeleteEntry>,
     affected_sources: HashSet<SourceId>,
+    scan_sources: HashSet<SourceId>,
     restored: usize,
     finalized: usize,
     failed: usize,
@@ -129,7 +133,10 @@ impl RecoverySummary {
         controller: &AppController,
         report: DeleteRecoveryReport,
     ) -> (Self, Vec<String>) {
-        let mut summary = Self::default();
+        let mut summary = Self {
+            scan_sources: report.scan_sources.into_iter().collect(),
+            ..Self::default()
+        };
         for entry in report.entries {
             summary.push(controller, entry);
         }

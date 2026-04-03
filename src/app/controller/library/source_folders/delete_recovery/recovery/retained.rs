@@ -5,6 +5,7 @@ fn completed_recovery(
     original_relative: PathBuf,
     action: DeleteRecoveryAction,
     outcome: Result<Option<String>, String>,
+    needs_hard_sync: bool,
 ) -> JournaledRecoveryOutcome {
     let remove_from_journal = outcome.is_ok();
     JournaledRecoveryOutcome::Completed(JournaledRecovery {
@@ -15,6 +16,7 @@ fn completed_recovery(
             outcome,
         ),
         remove_from_journal,
+        needs_hard_sync: remove_from_journal && needs_hard_sync,
     })
 }
 
@@ -43,6 +45,7 @@ pub(super) fn recover_retained_delete(
             original_relative.to_path_buf(),
             DeleteRecoveryAction::Restore,
             Ok(Some("Already restored".into())),
+            false,
         ));
     }
     if !staged.exists() && !original.exists() {
@@ -51,6 +54,7 @@ pub(super) fn recover_retained_delete(
             original_relative.to_path_buf(),
             DeleteRecoveryAction::Finalize,
             Ok(Some("Already purged".into())),
+            false,
         ));
     }
     Some(completed_recovery(
@@ -62,6 +66,7 @@ pub(super) fn recover_retained_delete(
             original.exists(),
             staged.exists()
         )),
+        false,
     ))
 }
 
@@ -113,5 +118,6 @@ pub(super) fn recover_pending_retained_restore(
         original_relative.to_path_buf(),
         DeleteRecoveryAction::Restore,
         outcome,
+        entry.deleted_entries.is_empty(),
     )
 }

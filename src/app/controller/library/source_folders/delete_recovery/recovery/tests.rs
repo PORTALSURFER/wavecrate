@@ -185,6 +185,26 @@ fn recover_restores_unjournaled_staged_folder() {
 }
 
 #[test]
+fn recover_skips_unjournaled_restore_when_delete_journal_is_unreadable() {
+    let (_temp, source) = sample_source();
+    let staging_root = source.root.join(DELETE_STAGING_DIR);
+    let staged = staging_root.join("gone");
+    fs::create_dir_all(&staged).unwrap();
+    fs::write(staging_root.join("delete_journal.json"), b"{broken").unwrap();
+
+    let report = recover_staged_deletes(std::slice::from_ref(&source));
+
+    assert!(!source.root.join("gone").exists());
+    assert!(staged.is_dir());
+    assert!(report.entries.is_empty());
+    assert!(report.retained_entries.is_empty());
+    assert!(report.scan_sources.is_empty());
+    assert_eq!(report.errors.len(), 1);
+    assert!(report.errors[0].contains("Failed to read delete journal"));
+    assert!(report.errors[0].contains("leaving staged deletes untouched"));
+}
+
+#[test]
 fn recover_uses_restore_suffix_when_original_exists() -> Result<(), String> {
     let (_temp, source) = sample_source();
     let original = source.root.join("gone");
@@ -277,7 +297,44 @@ fn recover_replays_pending_retained_restore_metadata_after_restart() -> Result<(
         report.entries[0].detail.as_deref(),
         Some("Completed retained restore after restart")
     );
+    assert!(report.scan_sources.is_empty());
     assert!(!staging_root.exists());
+    Ok(())
+}
+
+#[test]
+fn recover_pending_retained_restore_requests_hard_sync_when_deleted_snapshot_is_empty()
+-> Result<(), String> {
+    let (_temp, source) = sample_source();
+    let original = source.root.join("gone");
+    fs::create_dir_all(&original).unwrap();
+    fs::write(original.join("kick.wav"), b"staged").unwrap();
+    let staging_root = source.root.join(DELETE_STAGING_DIR);
+    let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"), &[])?;
+    mark_delete_retained(&staging_root, &staged.id)?;
+    mark_delete_restore_pending_db(&staging_root, &staged.id, "20260326T105355Z")?;
+    restore_retained_folder_with_merge_with_stamp(
+        &staged,
+        &source.root,
+        &source.root.join("gone"),
+        &staging_root,
+        "20260326T105355Z",
+    )?;
+
+    let report = recover_staged_deletes(std::slice::from_ref(&source));
+
+    assert!(source.root.join("gone/kick.wav").is_file());
+    assert_eq!(report.scan_sources, vec![source.id.clone()]);
+    assert_eq!(
+        report.entries[0].detail.as_deref(),
+        Some("Completed retained restore after restart")
+    );
+    let db = source.open_db().map_err(|err| err.to_string())?;
+    assert!(
+        db.entry_for_path(Path::new("gone/kick.wav"))
+            .map_err(|err| err.to_string())?
+            .is_none()
+    );
     Ok(())
 }
 
@@ -344,6 +401,7 @@ fn recover_pending_retained_restore_relocates_existing_metadata_after_restart() 
         report.entries[0].detail.as_deref(),
         Some("Completed retained restore after restart")
     );
+    assert!(report.scan_sources.is_empty());
     Ok(())
 }
 

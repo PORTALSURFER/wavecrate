@@ -80,6 +80,7 @@ fn retained_delete_resolution_result_clears_busy_scope_and_progress() {
             crate::app::controller::library::source_folders::delete_recovery::DeleteRecoveryReport {
                 entries: Vec::new(),
                 retained_entries: Vec::new(),
+                scan_sources: Vec::new(),
                 errors: Vec::new(),
             },
     });

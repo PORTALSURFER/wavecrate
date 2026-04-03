@@ -6,6 +6,7 @@
 //!   purge already removed the staged folder, in which case recovery finalizes the stale row
 //! - `RestorePendingDb` means an explicit retained restore must finish merge/DB replay
 //! - staged folders that exist without journal entries are conservatively restored
+//! - unreadable journal files leave staging untouched so retained deletes are not misclassified
 use super::DELETE_STAGING_DIR;
 use super::DeleteStagingInfo;
 use super::journal::{
@@ -83,6 +84,8 @@ pub(crate) struct DeleteRecoveryReport {
     pub(crate) entries: Vec<DeleteRecoveryEntry>,
     /// Retained deletes that remain available for explicit restore or purge.
     pub(crate) retained_entries: Vec<RetainedDeleteEntry>,
+    /// Sources that need a follow-up hard sync after startup recovery.
+    pub(crate) scan_sources: Vec<SourceId>,
     /// Non-fatal errors encountered during recovery.
     pub(crate) errors: Vec<String>,
 }
@@ -108,10 +111,10 @@ fn recover_source(source: &SampleSource, report: &mut DeleteRecoveryReport) {
         Ok(journal) => journal,
         Err(err) => {
             report.errors.push(format!(
-                "Failed to read delete journal for {}: {err}",
+                "Failed to read delete journal for {}: {err}; leaving staged deletes untouched until the journal is repaired",
                 source.root.display()
             ));
-            DeleteJournal::default()
+            return;
         }
     };
     let journaled_roots = journaled_staged_roots(&journal);
@@ -129,6 +132,9 @@ fn recover_journaled_entries(
     for entry in journal.entries.clone() {
         match recover_journaled_entry(source, staging_root, &entry) {
             Some(JournaledRecoveryOutcome::Completed(result)) => {
+                if result.needs_hard_sync {
+                    push_unique_scan_source(&mut report.scan_sources, &result.report_entry.source_id);
+                }
                 report.entries.push(result.report_entry);
                 if result.remove_from_journal
                     && let Err(err) = remove_entry(staging_root, &entry.id)
@@ -167,6 +173,7 @@ fn recover_unjournaled_entries(
 struct JournaledRecovery {
     report_entry: DeleteRecoveryEntry,
     remove_from_journal: bool,
+    needs_hard_sync: bool,
 }
 
 struct RetainedRecovery {
@@ -219,6 +226,7 @@ fn recover_journaled_entry(
     Some(JournaledRecoveryOutcome::Completed(JournaledRecovery {
         report_entry: recovery_entry(source, original_relative, action, outcome),
         remove_from_journal,
+        needs_hard_sync: false,
     }))
 }
 
@@ -239,6 +247,12 @@ fn recovery_entry(
         action,
         status,
         detail,
+    }
+}
+
+fn push_unique_scan_source(scan_sources: &mut Vec<SourceId>, source_id: &SourceId) {
+    if !scan_sources.iter().any(|existing| existing == source_id) {
+        scan_sources.push(source_id.clone());
     }
 }
 
