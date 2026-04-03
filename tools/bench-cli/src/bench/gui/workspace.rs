@@ -9,6 +9,13 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
+/// Number of frames written into each synthetic GUI benchmark wav.
+///
+/// This stays above the dense-column cache threshold for the default 32px
+/// waveform renderer so adjacent pan/zoom benchmarks actually exercise the
+/// retained zoom-cache path.
+const BENCH_WAV_FRAME_COUNT: usize = 256;
+
 /// Scoped benchmark workspace that keeps seed artifacts alive for the benchmark duration.
 pub(super) struct BenchWorkspace {
     /// Temporary directory that stores synthetic source files and DB state.
@@ -151,14 +158,36 @@ fn write_seed_wav(path: &Path, seed: i64) -> Result<(), String> {
     }
     let spec = WavSpec {
         channels: 1,
-        sample_rate: 8,
+        sample_rate: BENCH_WAV_FRAME_COUNT as u32,
         bits_per_sample: 32,
         sample_format: SampleFormat::Float,
     };
     let mut writer = WavWriter::create(path, spec).map_err(|err| err.to_string())?;
-    writer
-        .write_sample(seed as f32 % 1.0)
-        .map_err(|err| err.to_string())?;
+    let phase = (seed as f32 * 0.137).fract() * std::f32::consts::TAU;
+    for frame in 0..BENCH_WAV_FRAME_COUNT {
+        let t = frame as f32 / BENCH_WAV_FRAME_COUNT as f32;
+        let sample = ((t * std::f32::consts::TAU * 3.0 + phase).sin() * 0.72
+            + (t * std::f32::consts::TAU * 7.0 + phase * 0.5).sin() * 0.28)
+            .clamp(-1.0, 1.0);
+        writer.write_sample(sample).map_err(|err| err.to_string())?;
+    }
     writer.finalize().map_err(|err| err.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// Seeded benchmark wavs should be long enough to enter the dense cache path.
+    fn seeded_wavs_exceed_dense_cache_threshold() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let wav_path = root.path().join("seed.wav");
+        write_seed_wav(&wav_path, 7).expect("seed wav");
+
+        let reader = hound::WavReader::open(&wav_path).expect("open seeded wav");
+        assert_eq!(reader.duration() as usize, BENCH_WAV_FRAME_COUNT);
+        assert!(BENCH_WAV_FRAME_COUNT > 48);
+    }
 }
