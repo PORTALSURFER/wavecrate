@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-03T21:55:00Z
+Last Updated: 2026-04-03T23:20:00Z
 Updated By: Codex
 
 ## Purpose
@@ -19,9 +19,9 @@ Updated By: Codex
 - Item 2 is complete in `vendor/radiant` commit `58e5fe24`: the static native-shell frame builder now renders browser rows, toolbar geometry, and sidebar sections directly from retained caches instead of materializing fresh browser/source/folder vectors on every build.
 - Item 3 is complete in commit `2bb31ea2`: the native bridge now keeps one retained `Arc<NativeAppModel>` and uses `Arc::make_mut` on projection misses so the full app model is no longer cloned unconditionally on every miss.
 - Item 4 is complete in commit `8cf293b0`: the browser filter pipeline now avoids per-row `PathBuf` clones for mark checks, mark-only invalidation only keys on mark revisions when that filter is active, folder acceptance stays on borrowed paths, and mark pruning only touches currently marked paths instead of rebuilding a whole-library path set.
-- The latest benchmark evidence comes from `target/perf/bench.json`, where the current item-4 state reports `browser_filter_churn_latency = 2687us` p95, `browser_query_churn_latency = 99us` p95, `browser_sort_toggle_latency = 98us` p95, `hover_latency = 2595us` p95, `wheel_latency = 2899us` p95, `browser_focus_commit_latency = 93us` p95, and `waveform_pan_zoom_adjacent_latency = 92us` p95.
+- Item 5 is complete in commit `7a91afd2`: browser commit focus now keeps selection and loading-placeholder state synchronous, defers history/similarity and the heavy half of audio dispatch to frame-time flushing, and guards stale deferred work so only the current committed focus can dispatch.
+- The latest benchmark evidence comes from `target/perf/bench.json`, where the current item-5 state reports `browser_focus_commit_latency = 91us` p95, `browser_focus_preview_latency = 85us` p95, `browser_filter_churn_latency = 2477us` p95, `hover_latency = 2399us` p95, `wheel_latency = 2566us` p95, and `waveform_pan_zoom_adjacent_latency = 111us` p95.
 - The current top ROI items are:
-  - split browser commit focus into an immediate UI update and deferred heavy side effects
   - increase waveform adjacent-view cache locality instead of recomputing dense columns on pan/zoom churn
   - move feature-cache priming off the browser row-projection hot path
 - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` is green again on the live tree after restoring the missing `snap_override` benchmark action field in `tools/bench-cli/src/bench/gui/interactions/step_patterns.rs`.
@@ -32,13 +32,13 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue with item 5 from `tmp/perf_plan.md`: split browser commit focus into an immediate UI update and deferred heavy side effects.
+1. Continue with item 6 from `tmp/perf_plan.md`: increase waveform adjacent-view cache locality instead of recomputing dense columns on pan/zoom churn.
 2. Keep `tmp/perf_plan.md`, `AGENTS.md`, `MEMORY.md`, `docs/plans/index.md`, and `docs/plans/active/todo.md` synchronized with the performance lane status.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
 
 ## Work Notes
 
-- Active audit plan: `tmp/perf_plan.md` (Phase 2 active; items 1-4 complete in commits `9fe71ec9`, `58e5fe24`, `2bb31ea2`, and `8cf293b0`)
+- Active audit plan: `tmp/perf_plan.md` (Phase 2 active; items 1-5 complete in commits `9fe71ec9`, `58e5fe24`, `2bb31ea2`, `8cf293b0`, and `7a91afd2`)
 - Current hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
