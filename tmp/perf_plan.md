@@ -1,7 +1,7 @@
 # Runtime Performance Audit Backlog
 
 Generated: 2026-04-03 (Europe/Amsterdam)
-Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequential implementation.
+Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored and ranked items are now executing sequentially.
 
 ## Validation Baseline
 
@@ -17,9 +17,8 @@ Status: Phase 1 audit complete; awaiting explicit approval for Phase 2 sequentia
   - `gui.wheel_latency.p95_us = 5224`
   - `gui.browser_focus_commit_latency.p95_us = 6051`
   - `gui.waveform_pan_zoom_adjacent_latency.p95_us = 2368`
-- Validation blocker discovered on 2026-04-03
-  - `scripts/run_perf_guard.ps1` currently fails to build `sempal-bench` because `tools/bench-cli/src/bench/gui/interactions/step_patterns.rs:15` initializes `NativeUiAction::SetWaveformSelectionRange` without the required `snap_override` field introduced by `vendor/radiant/src/app/actions/mod.rs:637-646`.
-  - Phase 2 work should restore perf-lane compile parity before relying on fresh post-change perf numbers.
+- Validation blocker resolved on 2026-04-03
+  - `scripts/run_perf_guard.ps1` is compiling again after `tools/bench-cli/src/bench/gui/interactions/step_patterns.rs` restored the required `snap_override` field for `NativeUiAction::SetWaveformSelectionRange`.
 
 ## ROI-Ranked Backlog
 
