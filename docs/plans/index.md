@@ -7,6 +7,8 @@ This directory keeps agent handoff planning state out of the way of other docs.
 - `../../tmp/improvement_audit_plan.md` — current evidence-driven ROI-ranked
   repo-wide improvement backlog for the current tree
   (refreshed on 2026-04-02; Phase 2 is active and items 1-2 are complete locally)
+- `../../tmp/perf_plan.md` — current runtime performance backlog for the live tree
+  (refreshed on 2026-04-03; Phase 1 complete and awaiting explicit Phase 2 confirmation)
 - `active/runtime_performance_exec_plan.md` — completed responsiveness/performance redesign record retained for reference
 - `active/gui_test_platform_exec_plan.md` — phased rollout plan for the GUI
   action catalog, automation snapshot, runtime test mode, CLI, and AIV loops
@@ -16,8 +18,6 @@ This directory keeps agent handoff planning state out of the way of other docs.
   cleanup refactors across controller, native bridge, DB, and vendor layers
 - `../../tmp/cleanup_plan.md` — parked refreshed ROI-ranked cleanup backlog
   (Phase 1 complete on 2026-03-12; resume only after explicit Phase 2 confirmation)
-- `../../tmp/perf_plan.md` — completed runtime performance execution record
-  through item 11
 - `active/todo.md` — short ordered queue for immediate next tasks under the
   active execution plan
 - `active/plan.md` — legacy historical context retained for reference only
