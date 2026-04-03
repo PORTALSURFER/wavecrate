@@ -184,3 +184,79 @@ fn reconcile_missing_staged_file_keeps_original_source_when_target_missing() {
     );
     assert_no_journal_entries(&fixture.target_db);
 }
+
+#[test]
+fn reconcile_move_defers_when_target_exists_and_journal_identity_is_incomplete() {
+    let fixture = MoveRecoveryFixture::new();
+    std::fs::rename(fixture.source_absolute(), fixture.staged_absolute()).unwrap();
+    update_stage(
+        &fixture.target_db,
+        &fixture.entry.id,
+        FileOpStage::Staged,
+        None,
+        None,
+    )
+    .unwrap();
+
+    std::fs::write(fixture.target_absolute(), [7u8; 8]).unwrap();
+    let mut batch = fixture.target_db.write_batch().unwrap();
+    batch
+        .upsert_file_with_hash_and_tag(
+            &fixture.target_relative,
+            8,
+            2,
+            "reused-hash",
+            Rating::TRASH_3,
+            false,
+        )
+        .unwrap();
+    batch.commit().unwrap();
+    fixture
+        .target_db
+        .set_looped(&fixture.target_relative, false)
+        .unwrap();
+    fixture
+        .target_db
+        .set_locked(&fixture.target_relative, false)
+        .unwrap();
+    fixture
+        .target_db
+        .set_last_played_at(&fixture.target_relative, 77)
+        .unwrap();
+
+    let summary = reconcile_pending_ops(&fixture.target_db).unwrap();
+    assert_eq!(summary.completed, 0);
+    assert_eq!(list_entries(&fixture.target_db).unwrap().entries.len(), 1);
+    assert!(fixture.staged_absolute().exists());
+    assert!(!fixture.source_absolute().exists());
+    assert_eq!(std::fs::read(fixture.target_absolute()).unwrap(), vec![7u8; 8]);
+    assert_eq!(
+        fixture
+            .target_db
+            .tag_for_path(&fixture.target_relative)
+            .unwrap(),
+        Some(Rating::TRASH_3)
+    );
+    assert_eq!(
+        fixture
+            .target_db
+            .last_played_at_for_path(&fixture.target_relative)
+            .unwrap(),
+        Some(77)
+    );
+    assert_eq!(
+        fixture
+            .source_db
+            .tag_for_path(&fixture.source_relative)
+            .unwrap(),
+        Some(Rating::KEEP_1)
+    );
+    assert!(
+        summary
+            .errors
+            .iter()
+            .any(|err| err.contains("journaled identity is incomplete")),
+        "unexpected reconcile errors: {:?}",
+        summary.errors
+    );
+}

@@ -123,6 +123,26 @@ fn validate_existing_target_identity(
     if !target_absolute.is_file() {
         return Ok(());
     }
+    if entry.file_size.is_none() || entry.modified_ns.is_none() {
+        return Err(format!(
+            "Deferred file-op recovery for {}: target file {} exists but journaled identity is incomplete; {}",
+            entry.id,
+            target_absolute.display(),
+            staged_copy_resolution_suffix(staged_absolute)
+        ));
+    }
+    validate_identity_match(
+        entry,
+        target_absolute,
+        "target",
+        &format!(
+            "target path was reused before recovery replay{}",
+            staged_copy_resolution_suffix(staged_absolute)
+        ),
+    )
+}
+
+fn staged_copy_resolution_suffix(staged_absolute: Option<&Path>) -> String {
     let staged_suffix = if staged_absolute.is_some_and(Path::is_file) {
         format!(
             "; leaving staged copy at {} intact",
@@ -131,14 +151,7 @@ fn validate_existing_target_identity(
     } else {
         String::from("; no staged copy remains to reconcile safely")
     };
-    validate_identity_match(
-        entry,
-        target_absolute,
-        "target",
-        &format!(
-            "target path was reused before recovery replay{staged_suffix}"
-        ),
-    )
+    staged_suffix
 }
 
 fn validate_identity_match(
