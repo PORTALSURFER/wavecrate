@@ -98,7 +98,10 @@ fn focus_history_entry(controller: &mut AppController, entry: FocusHistoryEntry)
     if let Some(row) = controller.visible_row_for_path(&entry.relative_path) {
         controller.focus_browser_row_only(row);
     } else {
-        controller.select_wav_by_path(&entry.relative_path);
+        controller.ui.browser.selection.autoscroll = true;
+        controller.ui.browser.selection.selection_anchor_visible = None;
+        controller.focus_wav_by_path_preview_with_rebuild(&entry.relative_path, false);
+        controller.refresh_browser_selection_markers();
     }
     controller.history.focus_history.suspend_push = false;
 }
