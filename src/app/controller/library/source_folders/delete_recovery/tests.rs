@@ -17,7 +17,7 @@ fn failed_journal_replace_preserves_last_committed_delete_state() -> Result<(), 
     let staging_root = source_root.join(DELETE_STAGING_DIR);
     let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"), &[])?;
 
-    fail_next_save_before_replace_for_tests();
+    fail_next_save_before_replace_for_tests(&staging_root);
     let err = mark_delete_retained(&staging_root, &staged.id).unwrap_err();
 
     assert!(err.contains("Injected delete journal save failure"));
@@ -53,13 +53,17 @@ fn stage_folder_for_delete_skips_stale_journal_reserved_path() -> Result<(), Str
 
     let journal = load_journal(&staging_root)?;
     assert_eq!(journal.entries.len(), 2);
-    assert!(journal
-        .entries
-        .iter()
-        .any(|entry| entry.staged_relative == "gone"));
-    assert!(journal
-        .entries
-        .iter()
-        .any(|entry| entry.staged_relative == "gone.staged-1"));
+    assert!(
+        journal
+            .entries
+            .iter()
+            .any(|entry| entry.staged_relative == "gone")
+    );
+    assert!(
+        journal
+            .entries
+            .iter()
+            .any(|entry| entry.staged_relative == "gone.staged-1")
+    );
     Ok(())
 }

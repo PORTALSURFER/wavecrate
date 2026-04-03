@@ -12,12 +12,6 @@ impl AppController {
     /// Focus the sample browser, selecting a row if none is active.
     pub(crate) fn focus_browser_list(&mut self) {
         let visible_len = self.ui.browser.viewport.visible.len();
-        let anchor = self
-            .ui
-            .browser
-            .selection
-            .selection_anchor_visible
-            .filter(|row| *row < visible_len);
         let selected = self
             .ui
             .browser
@@ -29,7 +23,6 @@ impl AppController {
         let selected_paths = self.ui.browser.selection.selected_paths.clone();
         let selected_wav = self.sample_view.wav.selected_wav.clone();
         let target_row = selected
-            .or(anchor)
             .or_else(|| {
                 last_focused_index
                     .and_then(|entry_index| self.browser_visible_row_for_entry(entry_index))

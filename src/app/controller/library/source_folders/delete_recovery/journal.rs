@@ -62,10 +62,13 @@ pub(super) struct DeleteJournal {
 }
 
 #[cfg(test)]
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 #[cfg(test)]
-static FAIL_SAVE_BEFORE_REPLACE: AtomicBool = AtomicBool::new(false);
+fn fail_save_target() -> &'static Mutex<Option<PathBuf>> {
+    static TARGET: OnceLock<Mutex<Option<PathBuf>>> = OnceLock::new();
+    TARGET.get_or_init(|| Mutex::new(None))
+}
 
 /// Stage a folder for deletion and record it in the journal.
 pub(crate) fn stage_folder_for_delete(
@@ -325,7 +328,7 @@ fn save_journal(staging_root: &Path, journal: &DeleteJournal) -> Result<(), Stri
         .map_err(|err| format!("Failed to serialize delete journal: {err}"))?;
     let tmp_path = path.with_extension("tmp");
     fs::write(&tmp_path, bytes).map_err(|err| format!("Failed to write delete journal: {err}"))?;
-    fail_save_before_replace()?;
+    fail_save_before_replace(&path)?;
     replace_journal_file(&tmp_path, &path)?;
     Ok(())
 }
@@ -363,28 +366,39 @@ fn wide_path(path: &Path) -> Vec<u16> {
 }
 
 #[cfg(not(test))]
-fn fail_save_before_replace() -> Result<(), String> {
+fn fail_save_before_replace(_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
 #[cfg(test)]
-fn fail_save_before_replace() -> Result<(), String> {
-    if FAIL_SAVE_BEFORE_REPLACE.swap(false, Ordering::Relaxed) {
+fn fail_save_before_replace(path: &Path) -> Result<(), String> {
+    let mut guard = fail_save_target()
+        .lock()
+        .map_err(|_| "Delete journal test hook lock poisoned".to_string())?;
+    if guard.as_ref().is_some_and(|target| target == path) {
+        *guard = None;
         return Err("Injected delete journal save failure before replace".into());
     }
     Ok(())
 }
 
 #[cfg(test)]
-pub(super) fn fail_next_save_before_replace_for_tests() {
-    FAIL_SAVE_BEFORE_REPLACE.store(true, Ordering::Relaxed);
+pub(super) fn fail_next_save_before_replace_for_tests(staging_root: &Path) {
+    let mut guard = fail_save_target()
+        .lock()
+        .expect("delete journal test hook lock");
+    *guard = Some(journal_path(staging_root));
 }
 
 fn journal_path(staging_root: &Path) -> PathBuf {
     staging_root.join(DELETE_JOURNAL_FILE)
 }
 
-fn unique_staging_relative(staging_root: &Path, journal: &DeleteJournal, relative: &Path) -> PathBuf {
+fn unique_staging_relative(
+    staging_root: &Path,
+    journal: &DeleteJournal,
+    relative: &Path,
+) -> PathBuf {
     let mut candidate = relative.to_path_buf();
     if staging_relative_is_available(staging_root, journal, &candidate) {
         return candidate;
