@@ -94,7 +94,7 @@ Write for future selves: be precise, kind, and clear.
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
   - macOS/Linux/WSL: `bash scripts/ci_quick.sh`
 - If devcheck or the active validation lane fails: fix and rerun until green
-- Do not run Rust test commands in multiple concurrent processes; run them serially in one process to avoid cargo lock contention and misleading timeouts
+- Do not run multiple Rust test commands concurrently. Keep `cargo test` / `cargo nextest` invocations to one process at a time to avoid cargo lock contention and misleading timeouts, but allow the normal in-process Rust test threading within that single test run.
 - On Windows, do not run the Bash workflow scripts. Use only the PowerShell wrappers (`scripts/*.ps1`) for preflight/CI/devcheck unless the user explicitly overrides this.
 - After code changes: commit and push
 - In constrained agent environments, do not push unless `ci_agent` is green; report whether `ci_quick` or `ci_local` still need a user-run confirmation pass

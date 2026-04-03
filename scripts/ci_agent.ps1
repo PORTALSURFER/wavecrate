@@ -54,9 +54,9 @@ try {
   Write-Host "[ci_agent] scripts/devcheck.ps1"
   & (Join-Path $PSScriptRoot "devcheck.ps1")
 
-  Write-Host "[ci_agent] cargo test -p sempal --lib -- --test-threads=1"
-  Invoke-NativeStep -Label "cargo test -p sempal --lib -- --test-threads=1" -Command {
-    Invoke-SempalCargo test -p sempal --lib "--" --test-threads=1
+  Write-Host "[ci_agent] cargo test -p sempal --lib"
+  Invoke-NativeStep -Label "cargo test -p sempal --lib" -Command {
+    Invoke-SempalCargo test -p sempal --lib
   }
 
   Write-Host "[ci_agent] OK"

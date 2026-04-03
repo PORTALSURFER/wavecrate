@@ -41,7 +41,8 @@ Location: `src/` modules with `#[cfg(test)]` blocks and `tests/` integration fil
 - Run the filtered quick app-development subset:
   - `cargo nextest run --profile quick --lib --tests`
 - Run the agent-safe library suite in one cargo process:
-  - `cargo test -p sempal --lib -- --test-threads=1`
+  - `cargo test -p sempal --lib`
+  - Prefer one cargo test process at a time; the tests inside that single run may use Rust's default threading.
 - Run only integration tests:
   - `cargo nextest run --test controller_browser_integration`
   - `cargo nextest run --test take_duration_test`

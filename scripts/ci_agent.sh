@@ -44,7 +44,7 @@ echo "[ci_agent] ./scripts/check_next_branch.sh"
 echo "[ci_agent] ./scripts/devcheck.sh"
 ./scripts/devcheck.sh
 
-echo "[ci_agent] cargo test -p sempal --lib -- --test-threads=1"
-cargo test -p sempal --lib -- --test-threads=1
+echo "[ci_agent] cargo test -p sempal --lib"
+cargo test -p sempal --lib
 
 echo "[ci_agent] OK"

@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::state::TriageFlagFilter;
 
 #[test]
 fn focus_hotkey_does_not_autoplay_browser_sample() {
