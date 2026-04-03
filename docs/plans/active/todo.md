@@ -23,16 +23,19 @@ Purpose:
   - retained-delete recovery now self-heals stale `Deleted` rows when the staged folder was already purged
   - retained delete staging now skips `staged_relative` values that are still reserved by stale journal rows
   - previewing a browser row and then committing that same row now still applies commit-time history and similarity side effects
+- A fresh one-shot bughunting pass landed one more focused root-contract fix:
+  - native waveform projection now keeps exposing the current sample label while audio is still loading, so `FocusMapSample` no longer leaves `waveform.region` semantically blank during queued preview/decode flows
 - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` are green on the live tree.
-- `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` passes the root catalog and `gui_test` phases, but its final `vendor/radiant` smoke step is still blocked by stale pane-migration/sidebar test compile failures in `vendor/radiant`.
+- The latest `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` failure is back in the root crate: `gui_test::packs::tests::contract_smoke_pack_runs_cleanly` fails on `map_point_focus` because `waveform.region` stayed unlabeled while audio was loading.
+- The code path is patched locally, but current Rust validation commands are not yet trustworthy in this session because repeated Cargo runs abort with tool-level exit code `-1` after partial build output.
 - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`, `scripts/check_file_size_budget.ps1 -All`, and `scripts/check_quality_score_drift.ps1` are green on the live tree.
 - `tmp/cleanup_audit_hotspots.md` was refreshed during this audit and is the current supporting hotspot snapshot.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.
 
 ## Next tasks (ordered)
 
-1. Commit and push the validated bug-backlog fixes on `next`.
-2. Continue with the next remaining ranked bug item, starting with the stale-anchor behavior in `focus_browser_list()`.
-3. Decide whether the stale `vendor/radiant` pane-migration test failures should be fixed now or explicitly deferred into their own lane.
+1. Rerun `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` once the local Cargo environment is stable enough to return a reliable exit code for the patched root-contract fix.
+2. Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` after the root GUI contract is green, then commit and push only if that lane is green too.
+3. Continue with the next remaining ranked GUI-contract item after validation, starting with broader action-parity coverage and then the stale `vendor/radiant` smoke step.
 4. Keep `tmp/improvement_audit_plan.md`, `AGENTS.md`, `MEMORY.md`, and this TODO synchronized after each completed item.
 5. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` dormant unless the user explicitly reopens those lanes.

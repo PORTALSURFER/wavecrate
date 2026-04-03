@@ -70,6 +70,17 @@ fn waveform_projection_marks_loading_state_for_native_shell() {
 }
 
 #[test]
+fn waveform_projection_uses_loading_sample_label_before_decode_finishes() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.loading = Some(std::path::PathBuf::from("kits/pending_take.wav"));
+
+    let projected = project_waveform_model(&mut controller);
+
+    assert_eq!(projected.loaded_label.as_deref(), Some("pending_take"));
+    assert!(projected.loading);
+}
+
+#[test]
 /// Waveform projection should expose edit fade handle positions when fades are configured.
 fn waveform_projection_includes_edit_fade_handles() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);

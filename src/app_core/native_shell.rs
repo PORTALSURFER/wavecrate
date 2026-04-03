@@ -248,11 +248,7 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
                 .clamp(100.0, 9999.0)
         )),
         waveform_image_signature: controller.ui.waveform.waveform_image_signature,
-        waveform_loaded_label: controller
-            .ui
-            .loaded_wav
-            .as_deref()
-            .map(view_model::sample_display_label),
+        waveform_loaded_label: waveform_projection::project_waveform_target_label(&controller.ui),
         waveform_loading: controller.ui.waveform.loading.is_some(),
         waveform_transport_hint: waveform_projection::waveform_transport_hint(&controller.ui),
         waveform_compare_anchor_available: controller.ui.compare_anchor.is_some(),

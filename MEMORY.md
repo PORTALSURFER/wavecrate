@@ -34,14 +34,19 @@ Updated By: Codex
   - retained-delete startup recovery now auto-cleans stale `Deleted` journal rows when the staged folder was already purged and the original folder is still gone, instead of leaving a permanent inconsistent retained entry
   - retained folder-delete staging now avoids `staged_relative` values that are still reserved by old journal rows even when the on-disk staging folder is gone
   - previewing a browser row and then committing that same row now still applies commit-time focus history and similarity-refresh side effects, backed by `src/app/controller/tests/browser_actions/focus_navigation/commit_focus.rs`
+- I completed another one-shot bughunting pass and landed one focused semantic-contract fix:
+  - native waveform projection now keeps exposing the current sample label while audio is still loading, so map-focus and other async preview flows no longer leave `waveform.region` semantically blank before decode completes; coverage lives in `src/app_core/native_shell/tests/waveform.rs`
 - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` is green on the live tree.
 - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` is green again after rerunning the lane cleanly in a single cargo process with no orphaned compiler jobs.
 - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` are green after the file-op and retained-delete backlog fixes.
 - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` now passes the root `app_core::actions` and `gui_test` phases after the latest automation parity fixes, but its final `vendor/radiant` smoke step is still blocked by older pane-migration/sidebar test compile failures inside `vendor/radiant`.
+- The current `run_gui_contract` failure shifted back into the root crate before the `vendor/radiant` smoke step: `gui_test::packs::tests::contract_smoke_pack_runs_cleanly` fails because `map_point_focus` expects `waveform.region` to expose the focused sample label after `FocusMapSample`, while the native waveform projection previously only surfaced `ui.loaded_wav`.
+- I patched `src/app_core/native_shell/waveform_projection.rs` and `src/app_core/native_shell.rs` to fall back to `ui.waveform.loading` for the projected waveform label, and I added a regression test in `src/app_core/native_shell/tests/waveform.rs`.
+- Validation for this latest fix is not yet trustworthy in the current session: repeated Rust commands (`cargo check`, targeted `cargo test`, and `scripts/run_gui_contract.ps1`) abort with tool-level exit code `-1` after partial build output even when I serialize commands and isolate `CARGO_TARGET_DIR`.
 - The next ranked bug-backlog items are:
-  - `focus_browser_list()` still prefers the stale anchor over the currently focused row when re-entering the browser after range-selection flows
-  - exact action-parity coverage is still missing for rating filters, playback-age chips, map points, and scrollbar nodes that desktop automation already uses
-  - deciding whether to revive or replace the stale `vendor/radiant` test lanes that still block the final `run_gui_contract` smoke step
+  - rerun the root GUI contract lane once the local Cargo environment stops aborting with `-1` so the new waveform-loading label fix is explicitly validated
+  - exact action-parity coverage is still missing for panel-wide node families beyond the current representative-node assertions
+  - deciding whether to revive or replace the stale `vendor/radiant` test lanes that still block the final `run_gui_contract` smoke step once the root contract is green again
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -49,11 +54,11 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Commit and push the validated bug-backlog fixes now that `devcheck` and `ci_agent` are green.
-2. Continue with the next ranked remaining bug item after push, starting with the stale-anchor behavior in `focus_browser_list()`.
-3. Keep recording each completed item back into `tmp/improvement_audit_plan.md`, `AGENTS.md`, `MEMORY.md`, `docs/plans/index.md`, and `docs/plans/active/todo.md`.
-4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
-5. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.
+1. Rerun `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` after the local Cargo session is stable enough to produce a reliable exit code, then run `scripts/ci_agent.ps1` before any push.
+2. Commit the waveform-loading semantic-contract fix once a trustworthy validation pass exists; do not push until `ci_agent` is green again.
+3. Continue with the next ranked remaining GUI-contract bug after the root lane is green, starting with broader action-parity coverage and then the stale `vendor/radiant` smoke step.
+4. Keep recording each completed item back into `tmp/improvement_audit_plan.md`, `AGENTS.md`, `MEMORY.md`, `docs/plans/index.md`, and `docs/plans/active/todo.md`.
+5. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 
 ## Work Notes
 

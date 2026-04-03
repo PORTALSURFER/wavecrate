@@ -38,10 +38,7 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
     let fade_overlay = project_waveform_edit_fade_overlay_model(ui);
     let projected_playhead = projected_playhead_ratio(controller);
     WaveformPanelModel {
-        loaded_label: ui
-            .loaded_wav
-            .as_deref()
-            .map(view_model::sample_display_label),
+        loaded_label: project_waveform_target_label(ui),
         loading: ui.waveform.loading.is_some(),
         cursor_milli: ui.waveform.cursor.map(normalized_to_milli),
         playhead_milli: projected_playhead.map(normalized_to_milli),
@@ -81,6 +78,18 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
         waveform_image_signature: ui.waveform.waveform_image_signature,
         waveform_image: project_waveform_image(controller),
     }
+}
+
+/// Project the user-facing label for the current waveform target.
+///
+/// When waveform loading is pending, the semantic GUI contract still needs to
+/// expose which sample is in flight so scenario assertions and desktop
+/// automation can target the correct sample before decode completes.
+pub(super) fn project_waveform_target_label(ui: &UiState) -> Option<String> {
+    ui.loaded_wav
+        .as_deref()
+        .or(ui.waveform.loading.as_deref())
+        .map(view_model::sample_display_label)
 }
 
 /// Resolve the waveform playhead ratio used by native projection.
