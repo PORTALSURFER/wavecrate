@@ -56,6 +56,28 @@ fn apply_native_commit_focused_browser_row_falls_back_to_transport_outside_brows
 }
 
 #[test]
+fn apply_native_commit_focused_browser_row_is_noop_for_hidden_browser_focus() {
+    with_fixture_controller("browser", |controller| {
+        controller.focus_browser_row_only(1);
+        controller.set_browser_search("kick");
+
+        controller.apply_native_ui_action(NativeUiAction::CommitFocusedBrowserRow);
+
+        assert_eq!(controller.ui.focus.context, FocusContext::SampleBrowser);
+        assert_eq!(
+            controller.ui.browser.selection.last_focused_path.as_deref(),
+            Some(Path::new("snare_two.wav"))
+        );
+        assert!(controller.focused_browser_path().is_none());
+        assert!(
+            !controller.ui.status.text.contains("Audio"),
+            "status was {:?}",
+            controller.ui.status.text
+        );
+    });
+}
+
+#[test]
 fn apply_native_toggle_find_similar_switches_map_to_list_before_clearing_query() {
     with_fixture_controller("map", |controller| {
         controller.focus_browser_row_only(0);

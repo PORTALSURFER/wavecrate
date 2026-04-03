@@ -167,9 +167,8 @@ pub(super) fn apply_browser_list_native_ui_action(
 }
 
 fn handle_commit_focused_browser_row(controller: &mut AppController) {
-    if controller.ui.focus.context == FocusContext::SampleBrowser
-        && controller.commit_focused_browser_row_action()
-    {
+    if controller.ui.focus.context == FocusContext::SampleBrowser {
+        controller.commit_focused_browser_row_action();
         return;
     }
     controller.toggle_play_pause();

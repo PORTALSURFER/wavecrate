@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (local): 2026-04-03T13:08:00+02:00
+Last updated (local): 2026-04-03T15:45:00+02:00
 Owner: Codex agent sessions
 
 Purpose:
@@ -14,8 +14,12 @@ Purpose:
 - `tmp/improvement_audit_plan.md` is the live source of truth for the repo-wide improvement backlog rebuilt on 2026-04-02.
 - Phase 2 is active and items 1-2 from `tmp/improvement_audit_plan.md` are implemented locally and validated.
 - A one-shot bughunting pass landed the hidden-stale browser focus fix and a folder-row automation contract fix backed by the new deterministic `sources` GUI fixture.
+- A follow-up one-shot bughunting pass landed:
+  - retained restore metadata replay now clears stale `last_played_at` timestamps when the deleted snapshot has none
+  - native browser Enter no longer toggles transport when the focused row is hidden by search/filtering
+  - waveform/browser automation nodes now advertise the click/play, clear-selections, and browser-scroll actions that the desktop GUI pack already drives
 - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` are green on the live tree.
-- `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` passes the root catalog and `gui_test` phases, but its final `vendor/radiant` smoke step is still blocked by stale pane-migration test compile failures in `vendor/radiant`.
+- `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` passes the root catalog and `gui_test` phases, but its final `vendor/radiant` smoke step is still blocked by stale pane-migration/sidebar test compile failures in `vendor/radiant`.
 - `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`, `scripts/check_file_size_budget.ps1 -All`, and `scripts/check_quality_score_drift.ps1` are green on the live tree.
 - `tmp/cleanup_audit_hotspots.md` was refreshed during this audit and is the current supporting hotspot snapshot.
 - The cleanup backlog in `tmp/cleanup_plan.md` and the perf backlog in `tmp/perf_plan.md` both remain parked.

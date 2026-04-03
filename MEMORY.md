@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-03T13:08:00+02:00
+Last Updated: 2026-04-03T15:45:00+02:00
 Updated By: Codex
 
 ## Purpose
@@ -25,9 +25,13 @@ Updated By: Codex
 - I completed a one-shot bughunting pass on the current tree and landed two focused fixes:
   - `commit_focused_browser_row()` now refuses to commit hidden stale browser focus when filters/search hide the previously focused sample, with a regression test in `src/app/controller/tests/browser_actions/focus_navigation/commit_focus.rs`
   - folder-row automation now advertises only row-scoped actions, and the root GUI contract lane covers that behavior through the new deterministic `sources` fixture plus action-parity assertions
+- I completed another one-shot bughunting pass on the current tree and landed three more focused fixes:
+  - retained folder-delete restore now clears stale `last_played_at` metadata when the deleted snapshot says there was no playback history, with a regression test in `src/app/controller/library/source_folders/delete_recovery/retained_restore/tests.rs`
+  - native `CommitFocusedBrowserRow` now stays a browser no-op when the browser still has focus but the previewed row was hidden by search/filtering, with coverage in `src/app_core/controller/tests/contextual_actions.rs`
+  - waveform/browser automation snapshots now advertise the scroll and click-clear/play actions that the desktop GUI pack already drives, with parity coverage in `src/gui_test/runner/tests/action_parity.rs`
 - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` is green on the live tree.
 - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` is green again after rerunning the lane cleanly in a single cargo process with no orphaned compiler jobs.
-- `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` now passes the root `app_core::actions` and `gui_test` phases, but its final `vendor/radiant` smoke step is still blocked by older pane-migration test compile failures inside `vendor/radiant`.
+- `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` now passes the root `app_core::actions` and `gui_test` phases after the latest automation parity fixes, but its final `vendor/radiant` smoke step is still blocked by older pane-migration/sidebar test compile failures inside `vendor/radiant`.
 - The next ranked items are:
   - consolidating browser focus/selection ownership between `selection_ops.rs` and `focus_navigation.rs`
   - splitting the `vendor/radiant` hotkey catalog and the oversized `native_vello` gesture test hubs
@@ -55,3 +59,4 @@ Updated By: Codex
 - Parked perf backlog: `tmp/perf_plan.md`
 - GUI automation/test design: `docs/gui_test_platform.md`
 - GUI automation/test rollout plan: `docs/plans/active/gui_test_platform_exec_plan.md`
+

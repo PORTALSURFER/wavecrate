@@ -190,6 +190,10 @@ fn restore_rows_in_db(source: &SampleSource, entries: &[WavEntry]) -> Result<(),
             batch
                 .set_last_played_at(&entry.relative_path, last_played_at)
                 .map_err(|err| format!("Failed to restore playback age: {err}"))?;
+        } else {
+            batch
+                .clear_last_played_at(&entry.relative_path)
+                .map_err(|err| format!("Failed to clear restored playback age: {err}"))?;
         }
     }
     batch

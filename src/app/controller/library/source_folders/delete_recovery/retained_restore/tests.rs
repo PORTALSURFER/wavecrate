@@ -182,6 +182,54 @@ fn retained_restore_after_restart_does_not_create_undo_history() -> Result<(), S
     Ok(())
 }
 
+#[test]
+fn retained_restore_clears_stale_last_played_at_when_deleted_snapshot_has_none() -> Result<(), String>
+{
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    let deleted_entries = vec![WavEntry {
+        relative_path: PathBuf::from("Pack/kick.wav"),
+        file_size: 128,
+        modified_ns: 9,
+        content_hash: Some(String::from("hash-none-last-played")),
+        tag: Rating::KEEP_3,
+        looped: false,
+        locked: true,
+        missing: false,
+        last_played_at: None,
+    }];
+    let original = source.root.join("Pack");
+    fs::create_dir_all(&original).unwrap();
+    write_test_wav(&original.join("kick.wav"), &[0.0, 0.2]);
+    let staging_root = source.root.join(DELETE_STAGING_DIR);
+    let staged = stage_folder_for_delete(
+        &original,
+        &staging_root,
+        Path::new("Pack"),
+        &deleted_entries,
+    )?;
+
+    let db = source.open_db().map_err(|err| err.to_string())?;
+    db.upsert_file(Path::new("Pack/kick.wav"), 64, 3)
+        .map_err(|err| err.to_string())?;
+    db.set_tag(Path::new("Pack/kick.wav"), Rating::TRASH_1)
+        .map_err(|err| err.to_string())?;
+    db.set_last_played_at(Path::new("Pack/kick.wav"), 99)
+        .map_err(|err| err.to_string())?;
+
+    let ui_entry = retained_entry(&source, &staged, deleted_entries);
+    let mut scan_sources = HashSet::new();
+    controller.restore_retained_folder_delete(&ui_entry, &mut scan_sources)?;
+
+    let restored = db
+        .entry_for_path(Path::new("Pack/kick.wav"))
+        .map_err(|err| err.to_string())?
+        .ok_or_else(|| "Missing restored DB entry".to_string())?;
+    assert_eq!(restored.tag, Rating::KEEP_3);
+    assert_eq!(restored.last_played_at, None);
+    Ok(())
+}
+
 fn retained_entry(
     source: &crate::sample_sources::SampleSource,
     staged: &DeleteStagingInfo,
