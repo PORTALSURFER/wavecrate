@@ -111,7 +111,7 @@ pub(crate) struct PendingAudio {
     pub(crate) intent: AudioLoadIntent,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct PendingPlayback {
     pub(crate) source_id: SourceId,
     pub(crate) relative_path: PathBuf,

@@ -21,6 +21,9 @@ pub(crate) fn play_audio(
     }
     controller.audio.pending_loop_disable_at = None;
     controller.audio.clear_pending_loop_retarget();
+    if controller.has_pending_browser_focus_commit() {
+        controller.flush_pending_browser_focus_commit();
+    }
     if let Some((source, relative_path)) = browser_selection_playback_target(controller) {
         return queue_or_load_explicit_pending_playback(
             controller,

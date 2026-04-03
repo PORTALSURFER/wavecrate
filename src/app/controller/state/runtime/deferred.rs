@@ -1,7 +1,27 @@
 use crate::app::controller::library::analysis_jobs;
+use crate::app::controller::state::audio::PendingPlayback;
 use crate::sample_sources::SourceId;
 use std::path::PathBuf;
 use std::time::Instant;
+
+/// Deferred browser-focus side effects scheduled after immediate selection updates.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingBrowserFocusCommit {
+    /// Source that owned the committed browser focus when it was queued.
+    pub(crate) source_id: SourceId,
+    /// Relative wav path that must still be selected when the deferred work runs.
+    pub(crate) relative_path: PathBuf,
+    /// Absolute wav entry index expected to still own browser focus.
+    pub(crate) entry_index: usize,
+    /// Whether the focused path should be written into browser/random history.
+    pub(crate) record_focus_history: bool,
+    /// Whether focused-similarity refresh should be scheduled once the commit settles.
+    pub(crate) refresh_similarity_highlight: bool,
+    /// Whether the focused path still needs a committed audio load dispatch.
+    pub(crate) queue_audio_load: bool,
+    /// Playback intent captured during the immediate focus commit phase.
+    pub(crate) pending_playback: Option<PendingPlayback>,
+}
 
 /// Deferred focused-similarity refresh request for the current browser selection.
 #[derive(Clone, Debug)]

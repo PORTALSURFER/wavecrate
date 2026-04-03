@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::controller::library::analysis_jobs;
+use crate::app::controller::state::runtime::PendingBrowserFocusCommit;
 use crate::sample_sources::Rating;
 
 /// Side-effect policies for preview and commit focus transitions.
@@ -167,9 +168,6 @@ fn select_wav_known_index_with_options(
     controller.ui.browser.selection.last_focused_path = Some(path.clone());
     controller.ui.browser.selection.commit_focus_pending = !side_effects.queue_audio_load;
     if apply_commit_focus_effects {
-        if side_effects.record_focus_history {
-            controller.record_focus_history(&path);
-        }
         if !side_effects.refresh_similarity_highlight {
             controller.clear_focused_similarity_highlight();
         }
@@ -195,18 +193,6 @@ fn select_wav_known_index_with_options(
         }
         return;
     }
-    if apply_commit_focus_effects && side_effects.refresh_similarity_highlight {
-        if let Some(source) = controller.current_source() {
-            let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), &path);
-            controller.defer_focused_similarity_highlight_refresh(
-                sample_id,
-                path.clone(),
-                Some(index),
-            );
-        } else {
-            controller.clear_focused_similarity_highlight();
-        }
-    }
     if !side_effects.queue_audio_load {
         controller.selection_state.suppress_autoplay_once = false;
     } else if let Some(source) = controller.current_source() {
@@ -231,14 +217,30 @@ fn select_wav_known_index_with_options(
         } else {
             None
         };
-        if let Err(err) = controller.queue_audio_load_for(
-            &source,
-            &path,
-            AudioLoadIntent::Selection,
+        controller.begin_audio_load_transition(&path, pending_playback.clone());
+        controller.defer_browser_focus_commit(PendingBrowserFocusCommit {
+            source_id: source.id.clone(),
+            relative_path: path.clone(),
+            entry_index: index,
+            record_focus_history: apply_commit_focus_effects && side_effects.record_focus_history,
+            refresh_similarity_highlight: apply_commit_focus_effects
+                && side_effects.refresh_similarity_highlight,
+            queue_audio_load: true,
             pending_playback,
-        ) {
-            controller.set_status(err, StatusTone::Error);
-        }
+        });
+    } else if apply_commit_focus_effects
+        && (side_effects.record_focus_history || side_effects.refresh_similarity_highlight)
+        && let Some(source_id) = controller.selection_state.ctx.selected_source.clone()
+    {
+        controller.defer_browser_focus_commit(PendingBrowserFocusCommit {
+            source_id,
+            relative_path: path.clone(),
+            entry_index: index,
+            record_focus_history: side_effects.record_focus_history,
+            refresh_similarity_highlight: side_effects.refresh_similarity_highlight,
+            queue_audio_load: false,
+            pending_playback: None,
+        });
     } else {
         controller.selection_state.suppress_autoplay_once = false;
     }
@@ -249,6 +251,121 @@ fn select_wav_known_index_with_options(
 
 pub(crate) fn select_wav_by_index(controller: &mut AppController, index: usize) {
     select_wav_by_index_with_rebuild(controller, index, true);
+}
+
+impl AppController {
+    /// Return true when one deferred browser-focus commit is awaiting frame-time flush.
+    pub(crate) fn has_pending_browser_focus_commit(&self) -> bool {
+        self.runtime.pending_browser_focus_commit.is_some()
+    }
+
+    /// Queue the latest deferred browser-focus follow-up, replacing stale work.
+    pub(crate) fn defer_browser_focus_commit(&mut self, pending: PendingBrowserFocusCommit) {
+        if let Some(previous) = self.runtime.pending_browser_focus_commit.take()
+            && previous.record_focus_history
+        {
+            self.record_focus_history_for_source(previous.source_id, &previous.relative_path);
+        }
+        self.runtime.pending_browser_focus_commit = Some(pending);
+    }
+
+    /// Flush one deferred browser-focus commit when the committed row is still current.
+    pub(crate) fn flush_pending_browser_focus_commit(&mut self) {
+        let Some(pending) = self.runtime.pending_browser_focus_commit.take() else {
+            return;
+        };
+        if self.selection_state.ctx.selected_source.as_ref() != Some(&pending.source_id)
+            || self.sample_view.wav.selected_wav.as_deref()
+                != Some(pending.relative_path.as_path())
+            || self.ui.browser.selection.last_focused_index != Some(pending.entry_index)
+            || self.ui.browser.selection.last_focused_path.as_deref()
+                != Some(pending.relative_path.as_path())
+        {
+            if pending.queue_audio_load {
+                if self
+                    .runtime
+                    .jobs
+                    .pending_playback()
+                    .as_ref()
+                    .is_some_and(|playback| {
+                        playback.source_id == pending.source_id
+                            && playback.relative_path == pending.relative_path
+                    })
+                {
+                    self.runtime.jobs.set_pending_playback(None);
+                }
+                if self.ui.waveform.loading.as_deref() == Some(pending.relative_path.as_path()) {
+                    self.ui.waveform.loading = None;
+                }
+            }
+            return;
+        }
+        if pending.record_focus_history {
+            self.record_focus_history(&pending.relative_path);
+        }
+        if pending.refresh_similarity_highlight {
+            if let Some(source) = self.current_source() {
+                let sample_id = analysis_jobs::build_sample_id(
+                    source.id.as_str(),
+                    &pending.relative_path,
+                );
+                self.defer_focused_similarity_highlight_refresh(
+                    sample_id,
+                    pending.relative_path.clone(),
+                    Some(pending.entry_index),
+                );
+            } else {
+                self.clear_focused_similarity_highlight();
+            }
+        }
+        if !pending.queue_audio_load {
+            return;
+        }
+        let Some(source) = self.current_source() else {
+            self.runtime.jobs.set_pending_playback(None);
+            self.ui.waveform.loading = None;
+            return;
+        };
+        if let Err(err) =
+            self.dispatch_audio_load_for(&source, &pending.relative_path, AudioLoadIntent::Selection)
+        {
+            self.runtime.jobs.set_pending_playback(None);
+            self.ui.waveform.loading = None;
+            self.set_status(err, StatusTone::Error);
+        }
+    }
+
+    /// Commit only the history part of one deferred browser-focus commit, then drop it.
+    ///
+    /// History navigation uses this when the user moves away before the frame-time
+    /// audio dispatch runs: the visited sample still belongs in focus history,
+    /// but stale audio loading should not continue.
+    pub(crate) fn abandon_pending_browser_focus_commit_for_navigation(&mut self) {
+        let Some(pending) = self.runtime.pending_browser_focus_commit.take() else {
+            return;
+        };
+        if pending.record_focus_history {
+            self.record_focus_history_for_source(pending.source_id.clone(), &pending.relative_path);
+        }
+        if !pending.queue_audio_load {
+            return;
+        }
+        if self
+            .runtime
+            .jobs
+            .pending_playback()
+            .as_ref()
+            .is_some_and(|playback| {
+                playback.source_id == pending.source_id
+                    && playback.relative_path == pending.relative_path
+            })
+        {
+            self.runtime.jobs.set_pending_playback(None);
+        }
+        if self.ui.waveform.loading.as_deref() == Some(pending.relative_path.as_path()) {
+            self.ui.waveform.loading = None;
+        }
+    }
 }
 
 pub(crate) fn select_from_browser(controller: &mut AppController, path: &Path) {

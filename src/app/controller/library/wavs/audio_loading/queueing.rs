@@ -47,24 +47,19 @@ impl AppController {
         intent: AudioLoadIntent,
         pending_playback: Option<PendingPlayback>,
     ) -> Result<(), String> {
-        let request_id = self.runtime.jobs.next_audio_request_id();
-        let stretch_ratio = self.stretch_ratio_for_sample(relative_path);
-        let pending = PendingAudio {
-            request_id,
-            source_id: source.id.clone(),
-            root: source.root.clone(),
-            relative_path: relative_path.to_path_buf(),
-            intent,
-        };
-        let job = AudioLoadJob {
-            request_id,
-            source_id: source.id.clone(),
-            root: source.root.clone(),
-            relative_path: relative_path.to_path_buf(),
-            stretch_ratio,
-            render_spec: self.initial_waveform_render_spec(),
-            prepared: None,
-        };
+        self.begin_audio_load_transition(relative_path, pending_playback);
+        self.dispatch_audio_load_for(source, relative_path, intent)
+    }
+
+    /// Publish immediate loading-state changes for a newly selected sample.
+    ///
+    /// This clears stale waveform/audio state synchronously so the next frame
+    /// shows the new loading target even when job dispatch is deferred.
+    pub(crate) fn begin_audio_load_transition(
+        &mut self,
+        relative_path: &Path,
+        pending_playback: Option<PendingPlayback>,
+    ) {
         self.runtime.jobs.set_pending_audio(None);
         self.runtime.jobs.set_pending_playback(pending_playback);
         self.ui.waveform.loading = Some(relative_path.to_path_buf());
@@ -88,6 +83,33 @@ impl AppController {
             format!("Loading {}", relative_path.display()),
             StatusTone::Busy,
         );
+    }
+
+    /// Dispatch the heavy half of one prepared audio load request.
+    pub(crate) fn dispatch_audio_load_for(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+        intent: AudioLoadIntent,
+    ) -> Result<(), String> {
+        let request_id = self.runtime.jobs.next_audio_request_id();
+        let stretch_ratio = self.stretch_ratio_for_sample(relative_path);
+        let pending = PendingAudio {
+            request_id,
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: relative_path.to_path_buf(),
+            intent,
+        };
+        let job = AudioLoadJob {
+            request_id,
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: relative_path.to_path_buf(),
+            stretch_ratio,
+            render_spec: self.initial_waveform_render_spec(),
+            prepared: None,
+        };
         if self.try_queue_cached_audio_load(source, relative_path, intent)? {
             return Ok(());
         }

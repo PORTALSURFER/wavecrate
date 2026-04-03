@@ -32,6 +32,8 @@ fn commit_focus_debounces_similarity_refresh_flush() {
     controller.focus_browser_row_only(0);
     controller.focus_browser_row(1);
 
+    controller.prepare_native_frame(false);
+
     assert!(controller.runtime.pending_similarity_refresh.is_some());
     controller.flush_pending_focused_similarity_highlight_refresh();
     assert!(controller.runtime.pending_similarity_refresh.is_some());
@@ -108,6 +110,7 @@ fn commit_focus_after_preview_same_row_applies_commit_side_effects() {
     assert!(controller.ui.browser.selection.commit_focus_pending);
 
     assert!(controller.commit_focused_browser_row());
+    controller.prepare_native_frame(false);
 
     let focused = controller
         .history
@@ -118,6 +121,85 @@ fn commit_focus_after_preview_same_row_applies_commit_side_effects() {
     assert_eq!(focused.relative_path, Path::new("two.wav"));
     assert!(controller.runtime.pending_similarity_refresh.is_some());
     assert!(!controller.ui.browser.selection.commit_focus_pending);
+}
+
+#[test]
+fn commit_focus_defers_audio_dispatch_until_frame_prepare() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.settings.feature_flags.autoplay_selection = false;
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+
+    controller.focus_browser_row_only(0);
+    controller.runtime.jobs.pending_audio = None;
+    controller.runtime.jobs.pending_playback = None;
+
+    controller.focus_browser_row(1);
+
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert_eq!(controller.ui.waveform.loading.as_deref(), Some(Path::new("two.wav")));
+    assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.runtime.pending_browser_focus_commit.is_some());
+    assert!(controller.history.focus_history.entries.is_empty());
+    assert!(controller.runtime.pending_similarity_refresh.is_none());
+
+    controller.prepare_native_frame(false);
+
+    assert!(controller.runtime.pending_browser_focus_commit.is_none());
+    assert_eq!(
+        controller
+            .runtime
+            .jobs
+            .pending_audio
+            .as_ref()
+            .map(|pending| pending.relative_path.as_path()),
+        Some(Path::new("two.wav"))
+    );
+    assert!(controller
+        .history
+        .focus_history
+        .entries
+        .back()
+        .is_some_and(|entry| entry.relative_path == Path::new("two.wav")));
+    assert!(controller.runtime.pending_similarity_refresh.is_some());
+}
+
+#[test]
+fn stale_commit_focus_loading_is_dropped_when_focus_changes_before_prepare() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.settings.feature_flags.autoplay_selection = false;
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+
+    controller.focus_browser_row_only(0);
+    controller.runtime.jobs.pending_audio = None;
+    controller.runtime.jobs.pending_playback = None;
+
+    controller.focus_browser_row(1);
+    controller.focus_browser_row_only(0);
+
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("one.wav"))
+    );
+    assert_eq!(controller.ui.waveform.loading.as_deref(), Some(Path::new("two.wav")));
+
+    controller.prepare_native_frame(false);
+
+    assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.runtime.jobs.pending_playback.is_none());
+    assert!(controller.ui.waveform.loading.is_none());
+    assert!(controller.history.focus_history.entries.is_empty());
+    assert!(controller.runtime.pending_similarity_refresh.is_none());
 }
 
 #[test]

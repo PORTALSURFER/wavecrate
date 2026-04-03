@@ -3,6 +3,7 @@ use std::path::Path;
 
 impl AppController {
     pub(crate) fn focus_previous_sample_history(&mut self) {
+        self.abandon_pending_browser_focus_commit_for_navigation();
         if self.history.focus_history.entries.is_empty() {
             return;
         }
@@ -23,6 +24,7 @@ impl AppController {
     }
 
     pub(crate) fn focus_next_sample_history(&mut self) {
+        self.abandon_pending_browser_focus_commit_for_navigation();
         if self.history.focus_history.entries.is_empty() {
             return;
         }
@@ -44,12 +46,17 @@ impl AppController {
     }
 
     pub(crate) fn record_focus_history(&mut self, path: &Path) {
-        if self.history.focus_history.suspend_push {
-            return;
-        }
         let Some(source_id) = self.selection_state.ctx.selected_source.clone() else {
             return;
         };
+        self.record_focus_history_for_source(source_id, path);
+    }
+
+    /// Record one focus-history entry for an explicit source/path pair.
+    pub(crate) fn record_focus_history_for_source(&mut self, source_id: SourceId, path: &Path) {
+        if self.history.focus_history.suspend_push {
+            return;
+        }
         let entry = FocusHistoryEntry {
             source_id,
             relative_path: path.to_path_buf(),

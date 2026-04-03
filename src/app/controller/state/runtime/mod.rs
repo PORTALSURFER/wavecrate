@@ -13,8 +13,9 @@ use crate::sample_sources::Rating;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 pub(crate) use deferred::{
-    AnalysisProgressUiCache, PendingFocusedSimilarityQuery, PendingFocusedSimilarityRefresh,
-    PendingLoadedDurationMetadata, PendingLoadedSimilarityQuery, PendingSimilarityFilterRebuild,
+    AnalysisProgressUiCache, PendingBrowserFocusCommit, PendingFocusedSimilarityQuery,
+    PendingFocusedSimilarityRefresh, PendingLoadedDurationMetadata,
+    PendingLoadedSimilarityQuery, PendingSimilarityFilterRebuild,
 };
 pub(crate) use derived_graph::{DerivedNodeId, DerivedStateGraph, DirtyReason};
 pub(crate) use performance::PerformanceGovernorState;
@@ -100,6 +101,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) pending_similarity_refresh_not_before: Option<Instant>,
     /// Active async focused-similarity highlight computation awaiting apply.
     pub(crate) pending_focused_similarity_query: Option<PendingFocusedSimilarityQuery>,
+    /// Deferred browser-focus commit side effects awaiting frame-time flush.
+    pub(crate) pending_browser_focus_commit: Option<PendingBrowserFocusCommit>,
     /// Active async follow-loaded similarity query computation awaiting apply.
     pub(crate) pending_loaded_similarity_query: Option<PendingLoadedSimilarityQuery>,
     /// Pending manual similarity-filter rebuild scheduled after destructive wav mutations.
@@ -185,6 +188,7 @@ impl ControllerRuntimeState {
             pending_similarity_refresh: None,
             pending_similarity_refresh_not_before: None,
             pending_focused_similarity_query: None,
+            pending_browser_focus_commit: None,
             pending_loaded_similarity_query: None,
             pending_similarity_filter_rebuild: None,
             analysis_progress_ui: AnalysisProgressUiCache::default(),
