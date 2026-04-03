@@ -35,6 +35,16 @@ fn capture_default_bundle_advertises_expected_action_ids_for_representative_node
         ),
         (
             "browser",
+            "browser.rating_filter.3",
+            &["toggle_browser_rating_filter"],
+        ),
+        (
+            "browser",
+            "browser.playback_age_filter.month",
+            &["toggle_browser_playback_age_filter"],
+        ),
+        (
+            "browser",
             "browser.row.0",
             &[
                 "focus_browser_row",
@@ -107,6 +117,16 @@ fn capture_default_bundle_advertises_expected_action_ids_for_representative_node
             "browser",
             "browser.table",
             &["focus_browser_panel", "set_browser_view_start"],
+        ),
+        (
+            "browser",
+            "browser.scrollbar.track",
+            &["set_browser_view_start"],
+        ),
+        (
+            "map",
+            "browser.map.point.gui-map-source::kick_one.wav",
+            &["focus_map_sample"],
         ),
         (
             "waveform",

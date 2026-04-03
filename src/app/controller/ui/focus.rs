@@ -28,8 +28,8 @@ impl AppController {
         let last_focused_path = self.ui.browser.selection.last_focused_path.clone();
         let selected_paths = self.ui.browser.selection.selected_paths.clone();
         let selected_wav = self.sample_view.wav.selected_wav.clone();
-        let target_row = anchor
-            .or(selected)
+        let target_row = selected
+            .or(anchor)
             .or_else(|| {
                 last_focused_index
                     .and_then(|entry_index| self.browser_visible_row_for_entry(entry_index))
