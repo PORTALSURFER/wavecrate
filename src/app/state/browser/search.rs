@@ -137,6 +137,8 @@ pub struct BrowserSearchState {
     pub focused_similarity: Option<FocusedSimilarity>,
     /// True when a background search/filter job is running.
     pub search_busy: bool,
+    /// True when the selected source is still hydrating before browser rows can project.
+    pub source_loading: bool,
     /// Latest issued browser search request identifier.
     pub latest_search_request_id: u64,
     /// Latest browser search request identifier applied to visible rows.
@@ -158,6 +160,7 @@ impl Default for BrowserSearchState {
             similar_query: None,
             focused_similarity: None,
             search_busy: false,
+            source_loading: false,
             latest_search_request_id: 0,
             latest_applied_search_request_id: 0,
         }

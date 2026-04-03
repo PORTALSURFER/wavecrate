@@ -54,12 +54,11 @@ use super::source_watcher::{
 };
 use super::state::audio::{PendingAudio, PendingPlayback, PendingRecordingWaveform};
 use super::state::runtime::{UpdateCheckResult, WavLoadJob, WavLoadResult};
+use crate::app::state::FolderPaneId;
 use crate::gui::repaint::{RepaintSignal, SharedRepaintSignal};
 use crate::sample_sources::SourceId;
-#[cfg(test)]
-use std::time::Duration;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashMap},
     path::PathBuf,
     sync::{
         Arc,
@@ -67,6 +66,7 @@ use std::{
         mpsc::{Receiver, Sender},
     },
     thread,
+    time::Duration,
 };
 
 pub(crate) use self::file_ops_types::*;

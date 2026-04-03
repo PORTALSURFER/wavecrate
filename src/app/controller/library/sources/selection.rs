@@ -52,6 +52,9 @@ impl AppController {
         if self.ui.sources.active_folder_pane == pane {
             return;
         }
+        if let Some(pending) = self.runtime.pending_active_source_hydration.clone() {
+            self.finish_source_loading(pending.kind, pending.pane);
+        }
         self.sync_active_folder_ui_to_pane();
         self.ui.sources.active_folder_pane = pane;
         self.selection_state.ctx.selected_source = self.folder_pane_source(pane);
@@ -179,7 +182,12 @@ impl AppController {
                 if self.wav_index_for_path(&path).is_some() {
                     self.runtime.jobs.set_pending_select_path(None);
                     self.select_wav_by_path(&path);
-                } else {
+                } else if self
+                    .runtime
+                    .pending_active_source_hydration
+                    .as_ref()
+                    .is_none_or(|pending| Some(&pending.source_id) != self.selection_state.ctx.selected_source.as_ref())
+                {
                     self.queue_wav_load();
                 }
             }
@@ -192,10 +200,7 @@ impl AppController {
         }
         self.assign_source_to_folder_pane(self.active_folder_pane(), id.clone());
         self.selection_state.ctx.selected_source = id;
-        self.sample_view.wav.selected_wav = None;
-        self.runtime.pending_similarity_filter_rebuild = None;
-        self.clear_focused_similarity_highlight();
-        self.clear_waveform_view();
+        self.clear_active_source_for_loading();
         self.ui.map.bounds = None;
         self.ui.map.cached_bounds_source_id = None;
         self.ui.map.cached_bounds_umap_version = None;
@@ -218,8 +223,12 @@ impl AppController {
         } else {
             false
         };
+        self.queue_source_hydration(
+            self.active_folder_pane(),
+            crate::app::controller::jobs::SourceHydrationKind::ActiveSelection,
+            self.selection_state.ctx.selected_source.clone(),
+        );
         self.refresh_sources_ui();
-        self.queue_wav_load();
         let _ = self.persist_config("Failed to save selection");
     }
 
@@ -238,34 +247,21 @@ impl AppController {
         }
         self.assign_source_to_folder_pane(pane, id.clone());
         if id.is_some() {
-            self.refresh_inactive_folder_pane_ui(pane, id);
+            self.clear_folder_pane_for_loading(pane);
+            self.queue_source_hydration(
+                pane,
+                crate::app::controller::jobs::SourceHydrationKind::InactivePane,
+                id,
+            );
         } else {
             self.ui.sources.folder_pane_mut(pane).browser = FolderBrowserUiState::default();
+            self.finish_source_loading(
+                crate::app::controller::jobs::SourceHydrationKind::InactivePane,
+                pane,
+            );
         }
         self.refresh_sources_ui();
         let _ = self.persist_config("Failed to save selection");
-    }
-
-    fn refresh_inactive_folder_pane_ui(&mut self, pane: FolderPaneId, id: Option<SourceId>) {
-        let active_pane = self.ui.sources.active_folder_pane;
-        let active_folder_ui = self.ui.sources.folders.clone();
-        let active_selected_source = self.selection_state.ctx.selected_source.clone();
-        let active_last_selected_source = self
-            .selection_state
-            .ctx
-            .last_selected_browsable_source
-            .clone();
-
-        self.ui.sources.active_folder_pane = pane;
-        self.selection_state.ctx.selected_source = id.clone();
-        self.selection_state.ctx.last_selected_browsable_source = id;
-        self.load_active_folder_ui_from_pane();
-        self.refresh_folder_browser();
-
-        self.ui.sources.active_folder_pane = active_pane;
-        self.selection_state.ctx.selected_source = active_selected_source;
-        self.selection_state.ctx.last_selected_browsable_source = active_last_selected_source;
-        self.ui.sources.folders = active_folder_ui;
     }
 
     pub(super) fn clear_wavs(&mut self) {

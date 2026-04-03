@@ -113,6 +113,17 @@ impl ControllerJobs {
     }
 
     /// Generate a request id for audio-load jobs.
+    pub(in super::super) fn next_source_hydration_request_id(&mut self) -> u64 {
+        let request_id = self.request_counters.next_source_hydration_request_id;
+        self.request_counters.next_source_hydration_request_id = self
+            .request_counters
+            .next_source_hydration_request_id
+            .wrapping_add(1)
+            .max(1);
+        request_id
+    }
+
+    /// Generate a request id for audio-load jobs.
     pub(in super::super) fn next_audio_request_id(&mut self) -> u64 {
         let request_id = self.request_counters.next_audio_request_id;
         self.request_counters.next_audio_request_id = self

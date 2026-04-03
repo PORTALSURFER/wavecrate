@@ -36,6 +36,9 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
         flattened_view: active_flattened_view,
         can_toggle_flattened_view: active_can_toggle_flattened_view,
         selected_row: ui.sources.selected,
+        loading_row: ui.sources.loading_source_id.as_ref().and_then(|source_id| {
+            ui.sources.rows.iter().position(|row| row.id == *source_id)
+        }),
         focused_folder_row: active_focused_folder_row,
         rows: ui
             .sources
@@ -109,6 +112,7 @@ fn project_folder_pane(ui: &UiState, pane: FolderPaneId) -> FolderPaneModel {
         source_detail: source.map(|row| row.path.clone()).unwrap_or_default(),
         active: ui.sources.active_folder_pane == pane,
         has_source,
+        loading: ui.sources.folder_pane(pane).loading,
         folder_search_query: browser.search_query.clone(),
         show_all_folders: browser.show_all_folders,
         can_toggle_show_all_folders: has_source,

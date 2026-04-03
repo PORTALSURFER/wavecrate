@@ -1,10 +1,13 @@
 //! Job message and DTO types shared across controller workers.
 
 use super::*;
+use crate::app::controller::LoadEntriesError;
+use crate::sample_sources::WavEntry;
 
 #[derive(Debug)]
 pub(crate) enum JobMessage {
     WavLoaded(WavLoadResult),
+    SourceHydrated(SourceHydrationResult),
     AudioLoaded(AudioLoadResult),
     RecordingWaveformLoaded(RecordingWaveformLoadResult),
     Scan(ScanJobMessage),
@@ -30,6 +33,72 @@ pub(crate) enum JobMessage {
     SourceDbMaintenanceFinished(SourceDbMaintenanceResult),
     SelectionExport(SelectionExportMessage),
     Normalized(NormalizationResult),
+}
+
+/// Controller-owned source hydration lanes used to load source snapshots off the UI thread.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SourceHydrationKind {
+    /// Hydrate the currently selected source that drives browser and waveform state.
+    ActiveSelection,
+    /// Hydrate a source assigned to the inactive retained folder pane.
+    InactivePane,
+}
+
+/// Background source-hydration request that prepares one source snapshot for a pane.
+#[derive(Debug)]
+pub(crate) struct SourceHydrationJob {
+    /// Monotonic request identifier used to discard stale results.
+    pub(crate) request_id: u64,
+    /// Sidebar pane that owns the source assignment.
+    pub(crate) pane: FolderPaneId,
+    /// Logical hydration lane for result application.
+    pub(crate) kind: SourceHydrationKind,
+    /// Source identifier that should be hydrated.
+    pub(crate) source_id: SourceId,
+    /// Source root used to open the DB and derive folder availability.
+    pub(crate) source_root: PathBuf,
+    /// Target page size for page-0 entry loading.
+    pub(crate) page_size: usize,
+    /// Optional cached page-0 entries cloned at dispatch time.
+    pub(crate) cached_page: Option<Vec<WavEntry>>,
+    /// Total entry count associated with `cached_page`, when present.
+    pub(crate) cached_total: Option<usize>,
+    /// Page size associated with `cached_page`, when present.
+    pub(crate) cached_page_size: Option<usize>,
+}
+
+/// Compact source snapshot prepared off the UI thread for later controller apply.
+#[derive(Debug)]
+pub(crate) struct SourceHydrationSnapshot {
+    /// Page-0 wav entries for the hydrated source.
+    pub(crate) entries: Vec<WavEntry>,
+    /// Total number of wav entries in the source.
+    pub(crate) total: usize,
+    /// Page size used to interpret `entries`.
+    pub(crate) page_size: usize,
+    /// Prebuilt normalized path lookup aligned with the hydrated page.
+    pub(crate) path_lookup: HashMap<PathBuf, usize>,
+    /// Folder availability derived from the hydrated page.
+    pub(crate) available_folders: BTreeSet<PathBuf>,
+    /// Whether the snapshot reused the page-0 wav cache instead of querying the DB.
+    pub(crate) from_cache: bool,
+}
+
+/// Result of one background source hydration request.
+#[derive(Debug)]
+pub(crate) struct SourceHydrationResult {
+    /// Request identifier echoed from [`SourceHydrationJob::request_id`].
+    pub(crate) request_id: u64,
+    /// Sidebar pane that owns the source assignment.
+    pub(crate) pane: FolderPaneId,
+    /// Logical hydration lane for result application.
+    pub(crate) kind: SourceHydrationKind,
+    /// Source identifier associated with this hydration attempt.
+    pub(crate) source_id: SourceId,
+    /// Worker time spent loading/building the snapshot.
+    pub(crate) elapsed: Duration,
+    /// Hydrated snapshot or the terminal load error.
+    pub(crate) result: Result<SourceHydrationSnapshot, LoadEntriesError>,
 }
 
 #[derive(Debug)]

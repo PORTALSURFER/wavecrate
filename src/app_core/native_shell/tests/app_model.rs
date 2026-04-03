@@ -80,3 +80,34 @@ fn update_projection_exposes_status_and_action_hint_labels() {
     assert_eq!(projected.action_hint_label, "Action: retry");
     assert!(projected.release_notes_label.is_empty());
 }
+
+#[test]
+fn projection_distinguishes_source_loading_from_browser_filtering() {
+    let mut ui = UiState::default();
+    let source_id = crate::sample_sources::SourceId::from_string("loading-source");
+    ui.sources.rows.push(crate::app::state::SourceRowView {
+        id: source_id.clone(),
+        name: String::from("Loading Source"),
+        path: String::from("C:/loading"),
+        missing: false,
+    });
+    ui.sources.selected = Some(0);
+    ui.sources.loading_source_id = Some(source_id.clone());
+    ui.sources.folder_panes.upper.source_id = Some(source_id);
+    ui.sources.folder_panes.upper.loading = true;
+    ui.browser.search.source_loading = true;
+    ui.browser.search.search_busy = false;
+
+    let projected_sources = project_sources_model(&ui);
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(8, 8), None);
+    controller.ui = ui;
+    let projected_browser = project_browser_panel_frame_model(&controller);
+    let status = project_status_model(&controller, 1);
+
+    assert_eq!(projected_sources.loading_row, Some(0));
+    assert!(projected_sources.upper_folder_pane.loading);
+    assert!(projected_browser.source_loading);
+    assert!(!projected_browser.busy);
+    assert!(status.center.contains("loading source"));
+    assert!(!status.center.contains("filtering"));
+}

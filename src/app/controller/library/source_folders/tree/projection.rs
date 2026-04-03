@@ -9,11 +9,12 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
 impl AppController {
-    pub(crate) fn build_folder_rows(&mut self, model: &FolderBrowserModel) {
-        self.set_ui_folder_search_query(model.search_query.clone());
-        self.ui.sources.folders.show_all_folders = model.show_all_folders;
-        self.ui.sources.folders.flattened_view =
-            model.file_scope_mode == crate::app::state::FolderFileScopeMode::AllDescendants;
+    pub(crate) fn project_folder_browser_ui(
+        &self,
+        model: &FolderBrowserModel,
+        existing_ui: &FolderBrowserUiState,
+        has_source: bool,
+    ) -> FolderBrowserUiState {
         let hotkey_lookup: BTreeMap<PathBuf, u8> = model
             .hotkeys
             .iter()
@@ -21,7 +22,6 @@ impl AppController {
             .collect();
         let tree = self.build_folder_tree(&model.available);
         let searching = !model.search_query.trim().is_empty();
-        let has_source = self.selection_state.ctx.selected_source.is_some();
         let mut folder_rows = Vec::new();
         let expanded = if searching {
             model.available.clone()
@@ -62,9 +62,24 @@ impl AppController {
             .focused
             .as_ref()
             .and_then(|path| rows.iter().position(|row| &row.path == path));
-        self.ui.sources.folders.rows = rows;
-        self.ui.sources.folders.focused = focused;
-        self.ui.sources.folders.scroll_to = focused;
+        let mut ui = existing_ui.clone();
+        ui.search_query = model.search_query.clone();
+        ui.show_all_folders = model.show_all_folders;
+        ui.flattened_view =
+            model.file_scope_mode == crate::app::state::FolderFileScopeMode::AllDescendants;
+        ui.rows = rows;
+        ui.focused = focused;
+        ui.scroll_to = focused;
+        ui
+    }
+
+    pub(crate) fn build_folder_rows(&mut self, model: &FolderBrowserModel) {
+        self.set_ui_folder_search_query(model.search_query.clone());
+        self.ui.sources.folders = self.project_folder_browser_ui(
+            model,
+            &self.ui.sources.folders,
+            self.selection_state.ctx.selected_source.is_some(),
+        );
     }
 
     pub(super) fn collect_folders(

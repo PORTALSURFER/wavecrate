@@ -22,6 +22,7 @@ pub(crate) struct PendingSliceBatchExport {
 /// Monotonic request-id counters for async controller jobs.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct JobRequestCounters {
+    pub(crate) next_source_hydration_request_id: u64,
     pub(crate) next_audio_request_id: u64,
     pub(crate) next_recording_waveform_request_id: u64,
     pub(crate) next_folder_scan_request_id: u64,
@@ -33,6 +34,7 @@ impl Default for JobRequestCounters {
     /// Initialize request counters at `1` to avoid sentinel `0` ids.
     fn default() -> Self {
         Self {
+            next_source_hydration_request_id: 1,
             next_audio_request_id: 1,
             next_recording_waveform_request_id: 1,
             next_folder_scan_request_id: 1,

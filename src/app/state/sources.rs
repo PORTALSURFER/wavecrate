@@ -36,6 +36,8 @@ pub struct SourcePanelState {
     pub rows: Vec<SourceRowView>,
     /// Currently selected row index.
     pub selected: Option<usize>,
+    /// Source row currently hydrating in the background, when any.
+    pub loading_source_id: Option<SourceId>,
     /// Row index with an open context menu.
     pub menu_row: Option<usize>,
     /// Row index to scroll into view.
@@ -113,6 +115,8 @@ pub struct FolderBrowserUiState {
 pub struct FolderPaneState {
     /// Source currently shown in this pane, if any.
     pub source_id: Option<SourceId>,
+    /// Whether this pane is hydrating its assigned source snapshot.
+    pub loading: bool,
     /// Retained browser state for this pane when it is not active.
     pub browser: FolderBrowserUiState,
 }

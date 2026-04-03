@@ -81,6 +81,28 @@ impl AppController {
         self.set_ui_loaded_wav(None);
     }
 
+    /// Clear browser rows and source-scoped selection state while preserving search/filter inputs.
+    pub(crate) fn clear_browser_projection_for_source_loading(&mut self) {
+        let autoscroll = self.ui.browser.selection.autoscroll;
+        self.ui.browser.trash = std::sync::Arc::from([]);
+        self.ui.browser.neutral = std::sync::Arc::from([]);
+        self.ui.browser.keep = std::sync::Arc::from([]);
+        self.ui.browser.viewport = BrowserViewportState::default();
+        self.ui.browser.selection = BrowserSelectionState {
+            autoscroll,
+            ..BrowserSelectionState::default()
+        };
+        self.ui.browser.duplicate_cleanup = None;
+        self.ui.browser.pending_action = None;
+        self.ui.browser.rename_focus_requested = false;
+        self.ui.browser.copy_flash_paths.clear();
+        self.ui.browser.copy_flash_at = None;
+        self.ui.browser.search.search_busy = false;
+        self.ui_cache.browser.search.scores = std::sync::Arc::from([]);
+        self.invalidate_browser_lookup_maps();
+        self.set_ui_loaded_wav(None);
+    }
+
     pub(crate) fn browser_path_for_visible(&mut self, visible_row: usize) -> Option<PathBuf> {
         let index = self.ui.browser.viewport.visible.get(visible_row)?;
         self.wav_entry(index)

@@ -69,6 +69,7 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         marked_filter_active,
         search_placeholder,
         busy,
+        source_loading: controller.ui.browser.search.source_loading,
         similarity_filtered,
         duplicate_cleanup_active,
         sort_label,

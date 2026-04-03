@@ -125,6 +125,21 @@ impl AppController {
             self.ui_cache.browser.search.scores = message.scores;
             self.ui.browser.search.latest_applied_search_request_id = message.request_id;
             self.ui.browser.search.search_busy = false;
+            let pending_pane = self
+                .runtime
+                .pending_active_source_hydration
+                .as_ref()
+                .and_then(|pending| {
+                    (pending.source_id == message.source_id
+                        && pending.search_request_id == Some(message.request_id))
+                    .then_some(pending.pane)
+                });
+            if let Some(pane) = pending_pane {
+                self.finish_source_loading(
+                    crate::app::controller::jobs::SourceHydrationKind::ActiveSelection,
+                    pane,
+                );
+            }
         }
     }
 

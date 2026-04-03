@@ -207,7 +207,11 @@ impl AppController {
         }
     }
 
-    fn maybe_refresh_source_db_in_background(&self, source_id: &SourceId, from_cache: bool) {
+    pub(crate) fn maybe_refresh_source_db_in_background(
+        &self,
+        source_id: &SourceId,
+        from_cache: bool,
+    ) {
         if !from_cache || self.runtime.jobs.scan_in_progress() {
             return;
         }

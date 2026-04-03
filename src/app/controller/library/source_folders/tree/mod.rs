@@ -73,41 +73,7 @@ impl AppController {
         }
         let snapshot = {
             let model = self.ui_cache.folders.models.entry(cache_key).or_default();
-            model
-                .manual_folders
-                .retain(|path| source.root.join(path).is_dir());
-            model
-                .hotkeys
-                .retain(|_, path| model::is_root_path(path) || source.root.join(path).is_dir());
-            model.available = available;
-            model.available_show_all_folders = model.show_all_folders;
-            for path in model.manual_folders.iter().cloned() {
-                model.available.insert(path);
-            }
-            model
-                .selected
-                .retain(|path| model::is_root_path(path) || model.available.contains(path));
-            model
-                .negated
-                .retain(|path| model::is_root_path(path) || model.available.contains(path));
-            model.expanded.retain(|path| model.available.contains(path));
-            if model.expanded.is_empty() {
-                for dir in model.available.iter().filter(|path| {
-                    path.parent()
-                        .is_none_or(|parent| parent.as_os_str().is_empty())
-                }) {
-                    model.expanded.insert(dir.clone());
-                }
-            }
-            model.clear_focus_if_missing();
-            model.clear_anchor_if_missing();
-            for path in model.selected.iter() {
-                let mut cursor = path.as_path();
-                while let Some(parent) = cursor.parent() {
-                    model.expanded.insert(parent.to_path_buf());
-                    cursor = parent;
-                }
-            }
+            model.reconcile_available(&source.root, available);
             model.clone()
         };
         self.set_ui_folder_search_query(snapshot.search_query.clone());

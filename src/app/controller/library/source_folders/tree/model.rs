@@ -67,6 +67,42 @@ impl Default for FolderBrowserModel {
 }
 
 impl FolderBrowserModel {
+    /// Reconcile one source's available folders into the retained model snapshot.
+    pub(crate) fn reconcile_available(&mut self, source_root: &Path, available: BTreeSet<PathBuf>) {
+        self.manual_folders
+            .retain(|path| source_root.join(path).is_dir());
+        self.hotkeys
+            .retain(|_, path| is_root_path(path) || source_root.join(path).is_dir());
+        self.available = available;
+        self.available_show_all_folders = self.show_all_folders;
+        for path in self.manual_folders.iter().cloned() {
+            self.available.insert(path);
+        }
+        self.selected
+            .retain(|path| is_root_path(path) || self.available.contains(path));
+        self.negated
+            .retain(|path| is_root_path(path) || self.available.contains(path));
+        self.expanded.retain(|path| self.available.contains(path));
+        if self.expanded.is_empty() {
+            for dir in self
+                .available
+                .iter()
+                .filter(|path| path.parent().is_none_or(|parent| parent.as_os_str().is_empty()))
+            {
+                self.expanded.insert(dir.clone());
+            }
+        }
+        self.clear_focus_if_missing();
+        self.clear_anchor_if_missing();
+        for path in self.selected.iter() {
+            let mut cursor = path.as_path();
+            while let Some(parent) = cursor.parent() {
+                self.expanded.insert(parent.to_path_buf());
+                cursor = parent;
+            }
+        }
+    }
+
     pub(super) fn clear_focus_if_missing(&mut self) {
         if let Some(focused) = self.focused.clone()
             && !self.available.contains(&focused)

@@ -8,6 +8,7 @@ mod performance;
 use crate::app::controller::jobs;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::state::audio::PendingAgeUpdate;
+use crate::app::state::FolderPaneId;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 pub(crate) use deferred::{
@@ -124,6 +125,10 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) deferred_startup_source_db_maintenance_armed: bool,
     /// Number of prepared frame passes since startup configuration was applied.
     pub(crate) startup_frame_prepare_count: u32,
+    /// Active source hydration currently preparing the browser-driving source snapshot.
+    pub(crate) pending_active_source_hydration: Option<PendingSourceHydration>,
+    /// Inactive-pane source hydration currently preparing one retained folder snapshot.
+    pub(crate) pending_inactive_source_hydration: Option<PendingSourceHydration>,
     #[cfg(test)]
     pub(crate) progress_cancel_after: Option<usize>,
     #[cfg(test)]
@@ -178,6 +183,8 @@ impl ControllerRuntimeState {
             deferred_startup_source_db_maintenance_jobs: Vec::new(),
             deferred_startup_source_db_maintenance_armed: false,
             startup_frame_prepare_count: 0,
+            pending_active_source_hydration: None,
+            pending_inactive_source_hydration: None,
             #[cfg(test)]
             progress_cancel_after: None,
             #[cfg(test)]
@@ -203,6 +210,23 @@ impl ControllerRuntimeState {
     pub(crate) fn waveform_refresh_batch_active(&self) -> bool {
         self.waveform_refresh_batch_depth > 0
     }
+}
+
+/// Active controller-side tracking for one source hydration request.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingSourceHydration {
+    /// Monotonic request identifier used to discard stale results.
+    pub(crate) request_id: u64,
+    /// Sidebar pane that owns the source assignment.
+    pub(crate) pane: FolderPaneId,
+    /// Hydrated source identifier.
+    pub(crate) source_id: SourceId,
+    /// Logical hydration lane for result application.
+    pub(crate) kind: jobs::SourceHydrationKind,
+    /// Search request queued after hydration apply, when active-source projection is pending.
+    pub(crate) search_request_id: Option<u64>,
+    /// Time when the hydration request was queued on the controller thread.
+    pub(crate) queued_at: Instant,
 }
 
 #[derive(Clone, Debug)]

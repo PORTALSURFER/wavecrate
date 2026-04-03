@@ -9,7 +9,7 @@ pub(crate) fn project_status_model(
 ) -> StatusBarModel {
     let left = controller.ui.status.text.clone();
     let center = format!(
-        "rows: {} | selected: {} | anchor: {} | search: {}{}",
+        "rows: {} | selected: {} | anchor: {} | search: {}{}{}",
         controller.ui.browser.viewport.visible.len(),
         controller.ui.browser.selection.selected_paths.len(),
         controller
@@ -23,6 +23,11 @@ pub(crate) fn project_status_model(
             "—"
         } else {
             controller.ui.browser.search.search_query.as_str()
+        },
+        if controller.ui.browser.search.source_loading {
+            " | loading source…"
+        } else {
+            ""
         },
         if controller.ui.browser.search.search_busy {
             " | filtering…"

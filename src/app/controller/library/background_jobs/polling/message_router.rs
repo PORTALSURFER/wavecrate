@@ -7,6 +7,7 @@ impl AppController {
     pub(super) fn handle_background_job_message(&mut self, message: JobMessage) {
         match message {
             JobMessage::WavLoaded(message) => self.handle_wav_loaded_message(message),
+            JobMessage::SourceHydrated(message) => self.handle_source_hydrated_message(message),
             JobMessage::AudioLoaded(message) => self.handle_audio_loaded_message(message),
             JobMessage::RecordingWaveformLoaded(message) => {
                 self.handle_recording_waveform_loaded_message(message)
