@@ -8,6 +8,9 @@ impl AppController {
         match message {
             JobMessage::WavLoaded(message) => self.handle_wav_loaded_message(message),
             JobMessage::SourceHydrated(message) => self.handle_source_hydrated_message(message),
+            JobMessage::BrowserFeatureCacheRefreshed(message) => {
+                self.handle_feature_cache_refreshed_message(message)
+            }
             JobMessage::FolderProjected(message) => self.handle_folder_projected_message(message),
             JobMessage::MetadataMutationFinished(message) => {
                 self.handle_metadata_mutation_finished_message(message)
@@ -15,9 +18,7 @@ impl AppController {
             JobMessage::ConfigPersistFinished(message) => {
                 self.handle_config_persist_finished_message(message)
             }
-            JobMessage::WaveformRendered(message) => {
-                self.handle_waveform_rendered_message(message)
-            }
+            JobMessage::WaveformRendered(message) => self.handle_waveform_rendered_message(message),
             JobMessage::AudioLoaded(message) => self.handle_audio_loaded_message(message),
             JobMessage::RecordingWaveformLoaded(message) => {
                 self.handle_recording_waveform_loaded_message(message)

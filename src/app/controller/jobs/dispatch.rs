@@ -134,6 +134,17 @@ impl ControllerJobs {
         request_id
     }
 
+    /// Generate a request id for async browser feature-cache refresh jobs.
+    pub(in super::super) fn next_feature_cache_request_id(&mut self) -> u64 {
+        let request_id = self.request_counters.next_feature_cache_request_id;
+        self.request_counters.next_feature_cache_request_id = self
+            .request_counters
+            .next_feature_cache_request_id
+            .wrapping_add(1)
+            .max(1);
+        request_id
+    }
+
     /// Generate a request id for optimistic metadata mutation jobs.
     pub(in super::super) fn next_metadata_request_id(&mut self) -> u64 {
         let request_id = self.request_counters.next_metadata_request_id;

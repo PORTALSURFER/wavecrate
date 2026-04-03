@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::controller::jobs::JobMessage;
 use crate::app::controller::library::analysis_jobs::AnalysisProgress;
-use crate::app::controller::state::cache::FeatureCache;
+use crate::app::controller::state::cache::{FeatureCache, FeatureCacheKey};
 use crate::app::controller::test_support::dummy_controller;
 use crate::app_core::state::StatusTone;
 use std::collections::HashMap;
@@ -100,15 +100,17 @@ fn progress_message_updates_snapshot_and_detail() {
 }
 
 #[test]
-fn enqueue_finished_invalidates_feature_cache_and_queues_follow_up_progress() {
+fn enqueue_finished_keeps_selected_source_feature_cache_and_queues_refresh() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
-    controller
-        .ui_cache
-        .browser
-        .features
-        .insert(source.id.clone(), FeatureCache { rows: Vec::new() });
+    controller.ui_cache.browser.features.insert(
+        source.id.clone(),
+        FeatureCache {
+            key: FeatureCacheKey::default(),
+            rows: Vec::new(),
+        },
+    );
 
     let progress = sample_progress();
     handle_analysis_message(
@@ -121,12 +123,13 @@ fn enqueue_finished_invalidates_feature_cache_and_queues_follow_up_progress() {
     );
 
     assert_eq!(controller.ui.status.text, "Queued 2 analysis jobs");
+    assert!(controller.ui_cache.browser.features.contains_key(&source.id));
     assert!(
-        !controller
-            .ui_cache
-            .browser
-            .features
-            .contains_key(&source.id)
+        controller
+            .runtime
+            .pending_browser_feature_cache_refresh
+            .as_ref()
+            .is_some_and(|pending| pending.source_id == source.id)
     );
     match controller.runtime.jobs.try_recv_message() {
         Ok(JobMessage::Analysis(AnalysisJobMessage::Progress {
@@ -163,14 +166,17 @@ fn enqueue_finished_can_skip_status_announcement() {
 }
 
 #[test]
-fn durations_updated_invalidates_cached_durations_and_features() {
+fn durations_updated_keeps_selected_source_feature_cache_and_queues_refresh() {
     let (mut controller, source) = dummy_controller();
     let source_id = source.id.clone();
-    controller
-        .ui_cache
-        .browser
-        .features
-        .insert(source_id.clone(), FeatureCache { rows: Vec::new() });
+    controller.library.sources.push(source.clone());
+    controller.ui_cache.browser.features.insert(
+        source_id.clone(),
+        FeatureCache {
+            key: FeatureCacheKey::default(),
+            rows: Vec::new(),
+        },
+    );
     controller.ui_cache.browser.durations.insert(
         source_id.clone(),
         HashMap::from([(PathBuf::from("kick.wav"), 1.25)]),
@@ -184,12 +190,13 @@ fn durations_updated_invalidates_cached_durations_and_features() {
         },
     );
 
+    assert!(controller.ui_cache.browser.features.contains_key(&source_id));
     assert!(
-        !controller
-            .ui_cache
-            .browser
-            .features
-            .contains_key(&source_id)
+        controller
+            .runtime
+            .pending_browser_feature_cache_refresh
+            .as_ref()
+            .is_some_and(|pending| pending.source_id == source_id)
     );
     assert!(
         !controller

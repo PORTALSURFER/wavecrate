@@ -25,10 +25,10 @@ mod entry_mutation_tests;
 mod feature_cache;
 /// Focused-similarity refresh and waveform view reset helpers.
 mod focus_similarity;
-/// Source DB and in-memory metadata lookup/cache helpers.
-mod metadata_cache;
 /// Async metadata persistence helpers for tag, loop, BPM, and playback-age writes.
 mod metadata_async;
+/// Source DB and in-memory metadata lookup/cache helpers.
+mod metadata_cache;
 /// Metadata and entry-mutation facade methods on `AppController`.
 mod metadata_facade;
 /// Shared fuzzy-search scoring and cache-reuse helpers for sync and worker paths.
@@ -45,6 +45,7 @@ pub(crate) use browser_pipeline::BrowserPipelineCache;
 pub(crate) use browser_search::BrowserSearchCache;
 #[cfg(test)]
 pub(crate) use browser_search::with_browser_async_pipeline_enabled_for_tests;
+pub(crate) use feature_cache::build_feature_cache_for_paths;
 pub(crate) use similar::{
     apply_pending_similarity_filter_rebuild, cancel_pending_similarity_filter_rebuild,
     schedule_similarity_filter_rebuild_after_delete_with_state,

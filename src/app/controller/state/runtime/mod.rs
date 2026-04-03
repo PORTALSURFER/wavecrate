@@ -13,8 +13,8 @@ use crate::sample_sources::Rating;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 pub(crate) use deferred::{
-    AnalysisProgressUiCache, PendingBrowserFocusCommit, PendingFocusedSimilarityQuery,
-    PendingFocusedSimilarityRefresh, PendingLoadedDurationMetadata,
+    AnalysisProgressUiCache, PendingBrowserFeatureCacheRefresh, PendingBrowserFocusCommit,
+    PendingFocusedSimilarityQuery, PendingFocusedSimilarityRefresh, PendingLoadedDurationMetadata,
     PendingLoadedSimilarityQuery, PendingSimilarityFilterRebuild,
 };
 pub(crate) use derived_graph::{DerivedNodeId, DerivedStateGraph, DirtyReason};
@@ -109,6 +109,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) pending_similarity_filter_rebuild: Option<PendingSimilarityFilterRebuild>,
     /// Cached selected-source analysis progress metadata for progress-overlay updates.
     pub(crate) analysis_progress_ui: AnalysisProgressUiCache,
+    /// Active async browser feature-cache refresh awaiting apply.
+    pub(crate) pending_browser_feature_cache_refresh: Option<PendingBrowserFeatureCacheRefresh>,
     /// Pending duration/long-mark metadata write moved out of waveform load hot path.
     pub(crate) pending_loaded_duration_metadata: Option<PendingLoadedDurationMetadata>,
     /// Earliest frame time when deferred duration metadata persistence may run.
@@ -192,6 +194,7 @@ impl ControllerRuntimeState {
             pending_loaded_similarity_query: None,
             pending_similarity_filter_rebuild: None,
             analysis_progress_ui: AnalysisProgressUiCache::default(),
+            pending_browser_feature_cache_refresh: None,
             pending_loaded_duration_metadata: None,
             pending_loaded_duration_metadata_not_before: None,
             pending_waveform_seek_nanos: None,

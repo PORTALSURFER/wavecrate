@@ -155,7 +155,7 @@ fn analysis_progress_is_idle(progress: &analysis_jobs::AnalysisProgress) -> bool
 fn finalize_selected_source_analysis_progress(controller: &mut AppController) {
     if let Some(source) = controller.current_source() {
         controller.queue_analysis_failures_refresh(&source);
-        controller.ui_cache.browser.features.remove(&source.id);
+        controller.force_feature_cache_refresh_for_browser();
         controller.ui_cache.browser.bpm_values.remove(&source.id);
     }
 }
@@ -347,7 +347,14 @@ fn handle_enqueue_finished(
     if !embedding_backfill
         && let Some(source_id) = controller.selection_state.ctx.selected_source.clone()
     {
-        controller.ui_cache.browser.features.remove(&source_id);
+        if controller
+            .current_source()
+            .is_some_and(|source| source.id == source_id)
+        {
+            controller.force_feature_cache_refresh_for_browser();
+        } else {
+            controller.ui_cache.browser.features.remove(&source_id);
+        }
     }
     queue_selected_source_analysis_progress(controller, progress);
 }
@@ -374,7 +381,11 @@ fn invalidate_cached_browser_analysis_data(
     if !should_invalidate {
         return;
     }
-    controller.ui_cache.browser.features.remove(&source_id);
+    if controller.selection_state.ctx.selected_source.as_ref() == Some(&source_id) {
+        controller.force_feature_cache_refresh_for_browser();
+    } else {
+        controller.ui_cache.browser.features.remove(&source_id);
+    }
     controller.ui_cache.browser.durations.remove(&source_id);
 }
 

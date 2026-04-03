@@ -2,8 +2,8 @@
 
 use super::*;
 use crate::app::controller::LoadEntriesError;
-use crate::app::controller::library::wavs::waveform_rendering::PreparedWaveformVisual;
 use crate::app::controller::library::source_folders::{FolderProjectionView, FolderTreeSnapshot};
+use crate::app::controller::library::wavs::waveform_rendering::PreparedWaveformVisual;
 use crate::sample_sources::WavEntry;
 use crate::waveform::{DecodedWaveform, WaveformChannelView, WaveformRenderViewport};
 
@@ -11,6 +11,7 @@ use crate::waveform::{DecodedWaveform, WaveformChannelView, WaveformRenderViewpo
 pub(crate) enum JobMessage {
     WavLoaded(WavLoadResult),
     SourceHydrated(SourceHydrationResult),
+    BrowserFeatureCacheRefreshed(BrowserFeatureCacheRefreshResult),
     FolderProjected(FolderProjectionResult),
     MetadataMutationFinished(MetadataMutationResult),
     ConfigPersistFinished(ConfigPersistResult),
@@ -246,8 +247,23 @@ pub(crate) struct SourceHydrationSnapshot {
     pub(crate) available_folders: BTreeSet<PathBuf>,
     /// Immutable folder-tree snapshot derived from `available_folders`.
     pub(crate) folder_tree: FolderTreeSnapshot,
+    /// Browser feature metadata aligned to `entries` for first-paint row badges.
+    pub(crate) feature_cache: Option<crate::app::controller::FeatureCache>,
     /// Whether the snapshot reused the page-0 wav cache instead of querying the DB.
     pub(crate) from_cache: bool,
+}
+
+/// Result of one async browser feature-cache refresh.
+#[derive(Debug)]
+pub(crate) struct BrowserFeatureCacheRefreshResult {
+    /// Request identifier used to drop stale refresh results.
+    pub(crate) request_id: u64,
+    /// Source whose browser feature metadata was refreshed.
+    pub(crate) source_id: SourceId,
+    /// Snapshot key the refreshed rows were built against.
+    pub(crate) key: crate::app::controller::FeatureCacheKey,
+    /// Refreshed cache payload or the terminal load error.
+    pub(crate) result: Result<crate::app::controller::FeatureCache, String>,
 }
 
 /// Background folder projection request for one pane-scoped folder browser.
@@ -544,8 +560,15 @@ pub(crate) struct NormalizationJob {
 pub(crate) struct NormalizationResult {
     pub(crate) source_id: crate::sample_sources::SourceId,
     pub(crate) relative_path: PathBuf,
-    pub(crate) result:
-        Result<(u64, i64, crate::sample_sources::Rating, crate::app::controller::undo::OverwriteBackup), String>,
+    pub(crate) result: Result<
+        (
+            u64,
+            i64,
+            crate::sample_sources::Rating,
+            crate::app::controller::undo::OverwriteBackup,
+        ),
+        String,
+    >,
 }
 
 /// Startup-deferred source DB maintenance request.

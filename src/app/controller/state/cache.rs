@@ -75,6 +75,15 @@ pub(crate) struct BrowserCacheState {
     pub(crate) durations: HashMap<SourceId, HashMap<PathBuf, f32>>,
 }
 
+/// Stable snapshot key for browser feature-cache rows aligned to the current wav list.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct FeatureCacheKey {
+    /// Number of wav entries the cache rows are aligned to.
+    pub(crate) entries_len: usize,
+    /// Stable hash of the ordered relative-path list backing the cache rows.
+    pub(crate) entries_hash: u64,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum AnalysisJobStatus {
     Pending,
@@ -94,8 +103,21 @@ pub(crate) struct FeatureStatus {
     pub(crate) analysis_status: Option<AnalysisJobStatus>,
 }
 
+/// Cached per-entry browser feature metadata aligned to one wav-entry snapshot.
+#[derive(Clone, Debug)]
 pub(crate) struct FeatureCache {
+    pub(crate) key: FeatureCacheKey,
     pub(crate) rows: Vec<Option<FeatureStatus>>,
+}
+
+impl FeatureCache {
+    /// Build an empty placeholder cache for one wav-entry snapshot key.
+    pub(crate) fn empty(key: FeatureCacheKey) -> Self {
+        Self {
+            rows: vec![None; key.entries_len],
+            key,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]

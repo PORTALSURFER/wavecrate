@@ -1,3 +1,4 @@
+use crate::app::controller::FeatureCacheKey;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::state::audio::PendingPlayback;
 use crate::sample_sources::SourceId;
@@ -95,4 +96,15 @@ pub(crate) struct PendingLoadedDurationMetadata {
     pub(crate) sample_rate: u32,
     /// Cached long-sample mark when this path is still selected.
     pub(crate) long_sample_mark: Option<bool>,
+}
+
+/// In-flight browser feature-cache refresh owned by the controller.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingBrowserFeatureCacheRefresh {
+    /// Monotonic request identifier used to discard stale results.
+    pub(crate) request_id: u64,
+    /// Source that owned the wav-entry snapshot when the refresh was queued.
+    pub(crate) source_id: SourceId,
+    /// Wav-entry snapshot key the refresh rows must still match on apply.
+    pub(crate) key: FeatureCacheKey,
 }

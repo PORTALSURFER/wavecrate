@@ -136,6 +136,11 @@ impl AppController {
                     self.finish_source_loading(kind, pane);
                     return;
                 }
+                if let Some(feature_cache) = snapshot.feature_cache.clone() {
+                    self.install_feature_cache_snapshot(source_id.clone(), feature_cache);
+                } else {
+                    self.queue_feature_cache_refresh_for_browser();
+                }
                 let available_folders = snapshot.available_folders;
                 let folder_tree = snapshot.folder_tree;
                 self.apply_folder_snapshot_to_pane(

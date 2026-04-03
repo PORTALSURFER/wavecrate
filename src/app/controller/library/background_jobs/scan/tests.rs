@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::controller::jobs::JobMessage;
 use crate::app::controller::library::analysis_jobs::AnalysisJobMessage;
-use crate::app::controller::state::cache::FeatureCache;
+use crate::app::controller::state::cache::{FeatureCache, FeatureCacheKey};
 use crate::app::controller::test_support::{dummy_controller, write_test_wav};
 use crate::app::controller::{SimilarityPrepStage, SimilarityPrepState};
 use crate::app::state::ProgressTaskKind;
@@ -68,11 +68,13 @@ fn changed_scan_refreshes_selected_source_and_enqueues_follow_up_analysis() {
     controller
         .ensure_sample_db_entry(&source, Path::new("kick.wav"))
         .expect("sample db entry");
-    controller
-        .ui_cache
-        .browser
-        .features
-        .insert(source.id.clone(), FeatureCache { rows: Vec::new() });
+    controller.ui_cache.browser.features.insert(
+        source.id.clone(),
+        FeatureCache {
+            key: FeatureCacheKey::default(),
+            rows: Vec::new(),
+        },
+    );
     controller.ui_cache.browser.durations.insert(
         source.id.clone(),
         HashMap::from([(PathBuf::from("kick.wav"), 1.25)]),

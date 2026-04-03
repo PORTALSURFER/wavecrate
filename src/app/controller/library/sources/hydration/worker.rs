@@ -5,6 +5,7 @@ use crate::app::controller::jobs::{
 };
 use crate::app::controller::library::source_folders::FolderTreeSnapshot;
 use crate::app::controller::library::wav_entries_loader;
+use crate::app::controller::library::wavs::build_feature_cache_for_paths;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -45,9 +46,25 @@ fn build_source_hydration_snapshot(
         (result?, total, job.page_size, false)
     };
     let available_folders = derive_available_folders(&job.source_root, &entries);
+    let feature_cache =
+        if job.kind == crate::app::controller::jobs::SourceHydrationKind::ActiveSelection {
+            let entry_paths = entries
+                .iter()
+                .map(|entry| entry.relative_path.clone())
+                .collect::<Vec<_>>();
+            Some(build_feature_cache_for_paths(
+                &job.source_id,
+                &job.source_root,
+                &entry_paths,
+                &[],
+            )?)
+        } else {
+            None
+        };
     Ok(SourceHydrationSnapshot {
         folder_tree: FolderTreeSnapshot::from_available(&available_folders),
         available_folders,
+        feature_cache,
         path_lookup: build_path_lookup(&entries),
         entries,
         total,

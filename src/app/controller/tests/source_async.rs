@@ -107,6 +107,7 @@ fn hydration_result(
             path_lookup,
             available_folders,
             folder_tree,
+            feature_cache: None,
             from_cache,
         }),
     }
