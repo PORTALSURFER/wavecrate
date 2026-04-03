@@ -92,7 +92,11 @@ impl WaveformRenderer {
         const MAX_CACHED_FULL_WIDTH: u32 = 200_000;
         let desired = ((width as f32) / view_fraction).ceil().max(width as f32) as u32;
         let frame_cap = frame_count.min(u32::MAX as usize) as u32;
-        desired.min(frame_cap).min(MAX_CACHED_FULL_WIDTH).max(width)
+        quantized_cached_full_width(
+            desired.min(frame_cap).min(MAX_CACHED_FULL_WIDTH).max(width),
+            width,
+            frame_cap.min(MAX_CACHED_FULL_WIDTH),
+        )
     }
 
     /// Convert a normalized `view_start` into cached column window indexes.
@@ -113,6 +117,29 @@ impl WaveformRenderer {
         let max_start = full_width.saturating_sub(width);
         let start = ((view_start * full_width as f32).floor() as usize).min(max_start);
         Some((start, start + width))
+    }
+}
+
+/// Quantize dense-column cache widths so adjacent zoom ratios reuse nearby families.
+fn quantized_cached_full_width(full_width: u32, min_width: u32, max_width: u32) -> u32 {
+    let clamped = full_width.clamp(min_width.max(1), max_width.max(min_width.max(1)));
+    let step = cached_full_width_bucket_step(clamped);
+    let rounded = ((clamped + step / 2) / step).saturating_mul(step);
+    rounded.clamp(min_width.max(1), max_width.max(min_width.max(1)))
+}
+
+/// Return the cache-width bucket step used to stabilize adjacent zoom requests.
+fn cached_full_width_bucket_step(full_width: u32) -> u32 {
+    if full_width <= 1_024 {
+        8
+    } else if full_width <= 4_096 {
+        16
+    } else if full_width <= 16_384 {
+        32
+    } else if full_width <= 65_536 {
+        64
+    } else {
+        128
     }
 }
 
@@ -174,5 +201,14 @@ mod tests {
             None,
         );
         assert!(image.is_some());
+    }
+
+    #[test]
+    /// Small adjacent zoom changes should stay within one dense-column cache family.
+    fn cached_full_width_stays_stable_for_adjacent_zoom_fractions() {
+        let renderer = WaveformRenderer::new(512, 24);
+        let first = renderer.cached_full_width(512, 0.25, 100_000);
+        let second = renderer.cached_full_width(512, 0.251, 100_000);
+        assert_eq!(first, second);
     }
 }

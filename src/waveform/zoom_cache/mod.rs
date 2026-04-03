@@ -20,7 +20,10 @@ pub(super) struct WaveformZoomCache {
 }
 
 /// Global zoom-cache entry budget shared across all shards.
-const ZOOM_CACHE_TOTAL_MAX_ENTRIES: usize = 12;
+///
+/// The budget is intentionally modest, but large enough to retain a few adjacent
+/// zoom-width families per waveform token without immediately evicting them.
+const ZOOM_CACHE_TOTAL_MAX_ENTRIES: usize = 32;
 /// Number of independent mutex shards used to reduce lock contention.
 const ZOOM_CACHE_SHARD_COUNT: usize = 4;
 
