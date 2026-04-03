@@ -143,6 +143,43 @@ fn select_all_browser_rows_preserves_anchor_and_disables_autoscroll() {
 }
 
 #[test]
+/// Preview-only row focus should preserve multi-selection while updating focus state.
+fn focus_browser_row_only_preserves_multi_selection_membership() {
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+        sample_entry("three.wav", Rating::NEUTRAL),
+    ]);
+    controller.focus_browser_row_only(0);
+    controller.extend_browser_selection_to_row(2);
+
+    controller.focus_browser_row_only(1);
+
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
+        vec![
+            PathBuf::from("one.wav"),
+            PathBuf::from("two.wav"),
+            PathBuf::from("three.wav")
+        ]
+    );
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(1)
+    );
+    assert_eq!(
+        controller.ui.browser.selection.last_focused_path.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert!(controller.ui.browser.selection.commit_focus_pending);
+}
+
+#[test]
 /// Direct browser click playback should respect the active loop toggle.
 fn focus_browser_row_and_play_uses_active_loop_state() {
     let Some(player) = crate::audio::AudioPlayer::playing_for_tests() else {

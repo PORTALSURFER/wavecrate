@@ -151,22 +151,14 @@ impl AppController {
 
     /// Focus a browser row without mutating the multi-selection set.
     pub fn focus_browser_row_only(&mut self, visible_row: usize) {
-        let Some(entry_index) = self.visible_browser_index(visible_row) else {
+        let Some(path) = self.browser_path_for_visible(visible_row) else {
             return;
         };
-        let Some(path) = self
-            .wav_entry(entry_index)
-            .map(|entry| entry.relative_path.clone())
-        else {
-            return;
-        };
-        self.focus_browser_context();
-        self.ui.browser.selection.autoscroll = true;
-        self.ui.browser.selection.selection_anchor_visible = Some(visible_row);
-        self.ui.browser.selection.last_focused_index = Some(entry_index);
-        self.ui.browser.selection.last_focused_path = Some(path);
-        self.focus_wav_by_index_preview_with_rebuild(entry_index, false);
-        self.refresh_browser_selection_markers();
+        self.apply_browser_focus_target_path(
+            path.as_path(),
+            Some(visible_row),
+            BrowserReviewLinearMode::Preview,
+        );
     }
 
     /// Commit the focused browser row and queue audio/waveform loading for it.
@@ -206,11 +198,11 @@ impl AppController {
         else {
             return false;
         };
-        self.focus_browser_context();
-        self.ui.browser.selection.autoscroll = true;
-        self.ui.browser.selection.selection_anchor_visible = Some(visible_row);
-        self.select_wav_by_path_with_rebuild(&path, false);
-        self.refresh_browser_selection_markers();
+        self.apply_browser_focus_target_path(
+            path.as_path(),
+            Some(visible_row),
+            BrowserReviewLinearMode::Commit,
+        );
         true
     }
 
@@ -342,21 +334,37 @@ impl AppController {
         if let Some(source_id) = random_history_source_id {
             self.record_random_navigation_target_for_source(source_id, path);
         }
+        let visible_row = self.visible_row_for_path(path);
+        self.apply_browser_focus_target_path(path, visible_row, linear_mode);
+        if matches!(linear_mode, BrowserReviewLinearMode::Preview) {
+            self.request_async_preview_playback_for_focused_selection();
+        }
+    }
+
+    /// Apply browser focus to one target path while preserving selection ownership.
+    ///
+    /// Navigation helpers should choose the next row or path, then funnel the
+    /// actual preview/commit focus transition through the shared selection
+    /// pipeline so `selected_wav`, last-focused metadata, and commit-pending
+    /// state stay in one place.
+    fn apply_browser_focus_target_path(
+        &mut self,
+        path: &Path,
+        visible_row: Option<usize>,
+        linear_mode: BrowserReviewLinearMode,
+    ) {
         self.focus_browser_context();
         self.ui.browser.selection.autoscroll = true;
+        if let Some(row) = visible_row {
+            self.ui.browser.selection.selection_anchor_visible = Some(row);
+        }
         match linear_mode {
             BrowserReviewLinearMode::Commit => self.select_wav_by_path_with_rebuild(path, false),
             BrowserReviewLinearMode::Preview => {
                 self.focus_wav_by_path_preview_with_rebuild(path, false);
             }
         }
-        if let Some(row) = self.visible_row_for_path(path) {
-            self.ui.browser.selection.selection_anchor_visible = Some(row);
-        }
         self.refresh_browser_selection_markers();
-        if matches!(linear_mode, BrowserReviewLinearMode::Preview) {
-            self.request_async_preview_playback_for_focused_selection();
-        }
     }
 
     /// Clear sample browser focus/selection when another surface takes focus.

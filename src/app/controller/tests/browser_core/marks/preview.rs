@@ -37,6 +37,17 @@ fn focused_browser_mark_advances_and_previews_next_sample() {
         Some(Path::new("two.wav"))
     );
     assert!(controller.ui.waveform.image.is_none());
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(1)
+    );
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
+    assert_eq!(
+        controller.ui.browser.selection.last_focused_path.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert!(controller.ui.browser.selection.commit_focus_pending);
 
     wait_for_waveform_image(&mut controller, Path::new("two.wav"));
     assert_eq!(
@@ -172,4 +183,15 @@ fn unmarking_focused_marked_row_under_marked_filter_previews_replacement_sample(
         controller.ui.waveform.loading.as_deref(),
         Some(Path::new("two.wav"))
     );
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
+    assert_eq!(
+        controller.ui.browser.selection.last_focused_path.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert!(controller.ui.browser.selection.commit_focus_pending);
 }

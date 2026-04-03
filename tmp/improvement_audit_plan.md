@@ -4,7 +4,7 @@ Generated: 2026-04-02
 Observed superproject commit: `18616651`
 Observed `vendor/radiant` commit: `75b6d980`
 Observed workspace state at audit time: dirty worktree with unrelated `src/app/**` edits and a dirty `vendor/radiant` submodule checkout
-Status: Phase 2 in progress. Item 1 is implemented and validated locally; remaining items stay in ranked order below.
+Status: Phase 2 in progress. Items 1-4 are implemented and validated on the live tree; remaining items stay in ranked order below.
 
 ## Scope
 
@@ -106,7 +106,7 @@ Status: Phase 2 in progress. Item 1 is implemented and validated locally; remain
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 - Plan-order deviation: none
 
-### 3. [ ] Expand automation action-id parity checks from representative nodes to panel-wide contract coverage
+### 3. [x] Expand automation action-id parity checks from representative nodes to panel-wide contract coverage
 
 - Classification: Test gap
 - Confidence: High
@@ -128,8 +128,18 @@ Status: Phase 2 in progress. Item 1 is implemented and validated locally; remain
   - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
 - Product clarification required: No
+- Completed on: `2026-04-03`
+- Commit: pending until this item's focused commit is created
+- Assumptions used:
+  - panel-family assertions are a safer contract fence than one full-tree automation snapshot
+  - keeping host-owned catalog ids and vendor-owned automation emitters separate is still the intended boundary
+- Validation outcome:
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed
+- Plan-order deviation: none
+- Pushed commit: `c3c4274a` (`Harden cargo wrappers and browser action contracts`)
 
-### 4. [ ] Consolidate browser focus and selection ownership across `selection_ops.rs` and `focus_navigation.rs`
+### 4. [x] Consolidate browser focus and selection ownership across `selection_ops.rs` and `focus_navigation.rs`
 
 - Classification: Architecture improvement
 - Confidence: Medium
@@ -151,6 +161,17 @@ Status: Phase 2 in progress. Item 1 is implemented and validated locally; remain
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
 - Product clarification required: No
+- Completed on: `2026-04-03`
+- Commit: pending until this item's focused commit is created
+- Assumptions used:
+  - `selection_ops.rs` should remain the owner of `selected_wav`, `last_focused_index`, and `last_focused_path`
+  - `focus_navigation.rs` should keep choosing rows/paths and anchor intent, not duplicate durable wav-focus writes
+- Validation outcome:
+  - `cargo test --lib focus_browser_row_only_preserves_multi_selection_membership -- --test-threads=1` passed
+  - `cargo test --lib focused_browser_mark_advances_and_previews_next_sample -- --test-threads=1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Plan-order deviation: none
 
 ### 5. [ ] Split the `radiant` hotkey catalog into scope-owned binding slices while preserving one flat public contract
 
