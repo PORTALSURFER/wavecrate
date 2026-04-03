@@ -37,9 +37,33 @@ impl BrowserController<'_> {
 
     pub(super) fn delete_browser_samples_action(&mut self, rows: &[usize]) -> Result<(), String> {
         let next_focus = self.next_browser_focus_after_delete(rows);
+        let (contexts, initial_error) = self.resolve_unique_browser_contexts(rows);
+        self.delete_browser_contexts_action(next_focus, contexts, initial_error)
+    }
+
+    pub(crate) fn delete_browser_sample_paths_action(
+        &mut self,
+        paths: &[PathBuf],
+        primary_visible_row: Option<usize>,
+    ) -> Result<(), String> {
+        let next_focus = if let Some(row) = primary_visible_row {
+            let action_rows = self.action_rows_from_primary(row);
+            self.next_browser_focus_after_delete(&action_rows)
+        } else {
+            None
+        };
+        let (contexts, initial_error) = self.resolve_unique_browser_contexts_for_paths(paths);
+        self.delete_browser_contexts_action(next_focus, contexts, initial_error)
+    }
+
+    fn delete_browser_contexts_action(
+        &mut self,
+        next_focus: Option<PathBuf>,
+        contexts: Vec<super::super::helpers::TriageSampleContext>,
+        initial_error: Option<String>,
+    ) -> Result<(), String> {
         let selected_source_id = self.selected_source_id();
         let similar_query = self.ui.browser.search.similar_query.clone();
-        let (contexts, initial_error) = self.resolve_unique_browser_contexts(rows);
         if self.warn_if_any_browser_context_busy(&contexts, "deleting") {
             return Ok(());
         }

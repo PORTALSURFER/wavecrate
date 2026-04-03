@@ -34,6 +34,17 @@ impl AppController {
             .set_loop_marker_browser_samples(rows, looped, primary_visible_row)
     }
 
+    /// Apply or clear loop markers for browser targets resolved from relative paths.
+    pub(crate) fn set_loop_marker_browser_sample_paths(
+        &mut self,
+        paths: &[PathBuf],
+        looped: bool,
+        primary_visible_row: usize,
+    ) -> Result<(), String> {
+        self.browser()
+            .set_loop_marker_browser_sample_paths_action(paths, looped, primary_visible_row)
+    }
+
     /// Update the stored BPM metadata for multiple visible browser rows.
     pub fn set_bpm_browser_samples(
         &mut self,
@@ -43,6 +54,17 @@ impl AppController {
     ) -> Result<(), String> {
         self.browser()
             .set_bpm_browser_samples(rows, bpm, primary_visible_row)
+    }
+
+    /// Update stored BPM metadata for browser targets resolved from relative paths.
+    pub(crate) fn set_bpm_browser_sample_paths(
+        &mut self,
+        paths: &[PathBuf],
+        bpm: f32,
+        primary_visible_row: usize,
+    ) -> Result<(), String> {
+        self.browser()
+            .set_bpm_browser_sample_paths_action(paths, bpm, primary_visible_row)
     }
 
     /// Normalize a single visible browser row in-place (overwrites audio).
@@ -81,9 +103,20 @@ impl AppController {
         self.browser().delete_browser_samples(rows)
     }
 
-    pub(crate) fn resolve_browser_sample(
+    /// Delete browser targets resolved from relative paths and restore focus from the primary row.
+    pub(crate) fn delete_browser_sample_paths(
         &mut self,
-        row: usize,
+        paths: &[PathBuf],
+        primary_visible_row: Option<usize>,
+    ) -> Result<(), String> {
+        self.browser()
+            .delete_browser_sample_paths_action(paths, primary_visible_row)
+    }
+
+    /// Resolve one browser context directly from a source-relative sample path.
+    pub(crate) fn resolve_browser_context_for_path(
+        &mut self,
+        relative_path: &Path,
     ) -> Result<helpers::TriageSampleContext, String> {
         let source = if let Some(source) = self.current_source() {
             source
@@ -96,16 +129,23 @@ impl AppController {
                 .and_then(|id| self.library.sources.iter().find(|s| &s.id == id))
                 .cloned();
             fallback.ok_or_else(|| {
-                warn!(row, "triage tag: no current source and no fallback");
+                warn!(
+                    path = %relative_path.display(),
+                    "triage tag: no current source and no fallback"
+                );
                 "Select a source first".to_string()
             })?
         };
-        let index = self.visible_browser_index(row).ok_or_else(|| {
-            warn!(row, "triage tag: visible row missing");
+        let entry_index = self.wav_index_for_path(relative_path).ok_or_else(|| {
+            warn!(path = %relative_path.display(), "triage tag: wav entry missing");
             "Sample not found".to_string()
         })?;
-        let entry = self.wav_entry(index).cloned().ok_or_else(|| {
-            warn!(row, index, "triage tag: wav entry missing");
+        let entry = self.wav_entry(entry_index).cloned().ok_or_else(|| {
+            warn!(
+                path = %relative_path.display(),
+                entry_index,
+                "triage tag: wav entry missing"
+            );
             "Sample not found".to_string()
         })?;
         let absolute_path = source.root.join(&entry.relative_path);
@@ -114,6 +154,17 @@ impl AppController {
             entry,
             absolute_path,
         })
+    }
+
+    pub(crate) fn resolve_browser_sample(
+        &mut self,
+        row: usize,
+    ) -> Result<helpers::TriageSampleContext, String> {
+        let relative_path = self.browser_path_for_visible(row).ok_or_else(|| {
+            warn!(row, "triage tag: visible row missing");
+            "Sample not found".to_string()
+        })?;
+        self.resolve_browser_context_for_path(&relative_path)
     }
 
     pub(crate) fn prune_cached_sample(&mut self, source: &SampleSource, relative_path: &Path) {

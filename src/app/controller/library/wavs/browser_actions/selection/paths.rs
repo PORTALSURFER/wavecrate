@@ -77,6 +77,20 @@ impl AppController {
         self.ui.browser.selection.selected_paths.clone()
     }
 
+    /// Return action-target paths for one primary visible row plus hidden multi-selection paths.
+    pub(crate) fn browser_action_paths_from_primary(
+        &mut self,
+        primary_visible_row: usize,
+    ) -> Vec<PathBuf> {
+        let mut paths = self.browser_selected_paths_snapshot();
+        if let Some(primary_path) = self.browser_path_for_visible(primary_visible_row)
+            && !paths.contains(&primary_path)
+        {
+            paths.push(primary_path);
+        }
+        paths
+    }
+
     /// Replace browser multi-selection with an ordered set of relative paths.
     pub(crate) fn set_browser_selected_paths(&mut self, paths: Vec<PathBuf>) {
         let mut selected_paths = Vec::with_capacity(paths.len());

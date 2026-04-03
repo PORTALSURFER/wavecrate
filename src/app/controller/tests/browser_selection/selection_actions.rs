@@ -84,6 +84,29 @@ fn update_selection_paths_rewrites_browser_selected_paths() {
 }
 
 #[test]
+fn browser_action_paths_keep_hidden_selected_members() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.cache_db(&source).unwrap();
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.focus_browser_row_only(0);
+    controller.toggle_browser_row_selection(1);
+
+    controller.set_browser_search(String::from("one"));
+
+    assert_eq!(
+        controller.browser_action_paths_from_primary(0),
+        vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")]
+    );
+}
+
+#[test]
 fn update_cached_entry_replaces_old_path_in_lookup() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());

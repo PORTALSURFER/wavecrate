@@ -101,14 +101,7 @@ impl AppController {
 
     fn browser_mark_target_paths(&mut self) -> Option<Vec<PathBuf>> {
         let primary_row = self.focused_browser_row()?;
-        let rows = self.action_rows_from_primary(primary_row);
-        let mut paths = Vec::with_capacity(rows.len());
-        for row in rows {
-            let path = self.browser_path_for_visible(row)?;
-            if !paths.contains(&path) {
-                paths.push(path);
-            }
-        }
+        let paths = self.browser_action_paths_from_primary(primary_row);
         (!paths.is_empty()).then_some(paths)
     }
 

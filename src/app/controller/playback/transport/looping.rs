@@ -74,15 +74,15 @@ fn cycle_loop_lock_state(controller: &mut AppController) -> LoopToggleState {
 }
 
 /// Browser action rows used for multi-sample loop/BPM metadata writes.
-struct LoopActionRows {
+struct LoopActionTargets {
     /// Primary browser row (loaded sample when visible).
     primary_row: Option<usize>,
-    /// Action rows (selection plus primary when needed).
-    rows: Vec<usize>,
+    /// Action target paths (selection plus primary when needed).
+    paths: Vec<std::path::PathBuf>,
 }
 
-/// Resolve action rows targeted by loop metadata updates.
-fn loop_action_rows(controller: &mut AppController) -> LoopActionRows {
+/// Resolve action paths targeted by loop metadata updates.
+fn loop_action_targets(controller: &mut AppController) -> LoopActionTargets {
     let loaded_path = controller
         .sample_view
         .wav
@@ -92,17 +92,17 @@ fn loop_action_rows(controller: &mut AppController) -> LoopActionRows {
     let primary_row = loaded_path
         .as_ref()
         .and_then(|path| controller.visible_row_for_path(path));
-    let rows = primary_row
-        .map(|row| controller.action_rows_from_primary(row))
+    let paths = primary_row
+        .map(|row| controller.browser_action_paths_from_primary(row))
         .unwrap_or_default();
-    LoopActionRows { primary_row, rows }
+    LoopActionTargets { primary_row, paths }
 }
 
 /// Persist loop marker state to selected browser rows or loaded-sample fallback.
 fn persist_loop_toggle_markers(controller: &mut AppController, state: LoopToggleState) {
-    let action_rows = loop_action_rows(controller);
-    if !action_rows.rows.is_empty() {
-        persist_browser_loop_markers(controller, &action_rows, state);
+    let action_targets = loop_action_targets(controller);
+    if !action_targets.paths.is_empty() {
+        persist_browser_loop_markers(controller, &action_targets, state);
     } else {
         persist_loaded_sample_loop_marker(controller, state.loop_enabled);
     }
@@ -111,12 +111,12 @@ fn persist_loop_toggle_markers(controller: &mut AppController, state: LoopToggle
 /// Persist loop markers (and initial BPM when enabling) across targeted browser rows.
 fn persist_browser_loop_markers(
     controller: &mut AppController,
-    action_rows: &LoopActionRows,
+    action_targets: &LoopActionTargets,
     state: LoopToggleState,
 ) {
-    let primary_row = action_rows.primary_row.unwrap_or(0);
-    if let Err(err) = controller.set_loop_marker_browser_samples(
-        &action_rows.rows,
+    let primary_row = action_targets.primary_row.unwrap_or(0);
+    if let Err(err) = controller.set_loop_marker_browser_sample_paths(
+        &action_targets.paths,
         state.loop_enabled,
         primary_row,
     ) {
@@ -126,7 +126,8 @@ fn persist_browser_loop_markers(
         && let Some(bpm) = controller.ui.waveform.bpm_value
         && bpm.is_finite()
         && bpm > 0.0
-        && let Err(err) = controller.set_bpm_browser_samples(&action_rows.rows, bpm, primary_row)
+        && let Err(err) =
+            controller.set_bpm_browser_sample_paths(&action_targets.paths, bpm, primary_row)
     {
         tracing::warn!("Failed to save BPM to browser samples: {err}");
     }

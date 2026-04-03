@@ -160,24 +160,14 @@ impl AppController {
 
     /// Delete the focused browser row or active multi-selection, if any.
     pub(crate) fn delete_active_browser_selection(&mut self) -> bool {
-        let mut rows: Vec<usize> = self
-            .browser_selected_indices_snapshot()
-            .iter()
-            .filter_map(|entry_index| self.browser_visible_row_for_entry(*entry_index))
-            .collect();
-        if let Some(row) = self.focused_browser_row() {
-            if rows.is_empty() {
-                rows = self.action_rows_from_primary(row);
-            } else if !rows.contains(&row) {
-                rows.push(row);
-            }
-        }
-        rows.sort_unstable();
-        rows.dedup();
-        if rows.is_empty() {
+        let primary_row = self.focused_browser_row();
+        let target_paths = primary_row
+            .map(|row| self.browser_action_paths_from_primary(row))
+            .unwrap_or_else(|| self.browser_selected_paths_snapshot());
+        if target_paths.is_empty() {
             return false;
         }
-        if let Err(err) = self.delete_browser_samples(&rows)
+        if let Err(err) = self.delete_browser_sample_paths(&target_paths, primary_row)
             && self.ui.status.text != err
         {
             self.set_status(err, StatusTone::Error);

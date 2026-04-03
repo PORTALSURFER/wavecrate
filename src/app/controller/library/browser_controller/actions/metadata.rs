@@ -1,4 +1,5 @@
 use super::common::format_bpm_label;
+use super::super::helpers::TriageSampleContext;
 use super::*;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -63,7 +64,47 @@ impl BrowserController<'_> {
         looped: bool,
         primary_visible_row: usize,
     ) -> Result<(), String> {
-        let (contexts, mut last_error) = self.resolve_unique_browser_contexts(rows);
+        let (contexts, last_error) = self.resolve_unique_browser_contexts(rows);
+        self.apply_loop_marker_contexts(contexts, last_error, looped, primary_visible_row)
+    }
+
+    pub(crate) fn set_loop_marker_browser_sample_paths_action(
+        &mut self,
+        paths: &[PathBuf],
+        looped: bool,
+        primary_visible_row: usize,
+    ) -> Result<(), String> {
+        let (contexts, last_error) = self.resolve_unique_browser_contexts_for_paths(paths);
+        self.apply_loop_marker_contexts(contexts, last_error, looped, primary_visible_row)
+    }
+
+    pub(super) fn set_bpm_browser_samples_action(
+        &mut self,
+        rows: &[usize],
+        bpm: f32,
+        primary_visible_row: usize,
+    ) -> Result<(), String> {
+        let (contexts, last_error) = self.resolve_unique_browser_contexts(rows);
+        self.apply_bpm_contexts(contexts, last_error, bpm, primary_visible_row)
+    }
+
+    pub(crate) fn set_bpm_browser_sample_paths_action(
+        &mut self,
+        paths: &[PathBuf],
+        bpm: f32,
+        primary_visible_row: usize,
+    ) -> Result<(), String> {
+        let (contexts, last_error) = self.resolve_unique_browser_contexts_for_paths(paths);
+        self.apply_bpm_contexts(contexts, last_error, bpm, primary_visible_row)
+    }
+
+    fn apply_loop_marker_contexts(
+        &mut self,
+        contexts: Vec<TriageSampleContext>,
+        mut last_error: Option<String>,
+        looped: bool,
+        primary_visible_row: usize,
+    ) -> Result<(), String> {
         let action_label = if looped {
             "Marked loop"
         } else {
@@ -86,23 +127,23 @@ impl BrowserController<'_> {
         }
         self.refocus_after_filtered_removal(primary_visible_row);
         if let Some(err) = last_error {
-            warn!(?rows, looped, error = %err, "loop marker failed for multi row");
+            warn!(looped, error = %err, "loop marker failed for multi row");
             Err(err)
         } else {
             Ok(())
         }
     }
 
-    pub(super) fn set_bpm_browser_samples_action(
+    fn apply_bpm_contexts(
         &mut self,
-        rows: &[usize],
+        contexts: Vec<TriageSampleContext>,
+        mut last_error: Option<String>,
         bpm: f32,
         primary_visible_row: usize,
     ) -> Result<(), String> {
         if !bpm.is_finite() || bpm <= 0.0 {
             return Err("BPM must be a positive number".to_string());
         }
-        let (contexts, mut last_error) = self.resolve_unique_browser_contexts(rows);
         let mut grouped: HashMap<SourceId, (SampleSource, Vec<PathBuf>)> = HashMap::new();
         for ctx in contexts {
             grouped
@@ -156,7 +197,7 @@ impl BrowserController<'_> {
         }
         self.refocus_after_filtered_removal(primary_visible_row);
         if let Some(err) = last_error {
-            warn!(?rows, bpm, error = %err, "bpm update failed for browser samples");
+            warn!(bpm, error = %err, "bpm update failed for browser samples");
             Err(err)
         } else {
             Ok(())

@@ -24,10 +24,10 @@ pub(super) fn prepare_tagging_selection(
         .wav_entry(selected_index)
         .map(|entry| entry.relative_path.clone())?;
     let primary_row = controller.visible_row_for_path(&refocus_path)?;
-    let rows = controller.action_rows_from_primary(primary_row);
+    let action_paths = controller.browser_action_paths_from_primary(primary_row);
     controller.focus_browser_context();
     controller.ui.browser.selection.autoscroll = true;
-    let (contexts, last_error) = collect_unique_contexts(controller, rows);
+    let (contexts, last_error) = collect_unique_contexts(controller, action_paths);
     Some(TaggingSelection {
         primary_row,
         refocus_path,
@@ -38,16 +38,16 @@ pub(super) fn prepare_tagging_selection(
 
 fn collect_unique_contexts(
     controller: &mut AppController,
-    rows: Vec<usize>,
+    paths: Vec<PathBuf>,
 ) -> (
     Vec<crate::app::controller::library::browser_controller::helpers::TriageSampleContext>,
     Option<String>,
 ) {
-    let mut contexts = Vec::with_capacity(rows.len());
+    let mut contexts = Vec::with_capacity(paths.len());
     let mut seen = std::collections::HashSet::new();
     let mut last_error = None;
-    for row in rows {
-        match controller.resolve_browser_sample(row) {
+    for path in paths {
+        match controller.resolve_browser_context_for_path(&path) {
             Ok(ctx) => {
                 if seen.insert(ctx.entry.relative_path.clone()) {
                     contexts.push(ctx);

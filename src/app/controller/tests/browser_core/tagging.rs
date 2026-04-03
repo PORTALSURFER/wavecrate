@@ -77,6 +77,42 @@ fn tagging_under_filter_advances_focus_to_next_visible() {
 }
 
 #[test]
+fn tagging_under_search_filter_updates_hidden_selected_paths() {
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.focus_browser_row_only(0);
+    controller.toggle_browser_row_selection(1);
+    controller.focus_browser_row_only(0);
+
+    controller.set_browser_search(String::from("one"));
+    controller.tag_selected(crate::sample_sources::Rating::KEEP_1);
+
+    let one_index = controller.wav_index_for_path(Path::new("one.wav")).unwrap();
+    let two_index = controller.wav_index_for_path(Path::new("two.wav")).unwrap();
+    let three_index = controller.wav_index_for_path(Path::new("three.wav")).unwrap();
+
+    assert_eq!(
+        controller.wav_entry(one_index).unwrap().tag,
+        crate::sample_sources::Rating::KEEP_1
+    );
+    assert_eq!(
+        controller.wav_entry(two_index).unwrap().tag,
+        crate::sample_sources::Rating::KEEP_1
+    );
+    assert_eq!(
+        controller.wav_entry(three_index).unwrap().tag,
+        crate::sample_sources::Rating::NEUTRAL
+    );
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
+        vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")]
+    );
+}
+
+#[test]
 fn rating_filter_rating_keeps_focus_on_next_visible_item() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
