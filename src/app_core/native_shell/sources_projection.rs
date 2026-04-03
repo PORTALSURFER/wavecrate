@@ -36,9 +36,11 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
         flattened_view: active_flattened_view,
         can_toggle_flattened_view: active_can_toggle_flattened_view,
         selected_row: ui.sources.selected,
-        loading_row: ui.sources.loading_source_id.as_ref().and_then(|source_id| {
-            ui.sources.rows.iter().position(|row| row.id == *source_id)
-        }),
+        loading_row: ui
+            .sources
+            .loading_source_id
+            .as_ref()
+            .and_then(|source_id| ui.sources.rows.iter().position(|row| row.id == *source_id)),
         focused_folder_row: active_focused_folder_row,
         rows: ui
             .sources

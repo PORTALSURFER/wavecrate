@@ -4,8 +4,6 @@ mod audio_action_playback;
 mod browser_actions;
 /// Runtime-default async browser-search controller coverage.
 mod browser_async;
-/// Async source-hydration coverage for source switching and pane assignment.
-mod source_async;
 mod browser_core;
 /// Browser-row inline metadata regression tests.
 mod browser_inline_tags;
@@ -32,6 +30,8 @@ mod rating_logic;
 mod recording;
 mod selection_bpm_scale;
 mod selection_undo;
+/// Async source-hydration coverage for source switching and pane assignment.
+mod source_async;
 mod transient_options;
 mod trash;
 mod undo_file_ops;

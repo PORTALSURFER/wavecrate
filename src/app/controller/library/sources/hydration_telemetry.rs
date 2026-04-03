@@ -61,10 +61,7 @@ pub(super) fn record_source_hydration_stale_drop() {
 
 fn maybe_emit_source_hydration_telemetry(sample_tick: u64) {
     if !source_hydration_telemetry_enabled()
-        || !hotpath_telemetry::should_emit(
-            sample_tick,
-            SOURCE_HYDRATION_TELEMETRY_LOG_EVERY,
-        )
+        || !hotpath_telemetry::should_emit(sample_tick, SOURCE_HYDRATION_TELEMETRY_LOG_EVERY)
     {
         return;
     }

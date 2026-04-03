@@ -186,7 +186,10 @@ impl AppController {
                     .runtime
                     .pending_active_source_hydration
                     .as_ref()
-                    .is_none_or(|pending| Some(&pending.source_id) != self.selection_state.ctx.selected_source.as_ref())
+                    .is_none_or(|pending| {
+                        Some(&pending.source_id)
+                            != self.selection_state.ctx.selected_source.as_ref()
+                    })
                 {
                     self.queue_wav_load();
                 }

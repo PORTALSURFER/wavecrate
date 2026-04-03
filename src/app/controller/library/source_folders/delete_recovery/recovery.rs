@@ -133,7 +133,10 @@ fn recover_journaled_entries(
         match recover_journaled_entry(source, staging_root, &entry) {
             Some(JournaledRecoveryOutcome::Completed(result)) => {
                 if result.needs_hard_sync {
-                    push_unique_scan_source(&mut report.scan_sources, &result.report_entry.source_id);
+                    push_unique_scan_source(
+                        &mut report.scan_sources,
+                        &result.report_entry.source_id,
+                    );
                 }
                 report.entries.push(result.report_entry);
                 if result.remove_from_journal

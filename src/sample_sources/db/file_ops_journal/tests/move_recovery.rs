@@ -229,7 +229,10 @@ fn reconcile_move_defers_when_target_exists_and_journal_identity_is_incomplete()
     assert_eq!(list_entries(&fixture.target_db).unwrap().entries.len(), 1);
     assert!(fixture.staged_absolute().exists());
     assert!(!fixture.source_absolute().exists());
-    assert_eq!(std::fs::read(fixture.target_absolute()).unwrap(), vec![7u8; 8]);
+    assert_eq!(
+        std::fs::read(fixture.target_absolute()).unwrap(),
+        vec![7u8; 8]
+    );
     assert_eq!(
         fixture
             .target_db

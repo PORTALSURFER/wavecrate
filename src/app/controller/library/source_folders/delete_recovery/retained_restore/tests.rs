@@ -183,8 +183,8 @@ fn retained_restore_after_restart_does_not_create_undo_history() -> Result<(), S
 }
 
 #[test]
-fn retained_restore_clears_stale_last_played_at_when_deleted_snapshot_has_none() -> Result<(), String>
-{
+fn retained_restore_clears_stale_last_played_at_when_deleted_snapshot_has_none()
+-> Result<(), String> {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     let deleted_entries = vec![WavEntry {

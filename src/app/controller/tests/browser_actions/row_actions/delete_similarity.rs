@@ -39,7 +39,10 @@ fn delete_active_browser_selection_includes_hidden_selected_paths() {
     controller.toggle_browser_row_selection(1);
     controller.set_browser_search(String::from("one"));
 
-    assert_eq!(visible_browser_paths(&mut controller), vec![PathBuf::from("one.wav")]);
+    assert_eq!(
+        visible_browser_paths(&mut controller),
+        vec![PathBuf::from("one.wav")]
+    );
 
     assert!(controller.delete_active_browser_selection());
 

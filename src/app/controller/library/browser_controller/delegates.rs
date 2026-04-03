@@ -41,8 +41,11 @@ impl AppController {
         looped: bool,
         primary_visible_row: usize,
     ) -> Result<(), String> {
-        self.browser()
-            .set_loop_marker_browser_sample_paths_action(paths, looped, primary_visible_row)
+        self.browser().set_loop_marker_browser_sample_paths_action(
+            paths,
+            looped,
+            primary_visible_row,
+        )
     }
 
     /// Update the stored BPM metadata for multiple visible browser rows.

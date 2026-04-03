@@ -3,9 +3,9 @@ use super::super::jobs::{
 };
 use super::super::library::sources::hydration::with_source_hydration_async_enabled_for_tests;
 use super::super::library::wavs::with_browser_async_pipeline_enabled_for_tests;
-use super::common::visible_indices;
 use super::super::test_support::sample_entry;
 use super::super::*;
+use super::common::visible_indices;
 use crate::app::state::FolderPaneId;
 use crate::sample_sources::Rating;
 use std::collections::{BTreeSet, HashMap};
@@ -28,17 +28,27 @@ fn build_controller_with_sources(names: &[&str]) -> (AppController, Vec<SampleSo
     }
     controller.assign_source_to_folder_pane(FolderPaneId::Upper, Some(sources[0].id.clone()));
     controller.selection_state.ctx.selected_source = Some(sources[0].id.clone());
-    controller.selection_state.ctx.last_selected_browsable_source = Some(sources[0].id.clone());
+    controller
+        .selection_state
+        .ctx
+        .last_selected_browsable_source = Some(sources[0].id.clone());
     controller.refresh_sources_ui();
     (controller, sources)
 }
 
-fn cache_source_entries(controller: &mut AppController, source: &SampleSource, entries: Vec<WavEntry>) {
+fn cache_source_entries(
+    controller: &mut AppController,
+    source: &SampleSource,
+    entries: Vec<WavEntry>,
+) {
     let total = entries.len();
-    controller
-        .cache
-        .wav
-        .insert_page(source.id.clone(), total, controller.wav_entries.page_size, 0, entries);
+    controller.cache.wav.insert_page(
+        source.id.clone(),
+        total,
+        controller.wav_entries.page_size,
+        0,
+        entries,
+    );
 }
 
 fn upsert_source_db_entry(controller: &mut AppController, source: &SampleSource, entry: &WavEntry) {
@@ -117,7 +127,10 @@ fn selecting_cached_source_clears_browser_until_async_hydration_applies() {
         controller.select_source_by_index(1);
 
         assert_eq!(controller.ui.sources.selected, Some(1));
-        assert_eq!(controller.ui.sources.loading_source_id, Some(sources[1].id.clone()));
+        assert_eq!(
+            controller.ui.sources.loading_source_id,
+            Some(sources[1].id.clone())
+        );
         assert!(controller.ui.browser.search.source_loading);
         assert!(!controller.ui.browser.search.search_busy);
         assert!(visible_indices(&controller).is_empty());
@@ -148,7 +161,13 @@ fn selecting_cached_source_clears_browser_until_async_hydration_applies() {
         Some(PathBuf::from("folder/kick.wav"))
     );
     assert!(!controller.ui.browser.search.source_loading);
-    assert!(!controller.ui.sources.folder_pane(FolderPaneId::Upper).loading);
+    assert!(
+        !controller
+            .ui
+            .sources
+            .folder_pane(FolderPaneId::Upper)
+            .loading
+    );
 }
 
 #[test]
@@ -215,7 +234,10 @@ fn stale_uncached_source_hydration_result_is_dropped() {
     });
 
     assert_eq!(visible_indices(&controller), vec![0]);
-    assert_eq!(controller.sample_view.wav.selected_wav, Some(PathBuf::from("vox.wav")));
+    assert_eq!(
+        controller.sample_view.wav.selected_wav,
+        Some(PathBuf::from("vox.wav"))
+    );
     assert!(!controller.ui.browser.search.source_loading);
 }
 
@@ -234,9 +256,26 @@ fn inactive_pane_source_hydration_keeps_active_browser_state_stable() {
 
         assert_eq!(controller.selected_source_id(), Some(sources[0].id.clone()));
         assert_eq!(visible_indices(&controller), vec![0]);
-        assert_eq!(controller.sample_view.wav.selected_wav, Some(PathBuf::from("alpha.wav")));
-        assert!(controller.ui.sources.folder_pane(FolderPaneId::Lower).loading);
-        assert!(controller.ui.sources.folder_pane(FolderPaneId::Lower).browser.rows.is_empty());
+        assert_eq!(
+            controller.sample_view.wav.selected_wav,
+            Some(PathBuf::from("alpha.wav"))
+        );
+        assert!(
+            controller
+                .ui
+                .sources
+                .folder_pane(FolderPaneId::Lower)
+                .loading
+        );
+        assert!(
+            controller
+                .ui
+                .sources
+                .folder_pane(FolderPaneId::Lower)
+                .browser
+                .rows
+                .is_empty()
+        );
 
         let request_id = controller
             .runtime
@@ -258,11 +297,26 @@ fn inactive_pane_source_hydration_keeps_active_browser_state_stable() {
     });
 
     assert_eq!(controller.selected_source_id(), Some(sources[0].id.clone()));
-    assert_eq!(controller.sample_view.wav.selected_wav, Some(PathBuf::from("alpha.wav")));
-    assert_eq!(visible_indices(&controller), vec![0]);
-    assert!(!controller.ui.sources.folder_pane(FolderPaneId::Lower).loading);
     assert_eq!(
-        controller.ui.sources.folder_pane(FolderPaneId::Lower).browser.rows.len(),
+        controller.sample_view.wav.selected_wav,
+        Some(PathBuf::from("alpha.wav"))
+    );
+    assert_eq!(visible_indices(&controller), vec![0]);
+    assert!(
+        !controller
+            .ui
+            .sources
+            .folder_pane(FolderPaneId::Lower)
+            .loading
+    );
+    assert_eq!(
+        controller
+            .ui
+            .sources
+            .folder_pane(FolderPaneId::Lower)
+            .browser
+            .rows
+            .len(),
         2
     );
 }

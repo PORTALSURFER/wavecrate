@@ -1,5 +1,5 @@
-use super::common::format_bpm_label;
 use super::super::helpers::TriageSampleContext;
+use super::common::format_bpm_label;
 use super::*;
 use std::collections::HashMap;
 use std::path::PathBuf;

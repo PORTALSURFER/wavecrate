@@ -9,12 +9,7 @@ fn completed_recovery(
 ) -> JournaledRecoveryOutcome {
     let remove_from_journal = outcome.is_ok();
     JournaledRecoveryOutcome::Completed(JournaledRecovery {
-        report_entry: recovery_entry(
-            source,
-            original_relative,
-            action,
-            outcome,
-        ),
+        report_entry: recovery_entry(source, original_relative, action, outcome),
         remove_from_journal,
         needs_hard_sync: remove_from_journal && needs_hard_sync,
     })
@@ -27,7 +22,7 @@ pub(super) fn recover_retained_delete(
     original: &Path,
     entry: &DeleteJournalEntry,
 ) -> Option<JournaledRecoveryOutcome> {
-    if staged.exists() && !original.exists() {
+    if staged.exists() {
         return Some(JournaledRecoveryOutcome::Retained(RetainedRecovery {
             retained_entry: RetainedDeleteEntry {
                 id: entry.id.clone(),
@@ -39,7 +34,7 @@ pub(super) fn recover_retained_delete(
             },
         }));
     }
-    if !staged.exists() && original.exists() {
+    if original.exists() {
         return Some(completed_recovery(
             source,
             original_relative.to_path_buf(),
@@ -48,24 +43,11 @@ pub(super) fn recover_retained_delete(
             false,
         ));
     }
-    if !staged.exists() && !original.exists() {
-        return Some(completed_recovery(
-            source,
-            original_relative.to_path_buf(),
-            DeleteRecoveryAction::Finalize,
-            Ok(Some("Already purged".into())),
-            false,
-        ));
-    }
     Some(completed_recovery(
         source,
         original_relative.to_path_buf(),
         DeleteRecoveryAction::Finalize,
-        Err(format!(
-            "Retained delete state is inconsistent (original exists: {}, staged exists: {})",
-            original.exists(),
-            staged.exists()
-        )),
+        Ok(Some("Already purged".into())),
         false,
     ))
 }

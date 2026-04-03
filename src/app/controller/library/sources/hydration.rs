@@ -1,10 +1,10 @@
 use super::super::*;
 use super::hydration_telemetry;
+#[cfg(not(test))]
+use crate::app::controller::jobs::JobMessage;
 use crate::app::controller::jobs::{
     SourceHydrationJob, SourceHydrationKind, SourceHydrationResult, SourceHydrationSnapshot,
 };
-#[cfg(not(test))]
-use crate::app::controller::jobs::JobMessage;
 use crate::app::controller::state::cache::FolderBrowserCacheKey;
 use crate::app::controller::state::runtime::PendingSourceHydration;
 use crate::app::state::{FolderBrowserUiState, FolderPaneId};
@@ -139,7 +139,10 @@ impl AppController {
                 self.apply_folder_snapshot_to_pane(
                     pane,
                     &source_id,
-                    &self.current_source().expect("selected source should exist").root,
+                    &self
+                        .current_source()
+                        .expect("selected source should exist")
+                        .root,
                     snapshot.available_folders,
                 );
                 self.apply_post_source_hydration_selection();
@@ -264,7 +267,10 @@ impl AppController {
                 pending_applied = true;
             }
         }
-        if !pending_applied && self.sample_view.wav.selected_wav.is_none() && self.wav_entries.total > 0 {
+        if !pending_applied
+            && self.sample_view.wav.selected_wav.is_none()
+            && self.wav_entries.total > 0
+        {
             self.selection_state.suppress_autoplay_once = true;
             self.select_wav_by_index_with_rebuild(0, false);
         }
@@ -280,8 +286,12 @@ impl AppController {
             self.ui_cache.browser.labels.remove(source_id);
             self.ui_cache.browser.bpm_values.remove(source_id);
         }
-        let needs_failures =
-            !from_cache || !self.ui_cache.browser.analysis_failures.contains_key(source_id);
+        let needs_failures = !from_cache
+            || !self
+                .ui_cache
+                .browser
+                .analysis_failures
+                .contains_key(source_id);
         if needs_failures {
             if let Some(source) = self
                 .library
@@ -297,7 +307,11 @@ impl AppController {
         }
         self.sync_missing_from_db(source_id);
         self.set_status(
-            format!("Loaded {} wav files in {} ms", self.wav_entries.total, elapsed.as_millis()),
+            format!(
+                "Loaded {} wav files in {} ms",
+                self.wav_entries.total,
+                elapsed.as_millis()
+            ),
             StatusTone::Info,
         );
         crate::app::controller::library::wavs::apply_pending_similarity_filter_rebuild(self);
@@ -365,8 +379,12 @@ impl AppController {
 
     fn source_hydration_matches(&self, message: &SourceHydrationResult) -> bool {
         let pending = match message.kind {
-            SourceHydrationKind::ActiveSelection => self.runtime.pending_active_source_hydration.as_ref(),
-            SourceHydrationKind::InactivePane => self.runtime.pending_inactive_source_hydration.as_ref(),
+            SourceHydrationKind::ActiveSelection => {
+                self.runtime.pending_active_source_hydration.as_ref()
+            }
+            SourceHydrationKind::InactivePane => {
+                self.runtime.pending_inactive_source_hydration.as_ref()
+            }
         };
         pending.is_some_and(|pending| {
             pending.request_id == message.request_id

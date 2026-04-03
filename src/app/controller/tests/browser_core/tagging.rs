@@ -92,7 +92,9 @@ fn tagging_under_search_filter_updates_hidden_selected_paths() {
 
     let one_index = controller.wav_index_for_path(Path::new("one.wav")).unwrap();
     let two_index = controller.wav_index_for_path(Path::new("two.wav")).unwrap();
-    let three_index = controller.wav_index_for_path(Path::new("three.wav")).unwrap();
+    let three_index = controller
+        .wav_index_for_path(Path::new("three.wav"))
+        .unwrap();
 
     assert_eq!(
         controller.wav_entry(one_index).unwrap().tag,

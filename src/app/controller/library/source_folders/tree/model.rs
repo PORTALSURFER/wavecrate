@@ -84,11 +84,10 @@ impl FolderBrowserModel {
             .retain(|path| is_root_path(path) || self.available.contains(path));
         self.expanded.retain(|path| self.available.contains(path));
         if self.expanded.is_empty() {
-            for dir in self
-                .available
-                .iter()
-                .filter(|path| path.parent().is_none_or(|parent| parent.as_os_str().is_empty()))
-            {
+            for dir in self.available.iter().filter(|path| {
+                path.parent()
+                    .is_none_or(|parent| parent.as_os_str().is_empty())
+            }) {
                 self.expanded.insert(dir.clone());
             }
         }

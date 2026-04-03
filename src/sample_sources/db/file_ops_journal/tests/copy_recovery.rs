@@ -239,8 +239,14 @@ fn reconcile_copy_defers_when_target_exists_and_journal_identity_is_incomplete()
         target_db.tag_for_path(&target_relative).unwrap(),
         Some(Rating::TRASH_3)
     );
-    assert_eq!(target_db.looped_for_path(&target_relative).unwrap(), Some(false));
-    assert_eq!(target_db.locked_for_path(&target_relative).unwrap(), Some(false));
+    assert_eq!(
+        target_db.looped_for_path(&target_relative).unwrap(),
+        Some(false)
+    );
+    assert_eq!(
+        target_db.locked_for_path(&target_relative).unwrap(),
+        Some(false)
+    );
     assert_eq!(
         target_db.last_played_at_for_path(&target_relative).unwrap(),
         Some(77)
