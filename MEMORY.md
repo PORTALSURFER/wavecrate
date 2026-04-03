@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-03T21:02:52Z
+Last Updated: 2026-04-03T21:20:00Z
 Updated By: Codex
 
 ## Purpose
@@ -17,7 +17,8 @@ Updated By: Codex
 - Phase 2 is active for the refreshed performance lane, and the ranked backlog in `tmp/perf_plan.md` is being implemented sequentially.
 - Item 1 is complete in `vendor/radiant` commit `9fe71ec9`: the native runtime now caches hover, focus, and modal overlays independently instead of rebuilding one monolithic state-overlay scene.
 - Item 2 is complete in `vendor/radiant` commit `58e5fe24`: the static native-shell frame builder now renders browser rows, toolbar geometry, and sidebar sections directly from retained caches instead of materializing fresh browser/source/folder vectors on every build.
-- The latest benchmark evidence comes from `target/perf/bench.json`, where item 2 held `hover_latency` at `3042us` p95 while improving `wheel_latency` to `2622us` p95, `browser_focus_commit_latency` to `96us` p95, and `waveform_pan_zoom_adjacent_latency` to `89us` p95.
+- Item 3 is complete in commit `2bb31ea2`: the native bridge now keeps one retained `Arc<NativeAppModel>` and uses `Arc::make_mut` on projection misses so the full app model is no longer cloned unconditionally on every miss.
+- The latest benchmark evidence comes from `target/perf/bench.json`, where item 3 reduced `interactive_projection` to `2911us` p95 and `app_model_projection` to `2408us` p95 while also improving `hover_latency` to `2376us` p95, `wheel_latency` to `2549us` p95, and `browser_filter_churn_latency` to `2420us` p95.
 - The current top ROI items are:
   - reuse retained browser-row/static frame data during native-shell scene builds
   - stop cloning the full retained `NativeAppModel` on every bridge projection miss
@@ -32,13 +33,13 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue with item 3 from `tmp/perf_plan.md`: stop cloning the entire retained native app model on every bridge projection miss.
+1. Continue with item 4 from `tmp/perf_plan.md`: remove path-clone-heavy whole-list work from the browser filter and mark lanes.
 2. Keep `tmp/perf_plan.md`, `AGENTS.md`, `MEMORY.md`, `docs/plans/index.md`, and `docs/plans/active/todo.md` synchronized with the performance lane status.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
 
 ## Work Notes
 
-- Active audit plan: `tmp/perf_plan.md` (Phase 2 active; items 1-2 complete in `vendor/radiant` commits `9fe71ec9` and `58e5fe24`)
+- Active audit plan: `tmp/perf_plan.md` (Phase 2 active; items 1-3 complete in commits `9fe71ec9`, `58e5fe24`, and `2bb31ea2`)
 - Current hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`

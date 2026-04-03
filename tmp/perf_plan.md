@@ -1,7 +1,7 @@
 # Runtime Performance Audit Backlog
 
 Generated: 2026-04-03 (Europe/Amsterdam)
-Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored and items 1-2 are complete with item 3 next in strict ROI order.
+Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored and items 1-3 are complete with item 4 next in strict ROI order.
 
 ## Validation Baseline
 
@@ -87,7 +87,7 @@ Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored 
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
     - `target/perf/bench.json`: `hover_latency.p95_us = 3042`, `wheel_latency.p95_us = 2622`, `browser_focus_commit_latency.p95_us = 96`, `waveform_pan_zoom_adjacent_latency.p95_us = 89`, `browser_filter_churn_latency.p95_us = 3136`
 
-- [ ] 3. Stop cloning the entire retained native app model on every bridge projection miss
+- [x] 3. Stop cloning the entire retained native app model on every bridge projection miss
   - ROI: High
   - Effort: L
   - Expected impact: p95 interaction latency, frame time, memory, CPU
@@ -110,6 +110,12 @@ Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored 
     - Add bridge cache publication tests.
     - Run native-bridge projection-cache tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`.
     - Re-measure `interactive_projection` and `browser_focus_commit_latency`.
+  - Completed: 2026-04-03, commit `2bb31ea2`
+  - Validation status:
+    - `cargo test -p sempal native_bridge::tests::projection_cache -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+    - `target/perf/bench.json`: `interactive_projection.p95_us = 2911`, `app_model_projection.p95_us = 2408`, `hover_latency.p95_us = 2376`, `wheel_latency.p95_us = 2549`, `browser_focus_commit_latency.p95_us = 145`, `browser_filter_churn_latency.p95_us = 2420`, `waveform_pan_zoom_adjacent_latency.p95_us = 92`
 
 - [ ] 4. Remove path-clone-heavy whole-list work from the browser filter and mark lanes
   - ROI: High
