@@ -8,6 +8,7 @@ impl AppController {
         match message {
             JobMessage::WavLoaded(message) => self.handle_wav_loaded_message(message),
             JobMessage::SourceHydrated(message) => self.handle_source_hydrated_message(message),
+            JobMessage::FolderProjected(message) => self.handle_folder_projected_message(message),
             JobMessage::AudioLoaded(message) => self.handle_audio_loaded_message(message),
             JobMessage::RecordingWaveformLoaded(message) => {
                 self.handle_recording_waveform_loaded_message(message)

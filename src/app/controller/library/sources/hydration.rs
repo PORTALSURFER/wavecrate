@@ -8,8 +8,7 @@ use crate::app::controller::jobs::{
 use crate::app::controller::state::cache::FolderBrowserCacheKey;
 use crate::app::controller::state::runtime::PendingSourceHydration;
 use crate::app::state::{FolderBrowserUiState, FolderPaneId};
-use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 
 mod worker;
@@ -130,12 +129,15 @@ impl AppController {
         elapsed: std::time::Duration,
         snapshot: SourceHydrationSnapshot,
     ) {
+        let from_cache = snapshot.from_cache;
         match kind {
             SourceHydrationKind::ActiveSelection => {
                 if !self.install_hydrated_wav_entries(&source_id, &snapshot) {
                     self.finish_source_loading(kind, pane);
                     return;
                 }
+                let available_folders = snapshot.available_folders;
+                let folder_tree = snapshot.folder_tree;
                 self.apply_folder_snapshot_to_pane(
                     pane,
                     &source_id,
@@ -143,10 +145,11 @@ impl AppController {
                         .current_source()
                         .expect("selected source should exist")
                         .root,
-                    snapshot.available_folders,
+                    available_folders,
+                    folder_tree,
                 );
                 self.apply_post_source_hydration_selection();
-                self.finish_source_hydration_metadata(&source_id, snapshot.from_cache, elapsed);
+                self.finish_source_hydration_metadata(&source_id, from_cache, elapsed);
                 if self.should_rebuild_browser_lists_async() {
                     self.dispatch_search_job();
                     if let Some(pending) = self.runtime.pending_active_source_hydration.as_mut() {
@@ -159,6 +162,8 @@ impl AppController {
                 }
             }
             SourceHydrationKind::InactivePane => {
+                let available_folders = snapshot.available_folders;
+                let folder_tree = snapshot.folder_tree;
                 let Some(source) = self
                     .library
                     .sources
@@ -173,7 +178,8 @@ impl AppController {
                     pane,
                     &source_id,
                     &source.root,
-                    snapshot.available_folders,
+                    available_folders,
+                    folder_tree,
                 );
                 self.finish_source_loading(kind, pane);
             }
@@ -184,35 +190,21 @@ impl AppController {
         &mut self,
         pane: FolderPaneId,
         source_id: &SourceId,
-        source_root: &Path,
-        available: BTreeSet<PathBuf>,
+        source_root: &std::path::Path,
+        available: std::collections::BTreeSet<PathBuf>,
+        tree: crate::app::controller::library::source_folders::FolderTreeSnapshot,
     ) {
         let key = FolderBrowserCacheKey {
             pane,
             source_id: source_id.clone(),
         };
-        let existing_ui = if self.active_folder_pane() == pane
-            && self.selection_state.ctx.selected_source.as_ref() == Some(source_id)
-        {
-            self.ui.sources.folders.clone()
-        } else {
-            self.ui.sources.folder_pane(pane).browser.clone()
-        };
-        let snapshot = {
-            let model = self.ui_cache.folders.models.entry(key).or_default();
+        let model = {
+            let model = self.ui_cache.folders.models.entry(key.clone()).or_default();
             model.reconcile_available(source_root, available);
             model.clone()
         };
-        let projected = self.project_folder_browser_ui(&snapshot, &existing_ui, true);
-        if self.active_folder_pane() == pane
-            && self.selection_state.ctx.selected_source.as_ref() == Some(source_id)
-        {
-            self.set_ui_folder_search_query(projected.search_query.clone());
-            self.ui.sources.folders = projected;
-            self.sync_active_folder_ui_to_pane();
-        } else {
-            self.ui.sources.folder_pane_mut(pane).browser = projected;
-        }
+        self.ui_cache.folders.snapshots.insert(key, tree.clone());
+        self.queue_folder_projection_with_snapshot(pane, source_id.clone(), model, tree);
     }
 
     fn install_hydrated_wav_entries(
@@ -325,6 +317,7 @@ impl AppController {
         self.runtime.pending_similarity_filter_rebuild = None;
         self.clear_focused_similarity_highlight();
         self.clear_waveform_view();
+        self.clear_folder_projection_state(self.active_folder_pane());
         self.ui.sources.folders.rows.clear();
         self.ui.sources.folders.focused = None;
         self.ui.sources.folders.scroll_to = None;
@@ -340,6 +333,7 @@ impl AppController {
     }
 
     pub(crate) fn clear_folder_pane_for_loading(&mut self, pane: FolderPaneId) {
+        self.clear_folder_projection_state(pane);
         let existing = self.ui.sources.folder_pane(pane).browser.clone();
         self.ui.sources.folder_pane_mut(pane).browser = FolderBrowserUiState {
             rows: Vec::new(),

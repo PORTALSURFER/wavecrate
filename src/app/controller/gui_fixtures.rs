@@ -310,6 +310,7 @@ fn seed_source_fixture(
         .map_err(|err| format!("cache GUI fixture source DB: {err}"))?;
     write_entries_to_source_db(controller, source, &entries)?;
     controller.wav_entries.clear();
+    controller.wav_entries.source_id = Some(source.id.clone());
     controller.wav_entries.total = entries.len();
     controller.wav_entries.insert_page(0, entries);
     controller.rebuild_wav_lookup();

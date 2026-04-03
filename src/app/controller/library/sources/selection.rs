@@ -257,6 +257,7 @@ impl AppController {
                 id,
             );
         } else {
+            self.clear_folder_projection_state(pane);
             self.ui.sources.folder_pane_mut(pane).browser = FolderBrowserUiState::default();
             self.finish_source_loading(
                 crate::app::controller::jobs::SourceHydrationKind::InactivePane,
@@ -269,6 +270,7 @@ impl AppController {
 
     pub(super) fn clear_wavs(&mut self) {
         self.wav_entries.clear();
+        self.clear_all_folder_projection_state();
         self.sample_view.wav.selected_wav = None;
         self.runtime.pending_similarity_filter_rebuild = None;
         self.clear_focused_similarity_highlight();

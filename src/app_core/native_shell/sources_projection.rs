@@ -115,6 +115,7 @@ fn project_folder_pane(ui: &UiState, pane: FolderPaneId) -> FolderPaneModel {
         active: ui.sources.active_folder_pane == pane,
         has_source,
         loading: ui.sources.folder_pane(pane).loading,
+        projecting: ui.sources.folder_pane(pane).projecting,
         folder_search_query: browser.search_query.clone(),
         show_all_folders: browser.show_all_folders,
         can_toggle_show_all_folders: has_source,

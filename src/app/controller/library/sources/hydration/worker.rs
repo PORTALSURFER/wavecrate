@@ -3,6 +3,7 @@ use super::super::hydration_telemetry;
 use crate::app::controller::jobs::{
     SourceHydrationJob, SourceHydrationResult, SourceHydrationSnapshot,
 };
+use crate::app::controller::library::source_folders::FolderTreeSnapshot;
 use crate::app::controller::library::wav_entries_loader;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -43,8 +44,10 @@ fn build_source_hydration_snapshot(
         });
         (result?, total, job.page_size, false)
     };
+    let available_folders = derive_available_folders(&job.source_root, &entries);
     Ok(SourceHydrationSnapshot {
-        available_folders: derive_available_folders(&job.source_root, &entries),
+        folder_tree: FolderTreeSnapshot::from_available(&available_folders),
+        available_folders,
         path_lookup: build_path_lookup(&entries),
         entries,
         total,

@@ -58,7 +58,11 @@ impl AppController {
             controller.ui.sources.folders.focused = Some(row_index);
             controller.ui.sources.folders.scroll_to = Some(row_index);
             controller.focus_folder_context();
-            controller.build_folder_rows(&snapshot);
+            let _ = controller.patch_current_folder_ui_locally(
+                controller.active_folder_pane(),
+                &snapshot,
+                true,
+            );
             if selection_changed {
                 controller.rebuild_browser_lists();
             }
@@ -110,7 +114,11 @@ impl AppController {
                 model.clone()
             };
             controller.ui.sources.folders.scroll_to = controller.ui.sources.folders.focused;
-            controller.build_folder_rows(&snapshot);
+            let _ = controller.patch_current_folder_ui_locally(
+                controller.active_folder_pane(),
+                &snapshot,
+                true,
+            );
             controller.rebuild_browser_lists();
         });
     }
@@ -137,7 +145,11 @@ impl AppController {
                 controller.ui.sources.folders.focused = Some(row_index);
                 controller.ui.sources.folders.scroll_to = Some(row_index);
                 controller.focus_folder_context();
-                controller.build_folder_rows(&snapshot);
+                let _ = controller.patch_current_folder_ui_locally(
+                    controller.active_folder_pane(),
+                    &snapshot,
+                    true,
+                );
                 if selection_changed {
                     controller.rebuild_browser_lists();
                 }
@@ -163,7 +175,11 @@ impl AppController {
             controller.ui.sources.folders.focused = Some(row_index);
             controller.ui.sources.folders.scroll_to = Some(row_index);
             controller.focus_folder_context();
-            controller.build_folder_rows(&snapshot);
+            let _ = controller.patch_current_folder_ui_locally(
+                controller.active_folder_pane(),
+                &snapshot,
+                true,
+            );
             if selection_changed {
                 controller.rebuild_browser_lists();
             }
@@ -196,7 +212,11 @@ impl AppController {
             controller.ui.sources.folders.focused = Some(row_index);
             controller.ui.sources.folders.scroll_to = Some(row_index);
             controller.focus_folder_context();
-            controller.build_folder_rows(&snapshot);
+            let _ = controller.patch_current_folder_ui_locally(
+                controller.active_folder_pane(),
+                &snapshot,
+                true,
+            );
             if negation_changed {
                 controller.rebuild_browser_lists();
             }
@@ -234,7 +254,8 @@ impl AppController {
             self.ui.sources.folders.focused = Some(row_index);
             self.ui.sources.folders.scroll_to = Some(row_index);
             self.focus_folder_context();
-            self.build_folder_rows(&snapshot);
+            let _ =
+                self.patch_current_folder_ui_locally(self.active_folder_pane(), &snapshot, true);
             if selection_changed {
                 self.rebuild_browser_lists();
             }
@@ -251,7 +272,7 @@ impl AppController {
         self.ui.sources.folders.focused = Some(row_index);
         self.ui.sources.folders.scroll_to = Some(row_index);
         self.focus_folder_context();
-        self.build_folder_rows(&snapshot);
+        let _ = self.patch_current_folder_ui_locally(self.active_folder_pane(), &snapshot, true);
         if selection_changed {
             self.rebuild_browser_lists();
         }
@@ -286,7 +307,11 @@ impl AppController {
         model.selected.clear();
         model.selected.insert(path.to_path_buf());
         let snapshot = model.clone();
-        self.build_folder_rows(&snapshot);
+        if !self.patch_current_folder_ui_locally(self.active_folder_pane(), &snapshot, true)
+            && let Some(source_id) = self.selected_source_id()
+        {
+            self.queue_folder_projection_for_pane(self.active_folder_pane(), source_id, snapshot);
+        }
         self.rebuild_browser_lists();
     }
 }

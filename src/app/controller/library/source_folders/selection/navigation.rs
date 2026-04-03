@@ -11,7 +11,7 @@ impl AppController {
             return;
         }
         let snapshot = model.clone();
-        self.build_folder_rows(&snapshot);
+        let _ = self.patch_current_folder_ui_locally(self.active_folder_pane(), &snapshot, true);
     }
 
     pub(crate) fn expand_focused_folder(&mut self) {
@@ -83,7 +83,10 @@ impl AppController {
         self.ui.sources.folders.scroll_to = Some(row_index);
         self.ui.sources.folders.last_focused_path = Some(path.clone());
         self.focus_folder_context();
-        self.build_folder_rows(&snapshot);
+        let _ = self.patch_current_folder_ui_locally(self.active_folder_pane(), &snapshot, false);
+        if let Some(source_id) = self.selected_source_id() {
+            self.queue_folder_projection_for_pane(self.active_folder_pane(), source_id, snapshot);
+        }
     }
 
     pub(crate) fn focus_folder_row(&mut self, row_index: usize) {
@@ -107,7 +110,11 @@ impl AppController {
             controller.ui.sources.folders.scroll_to = Some(row_index);
             controller.ui.sources.folders.last_focused_path = Some(path.clone());
             controller.focus_folder_context();
-            controller.build_folder_rows(&snapshot);
+            let _ = controller.patch_current_folder_ui_locally(
+                controller.active_folder_pane(),
+                &snapshot,
+                true,
+            );
         });
     }
 

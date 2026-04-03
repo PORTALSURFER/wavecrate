@@ -30,7 +30,7 @@ impl AppController {
                 return;
             }
         };
-        self.build_folder_rows(&snapshot);
+        let _ = self.patch_current_folder_ui_locally(self.active_folder_pane(), &snapshot, true);
         match slot {
             Some(slot) => {
                 self.set_status(format!("Bound hotkey {slot} to '{name}'"), StatusTone::Info)

@@ -19,6 +19,8 @@ mod drag_drop_waveform;
 mod edit_selection_no_snap;
 mod external_drop_import;
 mod focus_random;
+/// Async folder-tree projection coverage for hot folder interactions.
+mod folder_async;
 mod folders_core;
 mod folders_search;
 mod history_transactions;

@@ -23,6 +23,10 @@ pub(crate) struct SourceCacheInvalidator<'a> {
         FolderBrowserCacheKey,
         crate::app::controller::library::source_folders::FolderBrowserModel,
     >,
+    folder_tree_snapshots: &'a mut HashMap<
+        FolderBrowserCacheKey,
+        crate::app::controller::library::source_folders::FolderTreeSnapshot,
+    >,
 }
 
 impl<'a> SourceCacheInvalidator<'a> {
@@ -42,6 +46,7 @@ impl<'a> SourceCacheInvalidator<'a> {
             browser_pipeline_cache: &mut ui_cache.browser.pipeline,
             missing_wavs: &mut missing.wavs,
             folder_browsers: &mut ui_cache.folders.models,
+            folder_tree_snapshots: &mut ui_cache.folders.snapshots,
         }
     }
 
@@ -62,6 +67,8 @@ impl<'a> SourceCacheInvalidator<'a> {
 
     pub(crate) fn invalidate_folder_browser(&mut self, source_id: &SourceId) {
         self.folder_browsers
+            .retain(|key, _| &key.source_id != source_id);
+        self.folder_tree_snapshots
             .retain(|key, _| &key.source_id != source_id);
     }
 

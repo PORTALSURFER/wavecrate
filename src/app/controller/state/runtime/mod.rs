@@ -129,6 +129,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) pending_active_source_hydration: Option<PendingSourceHydration>,
     /// Inactive-pane source hydration currently preparing one retained folder snapshot.
     pub(crate) pending_inactive_source_hydration: Option<PendingSourceHydration>,
+    /// Pending pane-scoped folder projection jobs keyed by owning sidebar pane.
+    pub(crate) pending_folder_projections: HashMap<FolderPaneId, PendingFolderProjection>,
     #[cfg(test)]
     pub(crate) progress_cancel_after: Option<usize>,
     #[cfg(test)]
@@ -185,6 +187,7 @@ impl ControllerRuntimeState {
             startup_frame_prepare_count: 0,
             pending_active_source_hydration: None,
             pending_inactive_source_hydration: None,
+            pending_folder_projections: HashMap::new(),
             #[cfg(test)]
             progress_cancel_after: None,
             #[cfg(test)]
@@ -226,6 +229,19 @@ pub(crate) struct PendingSourceHydration {
     /// Search request queued after hydration apply, when active-source projection is pending.
     pub(crate) search_request_id: Option<u64>,
     /// Time when the hydration request was queued on the controller thread.
+    pub(crate) queued_at: Instant,
+}
+
+/// Active controller-side tracking for one pane-scoped folder projection request.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingFolderProjection {
+    /// Monotonic request identifier used to discard stale results.
+    pub(crate) request_id: u64,
+    /// Sidebar pane whose folder browser rows are being projected.
+    pub(crate) pane: FolderPaneId,
+    /// Source identifier that owns the folder browser state.
+    pub(crate) source_id: SourceId,
+    /// Time when the projection request was queued on the controller thread.
     pub(crate) queued_at: Instant,
 }
 

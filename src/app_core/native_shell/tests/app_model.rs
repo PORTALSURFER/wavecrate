@@ -95,6 +95,7 @@ fn projection_distinguishes_source_loading_from_browser_filtering() {
     ui.sources.loading_source_id = Some(source_id.clone());
     ui.sources.folder_panes.upper.source_id = Some(source_id);
     ui.sources.folder_panes.upper.loading = true;
+    ui.sources.folder_panes.upper.projecting = true;
     ui.browser.search.source_loading = true;
     ui.browser.search.search_busy = false;
 
@@ -106,6 +107,7 @@ fn projection_distinguishes_source_loading_from_browser_filtering() {
 
     assert_eq!(projected_sources.loading_row, Some(0));
     assert!(projected_sources.upper_folder_pane.loading);
+    assert!(projected_sources.upper_folder_pane.projecting);
     assert!(projected_browser.source_loading);
     assert!(!projected_browser.busy);
     assert!(status.center.contains("loading source"));

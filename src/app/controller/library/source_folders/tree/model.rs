@@ -10,7 +10,7 @@ pub(super) fn is_root_path(path: &Path) -> bool {
 }
 
 /// Cached state for the folder browser within a source.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct FolderBrowserModel {
     /// Currently selected folder paths.
     pub(crate) selected: BTreeSet<PathBuf>,

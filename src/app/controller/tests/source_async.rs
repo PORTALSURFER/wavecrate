@@ -80,6 +80,10 @@ fn hydration_result(
         .filter(|path| !path.as_os_str().is_empty())
         .map(Path::to_path_buf)
         .collect::<BTreeSet<_>>();
+    let folder_tree =
+        crate::app::controller::library::source_folders::FolderTreeSnapshot::from_available(
+            &available_folders,
+        );
     let path_lookup = entries
         .iter()
         .enumerate()
@@ -102,6 +106,7 @@ fn hydration_result(
             page_size: controller.wav_entries.page_size,
             path_lookup,
             available_folders,
+            folder_tree,
             from_cache,
         }),
     }

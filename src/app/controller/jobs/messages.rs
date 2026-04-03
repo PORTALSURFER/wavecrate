@@ -2,12 +2,14 @@
 
 use super::*;
 use crate::app::controller::LoadEntriesError;
+use crate::app::controller::library::source_folders::{FolderProjectionView, FolderTreeSnapshot};
 use crate::sample_sources::WavEntry;
 
 #[derive(Debug)]
 pub(crate) enum JobMessage {
     WavLoaded(WavLoadResult),
     SourceHydrated(SourceHydrationResult),
+    FolderProjected(FolderProjectionResult),
     AudioLoaded(AudioLoadResult),
     RecordingWaveformLoaded(RecordingWaveformLoadResult),
     Scan(ScanJobMessage),
@@ -80,8 +82,78 @@ pub(crate) struct SourceHydrationSnapshot {
     pub(crate) path_lookup: HashMap<PathBuf, usize>,
     /// Folder availability derived from the hydrated page.
     pub(crate) available_folders: BTreeSet<PathBuf>,
+    /// Immutable folder-tree snapshot derived from `available_folders`.
+    pub(crate) folder_tree: FolderTreeSnapshot,
     /// Whether the snapshot reused the page-0 wav cache instead of querying the DB.
     pub(crate) from_cache: bool,
+}
+
+/// Background folder projection request for one pane-scoped folder browser.
+#[derive(Debug)]
+pub(crate) struct FolderProjectionJob {
+    /// Monotonic request identifier used to discard stale results.
+    pub(crate) request_id: u64,
+    /// Sidebar pane whose folder browser rows are being projected.
+    pub(crate) pane: FolderPaneId,
+    /// Source identifier that owns the folder browser state.
+    pub(crate) source_id: SourceId,
+    /// Immutable retained folder model snapshot captured on the controller thread.
+    pub(crate) model: crate::app::controller::library::source_folders::FolderBrowserModel,
+    /// Projection workload to execute off the UI thread.
+    pub(crate) work: FolderProjectionWork,
+    /// Whether a source is assigned to the pane during projection.
+    pub(crate) has_source: bool,
+}
+
+/// Off-thread folder projection workload kinds.
+#[derive(Debug)]
+pub(crate) enum FolderProjectionWork {
+    /// Rebuild available folders, reconcile the retained model, and project rows.
+    RefreshAvailable {
+        /// Source root used to validate folder paths against disk.
+        source_root: PathBuf,
+        /// Currently loaded relative wav paths used to derive folder availability.
+        loaded_relative_paths: Vec<PathBuf>,
+        /// Cached disk folders retained for the source.
+        disk_folders: BTreeSet<PathBuf>,
+        /// Cached available folders used for empty-entry reuse semantics.
+        cached_available: BTreeSet<PathBuf>,
+        /// Visibility mode associated with `cached_available`.
+        cached_available_show_all_folders: bool,
+        /// Whether a waveform load for this source is still pending.
+        pending_wav_load: bool,
+    },
+    /// Reproject rows from an existing immutable tree snapshot.
+    Reproject {
+        /// Immutable tree snapshot reused across row projections.
+        snapshot: FolderTreeSnapshot,
+    },
+}
+
+/// Result payload for one completed folder projection request.
+#[derive(Debug)]
+pub(crate) struct FolderProjectionSnapshot {
+    /// Reconciled folder-browser model snapshot that should replace the retained cache entry.
+    pub(crate) model: crate::app::controller::library::source_folders::FolderBrowserModel,
+    /// Immutable tree snapshot aligned to `model.available`.
+    pub(crate) tree: FolderTreeSnapshot,
+    /// Projected folder-browser view fields ready for UI apply.
+    pub(crate) view: FolderProjectionView,
+}
+
+/// Result of one background folder projection request.
+#[derive(Debug)]
+pub(crate) struct FolderProjectionResult {
+    /// Request identifier echoed from [`FolderProjectionJob::request_id`].
+    pub(crate) request_id: u64,
+    /// Sidebar pane whose folder browser rows are being projected.
+    pub(crate) pane: FolderPaneId,
+    /// Source identifier that owns the folder browser state.
+    pub(crate) source_id: SourceId,
+    /// Worker time spent hydrating or projecting the folder rows.
+    pub(crate) elapsed: Duration,
+    /// Folder projection payload prepared off the UI thread.
+    pub(crate) snapshot: FolderProjectionSnapshot,
 }
 
 /// Result of one background source hydration request.

@@ -117,6 +117,8 @@ pub struct FolderPaneState {
     pub source_id: Option<SourceId>,
     /// Whether this pane is hydrating its assigned source snapshot.
     pub loading: bool,
+    /// Whether this pane is asynchronously rebuilding its folder-tree rows.
+    pub projecting: bool,
     /// Retained browser state for this pane when it is not active.
     pub browser: FolderBrowserUiState,
 }

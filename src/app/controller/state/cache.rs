@@ -106,6 +106,7 @@ pub(crate) struct FolderBrowserCacheKey {
 
 pub(crate) struct FolderBrowsersState {
     pub(crate) models: HashMap<FolderBrowserCacheKey, source_folders::FolderBrowserModel>,
+    pub(crate) snapshots: HashMap<FolderBrowserCacheKey, source_folders::FolderTreeSnapshot>,
 }
 
 pub(crate) struct ControllerUiCacheState {
@@ -128,6 +129,7 @@ impl ControllerUiCacheState {
             },
             folders: FolderBrowsersState {
                 models: HashMap::new(),
+                snapshots: HashMap::new(),
             },
         }
     }

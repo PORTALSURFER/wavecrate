@@ -260,7 +260,13 @@ impl AppController {
         };
         if model.expanded.insert(parent.to_path_buf()) {
             let snapshot = model.clone();
-            self.build_folder_rows(&snapshot);
+            if let Some(source_id) = self.selected_source_id() {
+                self.queue_folder_projection_for_pane(
+                    self.active_folder_pane(),
+                    source_id,
+                    snapshot,
+                );
+            }
         }
     }
 

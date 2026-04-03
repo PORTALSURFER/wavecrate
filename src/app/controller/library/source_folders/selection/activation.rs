@@ -7,6 +7,7 @@ struct FolderActivation {
     path: PathBuf,
     snapshot: FolderBrowserModel,
     selection_changed: bool,
+    structure_changed: bool,
 }
 
 impl AppController {
@@ -37,13 +38,15 @@ impl AppController {
         }
         let selection_changed = apply_activation_selection(model, row, &path);
         model.focused = Some(path.clone());
-        if should_toggle_folder_on_activation(model, row, repeat_click) {
+        let structure_changed = should_toggle_folder_on_activation(model, row, repeat_click);
+        if structure_changed {
             toggle_expanded_path(&mut model.expanded, &path);
         }
         Some(FolderActivation {
             path,
             snapshot: model.clone(),
             selection_changed,
+            structure_changed,
         })
     }
 
@@ -60,7 +63,20 @@ impl AppController {
         self.ui.sources.folders.scroll_to = Some(row_index);
         self.ui.sources.folders.last_focused_path = Some(activation.path);
         self.focus_folder_context();
-        self.build_folder_rows(&activation.snapshot);
+        let _ = self.patch_current_folder_ui_locally(
+            self.active_folder_pane(),
+            &activation.snapshot,
+            false,
+        );
+        if activation.structure_changed
+            && let Some(source_id) = self.selected_source_id()
+        {
+            self.queue_folder_projection_for_pane(
+                self.active_folder_pane(),
+                source_id,
+                activation.snapshot.clone(),
+            );
+        }
         if activation.selection_changed {
             self.rebuild_browser_lists();
         }
