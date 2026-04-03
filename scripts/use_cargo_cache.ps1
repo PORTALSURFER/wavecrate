@@ -12,6 +12,10 @@ points Cargo at `sccache`. Scripts can opt out with
 
 $script:SempalCargoConfigOverrideArgs = @()
 
+function Get-SempalRustcPassthroughWrapperPath {
+  return (Join-Path $PSScriptRoot "rustc_passthrough.cmd")
+}
+
 function Test-SempalWritableDirectory {
   param(
     [AllowEmptyString()]
@@ -81,9 +85,10 @@ function Set-SempalCargoWrapperOverride {
   )
 
   if ([string]::IsNullOrWhiteSpace($Wrapper)) {
-    $env:RUSTC_WRAPPER = ""
-    $env:CARGO_BUILD_RUSTC_WRAPPER = ""
-    $script:SempalCargoConfigOverrideArgs = @("--config", "build.rustc-wrapper=''")
+    $passthroughWrapper = Get-SempalRustcPassthroughWrapperPath
+    $env:RUSTC_WRAPPER = $passthroughWrapper
+    $env:CARGO_BUILD_RUSTC_WRAPPER = $passthroughWrapper
+    $script:SempalCargoConfigOverrideArgs = @()
     return
   }
 

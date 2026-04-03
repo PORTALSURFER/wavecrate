@@ -20,8 +20,10 @@ fn assert_fixture_node_actions(fixture_tag: &str, node_id: &str, expected_action
 }
 
 #[test]
-fn capture_default_bundle_advertises_expected_action_ids_for_representative_nodes() {
+fn browser_nodes_advertise_expected_action_ids() {
     let cases: &[(&str, &str, &[&str])] = &[
+        ("browser", "browser.panel", &["focus_browser_panel"]),
+        ("browser", "browser.tab.map", &["set_browser_tab"]),
         ("browser", "browser.tab.samples", &["set_browser_tab"]),
         (
             "browser",
@@ -67,6 +69,11 @@ fn capture_default_bundle_advertises_expected_action_ids_for_representative_node
             "browser",
             "sources.upper.folder_visibility_toggle",
             &["toggle_show_all_folders"],
+        ),
+        (
+            "browser",
+            "browser.scrollbar.thumb",
+            &["set_browser_view_start"],
         ),
         (
             "sources",
@@ -128,6 +135,81 @@ fn capture_default_bundle_advertises_expected_action_ids_for_representative_node
             "browser.map.point.gui-map-source::kick_one.wav",
             &["focus_map_sample"],
         ),
+    ];
+
+    for (fixture_tag, node_id, expected_actions) in cases {
+        assert_fixture_node_actions(fixture_tag, node_id, expected_actions);
+    }
+}
+
+#[test]
+fn sidebar_nodes_advertise_expected_action_ids() {
+    let cases: &[(&str, &str, &[&str])] = &[
+        ("browser", "sources.add_button", &["open_add_source_dialog"]),
+        ("sources", "sources.panel", &["focus_sources_panel"]),
+        ("sources", "sources.source_list", &["focus_sources_panel"]),
+        (
+            "sources",
+            "sources.upper.folder_browser",
+            &["focus_folder_panel"],
+        ),
+        (
+            "sources",
+            "sources.upper.folder_flatten_toggle",
+            &["toggle_folder_flattened_view"],
+        ),
+        (
+            "sources",
+            "sources.upper.folder_row.1",
+            &[
+                "focus_folder_row",
+                "activate_folder_row",
+                "start_new_folder_at_folder_row",
+                "toggle_folder_row_expanded",
+            ],
+        ),
+        (
+            "browser",
+            "sources.source_row.0",
+            &[
+                "select_source_row",
+                "reload_source_row",
+                "hard_sync_source_row",
+                "open_source_folder_row",
+                "remove_source_row",
+            ],
+        ),
+    ];
+
+    for (fixture_tag, node_id, expected_actions) in cases {
+        assert_fixture_node_actions(fixture_tag, node_id, expected_actions);
+    }
+}
+
+#[test]
+fn waveform_nodes_advertise_expected_action_ids() {
+    let cases: &[(&str, &str, &[&str])] = &[
+        ("waveform", "waveform.panel", &["focus_waveform_panel"]),
+        (
+            "waveform",
+            "waveform.region",
+            &[
+                "detect_waveform_silence_slices",
+                "detect_waveform_exact_duplicate_slices",
+                "clean_waveform_exact_duplicate_slices",
+                "audition_waveform_duplicate_slice",
+                "toggle_waveform_duplicate_slice_exemption",
+                "move_waveform_slice_focus",
+                "toggle_focused_waveform_slice_export_mark",
+                "play_waveform_at_precise",
+                "clear_waveform_selections",
+                "seek_waveform",
+                "set_waveform_cursor",
+                "set_waveform_selection_range",
+                "zoom_waveform",
+                "set_waveform_view_center",
+            ],
+        ),
         (
             "waveform",
             "waveform.selection",
@@ -138,10 +220,25 @@ fn capture_default_bundle_advertises_expected_action_ids_for_representative_node
             "waveform.edit_selection",
             &["clear_waveform_edit_selection"],
         ),
+    ];
+
+    for (fixture_tag, node_id, expected_actions) in cases {
+        assert_fixture_node_actions(fixture_tag, node_id, expected_actions);
+    }
+}
+
+#[test]
+fn dialog_nodes_advertise_expected_action_ids() {
+    let cases: &[(&str, &str, &[&str])] = &[
         ("options", "overlay.options_panel", &["close_options_panel"]),
         ("prompt", "overlay.prompt.confirm", &["confirm_prompt"]),
         ("prompt", "overlay.prompt.cancel", &["cancel_prompt"]),
         ("prompt", "overlay.prompt.input", &["set_prompt_input"]),
+        (
+            "update",
+            "shell.top_bar.update_panel",
+            &["open_update_link", "install_update", "dismiss_update"],
+        ),
         ("update", "shell.top_bar.update.open", &["open_update_link"]),
         (
             "update",

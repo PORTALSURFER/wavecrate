@@ -163,6 +163,22 @@ fn browser_projection_exposes_manual_viewport_state() {
     assert_eq!(projected.visible_count, 1_506);
 }
 
+/// Browser projection should prefer the selected browser sample label over stale loaded state.
+#[test]
+fn browser_projection_prefers_selected_sample_label_when_loaded_state_is_stale() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.browser.selection.last_focused_path =
+        Some(std::path::PathBuf::from("browser/current_take.wav"));
+    controller.ui.loaded_wav = Some(std::path::PathBuf::from("waveform/stale_loaded_take.wav"));
+
+    let projected = project_browser_panel_frame_model(&controller);
+
+    assert_eq!(
+        projected.focused_sample_label.as_deref(),
+        Some("current_take")
+    );
+}
+
 /// Browser chrome projection should expose the toolbar copy shown in the native shell.
 #[test]
 fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {

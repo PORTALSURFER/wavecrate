@@ -56,11 +56,7 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
     });
     let active_tab_label =
         Some(super::browser_tab_label(controller.ui.browser.active_tab).to_owned());
-    let focused_sample_label = controller
-        .ui
-        .loaded_wav
-        .as_deref()
-        .map(view_model::sample_display_label);
+    let focused_sample_label = project_browser_focused_sample_label(controller);
     BrowserPanelModel {
         visible_count: row_inputs.visible_count,
         selected_visible_row: row_inputs.selected_visible_row,
@@ -113,4 +109,28 @@ fn browser_playback_age_filter_flags(
         flags[index] = playback_age_filter.contains(&chip);
     }
     flags
+}
+
+/// Project the browser's focused sample label from the selected sample path.
+///
+/// Browser metadata should stay aligned with the current browser selection when
+/// the selection has already moved ahead of the async waveform-loading state.
+fn project_browser_focused_sample_label(controller: &AppController) -> Option<String> {
+    controller
+        .ui
+        .browser
+        .selection
+        .last_focused_path
+        .as_deref()
+        .or_else(|| {
+            controller
+                .ui
+                .browser
+                .selection
+                .selected_paths
+                .first()
+                .map(|path| path.as_path())
+        })
+        .or(controller.ui.loaded_wav.as_deref())
+        .map(view_model::sample_display_label)
 }
