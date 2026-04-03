@@ -61,11 +61,11 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: runtime performance audit refresh for the current live tree
 - Source of truth: `tmp/perf_plan.md` for the 2026-04-03 ROI-ranked runtime performance backlog and execution record; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
-- Current status: Phase 2 is active on `2026-04-03`. The refreshed runtime performance backlog is documented in `tmp/perf_plan.md`, the perf harness is compiling again, and the ranked items are now being implemented sequentially.
+- Current status: Phase 2 is active on `2026-04-03`. Item 1 is complete in `vendor/radiant` commit `9fe71ec9`, the perf harness is green, and the ranked items continue in strict order from item 2.
 
 ## Immediate Next Actions
 1. Treat `tmp/perf_plan.md` as the active runtime-performance source of truth for this lane while Phase 2 runs.
-2. Execute the ranked items strictly in order, updating `tmp/perf_plan.md` after each completed item with validation and commit state.
+2. Continue with item 2 in `tmp/perf_plan.md`: reuse retained browser-row/static frame data during native-shell scene builds.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
 4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 
@@ -73,7 +73,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/perf_plan.md`: active ROI-ranked runtime performance backlog for the live tree; Phase 2 is active and tracks the execution record
+- `tmp/perf_plan.md`: active ROI-ranked runtime performance backlog for the live tree; item 1 is complete and item 2 is next
 - `tmp/improvement_audit_plan.md`: separate evidence-driven repo-wide improvement backlog and execution record; resume only when the user reopens that lane
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform

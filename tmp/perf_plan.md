@@ -13,16 +13,16 @@ Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored 
   - perf benchmark lane: `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 - Live benchmark artifact used for this audit: `target/perf/bench.json`
   - `gui.interactive_projection.p95_us = 4535`
-  - `gui.hover_latency.p95_us = 5405`
-  - `gui.wheel_latency.p95_us = 5224`
-  - `gui.browser_focus_commit_latency.p95_us = 6051`
-  - `gui.waveform_pan_zoom_adjacent_latency.p95_us = 2368`
+  - `gui.hover_latency.p95_us = 2955`
+  - `gui.wheel_latency.p95_us = 3094`
+  - `gui.browser_focus_commit_latency.p95_us = 98`
+  - `gui.waveform_pan_zoom_adjacent_latency.p95_us = 169`
 - Validation blocker resolved on 2026-04-03
   - `scripts/run_perf_guard.ps1` is compiling again after `tools/bench-cli/src/bench/gui/interactions/step_patterns.rs` restored the required `snap_override` field for `NativeUiAction::SetWaveformSelectionRange`.
 
 ## ROI-Ranked Backlog
 
-- [ ] 1. Split the retained state overlay into independently cached hover, focus, and modal layers
+- [x] 1. Split the retained state overlay into independently cached hover, focus, and modal layers
   - ROI: Very High
   - Effort: L
   - Expected impact: p95 interaction latency, frame time, CPU
@@ -47,6 +47,12 @@ Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored 
     - Add overlay cache invalidation tests in `vendor/radiant`.
     - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
     - Re-measure `hover_latency` and `wheel_latency` after fixing the perf harness.
+  - Completed: 2026-04-03, commit `9fe71ec9` (`vendor/radiant`)
+  - Validation status:
+    - `cargo test --manifest-path X:\sempal\vendor\radiant\Cargo.toml runtime_core::scene_cache -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+    - `target/perf/bench.json`: `hover_latency.p95_us = 2955`, `wheel_latency.p95_us = 3094`
 
 - [ ] 2. Reuse retained browser-row/static frame data during native-shell scene builds
   - ROI: Very High
