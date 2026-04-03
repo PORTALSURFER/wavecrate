@@ -41,6 +41,23 @@ fn local_focus_actions_arm_local_model_pull_fast_path() {
     assert!(!bridge.controller.has_dirty_derived_nodes());
 }
 
+/// Folder-panel search edits should stay on the local-only pull path.
+#[test]
+fn folder_search_actions_arm_local_model_pull_fast_path() {
+    let mut bridge = test_bridge(16);
+
+    bridge.on_action(NativeUiAction::SetFolderSearch {
+        pane: None,
+        query: String::from("drums"),
+    });
+
+    assert_eq!(
+        bridge.pending_model_pull_preparation,
+        PendingModelPullPreparation::LocalOnly
+    );
+    assert!(!bridge.controller.has_dirty_derived_nodes());
+}
+
 /// Browser search mutations still require the full pull-preparation path.
 #[test]
 fn search_query_actions_stay_on_full_model_pull_preparation() {

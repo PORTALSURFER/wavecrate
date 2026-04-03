@@ -59,6 +59,19 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
         action,
         NativeUiAction::MoveBrowserFocus { .. }
             | NativeUiAction::SetBrowserViewStart { .. }
+            | NativeUiAction::FocusSourcesPanel
+            | NativeUiAction::FocusFolderPanel { .. }
+            | NativeUiAction::FocusFolderSearch { .. }
+            | NativeUiAction::SetFolderSearch { .. }
+            | NativeUiAction::ToggleShowAllFolders { .. }
+            | NativeUiAction::ToggleFolderFlattenedView { .. }
+            | NativeUiAction::FocusFolderRow { .. }
+            | NativeUiAction::ActivateFolderRow { .. }
+            | NativeUiAction::ToggleFolderRowExpanded { .. }
+            | NativeUiAction::ExpandFocusedFolder
+            | NativeUiAction::CollapseFocusedFolder
+            | NativeUiAction::ToggleFocusedFolderSelection
+            | NativeUiAction::MoveFolderFocus { .. }
             | NativeUiAction::FocusBrowserRow { .. }
             | NativeUiAction::AdjustSelectedBrowserRating { .. }
             | NativeUiAction::ToggleBrowserRowSelection { .. }
@@ -136,6 +149,19 @@ pub(super) fn classify_dirty_source(
         )),
         NativeUiAction::MoveBrowserFocus { .. }
         | NativeUiAction::SetBrowserViewStart { .. }
+        | NativeUiAction::FocusSourcesPanel
+        | NativeUiAction::FocusFolderPanel { .. }
+        | NativeUiAction::FocusFolderSearch { .. }
+        | NativeUiAction::SetFolderSearch { .. }
+        | NativeUiAction::ToggleShowAllFolders { .. }
+        | NativeUiAction::ToggleFolderFlattenedView { .. }
+        | NativeUiAction::FocusFolderRow { .. }
+        | NativeUiAction::ActivateFolderRow { .. }
+        | NativeUiAction::ToggleFolderRowExpanded { .. }
+        | NativeUiAction::ExpandFocusedFolder
+        | NativeUiAction::CollapseFocusedFolder
+        | NativeUiAction::ToggleFocusedFolderSelection
+        | NativeUiAction::MoveFolderFocus { .. }
         | NativeUiAction::FocusBrowserRow { .. }
         | NativeUiAction::AdjustSelectedBrowserRating { .. }
         | NativeUiAction::CommitFocusedBrowserRow
@@ -166,6 +192,18 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::CancelBrowserRename
         | NativeUiAction::TagBrowserSelection { .. }
         | NativeUiAction::DeleteBrowserSelection
+        | NativeUiAction::StartNewFolder
+        | NativeUiAction::StartNewFolderAtFolderRow { .. }
+        | NativeUiAction::StartNewFolderAtRoot
+        | NativeUiAction::FocusFolderCreateInput
+        | NativeUiAction::SetFolderCreateInput { .. }
+        | NativeUiAction::ConfirmFolderCreate
+        | NativeUiAction::CancelFolderCreate
+        | NativeUiAction::StartFolderRename
+        | NativeUiAction::DeleteFocusedFolder
+        | NativeUiAction::RestoreRetainedFolderDeletes
+        | NativeUiAction::PurgeRetainedFolderDeletes
+        | NativeUiAction::ClearFolderDeleteRecoveryLog
         | NativeUiAction::SetBrowserTab { map: false } => {
             Some((DerivedNodeId::BrowserState, DirtyReason::BrowserAction))
         }

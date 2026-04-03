@@ -150,8 +150,16 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::FocusBrowserSearch
             | NativeUiAction::BlurBrowserSearch
             | NativeUiAction::FocusFolderSearch { .. }
+            | NativeUiAction::SetFolderSearch { .. }
             | NativeUiAction::ToggleShowAllFolders { .. }
             | NativeUiAction::ToggleFolderFlattenedView { .. }
+            | NativeUiAction::FocusFolderRow { .. }
+            | NativeUiAction::ActivateFolderRow { .. }
+            | NativeUiAction::ToggleFolderRowExpanded { .. }
+            | NativeUiAction::ExpandFocusedFolder
+            | NativeUiAction::CollapseFocusedFolder
+            | NativeUiAction::ToggleFocusedFolderSelection
+            | NativeUiAction::MoveFolderFocus { .. }
             | NativeUiAction::StartNewFolder
             | NativeUiAction::StartNewFolderAtFolderRow { .. }
             | NativeUiAction::StartNewFolderAtRoot
