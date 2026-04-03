@@ -32,3 +32,34 @@ fn failed_journal_replace_preserves_last_committed_delete_state() -> Result<(), 
     assert_eq!(entry.stage, DeleteJournalStage::Staged);
     Ok(())
 }
+
+#[test]
+fn stage_folder_for_delete_skips_stale_journal_reserved_path() -> Result<(), String> {
+    let dir = tempdir().unwrap();
+    let source_root = dir.path().join("source");
+    let original = source_root.join("gone");
+    fs::create_dir_all(&original).unwrap();
+
+    let staging_root = source_root.join(DELETE_STAGING_DIR);
+    let first = stage_folder_for_delete(&original, &staging_root, Path::new("gone"), &[])?;
+    mark_delete_retained(&staging_root, &first.id)?;
+    fs::remove_dir_all(&first.staged_absolute).unwrap();
+
+    fs::create_dir_all(&original).unwrap();
+    let second = stage_folder_for_delete(&original, &staging_root, Path::new("gone"), &[])?;
+
+    assert_ne!(second.staged_relative, first.staged_relative);
+    assert_eq!(second.staged_relative, Path::new("gone.staged-1"));
+
+    let journal = load_journal(&staging_root)?;
+    assert_eq!(journal.entries.len(), 2);
+    assert!(journal
+        .entries
+        .iter()
+        .any(|entry| entry.staged_relative == "gone"));
+    assert!(journal
+        .entries
+        .iter()
+        .any(|entry| entry.staged_relative == "gone.staged-1"));
+    Ok(())
+}

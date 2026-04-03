@@ -2,7 +2,8 @@
 //!
 //! Recovery walks each source-local staging directory and applies the journal contract:
 //! - `Intent` or `Staged` means the original folder should exist after recovery
-//! - `Deleted` means the staged folder should remain retained as app-owned trash
+//! - `Deleted` means the staged folder should remain retained as app-owned trash unless
+//!   purge already removed the staged folder, in which case recovery finalizes the stale row
 //! - `RestorePendingDb` means an explicit retained restore must finish merge/DB replay
 //! - staged folders that exist without journal entries are conservatively restored
 use super::DELETE_STAGING_DIR;

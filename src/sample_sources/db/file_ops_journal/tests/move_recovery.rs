@@ -4,12 +4,13 @@ use super::*;
 fn reconcile_move_from_staged_file() {
     let fixture = MoveRecoveryFixture::new();
     std::fs::rename(fixture.source_absolute(), fixture.staged_absolute()).unwrap();
+    let (file_size, modified_ns) = file_identity(&fixture.staged_absolute());
     update_stage(
         &fixture.target_db,
         &fixture.entry.id,
         FileOpStage::Staged,
-        Some(16),
-        Some(1),
+        Some(file_size),
+        Some(modified_ns),
     )
     .unwrap();
 
@@ -61,7 +62,15 @@ fn reconcile_same_source_move_from_staged_file() {
     insert_entry(&db, &entry).unwrap();
     let staged_absolute = source_root.join(&staged_relative);
     std::fs::rename(&source_absolute, &staged_absolute).unwrap();
-    update_stage(&db, &entry.id, FileOpStage::Staged, Some(16), Some(1)).unwrap();
+    let (file_size, modified_ns) = file_identity(&staged_absolute);
+    update_stage(
+        &db,
+        &entry.id,
+        FileOpStage::Staged,
+        Some(file_size),
+        Some(modified_ns),
+    )
+    .unwrap();
 
     let summary = reconcile_pending_ops(&db).unwrap();
     assert_eq!(summary.completed, 1);
@@ -141,12 +150,13 @@ fn reconcile_source_db_stage_is_idempotent_after_move_completion() {
 #[test]
 fn reconcile_missing_staged_file_keeps_original_source_when_target_missing() {
     let fixture = MoveRecoveryFixture::new();
+    let (file_size, modified_ns) = file_identity(&fixture.source_absolute());
     update_stage(
         &fixture.target_db,
         &fixture.entry.id,
         FileOpStage::Staged,
-        Some(16),
-        Some(1),
+        Some(file_size),
+        Some(modified_ns),
     )
     .unwrap();
     fixture

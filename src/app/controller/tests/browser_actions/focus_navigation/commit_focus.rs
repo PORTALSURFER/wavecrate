@@ -95,6 +95,32 @@ fn commit_focus_flush_queues_async_similarity_query_without_immediate_highlight(
 }
 
 #[test]
+fn commit_focus_after_preview_same_row_applies_commit_side_effects() {
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+
+    controller.focus_browser_row_only(1);
+
+    assert!(controller.history.focus_history.entries.is_empty());
+    assert!(controller.runtime.pending_similarity_refresh.is_none());
+    assert!(controller.ui.browser.selection.commit_focus_pending);
+
+    assert!(controller.commit_focused_browser_row());
+
+    let focused = controller
+        .history
+        .focus_history
+        .entries
+        .back()
+        .expect("focused history entry");
+    assert_eq!(focused.relative_path, Path::new("two.wav"));
+    assert!(controller.runtime.pending_similarity_refresh.is_some());
+    assert!(!controller.ui.browser.selection.commit_focus_pending);
+}
+
+#[test]
 fn f_hotkey_focuses_loaded_sample_in_browser() {
     let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),

@@ -140,6 +140,10 @@ fn select_wav_known_index_with_options(
         }
     }
     let path_changed = controller.sample_view.wav.selected_wav.as_deref() != Some(path.as_path());
+    let commit_focus_pending = controller.ui.browser.selection.commit_focus_pending
+        && side_effects.record_focus_history
+        && controller.sample_view.wav.selected_wav.as_deref() == Some(path.as_path());
+    let apply_commit_focus_effects = path_changed || commit_focus_pending;
     let active_loop_enabled = controller.ui.waveform.loop_enabled;
     let entry_looped = controller
         .wav_entries
@@ -161,7 +165,8 @@ fn select_wav_known_index_with_options(
     controller.sample_view.wav.selected_wav = Some(path.clone());
     controller.ui.browser.selection.last_focused_index = Some(index);
     controller.ui.browser.selection.last_focused_path = Some(path.clone());
-    if path_changed {
+    controller.ui.browser.selection.commit_focus_pending = !side_effects.queue_audio_load;
+    if apply_commit_focus_effects {
         if side_effects.record_focus_history {
             controller.record_focus_history(&path);
         }
@@ -190,7 +195,7 @@ fn select_wav_known_index_with_options(
         }
         return;
     }
-    if path_changed && side_effects.refresh_similarity_highlight {
+    if apply_commit_focus_effects && side_effects.refresh_similarity_highlight {
         if let Some(source) = controller.current_source() {
             let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), &path);
             controller.defer_focused_similarity_highlight_refresh(

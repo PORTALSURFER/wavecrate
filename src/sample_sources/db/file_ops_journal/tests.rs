@@ -82,23 +82,25 @@ impl MoveRecoveryFixture {
     }
 
     fn stage_target_db(&self) {
+        let (file_size, modified_ns) = file_identity(&self.target_absolute());
         update_stage(
             &self.target_db,
             &self.entry.id,
             FileOpStage::TargetDb,
-            Some(16),
-            Some(1),
+            Some(file_size),
+            Some(modified_ns),
         )
         .unwrap();
     }
 
     fn stage_source_db(&self) {
+        let (file_size, modified_ns) = file_identity(&self.target_absolute());
         update_stage(
             &self.target_db,
             &self.entry.id,
             FileOpStage::SourceDb,
-            Some(16),
-            Some(1),
+            Some(file_size),
+            Some(modified_ns),
         )
         .unwrap();
     }
@@ -106,6 +108,17 @@ impl MoveRecoveryFixture {
 
 fn write_wav(path: &Path) {
     std::fs::write(path, [0u8; 16]).unwrap();
+}
+
+fn file_identity(path: &Path) -> (u64, i64) {
+    let metadata = std::fs::metadata(path).unwrap();
+    let modified_ns = metadata
+        .modified()
+        .unwrap()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as i64;
+    (metadata.len(), modified_ns)
 }
 
 fn assert_no_journal_entries(db: &SourceDatabase) {

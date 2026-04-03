@@ -62,6 +62,8 @@ fn reconcile_entry(db: &SourceDatabase, entry: &FileOpJournalEntry) -> Result<()
         .staged_relative
         .as_ref()
         .map(|path| target_root.join(path));
+    validate_staged_file_identity(entry, staged_absolute.as_deref())?;
+    validate_existing_target_identity(entry, staged_absolute.as_deref(), &target_absolute)?;
     reconcile_staged_file(staged_absolute.as_deref(), &target_absolute)?;
     let target_exists = reconcile_target_entry(db, entry, &target_absolute)?;
     if entry.kind == FileOpKind::Move {
@@ -93,6 +95,79 @@ fn reconcile_staged_file(
             .map_err(|err| format!("Failed to remove staged file: {err}"))?;
     }
     Ok(())
+}
+
+fn validate_staged_file_identity(
+    entry: &FileOpJournalEntry,
+    staged_absolute: Option<&Path>,
+) -> Result<(), String> {
+    let Some(staged_absolute) = staged_absolute else {
+        return Ok(());
+    };
+    if !staged_absolute.is_file() {
+        return Ok(());
+    }
+    validate_identity_match(
+        entry,
+        staged_absolute,
+        "staged",
+        "staged file no longer matches the recorded journal metadata",
+    )
+}
+
+fn validate_existing_target_identity(
+    entry: &FileOpJournalEntry,
+    staged_absolute: Option<&Path>,
+    target_absolute: &Path,
+) -> Result<(), String> {
+    if !target_absolute.is_file() {
+        return Ok(());
+    }
+    let staged_suffix = if staged_absolute.is_some_and(Path::is_file) {
+        format!(
+            "; leaving staged copy at {} intact",
+            staged_absolute.expect("checked above").display()
+        )
+    } else {
+        String::from("; no staged copy remains to reconcile safely")
+    };
+    validate_identity_match(
+        entry,
+        target_absolute,
+        "target",
+        &format!(
+            "target path was reused before recovery replay{staged_suffix}"
+        ),
+    )
+}
+
+fn validate_identity_match(
+    entry: &FileOpJournalEntry,
+    path: &Path,
+    location: &str,
+    mismatch_reason: &str,
+) -> Result<(), String> {
+    let Some(expected_file_size) = entry.file_size else {
+        return Ok(());
+    };
+    let Some(expected_modified_ns) = entry.modified_ns else {
+        return Ok(());
+    };
+    let actual = file_metadata(path)?;
+    if actual == (expected_file_size, expected_modified_ns) {
+        return Ok(());
+    }
+    Err(format!(
+        "Deferred file-op recovery for {}: {} file {} does not match journaled identity (expected {} bytes @ {}, found {} bytes @ {}); {}",
+        entry.id,
+        location,
+        path.display(),
+        expected_file_size,
+        expected_modified_ns,
+        actual.0,
+        actual.1,
+        mismatch_reason
+    ))
 }
 
 /// Reconcile one target DB row and return whether the target file exists afterwards.

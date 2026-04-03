@@ -74,7 +74,8 @@ pub(crate) fn stage_folder_for_delete(
     relative: &Path,
     deleted_entries: &[WavEntry],
 ) -> Result<DeleteStagingInfo, String> {
-    let staged_relative = unique_staging_relative(staging_root, relative);
+    let journal = load_journal(staging_root)?;
+    let staged_relative = unique_staging_relative(staging_root, &journal, relative);
     let staged_absolute = staging_root.join(&staged_relative);
     ensure_staging_parent(&staged_absolute, staging_root)?;
     let id = new_delete_op_id();
@@ -383,9 +384,9 @@ fn journal_path(staging_root: &Path) -> PathBuf {
     staging_root.join(DELETE_JOURNAL_FILE)
 }
 
-fn unique_staging_relative(staging_root: &Path, relative: &Path) -> PathBuf {
+fn unique_staging_relative(staging_root: &Path, journal: &DeleteJournal, relative: &Path) -> PathBuf {
     let mut candidate = relative.to_path_buf();
-    if !staging_root.join(&candidate).exists() {
+    if staging_relative_is_available(staging_root, journal, &candidate) {
         return candidate;
     }
     let parent = relative.parent().unwrap_or_else(|| Path::new(""));
@@ -397,11 +398,23 @@ fn unique_staging_relative(staging_root: &Path, relative: &Path) -> PathBuf {
         let mut alternative = PathBuf::from(parent);
         alternative.push(format!("{name}.staged-{idx}"));
         candidate = alternative;
-        if !staging_root.join(&candidate).exists() {
+        if staging_relative_is_available(staging_root, journal, &candidate) {
             return candidate;
         }
     }
     candidate
+}
+
+fn staging_relative_is_available(
+    staging_root: &Path,
+    journal: &DeleteJournal,
+    candidate: &Path,
+) -> bool {
+    !staging_root.join(candidate).exists()
+        && !journal
+            .entries
+            .iter()
+            .any(|entry| Path::new(&entry.staged_relative) == candidate)
 }
 
 fn ensure_staging_parent(staged: &Path, staging_root: &Path) -> Result<(), String> {

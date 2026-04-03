@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-03T15:45:00+02:00
+Last Updated: 2026-04-03T17:05:00+02:00
 Updated By: Codex
 
 ## Purpose
@@ -29,12 +29,18 @@ Updated By: Codex
   - retained folder-delete restore now clears stale `last_played_at` metadata when the deleted snapshot says there was no playback history, with a regression test in `src/app/controller/library/source_folders/delete_recovery/retained_restore/tests.rs`
   - native `CommitFocusedBrowserRow` now stays a browser no-op when the browser still has focus but the previewed row was hidden by search/filtering, with coverage in `src/app_core/controller/tests/contextual_actions.rs`
   - waveform/browser automation snapshots now advertise the scroll and click-clear/play actions that the desktop GUI pack already drives, with parity coverage in `src/gui_test/runner/tests/action_parity.rs`
+- I continued the ROI-ranked bug backlog and landed four more validated fixes:
+  - file-op journal replay now verifies staged and target file identity before replaying metadata, so recovery preserves the current target and staged copy instead of overwriting a path that was reused before replay; coverage lives under `src/sample_sources/db/file_ops_journal/`
+  - retained-delete startup recovery now auto-cleans stale `Deleted` journal rows when the staged folder was already purged and the original folder is still gone, instead of leaving a permanent inconsistent retained entry
+  - retained folder-delete staging now avoids `staged_relative` values that are still reserved by old journal rows even when the on-disk staging folder is gone
+  - previewing a browser row and then committing that same row now still applies commit-time focus history and similarity-refresh side effects, backed by `src/app/controller/tests/browser_actions/focus_navigation/commit_focus.rs`
 - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` is green on the live tree.
 - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` is green again after rerunning the lane cleanly in a single cargo process with no orphaned compiler jobs.
+- `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` are green after the file-op and retained-delete backlog fixes.
 - `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1` now passes the root `app_core::actions` and `gui_test` phases after the latest automation parity fixes, but its final `vendor/radiant` smoke step is still blocked by older pane-migration/sidebar test compile failures inside `vendor/radiant`.
-- The next ranked items are:
-  - consolidating browser focus/selection ownership between `selection_ops.rs` and `focus_navigation.rs`
-  - splitting the `vendor/radiant` hotkey catalog and the oversized `native_vello` gesture test hubs
+- The next ranked bug-backlog items are:
+  - `focus_browser_list()` still prefers the stale anchor over the currently focused row when re-entering the browser after range-selection flows
+  - exact action-parity coverage is still missing for rating filters, playback-age chips, map points, and scrollbar nodes that desktop automation already uses
   - deciding whether to revive or replace the stale `vendor/radiant` test lanes that still block the final `run_gui_contract` smoke step
 - `tmp/cleanup_plan.md` remains parked and should stay dormant unless the user explicitly reopens cleanup work.
 - `tmp/perf_plan.md` remains parked and should stay dormant unless the user explicitly reopens performance work.
@@ -43,8 +49,8 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue with item 3 from `tmp/improvement_audit_plan.md` in ranked order.
-2. Decide whether the stale `vendor/radiant` pane-migration test failures should be fixed now or explicitly deferred as a separate lane.
+1. Commit and push the validated bug-backlog fixes now that `devcheck` and `ci_agent` are green.
+2. Continue with the next ranked remaining bug item after push, starting with the stale-anchor behavior in `focus_browser_list()`.
 3. Keep recording each completed item back into `tmp/improvement_audit_plan.md`, `AGENTS.md`, `MEMORY.md`, `docs/plans/index.md`, and `docs/plans/active/todo.md`.
 4. Keep `tmp/cleanup_plan.md` and `tmp/perf_plan.md` parked unless the user explicitly reopens those lanes.
 5. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable.

@@ -34,9 +34,15 @@ but reconcile still trusts the observed filesystem state first.
 
 - If a staged file exists and the target file is missing, recovery finalizes the
   staged file into the target path.
-- If both staged and target files exist, recovery removes the stale staged copy.
+- If both staged and target files exist, recovery removes the staged copy only
+  after the target file still matches the journaled file identity.
 - If the target file exists, recovery upserts the target DB row and restores the
-  persisted tag/loop/lock/last-played metadata from the journal entry.
+  persisted tag/loop/lock/last-played metadata from the journal entry only when
+  the current target file still matches the journaled size/modified-time
+  identity.
+- If the target path was reused before replay and no longer matches the
+  journaled file identity, recovery preserves the current target file, keeps any
+  staged copy, and leaves the journal row in place for later/manual resolution.
 - If the target file does not exist, recovery removes any stale target DB row.
 - For moves, if the source file is gone and the target exists, recovery removes
   the stale source DB row.

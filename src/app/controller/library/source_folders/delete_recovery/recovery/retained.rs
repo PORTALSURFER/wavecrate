@@ -3,6 +3,7 @@ use super::*;
 fn completed_recovery(
     source: &SampleSource,
     original_relative: PathBuf,
+    action: DeleteRecoveryAction,
     outcome: Result<Option<String>, String>,
 ) -> JournaledRecoveryOutcome {
     let remove_from_journal = outcome.is_ok();
@@ -10,7 +11,7 @@ fn completed_recovery(
         report_entry: recovery_entry(
             source,
             original_relative,
-            DeleteRecoveryAction::Restore,
+            action,
             outcome,
         ),
         remove_from_journal,
@@ -40,12 +41,22 @@ pub(super) fn recover_retained_delete(
         return Some(completed_recovery(
             source,
             original_relative.to_path_buf(),
+            DeleteRecoveryAction::Restore,
             Ok(Some("Already restored".into())),
+        ));
+    }
+    if !staged.exists() && !original.exists() {
+        return Some(completed_recovery(
+            source,
+            original_relative.to_path_buf(),
+            DeleteRecoveryAction::Finalize,
+            Ok(Some("Already purged".into())),
         ));
     }
     Some(completed_recovery(
         source,
         original_relative.to_path_buf(),
+        DeleteRecoveryAction::Finalize,
         Err(format!(
             "Retained delete state is inconsistent (original exists: {}, staged exists: {})",
             original.exists(),
@@ -97,5 +108,10 @@ pub(super) fn recover_pending_retained_restore(
         )?;
         Ok(Some("Completed retained restore after restart".into()))
     })();
-    completed_recovery(source, original_relative.to_path_buf(), outcome)
+    completed_recovery(
+        source,
+        original_relative.to_path_buf(),
+        DeleteRecoveryAction::Restore,
+        outcome,
+    )
 }

@@ -144,6 +144,29 @@ fn recover_cleans_retained_entry_when_folder_was_already_restored() -> Result<()
 }
 
 #[test]
+fn recover_cleans_retained_entry_when_folder_was_already_purged() -> Result<(), String> {
+    let (_temp, source) = sample_source();
+    let original = source.root.join("gone");
+    fs::create_dir_all(&original).unwrap();
+    let staging_root = source.root.join(DELETE_STAGING_DIR);
+    let staged = stage_folder_for_delete(&original, &staging_root, Path::new("gone"), &[])?;
+    mark_delete_retained(&staging_root, &staged.id)?;
+    fs::remove_dir_all(&staged.staged_absolute).unwrap();
+
+    let report = recover_staged_deletes(std::slice::from_ref(&source));
+
+    assert!(!original.exists());
+    assert!(!staging_root.exists());
+    assert_recovery(
+        &report.entries[0],
+        DeleteRecoveryAction::Finalize,
+        DeleteRecoveryStatus::Completed,
+    );
+    assert_eq!(report.entries[0].detail.as_deref(), Some("Already purged"));
+    Ok(())
+}
+
+#[test]
 fn recover_restores_unjournaled_staged_folder() {
     let (_temp, source) = sample_source();
     let original = source.root.join("ghost");

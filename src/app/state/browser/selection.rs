@@ -27,6 +27,8 @@ pub struct BrowserSelectionState {
     pub last_focused_index: Option<usize>,
     /// Last focused browser item to restore focus after context changes.
     pub last_focused_path: Option<PathBuf>,
+    /// Whether the current browser focus was only previewed and still needs commit-time effects.
+    pub commit_focus_pending: bool,
     /// Whether autoscroll is enabled for selection changes.
     pub autoscroll: bool,
 }

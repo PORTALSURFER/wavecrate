@@ -48,12 +48,13 @@ fn reconcile_target_db_stage_defers_until_source_root_returns() {
         target_root.join(&target_relative),
     )
     .unwrap();
+    let (file_size, modified_ns) = file_identity(&target_root.join(&target_relative));
     update_stage(
         &target_db,
         &entry.id,
         FileOpStage::TargetDb,
-        Some(16),
-        Some(1),
+        Some(file_size),
+        Some(modified_ns),
     )
     .unwrap();
     std::fs::rename(&source_root, &parked_root).unwrap();
