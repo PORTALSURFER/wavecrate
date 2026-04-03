@@ -41,9 +41,10 @@ pub(super) fn map_point_focus_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::Assert {
-                assertion: GuiAssertion::NodeValueContains {
-                    node_id: String::from("waveform.region"),
-                    needle: String::from("kick"),
+                assertion: GuiAssertion::NodeMetadataContains {
+                    node_id: String::from("browser.panel"),
+                    key: String::from("selected_visible_row"),
+                    needle: String::from("0"),
                 },
             },
         ],
