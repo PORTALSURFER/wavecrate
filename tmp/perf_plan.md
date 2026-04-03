@@ -1,7 +1,7 @@
 # Runtime Performance Audit Backlog
 
 Generated: 2026-04-03 (Europe/Amsterdam)
-Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored and ranked items are now executing sequentially.
+Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored and items 1-2 are complete with item 3 next in strict ROI order.
 
 ## Validation Baseline
 
@@ -54,7 +54,7 @@ Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored 
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
     - `target/perf/bench.json`: `hover_latency.p95_us = 2955`, `wheel_latency.p95_us = 3094`
 
-- [ ] 2. Reuse retained browser-row/static frame data during native-shell scene builds
+- [x] 2. Reuse retained browser-row/static frame data during native-shell scene builds
   - ROI: Very High
   - Effort: M
   - Expected impact: p95 interaction latency, frame time, memory, CPU
@@ -79,6 +79,13 @@ Status: Phase 2 active on 2026-04-03; prerequisite perf-harness parity restored 
     - Extend native-shell cache and browser-row rendering tests in `vendor/radiant`.
     - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
     - Re-measure `interactive_projection`, `wheel_latency`, and `browser_focus_commit_latency`.
+  - Completed: 2026-04-03, commit `58e5fe24` (`vendor/radiant`)
+  - Validation status:
+    - `cargo test --manifest-path X:\sempal\vendor\radiant\Cargo.toml browser_toolbar::rendering -- --nocapture`
+    - `cargo test --manifest-path X:\sempal\vendor\radiant\Cargo.toml browser_rows::rendering::segments -- --nocapture`
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+    - `target/perf/bench.json`: `hover_latency.p95_us = 3042`, `wheel_latency.p95_us = 2622`, `browser_focus_commit_latency.p95_us = 96`, `waveform_pan_zoom_adjacent_latency.p95_us = 89`, `browser_filter_churn_latency.p95_us = 3136`
 
 - [ ] 3. Stop cloning the entire retained native app model on every bridge projection miss
   - ROI: High

@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-04T01:45:00Z
+Last Updated: 2026-04-03T21:02:52Z
 Updated By: Codex
 
 ## Purpose
@@ -14,9 +14,10 @@ Updated By: Codex
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
 - I have refreshed the runtime performance audit for the current live tree and written the new Phase 1 plan to `tmp/perf_plan.md`.
 - `tmp/perf_plan.md` is now the source of truth for the 2026-04-03 ROI-ranked runtime performance backlog for the current tree.
-- Phase 2 is active for the refreshed performance lane, and the ranked backlog in `tmp/perf_plan.md` is now being implemented sequentially.
+- Phase 2 is active for the refreshed performance lane, and the ranked backlog in `tmp/perf_plan.md` is being implemented sequentially.
 - Item 1 is complete in `vendor/radiant` commit `9fe71ec9`: the native runtime now caches hover, focus, and modal overlays independently instead of rebuilding one monolithic state-overlay scene.
-- The latest benchmark evidence comes from `target/perf/bench.json`, where `hover_latency` improved to `2955us` p95 and `wheel_latency` improved to `3094us` p95 after item 1.
+- Item 2 is complete in `vendor/radiant` commit `58e5fe24`: the static native-shell frame builder now renders browser rows, toolbar geometry, and sidebar sections directly from retained caches instead of materializing fresh browser/source/folder vectors on every build.
+- The latest benchmark evidence comes from `target/perf/bench.json`, where item 2 held `hover_latency` at `3042us` p95 while improving `wheel_latency` to `2622us` p95, `browser_focus_commit_latency` to `96us` p95, and `waveform_pan_zoom_adjacent_latency` to `89us` p95.
 - The current top ROI items are:
   - reuse retained browser-row/static frame data during native-shell scene builds
   - stop cloning the full retained `NativeAppModel` on every bridge projection miss
@@ -31,13 +32,13 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Continue with item 2 from `tmp/perf_plan.md`: reuse retained browser-row/static frame data during native-shell scene builds.
+1. Continue with item 3 from `tmp/perf_plan.md`: stop cloning the entire retained native app model on every bridge projection miss.
 2. Keep `tmp/perf_plan.md`, `AGENTS.md`, `MEMORY.md`, `docs/plans/index.md`, and `docs/plans/active/todo.md` synchronized with the performance lane status.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
 
 ## Work Notes
 
-- Active audit plan: `tmp/perf_plan.md` (Phase 2 active; item 1 complete in `vendor/radiant` commit `9fe71ec9`)
+- Active audit plan: `tmp/perf_plan.md` (Phase 2 active; items 1-2 complete in `vendor/radiant` commits `9fe71ec9` and `58e5fe24`)
 - Current hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
