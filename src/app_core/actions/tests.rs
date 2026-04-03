@@ -160,12 +160,16 @@ fn profiled_interaction_catalog_entries_match_expected_surfaces_and_dirty_source
 }
 
 #[test]
-fn targeted_invalidation_catalog_entries_stay_on_browser_surface() {
+fn targeted_invalidation_catalog_entries_stay_on_sidebar_or_browser_surfaces() {
     for entry in GUI_ACTION_CATALOG {
         if !catalog_prefers_targeted_invalidation(entry.kind) {
             continue;
         }
-        assert_eq!(entry.surface, GuiSurface::Browser);
+        assert!(
+            matches!(entry.surface, GuiSurface::Browser | GuiSurface::Sources),
+            "targeted invalidation action {} should stay on browser/sidebar surfaces",
+            entry.action_id
+        );
         assert_eq!(
             catalog_dirty_source(entry.kind).map(|(node, _)| node),
             Some(DerivedNodeId::BrowserState),

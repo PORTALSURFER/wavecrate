@@ -18,6 +18,23 @@ impl AppController {
             .filter(|id| self.library.sources.iter().any(|source| source.id == *id))
     }
 
+    /// Return the current source-row index assigned to `pane`, when any.
+    pub(crate) fn source_index_for_pane(&self, pane: FolderPaneId) -> Option<usize> {
+        let source_id = self.folder_pane_source(pane)?;
+        self.library
+            .sources
+            .iter()
+            .position(|source| source.id == source_id)
+    }
+
+    /// Return the source id for a visible source-row index, when it exists.
+    pub(crate) fn source_id_for_index(&self, index: usize) -> Option<SourceId> {
+        self.library
+            .sources
+            .get(index)
+            .map(|source| source.id.clone())
+    }
+
     /// Copy the active compatibility folder UI back into the retained pane slot.
     pub(crate) fn sync_active_folder_ui_to_pane(&mut self) {
         let pane = self.ui.sources.active_folder_pane;
@@ -71,9 +88,17 @@ impl AppController {
 
     /// Change the selected source by index.
     pub fn select_source_by_index(&mut self, index: usize) {
-        let id = self.library.sources.get(index).map(|s| s.id.clone());
+        let id = self.source_id_for_index(index);
         self.record_meaningful_ui_transaction("Select source", |controller| {
             controller.select_source_internal(id, None);
+        });
+    }
+
+    /// Assign a source row to one pane without activating it.
+    pub(crate) fn select_source_by_index_in_pane(&mut self, pane: FolderPaneId, index: usize) {
+        let id = self.source_id_for_index(index);
+        self.record_meaningful_ui_transaction("Assign source to pane", |controller| {
+            controller.select_source_in_pane_internal(pane, id.clone());
         });
     }
 
@@ -84,7 +109,7 @@ impl AppController {
         }
         let current = self.ui.sources.selected.unwrap_or(0) as isize;
         let target = (current + offset).clamp(0, self.library.sources.len() as isize - 1) as usize;
-        let id = self.library.sources.get(target).map(|s| s.id.clone());
+        let id = self.source_id_for_index(target);
         self.record_meaningful_ui_transaction("Select source", |controller| {
             controller.select_source_internal(id, None);
             controller.focus_sources_context();
@@ -196,6 +221,51 @@ impl AppController {
         self.refresh_sources_ui();
         self.queue_wav_load();
         let _ = self.persist_config("Failed to save selection");
+    }
+
+    pub(crate) fn select_source_in_pane_internal(
+        &mut self,
+        pane: FolderPaneId,
+        id: Option<SourceId>,
+    ) {
+        if pane == self.active_folder_pane() {
+            self.select_source_internal(id, None);
+            return;
+        }
+        if self.folder_pane_source(pane) == id {
+            self.refresh_sources_ui();
+            return;
+        }
+        self.assign_source_to_folder_pane(pane, id.clone());
+        if id.is_some() {
+            self.refresh_inactive_folder_pane_ui(pane, id);
+        } else {
+            self.ui.sources.folder_pane_mut(pane).browser = FolderBrowserUiState::default();
+        }
+        self.refresh_sources_ui();
+        let _ = self.persist_config("Failed to save selection");
+    }
+
+    fn refresh_inactive_folder_pane_ui(&mut self, pane: FolderPaneId, id: Option<SourceId>) {
+        let active_pane = self.ui.sources.active_folder_pane;
+        let active_folder_ui = self.ui.sources.folders.clone();
+        let active_selected_source = self.selection_state.ctx.selected_source.clone();
+        let active_last_selected_source = self
+            .selection_state
+            .ctx
+            .last_selected_browsable_source
+            .clone();
+
+        self.ui.sources.active_folder_pane = pane;
+        self.selection_state.ctx.selected_source = id.clone();
+        self.selection_state.ctx.last_selected_browsable_source = id;
+        self.load_active_folder_ui_from_pane();
+        self.refresh_folder_browser();
+
+        self.ui.sources.active_folder_pane = active_pane;
+        self.selection_state.ctx.selected_source = active_selected_source;
+        self.selection_state.ctx.last_selected_browsable_source = active_last_selected_source;
+        self.ui.sources.folders = active_folder_ui;
     }
 
     pub(super) fn clear_wavs(&mut self) {

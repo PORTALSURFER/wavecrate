@@ -52,6 +52,13 @@ impl AppController {
         }
         let removed = self.library.sources.remove(index);
         self.library.missing.sources.remove(&removed.id);
+        for pane in [FolderPaneId::Upper, FolderPaneId::Lower] {
+            if self.ui.sources.folder_pane(pane).source_id.as_ref() == Some(&removed.id) {
+                let pane_state = self.ui.sources.folder_pane_mut(pane);
+                pane_state.source_id = None;
+                pane_state.browser = FolderBrowserUiState::default();
+            }
+        }
         let mut invalidator = source_cache_invalidator::SourceCacheInvalidator::new_from_state(
             &mut self.cache,
             &mut self.ui_cache,

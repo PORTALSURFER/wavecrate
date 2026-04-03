@@ -1,7 +1,8 @@
 use super::*;
+use crate::app::state::FolderPaneId;
 
 #[test]
-fn reload_source_row_action_selects_target_source() {
+fn reload_source_row_action_assigns_target_pane_without_changing_active_browser_source() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = match tempdir() {
         Ok(dir) => dir,
@@ -23,13 +24,31 @@ fn reload_source_row_action_selects_target_source() {
     }
 
     controller.select_source_by_index(0);
-    controller.apply_native_ui_action(NativeUiAction::ReloadSourceRow { index: 1 });
+    let source_a_id = controller
+        .source_id_for_index(0)
+        .expect("source-a id should exist");
+    let source_b_id = controller
+        .source_id_for_index(1)
+        .expect("source-b id should exist");
+    controller.apply_native_ui_action(NativeUiAction::ReloadSourceRow {
+        pane: Some(radiant::app::FolderPaneIdModel::Lower),
+        index: 1,
+    });
 
-    assert_eq!(controller.ui.sources.selected, Some(1));
+    assert_eq!(controller.active_folder_pane(), FolderPaneId::Upper);
+    assert_eq!(
+        controller.folder_pane_source(FolderPaneId::Upper),
+        Some(source_a_id)
+    );
+    assert_eq!(
+        controller.folder_pane_source(FolderPaneId::Lower),
+        Some(source_b_id)
+    );
+    assert_eq!(controller.ui.sources.selected, Some(0));
 }
 
 #[test]
-fn remove_source_row_action_removes_target_source() {
+fn remove_source_row_action_removes_clicked_pane_source_without_activating_it() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = match tempdir() {
         Ok(dir) => dir,
@@ -49,18 +68,25 @@ fn remove_source_row_action_removes_target_source() {
     if let Err(err) = controller.add_source_from_path(source_b.clone()) {
         panic!("failed to add source-b fixture: {err}");
     }
+    controller.select_source_by_index(0);
+    controller.select_source_by_index_in_pane(FolderPaneId::Lower, 1);
 
-    controller.apply_native_ui_action(NativeUiAction::RemoveSourceRow { index: 0 });
+    controller.apply_native_ui_action(NativeUiAction::RemoveSourceRow {
+        pane: Some(radiant::app::FolderPaneIdModel::Lower),
+        index: 1,
+    });
 
+    assert_eq!(controller.active_folder_pane(), FolderPaneId::Upper);
     assert_eq!(controller.ui.sources.rows.len(), 1);
     assert_eq!(
         controller.ui.sources.rows[0].path,
-        source_b.to_string_lossy()
+        source_a.to_string_lossy()
     );
+    assert_eq!(controller.folder_pane_source(FolderPaneId::Lower), None);
 }
 
 #[test]
-fn focus_source_row_action_selects_source_and_focuses_sources_list() {
+fn focus_source_row_action_assigns_target_pane_and_focuses_sources_list() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().unwrap();
     let source_a = dir.path().join("source-a");
@@ -69,11 +95,30 @@ fn focus_source_row_action_selects_source_and_focuses_sources_list() {
     std::fs::create_dir_all(&source_b).unwrap();
     controller.add_source_from_path(source_a).unwrap();
     controller.add_source_from_path(source_b).unwrap();
+    controller.select_source_by_index(0);
+    let source_a_id = controller
+        .source_id_for_index(0)
+        .expect("source-a id should exist");
+    let source_b_id = controller
+        .source_id_for_index(1)
+        .expect("source-b id should exist");
     controller.ui.focus.context = FocusContext::Waveform;
 
-    controller.apply_native_ui_action(NativeUiAction::FocusSourceRow { index: 1 });
+    controller.apply_native_ui_action(NativeUiAction::FocusSourceRow {
+        pane: Some(radiant::app::FolderPaneIdModel::Lower),
+        index: 1,
+    });
 
-    assert_eq!(controller.ui.sources.selected, Some(1));
+    assert_eq!(controller.active_folder_pane(), FolderPaneId::Upper);
+    assert_eq!(
+        controller.folder_pane_source(FolderPaneId::Upper),
+        Some(source_a_id)
+    );
+    assert_eq!(
+        controller.folder_pane_source(FolderPaneId::Lower),
+        Some(source_b_id)
+    );
+    assert_eq!(controller.ui.sources.selected, Some(0));
     assert_eq!(controller.ui.focus.context, FocusContext::SourcesList);
 }
 

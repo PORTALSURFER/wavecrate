@@ -1,7 +1,9 @@
 //! Source-row and global options routing for native browser actions.
 
 use super::super::AppController;
+use crate::app::state::FolderPaneId;
 use crate::app_core::actions::NativeUiAction;
+use radiant::app::FolderPaneIdModel;
 
 /// Try to dispatch source-row and options-panel native actions.
 pub(super) fn apply_source_and_options_native_ui_action(
@@ -10,22 +12,26 @@ pub(super) fn apply_source_and_options_native_ui_action(
 ) -> Result<(), NativeUiAction> {
     match action {
         NativeUiAction::FocusSourcesPanel => controller.focus_sources_list(),
-        NativeUiAction::FocusSourceRow { index } => {
-            controller.select_source_by_index(index);
+        NativeUiAction::FocusSourceRow { pane, index } => {
+            controller.select_source_by_index_in_pane(resolve_source_pane(controller, pane), index);
             controller.focus_sources_context();
         }
-        NativeUiAction::SelectSourceRow { index } => controller.select_source_by_index(index),
+        NativeUiAction::SelectSourceRow { pane, index } => {
+            controller.select_source_by_index_in_pane(resolve_source_pane(controller, pane), index)
+        }
         NativeUiAction::MoveSourceFocus { delta } => {
             controller.nudge_source_selection(delta as isize)
         }
         NativeUiAction::ReloadFocusedSourceRow => {
-            if selected_source_index(controller).is_some() {
-                controller.request_quick_sync();
+            if let Some(source_id) = controller.folder_pane_source(controller.active_folder_pane())
+            {
+                controller.request_quick_sync_for_source(&source_id);
             }
         }
         NativeUiAction::HardSyncFocusedSourceRow => {
-            if selected_source_index(controller).is_some() {
-                controller.request_hard_sync();
+            if let Some(source_id) = controller.folder_pane_source(controller.active_folder_pane())
+            {
+                controller.request_hard_sync_for_source(&source_id);
             }
         }
         NativeUiAction::OpenFocusedSourceFolder => {
@@ -38,16 +44,22 @@ pub(super) fn apply_source_and_options_native_ui_action(
                 controller.remove_source(index);
             }
         }
-        NativeUiAction::ReloadSourceRow { index } => {
-            controller.select_source_by_index(index);
-            controller.request_quick_sync();
+        NativeUiAction::ReloadSourceRow { pane, index } => {
+            controller.select_source_by_index_in_pane(resolve_source_pane(controller, pane), index);
+            if let Some(source_id) = controller.source_id_for_index(index) {
+                controller.request_quick_sync_for_source(&source_id);
+            }
         }
-        NativeUiAction::HardSyncSourceRow { index } => {
-            controller.select_source_by_index(index);
-            controller.request_hard_sync();
+        NativeUiAction::HardSyncSourceRow { pane, index } => {
+            controller.select_source_by_index_in_pane(resolve_source_pane(controller, pane), index);
+            if let Some(source_id) = controller.source_id_for_index(index) {
+                controller.request_hard_sync_for_source(&source_id);
+            }
         }
-        NativeUiAction::OpenSourceFolderRow { index } => controller.open_source_folder(index),
-        NativeUiAction::RemoveSourceRow { index } => controller.remove_source(index),
+        NativeUiAction::OpenSourceFolderRow { pane: _, index } => {
+            controller.open_source_folder(index)
+        }
+        NativeUiAction::RemoveSourceRow { pane: _, index } => controller.remove_source(index),
         NativeUiAction::OpenAddSourceDialog => controller.add_source_via_dialog(),
         NativeUiAction::OpenOptionsMenu => controller.open_options_panel(),
         NativeUiAction::CloseOptionsPanel => controller.close_options_panel(),
@@ -71,5 +83,19 @@ pub(super) fn apply_source_and_options_native_ui_action(
 }
 
 fn selected_source_index(controller: &AppController) -> Option<usize> {
-    controller.ui.sources.selected
+    controller.source_index_for_pane(controller.active_folder_pane())
+}
+
+fn resolve_source_pane(
+    controller: &AppController,
+    pane: Option<FolderPaneIdModel>,
+) -> FolderPaneId {
+    let pane = pane.unwrap_or_else(|| match controller.active_folder_pane() {
+        FolderPaneId::Upper => FolderPaneIdModel::Upper,
+        FolderPaneId::Lower => FolderPaneIdModel::Lower,
+    });
+    match pane {
+        FolderPaneIdModel::Upper => FolderPaneId::Upper,
+        FolderPaneIdModel::Lower => FolderPaneId::Lower,
+    }
 }

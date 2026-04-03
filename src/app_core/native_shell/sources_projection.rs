@@ -43,6 +43,18 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
             .iter()
             .enumerate()
             .map(|(row_index, row)| {
+                let upper_assigned = ui
+                    .sources
+                    .folder_pane(FolderPaneId::Upper)
+                    .source_id
+                    .as_ref()
+                    .is_some_and(|source_id| *source_id == row.id);
+                let lower_assigned = ui
+                    .sources
+                    .folder_pane(FolderPaneId::Lower)
+                    .source_id
+                    .as_ref()
+                    .is_some_and(|source_id| *source_id == row.id);
                 SourceRowModel::new(
                     row.name.clone(),
                     row.path.clone(),
@@ -51,6 +63,7 @@ pub(crate) fn project_sources_model(ui: &UiState) -> SourcesPanelModel {
                         .is_some_and(|selected| selected == row_index),
                     row.missing,
                 )
+                .with_pane_assignment(upper_assigned, lower_assigned)
             })
             .collect(),
         folder_rows: active_folder_rows,

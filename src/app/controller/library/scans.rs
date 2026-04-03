@@ -30,6 +30,20 @@ impl AppController {
         self.request_scan_for_source(&source, ScanMode::Hard, ScanKind::Manual);
     }
 
+    /// Trigger a quick sync for a specific source by id.
+    pub(crate) fn request_quick_sync_for_source(&mut self, source_id: &SourceId) {
+        let Some(source) = self
+            .library
+            .sources
+            .iter()
+            .find(|source| &source.id == source_id)
+            .cloned()
+        else {
+            return;
+        };
+        self.request_scan_for_source(&source, ScanMode::Quick, ScanKind::Manual);
+    }
+
     /// Trigger a periodic quick sync to keep the current source in sync with disk.
     pub(crate) fn request_auto_quick_sync_if_due(&mut self, min_interval: Duration) {
         let Some(source) = self.current_source() else {

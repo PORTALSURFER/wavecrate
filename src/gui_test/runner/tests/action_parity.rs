@@ -56,7 +56,7 @@ fn browser_nodes_advertise_expected_action_ids() {
         ),
         (
             "browser",
-            "sources.source_row.0",
+            "sources.upper.source_row.0",
             &[
                 "select_source_row",
                 "reload_source_row",
@@ -147,7 +147,16 @@ fn sidebar_nodes_advertise_expected_action_ids() {
     let cases: &[(&str, &str, &[&str])] = &[
         ("browser", "sources.add_button", &["open_add_source_dialog"]),
         ("sources", "sources.panel", &["focus_sources_panel"]),
-        ("sources", "sources.source_list", &["focus_sources_panel"]),
+        (
+            "sources",
+            "sources.upper.source_list",
+            &["focus_sources_panel"],
+        ),
+        (
+            "sources",
+            "sources.lower.source_list",
+            &["focus_sources_panel"],
+        ),
         (
             "sources",
             "sources.upper.folder_browser",
@@ -170,7 +179,18 @@ fn sidebar_nodes_advertise_expected_action_ids() {
         ),
         (
             "browser",
-            "sources.source_row.0",
+            "sources.upper.source_row.0",
+            &[
+                "select_source_row",
+                "reload_source_row",
+                "hard_sync_source_row",
+                "open_source_folder_row",
+                "remove_source_row",
+            ],
+        ),
+        (
+            "browser",
+            "sources.lower.source_row.0",
             &[
                 "select_source_row",
                 "reload_source_row",
