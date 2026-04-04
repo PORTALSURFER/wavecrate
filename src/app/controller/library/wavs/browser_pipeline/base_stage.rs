@@ -77,6 +77,11 @@ pub(super) fn ensure_base_stage(controller: &mut AppController) {
         .ui_cache
         .browser
         .pipeline
+        .playback_age_token_cache = None;
+    controller
+        .ui_cache
+        .browser
+        .pipeline
         .folder_accepts_by_index
         .clear();
     controller.ui_cache.browser.pipeline.filtered_fingerprint = None;

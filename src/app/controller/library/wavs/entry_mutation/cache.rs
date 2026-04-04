@@ -45,6 +45,7 @@ pub(crate) fn update_cached_entry(
         );
     }
     let mut updated = false;
+    let mut selected_index = None;
     if controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id)
         && let Some(index) = controller.wav_entries.lookup.get(old_path).copied()
         && let Some(slot) = controller.wav_entries.entry_mut(index)
@@ -62,6 +63,7 @@ pub(crate) fn update_cached_entry(
             controller.ui.browser.selection.last_focused_path =
                 Some(new_entry.relative_path.clone());
         }
+        selected_index = Some(index);
     }
     if let Some(cache) = controller.cache.wav.entries.get_mut(&source.id)
         && let Some(index) = cache.lookup.get(old_path).copied()
@@ -78,8 +80,14 @@ pub(crate) fn update_cached_entry(
             controller.ui_cache.browser.pipeline.invalidate();
             controller.rebuild_browser_lists();
         }
-        if old_path != new_entry.relative_path {
-            controller.ui_cache.browser.labels.remove(&source.id);
+        if old_path != new_entry.relative_path
+            && let Some(index) = selected_index
+        {
+            controller.update_cached_browser_label_for_index(
+                &source.id,
+                index,
+                &new_entry.relative_path,
+            );
         }
     } else {
         controller.invalidate_wav_entries_for_source_preserve_folders(source);
@@ -102,9 +110,13 @@ pub(crate) fn insert_cached_entry(
         .ok()
         .and_then(|db| db.index_for_path(&entry.relative_path).ok().flatten());
     let mut selected_inserted = false;
+    let mut selected_insert_index = None;
     if let Some(index) = entry_index {
         if selected_entries_loaded {
             selected_inserted = controller.wav_entries.insert_entry_at(index, entry.clone());
+            if selected_inserted {
+                selected_insert_index = Some(index);
+            }
         }
         if let Some(cache) = controller.cache.wav.entries.get_mut(&source.id) {
             let _ = cache.insert_entry_at(index, entry.clone());
@@ -112,7 +124,11 @@ pub(crate) fn insert_cached_entry(
     }
     if selected_source_active {
         if selected_entries_loaded && selected_inserted {
-            controller.ui_cache.browser.labels.remove(&source.id);
+            if let Some(index) = selected_insert_index {
+                controller.insert_cached_browser_label_slot(&source.id, index);
+            } else {
+                controller.ui_cache.browser.labels.remove(&source.id);
+            }
             controller.ui_cache.browser.bpm_values.remove(&source.id);
             controller.ui_cache.browser.search.invalidate();
             controller.ui_cache.browser.pipeline.invalidate();

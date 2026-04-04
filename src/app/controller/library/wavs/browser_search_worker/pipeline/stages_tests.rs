@@ -1,21 +1,23 @@
 use super::stages::{
-    BuildVisibleRowsParams, build_visible_rows_for_job, reusable_prefix_query_scores,
-    sort_visible_indices, try_reuse_cached_query_scores,
+    BuildVisibleRowsParams, build_visible_rows_for_job, ensure_search_cache_ready_for_job,
+    ensure_search_entries_loaded_for_job, reusable_prefix_query_scores, sort_visible_indices,
+    try_reuse_cached_query_scores,
 };
 use super::*;
-use crate::sample_sources::SourceId;
+use crate::sample_sources::{SourceDatabase, SourceId};
 use std::collections::BTreeSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use tempfile::tempdir;
 
 #[test]
 fn query_score_cache_reuse_moves_hit_to_front() {
     let mut cache = SearchWorkerCache {
-        revision: 12,
+        path_fingerprint: 12,
         query_score_cache: vec![
             WorkerQueryScoreCacheEntry {
                 scope: WorkerQueryScoreCacheScope {
                     source_id: "source-a".to_string(),
-                    revision: 12,
+                    path_fingerprint: 12,
                 },
                 query: "snare".to_string(),
                 scores: Arc::from([Some(10), Some(8)]),
@@ -24,7 +26,7 @@ fn query_score_cache_reuse_moves_hit_to_front() {
             WorkerQueryScoreCacheEntry {
                 scope: WorkerQueryScoreCacheScope {
                     source_id: "source-a".to_string(),
-                    revision: 12,
+                    path_fingerprint: 12,
                 },
                 query: "kick".to_string(),
                 scores: Arc::from([Some(4), Some(3)]),
@@ -44,12 +46,12 @@ fn query_score_cache_reuse_moves_hit_to_front() {
 #[test]
 fn prefix_query_score_cache_prefers_longest_matching_prefix() {
     let cache = SearchWorkerCache {
-        revision: 12,
+        path_fingerprint: 12,
         query_score_cache: vec![
             WorkerQueryScoreCacheEntry {
                 scope: WorkerQueryScoreCacheScope {
                     source_id: "source-a".to_string(),
-                    revision: 12,
+                    path_fingerprint: 12,
                 },
                 query: "k".to_string(),
                 scores: Arc::from([Some(4), None]),
@@ -58,7 +60,7 @@ fn prefix_query_score_cache_prefers_longest_matching_prefix() {
             WorkerQueryScoreCacheEntry {
                 scope: WorkerQueryScoreCacheScope {
                     source_id: "source-a".to_string(),
-                    revision: 12,
+                    path_fingerprint: 12,
                 },
                 query: "ki".to_string(),
                 scores: Arc::from([Some(3), None]),
@@ -73,6 +75,93 @@ fn prefix_query_score_cache_prefers_longest_matching_prefix() {
 
     assert_eq!(reused.query, "ki");
     assert_eq!(reused.matched_indices.as_ref(), &[0]);
+}
+
+#[test]
+fn metadata_only_refresh_reuses_cached_paths_and_scores() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).expect("create source root");
+
+    let db = SourceDatabase::open(&root).expect("open source db");
+    db.upsert_file(Path::new("drums/kick.wav"), 1, 1)
+        .expect("insert kick");
+    db.upsert_file(Path::new("drums/snare.wav"), 1, 2)
+        .expect("insert snare");
+
+    let job = SearchJob {
+        source_id: SourceId::new(),
+        source_root: root.clone(),
+        ..make_search_job("kick")
+    };
+    let source_id = job.source_id.as_str().to_string();
+    let queue = SearchJobQueue::new();
+    queue.send(SearchJob {
+        source_id: job.source_id.clone(),
+        source_root: job.source_root.clone(),
+        ..make_search_job("kick")
+    });
+    let generation = queue
+        .take_blocking()
+        .expect("expected queued search job generation")
+        .generation;
+    let mut cache = SearchWorkerCache::default();
+
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &job, &source_id
+    ));
+    assert!(ensure_search_entries_loaded_for_job(
+        &mut cache, &job, &queue, generation
+    ));
+
+    let entries = cache.entries.as_ref().expect("entries loaded");
+    let initial_path_ptrs: Vec<*const u8> = entries
+        .iter()
+        .map(|entry| entry.relative_path.as_ptr())
+        .collect();
+    let initial_label_ptrs: Vec<*const u8> = entries
+        .iter()
+        .map(|entry| entry.display_label.as_ptr())
+        .collect();
+    let path_fingerprint = cache.path_fingerprint;
+    cache.query_score_cache.push(WorkerQueryScoreCacheEntry {
+        scope: WorkerQueryScoreCacheScope {
+            source_id: source_id.clone(),
+            path_fingerprint,
+        },
+        query: "kick".to_string(),
+        scores: Arc::from([Some(10), None]),
+        matched_indices: Arc::from([0]),
+    });
+
+    db.set_tag(Path::new("drums/kick.wav"), Rating::KEEP_1)
+        .expect("update tag");
+    db.set_last_played_at(Path::new("drums/snare.wav"), 42)
+        .expect("update last played");
+
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &job, &source_id
+    ));
+    assert!(ensure_search_entries_loaded_for_job(
+        &mut cache, &job, &queue, generation
+    ));
+
+    let refreshed = cache.entries.as_ref().expect("entries refreshed");
+    let refreshed_path_ptrs: Vec<*const u8> = refreshed
+        .iter()
+        .map(|entry| entry.relative_path.as_ptr())
+        .collect();
+    let refreshed_label_ptrs: Vec<*const u8> = refreshed
+        .iter()
+        .map(|entry| entry.display_label.as_ptr())
+        .collect();
+
+    assert_eq!(refreshed_path_ptrs, initial_path_ptrs);
+    assert_eq!(refreshed_label_ptrs, initial_label_ptrs);
+    assert_eq!(cache.path_fingerprint, path_fingerprint);
+    assert_eq!(cache.query_score_cache.len(), 1);
+    assert_eq!(refreshed[0].tag, Rating::KEEP_1);
+    assert_eq!(refreshed[1].last_played_at, Some(42));
 }
 
 #[test]

@@ -38,6 +38,8 @@ pub(crate) struct BrowserPipelineCache {
     folder_accepts_fingerprint: Option<u64>,
     /// Cached folder-filter acceptance by absolute wav-entry index.
     folder_accepts_by_index: Vec<bool>,
+    /// Next playback-age rollover token cached for the current base snapshot and filter set.
+    playback_age_token_cache: Option<PlaybackAgeTokenCache>,
     /// Fingerprint for the filtered stage rows.
     filtered_fingerprint: Option<u64>,
     /// Filtered absolute entry indices.
@@ -64,6 +66,7 @@ impl BrowserPipelineCache {
         self.keep_rows.clear();
         self.folder_accepts_fingerprint = None;
         self.folder_accepts_by_index.clear();
+        self.playback_age_token_cache = None;
         self.filtered_fingerprint = None;
         self.filtered_rows.clear();
         self.scored_fingerprint = None;
@@ -75,6 +78,22 @@ impl BrowserPipelineCache {
     /// Return the retained feature-cache refresh snapshot for the current base rows.
     pub(crate) fn feature_cache_snapshot(&self) -> Option<BrowserFeatureCacheSnapshot> {
         self.feature_cache_snapshot.clone()
+    }
+
+    /// Update one retained playback-age value without rebuilding the whole base stage.
+    pub(crate) fn update_playback_age(&mut self, index: usize, played_at: Option<i64>) -> bool {
+        let Some(entry) = self.compact_entries.get_mut(index) else {
+            return false;
+        };
+        if entry.last_played_at == played_at {
+            return true;
+        }
+        entry.last_played_at = played_at;
+        self.playback_age_token_cache = None;
+        self.filtered_fingerprint = None;
+        self.scored_fingerprint = None;
+        self.sorted_fingerprint = None;
+        true
     }
 }
 
@@ -192,4 +211,12 @@ struct BaseStageFingerprint {
     source_id: Option<SourceId>,
     source_revision: Option<u64>,
     entries_len: usize,
+}
+
+/// Cached next playback-age rollover token for one retained base snapshot and chip set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PlaybackAgeTokenCache {
+    base_fingerprint_hash: u64,
+    filter_hash: u64,
+    token: Option<i64>,
 }

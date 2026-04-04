@@ -179,7 +179,24 @@ pub(super) fn playback_age_filter_cache_token(
     filters: &std::collections::BTreeSet<PlaybackAgeFilterChip>,
     now_unix_secs: i64,
 ) -> Option<i64> {
-    controller
+    if filters.is_empty() {
+        return None;
+    }
+    let base_fingerprint_hash = hash_value(&controller.ui_cache.browser.pipeline.base_fingerprint);
+    let filter_hash = hash_value(filters);
+    if let Some(cached) = controller
+        .ui_cache
+        .browser
+        .pipeline
+        .playback_age_token_cache
+        && cached.base_fingerprint_hash == base_fingerprint_hash
+        && cached.filter_hash == filter_hash
+        && cached.token.is_none_or(|token| now_unix_secs < token)
+    {
+        return cached.token;
+    }
+
+    let token = controller
         .ui_cache
         .browser
         .pipeline
@@ -200,5 +217,15 @@ pub(super) fn playback_age_filter_cache_token(
                     )
                 })
         })
-        .min()
+        .min();
+    controller
+        .ui_cache
+        .browser
+        .pipeline
+        .playback_age_token_cache = Some(super::PlaybackAgeTokenCache {
+        base_fingerprint_hash,
+        filter_hash,
+        token,
+    });
+    token
 }

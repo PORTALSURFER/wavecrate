@@ -131,6 +131,11 @@ fn update_cached_entry_rewrites_cache_lookup_db_and_focus_path_on_rename() {
     let db = controller.database_for(&source).unwrap();
     db.set_looped(Path::new("old.wav"), true).unwrap();
     db.set_last_played_at(Path::new("old.wav"), 77).unwrap();
+    controller
+        .ui_cache
+        .browser
+        .labels
+        .insert(source.id.clone(), vec![String::from("old")]);
 
     let mut cache = WavEntriesState::new(1, 50);
     cache.insert_page(0, vec![sample_entry("old.wav", Rating::NEUTRAL)]);
@@ -220,5 +225,31 @@ fn update_cached_entry_rewrites_cache_lookup_db_and_focus_path_on_rename() {
             .as_ref()
             .map(|anchor| anchor.relative_path.as_path()),
         Some(Path::new("renamed.wav"))
+    );
+    assert_eq!(
+        controller.ui_cache.browser.labels.get(&source.id),
+        Some(&vec![String::from("renamed")])
+    );
+}
+
+#[test]
+fn insert_cached_entry_preserves_existing_browser_labels_when_index_is_known() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("a.wav", Rating::NEUTRAL),
+        sample_entry("c.wav", Rating::NEUTRAL),
+    ]);
+    controller.ui_cache.browser.labels.insert(
+        source.id.clone(),
+        vec![String::from("a"), String::from("c")],
+    );
+    let db = controller.database_for(&source).unwrap();
+    db.upsert_file(Path::new("b.wav"), 0, 0)
+        .expect("insert middle db row");
+
+    controller.insert_cached_entry(&source, sample_entry("b.wav", Rating::KEEP_1));
+
+    assert_eq!(
+        controller.ui_cache.browser.labels.get(&source.id),
+        Some(&vec![String::from("a"), String::new(), String::from("c"),])
     );
 }

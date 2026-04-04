@@ -141,6 +141,31 @@ impl AppController {
         }
     }
 
+    /// Update one retained browser-label slot after a known in-place rename.
+    pub(crate) fn update_cached_browser_label_for_index(
+        &mut self,
+        source_id: &SourceId,
+        index: usize,
+        relative_path: &Path,
+    ) {
+        let Some(labels) = self.ui_cache.browser.labels.get_mut(source_id) else {
+            return;
+        };
+        if index < labels.len() {
+            labels[index] = view_model::sample_display_label(relative_path);
+        }
+    }
+
+    /// Insert one empty retained browser-label slot when an entry index is known.
+    pub(crate) fn insert_cached_browser_label_slot(&mut self, source_id: &SourceId, index: usize) {
+        let Some(labels) = self.ui_cache.browser.labels.get_mut(source_id) else {
+            return;
+        };
+        if index <= labels.len() {
+            labels.insert(index, String::new());
+        }
+    }
+
     /// Return a display label for one wav entry, filling the retained label cache on demand.
     pub(crate) fn label_for_ref(&mut self, index: usize) -> Option<&str> {
         let source_id = self.selection_state.ctx.selected_source.clone()?;

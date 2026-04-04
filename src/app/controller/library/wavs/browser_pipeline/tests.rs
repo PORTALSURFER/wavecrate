@@ -221,6 +221,122 @@ fn playback_age_filter_cache_stays_stable_until_the_next_week_boundary() {
 }
 
 #[test]
+fn playback_age_filter_token_cache_tracks_base_snapshot_and_filter_shape() {
+    const WEEK_SECS: i64 = 7 * 24 * 60 * 60;
+
+    let entries = vec![
+        search_entry("aging.wav", Rating::NEUTRAL, Some(100)),
+        search_entry("fresh.wav", Rating::NEUTRAL, Some(100 + WEEK_SECS)),
+    ];
+    let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
+    controller
+        .ui
+        .browser
+        .search
+        .playback_age_filter
+        .insert(PlaybackAgeFilterChip::OlderThanWeek);
+
+    let now = 100 + WEEK_SECS - 5;
+    let _ = super::visible_rows::build_visible_rows_with_now(&mut controller, None, None, now);
+    let cached_before = controller
+        .ui_cache
+        .browser
+        .pipeline
+        .playback_age_token_cache;
+
+    let _ = super::visible_rows::build_visible_rows_with_now(&mut controller, None, None, now + 1);
+    assert_eq!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .playback_age_token_cache,
+        cached_before
+    );
+
+    controller
+        .ui
+        .browser
+        .search
+        .playback_age_filter
+        .insert(PlaybackAgeFilterChip::OlderThanMonth);
+    let _ = super::visible_rows::build_visible_rows_with_now(&mut controller, None, None, now + 1);
+    assert_ne!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .playback_age_token_cache,
+        cached_before
+    );
+}
+
+#[test]
+fn targeted_playback_age_update_clears_cached_rollover_token() {
+    const WEEK_SECS: i64 = 7 * 24 * 60 * 60;
+
+    let entries = vec![search_entry("aging.wav", Rating::NEUTRAL, Some(100))];
+    let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
+    controller
+        .ui
+        .browser
+        .search
+        .playback_age_filter
+        .insert(PlaybackAgeFilterChip::OlderThanWeek);
+
+    let now_unix_secs = 100 + WEEK_SECS - 2;
+    let _ = super::visible_rows::build_visible_rows_with_now(
+        &mut controller,
+        None,
+        None,
+        now_unix_secs,
+    );
+    assert_eq!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .playback_age_token_cache
+            .as_ref()
+            .and_then(|cache| cache.token),
+        Some(100 + WEEK_SECS)
+    );
+
+    assert!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .update_playback_age(0, Some(200))
+    );
+    assert!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .playback_age_token_cache
+            .is_none()
+    );
+
+    let _ = super::visible_rows::build_visible_rows_with_now(
+        &mut controller,
+        None,
+        None,
+        now_unix_secs,
+    );
+    assert_eq!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .playback_age_token_cache
+            .as_ref()
+            .and_then(|cache| cache.token),
+        Some(200 + WEEK_SECS)
+    );
+}
+
+#[test]
 fn older_than_month_filter_ignores_the_week_rollover_cache_boundary() {
     const WEEK_SECS: i64 = 7 * 24 * 60 * 60;
     const MONTH_SECS: i64 = 30 * 24 * 60 * 60;

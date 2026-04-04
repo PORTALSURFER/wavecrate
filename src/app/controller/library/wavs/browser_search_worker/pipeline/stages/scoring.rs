@@ -3,7 +3,7 @@
 use super::super::super::telemetry::record_search_worker_score_alloc;
 use super::super::*;
 
-/// Resolve fuzzy query scores, reusing cached scores when query/source/revision still match.
+/// Resolve fuzzy query scores, reusing cached scores when query/source/path set still match.
 pub(in super::super) fn resolve_query_scores_for_job(
     cache: &mut SearchWorkerCache,
     job: &SearchJob,
@@ -19,7 +19,7 @@ pub(in super::super) fn resolve_query_scores_for_job(
 
     let scope = WorkerQueryScoreCacheScope {
         source_id: source_id.to_string(),
-        revision: cache.revision,
+        path_fingerprint: cache.path_fingerprint,
     };
     if let Some(cached) = promote_exact_query_score_cache_entry(
         &mut cache.query_score_cache,
@@ -80,13 +80,13 @@ pub(in super::super) fn resolve_query_scores_for_job(
 pub(in super::super) fn try_reuse_cached_query_scores(
     cache: &mut SearchWorkerCache,
     source_id: &str,
-    revision: u64,
+    path_fingerprint: u64,
     query: &str,
     entries_len: usize,
 ) -> Option<Arc<[Option<i64>]>> {
     let scope = WorkerQueryScoreCacheScope {
         source_id: source_id.to_string(),
-        revision,
+        path_fingerprint,
     };
     promote_exact_query_score_cache_entry(&mut cache.query_score_cache, &scope, query, entries_len)
         .map(|cached| Arc::clone(&cached.scores))
@@ -96,13 +96,13 @@ pub(in super::super) fn try_reuse_cached_query_scores(
 pub(in super::super) fn reusable_prefix_query_scores(
     cache: &SearchWorkerCache,
     source_id: &str,
-    revision: u64,
+    path_fingerprint: u64,
     query: &str,
     entries_len: usize,
 ) -> Option<WorkerQueryScoreCacheEntry> {
     let scope = WorkerQueryScoreCacheScope {
         source_id: source_id.to_string(),
-        revision,
+        path_fingerprint,
     };
     reusable_prefix_query_score_cache_entry(&cache.query_score_cache, &scope, query, entries_len)
 }

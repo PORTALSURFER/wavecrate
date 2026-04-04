@@ -34,6 +34,7 @@ pub(super) struct SearchWorkerCache {
     pub(super) source_id: Option<String>,
     pub(super) source_root: Option<PathBuf>,
     pub(super) revision: u64,
+    pub(super) path_fingerprint: u64,
     pub(super) db_stamp: Option<DbFileStamp>,
     pub(super) query_score_cache: Vec<WorkerQueryScoreCacheEntry>,
     pub(super) max_cached_queries: usize,
@@ -54,6 +55,7 @@ impl Default for SearchWorkerCache {
             source_id: None,
             source_root: None,
             revision: 0,
+            path_fingerprint: 0,
             db_stamp: None,
             query_score_cache: Vec::new(),
             max_cached_queries: 6,
@@ -101,14 +103,14 @@ fn reserve_growth<T>(buffer: &mut Vec<T>, target_capacity: usize) -> usize {
     buffer.capacity().saturating_sub(before)
 }
 
-/// Source/revision scope for one worker query-score cache entry.
+/// Source/path-snapshot scope for one worker query-score cache entry.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct WorkerQueryScoreCacheScope {
     pub(super) source_id: String,
-    pub(super) revision: u64,
+    pub(super) path_fingerprint: u64,
 }
 
-/// Cached query score vector keyed by source revision and query text.
+/// Cached query score vector keyed by source path snapshot and query text.
 pub(super) type WorkerQueryScoreCacheEntry = QueryScoreCacheEntry<WorkerQueryScoreCacheScope>;
 
 /// Cached folder-filter acceptance vector for one source revision + folder filter shape.

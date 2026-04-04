@@ -38,7 +38,7 @@ fn label_cache_builds_on_first_lookup() {
 }
 
 #[test]
-fn label_cache_clears_after_rename() {
+fn label_cache_updates_renamed_slot_without_clearing_cache() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.cache_db(&source).unwrap();
@@ -58,5 +58,8 @@ fn label_cache_clears_after_rename() {
         sample_entry("renamed.wav", crate::sample_sources::Rating::NEUTRAL),
     );
 
-    assert!(!controller.ui_cache.browser.labels.contains_key(&source.id));
+    assert_eq!(
+        controller.ui_cache.browser.labels.get(&source.id),
+        Some(&vec![String::from("renamed"), String::new()])
+    );
 }
