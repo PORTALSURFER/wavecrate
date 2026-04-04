@@ -296,6 +296,85 @@ fn mark_toggle_keeps_filtered_fingerprint_stable_when_marked_filter_is_off() {
 }
 
 #[test]
+fn folder_filter_build_does_not_fault_wav_pages_when_compact_cache_is_available() {
+    let entries = vec![
+        search_entry("root.wav", Rating::NEUTRAL, None),
+        search_entry("drums/kick.wav", Rating::NEUTRAL, None),
+        search_entry("hits/snare.wav", Rating::NEUTRAL, None),
+    ];
+    let (mut controller, source) = prepare_with_source_and_wav_entries(entries);
+    controller.ui_cache.folders.models.insert(
+        crate::app::controller::state::cache::FolderBrowserCacheKey {
+            pane: crate::app::state::FolderPaneId::Upper,
+            source_id: source.id,
+        },
+        crate::app::controller::library::source_folders::FolderBrowserModel {
+            selected: BTreeSet::from([PathBuf::from(""), PathBuf::from("drums")]),
+            negated: BTreeSet::from([PathBuf::from("hits")]),
+            file_scope_mode: FolderFileScopeMode::DirectOnly,
+            ..Default::default()
+        },
+    );
+    clear_loaded_wav_pages(&mut controller);
+
+    let (visible, _, _) = build_visible_rows(&mut controller, None, None);
+
+    match visible {
+        VisibleRows::List(rows) => {
+            let mut visible_paths = rows
+                .iter()
+                .map(|index| {
+                    controller.ui_cache.browser.pipeline.compact_entries[*index]
+                        .relative_path
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                })
+                .collect::<Vec<_>>();
+            visible_paths.sort();
+            assert_eq!(
+                visible_paths,
+                vec![String::from("drums/kick.wav"), String::from("root.wav")]
+            );
+        }
+        VisibleRows::All { total } => panic!("expected folder-filtered rows, got all {total}"),
+    }
+    assert!(controller.wav_entries.pages.is_empty());
+}
+
+#[test]
+fn playback_age_filter_build_does_not_fault_wav_pages_when_compact_cache_is_available() {
+    const WEEK_SECS: i64 = 7 * 24 * 60 * 60;
+
+    let entries = vec![
+        search_entry("aging.wav", Rating::NEUTRAL, Some(100)),
+        search_entry("fresh.wav", Rating::NEUTRAL, Some(100 + WEEK_SECS)),
+    ];
+    let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
+    controller
+        .ui
+        .browser
+        .search
+        .playback_age_filter
+        .insert(PlaybackAgeFilterChip::OlderThanWeek);
+    clear_loaded_wav_pages(&mut controller);
+
+    let (visible, _, _) = super::visible_rows::build_visible_rows_with_now(
+        &mut controller,
+        None,
+        None,
+        100 + WEEK_SECS + 1,
+    );
+
+    match visible {
+        VisibleRows::List(rows) => assert_eq!(&*rows, &[0usize]),
+        VisibleRows::All { total } => {
+            panic!("expected playback-age-filtered rows, got all {total}")
+        }
+    }
+    assert!(controller.wav_entries.pages.is_empty());
+}
+
+#[test]
 fn text_query_branch_uses_search_scores_to_filter_visible_rows() {
     let entries = vec![
         search_entry("kick.wav", Rating::NEUTRAL, None),
@@ -359,4 +438,11 @@ fn search_entry(
         missing: false,
         last_played_at,
     }
+}
+
+fn clear_loaded_wav_pages(controller: &mut crate::app::controller::AppController) {
+    controller.wav_entries.pages.clear();
+    controller.wav_entries.lookup.clear();
+    controller.ui_cache.browser.pipeline.invalidate();
+    controller.ui_cache.browser.search.invalidate();
 }

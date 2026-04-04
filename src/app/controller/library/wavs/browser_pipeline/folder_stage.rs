@@ -12,7 +12,7 @@ pub(super) fn ensure_folder_acceptance_stage(
     let base_fingerprint_hash =
         helpers::hash_value(&controller.ui_cache.browser.pipeline.base_fingerprint);
     let fingerprint = helpers::hash_value(&(base_fingerprint_hash, folder_hash));
-    let entries_len = controller.wav_entries_len();
+    let entries_len = controller.ui_cache.browser.pipeline.compact_entries.len();
     if controller
         .ui_cache
         .browser
@@ -32,19 +32,13 @@ pub(super) fn ensure_folder_acceptance_stage(
 
     let accepts = if has_folder_filters {
         let mut accepts = Vec::with_capacity(entries_len);
-        for index in 0..entries_len {
-            let accepted = controller
-                .ensure_wav_page_loaded(index)
-                .ok()
-                .and_then(|_| controller.wav_entries.entry(index))
-                .is_some_and(|entry| {
-                    crate::app::controller::library::source_folders::folder_filter_accepts(
-                        &entry.relative_path,
-                        folder_selection,
-                        folder_negated,
-                        file_scope_mode,
-                    )
-                });
+        for entry in &controller.ui_cache.browser.pipeline.compact_entries {
+            let accepted = crate::app::controller::library::source_folders::folder_filter_accepts(
+                &entry.relative_path,
+                folder_selection,
+                folder_negated,
+                file_scope_mode,
+            );
             accepts.push(accepted);
         }
         accepts

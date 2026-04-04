@@ -23,11 +23,13 @@ pub(super) fn ensure_base_stage(controller: &mut AppController) {
         return;
     }
 
-    let mut base_rows = Vec::with_capacity(controller.wav_entries_len());
+    controller.ui_cache.browser.pipeline.compact_entries = load_compact_entries(controller);
+    let compact_entries = &controller.ui_cache.browser.pipeline.compact_entries;
+    let mut base_rows = Vec::with_capacity(compact_entries.len());
     let mut trash_rows = Vec::new();
     let mut neutral_rows = Vec::new();
     let mut keep_rows = Vec::new();
-    let _ = controller.for_each_wav_entry(|index, entry| {
+    for (index, entry) in compact_entries.iter().enumerate() {
         base_rows.push(index);
         if entry.tag.is_trash() {
             trash_rows.push(index);
@@ -36,7 +38,7 @@ pub(super) fn ensure_base_stage(controller: &mut AppController) {
         } else {
             neutral_rows.push(index);
         }
-    });
+    }
     controller.ui_cache.browser.pipeline.base_rows = base_rows;
     controller.ui_cache.browser.pipeline.trash_rows = trash_rows;
     controller.ui_cache.browser.pipeline.neutral_rows = neutral_rows;
@@ -56,4 +58,60 @@ pub(super) fn ensure_base_stage(controller: &mut AppController) {
     controller.ui_cache.browser.pipeline.filtered_fingerprint = None;
     controller.ui_cache.browser.pipeline.scored_fingerprint = None;
     controller.ui_cache.browser.pipeline.sorted_fingerprint = None;
+}
+
+fn load_compact_entries(controller: &mut AppController) -> Vec<super::CompactBrowserEntry> {
+    if let Some(entries) = compact_entries_from_loaded_pages(controller) {
+        return entries;
+    }
+    let Some(source) = controller.current_source() else {
+        return Vec::new();
+    };
+    let Ok(db) = controller.database_for(&source) else {
+        return Vec::new();
+    };
+    db.list_files()
+        .map(|entries| {
+            entries
+                .into_iter()
+                .map(super::CompactBrowserEntry::from_wav_entry)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn compact_entries_from_loaded_pages(
+    controller: &AppController,
+) -> Option<Vec<super::CompactBrowserEntry>> {
+    let total = controller.wav_entries.total;
+    if total == 0 {
+        return Some(Vec::new());
+    }
+    let loaded = controller
+        .wav_entries
+        .pages
+        .values()
+        .map(std::vec::Vec::len)
+        .sum::<usize>();
+    if loaded != total {
+        return None;
+    }
+
+    let mut page_indices = controller
+        .wav_entries
+        .pages
+        .keys()
+        .copied()
+        .collect::<Vec<_>>();
+    page_indices.sort_unstable();
+    let mut compact_entries = Vec::with_capacity(total);
+    for page_index in page_indices {
+        let page = controller.wav_entries.pages.get(&page_index)?;
+        compact_entries.extend(
+            page.iter()
+                .cloned()
+                .map(super::CompactBrowserEntry::from_wav_entry),
+        );
+    }
+    Some(compact_entries)
 }

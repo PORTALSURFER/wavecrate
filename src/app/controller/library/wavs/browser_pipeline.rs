@@ -10,11 +10,15 @@ mod visible_rows;
 
 pub(crate) use self::visible_rows::build_visible_rows;
 use crate::sample_sources::SourceId;
+use crate::sample_sources::{Rating, WavEntry};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Cache state for retained browser pipeline stages.
 #[derive(Default)]
 pub(crate) struct BrowserPipelineCache {
+    /// Retained compact metadata aligned to absolute wav-entry indices.
+    compact_entries: Vec<CompactBrowserEntry>,
     /// Fingerprint for the current base row snapshot.
     base_fingerprint: Option<BaseStageFingerprint>,
     /// Absolute entry indices in source list order.
@@ -47,6 +51,7 @@ impl BrowserPipelineCache {
     /// Drop all staged fingerprints and vectors.
     pub(crate) fn invalidate(&mut self) {
         self.base_fingerprint = None;
+        self.compact_entries.clear();
         self.base_rows.clear();
         self.trash_rows.clear();
         self.neutral_rows.clear();
@@ -59,6 +64,27 @@ impl BrowserPipelineCache {
         self.scored_rows.clear();
         self.sorted_fingerprint = None;
         self.sorted_rows = Vec::new().into();
+    }
+}
+
+/// Compact synchronous browser-filter metadata aligned to absolute wav-entry indices.
+#[derive(Clone)]
+struct CompactBrowserEntry {
+    relative_path: PathBuf,
+    tag: Rating,
+    locked: bool,
+    last_played_at: Option<i64>,
+}
+
+impl CompactBrowserEntry {
+    /// Build the compact retained entry payload required by the sync browser pipeline.
+    fn from_wav_entry(entry: WavEntry) -> Self {
+        Self {
+            relative_path: entry.relative_path,
+            tag: entry.tag,
+            locked: entry.locked,
+            last_played_at: entry.last_played_at,
+        }
     }
 }
 

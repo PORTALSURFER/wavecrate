@@ -82,7 +82,7 @@ pub(super) fn build_visible_rows_with_now(
         && !marked_only
         && !has_folder_filters
     {
-        let total = controller.wav_entries_len();
+        let total = controller.ui_cache.browser.pipeline.compact_entries.len();
         return (VisibleRows::All { total }, focused_index, loaded_index);
     }
 
@@ -127,11 +127,12 @@ fn visible_result_for_duplicate_cleanup(
     loaded_index: Option<usize>,
     cleanup: &BrowserDuplicateCleanupState,
 ) -> (VisibleRows, Option<usize>, Option<usize>) {
+    let entries_len = controller.ui_cache.browser.pipeline.compact_entries.len();
     let visible: Arc<[usize]> = cleanup
         .indices
         .iter()
         .copied()
-        .filter(|index| controller.wav_entry(*index).is_some())
+        .filter(|index| *index < entries_len)
         .collect::<Vec<_>>()
         .into();
     let selected_visible =
@@ -263,8 +264,12 @@ fn filter_stage_entry(
     index: usize,
     selected_source_id: Option<&crate::sample_sources::SourceId>,
 ) -> Option<(Rating, bool, Option<i64>, bool)> {
-    controller.ensure_wav_page_loaded(index).ok()?;
-    let entry = controller.wav_entries.entry(index)?;
+    let entry = controller
+        .ui_cache
+        .browser
+        .pipeline
+        .compact_entries
+        .get(index)?;
     let marked = selected_source_id.is_some_and(|source_id| {
         controller
             .ui

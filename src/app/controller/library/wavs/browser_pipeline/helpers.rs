@@ -99,14 +99,27 @@ pub(super) fn sort_visible_by_playback_age(
     visible: &mut [usize],
     ascending: bool,
 ) {
+    let compact_entries = &controller.ui_cache.browser.pipeline.compact_entries;
     visible.sort_by(|a, b| {
-        let a_key = controller
-            .wav_entry(*a)
+        let a_key = compact_entries
+            .get(*a)
             .and_then(|entry| entry.last_played_at)
+            .or_else(|| {
+                controller
+                    .wav_entries
+                    .entry(*a)
+                    .and_then(|entry| entry.last_played_at)
+            })
             .unwrap_or(i64::MIN);
-        let b_key = controller
-            .wav_entry(*b)
+        let b_key = compact_entries
+            .get(*b)
             .and_then(|entry| entry.last_played_at)
+            .or_else(|| {
+                controller
+                    .wav_entries
+                    .entry(*b)
+                    .and_then(|entry| entry.last_played_at)
+            })
             .unwrap_or(i64::MIN);
         let order = if ascending {
             a_key.cmp(&b_key)
@@ -166,17 +179,26 @@ pub(super) fn playback_age_filter_cache_token(
     filters: &std::collections::BTreeSet<PlaybackAgeFilterChip>,
     now_unix_secs: i64,
 ) -> Option<i64> {
-    let base_rows = controller.ui_cache.browser.pipeline.base_rows.clone();
-    base_rows
+    controller
+        .ui_cache
+        .browser
+        .pipeline
+        .base_rows
         .iter()
         .filter_map(|index| {
-            controller.wav_entry(*index).and_then(|entry| {
-                crate::app::state::next_playback_age_filter_change_unix_secs(
-                    filters,
-                    entry.last_played_at,
-                    now_unix_secs,
-                )
-            })
+            controller
+                .ui_cache
+                .browser
+                .pipeline
+                .compact_entries
+                .get(*index)
+                .and_then(|entry| {
+                    crate::app::state::next_playback_age_filter_change_unix_secs(
+                        filters,
+                        entry.last_played_at,
+                        now_unix_secs,
+                    )
+                })
         })
         .min()
 }
