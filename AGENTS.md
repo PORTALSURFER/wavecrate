@@ -61,10 +61,10 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: reopened runtime performance audit for the current live tree
 - Source of truth: `tmp/perf_plan.md` for the 2026-04-04 ROI-ranked runtime performance backlog; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
-- Current status: Phase 2 is in progress on `2026-04-04`. Item 1 is complete in commit `fc2fca4e` (`perf(browser): retain compact sync filter metadata`), and the follow-up perf-guard run improved `browser_filter_churn_latency` to `2421us` p95, `hover_latency` to `2602us` p95, and `wheel_latency` to `3159us` p95. `tmp/perf_plan.md` remains the source of truth for the remaining backlog.
+- Current status: Phase 2 is in progress on `2026-04-04`. Item 1 is complete in commit `fc2fca4e` (`perf(browser): retain compact sync filter metadata`), item 2 is complete in commit `ef649778` (`perf(browser): retain feature refresh snapshots`), and `tmp/perf_plan.md` remains the source of truth for the remaining backlog. The latest perf-guard run stayed warning-free with `browser_filter_churn_latency = 2700us` p95, `hover_latency = 3065us` p95, and `wheel_latency = 3195us` p95.
 
 ## Immediate Next Actions
-1. Implement item 2 from `tmp/perf_plan.md` next and keep the runtime-performance lane moving strictly in listed ROI order.
+1. Implement item 3 from `tmp/perf_plan.md` next and keep the runtime-performance lane moving strictly in listed ROI order.
 2. Update `tmp/perf_plan.md`, `MEMORY.md`, and `docs/plans/active/todo.md` after each completed backlog item.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
 4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
@@ -73,7 +73,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/perf_plan.md`: live ROI-ranked runtime performance backlog rebuilt on `2026-04-04`; Phase 2 is active and item 1 is complete
+- `tmp/perf_plan.md`: live ROI-ranked runtime performance backlog rebuilt on `2026-04-04`; Phase 2 is active and items 1-2 are complete
 - `tmp/improvement_audit_plan.md`: separate evidence-driven repo-wide improvement backlog and execution record; resume only when the user reopens that lane
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform

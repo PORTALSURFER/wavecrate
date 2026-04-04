@@ -4,7 +4,7 @@ Generated: 2026-04-04 (Europe/Amsterdam)
 Observed superproject commit: `7c4ea8fde2e1c6d1966aaff578c920365549e6f5`
 Observed `vendor/radiant` commit: `58e5fe249e86eae2f01ec3031a1397210b507e9d`
 Observed workspace state at audit time: dirty worktree with unrelated edits in `src/app/controller/library/source_folders/actions/rename_move_delete.rs`, `src/app/controller/library/wavs/selection_ops.rs`, and `src/app/controller/tests/browser_actions/focus_navigation/commit_focus.rs`
-Status: Phase 2 in progress on 2026-04-04. Item 1 is complete in commit `fc2fca4e`; item 2 is next.
+Status: Phase 2 in progress on 2026-04-04. Items 1-2 are complete in commits `fc2fca4e` and `ef649778`; item 3 is next.
 
 ## Scope
 
@@ -67,10 +67,11 @@ Status: Phase 2 in progress on 2026-04-04. Item 1 is complete in commit `fc2fca4
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2421`, `hover_latency.p95_us = 2602`, and `wheel_latency.p95_us = 3159`
 
-- [ ] 2. Make browser feature-cache refreshes revision-driven so row projection stops rebuilding whole path vectors
+- [x] 2. Make browser feature-cache refreshes revision-driven so row projection stops rebuilding whole path vectors
   - ROI: High
   - Effort: M
   - Expected impact: startup, p95 interaction latency, memory, CPU
+  - Completed: 2026-04-04 in commit `ef649778`
   - Evidence:
     - `src/app_core/native_shell/browser_projection/row_window.rs:36-61` calls `queue_feature_cache_refresh_for_browser()` from the browser row-projection path
     - `src/app/controller/library/wavs/feature_cache.rs:255-315` rebuilds ordered `entry_paths`, hashes them, clones fallback rows, and spawns a refresh job from the UI thread
@@ -91,6 +92,13 @@ Status: Phase 2 in progress on 2026-04-04. Item 1 is complete in commit `fc2fca4
     - Extend `src/app/controller/tests/source_async.rs`
     - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
     - Re-run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+  - Validation result:
+    - `cargo test feature_cache --quiet` passed
+    - `cargo test browser_pipeline --quiet` passed
+    - `cargo test source_async --quiet` passed
+    - `cargo test browser_inline_tags --quiet` passed
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2700`, `hover_latency.p95_us = 3065`, and `wheel_latency.p95_us = 3195`
 
 - [ ] 3. Narrow browser navigation invalidation in the native runtime to segment-scoped rebuilds
   - ROI: High
