@@ -4,14 +4,14 @@ Generated: 2026-04-04 (Europe/Amsterdam)
 Observed superproject commit: `7c4ea8fde2e1c6d1966aaff578c920365549e6f5`
 Observed `vendor/radiant` commit: `58e5fe249e86eae2f01ec3031a1397210b507e9d`
 Observed workspace state at audit time: dirty worktree with unrelated edits in `src/app/controller/library/source_folders/actions/rename_move_delete.rs`, `src/app/controller/library/wavs/selection_ops.rs`, and `src/app/controller/tests/browser_actions/focus_navigation/commit_focus.rs`
-Status: Phase 2 in progress on 2026-04-04. Items 1-5 are complete in commits `fc2fca4e`, `ef649778`, vendor/radiant `d13e5f55`, `ca24b6d3`, `18f8d5d5`, and `9009d402`; item 6 is next.
+Status: Phase 2 is complete on 2026-04-04. Items 1-6 are complete in commits `fc2fca4e`, `ef649778`, vendor/radiant `d13e5f55`, `ca24b6d3`, `18f8d5d5`, `9009d402`, and vendor/radiant `427e115b`; the superproject vendor bump landed in `53ea4684`.
 
 ## Scope
 
 - Audit the live tree for runtime performance and responsiveness issues.
 - Rank only code-grounded improvements with measurable or strongly evidenced payoff.
 - Preserve visual quality and interaction feel; any risky visual changes are flagged below.
-- No implementation was performed during this audit.
+- Execution status is tracked below; items 1-6 are now complete.
 
 ## Validation Baseline
 
@@ -187,10 +187,11 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-5 are complete in commits `fc
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2704`, `hover_latency.p95_us = 3117`, `wheel_latency.p95_us = 3131`, `browser_focus_preview_latency.p95_us = 143`, and `browser_focus_commit_latency.p95_us = 150`
 
-- [ ] 6. Add retained text/layout caching for browser and status segments
+- [x] 6. Add retained text/layout caching for browser and status segments
   - ROI: Medium
   - Effort: L
   - Expected impact: frame time, CPU, memory
+  - Completed: 2026-04-04 in vendor/radiant commit `427e115b` (superproject bump `53ea4684`)
   - Evidence:
     - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/composition.rs:13-75` resets the scene and replays all primitives plus `text_renderer.draw_text_runs(...)` every time a dirty segment is re-encoded
     - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/static_segments.rs:7-52` rebuilds and re-encodes each dirty static segment independently, so text-heavy segments dominate their own rebuild cost
@@ -208,3 +209,11 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-5 are complete in commits `fc
     - Extend `vendor/radiant` scene-cache tests and relevant shot-based tests
     - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
     - Compare before/after native-shell screenshots for browser and status segments
+  - Validation result:
+    - `cargo test browser_frame_text_cache_reuses_and_invalidates_on_search_changes --quiet` passed
+    - `cargo test status_bar_text_cache_reuses_and_invalidates_on_progress_changes --quiet` passed
+    - `cargo test browser_toolbar --quiet` passed
+    - `cargo test status_bar_progress --quiet` passed
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2767`, `hover_latency.p95_us = 2896`, `wheel_latency.p95_us = 2830`, `browser_focus_preview_latency.p95_us = 153`, and `browser_focus_commit_latency.p95_us = 143`
+    - Before/after native-shell screenshot comparison was not run in this agent environment
