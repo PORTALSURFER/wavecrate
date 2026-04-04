@@ -179,3 +179,35 @@ fn open_options_menu_flushes_deferred_startup_audio_refresh_once() {
         assert_eq!(startup_audio_refresh_count_for_tests(), 1);
     });
 }
+
+#[test]
+fn audio_picker_actions_update_picker_state_and_return_to_overview() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+
+    controller.apply_native_ui_action(NativeUiAction::OpenOptionsMenu);
+    controller.apply_native_ui_action(NativeUiAction::OpenAudioOutputSampleRatePicker);
+    assert_eq!(
+        controller.ui.options_panel.active_audio_picker,
+        Some(crate::app::state::AudioPickerTarget::OutputSampleRate)
+    );
+
+    controller.settings.audio_output.sample_rate = Some(48_000);
+    controller.ui.audio.selected.sample_rate = Some(48_000);
+    controller.apply_native_ui_action(NativeUiAction::SetAudioOutputSampleRate {
+        sample_rate: Some(48_000),
+    });
+    assert_eq!(controller.ui.options_panel.active_audio_picker, None);
+
+    controller.apply_native_ui_action(NativeUiAction::OpenAudioInputSampleRatePicker);
+    assert_eq!(
+        controller.ui.options_panel.active_audio_picker,
+        Some(crate::app::state::AudioPickerTarget::InputSampleRate)
+    );
+
+    controller.apply_native_ui_action(NativeUiAction::SetAudioInputSampleRate {
+        sample_rate: Some(44_100),
+    });
+    assert_eq!(controller.settings.audio_input.sample_rate, Some(44_100));
+    assert_eq!(controller.ui.audio.input_selected.sample_rate, Some(44_100));
+    assert_eq!(controller.ui.options_panel.active_audio_picker, None);
+}

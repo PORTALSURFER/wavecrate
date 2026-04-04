@@ -44,10 +44,36 @@ pub enum GuiActionKind {
     OpenOptionsMenu,
     /// Close the options panel.
     CloseOptionsPanel,
+    /// Return from an audio picker to the options overview.
+    ShowOptionsOverview,
     /// Open the trash-folder picker flow.
     PickTrashFolder,
     /// Open the configured trash folder in the host shell.
     OpenTrashFolder,
+    /// Open the output-host audio picker.
+    OpenAudioOutputHostPicker,
+    /// Open the output-device audio picker.
+    OpenAudioOutputDevicePicker,
+    /// Open the output sample-rate audio picker.
+    OpenAudioOutputSampleRatePicker,
+    /// Open the input-host audio picker.
+    OpenAudioInputHostPicker,
+    /// Open the input-device audio picker.
+    OpenAudioInputDevicePicker,
+    /// Open the input sample-rate audio picker.
+    OpenAudioInputSampleRatePicker,
+    /// Apply the selected output host.
+    SetAudioOutputHost,
+    /// Apply the selected output device.
+    SetAudioOutputDevice,
+    /// Apply the selected output sample rate.
+    SetAudioOutputSampleRate,
+    /// Apply the selected input host.
+    SetAudioInputHost,
+    /// Apply the selected input device.
+    SetAudioInputDevice,
+    /// Apply the selected input sample rate.
+    SetAudioInputSampleRate,
     /// Focus the folder-search field in the sources panel.
     FocusFolderSearch,
     /// Set the sources folder-search query.
@@ -376,7 +402,7 @@ pub enum GuiActionKind {
 
 impl GuiActionKind {
     /// All currently cataloged action kinds in stable declaration order.
-    pub const ALL: [Self; 183] = [
+    pub const ALL: [Self; 196] = [
         Self::SelectColumn,
         Self::MoveColumn,
         Self::ToggleTransport,
@@ -396,8 +422,21 @@ impl GuiActionKind {
         Self::OpenAddSourceDialog,
         Self::OpenOptionsMenu,
         Self::CloseOptionsPanel,
+        Self::ShowOptionsOverview,
         Self::PickTrashFolder,
         Self::OpenTrashFolder,
+        Self::OpenAudioOutputHostPicker,
+        Self::OpenAudioOutputDevicePicker,
+        Self::OpenAudioOutputSampleRatePicker,
+        Self::OpenAudioInputHostPicker,
+        Self::OpenAudioInputDevicePicker,
+        Self::OpenAudioInputSampleRatePicker,
+        Self::SetAudioOutputHost,
+        Self::SetAudioOutputDevice,
+        Self::SetAudioOutputSampleRate,
+        Self::SetAudioInputHost,
+        Self::SetAudioInputDevice,
+        Self::SetAudioInputSampleRate,
         Self::FocusFolderSearch,
         Self::SetFolderSearch,
         Self::ToggleShowAllFolders,

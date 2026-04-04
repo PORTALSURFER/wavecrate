@@ -225,6 +225,7 @@ impl AppController {
         self.ui.audio.devices.clear();
         self.ui.audio.sample_rates.clear();
         self.ui.audio.warning = None;
+        self.ui.audio.output_runtime_error = None;
         self.ui.audio.input_hosts.clear();
         self.ui.audio.input_devices.clear();
         self.ui.audio.input_sample_rates.clear();
@@ -274,6 +275,7 @@ impl AppController {
         }
         self.refresh_audio_options(true);
         self.refresh_audio_input_options(true);
+        let _ = self.rebuild_audio_player();
     }
 
     pub(super) fn persist_config(&mut self, error_prefix: &str) -> Result<(), String> {

@@ -50,6 +50,24 @@ pub type NativeUiAction = radiant::app::UiAction;
 /// Native runtime projected app model.
 pub type NativeAppModel = radiant::app::AppModel;
 
+/// Native runtime audio-engine chip state.
+pub type NativeAudioEngineChipStateModel = radiant::app::AudioEngineChipStateModel;
+
+/// Native runtime audio-engine projection model.
+pub type NativeAudioEngineModel = radiant::app::AudioEngineModel;
+
+/// Native runtime audio-field summary model.
+pub type NativeAudioFieldModel = radiant::app::AudioFieldModel;
+
+/// Native runtime audio picker option item.
+pub type NativeAudioOptionItemModel = radiant::app::AudioOptionItemModel;
+
+/// Native runtime audio picker option raw value.
+pub type NativeAudioOptionValueModel = radiant::app::AudioOptionValueModel;
+
+/// Native runtime audio picker target.
+pub type NativeAudioPickerTargetModel = radiant::app::AudioPickerTargetModel;
+
 /// Native runtime focus-context model used for contextual input routing.
 pub type NativeFocusContextModel = radiant::app::FocusContextModel;
 

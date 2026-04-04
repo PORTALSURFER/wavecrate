@@ -221,6 +221,36 @@ fn projection_overlay_only_miss_reuses_unique_snapshot_arc() {
 }
 
 #[test]
+fn projection_audio_engine_dirty_refreshes_retained_chip_and_panel_state() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    let mut cache = NativeProjectionCache::default();
+    let (first_model, _) = cache.resolve_or_project(&mut controller);
+    let mut retained = Arc::unwrap_or_clone(first_model);
+    retained.audio_engine.chip_label = String::from("sentinel");
+    retained.audio_engine.detail_label = None;
+    cache.app_model = Some(Arc::new(retained));
+
+    controller.ui.audio.output_runtime_error = Some(String::from("USB disconnected"));
+    controller.ui.options_panel.active_audio_picker =
+        Some(crate::app::state::AudioPickerTarget::OutputHost);
+
+    let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::GLOBAL_STATIC)
+    );
+    assert_eq!(model.audio_engine.chip_label, "Audio Err");
+    assert_eq!(
+        model.audio_engine.detail_label.as_deref(),
+        Some("USB disconnected")
+    );
+    assert_eq!(
+        model.audio_engine.active_picker,
+        Some(crate::app_core::actions::NativeAudioPickerTargetModel::OutputHost)
+    );
+}
+
+#[test]
 fn projection_overlay_only_miss_clones_when_prior_snapshot_is_aliased() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
     let mut cache = NativeProjectionCache::default();

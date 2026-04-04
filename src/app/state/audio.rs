@@ -15,6 +15,8 @@ pub struct AudioOptionsState {
     pub applied: Option<ActiveAudioOutput>,
     /// Warning message for output selection, if any.
     pub warning: Option<String>,
+    /// Persistent runtime error for the output engine, if any.
+    pub output_runtime_error: Option<String>,
     /// Available input hosts for selection.
     pub input_hosts: Vec<AudioHostView>,
     /// Available input devices for the selected host.

@@ -11,6 +11,7 @@ pub(crate) fn tick_playhead(controller: &mut AppController) {
         return;
     };
     if let Some(err) = player.borrow_mut().take_error() {
+        controller.ui.audio.output_runtime_error = Some(err.clone());
         controller.set_status(format!("Playback error: {}", err), StatusTone::Error);
     }
     if let Some(start_override) = take_due_loop_retarget(controller, &player) {

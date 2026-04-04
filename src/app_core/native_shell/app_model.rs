@@ -43,6 +43,8 @@ pub(crate) struct ProjectAppModelCoreModels {
 pub(crate) struct ProjectAppModelOverlayAndChromeModels {
     /// Update surface model.
     update: UpdatePanelModel,
+    /// Audio-engine chip and picker model.
+    audio_engine: AudioEngineModel,
     /// Options-panel overlay model.
     options_panel: OptionsPanelModel,
     /// Progress overlay model.
@@ -133,6 +135,7 @@ pub(crate) fn materialize_project_app_model_overlay_and_chrome(
 ) -> ProjectAppModelOverlayAndChromeModels {
     ProjectAppModelOverlayAndChromeModels {
         update: project_update_model(ui),
+        audio_engine: project_audio_engine_model(ui),
         options_panel: project_options_panel_model(ui),
         progress_overlay: project_progress_overlay_model(ui),
         confirm_prompt: project_confirm_prompt_model(ui),
@@ -154,6 +157,7 @@ pub(crate) fn assemble_project_app_model(
         sources_label: format!("Sources ({})", core_models.sources.rows.len()),
         status_text: derived_inputs.status_text,
         status: core_models.status,
+        audio_engine: overlay_and_chrome_models.audio_engine,
         browser_actions: core_models.browser_actions,
         options_panel: overlay_and_chrome_models.options_panel,
         progress_overlay: overlay_and_chrome_models.progress_overlay,

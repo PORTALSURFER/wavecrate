@@ -115,6 +115,7 @@ fn apply_audio_selection_result_syncs_selected_state_on_success() {
     controller.settings.audio_output.host = Some("default".into());
     controller.settings.audio_output.device = Some("Built-in".into());
     controller.settings.audio_output.sample_rate = Some(48_000);
+    controller.ui.audio.output_runtime_error = Some(String::from("USB disconnected"));
 
     apply_audio_selection_result(&mut controller, Ok(()));
 
@@ -122,6 +123,7 @@ fn apply_audio_selection_result_syncs_selected_state_on_success() {
         controller.ui.audio.selected,
         controller.settings.audio_output
     );
+    assert_eq!(controller.ui.audio.output_runtime_error, None);
     assert_eq!(controller.ui.status.status_tone, StatusTone::Idle);
 }
 
@@ -133,6 +135,10 @@ fn apply_audio_selection_result_reports_rebuild_failures() {
 
     assert_eq!(controller.ui.status.text, "Audio unavailable");
     assert_eq!(controller.ui.status.status_tone, StatusTone::Error);
+    assert_eq!(
+        controller.ui.audio.output_runtime_error.as_deref(),
+        Some("Audio unavailable")
+    );
 }
 
 #[test]

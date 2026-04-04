@@ -1,6 +1,7 @@
 //! Source-row and global options routing for native browser actions.
 
 use super::super::AppController;
+use crate::app::state::AudioPickerTarget;
 use crate::app::state::FolderPaneId;
 use crate::app_core::actions::NativeUiAction;
 use radiant::app::FolderPaneIdModel;
@@ -63,8 +64,51 @@ pub(super) fn apply_source_and_options_native_ui_action(
         NativeUiAction::OpenAddSourceDialog => controller.add_source_via_dialog(),
         NativeUiAction::OpenOptionsMenu => controller.open_options_panel(),
         NativeUiAction::CloseOptionsPanel => controller.close_options_panel(),
+        NativeUiAction::ShowOptionsOverview => controller.show_audio_options_overview(),
         NativeUiAction::PickTrashFolder => controller.pick_trash_folder(),
         NativeUiAction::OpenTrashFolder => controller.open_trash_folder(),
+        NativeUiAction::OpenAudioOutputHostPicker => {
+            controller.open_audio_picker(AudioPickerTarget::OutputHost)
+        }
+        NativeUiAction::OpenAudioOutputDevicePicker => {
+            controller.open_audio_picker(AudioPickerTarget::OutputDevice)
+        }
+        NativeUiAction::OpenAudioOutputSampleRatePicker => {
+            controller.open_audio_picker(AudioPickerTarget::OutputSampleRate)
+        }
+        NativeUiAction::OpenAudioInputHostPicker => {
+            controller.open_audio_picker(AudioPickerTarget::InputHost)
+        }
+        NativeUiAction::OpenAudioInputDevicePicker => {
+            controller.open_audio_picker(AudioPickerTarget::InputDevice)
+        }
+        NativeUiAction::OpenAudioInputSampleRatePicker => {
+            controller.open_audio_picker(AudioPickerTarget::InputSampleRate)
+        }
+        NativeUiAction::SetAudioOutputHost { host_id } => {
+            controller.set_audio_host(host_id);
+            controller.show_audio_options_overview();
+        }
+        NativeUiAction::SetAudioOutputDevice { device_name } => {
+            controller.set_audio_device(device_name);
+            controller.show_audio_options_overview();
+        }
+        NativeUiAction::SetAudioOutputSampleRate { sample_rate } => {
+            controller.set_audio_sample_rate(sample_rate);
+            controller.show_audio_options_overview();
+        }
+        NativeUiAction::SetAudioInputHost { host_id } => {
+            controller.set_audio_input_host(host_id);
+            controller.show_audio_options_overview();
+        }
+        NativeUiAction::SetAudioInputDevice { device_name } => {
+            controller.set_audio_input_device(device_name);
+            controller.show_audio_options_overview();
+        }
+        NativeUiAction::SetAudioInputSampleRate { sample_rate } => {
+            controller.set_audio_input_sample_rate(sample_rate);
+            controller.show_audio_options_overview();
+        }
         NativeUiAction::SetInputMonitoringEnabled { enabled } => {
             controller.set_input_monitoring_enabled(enabled)
         }

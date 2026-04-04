@@ -64,6 +64,30 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
             .trash_folder
             .as_ref()
             .map(|path| shared::hash_path_for_projection_key(path.as_path())),
+        audio_engine_chip_state: non_segment_static_key.audio_engine_chip_state,
+        audio_engine_chip_label_hash: non_segment_static_key.audio_engine_chip_label_hash,
+        audio_engine_detail_hash: non_segment_static_key.audio_engine_detail_hash,
+        audio_engine_active_picker: non_segment_static_key.audio_engine_active_picker,
+        audio_engine_output_host_hash: non_segment_static_key.audio_engine_output_host_hash,
+        audio_engine_output_device_hash: non_segment_static_key.audio_engine_output_device_hash,
+        audio_engine_output_sample_rate_hash: non_segment_static_key
+            .audio_engine_output_sample_rate_hash,
+        audio_engine_input_host_hash: non_segment_static_key.audio_engine_input_host_hash,
+        audio_engine_input_device_hash: non_segment_static_key.audio_engine_input_device_hash,
+        audio_engine_input_sample_rate_hash: non_segment_static_key
+            .audio_engine_input_sample_rate_hash,
+        audio_engine_output_host_options_hash: non_segment_static_key
+            .audio_engine_output_host_options_hash,
+        audio_engine_output_device_options_hash: non_segment_static_key
+            .audio_engine_output_device_options_hash,
+        audio_engine_output_sample_rate_options_hash: non_segment_static_key
+            .audio_engine_output_sample_rate_options_hash,
+        audio_engine_input_host_options_hash: non_segment_static_key
+            .audio_engine_input_host_options_hash,
+        audio_engine_input_device_options_hash: non_segment_static_key
+            .audio_engine_input_device_options_hash,
+        audio_engine_input_sample_rate_options_hash: non_segment_static_key
+            .audio_engine_input_sample_rate_options_hash,
         waveform_signature: waveform_key.waveform_signature,
         waveform_selection_start_milli: waveform_key.waveform_selection_start_milli,
         waveform_selection_end_milli: waveform_key.waveform_selection_end_milli,
