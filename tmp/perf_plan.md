@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 in progress; items 1-7 complete on 2026-04-04
+Status: Phase 2 complete on 2026-04-04; items 1-8 complete
 
 ## Evidence Snapshot
 
@@ -114,7 +114,7 @@ Status: Phase 2 in progress; items 1-7 complete on 2026-04-04
 - Completed: 2026-04-04 (`root` `0efad4c2`)
 - Validation plan: add revision-sensitive cache invalidation tests for search labels and playback-age rollover, plus perf-guard coverage for age-filter/search-heavy scenarios.
 
-### [ ] 8. Reduce browser/runtime text allocation churn in `vendor/radiant`
+### [x] 8. Reduce browser/runtime text allocation churn in `vendor/radiant`
 - ROI: Medium
 - Effort: M
 - Expected impact: frame time, CPU, memory
@@ -125,4 +125,5 @@ Status: Phase 2 in progress; items 1-7 complete on 2026-04-04
 - Recommended change: move browser toolbar/focus text payload derivation into retained projection caches, reuse preformatted strings and reserved widths, and cache text-field visual state by layout/style signature instead of rebuilding it every sync.
 - Risk/tradeoffs: any retained text cache must invalidate correctly on DPI/theme/layout changes; stale text bounds would show up visually.
 - Visual impact: Needs review
+- Completed: 2026-04-04 (`vendor/radiant` `2f53bf98`, root `46a7168b`)
 - Validation plan: rerun focused `vendor/radiant` browser/focus/text-runtime tests, compare screenshots or manual visual checks at multiple scales, then rerun `scripts/ci_agent.ps1` and perf guard.
