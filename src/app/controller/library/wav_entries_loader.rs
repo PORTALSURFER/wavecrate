@@ -11,6 +11,24 @@ use std::{
 
 const WAV_LOADER_POLL_INTERVAL: Duration = Duration::from_millis(200);
 
+/// Options that shape how aggressively page-0 loading performs startup maintenance.
+#[derive(Clone, Copy, Debug)]
+struct LoadEntriesOptions {
+    reconcile_pending_ops: bool,
+    scan_empty_source: bool,
+}
+
+impl LoadEntriesOptions {
+    const FULL: Self = Self {
+        reconcile_pending_ops: true,
+        scan_empty_source: true,
+    };
+    const STARTUP_FAST_PATH: Self = Self {
+        reconcile_pending_ops: false,
+        scan_empty_source: false,
+    };
+}
+
 /// Join handle and shutdown signal for the wav entries loader thread.
 pub(crate) struct WavLoaderHandle {
     shutdown: Arc<AtomicBool>,
@@ -63,31 +81,49 @@ pub(crate) fn spawn_wav_loader() -> (Sender<WavLoadJob>, Receiver<WavLoadResult>
 }
 
 pub(crate) fn load_entries(job: &WavLoadJob) -> (Result<Vec<WavEntry>, LoadEntriesError>, usize) {
+    load_entries_with_options(job, LoadEntriesOptions::FULL)
+}
+
+pub(crate) fn load_entries_startup_fast_path(
+    job: &WavLoadJob,
+) -> (Result<Vec<WavEntry>, LoadEntriesError>, usize) {
+    load_entries_with_options(job, LoadEntriesOptions::STARTUP_FAST_PATH)
+}
+
+fn load_entries_with_options(
+    job: &WavLoadJob,
+    options: LoadEntriesOptions,
+) -> (Result<Vec<WavEntry>, LoadEntriesError>, usize) {
     let db = match SourceDatabase::open_fast(&job.root) {
         Ok(db) => db,
         Err(err) => return (Err(LoadEntriesError::Db(err)), 0),
     };
-    match crate::sample_sources::db::file_ops_journal::reconcile_pending_ops(&db) {
-        Ok(summary) => {
-            if summary.total > 0 {
-                if summary.errors.is_empty() {
-                    tracing::info!(
-                        "Reconciled {} pending file ops for {}",
-                        summary.completed,
-                        job.root.display()
-                    );
-                } else {
-                    for err in summary.errors {
-                        tracing::warn!("File op recovery issue for {}: {err}", job.root.display());
+    if options.reconcile_pending_ops {
+        match crate::sample_sources::db::file_ops_journal::reconcile_pending_ops(&db) {
+            Ok(summary) => {
+                if summary.total > 0 {
+                    if summary.errors.is_empty() {
+                        tracing::info!(
+                            "Reconciled {} pending file ops for {}",
+                            summary.completed,
+                            job.root.display()
+                        );
+                    } else {
+                        for err in summary.errors {
+                            tracing::warn!(
+                                "File op recovery issue for {}: {err}",
+                                job.root.display()
+                            );
+                        }
                     }
                 }
             }
-        }
-        Err(err) => {
-            tracing::warn!(
-                "Failed to reconcile file ops for {}: {err}",
-                job.root.display()
-            );
+            Err(err) => {
+                tracing::warn!(
+                    "Failed to reconcile file ops for {}: {err}",
+                    job.root.display()
+                );
+            }
         }
     }
     let mut total = match db.count_files() {
@@ -98,7 +134,7 @@ pub(crate) fn load_entries(job: &WavLoadJob) -> (Result<Vec<WavEntry>, LoadEntri
         Ok(entries) => entries,
         Err(err) => return (Err(LoadEntriesError::Db(err)), total),
     };
-    if entries.is_empty() {
+    if options.scan_empty_source && entries.is_empty() {
         // New sources start empty; trigger a quick scan to populate before reporting.
         let _ = crate::sample_sources::scanner::scan_once(&db);
         total = match db.count_files() {

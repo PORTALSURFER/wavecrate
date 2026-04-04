@@ -4,6 +4,8 @@ use super::retry_policy::{
 };
 use super::{SourceDbMaintenanceJob, SourceDbMaintenanceOutcome};
 use crate::app::controller::library::analysis_jobs;
+use crate::sample_sources::db::file_ops_journal;
+use crate::sample_sources::scanner::{scan_once, schedule_deep_hash_scan};
 
 /// Run one deferred source-db maintenance job with fixed-delay retries.
 pub(super) fn run_source_db_maintenance_job(
@@ -17,10 +19,66 @@ pub(super) fn run_source_db_maintenance_job(
                 source_root: job.source_root,
                 skipped: false,
                 orphan_rows_removed: 0,
+                refresh_required: false,
                 error: Some(format!("Open source DB failed: {err}")),
             };
         }
     };
+    let reconcile_summary = match file_ops_journal::reconcile_pending_ops(&probe) {
+        Ok(summary) => {
+            for err in &summary.errors {
+                tracing::warn!(
+                    "Deferred file-op recovery issue for {} ({}): {}",
+                    job.source_id,
+                    job.source_root.display(),
+                    err
+                );
+            }
+            summary
+        }
+        Err(err) => {
+            return SourceDbMaintenanceOutcome {
+                source_id: job.source_id,
+                source_root: job.source_root,
+                skipped: false,
+                orphan_rows_removed: 0,
+                refresh_required: false,
+                error: Some(format!("Deferred file-op recovery failed: {err}")),
+            };
+        }
+    };
+    let mut empty_source_rescanned = false;
+    match probe.count_files() {
+        Ok(0) => match scan_once(&probe) {
+            Ok(stats) => {
+                empty_source_rescanned = scan_changed_source(&stats);
+                if stats.hashes_pending > 0 {
+                    schedule_deep_hash_scan(job.source_root.clone());
+                }
+            }
+            Err(err) => {
+                return SourceDbMaintenanceOutcome {
+                    source_id: job.source_id,
+                    source_root: job.source_root,
+                    skipped: false,
+                    orphan_rows_removed: 0,
+                    refresh_required: reconcile_summary.completed > 0,
+                    error: Some(format!("Deferred empty-source scan failed: {err}")),
+                };
+            }
+        },
+        Ok(_) => {}
+        Err(err) => {
+            return SourceDbMaintenanceOutcome {
+                source_id: job.source_id,
+                source_root: job.source_root,
+                skipped: false,
+                orphan_rows_removed: 0,
+                refresh_required: reconcile_summary.completed > 0,
+                error: Some(format!("Read source DB count failed: {err}")),
+            };
+        }
+    }
     let revision = match probe.get_revision() {
         Ok(value) => value,
         Err(err) => {
@@ -29,6 +87,7 @@ pub(super) fn run_source_db_maintenance_job(
                 source_root: job.source_root,
                 skipped: false,
                 orphan_rows_removed: 0,
+                refresh_required: reconcile_summary.completed > 0 || empty_source_rescanned,
                 error: Some(format!("Read source DB revision failed: {err}")),
             };
         }
@@ -41,6 +100,7 @@ pub(super) fn run_source_db_maintenance_job(
                 source_root: job.source_root,
                 skipped: false,
                 orphan_rows_removed: 0,
+                refresh_required: reconcile_summary.completed > 0 || empty_source_rescanned,
                 error: Some(err),
             };
         }
@@ -52,6 +112,7 @@ pub(super) fn run_source_db_maintenance_job(
             source_root: job.source_root,
             skipped: true,
             orphan_rows_removed: 0,
+            refresh_required: reconcile_summary.completed > 0 || empty_source_rescanned,
             error: None,
         };
     }
@@ -65,6 +126,7 @@ pub(super) fn run_source_db_maintenance_job(
                     source_root: job.source_root,
                     skipped: false,
                     orphan_rows_removed,
+                    refresh_required: reconcile_summary.completed > 0 || empty_source_rescanned,
                     error: None,
                 };
             }
@@ -82,8 +144,17 @@ pub(super) fn run_source_db_maintenance_job(
         source_root: job.source_root,
         skipped: false,
         orphan_rows_removed: 0,
+        refresh_required: reconcile_summary.completed > 0 || empty_source_rescanned,
         error: last_error,
     }
+}
+
+fn scan_changed_source(stats: &crate::sample_sources::scanner::ScanStats) -> bool {
+    stats.added > 0
+        || stats.updated > 0
+        || stats.missing > 0
+        || stats.content_changed > 0
+        || stats.renames_reconciled > 0
 }
 
 /// Run a single deferred source-db maintenance attempt without retries.

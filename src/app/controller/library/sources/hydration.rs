@@ -79,6 +79,7 @@ impl AppController {
             cached_page: cached.and_then(|cache| cache.pages.get(&0).cloned()),
             cached_total: cached.map(|cache| cache.total),
             cached_page_size: cached.map(|cache| cache.page_size),
+            defer_startup_follow_up_work: self.defer_startup_source_follow_up_work(kind),
         };
 
         if !source_hydration_async_enabled() {
@@ -130,6 +131,7 @@ impl AppController {
         snapshot: SourceHydrationSnapshot,
     ) {
         let from_cache = snapshot.from_cache;
+        let deferred_follow_up_work = snapshot.deferred_follow_up_work;
         match kind {
             SourceHydrationKind::ActiveSelection => {
                 if !self.install_hydrated_wav_entries(&source_id, &snapshot) {
@@ -141,18 +143,22 @@ impl AppController {
                 } else {
                     self.queue_feature_cache_refresh_for_browser();
                 }
-                let available_folders = snapshot.available_folders;
-                let folder_tree = snapshot.folder_tree;
-                self.apply_folder_snapshot_to_pane(
-                    pane,
-                    &source_id,
-                    &self
-                        .current_source()
-                        .expect("selected source should exist")
-                        .root,
-                    available_folders,
-                    folder_tree,
-                );
+                if deferred_follow_up_work {
+                    self.queue_folder_browser_refresh();
+                } else {
+                    let available_folders = snapshot.available_folders;
+                    let folder_tree = snapshot.folder_tree;
+                    self.apply_folder_snapshot_to_pane(
+                        pane,
+                        &source_id,
+                        &self
+                            .current_source()
+                            .expect("selected source should exist")
+                            .root,
+                        available_folders,
+                        folder_tree,
+                    );
+                }
                 self.apply_post_source_hydration_selection();
                 self.finish_source_hydration_metadata(&source_id, from_cache, elapsed);
                 if self.should_rebuild_browser_lists_async() {
@@ -391,5 +397,12 @@ impl AppController {
                 && pending.source_id == message.source_id
                 && pending.kind == message.kind
         })
+    }
+
+    /// Return whether startup should stop after page-0 hydration and defer heavier follow-up work.
+    fn defer_startup_source_follow_up_work(&self, kind: SourceHydrationKind) -> bool {
+        kind == SourceHydrationKind::ActiveSelection
+            && self.runtime.deferred_startup_source_db_maintenance_armed
+            && self.runtime.startup_frame_prepare_count == 0
     }
 }

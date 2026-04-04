@@ -230,6 +230,8 @@ pub(crate) struct SourceHydrationJob {
     pub(crate) cached_total: Option<usize>,
     /// Page size associated with `cached_page`, when present.
     pub(crate) cached_page_size: Option<usize>,
+    /// Whether startup should stop after the minimum page-0 payload and defer follow-up work.
+    pub(crate) defer_startup_follow_up_work: bool,
 }
 
 /// Compact source snapshot prepared off the UI thread for later controller apply.
@@ -251,6 +253,8 @@ pub(crate) struct SourceHydrationSnapshot {
     pub(crate) feature_cache: Option<crate::app::controller::FeatureCache>,
     /// Whether the snapshot reused the page-0 wav cache instead of querying the DB.
     pub(crate) from_cache: bool,
+    /// Whether folder projection and feature metadata still need a deferred follow-up pass.
+    pub(crate) deferred_follow_up_work: bool,
 }
 
 /// Result of one async browser feature-cache refresh.
@@ -591,6 +595,8 @@ pub(crate) struct SourceDbMaintenanceOutcome {
     pub(crate) skipped: bool,
     /// Number of orphaned analysis rows removed.
     pub(crate) orphan_rows_removed: usize,
+    /// Whether maintenance changed source-visible DB state and the browser should refresh.
+    pub(crate) refresh_required: bool,
     /// Error when maintenance failed after retry attempts.
     pub(crate) error: Option<String>,
 }

@@ -30,6 +30,8 @@ pub(super) fn run_source_hydration(job: SourceHydrationJob) -> SourceHydrationRe
 fn build_source_hydration_snapshot(
     job: &SourceHydrationJob,
 ) -> Result<SourceHydrationSnapshot, LoadEntriesError> {
+    let deferred_follow_up_work = job.defer_startup_follow_up_work
+        && job.kind == crate::app::controller::jobs::SourceHydrationKind::ActiveSelection;
     let (entries, total, page_size, from_cache) = if let Some(entries) = job.cached_page.clone() {
         (
             entries,
@@ -38,29 +40,39 @@ fn build_source_hydration_snapshot(
             true,
         )
     } else {
-        let (result, total) = wav_entries_loader::load_entries(&WavLoadJob {
+        let load_job = WavLoadJob {
             source_id: job.source_id.clone(),
             root: job.source_root.clone(),
             page_size: job.page_size,
-        });
+        };
+        let (result, total) = if deferred_follow_up_work {
+            wav_entries_loader::load_entries_startup_fast_path(&load_job)
+        } else {
+            wav_entries_loader::load_entries(&load_job)
+        };
         (result?, total, job.page_size, false)
     };
-    let available_folders = derive_available_folders(&job.source_root, &entries);
-    let feature_cache =
-        if job.kind == crate::app::controller::jobs::SourceHydrationKind::ActiveSelection {
-            let entry_paths = entries
-                .iter()
-                .map(|entry| entry.relative_path.clone())
-                .collect::<Vec<_>>();
-            Some(build_feature_cache_for_paths(
-                &job.source_id,
-                &job.source_root,
-                &entry_paths,
-                &[],
-            )?)
-        } else {
-            None
-        };
+    let available_folders = if deferred_follow_up_work {
+        BTreeSet::new()
+    } else {
+        derive_available_folders(&job.source_root, &entries)
+    };
+    let feature_cache = if deferred_follow_up_work {
+        None
+    } else if job.kind == crate::app::controller::jobs::SourceHydrationKind::ActiveSelection {
+        let entry_paths = entries
+            .iter()
+            .map(|entry| entry.relative_path.clone())
+            .collect::<Vec<_>>();
+        Some(build_feature_cache_for_paths(
+            &job.source_id,
+            &job.source_root,
+            &entry_paths,
+            &[],
+        )?)
+    } else {
+        None
+    };
     Ok(SourceHydrationSnapshot {
         folder_tree: FolderTreeSnapshot::from_available(&available_folders),
         available_folders,
@@ -70,6 +82,7 @@ fn build_source_hydration_snapshot(
         total,
         page_size,
         from_cache,
+        deferred_follow_up_work,
     })
 }
 

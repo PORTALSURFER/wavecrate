@@ -165,7 +165,11 @@ impl AppController {
     ) {
         self.runtime.jobs.clear_source_db_maintenance();
         let mut failed = 0usize;
+        let mut sources_to_refresh = Vec::new();
         for outcome in message.outcomes {
+            if outcome.refresh_required {
+                sources_to_refresh.push(outcome.source_id.clone());
+            }
             if let Some(err) = outcome.error {
                 failed = failed.saturating_add(1);
                 tracing::warn!(
@@ -174,6 +178,17 @@ impl AppController {
                     outcome.source_root.display(),
                     err
                 );
+            }
+        }
+        for source_id in sources_to_refresh {
+            if let Some(source) = self
+                .library
+                .sources
+                .iter()
+                .find(|source| source.id == source_id)
+                .cloned()
+            {
+                self.invalidate_wav_entries_for_source(&source);
             }
         }
         if failed > 0 {
@@ -266,7 +281,12 @@ impl AppController {
                     expected_bpm,
                 } => {
                     if let Some(source_id) = self.selection_state.ctx.selected_source.as_ref() {
-                        let cache = self.ui_cache.browser.bpm_values.entry(source_id.clone()).or_default();
+                        let cache = self
+                            .ui_cache
+                            .browser
+                            .bpm_values
+                            .entry(source_id.clone())
+                            .or_default();
                         if cache.get(relative_path).copied().flatten() == *expected_bpm {
                             cache.insert(relative_path.clone(), *before_bpm);
                         }
