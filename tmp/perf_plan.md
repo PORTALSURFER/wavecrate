@@ -1,219 +1,167 @@
-# Runtime Performance Audit Backlog
+# Runtime Performance Audit Plan
 
-Generated: 2026-04-04 (Europe/Amsterdam)
-Observed superproject commit: `7c4ea8fde2e1c6d1966aaff578c920365549e6f5`
-Observed `vendor/radiant` commit: `58e5fe249e86eae2f01ec3031a1397210b507e9d`
-Observed workspace state at audit time: dirty worktree with unrelated edits in `src/app/controller/library/source_folders/actions/rename_move_delete.rs`, `src/app/controller/library/wavs/selection_ops.rs`, and `src/app/controller/tests/browser_actions/focus_navigation/commit_focus.rs`
-Status: Phase 2 is complete on 2026-04-04. Items 1-6 are complete in commits `fc2fca4e`, `ef649778`, vendor/radiant `d13e5f55`, `ca24b6d3`, `18f8d5d5`, `9009d402`, and vendor/radiant `427e115b`; the superproject vendor bump landed in `53ea4684`.
+Status: Phase 2 in progress on 2026-04-04. Item 1 is complete; items 2-6 are pending.
 
-## Scope
-
-- Audit the live tree for runtime performance and responsiveness issues.
-- Rank only code-grounded improvements with measurable or strongly evidenced payoff.
-- Preserve visual quality and interaction feel; any risky visual changes are flagged below.
-- Execution status is tracked below; items 1-6 are now complete.
-
-## Validation Baseline
-
-- Canonical Windows commands
-  - tight loop: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-  - agent-safe validation: `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-  - broader validation: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-  - full parity/perf lane: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
-  - perf benchmark lane: `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
-- Fresh live perf evidence from `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` on 2026-04-04
-  - `target/perf/bench.json`: `app_model_projection.p95_us = 6318`
-  - `target/perf/bench.json`: `interactive_projection.p95_us = 4662`
-  - `target/perf/bench.json`: `hover_latency.p95_us = 4238`
-  - `target/perf/bench.json`: `wheel_latency.p95_us = 4643`
-  - `target/perf/bench.json`: `browser_filter_churn_latency.p95_us = 3419`
-  - `target/perf/bench.json`: `waveform_pan_zoom_adjacent_latency.p95_us = 256`
-  - `target/perf/bench.json`: `interactive_projection.projection_stage.p95_us = 4575`
-  - `target/perf/bench.json`: `hover_latency.projection_stage.p95_us = 4122`
-  - `target/perf/bench.json`: `wheel_latency.projection_stage.p95_us = 4044`
-  - `target/perf/bench.json`: `browser_filter_churn_latency.projection_stage.p95_us = 3344`
+- Repository state audited: superproject `7d2b4dc2`, `vendor/radiant` `427e115b`
+- Workspace note: the live tree is dirty with unrelated user edits; Phase 2 must avoid overwriting them.
+- Fresh perf baseline: `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` with `SEMPAL_PERF_GUARD_RUNS=3`
+- Median p95 snapshot from the fresh 3-run baseline:
+  - `browser_filter_churn_latency = 2937us`
+  - `browser_query_churn_latency = 163us`
+  - `browser_sort_toggle_latency = 272us`
+  - `hover_latency = 2833us`
+  - `wheel_latency = 3468us`
+  - `browser_focus_preview_latency = 220us`
+  - `browser_focus_commit_latency = 157us`
+  - `map_pan_proxy_latency = 115us`
+  - `waveform_interaction_latency = 258us`
+  - `waveform_pan_zoom_adjacent_latency = 163us`
+  - `volume_drag_latency = 86us`
+  - `idle_cursor_motion_latency = 8us`
+- Supporting hotspot evidence: `target/perf/bench.json:39`, `target/perf/bench.json:83`, `target/perf/bench.json:437`, `target/perf/bench.json:527`, `target/perf/bench.json:617`, `target/perf/bench.json:707`
+- Canonical validation commands for this lane:
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
 
 ## ROI-Ranked Backlog
 
-- [x] 1. Route synchronous browser filtering through compact retained metadata instead of page-loading wav entries
-  - ROI: Very High
-  - Effort: M
-  - Expected impact: p95 interaction latency, CPU, memory
-  - Completed: 2026-04-04 in commit `fc2fca4e`
-  - Evidence:
-    - Current live perf run: `browser_filter_churn_latency.p95_us = 3419` and `browser_filter_churn_latency.projection_stage.p95_us = 3344` in `target/perf/bench.json`
-    - `src/app/controller/library/wavs/browser_pipeline/visible_rows.rs:144` rebuilds the filtered stage by scanning every base row whenever the filter fingerprint changes
-    - `src/app/controller/library/wavs/browser_pipeline/visible_rows.rs:175` and `src/app/controller/library/wavs/browser_pipeline/visible_rows.rs:231` call `filter_stage_entry(...)` inside those full-list scans
-    - `src/app/controller/library/wavs/browser_pipeline/visible_rows.rs:261-277` calls `ensure_wav_page_loaded(index)` and then re-reads the wav entry for each row
-    - `src/app/controller/library/wavs/browser_pipeline/folder_stage.rs:24-55` computes folder acceptance by iterating every index and calling `ensure_wav_page_loaded(index)`
-    - `src/app/controller/library/wavs/entry_access.rs:54-67` falls back to `list_files_page(...)` on page misses, so filter churn can still touch the source DB on the UI thread
-    - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/visible_rows.rs:59-158` already has an off-thread compact-entry path that avoids `WavEntry` paging
-  - Recommended change:
-    - Introduce one controller-local compact browser metadata snapshot for filter/search/sort work: tag, locked, last-played, relative-path token, and marked/folder acceptance inputs.
-    - Make the synchronous visible-row pipeline consume that snapshot directly instead of forcing `ensure_wav_page_loaded(...)` while rebuilding filter and folder stages.
-    - Reuse or align the synchronous builders with the existing search-worker stage logic so one filtering contract serves both paths.
-  - Risk/tradeoffs:
-    - Must preserve exact marked-only, folder-filter, playback-age rollover, and duplicate-cleanup semantics.
-    - Cache invalidation needs to track path-level mutations correctly or stale browser rows will appear.
-  - Visual impact: None
-  - Validation plan:
-    - Extend `src/app/controller/library/wavs/browser_pipeline/tests.rs`
-    - Extend `src/app/controller/library/wavs/browser_search_worker/pipeline/parity_tests.rs`
-    - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-    - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
-  - Validation result:
-    - `cargo test browser_pipeline --quiet` passed
-    - `cargo test parity_tests --quiet` passed
-    - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
-    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2421`, `hover_latency.p95_us = 2602`, and `wheel_latency.p95_us = 3159`
+### [x] 1. Split browser focus and selection invalidation away from full row-window projection
+- ROI: Very High
+- Effort: L
+- Expected impact: p95 interaction latency, frame time, CPU
+- Evidence:
+  - `src/app_core/native_bridge/projection_cache/key_types.rs:133`
+  - `src/app_core/native_bridge/projection_cache/projection_key/browser.rs:38`
+  - `src/app_core/native_bridge/projection_cache/segment_materialize.rs:194`
+  - `src/app_core/native_shell/browser_projection/row_window.rs:50`
+  - `target/perf/bench.json:83`
+  - `target/perf/bench.json:437`
+- Recommended change: split ephemeral row-state changes such as focused row, anchor row, and visible selection decorations out of the coarse browser rows projection cache key, then retain and patch only the affected rows or overlays instead of rebuilding the entire row window on every focus, hover, wheel, and selection transition.
+- Risk/tradeoffs: this changes invalidation boundaries and retained-state ownership, so stale highlight, anchor, or selection visuals are the main regression risk. The implementation needs targeted tests around row focus, range selection, and offscreen selection indicators.
+- Visual impact: Needs review
+- Validation plan:
+  - Add projection-cache tests covering focus-only, anchor-only, and selection-decoration-only transitions.
+  - Extend browser cache and focus-navigation tests to assert row text and highlight correctness.
+  - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
+  - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` and compare browser interaction p95s against the baseline.
+- Completion record: 2026-04-04, commit `3c21e5ac`
+- Validation result:
+  - Focus and selection-only row-state changes now reuse retained row content and patch only `selected`/`focused` flags in place.
+  - `projection_segment_browser*` targeted tests passed.
+  - `browser_rows_state_patch_updates_flags_without_rebuilding_labels` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency = 2617us` p95, `hover_latency = 4288us` p95, `wheel_latency = 3169us` p95, `browser_focus_preview_latency = 179us` p95, and `browser_focus_commit_latency = 228us` p95.
 
-- [x] 2. Make browser feature-cache refreshes revision-driven so row projection stops rebuilding whole path vectors
-  - ROI: High
-  - Effort: M
-  - Expected impact: startup, p95 interaction latency, memory, CPU
-  - Completed: 2026-04-04 in commit `ef649778`
-  - Evidence:
-    - `src/app_core/native_shell/browser_projection/row_window.rs:36-61` calls `queue_feature_cache_refresh_for_browser()` from the browser row-projection path
-    - `src/app/controller/library/wavs/feature_cache.rs:255-315` rebuilds ordered `entry_paths`, hashes them, clones fallback rows, and spawns a refresh job from the UI thread
-    - `src/app/controller/library/wavs/feature_cache.rs:320-321` recomputes the same full ordered-path key again in `current_browser_feature_cache_key()`
-    - `src/app/controller/library/wavs/feature_cache.rs:356-363` clones every visible entry path into a fresh `Vec<PathBuf>`
-    - `src/app/controller/library/wavs/feature_cache.rs:288` clones the entire cached `rows` vector as fallback payload for the job
-    - `src/app/controller/library/sources/hydration/worker.rs:41-59` already has one natural point where a stable ordered-path snapshot can be captured during hydration
-  - Recommended change:
-    - Store one source-local browser-feature snapshot revision and ordered-path hash when hydration or wav-entry mutation changes the active source list.
-    - Key `pending_browser_feature_cache_refresh` off that stored revision/hash instead of rebuilding `Vec<PathBuf>` in row projection.
-    - Pass fallback rows through a shared retained structure or a changed-index patch path rather than cloning the full `rows` vector for each refresh.
-  - Risk/tradeoffs:
-    - Pending-job dedupe must match the full ordered-path identity, not only `entries_len`, or refreshes may be skipped incorrectly after rename/reorder operations.
-    - Source mutations must bump the stored revision every time the aligned row order changes.
-  - Visual impact: None
-  - Validation plan:
-    - Extend `src/app/controller/library/wavs/feature_cache/tests.rs`
-    - Extend `src/app/controller/tests/source_async.rs`
-    - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-    - Re-run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
-  - Validation result:
-    - `cargo test feature_cache --quiet` passed
-    - `cargo test browser_pipeline --quiet` passed
-    - `cargo test source_async --quiet` passed
-    - `cargo test browser_inline_tags --quiet` passed
-    - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
-    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2700`, `hover_latency.p95_us = 3065`, and `wheel_latency.p95_us = 3195`
+### [ ] 2. Remove UI-thread wav page loads from browser row projection and BPM preload
+- ROI: High
+- Effort: M
+- Expected impact: p95 interaction latency, CPU, I/O
+- Evidence:
+  - `src/app_core/native_shell/browser_projection/cache.rs:151`
+  - `src/app_core/native_shell/browser_projection/cache.rs:152`
+  - `src/app_core/native_shell/browser_projection/preload.rs:122`
+  - `src/app_core/native_shell/browser_projection/preload.rs:123`
+  - `src/app/controller/library/wavs/entry_access.rs:157`
+  - `src/app/controller/library/wavs/metadata_cache.rs:40`
+  - `src/app/controller/library/wavs/browser_search/cache.rs:157`
+- Recommended change: stop calling `wav_entry()` from the row projection path and preload helpers when a stable path or lightweight metadata snapshot is enough. Introduce a page-load-free browser row input path, avoid cloning row paths before cache-hit decisions, and move BPM/search label warmup onto bounded background or retained caches.
+- Risk/tradeoffs: low behavioral risk, but the new lightweight path must stay consistent with paged entry ownership and cannot return stale relative paths after mutations. Tests need to cover navigation across unloaded pages and first-scroll behavior.
+- Visual impact: None
+- Validation plan:
+  - Add tests for projecting unloaded-page rows without forcing page loads.
+  - Extend browser preload and browser search cache tests for first-window exposure.
+  - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
+  - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` and verify filter, hover, and wheel improvements.
+- Completion record: Pending
 
-- [x] 3. Narrow browser navigation invalidation in the native runtime to segment-scoped rebuilds
-  - ROI: High
-  - Effort: M
-  - Expected impact: p95 interaction latency, frame time, CPU
-  - Completed: 2026-04-04 in vendor/radiant commit `d13e5f55`
-  - Evidence:
-    - Current live perf run keeps the user-visible tail on navigation-heavy scenarios high: `hover_latency.p95_us = 4238`, `wheel_latency.p95_us = 4643`
-    - At the start of Phase 2, `vendor/radiant/src/gui_runtime/native_vello/runtime_actions.rs:61-70` still classified `UiAction::SetBrowserViewStart` as `RuntimeInvalidationScope::StaticAndOverlays`, even though the surrounding browser focus and selection actions were already on `ModelAndOverlays`
-    - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/invalidation.rs:56-61` turns `StaticAndOverlays` into `mark_model_dirty()`, which requests an explicit static-scene rebuild instead of relying on the bridge-driven segment path
-    - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/rebuild.rs:237-260` already routes static rebuilds through the incremental segment pipeline
-    - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/static_segments.rs:7-52` can rebuild only the dirty static segments rather than the entire static frame
-  - Recommended change:
-    - Keep browser viewport movement on `ModelAndOverlays` so the runtime still pulls fresh model state, but stop forcing an explicit static-scene rebuild for `SetBrowserViewStart`.
-    - Keep relying on bridge dirty segments and segment revisions to decide whether browser rows, browser frame, or status segments actually need static work.
-    - Lock the narrower contract down in runtime-core tests so future action-scope regressions are caught immediately.
-  - Risk/tradeoffs:
-    - Incorrect scoping could leave stale footer summaries or viewport chrome on screen if the bridge under-reports dirty static segments.
-    - `SetBrowserViewStart` is the highest-risk action in this group because it can touch both the row window and browser chrome.
-  - Visual impact: Needs review
-  - Validation plan:
-    - Extend `vendor/radiant/src/gui_runtime/native_vello/tests/runtime_core/invalidation.rs`
-    - Run focused browser-navigation native-runtime tests in `vendor/radiant`
-    - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-    - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
-  - Validation result:
-    - `cargo test -p radiant invalidation --quiet` passed
-    - `cargo test -p radiant browser_row_pointer_action --quiet` passed
-    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed
-    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2971`, `hover_latency.p95_us = 3076`, `wheel_latency.p95_us = 3091`, `browser_focus_preview_latency.p95_us = 148`, and `browser_focus_commit_latency.p95_us = 156`
+### [ ] 3. Move feature-refresh scheduling and base-stage DB revision probes out of the hot row-projection path
+- ROI: High
+- Effort: M
+- Expected impact: p95 interaction latency, startup follow-up latency, CPU
+- Evidence:
+  - `src/app_core/native_shell/browser_projection/row_window.rs:52`
+  - `src/app/controller/library/wavs/feature_cache.rs:260`
+  - `src/app/controller/library/wavs/browser_pipeline.rs:112`
+  - `src/app/controller/library/wavs/browser_pipeline.rs:115`
+  - `src/app/controller/library/wavs/browser_pipeline/base_stage.rs:4`
+  - `src/app/controller/library/wavs/browser_pipeline/base_stage.rs:8`
+  - `src/app/controller/library/wavs/browser_pipeline/base_stage.rs:9`
+- Recommended change: decouple feature-cache refresh scheduling from every row-window projection, cache the base-stage fingerprint from existing mutation boundaries, and avoid probing `database_for(...).get_revision()` on hot interaction reads when no source revision change has occurred.
+- Risk/tradeoffs: the main risk is delayed feature-cache freshness after source edits or hydration. The change needs explicit ownership for when a source revision invalidates the base stage and when a browser refresh may safely reuse it.
+- Visual impact: None
+- Validation plan:
+  - Add browser pipeline tests for source revision changes, selection-only interaction, and feature-cache refresh triggering.
+  - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
+  - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
+- Completion record: Pending
 
-- [x] 4. Split first-paint source hydration into a minimal page-0 payload and deferred heavy follow-up work
-  - ROI: High
-  - Effort: M
-  - Expected impact: startup, first interaction latency, CPU, I/O
-  - Completed: 2026-04-04 in commits `ca24b6d3` and `18f8d5d5`
-  - Evidence:
-    - `src/app/controller/config.rs:15-148` applies configuration and immediately calls `refresh_wavs()` when a selected source exists during startup
-    - `src/app/controller/library/sources/selection.rs:80-88` refreshes wavs immediately from `select_first_source()`
-    - `src/app/controller/library/wav_entries_loader.rs:65-108` opens the DB, reconciles pending file ops, counts files, loads page 0, and may synchronously call `scan_once(&db)` before the first hydrated snapshot is ready
-    - `src/app/controller/library/sources/hydration/worker.rs:30-59` then derives folders and may build feature-cache metadata during the same hydration pass
-    - `src/app/controller/config.rs:170-195` already has a deferred startup source-DB maintenance lane that can absorb more post-first-paint work
-  - Recommended change:
-    - Make the first hydration phase return only the minimum required to paint the initial browser and waveform target quickly: selected source identity, page-0 wav entries, path lookup, and loading states.
-    - Defer file-op reconciliation, empty-source scan, full feature metadata, and richer folder derivation into a second hydration/maintenance phase that starts after first paint.
-    - Reuse the existing deferred maintenance infrastructure where possible instead of adding another background system.
-  - Risk/tradeoffs:
-    - Status/footer metadata and folder/tree completeness may briefly lag first paint.
-    - Startup ordering has to preserve correctness for missing-source recovery and pending-path selection.
-  - Visual impact: Minimal
-  - Validation plan:
-    - Extend `src/app/controller/tests/source_async.rs`
-    - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-    - Manual startup timing check with native runtime logs
-    - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
-  - Validation result:
-    - `cargo test source_async --quiet` passed
-    - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
-    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2940`, `hover_latency.p95_us = 3272`, `wheel_latency.p95_us = 4023`, `browser_focus_preview_latency.p95_us = 172`, and `browser_focus_commit_latency.p95_us = 205`
-    - Manual startup timing check with native runtime logs was not run in this agent environment
+### [ ] 4. Collapse startup hydration path normalization and folder-derivation filesystem churn
+- ROI: High
+- Effort: M
+- Expected impact: startup, first interaction latency, CPU, I/O, memory
+- Evidence:
+  - `src/app/controller/library/sources/hydration/worker.rs:58`
+  - `src/app/controller/library/sources/hydration/worker.rs:80`
+  - `src/app/controller/library/sources/hydration/worker.rs:89`
+  - `src/app/controller/library/sources/hydration/worker.rs:95`
+  - `src/app/controller/library/sources/hydration/worker.rs:102`
+  - `src/app/controller/config.rs:148`
+- Recommended change: reuse the loaded entry list to build path lookup and available folders in one pass, avoid allocating normalized `PathBuf` copies with `to_string_lossy().replace(...)`, and stop doing repeated `join(...).is_dir()` checks for every ancestor during hydration follow-up when the source tree shape can be derived from the entry set.
+- Risk/tradeoffs: low UI risk, but folder-tree correctness across mixed separators, empty folders, and deleted ancestors must stay exact. The optimized path should preserve current source-folder behavior on Windows paths.
+- Visual impact: None
+- Validation plan:
+  - Add hydration worker tests for Windows-style separators, nested folders, and deleted-folder reconciliation.
+  - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
+  - Run a startup smoke check with `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`.
+- Completion record: Pending
 
-- [x] 5. Tighten the retained browser row-cache hot loop to remove avoidable timestamp/path churn
-  - ROI: Medium
-  - Effort: S
-  - Expected impact: p95 interaction latency, memory, CPU
-  - Completed: 2026-04-04 in commit `9009d402`
-  - Evidence:
-    - `src/app_core/native_shell/browser_projection/cache.rs:129` calls `SystemTime::now()` per projected row to compute playback-age buckets
-    - `src/app_core/native_shell/browser_projection/cache.rs:144`, `:183`, and `:188` clone `relative_path` on both cache-hit and cache-miss paths
-    - `src/app_core/native_shell/browser_projection/cache.rs:230` clears the entire retained browser-row cache when it reaches `MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE`
-    - `src/app_core/native_shell/browser_projection/cache.rs:212-228` still rebuilds row labels and bucket labels on misses even when most row identity is already retained
-  - Recommended change:
-    - Compute playback-age "now" once per row-window projection and thread it into `project_cached_browser_row(...)`.
-    - Borrow retained relative-path identities where possible instead of cloning paths repeatedly through the hot loop.
-    - Replace the full-cache clear at capacity with bounded LRU-style eviction so one new row does not invalidate the entire retained window.
-  - Risk/tradeoffs:
-    - Borrowed-path reuse must not outlive the underlying retained entry storage.
-    - More granular eviction adds bookkeeping; keep it simple and bounded.
-  - Visual impact: None
-  - Validation plan:
-    - Extend `src/app_core/native_shell/tests/browser_cache.rs`
-    - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-    - Re-run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
-  - Validation result:
-    - `cargo test browser_cache --quiet` passed
-    - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
-    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2704`, `hover_latency.p95_us = 3117`, `wheel_latency.p95_us = 3131`, `browser_focus_preview_latency.p95_us = 143`, and `browser_focus_commit_latency.p95_us = 150`
+### [ ] 5. Defer expensive audio device probing until after first present or explicit settings access
+- ROI: Medium
+- Effort: S
+- Expected impact: startup, first interaction latency
+- Evidence:
+  - `src/app/controller/config.rs:92`
+  - `src/app/controller/config.rs:93`
+  - `src/app/controller/playback/audio_options/controller.rs:82`
+  - `src/app/controller/playback/audio_options/controller.rs:92`
+  - `src/audio/output/discovery.rs:10`
+  - `src/audio/output/discovery.rs:56`
+  - `src/audio/input/enumerate.rs:9`
+  - `src/audio/input/enumerate.rs:56`
+- Recommended change: stop enumerating hosts, devices, and supported configurations synchronously during initial config apply. Populate cached defaults cheaply at startup, then refresh the full audio option model after first present or when the user opens playback/input settings.
+- Risk/tradeoffs: minimal UX risk if the deferred refresh is visible for too long or if settings open before the async probe completes. The first settings-open experience must still show deterministic loading and preserve the current selected device when available.
+- Visual impact: Minimal
+- Validation plan:
+  - Add controller tests for startup config apply without immediate device probing.
+  - Add playback settings tests that ensure deferred refresh eventually populates host and device lists.
+  - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
+- Completion record: Pending
 
-- [x] 6. Add retained text/layout caching for browser and status segments
-  - ROI: Medium
-  - Effort: L
-  - Expected impact: frame time, CPU, memory
-  - Completed: 2026-04-04 in vendor/radiant commit `427e115b` (superproject bump `53ea4684`)
-  - Evidence:
-    - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/composition.rs:13-75` resets the scene and replays all primitives plus `text_renderer.draw_text_runs(...)` every time a dirty segment is re-encoded
-    - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/static_segments.rs:7-52` rebuilds and re-encodes each dirty static segment independently, so text-heavy segments dominate their own rebuild cost
-    - `vendor/radiant/src/gui/native_shell/state/frame_build/browser/rows.rs:129` and `:207` allocate row index and row label text on each build
-    - `vendor/radiant/src/gui/native_shell/state/frame_build/browser/panel.rs:55` and `:234` allocate button and chip labels during browser-frame rebuilds
-    - `vendor/radiant/src/gui/native_shell/state/frame_build/status_bar.rs:16-60` repeatedly formats footer strings and truncates them again on each status rebuild
-  - Recommended change:
-    - Introduce retained text/layout caches keyed by row identity, status fingerprint, and toolbar/footer fingerprints so unchanged labels can reuse truncated strings and shaped text data across segment rebuilds.
-    - Keep cache ownership close to the segment builders so invalidation remains explicit and local.
-  - Risk/tradeoffs:
-    - Text metrics, truncation, and clipping must match current rendering exactly; otherwise visual regressions will be user-visible.
-    - This is a larger architectural change than the items above and should follow after cheaper wins land.
-  - Visual impact: Needs review
-  - Validation plan:
-    - Extend `vendor/radiant` scene-cache tests and relevant shot-based tests
-    - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-    - Compare before/after native-shell screenshots for browser and status segments
-  - Validation result:
-    - `cargo test browser_frame_text_cache_reuses_and_invalidates_on_search_changes --quiet` passed
-    - `cargo test status_bar_text_cache_reuses_and_invalidates_on_progress_changes --quiet` passed
-    - `cargo test browser_toolbar --quiet` passed
-    - `cargo test status_bar_progress --quiet` passed
-    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed
-    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2767`, `hover_latency.p95_us = 2896`, `wheel_latency.p95_us = 2830`, `browser_focus_preview_latency.p95_us = 153`, and `browser_focus_commit_latency.p95_us = 143`
-    - Before/after native-shell screenshot comparison was not run in this agent environment
+### [ ] 6. Reduce retained renderer composition churn and transient browser row text allocations
+- ROI: Medium
+- Effort: M
+- Expected impact: frame time, CPU, memory
+- Evidence:
+  - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/composition.rs:305`
+  - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/composition.rs:306`
+  - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/composition.rs:307`
+  - `vendor/radiant/src/gui/native_shell/state/frame_build/browser/rows.rs:129`
+  - `vendor/radiant/src/gui/native_shell/state/frame_build/browser/rows.rs:207`
+  - `vendor/radiant/src/gui/native_shell/state/frame_build/browser/rows.rs:224`
+- Recommended change: keep retained scene composition incremental when only one overlay layer changes, and cache or borrow row number, label, and inline-chip text payloads instead of allocating fresh `String`s during every browser frame build.
+- Risk/tradeoffs: retained-scene invalidation bugs can cause missing overlays or stale row text, so this item needs visual verification on hover, focus, modal, and browser row metadata states.
+- Visual impact: Needs review
+- Validation plan:
+  - Extend `vendor/radiant` runtime scene-cache tests around overlay-only invalidation.
+  - Add browser row rendering tests for labels, inline chips, and focus overlays.
+  - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
+  - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
+- Completion record: Pending
+
+## Notes
+
+- Architectural follow-up considered but intentionally left out of the Phase 2 starter queue: similarity-query setup still walks all wav entries (`src/app/controller/library/wavs/similar/query.rs:126`, `src/app/controller/library/wavs/entry_access.rs:86`). It is real, but it is lower ROI than the six items above because it does not dominate the current startup or interaction baseline.
+- Phase 2 rule: implement strictly in the order above, updating this file after each item with the completion date and commit hash.

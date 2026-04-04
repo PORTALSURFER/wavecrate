@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (local): 2026-04-04T17:13:00+02:00
+Last updated (local): 2026-04-04T13:40:00+02:00
 Owner: Codex agent sessions
 
 Purpose:
@@ -12,13 +12,12 @@ Purpose:
 
 - The active lane is the reopened runtime performance audit backlog for the current live tree.
 - `tmp/perf_plan.md` is the live source of truth for the ROI-ranked performance backlog rebuilt on 2026-04-04.
-- Phase 2 is complete. Items 1-6 are complete in commits `fc2fca4e`, `ef649778`, vendor/radiant `d13e5f55`, `ca24b6d3`, `18f8d5d5`, `9009d402`, and vendor/radiant `427e115b`, with the superproject vendor bump in `53ea4684`.
-- The latest `target/perf/bench.json` run after item 6 shows `browser_filter_churn_latency.p95_us = 2767`, `hover_latency.p95_us = 2896`, `wheel_latency.p95_us = 2830`, `browser_focus_preview_latency.p95_us = 153`, and `browser_focus_commit_latency.p95_us = 143`.
-- The post-item-6 perf guard completed without warnings and kept the browser interaction tail materially below the Phase 1 baseline recorded in `tmp/perf_plan.md`.
-- `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` are parked while the performance lane is active.
+- Phase 2 is in progress. Item 1 is complete in commit `3c21e5ac`; items 2-6 remain pending.
+- The latest item-1 validation perf run is `scripts/run_perf_guard.ps1`: `browser_filter_churn_latency.p95_us = 2617`, `hover_latency.p95_us = 4288`, `wheel_latency.p95_us = 3169`, `browser_focus_preview_latency.p95_us = 179`, and `browser_focus_commit_latency.p95_us = 228`.
+- `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` remain parked while this performance lane is active.
 
 ## Next tasks (ordered)
 
-1. Treat `tmp/perf_plan.md` as the completed runtime-performance execution record until the user opens a new performance lane.
-2. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` dormant unless the user explicitly reopens those lanes.
-3. Start a new ordered queue only if the user explicitly reopens performance work or selects another lane.
+1. Implement item 2 from `tmp/perf_plan.md`: remove UI-thread wav page loads from browser row projection and BPM preload.
+2. Validate item 2 with focused tests, `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
+3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` dormant unless the user explicitly reopens those lanes.
