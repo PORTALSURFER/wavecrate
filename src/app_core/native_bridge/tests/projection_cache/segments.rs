@@ -140,3 +140,41 @@ fn projection_segment_browser_rows_dirty_mask_and_lookup_counts() {
     assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
 }
+
+/// Anchor-only browser updates should stay on the browser frame segment.
+#[test]
+fn projection_segment_browser_anchor_change_skips_browser_rows_window() {
+    let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
+        controller.ui.browser.selection.selection_anchor_visible = Some(3);
+    });
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(
+            NativeDirtySegments::STATUS_BAR | NativeDirtySegments::BROWSER_FRAME
+        )
+    );
+    assert_segment_lookup_counts(lookup_counts.status_bar, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
+}
+
+/// Focus-only browser updates should patch row state without rebuilding row content.
+#[test]
+fn projection_segment_browser_focus_change_updates_frame_and_rows() {
+    let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
+        controller.ui.browser.selection.selected_visible = Some(2);
+    });
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(
+            NativeDirtySegments::BROWSER_FRAME | NativeDirtySegments::BROWSER_ROWS_WINDOW
+        )
+    );
+    assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
+}

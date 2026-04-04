@@ -203,6 +203,11 @@ fn materialize_browser_rows_segment(
         &cache.browser_rows_key,
         &derived.browser_rows_key,
     );
+    let browser_row_state_changed = segment_key_changed(
+        has_retained_model,
+        &cache.browser_rows_state_key,
+        &derived.browser_rows_state_key,
+    );
     if browser_rows_changed {
         cache.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
         let row_inputs = native_shell::project_browser_rows_projection_inputs(controller);
@@ -216,6 +221,17 @@ fn materialize_browser_rows_segment(
         );
         model.browser.rows = rows;
         cache.browser_rows_key = Some(derived.browser_rows_key.clone());
+        cache.browser_rows_state_key = Some(derived.browser_rows_state_key.clone());
+        return true;
+    }
+    if browser_row_state_changed {
+        cache.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
+        native_shell::patch_browser_rows_state(
+            controller,
+            derived.browser_rows_state_key.browser_selected_visible,
+            &mut model.browser.rows,
+        );
+        cache.browser_rows_state_key = Some(derived.browser_rows_state_key.clone());
         return true;
     }
     cache.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, true);

@@ -378,6 +378,54 @@ fn browser_rows_projection_reuses_provided_buffer_capacity() {
 }
 
 #[test]
+/// Row-state patching should update focused and selected flags without touching labels.
+fn browser_rows_state_patch_updates_flags_without_rebuilding_labels() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
+    controller.set_wav_entries_for_tests(vec![
+        crate::sample_sources::WavEntry {
+            relative_path: std::path::PathBuf::from("kick.wav"),
+            file_size: 0,
+            modified_ns: 0,
+            content_hash: Some(String::from("kick-hash")),
+            tag: crate::sample_sources::Rating::NEUTRAL,
+            looped: false,
+            locked: false,
+            missing: false,
+            last_played_at: None,
+        },
+        crate::sample_sources::WavEntry {
+            relative_path: std::path::PathBuf::from("snare.wav"),
+            file_size: 0,
+            modified_ns: 0,
+            content_hash: Some(String::from("snare-hash")),
+            tag: crate::sample_sources::Rating::NEUTRAL,
+            looped: false,
+            locked: false,
+            missing: false,
+            last_played_at: None,
+        },
+    ]);
+    controller.ui.browser.viewport.visible =
+        crate::app_core::app_api::state::VisibleRows::List(vec![0usize, 1usize].into());
+    controller.ui.browser.selection.selected_paths = vec![std::path::PathBuf::from("snare.wav")];
+    controller.mark_browser_selected_paths_changed();
+
+    let mut rows = vec![
+        crate::app_core::actions::NativeBrowserRowModel::new(0, "Kick", 1, true, true),
+        crate::app_core::actions::NativeBrowserRowModel::new(1, "Snare", 1, false, false),
+    ];
+
+    patch_browser_rows_state(&mut controller, Some(1), &mut rows);
+
+    assert_eq!(rows[0].label, "Kick");
+    assert_eq!(rows[1].label, "Snare");
+    assert!(!rows[0].selected);
+    assert!(!rows[0].focused);
+    assert!(rows[1].selected);
+    assert!(rows[1].focused);
+}
+
+#[test]
 /// BPM preload ranges should only include rows newly entering an unchanged browser window.
 fn browser_bpm_preload_ranges_only_include_window_delta() {
     let source_id = crate::sample_sources::SourceId::new();

@@ -8,10 +8,10 @@ use std::sync::Arc;
 use super::projection_key;
 use super::trace_projection_segment_lookup;
 use super::{
-    BrowserFrameProjectionCacheKey, BrowserRowsProjectionCacheKey, MapProjectionCacheKey,
-    NativeProjectionCacheKey, NonSegmentStaticProjectionCacheKey, ProjectionSegment,
-    ProjectionSegmentLookupCounts, StatusProjectionCacheKey, WaveformProjectionCacheKey,
-    segment_materialize,
+    BrowserFrameProjectionCacheKey, BrowserRowsProjectionCacheKey,
+    BrowserRowsStateProjectionCacheKey, MapProjectionCacheKey, NativeProjectionCacheKey,
+    NonSegmentStaticProjectionCacheKey, ProjectionSegment, ProjectionSegmentLookupCounts,
+    StatusProjectionCacheKey, WaveformProjectionCacheKey, segment_materialize,
 };
 
 /// Lightweight derived projection snapshot computed before materialization.
@@ -30,6 +30,8 @@ pub(crate) struct DerivedProjectionState {
     pub(crate) browser_frame_key: BrowserFrameProjectionCacheKey,
     /// Browser visible-row window segment key.
     pub(crate) browser_rows_key: BrowserRowsProjectionCacheKey,
+    /// Browser row-state segment key for focused/selected row decorations.
+    pub(crate) browser_rows_state_key: BrowserRowsStateProjectionCacheKey,
     /// Similarity-map segment key.
     pub(crate) map_key: MapProjectionCacheKey,
     /// Waveform segment key.
@@ -57,6 +59,9 @@ impl DerivedProjectionState {
             status_key: projection_key::build_status_projection_key(controller, selected_column),
             browser_frame_key: projection_key::build_browser_frame_projection_key(controller),
             browser_rows_key: projection_key::build_browser_rows_projection_key(controller),
+            browser_rows_state_key: projection_key::build_browser_rows_state_projection_key(
+                controller,
+            ),
             map_key: projection_key::build_map_projection_key(controller),
             waveform_key: projection_key::build_waveform_projection_key(controller),
             non_segment_static_key: projection_key::build_non_segment_static_projection_key(
@@ -74,6 +79,7 @@ pub(crate) struct NativeProjectionCache {
     pub(crate) status_key: Option<StatusProjectionCacheKey>,
     pub(crate) browser_frame_key: Option<BrowserFrameProjectionCacheKey>,
     pub(crate) browser_rows_key: Option<BrowserRowsProjectionCacheKey>,
+    pub(crate) browser_rows_state_key: Option<BrowserRowsStateProjectionCacheKey>,
     pub(crate) map_key: Option<MapProjectionCacheKey>,
     pub(crate) waveform_key: Option<WaveformProjectionCacheKey>,
     pub(crate) non_segment_static_key: Option<NonSegmentStaticProjectionCacheKey>,
@@ -117,6 +123,7 @@ impl NativeProjectionCache {
         self.status_key = None;
         self.browser_frame_key = None;
         self.browser_rows_key = None;
+        self.browser_rows_state_key = None;
         self.map_key = None;
         self.waveform_key = None;
         self.non_segment_static_key = None;

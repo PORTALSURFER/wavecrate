@@ -124,6 +124,26 @@ pub(crate) fn project_browser_rows_model_into(
     rows.truncate(window_len);
 }
 
+/// Patch row selection and focus flags without rebuilding the full row window.
+///
+/// Focus and multi-selection changes are much cheaper than row-content changes,
+/// so retained projection reuses the current row vector and only rewrites the
+/// transient flags that drive highlight styling.
+pub(crate) fn patch_browser_rows_state(
+    controller: &mut AppController,
+    selected_visible_row: Option<usize>,
+    rows: &mut [BrowserRowModel],
+) {
+    super::refresh_projected_selected_paths_lookup(controller);
+    for row in rows {
+        let absolute_index = controller.ui.browser.viewport.visible.get(row.visible_row);
+        row.focused = selected_visible_row.is_some_and(|focused| focused == row.visible_row);
+        row.selected = absolute_index.is_some_and(|index| {
+            super::selected_index_is_selected(controller, index)
+        });
+    }
+}
+
 /// Map one sample rating bucket to browser column index.
 pub(crate) fn browser_column_index(tag: crate::sample_sources::Rating) -> usize {
     if tag.is_trash() {

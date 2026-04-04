@@ -133,16 +133,17 @@ pub(crate) struct BrowserFrameProjectionCacheKey {
 pub(crate) struct BrowserRowsProjectionCacheKey {
     pub(crate) browser_visible_rows_revision: u64,
     pub(crate) browser_visible_len: usize,
-    pub(crate) browser_selected_visible: Option<usize>,
-    pub(crate) browser_anchor_visible: Option<usize>,
-    pub(crate) browser_autoscroll: bool,
-    pub(crate) browser_view_window_start: usize,
     pub(crate) browser_render_window_start: usize,
-    pub(crate) browser_selected_paths_len: usize,
-    pub(crate) browser_selected_paths_revision: u64,
     pub(crate) browser_row_metadata_revision: u64,
     pub(crate) browser_duplicate_cleanup_active: bool,
     pub(crate) browser_tab: u8,
+}
+
+/// Browser row-state key scoped to focused and selected row decorations.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BrowserRowsStateProjectionCacheKey {
+    pub(crate) browser_selected_visible: Option<usize>,
+    pub(crate) browser_selected_paths_revision: u64,
 }
 
 /// Map-panel projection key scoped to similarity-map-affecting state.

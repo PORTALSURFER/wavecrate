@@ -13,9 +13,9 @@ mod segment_materialize;
 
 pub(super) use cache_state::{DerivedProjectionState, NativeProjectionCache};
 pub(super) use key_types::{
-    BrowserFrameProjectionCacheKey, BrowserRowsProjectionCacheKey, MapProjectionCacheKey,
-    NativeProjectionCacheKey, NonSegmentStaticProjectionCacheKey, StatusProjectionCacheKey,
-    WaveformProjectionCacheKey,
+    BrowserFrameProjectionCacheKey, BrowserRowsProjectionCacheKey,
+    BrowserRowsStateProjectionCacheKey, MapProjectionCacheKey, NativeProjectionCacheKey,
+    NonSegmentStaticProjectionCacheKey, StatusProjectionCacheKey, WaveformProjectionCacheKey,
 };
 pub use probe_metrics::ProjectionRebuildCauseCounts;
 pub(super) use segment_lookup::ProjectionSegment;

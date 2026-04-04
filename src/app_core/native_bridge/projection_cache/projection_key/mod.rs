@@ -13,6 +13,7 @@ mod waveform;
 pub(super) fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCacheKey {
     let browser_frame_key = build_browser_frame_projection_key(controller);
     let browser_rows_key = build_browser_rows_projection_key(controller);
+    let browser_rows_state_key = build_browser_rows_state_projection_key(controller);
     let map_key = build_map_projection_key(controller);
     let waveform_key = build_waveform_projection_key(controller);
     let non_segment_static_key = build_non_segment_static_projection_key(controller);
@@ -37,7 +38,7 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         browser_view_window_start: browser_frame_key.browser_view_window_start,
         browser_render_window_start: browser_rows_key.browser_render_window_start,
         browser_selected_paths_len: browser_frame_key.browser_selected_paths_len,
-        browser_selected_paths_revision: browser_rows_key.browser_selected_paths_revision,
+        browser_selected_paths_revision: browser_rows_state_key.browser_selected_paths_revision,
         browser_row_metadata_revision: browser_rows_key.browser_row_metadata_revision,
         browser_search_revision: browser_frame_key.browser_search_revision,
         browser_similarity_filtered: browser_frame_key.browser_similarity_filtered,
@@ -135,6 +136,13 @@ pub(super) fn build_browser_rows_projection_key(
     controller: &AppController,
 ) -> super::BrowserRowsProjectionCacheKey {
     browser::build_browser_rows_projection_key(controller)
+}
+
+/// Build a browser-row-state projection key from the current controller snapshot.
+pub(super) fn build_browser_rows_state_projection_key(
+    controller: &AppController,
+) -> super::BrowserRowsStateProjectionCacheKey {
+    browser::build_browser_rows_state_projection_key(controller)
 }
 
 /// Build a map-panel projection key from the current controller snapshot.
