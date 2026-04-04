@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 in progress; items 1-2 complete on 2026-04-04
+Status: Phase 2 in progress; items 1-3 complete on 2026-04-04
 
 ## Evidence Snapshot
 
@@ -41,7 +41,7 @@ Status: Phase 2 in progress; items 1-2 complete on 2026-04-04
 - Completed: 2026-04-04 (`root` `dacfedac`)
 - Validation plan: add tests for latest-only waveform request replacement and transient-cache reuse; manually exercise rapid pan/zoom/loading; rerun `scripts/ci_agent.ps1` and perf guard.
 
-### [ ] 3. Remove full-source path and embedding scans from loaded-similarity workflows
+### [x] 3. Remove full-source path and embedding scans from loaded-similarity workflows
 - ROI: High
 - Effort: L
 - Expected impact: p95 interaction latency, memory, CPU
@@ -53,6 +53,7 @@ Status: Phase 2 in progress; items 1-2 complete on 2026-04-04
 - Recommended change: retain a source-revision keyed path-to-index map and similarity score store, avoid cloning full path vectors per query, and add candidate pruning or persisted nearest-neighbor lookup so loaded-similarity refresh does not decode every embedding row each time.
 - Risk/tradeoffs: biggest change in the plan; must preserve exact ordering semantics and model-version invalidation behavior.
 - Visual impact: None
+- Completed: 2026-04-04 (`root` `d573ddeb`)
 - Validation plan: add deterministic similarity-order tests, cache invalidation tests across source revisions/model versions, and benchmark the loaded-similarity query path before and after.
 
 ### [ ] 4. Replace rebuild-heavy selection path scans with retained selected-index lookup state

@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-04T16:26:00Z
+Last Updated: 2026-04-04T17:01:00Z
 Updated By: Codex
 
 ## Purpose
@@ -21,7 +21,10 @@ Updated By: Codex
 - Item 2 is complete in root commit `dacfedac` (`perf(waveform): drop superseded render and transient work`).
 - Item 2 now drops stale waveform render work before and after rasterization, defers uncached transient detection off the UI thread, and cancels pending waveform worker state when loads or clears supersede old work.
 - The latest perf-guard snapshot after item 2 stays warning-free with `browser_filter_churn_latency = 3333us` p95, `hover_latency = 2281us` p95, `wheel_latency = 2603us` p95, `browser_focus_preview_latency = 51us` p95, `browser_focus_commit_latency = 57us` p95, and `waveform_interaction_latency = 187us` p95.
-- Item 3, loaded-similarity path and embedding scan removal, is next in strict ROI order.
+- Item 3 is complete in root commit `d573ddeb` (`perf(similarity): reuse loaded query snapshots`).
+- Item 3 now reuses the retained browser path snapshot for loaded-similarity requests, caches loaded-similarity queries by browser snapshot key and sample id, and reapplies only snapshot-aligned results so follow-loaded refreshes stop cloning full path vectors and rescanning the same embedding rows on cache hits.
+- The latest perf-guard snapshot after item 3 stays warning-free with `browser_filter_churn_latency = 2258us` p95, `hover_latency = 2675us` p95, `wheel_latency = 2284us` p95, `browser_focus_preview_latency = 50us` p95, `browser_focus_commit_latency = 59us` p95, and `waveform_interaction_latency = 1529us` p95.
+- Item 4, retained selected-index lookup state for rebuild-heavy selection paths, is next in strict ROI order.
 - The Windows Cargo wrapper lane is still trustworthy in this environment because `scripts/use_cargo_cache.ps1` falls back to a local passthrough `rustc` wrapper when user-level Cargo config forces a broken `sccache`.
 - `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` remain parked unless the user explicitly reopens those lanes.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -29,14 +32,14 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Implement item 3 from `tmp/perf_plan.md` next, then rerun relevant validation, update the plan, commit, and push.
+1. Implement item 4 from `tmp/perf_plan.md` next, then rerun relevant validation, update the plan, commit, and push.
 2. Keep the runtime-performance work in strict ROI order unless the user redirects the lane.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
 4. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
 
 ## Work Notes
 
-- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-04; items 1-2 complete)
+- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-04; items 1-3 complete)
 - Current hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
