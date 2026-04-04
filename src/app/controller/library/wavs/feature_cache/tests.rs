@@ -34,7 +34,8 @@ fn browser_feature_cache_refresh_updates_row_metadata() {
                     sr_used: Some(48_000),
                     long_sample_mark: Some(true),
                     analysis_status: None,
-                })],
+                })]
+                .into(),
             }),
         },
     ));
@@ -86,7 +87,8 @@ fn stale_browser_feature_cache_refresh_is_dropped() {
                     sr_used: Some(48_000),
                     long_sample_mark: Some(true),
                     analysis_status: None,
-                })],
+                })]
+                .into(),
             }),
         },
     ));
@@ -100,4 +102,70 @@ fn stale_browser_feature_cache_refresh_is_dropped() {
             .is_none()
     );
     assert!(controller.cached_feature_status_for_entry(0).is_none());
+}
+
+#[test]
+/// Same-length browser snapshots should still queue refreshes when row order changes.
+fn browser_feature_cache_refresh_requeues_when_key_changes_without_length_change() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("kick.wav", Rating::NEUTRAL),
+        sample_entry("snare.wav", Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+
+    let original_key = feature_cache_key_for_paths(&[
+        std::path::PathBuf::from("kick.wav"),
+        std::path::PathBuf::from("snare.wav"),
+    ]);
+    controller.ui_cache.browser.features.insert(
+        source.id.clone(),
+        FeatureCache {
+            key: original_key,
+            rows: vec![None, None].into(),
+        },
+    );
+
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("snare.wav", Rating::NEUTRAL),
+        sample_entry("kick.wav", Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.queue_feature_cache_refresh_for_browser();
+
+    let pending = controller
+        .runtime
+        .pending_browser_feature_cache_refresh
+        .clone()
+        .expect("pending reordered feature cache refresh");
+    assert_ne!(pending.key, original_key);
+}
+
+#[test]
+/// Building the feature-cache snapshot should reuse retained browser metadata without page loads.
+fn feature_cache_refresh_snapshot_does_not_fault_wav_pages() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("kits/kick.wav", Rating::NEUTRAL),
+        sample_entry("kits/snare.wav", Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.wav_entries.pages.clear();
+    controller.wav_entries.lookup.clear();
+    controller.ui_cache.browser.pipeline.invalidate();
+
+    controller.queue_feature_cache_refresh_for_browser();
+
+    assert!(controller.wav_entries.pages.is_empty());
+    assert!(
+        controller
+            .runtime
+            .pending_browser_feature_cache_refresh
+            .is_some()
+    );
 }

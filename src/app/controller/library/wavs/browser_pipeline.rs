@@ -8,7 +8,9 @@ mod helpers;
 mod tests;
 mod visible_rows;
 
+use self::base_stage::ensure_base_stage;
 pub(crate) use self::visible_rows::build_visible_rows;
+use crate::app::controller::FeatureCacheKey;
 use crate::sample_sources::SourceId;
 use crate::sample_sources::{Rating, WavEntry};
 use std::path::PathBuf;
@@ -19,6 +21,8 @@ use std::sync::Arc;
 pub(crate) struct BrowserPipelineCache {
     /// Retained compact metadata aligned to absolute wav-entry indices.
     compact_entries: Vec<CompactBrowserEntry>,
+    /// Ordered feature-cache refresh snapshot aligned to the compact entries.
+    feature_cache_snapshot: Option<BrowserFeatureCacheSnapshot>,
     /// Fingerprint for the current base row snapshot.
     base_fingerprint: Option<BaseStageFingerprint>,
     /// Absolute entry indices in source list order.
@@ -52,6 +56,7 @@ impl BrowserPipelineCache {
     pub(crate) fn invalidate(&mut self) {
         self.base_fingerprint = None;
         self.compact_entries.clear();
+        self.feature_cache_snapshot = None;
         self.base_rows.clear();
         self.trash_rows.clear();
         self.neutral_rows.clear();
@@ -64,6 +69,11 @@ impl BrowserPipelineCache {
         self.scored_rows.clear();
         self.sorted_fingerprint = None;
         self.sorted_rows = Vec::new().into();
+    }
+
+    /// Return the retained feature-cache refresh snapshot for the current base rows.
+    pub(crate) fn feature_cache_snapshot(&self) -> Option<BrowserFeatureCacheSnapshot> {
+        self.feature_cache_snapshot.clone()
     }
 }
 
@@ -85,6 +95,25 @@ impl CompactBrowserEntry {
             locked: entry.locked,
             last_played_at: entry.last_played_at,
         }
+    }
+}
+
+/// Retained ordered path snapshot used to refresh browser feature metadata.
+#[derive(Clone)]
+pub(crate) struct BrowserFeatureCacheSnapshot {
+    /// Stable key for the current ordered path list.
+    pub(crate) key: FeatureCacheKey,
+    /// Ordered relative paths aligned to absolute wav-entry indices.
+    pub(crate) entry_paths: Arc<[PathBuf]>,
+}
+
+impl AppController {
+    /// Return the retained browser feature-cache snapshot for the active source.
+    pub(crate) fn current_browser_feature_cache_snapshot(
+        &mut self,
+    ) -> Option<BrowserFeatureCacheSnapshot> {
+        ensure_base_stage(self);
+        self.ui_cache.browser.pipeline.feature_cache_snapshot()
     }
 }
 

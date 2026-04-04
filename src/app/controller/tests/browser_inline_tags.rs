@@ -37,7 +37,8 @@ fn cached_browser_row_metadata_prefers_bpm_loop_and_long_without_rating_text() {
                 sr_used: Some(48_000),
                 long_sample_mark: Some(true),
                 analysis_status: None,
-            })],
+            })]
+            .into(),
         },
     );
     controller.ui.browser.viewport.visible =

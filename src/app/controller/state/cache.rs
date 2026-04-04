@@ -6,6 +6,7 @@ use crate::app::state::FolderPaneId;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::Arc;
 
 pub(crate) struct WavCacheState {
     pub(crate) entries: HashMap<SourceId, WavEntriesState>,
@@ -107,14 +108,14 @@ pub(crate) struct FeatureStatus {
 #[derive(Clone, Debug)]
 pub(crate) struct FeatureCache {
     pub(crate) key: FeatureCacheKey,
-    pub(crate) rows: Vec<Option<FeatureStatus>>,
+    pub(crate) rows: Arc<[Option<FeatureStatus>]>,
 }
 
 impl FeatureCache {
     /// Build an empty placeholder cache for one wav-entry snapshot key.
     pub(crate) fn empty(key: FeatureCacheKey) -> Self {
         Self {
-            rows: vec![None; key.entries_len],
+            rows: vec![None; key.entries_len].into(),
             key,
         }
     }

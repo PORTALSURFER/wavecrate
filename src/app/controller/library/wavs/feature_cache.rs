@@ -8,6 +8,7 @@ use rusqlite::params;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 const ANALYSIS_JOB_TYPE: &str = "wav_metadata_v1";
 
@@ -132,7 +133,10 @@ pub(crate) fn build_feature_cache_for_paths(
         *row_slot = Some(status);
     }
 
-    Ok(FeatureCache { key, rows })
+    Ok(FeatureCache {
+        key,
+        rows: rows.into(),
+    })
 }
 
 impl AppController {
@@ -223,7 +227,8 @@ impl AppController {
         let Some(index) = self.wav_entries.lookup.get(Path::new(&normalized)).copied() else {
             return;
         };
-        if let Some(slot) = cache.rows.get_mut(index) {
+        let rows = Arc::make_mut(&mut cache.rows);
+        if let Some(slot) = rows.get_mut(index) {
             let status = slot.get_or_insert(FeatureStatus {
                 has_features_v1: false,
                 has_embedding: false,
@@ -256,14 +261,17 @@ impl AppController {
         let Some(source) = self.current_source() else {
             return;
         };
-        let entries_len = self.wav_entries_len();
+        let Some(snapshot) = self.current_browser_feature_cache_snapshot() else {
+            return;
+        };
+        let key = snapshot.key;
         if !force
             && self
                 .ui_cache
                 .browser
                 .features
                 .get(&source.id)
-                .is_some_and(|cache| cache.rows.len() == entries_len)
+                .is_some_and(|cache| cache.key == key)
         {
             return;
         }
@@ -271,22 +279,18 @@ impl AppController {
             .runtime
             .pending_browser_feature_cache_refresh
             .as_ref()
-            .is_some_and(|pending| {
-                pending.source_id == source.id && pending.key.entries_len == entries_len
-            })
+            .is_some_and(|pending| pending.source_id == source.id && pending.key == key)
         {
             return;
         }
-        let entry_paths = current_browser_feature_cache_paths(self);
-        let key = feature_cache_key_for_paths(&entry_paths);
         let fallback_rows = self
             .ui_cache
             .browser
             .features
             .get(&source.id)
-            .filter(|cache| cache.rows.len() == key.entries_len)
+            .filter(|cache| cache.key == key)
             .map(|cache| cache.rows.clone())
-            .unwrap_or_default();
+            .unwrap_or_else(|| Arc::from([]));
         let request_id = self.runtime.jobs.next_feature_cache_request_id();
         self.runtime.pending_browser_feature_cache_refresh =
             Some(PendingBrowserFeatureCacheRefresh {
@@ -305,8 +309,8 @@ impl AppController {
                 result: build_feature_cache_for_paths(
                     &source_id,
                     &source_root,
-                    &entry_paths,
-                    &fallback_rows,
+                    snapshot.entry_paths.as_ref(),
+                    fallback_rows.as_ref(),
                 ),
             },
             JobMessage::BrowserFeatureCacheRefreshed,
@@ -314,12 +318,8 @@ impl AppController {
     }
 
     fn current_browser_feature_cache_key(&mut self) -> Option<FeatureCacheKey> {
-        if self.selection_state.ctx.selected_source.is_none() {
-            return None;
-        }
-        Some(feature_cache_key_for_paths(
-            &current_browser_feature_cache_paths(self),
-        ))
+        self.current_browser_feature_cache_snapshot()
+            .map(|snapshot| snapshot.key)
     }
 }
 
@@ -338,7 +338,8 @@ impl AppController {
         let Some(index) = self.wav_entries.lookup.get(Path::new(&normalized)).copied() else {
             return;
         };
-        if let Some(slot) = cache.rows.get_mut(index) {
+        let rows = Arc::make_mut(&mut cache.rows);
+        if let Some(slot) = rows.get_mut(index) {
             let status = slot.get_or_insert(FeatureStatus {
                 has_features_v1: false,
                 has_embedding: false,
@@ -350,17 +351,6 @@ impl AppController {
             status.long_sample_mark = Some(long_sample_mark);
         }
     }
-}
-
-/// Collect the current selected-source wav-entry paths in browser order.
-fn current_browser_feature_cache_paths(controller: &mut AppController) -> Vec<PathBuf> {
-    let mut paths = Vec::with_capacity(controller.wav_entries_len());
-    for index in 0..controller.wav_entries_len() {
-        if let Some(entry) = controller.wav_entry(index) {
-            paths.push(entry.relative_path.clone());
-        }
-    }
-    paths
 }
 
 fn parse_job_status(status: &str) -> Option<AnalysisJobStatus> {

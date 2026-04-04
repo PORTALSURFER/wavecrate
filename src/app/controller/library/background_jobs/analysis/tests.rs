@@ -108,7 +108,7 @@ fn enqueue_finished_keeps_selected_source_feature_cache_and_queues_refresh() {
         source.id.clone(),
         FeatureCache {
             key: FeatureCacheKey::default(),
-            rows: Vec::new(),
+            rows: Vec::new().into(),
         },
     );
 
@@ -123,7 +123,13 @@ fn enqueue_finished_keeps_selected_source_feature_cache_and_queues_refresh() {
     );
 
     assert_eq!(controller.ui.status.text, "Queued 2 analysis jobs");
-    assert!(controller.ui_cache.browser.features.contains_key(&source.id));
+    assert!(
+        controller
+            .ui_cache
+            .browser
+            .features
+            .contains_key(&source.id)
+    );
     assert!(
         controller
             .runtime
@@ -174,7 +180,7 @@ fn durations_updated_keeps_selected_source_feature_cache_and_queues_refresh() {
         source_id.clone(),
         FeatureCache {
             key: FeatureCacheKey::default(),
-            rows: Vec::new(),
+            rows: Vec::new().into(),
         },
     );
     controller.ui_cache.browser.durations.insert(
@@ -190,7 +196,13 @@ fn durations_updated_keeps_selected_source_feature_cache_and_queues_refresh() {
         },
     );
 
-    assert!(controller.ui_cache.browser.features.contains_key(&source_id));
+    assert!(
+        controller
+            .ui_cache
+            .browser
+            .features
+            .contains_key(&source_id)
+    );
     assert!(
         controller
             .runtime

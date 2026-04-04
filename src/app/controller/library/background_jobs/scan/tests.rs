@@ -72,7 +72,7 @@ fn changed_scan_refreshes_selected_source_and_enqueues_follow_up_analysis() {
         source.id.clone(),
         FeatureCache {
             key: FeatureCacheKey::default(),
-            rows: Vec::new(),
+            rows: Vec::new().into(),
         },
     );
     controller.ui_cache.browser.durations.insert(
