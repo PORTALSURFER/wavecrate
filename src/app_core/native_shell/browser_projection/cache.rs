@@ -148,9 +148,8 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
     playback_age_now_unix_secs: i64,
 ) -> Option<(&ProjectedBrowserRowCacheEntry, bool)> {
     let selected_source_id = controller.selected_source_id();
-    let entry = controller.wav_entry(absolute_index)?;
-    let relative_path = entry.relative_path.clone();
-    let entry_tag = entry.tag;
+    let entry = controller.browser_projection_entry(absolute_index)?;
+    let relative_path = entry.relative_path.to_path_buf();
     let row_identity_hash = browser_row_identity_hash(relative_path.as_path());
     let missing = entry.missing;
     let looped = entry.looped;
@@ -159,8 +158,8 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
     let marked = selected_source_id
         .as_ref()
         .is_some_and(|source_id| controller.browser_sample_marked(source_id, &relative_path));
-    let column_index = super::browser_column_index(entry_tag);
-    let rating_level = entry_tag.val();
+    let column_index = super::browser_column_index(entry.tag);
+    let rating_level = entry.tag.val();
     let playback_age_bucket =
         PlaybackAgeBucket::from_last_played_at(last_played_at, playback_age_now_unix_secs);
     let long_sample_mark = controller

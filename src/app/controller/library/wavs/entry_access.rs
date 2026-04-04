@@ -153,6 +153,19 @@ impl AppController {
         }
     }
 
+    #[cfg(test)]
+    /// Drop all loaded wav-entry pages while preserving the retained total count.
+    pub(crate) fn clear_loaded_wav_pages_for_tests(&mut self) {
+        self.wav_entries.pages.clear();
+        self.wav_entries.lookup.clear();
+    }
+
+    #[cfg(test)]
+    /// Return whether the wav-entry page cache is currently empty.
+    pub(crate) fn loaded_wav_pages_are_empty_for_tests(&self) -> bool {
+        self.wav_entries.pages.is_empty()
+    }
+
     /// Retrieve a wav entry by absolute index.
     pub fn wav_entry(&mut self, index: usize) -> Option<&WavEntry> {
         self.ensure_wav_page_loaded(index).ok()?;

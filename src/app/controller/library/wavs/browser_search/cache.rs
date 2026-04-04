@@ -165,8 +165,8 @@ impl AppController {
             .and_then(|labels| labels.get(index))
             .is_some_and(|label| label.is_empty());
         if needs_fill {
-            let entry = self.wav_entry(index)?;
-            let label = view_model::sample_display_label(&entry.relative_path);
+            let entry = self.browser_projection_entry(index)?;
+            let label = view_model::sample_display_label(entry.relative_path);
             if let Some(labels) = self.ui_cache.browser.labels.get_mut(&source_id)
                 && index < labels.len()
             {

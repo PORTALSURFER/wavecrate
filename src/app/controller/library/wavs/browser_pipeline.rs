@@ -13,6 +13,7 @@ pub(crate) use self::visible_rows::build_visible_rows;
 use crate::app::controller::FeatureCacheKey;
 use crate::sample_sources::SourceId;
 use crate::sample_sources::{Rating, WavEntry};
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -82,7 +83,9 @@ impl BrowserPipelineCache {
 struct CompactBrowserEntry {
     relative_path: PathBuf,
     tag: Rating,
+    looped: bool,
     locked: bool,
+    missing: bool,
     last_played_at: Option<i64>,
 }
 
@@ -92,7 +95,52 @@ impl CompactBrowserEntry {
         Self {
             relative_path: entry.relative_path,
             tag: entry.tag,
+            looped: entry.looped,
             locked: entry.locked,
+            missing: entry.missing,
+            last_played_at: entry.last_played_at,
+        }
+    }
+}
+
+/// Borrowed browser-row metadata used by page-load-free projection helpers.
+#[derive(Clone, Copy)]
+pub(crate) struct BrowserProjectionEntryRef<'a> {
+    /// Stable source-relative path for labels and cached metadata.
+    pub(crate) relative_path: &'a Path,
+    /// Current triage rating for the sample.
+    pub(crate) tag: Rating,
+    /// Whether the sample should render the loop badge.
+    pub(crate) looped: bool,
+    /// Whether the sample is locked as a keep.
+    pub(crate) locked: bool,
+    /// Whether the sample is missing on disk.
+    pub(crate) missing: bool,
+    /// Last-played timestamp used for playback-age buckets.
+    pub(crate) last_played_at: Option<i64>,
+}
+
+impl<'a> BrowserProjectionEntryRef<'a> {
+    /// Borrow one projection entry from the retained compact browser snapshot.
+    fn from_compact_entry(entry: &'a CompactBrowserEntry) -> Self {
+        Self {
+            relative_path: entry.relative_path.as_path(),
+            tag: entry.tag,
+            looped: entry.looped,
+            locked: entry.locked,
+            missing: entry.missing,
+            last_played_at: entry.last_played_at,
+        }
+    }
+
+    /// Borrow one projection entry from an already loaded wav-entry page.
+    fn from_loaded_entry(entry: &'a WavEntry) -> Self {
+        Self {
+            relative_path: entry.relative_path.as_path(),
+            tag: entry.tag,
+            looped: entry.looped,
+            locked: entry.locked,
+            missing: entry.missing,
             last_played_at: entry.last_played_at,
         }
     }
@@ -108,6 +156,27 @@ pub(crate) struct BrowserFeatureCacheSnapshot {
 }
 
 impl AppController {
+    /// Return one browser entry snapshot without forcing a wav-page load.
+    ///
+    /// Hot browser projection paths should prefer the retained pipeline snapshot
+    /// and only fall back to entries that are already loaded in the page cache.
+    pub(crate) fn browser_projection_entry(
+        &self,
+        index: usize,
+    ) -> Option<BrowserProjectionEntryRef<'_>> {
+        self.ui_cache
+            .browser
+            .pipeline
+            .compact_entries
+            .get(index)
+            .map(BrowserProjectionEntryRef::from_compact_entry)
+            .or_else(|| {
+                self.wav_entries
+                    .entry(index)
+                    .map(BrowserProjectionEntryRef::from_loaded_entry)
+            })
+    }
+
     /// Return the retained browser feature-cache snapshot for the active source.
     pub(crate) fn current_browser_feature_cache_snapshot(
         &mut self,

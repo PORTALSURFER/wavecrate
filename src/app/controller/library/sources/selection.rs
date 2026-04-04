@@ -167,6 +167,12 @@ impl AppController {
         self.selection_state.ctx.selected_source = Some(source_id);
     }
 
+    #[cfg(test)]
+    /// Register one source directly in tests without running full hydration.
+    pub(crate) fn register_source_for_tests(&mut self, source: SampleSource) {
+        self.library.sources.push(source);
+    }
+
     pub(crate) fn select_source_internal(
         &mut self,
         id: Option<SourceId>,

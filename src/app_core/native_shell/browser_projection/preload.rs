@@ -118,11 +118,8 @@ fn append_browser_window_preload_paths(
         let Some(absolute_index) = controller.ui.browser.viewport.visible.get(visible_row) else {
             continue;
         };
-        if let Some(relative_path) = controller
-            .wav_entry(absolute_index)
-            .map(|entry| entry.relative_path.clone())
-        {
-            visible_paths.push(relative_path);
+        if let Some(entry) = controller.browser_projection_entry(absolute_index) {
+            visible_paths.push(entry.relative_path.to_path_buf());
         }
     }
 }
