@@ -62,6 +62,10 @@ impl AppController {
     ) {
         self.runtime.jobs.set_pending_audio(None);
         self.runtime.jobs.set_pending_playback(pending_playback);
+        self.runtime.pending_waveform_render = None;
+        self.runtime.pending_waveform_transient_compute = None;
+        self.runtime.jobs.invalidate_waveform_render_requests();
+        self.runtime.jobs.invalidate_waveform_transient_requests();
         self.ui.waveform.loading = Some(relative_path.to_path_buf());
         self.ui.waveform.waveform_image_signature = None;
         self.projected_waveform_image_signature = None;

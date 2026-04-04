@@ -147,6 +147,10 @@ impl AppController {
     pub(crate) fn clear_loaded_audio_and_waveform_visuals(&mut self) {
         self.sample_view.wav.loaded_audio = None;
         self.sample_view.waveform.decoded = None;
+        self.runtime.pending_waveform_render = None;
+        self.runtime.pending_waveform_transient_compute = None;
+        self.runtime.jobs.invalidate_waveform_render_requests();
+        self.runtime.jobs.invalidate_waveform_transient_requests();
         self.ui.waveform.image = None;
         self.ui.waveform.waveform_image_signature = None;
         self.projected_waveform_image_signature = None;

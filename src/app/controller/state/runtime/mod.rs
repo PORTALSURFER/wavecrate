@@ -89,6 +89,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) waveform_refresh_batch_depth: u16,
     /// Latest queued waveform render request, when any.
     pub(crate) pending_waveform_render: Option<PendingWaveformRender>,
+    /// Latest queued waveform transient compute request, when any.
+    pub(crate) pending_waveform_transient_compute: Option<PendingWaveformTransientCompute>,
     /// Incremental derived-state dirty graph used by native projection paths.
     pub(crate) derived_graph: DerivedStateGraph,
     /// Pending playback-age DB update moved out of input action handlers.
@@ -186,6 +188,7 @@ impl ControllerRuntimeState {
             waveform_refresh_pending_reason: None,
             waveform_refresh_batch_depth: 0,
             pending_waveform_render: None,
+            pending_waveform_transient_compute: None,
             derived_graph: DerivedStateGraph::new(),
             pending_age_update_commit: None,
             pending_age_update_commit_not_before: None,
@@ -323,6 +326,17 @@ pub(crate) struct PendingWaveformRender {
     /// Stable render key used for staleness checks.
     pub(crate) key: jobs::WaveformRenderKey,
     /// Time when the render request was queued.
+    pub(crate) queued_at: Instant,
+}
+
+/// Latest-only waveform transient compute request owned by the controller.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingWaveformTransientCompute {
+    /// Request id used to discard stale completions.
+    pub(crate) request_id: u64,
+    /// Decode cache token used for staleness checks.
+    pub(crate) cache_token: u64,
+    /// Time when the transient request was queued.
     pub(crate) queued_at: Instant,
 }
 

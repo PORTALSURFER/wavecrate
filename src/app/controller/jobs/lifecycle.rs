@@ -25,6 +25,8 @@ impl ControllerJobs {
         let source_watcher =
             crate::app::controller::source_watcher::spawn_source_watcher(message_tx.clone());
         let repaint_signal = Arc::new(SharedRepaintSignal::default());
+        let latest_waveform_render_request_id = Arc::new(AtomicU64::new(0));
+        let latest_waveform_transient_request_id = Arc::new(AtomicU64::new(0));
         let forwarders = JobForwarderHandles::spawn(JobForwarderSpawnConfig {
             message_tx: message_tx.clone(),
             repaint_signal: repaint_signal.clone(),
@@ -58,6 +60,8 @@ impl ControllerJobs {
             cancel_handles: JobCancelHandles::default(),
             pending_folder_scan: None,
             repaint_signal,
+            latest_waveform_render_request_id,
+            latest_waveform_transient_request_id,
         }
     }
 

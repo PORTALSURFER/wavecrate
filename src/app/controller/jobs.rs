@@ -62,7 +62,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc::{Receiver, Sender},
     },
     thread,
@@ -105,6 +105,8 @@ pub(crate) struct ControllerJobs {
     cancel_handles: JobCancelHandles,
     pending_folder_scan: Option<PendingFolderScan>,
     pub(super) repaint_signal: Arc<SharedRepaintSignal>,
+    latest_waveform_render_request_id: Arc<AtomicU64>,
+    latest_waveform_transient_request_id: Arc<AtomicU64>,
 }
 
 #[cfg(test)]

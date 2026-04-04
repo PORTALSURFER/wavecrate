@@ -19,6 +19,9 @@ impl AppController {
                 self.handle_config_persist_finished_message(message)
             }
             JobMessage::WaveformRendered(message) => self.handle_waveform_rendered_message(message),
+            JobMessage::WaveformTransientsComputed(message) => {
+                self.handle_waveform_transients_computed_message(message)
+            }
             JobMessage::AudioLoaded(message) => self.handle_audio_loaded_message(message),
             JobMessage::RecordingWaveformLoaded(message) => {
                 self.handle_recording_waveform_loaded_message(message)

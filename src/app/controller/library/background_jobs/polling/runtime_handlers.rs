@@ -3,7 +3,7 @@
 use super::*;
 use crate::app::controller::jobs::{
     ConfigPersistJob, ConfigPersistResult, MetadataMutationResult, SourceDbMaintenanceResult,
-    UmapBuildResult, UmapClusterBuildResult, WaveformRenderResult,
+    UmapBuildResult, UmapClusterBuildResult, WaveformRenderResult, WaveformTransientResult,
 };
 use crate::app::controller::state::runtime::MetadataRollback;
 use tracing::{info, warn};
@@ -92,6 +92,49 @@ impl AppController {
             }
             Err(err) => {
                 self.set_status(format!("Waveform render failed: {err}"), StatusTone::Error);
+            }
+        }
+    }
+
+    /// Apply one latest-only waveform transient-marker completion.
+    pub(super) fn handle_waveform_transients_computed_message(
+        &mut self,
+        message: WaveformTransientResult,
+    ) {
+        let Some(pending) = self.runtime.pending_waveform_transient_compute.as_ref() else {
+            return;
+        };
+        if pending.request_id != message.request_id || pending.cache_token != message.cache_token {
+            return;
+        }
+        self.runtime.pending_waveform_transient_compute = None;
+        let decoded_matches = self
+            .sample_view
+            .waveform
+            .decoded
+            .as_ref()
+            .is_some_and(|decoded| decoded.cache_token == message.cache_token);
+        if !decoded_matches {
+            return;
+        }
+        match message.result {
+            Ok(transients) => {
+                self.ui.waveform.transients = transients;
+                self.ui.waveform.transient_cache_token = Some(message.cache_token);
+                if self.ui.waveform.transient_markers_enabled {
+                    self.refresh_waveform_image();
+                }
+                info!(
+                    request_id = message.request_id,
+                    elapsed_ms = message.elapsed.as_millis(),
+                    "applied deferred waveform transients"
+                );
+            }
+            Err(err) => {
+                self.set_status(
+                    format!("Waveform transient detection failed: {err}"),
+                    StatusTone::Error,
+                );
             }
         }
     }

@@ -1,11 +1,18 @@
 use super::*;
-use crate::app::controller::jobs::{JobMessage, WaveformRenderJob, WaveformRenderKey, WaveformRenderResult};
+use crate::app::controller::jobs::{
+    JobMessage, WaveformRenderJob, WaveformRenderKey, WaveformRenderResult,
+    WaveformTransientResult,
+};
 use crate::app::controller::playback::audio_cache::FileMetadata;
+use crate::app::controller::state::runtime::PendingWaveformTransientCompute;
 use crate::app::state::WaveformView;
 use crate::waveform::DecodedWaveform;
 use std::fs;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 use std::time::Instant;
 
 fn min_view_width_for_frames(frame_count: usize, width_px: u32) -> f64 {
@@ -49,6 +56,7 @@ impl AppController {
         // identical to the previous render.
         self.sample_view.waveform.render_meta = None;
         self.sample_view.waveform.decoded = Some(decoded);
+        self.runtime.pending_waveform_transient_compute = None;
 
         // Reset view to show full waveform when loading new audio
         self.ui.waveform.view = WaveformView {
@@ -57,10 +65,19 @@ impl AppController {
         };
 
         if let Some(transients) = transients {
+            self.runtime.jobs.invalidate_waveform_transient_requests();
             self.ui.waveform.transients = transients;
             self.ui.waveform.transient_cache_token = Some(token);
         } else {
-            self.refresh_waveform_transients();
+            self.ui.waveform.transients = Arc::from([]);
+            self.ui.waveform.transient_cache_token = None;
+            self.queue_waveform_transient_refresh(Arc::clone(
+                self.sample_view
+                    .waveform
+                    .decoded
+                    .as_ref()
+                    .expect("decoded waveform should be present after assignment"),
+            ));
         }
         self.refresh_waveform_image_with_reason(WaveformRefreshReason::Data);
     }
@@ -269,6 +286,14 @@ impl AppController {
             view_end_bits: view.end.to_bits(),
             transient_visual_token: desired_meta.transient_visual_token,
         };
+        if self
+            .runtime
+            .pending_waveform_render
+            .as_ref()
+            .is_some_and(|pending| pending.key == key)
+        {
+            return;
+        }
         self.runtime.pending_waveform_render = Some(
             crate::app::controller::state::runtime::PendingWaveformRender {
                 request_id,
@@ -276,6 +301,9 @@ impl AppController {
                 queued_at: Instant::now(),
             },
         );
+        self.runtime
+            .jobs
+            .publish_latest_waveform_render_request_id(request_id);
         let job = WaveformRenderJob {
             request_id,
             key,
@@ -292,27 +320,54 @@ impl AppController {
                 .transient_visual_token
                 .map(|_| self.ui.waveform.transients.clone()),
         };
-        self.runtime.jobs.spawn_one_shot_job(
+        let latest_request_id = self.runtime.jobs.latest_waveform_render_request_tracker();
+        self.runtime.jobs.spawn_optional_one_shot_job(
             true,
-            move || run_waveform_render_job(job, desired_meta),
-            JobMessage::WaveformRendered,
+            move || {
+                run_waveform_render_job(job, desired_meta, latest_request_id)
+                    .map(JobMessage::WaveformRendered)
+            },
         );
         self.mark_waveform_projection_dirty();
     }
 
+    fn queue_waveform_transient_refresh(&mut self, decoded: Arc<DecodedWaveform>) {
+        if self.ui.waveform.transient_cache_token == Some(decoded.cache_token) {
+            return;
+        }
+        if self
+            .runtime
+            .pending_waveform_transient_compute
+            .as_ref()
+            .is_some_and(|pending| pending.cache_token == decoded.cache_token)
+        {
+            return;
+        }
+        let request_id = self.runtime.jobs.next_waveform_transient_request_id();
+        self.runtime.pending_waveform_transient_compute = Some(PendingWaveformTransientCompute {
+            request_id,
+            cache_token: decoded.cache_token,
+            queued_at: Instant::now(),
+        });
+        self.runtime
+            .jobs
+            .publish_latest_waveform_transient_request_id(request_id);
+        let latest_request_id = self.runtime.jobs.latest_waveform_transient_request_tracker();
+        self.runtime.jobs.spawn_optional_one_shot_job(true, move || {
+            run_waveform_transient_job(request_id, decoded, latest_request_id)
+                .map(JobMessage::WaveformTransientsComputed)
+        });
+    }
+
     pub(crate) fn refresh_waveform_transients(&mut self) {
-        let Some(decoded) = self.sample_view.waveform.decoded.as_ref() else {
+        let Some(decoded) = self.sample_view.waveform.decoded.as_ref().cloned() else {
             self.ui.waveform.transients = Arc::from([]);
             self.ui.waveform.transient_cache_token = None;
             return;
         };
-        if self.ui.waveform.transient_cache_token == Some(decoded.cache_token) {
-            return;
-        }
-        self.ui.waveform.transients =
-            crate::waveform::transients::detect_transients(decoded, DEFAULT_TRANSIENT_SENSITIVITY)
-                .into();
-        self.ui.waveform.transient_cache_token = Some(decoded.cache_token);
+        self.ui.waveform.transients = Arc::from([]);
+        self.ui.waveform.transient_cache_token = None;
+        self.queue_waveform_transient_refresh(decoded);
     }
 
     pub(crate) fn read_waveform_bytes(
@@ -351,7 +406,11 @@ impl AppController {
 pub(crate) fn run_waveform_render_job(
     job: WaveformRenderJob,
     render_meta: WaveformRenderMeta,
-) -> WaveformRenderResult {
+    latest_request_id: Arc<AtomicU64>,
+) -> Option<WaveformRenderResult> {
+    if latest_request_is_stale(&job.request_id, &latest_request_id) {
+        return None;
+    }
     let started_at = Instant::now();
     let image = job
         .renderer
@@ -361,8 +420,11 @@ pub(crate) fn run_waveform_render_job(
             job.viewport,
             job.transients.as_deref(),
         );
+    if latest_request_is_stale(&job.request_id, &latest_request_id) {
+        return None;
+    }
     let projected_image = super::waveform_image_to_native_rgba(&image);
-    WaveformRenderResult {
+    Some(WaveformRenderResult {
         request_id: job.request_id,
         key: job.key,
         elapsed: started_at.elapsed(),
@@ -371,7 +433,34 @@ pub(crate) fn run_waveform_render_job(
             projected_image,
             render_meta: Some(render_meta),
         }),
+    })
+}
+
+fn run_waveform_transient_job(
+    request_id: u64,
+    decoded: Arc<DecodedWaveform>,
+    latest_request_id: Arc<AtomicU64>,
+) -> Option<WaveformTransientResult> {
+    if latest_request_is_stale(&request_id, &latest_request_id) {
+        return None;
     }
+    let started_at = Instant::now();
+    let transients: Arc<[f32]> =
+        crate::waveform::transients::detect_transients(&decoded, DEFAULT_TRANSIENT_SENSITIVITY)
+            .into();
+    if latest_request_is_stale(&request_id, &latest_request_id) {
+        return None;
+    }
+    Some(WaveformTransientResult {
+        request_id,
+        cache_token: decoded.cache_token,
+        elapsed: started_at.elapsed(),
+        result: Ok(transients),
+    })
+}
+
+fn latest_request_is_stale(request_id: &u64, latest_request_id: &Arc<AtomicU64>) -> bool {
+    latest_request_id.load(Ordering::Relaxed) != *request_id
 }
 
 fn waveform_render_async_enabled() -> bool {

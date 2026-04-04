@@ -7,6 +7,8 @@ use std::sync::Arc;
 mod initial;
 mod refresh_policy;
 mod render_apply;
+#[cfg(test)]
+mod render_apply_tests;
 /// Waveform render-cache reuse and translation helpers.
 mod reuse;
 

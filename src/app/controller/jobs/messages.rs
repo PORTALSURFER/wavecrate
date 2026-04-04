@@ -16,6 +16,7 @@ pub(crate) enum JobMessage {
     MetadataMutationFinished(MetadataMutationResult),
     ConfigPersistFinished(ConfigPersistResult),
     WaveformRendered(WaveformRenderResult),
+    WaveformTransientsComputed(WaveformTransientResult),
     AudioLoaded(AudioLoadResult),
     RecordingWaveformLoaded(RecordingWaveformLoadResult),
     Scan(ScanJobMessage),
@@ -198,6 +199,19 @@ pub(crate) struct WaveformRenderResult {
     pub(crate) elapsed: Duration,
     /// Raster result or terminal render error.
     pub(crate) result: Result<PreparedWaveformVisual, String>,
+}
+
+/// Completion payload for one deferred waveform transient-marker computation.
+#[derive(Debug)]
+pub(crate) struct WaveformTransientResult {
+    /// Request identifier echoed from the queued job.
+    pub(crate) request_id: u64,
+    /// Decode cache token that still must match on apply.
+    pub(crate) cache_token: u64,
+    /// Worker time spent computing transient markers.
+    pub(crate) elapsed: Duration,
+    /// Transient markers or the terminal compute error.
+    pub(crate) result: Result<Arc<[f32]>, String>,
 }
 
 /// Controller-owned source hydration lanes used to load source snapshots off the UI thread.

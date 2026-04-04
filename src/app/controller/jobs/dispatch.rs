@@ -167,6 +167,51 @@ impl ControllerJobs {
         request_id
     }
 
+    /// Publish the latest queued waveform-render request id for stale-work dropping.
+    pub(in super::super) fn publish_latest_waveform_render_request_id(&self, request_id: u64) {
+        self.latest_waveform_render_request_id
+            .store(request_id, Ordering::Relaxed);
+    }
+
+    /// Clone the latest waveform-render request tracker for worker-side stale checks.
+    pub(in super::super) fn latest_waveform_render_request_tracker(&self) -> Arc<AtomicU64> {
+        Arc::clone(&self.latest_waveform_render_request_id)
+    }
+
+    /// Invalidate any in-flight waveform-render request so stale workers self-drop.
+    pub(in super::super) fn invalidate_waveform_render_requests(&self) {
+        self.latest_waveform_render_request_id
+            .store(0, Ordering::Relaxed);
+    }
+
+    /// Generate a request id for deferred waveform transient computation jobs.
+    pub(in super::super) fn next_waveform_transient_request_id(&mut self) -> u64 {
+        let request_id = self.request_counters.next_waveform_transient_request_id;
+        self.request_counters.next_waveform_transient_request_id = self
+            .request_counters
+            .next_waveform_transient_request_id
+            .wrapping_add(1)
+            .max(1);
+        request_id
+    }
+
+    /// Publish the latest queued waveform-transient request id for stale-work dropping.
+    pub(in super::super) fn publish_latest_waveform_transient_request_id(&self, request_id: u64) {
+        self.latest_waveform_transient_request_id
+            .store(request_id, Ordering::Relaxed);
+    }
+
+    /// Clone the latest waveform-transient request tracker for worker-side stale checks.
+    pub(in super::super) fn latest_waveform_transient_request_tracker(&self) -> Arc<AtomicU64> {
+        Arc::clone(&self.latest_waveform_transient_request_id)
+    }
+
+    /// Invalidate any in-flight waveform-transient request so stale workers self-drop.
+    pub(in super::super) fn invalidate_waveform_transient_requests(&self) {
+        self.latest_waveform_transient_request_id
+            .store(0, Ordering::Relaxed);
+    }
+
     /// Generate a request id for deferred configuration persistence jobs.
     pub(in super::super) fn next_config_persist_request_id(&mut self) -> u64 {
         let request_id = self.request_counters.next_config_persist_request_id;
