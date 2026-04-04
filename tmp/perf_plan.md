@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 in progress on 2026-04-04; items 1-4 are complete and items 5-7 remain in ranked order
+Status: Phase 2 in progress on 2026-04-04; items 1-5 are complete and items 6-7 remain in ranked order
 
 ## Evidence Snapshot
 
@@ -148,8 +148,9 @@ Status: Phase 2 in progress on 2026-04-04; items 1-4 are complete and items 5-7 
   - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
   - Implementation note: the worker now splits full source revision from a DB-backed wav-path-set revision, uses lightweight ordered search-entry queries, preserves query-score and folder-accept caches for metadata-only refreshes, and falls back to full reload on structural changes
+- Pushed commit: `c8fea733` (`perf(search-worker): skip full refresh on metadata churn`)
 
-### [ ] 5. Batch similarity feature and embedding lookups instead of decoding blobs row-by-row
+### [x] 5. Batch similarity feature and embedding lookups instead of decoding blobs row-by-row
 - ROI: High
 - Effort: L
 - Expected impact: startup, p95 interaction latency, memory, CPU
@@ -171,6 +172,16 @@ Status: Phase 2 in progress on 2026-04-04; items 1-4 are complete and items 5-7 
   - Add ranking-parity tests against the current resolver.
   - Benchmark candidate-set reranking before/after on large sources.
   - Rerun similarity, duplicate-cleanup, and perf guard lanes.
+- Completed on: `2026-04-04`
+- Commit: pending until this item's focused commit is created
+- Validation outcome:
+  - `cargo test -p sempal --lib app::controller::library::wavs::similar::resolve` passed
+  - `cargo test -p sempal --lib app::controller::library::wavs::browser_pipeline` passed
+  - `cargo test -p sempal --lib app::controller::library::wavs::similar` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+  - Implementation note: similarity reranking and duplicate filtering now batch embedding/feature queries by candidate set, decode feature blobs once per batch, and reuse retained browser-pipeline similarity lookup scratch instead of allocating `vec![None; wav_entries_len]` on every similarity sort
+  - Measurement note: the current perf guard invocation still uses `--no-similarity`, so this item’s runtime proof is test- and code-path-based rather than directly reflected in `target/perf/bench.json`
 
 ### [ ] 6. Narrow vendor hover/focus overlay invalidation and retain browser row text/layout geometry
 - ROI: Medium

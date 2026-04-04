@@ -15,7 +15,13 @@ pub(super) fn apply_sort_for_similar(
 ) {
     match sort_mode {
         SampleBrowserSort::Similarity => {
-            let mut lookup = vec![None; controller.wav_entries_len()];
+            let entries_len = controller.wav_entries_len();
+            controller
+                .ui_cache
+                .browser
+                .pipeline
+                .prepare_similar_lookup_scratch(entries_len);
+            let lookup = &mut controller.ui_cache.browser.pipeline.similar_lookup_scratch;
             for (&index, &score) in similar.indices.iter().zip(similar.scores.iter()) {
                 if index < lookup.len() {
                     lookup[index] = Some(score);

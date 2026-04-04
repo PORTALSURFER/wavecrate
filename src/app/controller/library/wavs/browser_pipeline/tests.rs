@@ -161,6 +161,64 @@ fn build_visible_rows_sort_stage_maps_focus_and_loaded_positions() {
 }
 
 #[test]
+fn similarity_sort_reuses_pipeline_lookup_scratch() {
+    let entries = vec![
+        search_entry("anchor.wav", Rating::NEUTRAL, None),
+        search_entry("close.wav", Rating::NEUTRAL, None),
+        search_entry("far.wav", Rating::NEUTRAL, None),
+    ];
+    let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
+    controller.ui.browser.search.sort = SampleBrowserSort::Similarity;
+    controller.ui.browser.search.similar_query = Some(SimilarQuery {
+        sample_id: "source::anchor.wav".to_string(),
+        label: "anchor".to_string(),
+        indices: vec![0, 1, 2],
+        scores: vec![1.0, 0.8, 0.3],
+        anchor_index: Some(0),
+    });
+
+    let _ = build_visible_rows(&mut controller, Some(0), None);
+    let first_capacity = controller
+        .ui_cache
+        .browser
+        .pipeline
+        .similar_lookup_scratch
+        .capacity();
+    assert_eq!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .similar_lookup_scratch
+            .len(),
+        3
+    );
+
+    controller.ui.browser.search.similar_query = Some(SimilarQuery {
+        sample_id: "source::anchor.wav".to_string(),
+        label: "anchor".to_string(),
+        indices: vec![0, 2, 1],
+        scores: vec![1.0, 0.9, 0.2],
+        anchor_index: Some(0),
+    });
+    let (visible, _, _) = build_visible_rows(&mut controller, Some(0), None);
+
+    match visible {
+        VisibleRows::List(rows) => assert_eq!(&*rows, &[0usize, 2usize, 1usize]),
+        VisibleRows::All { total } => panic!("expected similarity-sorted rows, got all {total}"),
+    }
+    assert_eq!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .similar_lookup_scratch
+            .capacity(),
+        first_capacity
+    );
+}
+
+#[test]
 fn playback_age_filter_cache_stays_stable_until_the_next_week_boundary() {
     const WEEK_SECS: i64 = 7 * 24 * 60 * 60;
 

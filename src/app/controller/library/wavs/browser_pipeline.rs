@@ -48,6 +48,8 @@ pub(crate) struct BrowserPipelineCache {
     scored_fingerprint: Option<u64>,
     /// Scored rows in descending fuzzy-score order.
     scored_rows: Vec<(usize, i64)>,
+    /// Scratch lookup buffer used to sort similarity scores without per-build allocation.
+    similar_lookup_scratch: Vec<Option<f32>>,
     /// Fingerprint for the sorted stage rows.
     sorted_fingerprint: Option<u64>,
     /// Sorted visible absolute entry indices, retained for cheap sharing.
@@ -71,6 +73,7 @@ impl BrowserPipelineCache {
         self.filtered_rows.clear();
         self.scored_fingerprint = None;
         self.scored_rows.clear();
+        self.similar_lookup_scratch.clear();
         self.sorted_fingerprint = None;
         self.sorted_rows = Vec::new().into();
     }
@@ -94,6 +97,12 @@ impl BrowserPipelineCache {
         self.scored_fingerprint = None;
         self.sorted_fingerprint = None;
         true
+    }
+
+    /// Prepare reusable similarity-score scratch for `len` absolute row slots.
+    fn prepare_similar_lookup_scratch(&mut self, len: usize) {
+        self.similar_lookup_scratch.clear();
+        self.similar_lookup_scratch.resize(len, None);
     }
 }
 

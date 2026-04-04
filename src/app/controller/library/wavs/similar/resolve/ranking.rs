@@ -1,10 +1,9 @@
 //! Reranking and filtering helpers for similarity resolution.
 
-use super::repository::{
-    load_embedding_for_sample, load_light_dsp_for_sample, load_rms_for_sample,
-};
+use super::repository::{load_embeddings_for_samples, load_feature_metrics_for_samples};
 use crate::sample_sources::SourceId;
 use rusqlite::Connection;
+use std::collections::HashMap;
 use std::path::Path;
 
 use super::super::{DEFAULT_SIMILAR_COUNT, DSP_WEIGHT, DUPLICATE_RMS_MIN, EMBED_WEIGHT};
@@ -16,13 +15,28 @@ pub(crate) fn rerank_with_dsp(
     query_embedding: Option<&[f32]>,
     query_dsp: Option<&[f32]>,
 ) -> Result<Vec<(String, f32)>, String> {
+    let candidate_ids = neighbours
+        .iter()
+        .filter(|neighbour| !neighbour.sample_id.is_empty())
+        .map(|neighbour| neighbour.sample_id.clone())
+        .collect::<Vec<_>>();
+    let embedding_by_sample = if query_embedding.is_some() {
+        load_embeddings_for_samples(conn, &candidate_ids)?
+    } else {
+        HashMap::new()
+    };
+    let feature_metrics_by_sample = if query_dsp.is_some() {
+        load_feature_metrics_for_samples(conn, &candidate_ids)?
+    } else {
+        HashMap::new()
+    };
     let mut scored = Vec::with_capacity(neighbours.len());
     for neighbour in neighbours {
         if neighbour.sample_id.is_empty() {
             continue;
         }
         let embed_sim = if let Some(query_embedding) = query_embedding {
-            match load_embedding_for_sample(conn, &neighbour.sample_id)? {
+            match embedding_by_sample.get(&neighbour.sample_id) {
                 Some(candidate) => cosine_similarity(query_embedding, &candidate).clamp(-1.0, 1.0),
                 None => (1.0 - neighbour.distance).clamp(-1.0, 1.0),
             }
@@ -30,8 +44,9 @@ pub(crate) fn rerank_with_dsp(
             (1.0 - neighbour.distance).clamp(-1.0, 1.0)
         };
         let dsp_sim = if let Some(query_dsp) = query_dsp {
-            load_light_dsp_for_sample(conn, &neighbour.sample_id)?
-                .as_deref()
+            feature_metrics_by_sample
+                .get(&neighbour.sample_id)
+                .and_then(|metrics| metrics.light_dsp.as_deref())
                 .map(|candidate| cosine_similarity(query_dsp, candidate))
         } else {
             None
@@ -88,6 +103,7 @@ pub(super) fn filter_ranked_candidates(
     score_cutoff: Option<f32>,
     mut resolve_index: impl FnMut(&Path) -> Option<usize>,
 ) -> Result<(Vec<usize>, Vec<f32>), String> {
+    let mut ranked_candidates = Vec::new();
     let mut indices = Vec::new();
     let mut scores = Vec::new();
     let apply_duplicate_filters = score_cutoff.is_some();
@@ -102,8 +118,22 @@ pub(super) fn filter_ranked_candidates(
         if candidate_source.as_str() != source_id.as_str() {
             continue;
         }
+        ranked_candidates.push((candidate_id, relative_path, score));
+    }
+    let rms_by_sample = if apply_duplicate_filters {
+        load_rms_for_samples(
+            conn,
+            &ranked_candidates
+                .iter()
+                .map(|(candidate_id, _, _)| candidate_id.clone())
+                .collect::<Vec<_>>(),
+        )?
+    } else {
+        HashMap::new()
+    };
+    for (candidate_id, relative_path, score) in ranked_candidates {
         if apply_duplicate_filters
-            && let Some(rms) = load_rms_for_sample(conn, &candidate_id)?
+            && let Some(rms) = rms_by_sample.get(&candidate_id).copied()
             && is_effectively_silent(rms)
         {
             continue;
@@ -117,6 +147,19 @@ pub(super) fn filter_ranked_candidates(
         }
     }
     Ok((indices, scores))
+}
+
+fn load_rms_for_samples(
+    conn: &Connection,
+    sample_ids: &[String],
+) -> Result<HashMap<String, f32>, String> {
+    let mut rms_by_sample = HashMap::new();
+    for (sample_id, metrics) in load_feature_metrics_for_samples(conn, sample_ids)? {
+        if let Some(rms) = metrics.rms {
+            rms_by_sample.insert(sample_id, rms);
+        }
+    }
+    Ok(rms_by_sample)
 }
 
 #[cfg(test)]
