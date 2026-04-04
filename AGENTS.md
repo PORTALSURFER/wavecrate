@@ -59,21 +59,20 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `X:\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: reopened runtime performance audit refresh for the current live tree
-- Source of truth: `tmp/perf_plan.md` for the refreshed 2026-04-04 ROI-ranked runtime performance backlog built against the current dirty live tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
-- Current status: Phase 2 is in progress on `2026-04-04`. Items 1-5 are complete in commits `3c21e5ac`, `362dd5bc`, `4ee6ad01`, `8a9ca37e`, and `43373e1f`; item 6 remains pending against superproject commit `43373e1f` and vendor/radiant commit `427e115b`. Item 5 deferred startup audio device probing until after first present or options-panel access, and its validation lane passed focused startup-audio tests plus `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`. The latest perf-guard snapshot still comes from item 3 with `browser_filter_churn_latency = 3410us` p95, `browser_query_churn_latency = 62us` p95, `browser_sort_toggle_latency = 62us` p95, `hover_latency = 2296us` p95, `wheel_latency = 2442us` p95, `browser_focus_preview_latency = 51us` p95, and `browser_focus_commit_latency = 58us` p95.
+- Program: completed runtime performance audit refresh for the current live tree
+- Source of truth: `tmp/perf_plan.md` for the completed 2026-04-04 ROI-ranked runtime performance execution record; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
+- Current status: Phase 2 is complete on `2026-04-04`. Item 6 is finalized in vendor/radiant commit `9e2bc927`, so `tmp/perf_plan.md` is now the completed execution record for this runtime-performance lane. The latest perf-guard run stayed warning-free with `browser_filter_churn_latency = 2398us` p95, `browser_query_churn_latency = 63us` p95, `browser_sort_toggle_latency = 68us` p95, `hover_latency = 2751us` p95, `wheel_latency = 2273us` p95, `browser_focus_preview_latency = 58us` p95, and `browser_focus_commit_latency = 64us` p95.
 
 ## Immediate Next Actions
-1. Implement item 6 from `tmp/perf_plan.md`: reduce retained renderer composition churn and transient browser row text allocations in `vendor/radiant`, then validate, commit, and push it before the final sweep.
-2. Keep committing and pushing after each completed backlog item, updating `tmp/perf_plan.md` with the result.
-3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
-4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
+1. Treat `tmp/perf_plan.md` as the completed runtime-performance execution record until the user opens a new performance lane.
+2. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
+3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/perf_plan.md`: live ROI-ranked runtime performance backlog for the reopened audit lane
+- `tmp/perf_plan.md`: completed ROI-ranked runtime performance execution record for the live tree
 - `tmp/improvement_audit_plan.md`: separate evidence-driven repo-wide improvement backlog and execution record; resume only when the user reopens that lane
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform

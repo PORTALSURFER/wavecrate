@@ -1,6 +1,6 @@
 # Runtime Performance Audit Plan
 
-Status: Phase 2 in progress on 2026-04-04. Items 1-5 are complete; item 6 remains pending.
+Status: Phase 2 complete on 2026-04-04. Items 1-6 are complete.
 
 - Repository state audited: superproject `7d2b4dc2`, `vendor/radiant` `427e115b`
 - Workspace note: the live tree is dirty with unrelated user edits; Phase 2 must avoid overwriting them.
@@ -174,7 +174,7 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-5 are complete; item 6 remain
   - `open_options_menu_flushes_deferred_startup_audio_refresh_once` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
 
-### [ ] 6. Reduce retained renderer composition churn and transient browser row text allocations
+### [x] 6. Reduce retained renderer composition churn and transient browser row text allocations
 - ROI: Medium
 - Effort: M
 - Expected impact: frame time, CPU, memory
@@ -193,9 +193,18 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-5 are complete; item 6 remain
   - Add browser row rendering tests for labels, inline chips, and focus overlays.
   - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`.
   - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
-- Completion record: Pending
+- Completion record: 2026-04-04, commit `9e2bc927`
+- Validation result:
+  - `vendor/radiant` now retains grouped `state_overlay_scene` and `motion_overlay_scene` aggregates, so final Vello scene composition only appends three layers after overlay-only changes instead of rebuilding a six-layer append chain every time.
+  - Browser row projection now caches `visible_row_label`, `inline_tag_labels`, and `inline_tag_rects`, so row rendering reuses projected metadata geometry instead of splitting and reallocating inline chip payloads on each repaint.
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_inline_metadata` passed.
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml browser_row_label_truncation_uses_slotized_sample_width` passed.
+  - `cargo test --manifest-path vendor/radiant/Cargo.toml startup_placeholder_scene_uses_theme_clear_color_and_branding` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency = 2398us` p95, `browser_query_churn_latency = 63us` p95, `browser_sort_toggle_latency = 68us` p95, `hover_latency = 2751us` p95, `wheel_latency = 2273us` p95, `browser_focus_preview_latency = 58us` p95, `browser_focus_commit_latency = 64us` p95, `map_pan_proxy_latency = 73us` p95, `waveform_interaction_latency = 288us` p95, `waveform_pan_zoom_adjacent_latency = 176us` p95, `volume_drag_latency = 103us` p95, and `idle_cursor_motion_latency = 8us` p95.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
 
 ## Notes
 
 - Architectural follow-up considered but intentionally left out of the Phase 2 starter queue: similarity-query setup still walks all wav entries (`src/app/controller/library/wavs/similar/query.rs:126`, `src/app/controller/library/wavs/entry_access.rs:86`). It is real, but it is lower ROI than the six items above because it does not dominate the current startup or interaction baseline.
-- Phase 2 rule: implement strictly in the order above, updating this file after each item with the completion date and commit hash.
+- Phase 2 execution on 2026-04-04 is complete. Keep this file as the finished runtime-performance execution record until the user opens a new performance lane.
