@@ -148,6 +148,7 @@ impl AppController {
         if pending.request_id != result.request_id
             || pending.source_id != result.source_id
             || pending.relative_path != result.relative_path
+            || pending.key != result.key
         {
             return;
         }
@@ -166,8 +167,23 @@ impl AppController {
         {
             return;
         }
+        let key_matches_current_snapshot = self
+            .current_browser_feature_cache_snapshot()
+            .is_some_and(|snapshot| snapshot.key == result.key);
+        if !key_matches_current_snapshot {
+            self.refresh_similarity_sort_for_loaded_sample();
+            return;
+        }
         match result.result {
             Ok(query) => {
+                self.runtime.loaded_similarity_query_cache = Some(
+                    crate::app::controller::state::runtime::LoadedSimilarityQueryCache {
+                        source_id: result.source_id.clone(),
+                        key: result.key,
+                        sample_id: query.sample_id.clone(),
+                        query: query.clone(),
+                    },
+                );
                 self.ui.browser.search.similar_query = Some(query);
                 if self.should_dispatch_browser_search_async() {
                     self.dispatch_search_job();

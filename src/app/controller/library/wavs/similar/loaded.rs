@@ -5,6 +5,8 @@ use super::resolve::{
     cosine_similarity, load_embedding_for_sample, load_light_dsp_for_sample, normalize_l2,
 };
 use super::*;
+use crate::app::controller::FeatureCacheKey;
+use crate::app::controller::state::runtime::LoadedSimilarityQueryCache;
 use crate::app::controller::state::audio::LoadedAudio;
 use crate::app::state::SimilarQuery;
 use crate::app::view_model;
@@ -18,13 +20,14 @@ pub(super) struct LoadedSimilarityQueryRequest<'a> {
     pub(super) source_id: SourceId,
     pub(super) sample_id: String,
     pub(super) relative_path: PathBuf,
+    pub(super) key: FeatureCacheKey,
     pub(super) entry_paths: &'a [PathBuf],
 }
 
 /// Build a loaded-sample similarity query from one source snapshot.
 pub(super) fn build_loaded_similarity_query(
     conn: &Connection,
-    request: LoadedSimilarityQueryRequest<'_>,
+    request: &LoadedSimilarityQueryRequest<'_>,
 ) -> Result<SimilarQuery, String> {
     let (query_embedding, query_dsp) = load_query_vectors(conn, &request.sample_id)?;
     let path_lookup = build_path_lookup(request.entry_paths);
@@ -39,7 +42,7 @@ pub(super) fn build_loaded_similarity_query(
     let label = view_model::sample_display_label(&request.relative_path);
     let (indices, scores) = ensure_anchor_similarity_result(indices, scores, anchor_index);
     Ok(SimilarQuery {
-        sample_id: request.sample_id,
+        sample_id: request.sample_id.clone(),
         label: format!("Loaded: {label}"),
         indices,
         scores,
@@ -50,6 +53,7 @@ pub(super) fn build_loaded_similarity_query(
 pub(super) fn build_loaded_similarity_request<'a>(
     source_id: &SourceId,
     relative_path: &Path,
+    key: FeatureCacheKey,
     entry_paths: &'a [PathBuf],
 ) -> LoadedSimilarityQueryRequest<'a> {
     LoadedSimilarityQueryRequest {
@@ -59,12 +63,14 @@ pub(super) fn build_loaded_similarity_request<'a>(
             relative_path,
         ),
         relative_path: relative_path.to_path_buf(),
+        key,
         entry_paths,
     }
 }
 
 pub(super) fn loaded_audio_request<'a>(
     loaded_audio: &'a LoadedAudio,
+    key: FeatureCacheKey,
     entry_paths: &'a [PathBuf],
 ) -> LoadedSimilarityQueryRequest<'a> {
     LoadedSimilarityQueryRequest {
@@ -74,7 +80,33 @@ pub(super) fn loaded_audio_request<'a>(
             &loaded_audio.relative_path,
         ),
         relative_path: loaded_audio.relative_path.clone(),
+        key,
         entry_paths,
+    }
+}
+
+/// Return one cached loaded-similarity query when the source snapshot and sample still match.
+pub(super) fn cached_loaded_similarity_query(
+    cache: Option<&LoadedSimilarityQueryCache>,
+    request: &LoadedSimilarityQueryRequest<'_>,
+) -> Option<SimilarQuery> {
+    let cache = cache?;
+    (cache.source_id == request.source_id
+        && cache.key == request.key
+        && cache.sample_id == request.sample_id)
+        .then(|| cache.query.clone())
+}
+
+/// Build one retained cache record for a freshly computed loaded-similarity query.
+pub(super) fn build_loaded_similarity_query_cache(
+    request: &LoadedSimilarityQueryRequest<'_>,
+    query: &SimilarQuery,
+) -> LoadedSimilarityQueryCache {
+    LoadedSimilarityQueryCache {
+        source_id: request.source_id.clone(),
+        key: request.key,
+        sample_id: request.sample_id.clone(),
+        query: query.clone(),
     }
 }
 
@@ -229,6 +261,10 @@ mod tests {
                 source_id: source.id.clone(),
                 source_root: source.root.clone(),
                 relative_path: PathBuf::from("anchor.wav"),
+                key: crate::app::controller::FeatureCacheKey {
+                    entries_len: 3,
+                    entries_hash: 77,
+                },
                 entry_paths: Arc::from(vec![
                     PathBuf::from("anchor.wav"),
                     PathBuf::from("close.wav"),
@@ -252,6 +288,42 @@ mod tests {
         assert_eq!(background_query.indices, vec![0, 1, 2]);
         assert_eq!(background_query.scores[0], 1.0);
         assert_eq!(background_query.scores[2], MISSING_SIMILARITY_SCORE);
+    }
+
+    #[test]
+    fn cached_loaded_similarity_query_requires_matching_snapshot_and_sample() {
+        let request = LoadedSimilarityQueryRequest {
+            source_id: SourceId::from_string("source-a"),
+            sample_id: "source-a::one.wav".to_string(),
+            relative_path: PathBuf::from("one.wav"),
+            key: FeatureCacheKey {
+                entries_len: 2,
+                entries_hash: 11,
+            },
+            entry_paths: &[],
+        };
+        let cached = LoadedSimilarityQueryCache {
+            source_id: request.source_id.clone(),
+            key: request.key,
+            sample_id: request.sample_id.clone(),
+            query: SimilarQuery {
+                sample_id: request.sample_id.clone(),
+                label: "Loaded: one.wav".to_string(),
+                indices: vec![0, 1],
+                scores: vec![1.0, 0.4],
+                anchor_index: Some(0),
+            },
+        };
+
+        assert!(cached_loaded_similarity_query(Some(&cached), &request).is_some());
+
+        let mut mismatched = cached.clone();
+        mismatched.key.entries_hash = 99;
+        assert!(cached_loaded_similarity_query(Some(&mismatched), &request).is_none());
+
+        let mut wrong_sample = cached;
+        wrong_sample.sample_id = "source-a::two.wav".to_string();
+        assert!(cached_loaded_similarity_query(Some(&wrong_sample), &request).is_none());
     }
 
     fn seed_similarity_row(

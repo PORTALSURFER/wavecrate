@@ -1,6 +1,7 @@
 use crate::app::controller::FeatureCacheKey;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::state::audio::PendingPlayback;
+use crate::app::state::SimilarQuery;
 use crate::sample_sources::SourceId;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -64,6 +65,21 @@ pub(crate) struct PendingLoadedSimilarityQuery {
     pub(crate) source_id: SourceId,
     /// Loaded relative wav path expected to still be active on apply.
     pub(crate) relative_path: PathBuf,
+    /// Browser snapshot key the similarity order must still match on apply.
+    pub(crate) key: FeatureCacheKey,
+}
+
+/// Cached loaded-similarity query aligned to one retained browser-path snapshot.
+#[derive(Clone, Debug)]
+pub(crate) struct LoadedSimilarityQueryCache {
+    /// Source that owns the cached similarity ordering.
+    pub(crate) source_id: SourceId,
+    /// Browser-path snapshot key the cached indices align to.
+    pub(crate) key: FeatureCacheKey,
+    /// Stable sample identifier for the loaded anchor sample.
+    pub(crate) sample_id: String,
+    /// Reusable similarity ordering for the matching snapshot and sample.
+    pub(crate) query: SimilarQuery,
 }
 
 /// Pending manual similarity-filter rebuild waiting for wav-entry reload to finish.

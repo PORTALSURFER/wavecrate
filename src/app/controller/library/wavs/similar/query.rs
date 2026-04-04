@@ -1,7 +1,6 @@
 use super::resolve::{ResolvedSimilarity, normalize_l2, open_source_db_for_id, rerank_with_dsp};
 use super::*;
 use crate::app::state::SimilarQuery;
-use std::path::PathBuf;
 
 pub(crate) fn build_similar_query_for_sample_id(
     controller: &mut AppController,
@@ -38,9 +37,20 @@ pub(crate) fn build_similarity_query_for_loaded_sample(
         return Err("Select the loaded sample's source to sort by similarity".to_string());
     }
     let conn = open_source_db_for_id(controller, &source_id)?;
-    let entry_paths = collect_wav_entry_paths(controller)?;
-    let request = loaded::loaded_audio_request(&loaded_audio, &entry_paths);
-    loaded::build_loaded_similarity_query(&conn, request)
+    let snapshot = controller
+        .current_browser_feature_cache_snapshot()
+        .ok_or_else(|| "Similarity data unavailable for the current source".to_string())?;
+    let request =
+        loaded::loaded_audio_request(&loaded_audio, snapshot.key, snapshot.entry_paths.as_ref());
+    if let Some(query) =
+        loaded::cached_loaded_similarity_query(controller.runtime.loaded_similarity_query_cache.as_ref(), &request)
+    {
+        return Ok(query);
+    }
+    let query = loaded::build_loaded_similarity_query(&conn, &request)?;
+    controller.runtime.loaded_similarity_query_cache =
+        Some(loaded::build_loaded_similarity_query_cache(&request, &query));
+    Ok(query)
 }
 
 pub(crate) fn build_similarity_query_for_audio_path(
@@ -123,14 +133,6 @@ fn resolve_anchor_index(
     anchor_override.or_else(|| controller.wav_index_for_path(relative_path))
 }
 
-fn collect_wav_entry_paths(controller: &mut AppController) -> Result<Vec<PathBuf>, String> {
-    let mut entry_paths = Vec::with_capacity(controller.wav_entries_len());
-    controller.for_each_wav_entry(|_, entry| {
-        entry_paths.push(entry.relative_path.clone());
-    })?;
-    Ok(entry_paths)
-}
-
 /// Ensure the anchor sample remains present in similarity results with self-similarity.
 pub(super) fn ensure_anchor_similarity_result(
     mut indices: Vec<usize>,
@@ -185,5 +187,50 @@ mod tests {
             ensure_anchor_similarity_result(vec![3, 2, 5], vec![0.7, 0.98, 0.4], Some(2));
         assert_eq!(indices, vec![2, 3, 5]);
         assert_eq!(scores, vec![1.0, 0.7, 0.4]);
+    }
+
+    #[test]
+    fn build_similarity_query_for_loaded_sample_reuses_matching_cache() {
+        let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+            "cached.wav",
+            crate::sample_sources::Rating::NEUTRAL,
+        )]);
+        controller.selection_state.ctx.selected_source = Some(source.id.clone());
+        controller.sample_view.wav.loaded_audio = Some(crate::app::controller::state::audio::LoadedAudio {
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: PathBuf::from("cached.wav"),
+            bytes: std::sync::Arc::from(Vec::<u8>::new()),
+            duration_seconds: 1.0,
+            sample_rate: 44_100,
+        });
+        let snapshot = controller
+            .current_browser_feature_cache_snapshot()
+            .expect("browser snapshot");
+        let sample_id = crate::app::controller::library::analysis_jobs::build_sample_id(
+            source.id.as_str(),
+            Path::new("cached.wav"),
+        );
+        let expected = SimilarQuery {
+            sample_id: sample_id.clone(),
+            label: "Loaded: cached.wav".to_string(),
+            indices: vec![0],
+            scores: vec![1.0],
+            anchor_index: Some(0),
+        };
+        controller.runtime.loaded_similarity_query_cache =
+            Some(crate::app::controller::state::runtime::LoadedSimilarityQueryCache {
+                source_id: source.id.clone(),
+                key: snapshot.key,
+                sample_id,
+                query: expected.clone(),
+            });
+
+        let query = build_similarity_query_for_loaded_sample(&mut controller).expect("cached query");
+
+        assert_eq!(query.indices, expected.indices);
+        assert_eq!(query.scores, expected.scores);
+        assert_eq!(query.anchor_index, expected.anchor_index);
+        assert_eq!(query.label, expected.label);
     }
 }

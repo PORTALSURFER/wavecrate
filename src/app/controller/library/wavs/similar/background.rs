@@ -46,6 +46,8 @@ pub(crate) struct LoadedSimilarityQueryJob {
     pub(crate) source_root: PathBuf,
     /// Relative path of the loaded sample.
     pub(crate) relative_path: PathBuf,
+    /// Browser snapshot key the query indices must still match.
+    pub(crate) key: crate::app::controller::FeatureCacheKey,
     /// Snapshot of current wav-entry paths used to map scores back to browser indices.
     pub(crate) entry_paths: Arc<[PathBuf]>,
 }
@@ -115,12 +117,34 @@ pub(crate) fn queue_loaded_similarity_query_refresh(
     let Some(source) = controller.current_source() else {
         return Err("Source not found".to_string());
     };
-    let entry_paths = snapshot_wav_entry_paths(controller)?;
+    let snapshot = controller
+        .current_browser_feature_cache_snapshot()
+        .ok_or_else(|| "Similarity data unavailable for the current source".to_string())?;
+    let request = loaded::build_loaded_similarity_request(
+        &source.id,
+        &loaded_relative_path,
+        snapshot.key,
+        snapshot.entry_paths.as_ref(),
+    );
+    if let Some(query) =
+        loaded::cached_loaded_similarity_query(controller.runtime.loaded_similarity_query_cache.as_ref(), &request)
+    {
+        controller.runtime.pending_loaded_similarity_query = None;
+        controller.ui.browser.search.search_busy = false;
+        controller.ui.browser.search.similar_query = Some(query);
+        if controller.should_dispatch_browser_search_async() {
+            controller.dispatch_search_job();
+        } else {
+            controller.rebuild_browser_lists();
+        }
+        return Ok(());
+    }
     let request_id = controller.runtime.jobs.next_similarity_request_id();
     controller.runtime.pending_loaded_similarity_query = Some(PendingLoadedSimilarityQuery {
         request_id,
         source_id: source.id.clone(),
         relative_path: loaded_relative_path.clone(),
+        key: snapshot.key,
     });
     controller.ui.browser.search.search_busy = true;
     controller.mark_browser_search_projection_revision_dirty();
@@ -129,7 +153,8 @@ pub(crate) fn queue_loaded_similarity_query_refresh(
         source_id: source.id.clone(),
         source_root: source.root.clone(),
         relative_path: loaded_relative_path,
-        entry_paths,
+        key: snapshot.key,
+        entry_paths: snapshot.entry_paths,
     };
     controller.runtime.jobs.spawn_one_shot_job(
         true,
@@ -139,6 +164,7 @@ pub(crate) fn queue_loaded_similarity_query_refresh(
                 request_id: job.request_id,
                 source_id: job.source_id,
                 relative_path: job.relative_path,
+                key: job.key,
                 result,
             }
         },
@@ -202,17 +228,10 @@ pub(crate) fn compute_loaded_similarity_query(
     let request = loaded::build_loaded_similarity_request(
         &job.source_id,
         &job.relative_path,
+        job.key,
         &job.entry_paths,
     );
-    loaded::build_loaded_similarity_query(&conn, request)
-}
-
-fn snapshot_wav_entry_paths(controller: &mut AppController) -> Result<Arc<[PathBuf]>, String> {
-    let mut paths = Vec::with_capacity(controller.wav_entries_len());
-    controller.for_each_wav_entry(|_, entry| {
-        paths.push(entry.relative_path.clone());
-    })?;
-    Ok(paths.into())
+    loaded::build_loaded_similarity_query(&conn, &request)
 }
 
 fn maybe_enqueue_full_analysis_for_request(

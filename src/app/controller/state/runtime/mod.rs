@@ -14,8 +14,9 @@ use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 pub(crate) use deferred::{
     AnalysisProgressUiCache, DeferredStartupAudioRefreshState, PendingBrowserFeatureCacheRefresh,
-    PendingBrowserFocusCommit, PendingFocusedSimilarityQuery, PendingFocusedSimilarityRefresh,
-    PendingLoadedDurationMetadata, PendingLoadedSimilarityQuery, PendingSimilarityFilterRebuild,
+    LoadedSimilarityQueryCache, PendingBrowserFocusCommit, PendingFocusedSimilarityQuery,
+    PendingFocusedSimilarityRefresh, PendingLoadedDurationMetadata, PendingLoadedSimilarityQuery,
+    PendingSimilarityFilterRebuild,
 };
 pub(crate) use derived_graph::{DerivedNodeId, DerivedStateGraph, DirtyReason};
 pub(crate) use performance::PerformanceGovernorState;
@@ -107,6 +108,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) pending_browser_focus_commit: Option<PendingBrowserFocusCommit>,
     /// Active async follow-loaded similarity query computation awaiting apply.
     pub(crate) pending_loaded_similarity_query: Option<PendingLoadedSimilarityQuery>,
+    /// Retained loaded-similarity query cached by source snapshot and anchor sample.
+    pub(crate) loaded_similarity_query_cache: Option<LoadedSimilarityQueryCache>,
     /// Pending manual similarity-filter rebuild scheduled after destructive wav mutations.
     pub(crate) pending_similarity_filter_rebuild: Option<PendingSimilarityFilterRebuild>,
     /// Cached selected-source analysis progress metadata for progress-overlay updates.
@@ -197,6 +200,7 @@ impl ControllerRuntimeState {
             pending_focused_similarity_query: None,
             pending_browser_focus_commit: None,
             pending_loaded_similarity_query: None,
+            loaded_similarity_query_cache: None,
             pending_similarity_filter_rebuild: None,
             analysis_progress_ui: AnalysisProgressUiCache::default(),
             pending_browser_feature_cache_refresh: None,

@@ -95,11 +95,16 @@ fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_qu
         duration_seconds: 1.0,
         sample_rate: 44_100,
     });
+    let snapshot_key = controller
+        .current_browser_feature_cache_snapshot()
+        .expect("browser snapshot")
+        .key;
     controller.runtime.pending_loaded_similarity_query = Some(
         crate::app::controller::state::runtime::PendingLoadedSimilarityQuery {
             request_id: 7,
             source_id: source.id.clone(),
             relative_path: PathBuf::from("one.wav"),
+            key: snapshot_key,
         },
     );
 
@@ -108,6 +113,7 @@ fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_qu
             request_id: 8,
             source_id: source.id.clone(),
             relative_path: PathBuf::from("one.wav"),
+            key: snapshot_key,
             result: Ok(SimilarQuery {
                 sample_id: format!("{}::one.wav", source.id.as_str()),
                 label: "Loaded: one.wav".to_string(),
@@ -126,6 +132,7 @@ fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_qu
             request_id: 7,
             source_id: source.id.clone(),
             relative_path: PathBuf::from("one.wav"),
+            key: snapshot_key,
             result: Ok(SimilarQuery {
                 sample_id: format!("{}::one.wav", source.id.as_str()),
                 label: "Loaded: one.wav".to_string(),
@@ -146,4 +153,5 @@ fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_qu
         .expect("similarity query");
     assert_eq!(query.indices, vec![0, 1]);
     assert_eq!(query.anchor_index, Some(0));
+    assert!(controller.runtime.loaded_similarity_query_cache.is_some());
 }

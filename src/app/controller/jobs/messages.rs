@@ -557,6 +557,8 @@ pub(crate) struct LoadedSimilarityQueryResult {
     pub(crate) source_id: SourceId,
     /// Loaded relative path expected to still be active on apply.
     pub(crate) relative_path: PathBuf,
+    /// Browser snapshot key the built query still aligns with.
+    pub(crate) key: crate::app::controller::FeatureCacheKey,
     /// Similarity query payload or the terminal error.
     pub(crate) result: Result<crate::app::state::SimilarQuery, String>,
 }
