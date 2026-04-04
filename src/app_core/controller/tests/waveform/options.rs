@@ -1,4 +1,7 @@
 use super::*;
+use crate::app::controller::{
+    startup_audio_refresh_count_for_tests, with_stubbed_startup_audio_refresh_for_tests,
+};
 
 #[test]
 fn apply_native_waveform_smart_scale_routes_to_controller_behavior() {
@@ -157,4 +160,22 @@ fn apply_native_options_panel_actions_update_ui_state() {
 
     controller.apply_native_ui_action(NativeUiAction::CloseOptionsPanel);
     assert!(!controller.ui.options_panel.open);
+}
+
+#[test]
+fn open_options_menu_flushes_deferred_startup_audio_refresh_once() {
+    with_stubbed_startup_audio_refresh_for_tests(|| {
+        let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        controller
+            .apply_configuration(crate::sample_sources::config::AppConfig::default())
+            .expect("apply startup config");
+
+        controller.apply_native_ui_action(NativeUiAction::OpenOptionsMenu);
+        assert!(controller.ui.options_panel.open);
+        assert_eq!(startup_audio_refresh_count_for_tests(), 1);
+        assert!(!controller.has_pending_startup_audio_refresh());
+
+        controller.open_options_panel();
+        assert_eq!(startup_audio_refresh_count_for_tests(), 1);
+    });
 }

@@ -89,8 +89,7 @@ impl AppController {
         } else {
             self.ui.waveform.bpm_input.clear();
         }
-        self.refresh_audio_options(true);
-        self.refresh_audio_input_options(true);
+        self.stage_deferred_startup_audio_refresh();
         self.apply_volume(cfg.core.volume);
         self.ui.trash_folder = cfg.core.trash_folder.clone();
         self.ui.update.last_seen_nightly_published_at =
@@ -218,6 +217,63 @@ impl AppController {
     /// Return true when startup-deferred source-db maintenance is armed.
     pub(crate) fn has_pending_startup_source_db_maintenance(&self) -> bool {
         self.runtime.deferred_startup_source_db_maintenance_armed
+    }
+
+    /// Clear probed audio option state and arm a refresh after the first presented frame.
+    fn stage_deferred_startup_audio_refresh(&mut self) {
+        self.ui.audio.hosts.clear();
+        self.ui.audio.devices.clear();
+        self.ui.audio.sample_rates.clear();
+        self.ui.audio.warning = None;
+        self.ui.audio.input_hosts.clear();
+        self.ui.audio.input_devices.clear();
+        self.ui.audio.input_sample_rates.clear();
+        self.ui.audio.input_channel_count = 0;
+        self.ui.audio.input_warning = None;
+        self.runtime.deferred_startup_audio_refresh.armed = true;
+        self.runtime.deferred_startup_audio_refresh.prepare_count = 0;
+    }
+
+    /// Run the deferred startup audio refresh after first paint reaches the screen.
+    pub(crate) fn flush_deferred_startup_audio_refresh(&mut self) {
+        if !self.runtime.deferred_startup_audio_refresh.armed {
+            return;
+        }
+        self.runtime.deferred_startup_audio_refresh.prepare_count = self
+            .runtime
+            .deferred_startup_audio_refresh
+            .prepare_count
+            .saturating_add(1);
+        if self.runtime.deferred_startup_audio_refresh.prepare_count < 2 {
+            return;
+        }
+        self.ensure_startup_audio_refresh();
+    }
+
+    /// Return true when startup audio probing is still pending.
+    pub(crate) fn has_pending_startup_audio_refresh(&self) -> bool {
+        self.runtime.deferred_startup_audio_refresh.armed
+    }
+
+    /// Complete the deferred startup audio probe immediately when settings are opened early.
+    pub(crate) fn ensure_startup_audio_refresh(&mut self) {
+        if !self.runtime.deferred_startup_audio_refresh.armed {
+            return;
+        }
+        self.runtime.deferred_startup_audio_refresh.armed = false;
+        self.runtime.deferred_startup_audio_refresh.prepare_count = 0;
+        self.perform_startup_audio_refresh();
+    }
+
+    /// Refresh startup audio host/device state unless tests stub the probe boundary.
+    fn perform_startup_audio_refresh(&mut self) {
+        #[cfg(test)]
+        if crate::app::controller::startup_audio_test_support::record_startup_audio_refresh_for_tests()
+        {
+            return;
+        }
+        self.refresh_audio_options(true);
+        self.refresh_audio_input_options(true);
     }
 
     pub(super) fn persist_config(&mut self, error_prefix: &str) -> Result<(), String> {

@@ -128,6 +128,9 @@ impl AppControllerNativeRuntimeExt for AppController {
         if self.has_pending_startup_source_db_maintenance() {
             self.flush_deferred_startup_source_db_maintenance();
         }
+        if self.has_pending_startup_audio_refresh() {
+            self.flush_deferred_startup_audio_refresh();
+        }
         if animation_only {
             self.record_frame_timing_for_fps();
             if !self.is_playing() {

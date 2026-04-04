@@ -5,6 +5,15 @@ use crate::sample_sources::SourceId;
 use std::path::PathBuf;
 use std::time::Instant;
 
+/// Controller-owned gate for deferring startup audio probing past first paint.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct DeferredStartupAudioRefreshState {
+    /// True while startup audio host/device probing still needs to run.
+    pub(crate) armed: bool,
+    /// Number of prepared native frames observed since configuration load.
+    pub(crate) prepare_count: u8,
+}
+
 /// Deferred browser-focus side effects scheduled after immediate selection updates.
 #[derive(Clone, Debug)]
 pub(crate) struct PendingBrowserFocusCommit {

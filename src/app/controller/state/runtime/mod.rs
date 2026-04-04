@@ -13,9 +13,9 @@ use crate::sample_sources::Rating;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 pub(crate) use deferred::{
-    AnalysisProgressUiCache, PendingBrowserFeatureCacheRefresh, PendingBrowserFocusCommit,
-    PendingFocusedSimilarityQuery, PendingFocusedSimilarityRefresh, PendingLoadedDurationMetadata,
-    PendingLoadedSimilarityQuery, PendingSimilarityFilterRebuild,
+    AnalysisProgressUiCache, DeferredStartupAudioRefreshState, PendingBrowserFeatureCacheRefresh,
+    PendingBrowserFocusCommit, PendingFocusedSimilarityQuery, PendingFocusedSimilarityRefresh,
+    PendingLoadedDurationMetadata, PendingLoadedSimilarityQuery, PendingSimilarityFilterRebuild,
 };
 pub(crate) use derived_graph::{DerivedNodeId, DerivedStateGraph, DirtyReason};
 pub(crate) use performance::PerformanceGovernorState;
@@ -135,6 +135,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) deferred_startup_source_db_maintenance_armed: bool,
     /// Number of prepared frame passes since startup configuration was applied.
     pub(crate) startup_frame_prepare_count: u32,
+    /// Startup audio refresh deferred until after the first presented frame.
+    pub(crate) deferred_startup_audio_refresh: DeferredStartupAudioRefreshState,
     /// Active source hydration currently preparing the browser-driving source snapshot.
     pub(crate) pending_active_source_hydration: Option<PendingSourceHydration>,
     /// Inactive-pane source hydration currently preparing one retained folder snapshot.
@@ -207,6 +209,7 @@ impl ControllerRuntimeState {
             deferred_startup_source_db_maintenance_jobs: Vec::new(),
             deferred_startup_source_db_maintenance_armed: false,
             startup_frame_prepare_count: 0,
+            deferred_startup_audio_refresh: DeferredStartupAudioRefreshState::default(),
             pending_active_source_hydration: None,
             pending_inactive_source_hydration: None,
             pending_folder_projections: HashMap::new(),

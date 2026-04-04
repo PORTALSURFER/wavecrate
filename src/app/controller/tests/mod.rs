@@ -34,6 +34,8 @@ mod selection_bpm_scale;
 mod selection_undo;
 /// Async source-hydration coverage for source switching and pane assignment.
 mod source_async;
+/// Startup audio-probe deferral coverage.
+mod startup_audio;
 mod transient_options;
 mod trash;
 mod undo_file_ops;

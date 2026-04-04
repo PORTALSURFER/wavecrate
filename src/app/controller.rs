@@ -20,6 +20,8 @@ mod performance;
 mod revision_bus;
 /// Derived-state graph access helpers for runtime projection paths.
 mod runtime_graph;
+#[cfg(test)]
+mod startup_audio_test_support;
 pub(crate) mod state;
 pub(crate) mod undo;
 mod undo_jobs;
@@ -43,6 +45,10 @@ use library::analysis_jobs::AnalysisWorkerPool;
 use open;
 use playback::audio_loader::{AudioLoadError, AudioLoadJob, AudioLoadOutcome};
 use rfd::FileDialog;
+#[cfg(test)]
+pub(crate) use startup_audio_test_support::{
+    startup_audio_refresh_count_for_tests, with_stubbed_startup_audio_refresh_for_tests,
+};
 use std::{
     cell::RefCell,
     collections::HashMap,
