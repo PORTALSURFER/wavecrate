@@ -61,10 +61,10 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: executing the rebuilt runtime performance backlog for the current live tree
 - Source of truth: `tmp/perf_plan.md` for the 2026-04-04 Phase 2 runtime performance execution record; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
-- Current status: Phase 2 is in progress on `2026-04-04`. Item 1 is complete (`vendor/radiant` `e5c91739`, root `3c91fbef`), and item 2 is next.
+- Current status: Phase 2 is in progress on `2026-04-04`. Items 1-2 are complete (`vendor/radiant` `e5c91739`, root `3c91fbef`, and root `dacfedac`), and item 3 is next. The latest perf-guard run stays warning-free with `browser_filter_churn_latency = 3333us` p95, `hover_latency = 2281us` p95, `wheel_latency = 2603us` p95, `browser_focus_preview_latency = 51us` p95, and `browser_focus_commit_latency = 57us` p95.
 
 ## Immediate Next Actions
-1. Treat `tmp/perf_plan.md` as the active runtime-performance execution record and continue with item 2 unless the user redirects the lane.
+1. Treat `tmp/perf_plan.md` as the active runtime-performance execution record and continue with item 3 unless the user redirects the lane.
 2. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 

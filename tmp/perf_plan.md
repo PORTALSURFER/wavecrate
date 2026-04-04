@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 in progress; item 1 complete on 2026-04-04
+Status: Phase 2 in progress; items 1-2 complete on 2026-04-04
 
 ## Evidence Snapshot
 
@@ -26,7 +26,7 @@ Status: Phase 2 in progress; item 1 complete on 2026-04-04
 - Completed: 2026-04-04 (`vendor/radiant` `e5c91739`, root `3c91fbef`)
 - Validation plan: extend retained projection cache tests for pointer reuse and dirty-segment accuracy; rerun `scripts/run_perf_guard.ps1`, `scripts/ci_agent.ps1`, and targeted native-bridge projection tests.
 
-### [ ] 2. Stop wasting CPU on superseded waveform renders and inline transient detection
+### [x] 2. Stop wasting CPU on superseded waveform renders and inline transient detection
 - ROI: Very High
 - Effort: M
 - Expected impact: startup, p95 interaction latency, frame time, CPU
@@ -38,6 +38,7 @@ Status: Phase 2 in progress; item 1 complete on 2026-04-04
 - Recommended change: make waveform rendering latest-only per `WaveformRenderKey` before dispatch, cancel or skip superseded work in the job lane, and move transient detection onto the same retained async pipeline or a sibling cache keyed by waveform cache token.
 - Risk/tradeoffs: cancellation and replacement logic must not drop the final repaint; transient markers may appear slightly later on cold loads.
 - Visual impact: Minimal
+- Completed: 2026-04-04 (`root` `dacfedac`)
 - Validation plan: add tests for latest-only waveform request replacement and transient-cache reuse; manually exercise rapid pan/zoom/loading; rerun `scripts/ci_agent.ps1` and perf guard.
 
 ### [ ] 3. Remove full-source path and embedding scans from loaded-similarity workflows

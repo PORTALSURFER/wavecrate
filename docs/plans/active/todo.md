@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (local): 2026-04-04T14:38:17+02:00
+Last updated (local): 2026-04-04T18:26:00+02:00
 Owner: Codex agent sessions
 
 Purpose:
@@ -12,12 +12,12 @@ Purpose:
 
 - The active lane is the reopened runtime performance audit backlog for the current live tree.
 - `tmp/perf_plan.md` is the live source of truth for the ROI-ranked performance backlog rebuilt on 2026-04-04.
-- Phase 2 is complete. Items 1-6 are complete in commits `3c21e5ac`, `362dd5bc`, `4ee6ad01`, `8a9ca37e`, `43373e1f`, and vendor/radiant `9e2bc927`.
-- The completion validation lane passed focused `vendor/radiant` tests, `scripts/ci_quick.ps1`, `scripts/run_perf_guard.ps1`, and `scripts/ci_agent.ps1`. The latest perf run reports `browser_filter_churn_latency.p95_us = 2398`, `browser_query_churn_latency.p95_us = 63`, `browser_sort_toggle_latency.p95_us = 68`, `hover_latency.p95_us = 2751`, `wheel_latency.p95_us = 2273`, `browser_focus_preview_latency.p95_us = 58`, and `browser_focus_commit_latency.p95_us = 64`.
+- Phase 2 is in progress. Items 1-2 are complete in commits `3c91fbef` and `dacfedac`, with vendor/radiant item 1 support in `e5c91739`.
+- The current validation lane for item 2 passed focused waveform/polling tests, `scripts/ci_agent.ps1`, and `scripts/run_perf_guard.ps1`. The latest perf run reports `browser_filter_churn_latency.p95_us = 3333`, `browser_query_churn_latency.p95_us = 66`, `browser_sort_toggle_latency.p95_us = 86`, `hover_latency.p95_us = 2281`, `wheel_latency.p95_us = 2603`, `browser_focus_preview_latency.p95_us = 51`, `browser_focus_commit_latency.p95_us = 57`, and `waveform_interaction_latency.p95_us = 187`.
 - `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` remain parked while this performance lane is active.
 
 ## Next tasks (ordered)
 
-1. Treat `tmp/perf_plan.md` as the completed runtime-performance execution record until the user opens a new performance lane.
+1. Implement item 3 from `tmp/perf_plan.md`: remove full-source path and embedding scans from loaded-similarity workflows.
 2. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` dormant unless the user explicitly reopens those lanes.
 3. Keep using the PowerShell validation wrappers for future Windows sessions unless the user explicitly overrides that rule.
