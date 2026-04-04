@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 in progress; items 1-3 complete on 2026-04-04
+Status: Phase 2 in progress; items 1-4 complete on 2026-04-04
 
 ## Evidence Snapshot
 
@@ -56,7 +56,7 @@ Status: Phase 2 in progress; items 1-3 complete on 2026-04-04
 - Completed: 2026-04-04 (`root` `d573ddeb`)
 - Validation plan: add deterministic similarity-order tests, cache invalidation tests across source revisions/model versions, and benchmark the loaded-similarity query path before and after.
 
-### [ ] 4. Replace rebuild-heavy selection path scans with retained selected-index lookup state
+### [x] 4. Replace rebuild-heavy selection path scans with retained selected-index lookup state
 - ROI: High
 - Effort: M
 - Expected impact: p95 interaction latency, CPU
@@ -67,6 +67,7 @@ Status: Phase 2 in progress; items 1-3 complete on 2026-04-04
 - Recommended change: keep a retained selected-path set plus selected-index cache keyed by source/projection revisions, and make selection-pruning/action-path builders operate on set membership and cached indices instead of repeated vector scans and fallback lookups.
 - Risk/tradeoffs: selection caches must invalidate correctly on source revision changes and destructive edits.
 - Visual impact: None
+- Completed: 2026-04-04 (`root` `849f0cf6`)
 - Validation plan: add selection-pruning and multi-select action tests across source reloads and deletes; rerun browser action test lanes plus `scripts/ci_agent.ps1`.
 
 ### [ ] 5. Deduplicate optimistic metadata mutation batches and loaded-audio membership checks
