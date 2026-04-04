@@ -321,6 +321,18 @@ impl AppController {
         self.current_browser_feature_cache_snapshot()
             .map(|snapshot| snapshot.key)
     }
+
+    #[cfg(test)]
+    /// Clear one pending browser feature-cache refresh for focused regression tests.
+    pub(crate) fn clear_pending_browser_feature_cache_refresh_for_tests(&mut self) {
+        self.runtime.pending_browser_feature_cache_refresh = None;
+    }
+
+    #[cfg(test)]
+    /// Return whether one browser feature-cache refresh is currently queued.
+    pub(crate) fn has_pending_browser_feature_cache_refresh_for_tests(&self) -> bool {
+        self.runtime.pending_browser_feature_cache_refresh.is_some()
+    }
 }
 
 impl AppController {

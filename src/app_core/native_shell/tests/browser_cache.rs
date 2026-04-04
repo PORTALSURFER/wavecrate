@@ -460,6 +460,34 @@ fn browser_rows_projection_uses_pipeline_snapshot_when_pages_are_unloaded() {
 }
 
 #[test]
+/// Browser row rendering should not queue feature refresh work during frame-time projection.
+fn browser_rows_projection_does_not_queue_feature_cache_refresh() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
+    let source_id = crate::sample_sources::SourceId::new();
+    controller.select_browser_source_for_tests(source_id);
+    controller.set_wav_entries_for_tests(vec![crate::sample_sources::WavEntry {
+        relative_path: std::path::PathBuf::from("kick.wav"),
+        file_size: 0,
+        modified_ns: 0,
+        content_hash: Some(String::from("hash")),
+        tag: crate::sample_sources::Rating::NEUTRAL,
+        looped: false,
+        locked: false,
+        missing: false,
+        last_played_at: None,
+    }]);
+    controller.ui.browser.viewport.visible =
+        crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
+    controller.clear_pending_browser_feature_cache_refresh_for_tests();
+
+    let mut rows = Vec::new();
+    project_browser_rows_model_into(&mut controller, 1, Some(0), None, &mut rows);
+
+    assert_eq!(rows.len(), 1);
+    assert!(!controller.has_pending_browser_feature_cache_refresh_for_tests());
+}
+
+#[test]
 /// Label lookup should fill from the retained browser pipeline when wav pages are absent.
 fn label_lookup_uses_pipeline_snapshot_when_pages_are_unloaded() {
     let temp = tempfile::tempdir().unwrap();

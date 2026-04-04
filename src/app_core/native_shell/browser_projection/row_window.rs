@@ -49,7 +49,6 @@ pub(crate) fn project_browser_rows_model_into(
     }
     super::refresh_projected_browser_row_cache(controller);
     super::refresh_projected_selected_paths_lookup(controller);
-    controller.queue_feature_cache_refresh_for_browser();
     let (window_start, window_len) = browser_render_window(
         visible_count,
         selected_visible_row,

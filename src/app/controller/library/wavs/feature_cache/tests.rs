@@ -4,6 +4,23 @@ use crate::app::controller::test_support::{dummy_controller, sample_entry};
 use crate::sample_sources::Rating;
 
 #[test]
+fn rebuild_browser_lists_queues_feature_cache_refresh() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.set_wav_entries_for_tests(vec![sample_entry("kick.wav", Rating::NEUTRAL)]);
+    controller.rebuild_wav_lookup();
+
+    controller.rebuild_browser_lists();
+
+    assert!(
+        controller
+            .runtime
+            .pending_browser_feature_cache_refresh
+            .is_some()
+    );
+}
+
+#[test]
 /// Applied async refreshes should dirty browser-row metadata and expose cached long markers.
 fn browser_feature_cache_refresh_updates_row_metadata() {
     let (mut controller, source) = dummy_controller();

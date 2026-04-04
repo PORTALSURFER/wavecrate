@@ -128,6 +128,7 @@ pub(crate) fn set_sample_tag_and_locked_for_source(
         entry.tag = target_tag;
         entry.locked = locked;
     }
+    controller.ui_cache.browser.pipeline.invalidate();
     controller.mark_browser_row_metadata_projection_revision_dirty();
     controller.mark_browser_search_projection_revision_dirty();
     controller.queue_metadata_mutation(
@@ -217,6 +218,7 @@ pub(crate) fn set_sample_looped_for_source(
     {
         entry.looped = looped;
     }
+    controller.ui_cache.browser.pipeline.invalidate();
     controller.mark_browser_row_metadata_projection_revision_dirty();
     controller.queue_metadata_mutation(
         source,

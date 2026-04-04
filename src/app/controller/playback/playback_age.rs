@@ -2,8 +2,8 @@
 
 use super::*;
 use crate::app::controller::jobs::SourceMetadataMutationOp;
-use crate::app::controller::state::runtime::MetadataRollback;
 use crate::app::controller::state::audio::PendingAgeUpdate;
+use crate::app::controller::state::runtime::MetadataRollback;
 use std::path::Path;
 use std::time::Instant;
 
@@ -35,6 +35,7 @@ impl AppController {
             if let Some(entry) = self.wav_entries.entry_mut(index) {
                 entry.last_played_at = Some(played_at);
             }
+            self.ui_cache.browser.pipeline.invalidate();
             self.mark_browser_row_metadata_projection_revision_dirty();
             if self.ui.browser.search.sort == crate::app::state::SampleBrowserSort::PlaybackAgeAsc
                 || self.ui.browser.search.sort

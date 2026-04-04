@@ -127,6 +127,8 @@ impl AppController {
         self.wav_entries.source_id = self.current_source().map(|source| source.id.clone());
         self.wav_entries.insert_page(0, entries);
         self.rebuild_wav_lookup();
+        self.ui_cache.browser.search.invalidate();
+        self.ui_cache.browser.pipeline.invalidate();
         if let Some(source) = self.current_source() {
             if let Ok(conn) = crate::sample_sources::SourceDatabase::open_connection(&source.root) {
                 let _ = conn.execute("DELETE FROM wav_files", []);

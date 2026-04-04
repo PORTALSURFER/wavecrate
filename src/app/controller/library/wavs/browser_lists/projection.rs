@@ -63,6 +63,7 @@ impl AppController {
             self.ui.browser.selection.selection_anchor_visible =
                 self.ui.browser.selection.selected_visible;
         }
+        self.queue_feature_cache_refresh_for_browser();
     }
 
     pub(super) fn reset_browser_ui(&mut self) {

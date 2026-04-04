@@ -27,6 +27,7 @@ pub(crate) fn update_cached_entry(
             updated |= cache.update_entry(old_path, new_entry.clone());
         }
         if updated && controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
+            controller.ui_cache.browser.pipeline.invalidate();
             controller.rebuild_browser_lists();
         }
         return;

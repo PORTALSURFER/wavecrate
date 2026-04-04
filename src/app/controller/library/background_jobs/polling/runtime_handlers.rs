@@ -294,6 +294,7 @@ impl AppController {
                 }
             }
         }
+        self.ui_cache.browser.pipeline.invalidate();
         self.mark_browser_row_metadata_projection_revision_dirty();
         self.mark_browser_search_projection_revision_dirty();
         if self.should_dispatch_browser_search_async() {

@@ -3,6 +3,19 @@ use super::*;
 /// Ensure stage-A cached base rows and triage partitions are current.
 pub(super) fn ensure_base_stage(controller: &mut AppController) {
     let source_id = controller.selection_state.ctx.selected_source.clone();
+    let entries_len = controller.wav_entries_len();
+    if controller
+        .ui_cache
+        .browser
+        .pipeline
+        .base_fingerprint
+        .as_ref()
+        .is_some_and(|fingerprint| {
+            fingerprint.source_id == source_id && fingerprint.entries_len == entries_len
+        })
+    {
+        return;
+    }
     let source_revision = controller
         .current_source()
         .and_then(|source| controller.database_for(&source).ok())
@@ -10,7 +23,7 @@ pub(super) fn ensure_base_stage(controller: &mut AppController) {
     let fingerprint = BaseStageFingerprint {
         source_id,
         source_revision,
-        entries_len: controller.wav_entries_len(),
+        entries_len,
     };
     if controller
         .ui_cache
