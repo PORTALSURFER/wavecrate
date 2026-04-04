@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 in progress; items 1-5 complete on 2026-04-04
+Status: Phase 2 in progress; items 1-6 complete on 2026-04-04
 
 ## Evidence Snapshot
 
@@ -85,7 +85,7 @@ Status: Phase 2 in progress; items 1-5 complete on 2026-04-04
 - Completed: 2026-04-04 (`root` `faf927d8`)
 - Validation plan: extend metadata mutation success/rollback tests, especially mixed BPM/no-op batches and loaded-audio optimistic refresh cases.
 
-### [ ] 6. Reuse background workers for destructive selection edits and folder/file operations
+### [x] 6. Reuse background workers for destructive selection edits and folder/file operations
 - ROI: Medium
 - Effort: M
 - Expected impact: p95 interaction latency, CPU, I/O
@@ -96,6 +96,7 @@ Status: Phase 2 in progress; items 1-5 complete on 2026-04-04
 - Recommended change: route these operations through a bounded reusable worker lane owned by runtime jobs, and pass already-known metadata into worker tasks when correctness allows instead of reopening and rereading it for each operation.
 - Risk/tradeoffs: must preserve current error propagation and sequencing guarantees for file and database mutations.
 - Visual impact: None
+- Completed: 2026-04-04 (`root` `4ac3945e`)
 - Validation plan: add tests for serial ordering and failure rollback in edit/file-op workflows; manually exercise multi-item destructive edits; rerun `scripts/ci_agent.ps1`.
 
 ### [ ] 7. Stop rebuilding browser search and playback-age caches from whole-source state
