@@ -79,7 +79,7 @@ pub(crate) fn project_browser_panel_frame_model(controller: &AppController) -> B
         active_tab_label,
         focused_sample_label,
         anchor_visible_row: row_inputs.anchor_visible_row,
-        rows: Vec::new(),
+        rows: radiant::app::RetainedVec::new(),
     }
 }
 

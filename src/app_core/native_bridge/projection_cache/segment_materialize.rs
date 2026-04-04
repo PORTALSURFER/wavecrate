@@ -211,15 +211,13 @@ fn materialize_browser_rows_segment(
     if browser_rows_changed {
         cache.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
         let row_inputs = native_shell::project_browser_rows_projection_inputs(controller);
-        let mut rows = std::mem::take(&mut model.browser.rows);
         native_shell::project_browser_rows_model_into(
             controller,
             row_inputs.visible_count,
             row_inputs.selected_visible_row,
             row_inputs.anchor_visible_row,
-            &mut rows,
+            &mut model.browser.rows,
         );
-        model.browser.rows = rows;
         cache.browser_rows_key = Some(derived.browser_rows_key.clone());
         cache.browser_rows_state_key = Some(derived.browser_rows_state_key.clone());
         return true;
@@ -229,7 +227,7 @@ fn materialize_browser_rows_segment(
         native_shell::patch_browser_rows_state(
             controller,
             derived.browser_rows_state_key.browser_selected_visible,
-            &mut model.browser.rows,
+            model.browser.rows.make_mut().as_mut_slice(),
         );
         cache.browser_rows_state_key = Some(derived.browser_rows_state_key.clone());
         return true;

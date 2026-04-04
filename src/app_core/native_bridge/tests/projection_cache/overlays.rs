@@ -240,6 +240,42 @@ fn projection_overlay_only_miss_clones_when_prior_snapshot_is_aliased() {
     assert!(second_model.progress_overlay.visible);
 }
 
+/// Overlay-only misses should retain browser row text storage when the prior snapshot is aliased.
+#[test]
+fn projection_overlay_only_miss_reuses_browser_row_text_arcs() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.set_wav_entries_for_tests(vec![crate::sample_sources::WavEntry {
+        relative_path: PathBuf::from("kick.wav"),
+        file_size: 0,
+        modified_ns: 0,
+        content_hash: Some(String::from("hash")),
+        tag: crate::sample_sources::Rating::NEUTRAL,
+        looped: false,
+        locked: false,
+        missing: false,
+        last_played_at: None,
+    }]);
+    controller.ui.browser.viewport.visible =
+        crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
+
+    let mut cache = NativeProjectionCache::default();
+    let (first_model, _) = cache.resolve_or_project(&mut controller);
+    let first_row = &first_model.browser.rows[0];
+    let first_label = Arc::clone(&first_row.label);
+
+    controller.ui.progress.visible = true;
+    controller.ui.progress.modal = true;
+    controller.ui.progress.completed = 1;
+    controller.ui.progress.total = 3;
+
+    let (second_model, dirty_segments) = cache.resolve_or_project(&mut controller);
+    let second_row = &second_model.browser.rows[0];
+
+    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert!(!Arc::ptr_eq(&first_model, &second_model));
+    assert!(Arc::ptr_eq(&first_label, &second_row.label));
+}
+
 /// Status-key misses should still refresh selected-column metadata.
 #[test]
 fn projection_status_miss_updates_selected_column_without_static_dirty() {

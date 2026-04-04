@@ -1,5 +1,6 @@
 use super::*;
 use crate::app_core::app_api::state::BrowserDuplicateCleanupState;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Number of rows kept between the focused row and the window edge before scrolling.
@@ -18,8 +19,10 @@ pub(crate) fn project_browser_rows_model(
     visible_count: usize,
     selected_visible_row: Option<usize>,
     anchor_visible_row: Option<usize>,
-) -> Vec<BrowserRowModel> {
-    let mut rows = Vec::with_capacity(visible_count.min(MAX_RENDERED_BROWSER_ROWS));
+) -> radiant::app::RetainedVec<BrowserRowModel> {
+    let mut rows = radiant::app::RetainedVec::from(Vec::with_capacity(
+        visible_count.min(MAX_RENDERED_BROWSER_ROWS),
+    ));
     project_browser_rows_model_into(
         controller,
         visible_count,
@@ -39,7 +42,7 @@ pub(crate) fn project_browser_rows_model_into(
     visible_count: usize,
     selected_visible_row: Option<usize>,
     anchor_visible_row: Option<usize>,
-    rows: &mut Vec<BrowserRowModel>,
+    rows: &mut radiant::app::RetainedVec<BrowserRowModel>,
 ) {
     if controller.ui.browser.active_tab == SampleBrowserTab::Map {
         clear_projected_browser_row_cache(controller);
@@ -63,8 +66,9 @@ pub(crate) fn project_browser_rows_model_into(
         .unwrap_or_default()
         .as_secs() as i64;
     let duplicate_cleanup = controller.ui.browser.duplicate_cleanup.clone();
-    if rows.capacity() < window_len {
-        rows.reserve(window_len.saturating_sub(rows.len()));
+    if rows.make_mut().capacity() < window_len {
+        let additional = window_len.saturating_sub(rows.len());
+        rows.make_mut().reserve(additional);
     }
     for offset in 0..window_len {
         let visible_row = window_start + offset;
@@ -237,7 +241,7 @@ fn native_playback_age_bucket(
 
 /// Write one browser row into `rows[offset]`, reusing existing `String` buffers.
 fn write_browser_row_into_slot(
-    rows: &mut Vec<BrowserRowModel>,
+    rows: &mut radiant::app::RetainedVec<BrowserRowModel>,
     offset: usize,
     projection: (
         usize,
@@ -253,6 +257,7 @@ fn write_browser_row_into_slot(
         bool,
     ),
 ) {
+    let rows = rows.make_mut();
     let (
         visible_row,
         row_label,
@@ -278,14 +283,13 @@ fn write_browser_row_into_slot(
             row.marked = marked;
             row.rating_level = rating_level.clamp(-3, 3);
             row.playback_age_bucket = native_playback_age_bucket;
-            if row.label == row_label && row.bucket_label.as_deref() == bucket_label {
+            if row.label.as_ref() == row_label && row.bucket_label.as_deref() == bucket_label {
                 return;
             }
         }
         row.visible_row = visible_row;
-        if row.label != row_label {
-            row.label.clear();
-            row.label.push_str(row_label);
+        if row.label.as_ref() != row_label {
+            row.label = Arc::<str>::from(row_label);
         }
         row.column = clamped_column_index;
         row.rating_level = rating_level.clamp(-3, 3);
@@ -296,13 +300,9 @@ fn write_browser_row_into_slot(
         row.locked = locked;
         row.marked = marked;
         if let Some(bucket_label) = bucket_label {
-            if let Some(existing_bucket_label) = row.bucket_label.as_mut() {
-                if existing_bucket_label != bucket_label {
-                    existing_bucket_label.clear();
-                    existing_bucket_label.push_str(bucket_label);
-                }
-            } else {
-                row.bucket_label = Some(bucket_label.to_owned());
+            let next_bucket_label = Arc::<str>::from(bucket_label);
+            if row.bucket_label.as_deref() != Some(next_bucket_label.as_ref()) {
+                row.bucket_label = Some(next_bucket_label);
             }
         } else {
             row.bucket_label = None;

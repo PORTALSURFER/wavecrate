@@ -131,7 +131,7 @@ pub fn standard_browser_panel(config: CompanionBrowserPanelConfig) -> BrowserPan
         active_tab_label: config.active_tab_label,
         focused_sample_label: config.focused_sample_label,
         anchor_visible_row: None,
-        rows: config.rows,
+        rows: config.rows.into(),
     }
 }
 
@@ -165,7 +165,7 @@ pub fn standard_app_model(config: CompanionAppModelConfig) -> AppModel {
     model.browser_actions = BrowserActionsModel::default();
     model.browser = config.browser;
     model.browser_chrome = config.browser_chrome;
-    model.sources.rows = config.source_rows;
+    model.sources.rows = config.source_rows.into();
     model.update = config.update;
     model
 }

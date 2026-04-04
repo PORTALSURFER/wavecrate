@@ -74,7 +74,8 @@ pub(crate) fn project_sources_model(controller: &AppController) -> SourcesPanelM
                 )
                 .with_pane_assignment(upper_assigned, lower_assigned)
             })
-            .collect(),
+            .collect::<Vec<_>>()
+            .into(),
         folder_rows: active_folder_rows,
         folder_actions: active_folder_actions,
         folder_recovery: active_folder_recovery,
@@ -169,7 +170,7 @@ fn project_folder_pane_id(pane: FolderPaneId) -> FolderPaneIdModel {
     }
 }
 
-fn project_folder_rows(folder_ui: &FolderBrowserUiState) -> Vec<FolderRowModel> {
+fn project_folder_rows(folder_ui: &FolderBrowserUiState) -> radiant::app::RetainedVec<FolderRowModel> {
     let mut projected: Vec<FolderRowModel> = folder_ui
         .rows
         .iter()
@@ -231,7 +232,7 @@ fn project_folder_rows(folder_ui: &FolderBrowserUiState) -> Vec<FolderRowModel> 
             }
         }
     }
-    projected
+    projected.into()
 }
 
 fn projected_focused_folder_row(

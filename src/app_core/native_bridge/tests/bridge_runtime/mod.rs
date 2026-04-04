@@ -16,8 +16,8 @@ fn browser_row_bucket_label(
         .browser
         .rows
         .iter()
-        .find(|row| row.label == row_label)
-        .and_then(|row| row.bucket_label.clone())
+        .find(|row| row.label.as_ref() == row_label)
+        .and_then(|row| row.bucket_label.as_ref().map(ToString::to_string))
 }
 
 /// Focused projection tests for browser viewport refresh semantics.
