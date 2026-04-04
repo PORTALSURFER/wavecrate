@@ -4,7 +4,7 @@ Generated: 2026-04-04 (Europe/Amsterdam)
 Observed superproject commit: `7c4ea8fde2e1c6d1966aaff578c920365549e6f5`
 Observed `vendor/radiant` commit: `58e5fe249e86eae2f01ec3031a1397210b507e9d`
 Observed workspace state at audit time: dirty worktree with unrelated edits in `src/app/controller/library/source_folders/actions/rename_move_delete.rs`, `src/app/controller/library/wavs/selection_ops.rs`, and `src/app/controller/tests/browser_actions/focus_navigation/commit_focus.rs`
-Status: Phase 2 in progress on 2026-04-04. Items 1-4 are complete in commits `fc2fca4e`, `ef649778`, vendor/radiant `d13e5f55`, `ca24b6d3`, and `18f8d5d5`; item 5 is next.
+Status: Phase 2 in progress on 2026-04-04. Items 1-5 are complete in commits `fc2fca4e`, `ef649778`, vendor/radiant `d13e5f55`, `ca24b6d3`, `18f8d5d5`, and `9009d402`; item 6 is next.
 
 ## Scope
 
@@ -160,10 +160,11 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-4 are complete in commits `fc
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2940`, `hover_latency.p95_us = 3272`, `wheel_latency.p95_us = 4023`, `browser_focus_preview_latency.p95_us = 172`, and `browser_focus_commit_latency.p95_us = 205`
     - Manual startup timing check with native runtime logs was not run in this agent environment
 
-- [ ] 5. Tighten the retained browser row-cache hot loop to remove avoidable timestamp/path churn
+- [x] 5. Tighten the retained browser row-cache hot loop to remove avoidable timestamp/path churn
   - ROI: Medium
   - Effort: S
   - Expected impact: p95 interaction latency, memory, CPU
+  - Completed: 2026-04-04 in commit `9009d402`
   - Evidence:
     - `src/app_core/native_shell/browser_projection/cache.rs:129` calls `SystemTime::now()` per projected row to compute playback-age buckets
     - `src/app_core/native_shell/browser_projection/cache.rs:144`, `:183`, and `:188` clone `relative_path` on both cache-hit and cache-miss paths
@@ -181,6 +182,10 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-4 are complete in commits `fc
     - Extend `src/app_core/native_shell/tests/browser_cache.rs`
     - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
     - Re-run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+  - Validation result:
+    - `cargo test browser_cache --quiet` passed
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2704`, `hover_latency.p95_us = 3117`, `wheel_latency.p95_us = 3131`, `browser_focus_preview_latency.p95_us = 143`, and `browser_focus_commit_latency.p95_us = 150`
 
 - [ ] 6. Add retained text/layout caching for browser and status segments
   - ROI: Medium
