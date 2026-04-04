@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 in progress; items 1-4 complete on 2026-04-04
+Status: Phase 2 in progress; items 1-5 complete on 2026-04-04
 
 ## Evidence Snapshot
 
@@ -70,7 +70,7 @@ Status: Phase 2 in progress; items 1-4 complete on 2026-04-04
 - Completed: 2026-04-04 (`root` `849f0cf6`)
 - Validation plan: add selection-pruning and multi-select action tests across source reloads and deletes; rerun browser action test lanes plus `scripts/ci_agent.ps1`.
 
-### [ ] 5. Deduplicate optimistic metadata mutation batches and loaded-audio membership checks
+### [x] 5. Deduplicate optimistic metadata mutation batches and loaded-audio membership checks
 - ROI: High
 - Effort: M
 - Expected impact: p95 interaction latency, memory, CPU
@@ -82,6 +82,7 @@ Status: Phase 2 in progress; items 1-4 complete on 2026-04-04
 - Recommended change: introduce one retained metadata mutation batch object that carries deduped paths, optimistic cache deltas, rollback data, and worker operations once; use set membership for loaded-audio checks instead of `Vec::contains`.
 - Risk/tradeoffs: rollback correctness matters more than raw speed here; the batch object must stay easy to reason about.
 - Visual impact: None
+- Completed: 2026-04-04 (`root` `faf927d8`)
 - Validation plan: extend metadata mutation success/rollback tests, especially mixed BPM/no-op batches and loaded-audio optimistic refresh cases.
 
 ### [ ] 6. Reuse background workers for destructive selection edits and folder/file operations
