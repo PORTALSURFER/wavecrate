@@ -3,7 +3,7 @@ use super::common::format_bpm_label;
 use super::*;
 use crate::app::controller::jobs::AnalysisMetadataMutationOp;
 use crate::app::controller::state::runtime::MetadataRollback;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use tracing::{info, warn};
 
@@ -146,13 +146,13 @@ impl BrowserController<'_> {
         if !bpm.is_finite() || bpm <= 0.0 {
             return Err("BPM must be a positive number".to_string());
         }
-        let mut grouped: HashMap<SourceId, (SampleSource, Vec<PathBuf>)> = HashMap::new();
+        let mut grouped: HashMap<SourceId, (SampleSource, BTreeSet<PathBuf>)> = HashMap::new();
         for ctx in contexts {
             grouped
                 .entry(ctx.source.id.clone())
-                .or_insert_with(|| (ctx.source.clone(), Vec::new()))
+                .or_insert_with(|| (ctx.source.clone(), BTreeSet::new()))
                 .1
-                .push(ctx.entry.relative_path.clone());
+                .insert(ctx.entry.relative_path.clone());
         }
         let mut updated = 0usize;
         for (source_id, (source, paths)) in grouped {
@@ -197,13 +197,7 @@ impl BrowserController<'_> {
             if loaded_matches {
                 self.set_waveform_bpm_input(Some(bpm));
             }
-            self.queue_metadata_mutation(
-                &source,
-                Vec::new(),
-                analysis_ops,
-                rollback,
-                false,
-            );
+            self.queue_metadata_mutation(&source, Vec::new(), analysis_ops, rollback, false);
         }
         if updated > 0 {
             self.mark_browser_row_metadata_projection_revision_dirty();

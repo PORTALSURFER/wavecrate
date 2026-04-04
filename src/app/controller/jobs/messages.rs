@@ -104,6 +104,8 @@ pub(crate) struct MetadataMutationJob {
     pub(crate) source_id: SourceId,
     /// Source root used to open source and analysis databases.
     pub(crate) source_root: PathBuf,
+    /// Deduped relative sample paths touched by any mutation in the batch.
+    pub(crate) paths: BTreeSet<PathBuf>,
     /// Source-db mutations to apply.
     pub(crate) source_ops: Vec<SourceMetadataMutationOp>,
     /// Analysis-db mutations to apply.

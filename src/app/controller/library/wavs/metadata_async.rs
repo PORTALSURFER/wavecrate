@@ -23,12 +23,14 @@ impl AppController {
         if source_ops.is_empty() && analysis_ops.is_empty() {
             return;
         }
+        let paths = metadata_mutation_paths(&source_ops, &analysis_ops);
         if cfg!(test) {
             let request_id = self.runtime.jobs.next_metadata_request_id();
             let result = run_metadata_mutation_job(MetadataMutationJob {
                 request_id,
                 source_id: source.id.clone(),
                 source_root: source.root.clone(),
+                paths: paths.clone(),
                 source_ops,
                 analysis_ops,
             });
@@ -51,24 +53,6 @@ impl AppController {
             return;
         }
         let request_id = self.runtime.jobs.next_metadata_request_id();
-        let mut paths = BTreeSet::new();
-        for op in &source_ops {
-            match op {
-                SourceMetadataMutationOp::SetTagAndLocked { relative_path, .. }
-                | SourceMetadataMutationOp::SetLooped { relative_path, .. }
-                | SourceMetadataMutationOp::SetLastPlayedAt { relative_path, .. } => {
-                    paths.insert(relative_path.clone());
-                }
-            }
-        }
-        for op in &analysis_ops {
-            match op {
-                AnalysisMetadataMutationOp::SetBpm { relative_path, .. }
-                | AnalysisMetadataMutationOp::SetLoadedDuration { relative_path, .. } => {
-                    paths.insert(relative_path.clone());
-                }
-            }
-        }
         for path in &paths {
             self.runtime
                 .pending_metadata_paths
@@ -88,6 +72,7 @@ impl AppController {
             request_id,
             source_id: source.id.clone(),
             source_root: source.root.clone(),
+            paths,
             source_ops,
             analysis_ops,
         };
@@ -140,7 +125,9 @@ impl AppController {
 
     /// Return whether one source currently owns a background file mutation.
     pub(crate) fn source_has_pending_file_mutations(&self, source_id: &SourceId) -> bool {
-        self.runtime.pending_file_mutation_sources.contains(source_id)
+        self.runtime
+            .pending_file_mutation_sources
+            .contains(source_id)
     }
 
     /// Mark one source/path batch as owned by a background file mutation.
@@ -181,38 +168,45 @@ impl AppController {
     }
 }
 
-/// Execute one source-scoped metadata mutation batch.
-pub(crate) fn run_metadata_mutation_job(job: MetadataMutationJob) -> MetadataMutationResult {
-    let started_at = Instant::now();
+fn metadata_mutation_paths(
+    source_ops: &[SourceMetadataMutationOp],
+    analysis_ops: &[AnalysisMetadataMutationOp],
+) -> BTreeSet<PathBuf> {
     let mut paths = BTreeSet::new();
-    let mut result = Ok(());
-    if !job.source_ops.is_empty() {
-        result = run_source_metadata_ops(&job.source_root, &job.source_ops);
-        for op in &job.source_ops {
-            match op {
-                SourceMetadataMutationOp::SetTagAndLocked { relative_path, .. }
-                | SourceMetadataMutationOp::SetLooped { relative_path, .. }
-                | SourceMetadataMutationOp::SetLastPlayedAt { relative_path, .. } => {
-                    paths.insert(relative_path.clone());
-                }
+    for op in source_ops {
+        match op {
+            SourceMetadataMutationOp::SetTagAndLocked { relative_path, .. }
+            | SourceMetadataMutationOp::SetLooped { relative_path, .. }
+            | SourceMetadataMutationOp::SetLastPlayedAt { relative_path, .. } => {
+                paths.insert(relative_path.clone());
             }
         }
     }
-    if result.is_ok() && !job.analysis_ops.is_empty() {
-        result = run_analysis_metadata_ops(&job);
-        for op in &job.analysis_ops {
-            match op {
-                AnalysisMetadataMutationOp::SetBpm { relative_path, .. }
-                | AnalysisMetadataMutationOp::SetLoadedDuration { relative_path, .. } => {
-                    paths.insert(relative_path.clone());
-                }
+    for op in analysis_ops {
+        match op {
+            AnalysisMetadataMutationOp::SetBpm { relative_path, .. }
+            | AnalysisMetadataMutationOp::SetLoadedDuration { relative_path, .. } => {
+                paths.insert(relative_path.clone());
             }
         }
+    }
+    paths
+}
+
+/// Execute one source-scoped metadata mutation batch.
+pub(crate) fn run_metadata_mutation_job(job: MetadataMutationJob) -> MetadataMutationResult {
+    let started_at = Instant::now();
+    let mut result = Ok(());
+    if !job.source_ops.is_empty() {
+        result = run_source_metadata_ops(&job.source_root, &job.source_ops);
+    }
+    if result.is_ok() && !job.analysis_ops.is_empty() {
+        result = run_analysis_metadata_ops(&job);
     }
     MetadataMutationResult {
         request_id: job.request_id,
         source_id: job.source_id,
-        paths,
+        paths: job.paths,
         elapsed: started_at.elapsed(),
         result,
     }
@@ -265,20 +259,18 @@ fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
         .analysis_ops
         .iter()
         .filter_map(|op| match op {
-            AnalysisMetadataMutationOp::SetBpm { relative_path, bpm } => {
-                Some((relative_path, bpm))
-            }
+            AnalysisMetadataMutationOp::SetBpm { relative_path, bpm } => Some((relative_path, bpm)),
             AnalysisMetadataMutationOp::SetLoadedDuration { .. } => None,
         })
         .collect();
     if !bpm_ops.is_empty() {
         let sample_ids: Vec<String> = bpm_ops
             .iter()
-            .map(|(relative_path, _)| analysis_jobs::build_sample_id(job.source_id.as_str(), relative_path))
+            .map(|(relative_path, _)| {
+                analysis_jobs::build_sample_id(job.source_id.as_str(), relative_path)
+            })
             .collect();
-        let bpm = bpm_ops
-            .first()
-            .and_then(|(_, bpm)| **bpm);
+        let bpm = bpm_ops.first().and_then(|(_, bpm)| **bpm);
         analysis_jobs::update_sample_bpms(&mut conn, &sample_ids, bpm)?;
     }
     for op in &job.analysis_ops {
@@ -319,4 +311,42 @@ fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metadata_mutation_paths_dedup_across_source_and_analysis_ops() {
+        let paths = metadata_mutation_paths(
+            &[
+                SourceMetadataMutationOp::SetLooped {
+                    relative_path: PathBuf::from("one.wav"),
+                    looped: true,
+                },
+                SourceMetadataMutationOp::SetLastPlayedAt {
+                    relative_path: PathBuf::from("two.wav"),
+                    played_at: 5,
+                },
+            ],
+            &[
+                AnalysisMetadataMutationOp::SetBpm {
+                    relative_path: PathBuf::from("one.wav"),
+                    bpm: Some(120.0),
+                },
+                AnalysisMetadataMutationOp::SetLoadedDuration {
+                    relative_path: PathBuf::from("two.wav"),
+                    duration_seconds: 1.0,
+                    sample_rate: 44_100,
+                    long_sample_mark: Some(false),
+                },
+            ],
+        );
+
+        assert_eq!(
+            paths.into_iter().collect::<Vec<_>>(),
+            vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")]
+        );
+    }
 }
