@@ -57,11 +57,9 @@ impl AppController {
 
     fn prune_browser_selection(&mut self) {
         let previous_paths = self.ui.browser.selection.selected_paths.clone();
-        let mut selected_paths = Vec::with_capacity(previous_paths.len());
-        for path in previous_paths.iter() {
-            let Some(entry_index) = self.wav_index_for_path(path) else {
-                continue;
-            };
+        let selected_indices = self.browser_selected_indices_snapshot();
+        let mut selected_paths = Vec::with_capacity(selected_indices.len());
+        for entry_index in selected_indices {
             let Some(current_path) = self
                 .wav_entry(entry_index)
                 .map(|entry| entry.relative_path.clone())

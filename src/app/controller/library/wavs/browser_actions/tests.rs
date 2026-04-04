@@ -259,3 +259,20 @@ fn focus_browser_row_and_play_queues_latest_preview_for_unloaded_sample() {
         Some(PathBuf::from("two.wav"))
     );
 }
+
+#[test]
+/// Selected-index cache should rebuild when unrelated source entries shift absolute indices.
+fn browser_selected_indices_rebuild_after_source_entry_shift() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+    ]);
+    controller.set_browser_selected_paths(vec![PathBuf::from("two.wav")]);
+
+    assert_eq!(controller.browser_selected_indices(), [1]);
+    controller
+        .prune_missing_sample(&source, Path::new("one.wav"))
+        .expect("prune missing sample");
+
+    assert_eq!(controller.browser_selected_indices(), [0]);
+}

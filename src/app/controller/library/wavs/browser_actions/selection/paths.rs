@@ -6,22 +6,33 @@
 
 use super::*;
 use std::path::{Path, PathBuf};
+use std::collections::HashSet;
 
 impl AppController {
     /// Invalidate the retained selected-index cache after selection-path edits.
     fn invalidate_browser_selected_indices_cache(&mut self) {
-        self.ui.browser.selection.selected_indices_cache.revision = self
+        let cache = &mut self.ui.browser.selection.selected_indices_cache;
+        cache.revision = self
             .ui
             .browser
             .selection
             .selected_paths_revision
             .wrapping_sub(1);
-        self.ui
-            .browser
-            .selection
-            .selected_indices_cache
-            .indices
-            .clear();
+        cache.source_id = None;
+        cache.source_revision = None;
+        cache.entries_len = 0;
+        cache.indices.clear();
+    }
+
+    /// Return the current source snapshot identity for selected-index cache validation.
+    fn browser_selected_indices_cache_identity(&mut self) -> (Option<SourceId>, Option<u64>, usize) {
+        let source_id = self.selection_state.ctx.selected_source.clone();
+        let source_revision = self
+            .current_source()
+            .filter(|source| Some(&source.id) == source_id.as_ref())
+            .and_then(|source| self.database_for(&source).ok())
+            .and_then(|db| db.get_revision().ok());
+        (source_id, source_revision, self.wav_entries_len())
     }
 
     /// Bump selection revision and invalidate derived browser-selection caches.
@@ -40,11 +51,12 @@ impl AppController {
     fn rebuild_browser_selected_indices_from_paths(&mut self) -> Vec<usize> {
         let selected_paths = self.ui.browser.selection.selected_paths.clone();
         let mut selected_indices = Vec::with_capacity(selected_paths.len());
+        let mut seen = HashSet::with_capacity(selected_paths.len());
         for path in &selected_paths {
             let Some(entry_index) = self.wav_index_for_path(path) else {
                 continue;
             };
-            if !selected_indices.contains(&entry_index) {
+            if seen.insert(entry_index) {
                 selected_indices.push(entry_index);
             }
         }
@@ -54,10 +66,21 @@ impl AppController {
     /// Return the current browser multi-selection as absolute entry indices.
     pub(crate) fn browser_selected_indices(&mut self) -> &[usize] {
         let selection_revision = self.ui.browser.selection.selected_paths_revision;
-        if self.ui.browser.selection.selected_indices_cache.revision != selection_revision {
-            self.ui.browser.selection.selected_indices_cache.indices =
-                self.rebuild_browser_selected_indices_from_paths();
-            self.ui.browser.selection.selected_indices_cache.revision = selection_revision;
+        let (source_id, source_revision, entries_len) =
+            self.browser_selected_indices_cache_identity();
+        let cache = &self.ui.browser.selection.selected_indices_cache;
+        let cache_matches = cache.revision == selection_revision
+            && cache.source_id == source_id
+            && cache.source_revision == source_revision
+            && cache.entries_len == entries_len;
+        if !cache_matches {
+            let rebuilt = self.rebuild_browser_selected_indices_from_paths();
+            let cache = &mut self.ui.browser.selection.selected_indices_cache;
+            cache.indices = rebuilt;
+            cache.revision = selection_revision;
+            cache.source_id = source_id;
+            cache.source_revision = source_revision;
+            cache.entries_len = entries_len;
         }
         &self.ui.browser.selection.selected_indices_cache.indices
     }

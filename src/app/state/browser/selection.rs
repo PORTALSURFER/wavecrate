@@ -1,4 +1,5 @@
 use super::SampleBrowserState;
+use crate::sample_sources::SourceId;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 
@@ -82,6 +83,12 @@ fn hash_paths(paths: &[PathBuf]) -> u64 {
 pub struct BrowserSelectedIndicesCache {
     /// Selection revision for which `indices` is valid.
     pub revision: u64,
+    /// Source id for which `indices` is valid.
+    pub source_id: Option<SourceId>,
+    /// Source DB revision for which `indices` is valid.
+    pub source_revision: Option<u64>,
+    /// Total wav-entry count for which `indices` is valid.
+    pub entries_len: usize,
     /// Absolute entry indices derived from `SampleBrowserState::selected_paths`.
     pub indices: Vec<usize>,
 }
