@@ -4,7 +4,7 @@ Generated: 2026-04-04 (Europe/Amsterdam)
 Observed superproject commit: `7c4ea8fde2e1c6d1966aaff578c920365549e6f5`
 Observed `vendor/radiant` commit: `58e5fe249e86eae2f01ec3031a1397210b507e9d`
 Observed workspace state at audit time: dirty worktree with unrelated edits in `src/app/controller/library/source_folders/actions/rename_move_delete.rs`, `src/app/controller/library/wavs/selection_ops.rs`, and `src/app/controller/tests/browser_actions/focus_navigation/commit_focus.rs`
-Status: Phase 2 in progress on 2026-04-04. Items 1-2 are complete in commits `fc2fca4e` and `ef649778`; item 3 is next.
+Status: Phase 2 in progress on 2026-04-04. Items 1-3 are complete in commits `fc2fca4e`, `ef649778`, and vendor/radiant `d13e5f55`; item 4 is next.
 
 ## Scope
 
@@ -100,28 +100,35 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-2 are complete in commits `fc
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2700`, `hover_latency.p95_us = 3065`, and `wheel_latency.p95_us = 3195`
 
-- [ ] 3. Narrow browser navigation invalidation in the native runtime to segment-scoped rebuilds
+- [x] 3. Narrow browser navigation invalidation in the native runtime to segment-scoped rebuilds
   - ROI: High
   - Effort: M
   - Expected impact: p95 interaction latency, frame time, CPU
+  - Completed: 2026-04-04 in vendor/radiant commit `d13e5f55`
   - Evidence:
     - Current live perf run keeps the user-visible tail on navigation-heavy scenarios high: `hover_latency.p95_us = 4238`, `wheel_latency.p95_us = 4643`
-    - `vendor/radiant/src/gui_runtime/native_vello/runtime_actions.rs:61-70` classifies `MoveBrowserFocus`, `FocusBrowserRow`, selection-toggle actions, and `SetBrowserViewStart` as `RuntimeInvalidationScope::StaticAndOverlays`
-    - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/invalidation.rs:56-61` turns `StaticAndOverlays` into `mark_model_dirty()`, which requests a model refresh instead of a smaller overlay- or segment-only update
+    - At the start of Phase 2, `vendor/radiant/src/gui_runtime/native_vello/runtime_actions.rs:61-70` still classified `UiAction::SetBrowserViewStart` as `RuntimeInvalidationScope::StaticAndOverlays`, even though the surrounding browser focus and selection actions were already on `ModelAndOverlays`
+    - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/invalidation.rs:56-61` turns `StaticAndOverlays` into `mark_model_dirty()`, which requests an explicit static-scene rebuild instead of relying on the bridge-driven segment path
     - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/rebuild.rs:237-260` already routes static rebuilds through the incremental segment pipeline
     - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/static_segments.rs:7-52` can rebuild only the dirty static segments rather than the entire static frame
   - Recommended change:
-    - Add one browser-navigation invalidation scope that dirties only the segments actually touched by preview focus and viewport movement: browser rows, browser frame/status when required, and focus overlay.
-    - Keep the existing broader scope only for actions that truly change selected-path membership, browser footer summaries, or other cross-panel state.
-    - Reuse bridge dirty segments and segment revisions rather than forcing full model dirtiness for every browser movement action.
+    - Keep browser viewport movement on `ModelAndOverlays` so the runtime still pulls fresh model state, but stop forcing an explicit static-scene rebuild for `SetBrowserViewStart`.
+    - Keep relying on bridge dirty segments and segment revisions to decide whether browser rows, browser frame, or status segments actually need static work.
+    - Lock the narrower contract down in runtime-core tests so future action-scope regressions are caught immediately.
   - Risk/tradeoffs:
-    - Incorrect scoping could leave stale focus emphasis, footer summaries, or autoscroll state on screen.
-    - Some navigation actions currently piggyback on broader invalidation for safety, so the split needs test coverage around preview vs commit semantics.
+    - Incorrect scoping could leave stale footer summaries or viewport chrome on screen if the bridge under-reports dirty static segments.
+    - `SetBrowserViewStart` is the highest-risk action in this group because it can touch both the row window and browser chrome.
   - Visual impact: Needs review
   - Validation plan:
     - Extend `vendor/radiant/src/gui_runtime/native_vello/tests/runtime_core/invalidation.rs`
     - Run focused browser-navigation native-runtime tests in `vendor/radiant`
     - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+    - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+  - Validation result:
+    - `cargo test -p radiant invalidation --quiet` passed
+    - `cargo test -p radiant browser_row_pointer_action --quiet` passed
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2971`, `hover_latency.p95_us = 3076`, `wheel_latency.p95_us = 3091`, `browser_focus_preview_latency.p95_us = 148`, and `browser_focus_commit_latency.p95_us = 156`
 
 - [ ] 4. Split first-paint source hydration into a minimal page-0 payload and deferred heavy follow-up work
   - ROI: High
