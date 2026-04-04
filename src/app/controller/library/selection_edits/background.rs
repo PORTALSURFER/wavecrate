@@ -1,6 +1,6 @@
 use super::super::*;
 use super::*;
-use crate::app::controller::jobs::{FileOpMessage, FileOpResult, SelectionEditCommitResult};
+use crate::app::controller::jobs::{FileOpResult, SelectionEditCommitResult};
 use crate::app::controller::library::selection_edits::buffer::load_selection_buffer;
 use crate::app::controller::library::selection_edits::duplicate_cleanup::trim_cleanup_ranges_from_buffer;
 use crate::selection::SelectionRange;
@@ -103,11 +103,10 @@ impl AppController {
             format!("{} {}...", action_label, target.relative_path.display()),
             StatusTone::Busy,
         );
-        let (tx, rx) = std::sync::mpsc::channel();
-        let cancel = Arc::new(AtomicBool::new(false));
-        self.runtime.jobs.start_file_ops(rx, cancel.clone());
-        std::thread::spawn(move || {
-            let result = run_selection_edit_commit_job(
+        let pending_source_id = target.source.id.clone();
+        let pending_path = target.relative_path.clone();
+        if let Err(err) = self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
+            FileOpResult::SelectionEditCommit(run_selection_edit_commit_job(
                 target,
                 action_label,
                 status_message,
@@ -118,9 +117,11 @@ impl AppController {
                 clear_edit_fades,
                 op,
                 cancel,
-            );
-            let _ = tx.send(FileOpMessage::Finished(FileOpResult::SelectionEditCommit(result)));
-        });
+            ))
+        }) {
+            self.finish_pending_file_mutation(&pending_source_id, [pending_path]);
+            return Err(err);
+        }
         Ok(())
     }
 }

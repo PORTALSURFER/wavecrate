@@ -102,15 +102,14 @@ impl BrowserController<'_> {
                     .collect::<Vec<_>>(),
             );
         }
-        let (tx, rx) = std::sync::mpsc::channel();
-        let cancel = Arc::new(AtomicBool::new(false));
-        self.runtime.jobs.start_file_ops(rx, cancel.clone());
-        std::thread::spawn(move || {
-            let result = run_sample_delete_job(contexts, next_focus, initial_error, cancel);
-            let _ = tx.send(crate::app::controller::jobs::FileOpMessage::Finished(
-                crate::app::controller::jobs::FileOpResult::SampleDelete(result),
-            ));
-        });
+        self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
+            crate::app::controller::jobs::FileOpResult::SampleDelete(run_sample_delete_job(
+                contexts,
+                next_focus,
+                initial_error,
+                cancel,
+            ))
+        })?;
         self.set_status("Deleting samples...", StatusTone::Busy);
         Ok(())
     }

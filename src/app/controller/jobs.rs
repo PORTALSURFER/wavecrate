@@ -6,6 +6,8 @@ mod dispatch;
 mod dispatch_runtime;
 /// File-operation request and result DTOs.
 mod file_ops_types;
+/// Reusable worker lane for one-shot file-operation tasks.
+mod file_op_worker;
 /// Issue-gateway and issue-token worker runners.
 mod issue_gateway_jobs;
 /// Controller job lifecycle and queue plumbing.
@@ -91,6 +93,7 @@ pub(crate) struct ControllerJobs {
     recording_waveform_loader: RecordingWaveformWorkerHandle,
     search_worker: crate::app::controller::library::wavs::browser_search_worker::SearchWorkerHandle,
     source_watcher: SourceWatcherHandle,
+    file_op_worker: file_op_worker::FileOpWorkerHandle,
     forwarders: Option<JobForwarderHandles>,
     message_tx: JobMessageSender,
     message_rx: Receiver<JobMessage>,

@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::controller::jobs::{FileOpMessage, FileOpResult, NormalizationJob, SampleRenameResult};
+use crate::app::controller::jobs::{FileOpResult, NormalizationJob, SampleRenameResult};
 use crate::app::controller::undo;
 use std::sync::{Arc, atomic::AtomicBool};
 
@@ -289,23 +289,24 @@ impl BrowserController<'_> {
             format!("Renaming {}...", ctx.entry.relative_path.display()),
             StatusTone::Busy,
         );
-        let (tx, rx) = std::sync::mpsc::channel();
-        let cancel = Arc::new(AtomicBool::new(false));
-        self.runtime.jobs.start_file_ops(rx, cancel.clone());
-        std::thread::spawn(move || {
-            let result = run_sample_rename_job(
+        let pending_source_id = ctx.source.id.clone();
+        let pending_path = ctx.entry.relative_path.clone();
+        if let Err(err) = self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
+            FileOpResult::SampleRename(run_sample_rename_job(
                 ctx,
                 new_relative,
                 tag,
                 is_currently_loaded && was_playing,
                 was_looping,
-                playhead_position.is_finite().then(|| {
-                    f64::from(playhead_position.clamp(0.0, 1.0))
-                }),
+                playhead_position
+                    .is_finite()
+                    .then(|| f64::from(playhead_position.clamp(0.0, 1.0))),
                 cancel,
-            );
-            let _ = tx.send(FileOpMessage::Finished(FileOpResult::SampleRename(result)));
-        });
+            ))
+        }) {
+            self.finish_pending_file_mutation(&pending_source_id, [pending_path]);
+            return Err(err);
+        }
         Ok(())
     }
 

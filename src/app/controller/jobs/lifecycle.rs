@@ -27,6 +27,8 @@ impl ControllerJobs {
         let repaint_signal = Arc::new(SharedRepaintSignal::default());
         let latest_waveform_render_request_id = Arc::new(AtomicU64::new(0));
         let latest_waveform_transient_request_id = Arc::new(AtomicU64::new(0));
+        let file_op_worker =
+            file_op_worker::FileOpWorkerHandle::spawn(message_tx.clone(), repaint_signal.clone());
         let forwarders = JobForwarderHandles::spawn(JobForwarderSpawnConfig {
             message_tx: message_tx.clone(),
             repaint_signal: repaint_signal.clone(),
@@ -46,6 +48,7 @@ impl ControllerJobs {
             recording_waveform_loader,
             search_worker,
             source_watcher,
+            file_op_worker,
             forwarders: Some(forwarders),
             message_tx,
             message_rx,
@@ -102,6 +105,7 @@ impl ControllerJobs {
         self.recording_waveform_loader.shutdown();
         self.audio_loader.shutdown();
         self.wav_loader.shutdown();
+        self.file_op_worker.shutdown();
         if let Some(forwarders) = self.forwarders.take() {
             forwarders.join();
         }

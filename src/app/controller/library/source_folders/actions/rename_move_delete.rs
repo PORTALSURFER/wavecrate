@@ -1,7 +1,7 @@
 use super::super::delete_recovery;
 use super::ops;
 use super::*;
-use crate::app::controller::jobs::{FileOpMessage, FileOpResult, FolderDeleteResult, FolderRenameResult};
+use crate::app::controller::jobs::{FileOpResult, FolderDeleteResult, FolderRenameResult};
 use crate::app::controller::undo::{UndoEntry, UndoExecution};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -72,13 +72,20 @@ impl AppController {
             format!("Renaming folder {}...", target.display()),
             StatusTone::Busy,
         );
-        let (tx, rx) = std::sync::mpsc::channel();
-        let cancel = Arc::new(AtomicBool::new(false));
-        self.runtime.jobs.start_file_ops(rx, cancel.clone());
-        std::thread::spawn(move || {
-            let result = run_folder_rename_job(source, target_path, new_relative, affected, cancel);
-            let _ = tx.send(FileOpMessage::Finished(FileOpResult::FolderRename(result)));
-        });
+        let pending_source_id = source.id.clone();
+        let pending_path = target.to_path_buf();
+        if let Err(err) = self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
+            FileOpResult::FolderRename(run_folder_rename_job(
+                source,
+                target_path,
+                new_relative,
+                affected,
+                cancel,
+            ))
+        }) {
+            self.finish_pending_file_mutation(&pending_source_id, [pending_path]);
+            return Err(err);
+        }
         Ok(())
     }
 
@@ -172,13 +179,20 @@ impl AppController {
             format!("Deleting folder {}...", target.display()),
             StatusTone::Busy,
         );
-        let (tx, rx) = std::sync::mpsc::channel();
-        let cancel = Arc::new(AtomicBool::new(false));
-        self.runtime.jobs.start_file_ops(rx, cancel.clone());
-        std::thread::spawn(move || {
-            let result = run_folder_delete_job(source, target_path, entries, next_focus, cancel);
-            let _ = tx.send(FileOpMessage::Finished(FileOpResult::FolderDelete(result)));
-        });
+        let pending_source_id = source.id.clone();
+        let pending_path = target.to_path_buf();
+        if let Err(err) = self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
+            FileOpResult::FolderDelete(run_folder_delete_job(
+                source,
+                target_path,
+                entries,
+                next_focus,
+                cancel,
+            ))
+        }) {
+            self.finish_pending_file_mutation(&pending_source_id, [pending_path]);
+            return Err(err);
+        }
         Ok(true)
     }
 
@@ -469,7 +483,10 @@ fn run_folder_rename_job(
             for entry in &affected {
                 let new_relative = new_folder.join(
                     entry.relative_path.strip_prefix(&old_folder).map_err(|_| {
-                        format!("Folder entry missing expected prefix: {}", entry.relative_path.display())
+                        format!(
+                            "Folder entry missing expected prefix: {}",
+                            entry.relative_path.display()
+                        )
                     })?,
                 );
                 batch
@@ -551,12 +568,7 @@ fn run_folder_delete_job(
         }
         if let Err(err) = batch.commit() {
             let message = format!("Failed to save folder delete: {err}");
-            delete_recovery::rollback_staged_folder(
-                &staged,
-                &absolute,
-                &staging_root,
-                &message,
-            )?;
+            delete_recovery::rollback_staged_folder(&staged, &absolute, &staging_root, &message)?;
             return Err(message);
         }
         delete_recovery::mark_delete_retained(&staging_root, &staged.id)?;
