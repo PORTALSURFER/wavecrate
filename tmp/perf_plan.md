@@ -1,6 +1,6 @@
 # Runtime Performance Audit Plan
 
-Status: Phase 2 in progress on 2026-04-04. Items 1-2 are complete; items 3-6 are pending.
+Status: Phase 2 in progress on 2026-04-04. Items 1-3 are complete; items 4-6 are pending.
 
 - Repository state audited: superproject `7d2b4dc2`, `vendor/radiant` `427e115b`
 - Workspace note: the live tree is dirty with unrelated user edits; Phase 2 must avoid overwriting them.
@@ -84,7 +84,7 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-2 are complete; items 3-6 are
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency = 2416us` p95, `browser_query_churn_latency = 159us` p95, `browser_sort_toggle_latency = 154us` p95, `hover_latency = 2351us` p95, `wheel_latency = 2508us` p95, `browser_focus_preview_latency = 152us` p95, `browser_focus_commit_latency = 172us` p95, `waveform_interaction_latency = 207us` p95, and `waveform_pan_zoom_adjacent_latency = 175us` p95.
 
-### [ ] 3. Move feature-refresh scheduling and base-stage DB revision probes out of the hot row-projection path
+### [x] 3. Move feature-refresh scheduling and base-stage DB revision probes out of the hot row-projection path
 - ROI: High
 - Effort: M
 - Expected impact: p95 interaction latency, startup follow-up latency, CPU
@@ -103,7 +103,17 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-2 are complete; items 3-6 are
   - Add browser pipeline tests for source revision changes, selection-only interaction, and feature-cache refresh triggering.
   - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
   - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
-- Completion record: Pending
+- Completion record: 2026-04-04, commit `4ee6ad01`
+- Validation result:
+  - Browser row-window rendering no longer queues feature-cache refresh work; refresh scheduling now happens when visible-row projections are applied, while base-stage reuse trusts explicit pipeline invalidation instead of probing the source DB revision on each rebuild.
+  - Same-path tag, loop, playback-age, rollback, and test-entry mutations now invalidate the retained browser pipeline so cached compact rows stay fresh.
+  - `base_stage_reuses_cached_fingerprint_without_rechecking_db_revision` passed.
+  - `base_stage_rebuilds_after_same_path_tag_updates` passed.
+  - `rebuild_browser_lists_queues_feature_cache_refresh` passed.
+  - `browser_rows_projection_does_not_queue_feature_cache_refresh` passed.
+  - `browser_feature_cache_refresh_updates_row_metadata` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency = 3410us` p95, `browser_query_churn_latency = 62us` p95, `browser_sort_toggle_latency = 62us` p95, `hover_latency = 2296us` p95, `wheel_latency = 2442us` p95, `browser_focus_preview_latency = 51us` p95, `browser_focus_commit_latency = 58us` p95, `waveform_interaction_latency = 216us` p95, and `waveform_pan_zoom_adjacent_latency = 168us` p95.
 
 ### [ ] 4. Collapse startup hydration path normalization and folder-derivation filesystem churn
 - ROI: High
