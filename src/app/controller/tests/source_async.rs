@@ -1,6 +1,8 @@
 use super::super::jobs::{
-    JobMessage, SourceHydrationKind, SourceHydrationResult, SourceHydrationSnapshot,
+    JobMessage, SourceDbMaintenanceOutcome, SourceDbMaintenanceResult, SourceHydrationKind,
+    SourceHydrationResult, SourceHydrationSnapshot,
 };
+use super::super::library::source_folders::with_folder_projection_async_enabled_for_tests;
 use super::super::library::sources::hydration::with_source_hydration_async_enabled_for_tests;
 use super::super::library::wavs::with_browser_async_pipeline_enabled_for_tests;
 use super::super::test_support::sample_entry;
@@ -52,11 +54,13 @@ fn cache_source_entries(
 }
 
 fn upsert_source_db_entry(controller: &mut AppController, source: &SampleSource, entry: &WavEntry) {
+    let absolute_path = source.root.join(&entry.relative_path);
     if let Some(parent) = entry.relative_path.parent()
         && !parent.as_os_str().is_empty()
     {
         std::fs::create_dir_all(source.root.join(parent)).unwrap();
     }
+    std::fs::write(&absolute_path, b"fixture").unwrap();
     let db = controller.database_for(source).unwrap();
     db.upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)
         .unwrap();
@@ -109,8 +113,26 @@ fn hydration_result(
             folder_tree,
             feature_cache: None,
             from_cache,
+            deferred_follow_up_work: false,
         }),
     }
+}
+
+fn maintenance_result(
+    source: &SampleSource,
+    refresh_required: bool,
+    orphan_rows_removed: usize,
+) -> JobMessage {
+    JobMessage::SourceDbMaintenanceFinished(SourceDbMaintenanceResult {
+        outcomes: vec![SourceDbMaintenanceOutcome {
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+            skipped: false,
+            orphan_rows_removed,
+            refresh_required,
+            error: None,
+        }],
+    })
 }
 
 #[test]
@@ -383,4 +405,99 @@ fn async_source_hydration_keeps_loading_until_async_browser_projection_applies()
     assert!(!controller.ui.browser.search.source_loading);
     assert!(!controller.ui.browser.search.search_busy);
     assert_eq!(visible_indices(&controller), vec![0]);
+}
+
+#[test]
+fn startup_active_source_hydration_defers_follow_up_work_after_first_paint() {
+    let (mut controller, sources) = build_controller_with_sources(&["source-a", "source-b"]);
+    controller.set_wav_entries_for_tests(vec![sample_entry("alpha.wav", Rating::NEUTRAL)]);
+    controller.rebuild_browser_lists();
+
+    let hydrated_entries = vec![
+        sample_entry("folder/kick.wav", Rating::KEEP_1),
+        sample_entry("snare.wav", Rating::NEUTRAL),
+    ];
+    std::fs::create_dir_all(sources[1].root.join("folder")).unwrap();
+    cache_source_entries(&mut controller, &sources[1], hydrated_entries.clone());
+
+    with_folder_projection_async_enabled_for_tests(true, || {
+        with_source_hydration_async_enabled_for_tests(true, || {
+            controller.select_source_by_index(1);
+            let request_id = controller
+                .runtime
+                .pending_active_source_hydration
+                .as_ref()
+                .expect("pending source hydration")
+                .request_id;
+            let mut result = hydration_result(
+                &controller,
+                &sources[1],
+                request_id,
+                FolderPaneId::Upper,
+                SourceHydrationKind::ActiveSelection,
+                hydrated_entries.clone(),
+                true,
+            );
+            if let Ok(snapshot) = result.result.as_mut() {
+                snapshot.deferred_follow_up_work = true;
+            }
+            controller.apply_background_job_message_for_tests(JobMessage::SourceHydrated(result));
+        });
+    });
+
+    assert_eq!(controller.selected_source_id(), Some(sources[1].id.clone()));
+    assert_eq!(controller.wav_entries.total, 2);
+    assert_eq!(visible_indices(&controller), vec![0, 1]);
+    assert!(
+        controller
+            .runtime
+            .pending_folder_projections
+            .contains_key(&FolderPaneId::Upper)
+    );
+    assert!(
+        controller
+            .ui
+            .sources
+            .folder_pane(FolderPaneId::Upper)
+            .projecting
+    );
+    assert!(
+        controller
+            .runtime
+            .pending_browser_feature_cache_refresh
+            .is_some()
+    );
+    assert!(
+        controller
+            .ui_cache
+            .browser
+            .features
+            .get(&sources[1].id)
+            .is_none()
+    );
+}
+
+#[test]
+fn deferred_source_db_maintenance_refreshes_selected_source_when_required() {
+    let (mut controller, sources) = build_controller_with_sources(&["source-a"]);
+    let source = sources[0].clone();
+    let initial_entries = vec![sample_entry("alpha.wav", Rating::NEUTRAL)];
+    controller.set_wav_entries_for_tests(initial_entries.clone());
+    cache_source_entries(&mut controller, &source, initial_entries.clone());
+    controller.rebuild_browser_lists();
+    assert_eq!(visible_indices(&controller), vec![0]);
+
+    let refreshed_entries = vec![
+        sample_entry("alpha.wav", Rating::NEUTRAL),
+        sample_entry("beta.wav", Rating::KEEP_1),
+    ];
+    for entry in &refreshed_entries {
+        upsert_source_db_entry(&mut controller, &source, entry);
+    }
+
+    controller.apply_background_job_message_for_tests(maintenance_result(&source, true, 0));
+
+    assert_eq!(controller.selected_source_id(), Some(source.id.clone()));
+    assert_eq!(controller.wav_entries.total, 2);
+    assert_eq!(visible_indices(&controller), vec![0, 1]);
 }
