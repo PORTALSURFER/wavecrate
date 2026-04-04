@@ -1,6 +1,6 @@
 # Runtime Performance Audit Plan
 
-Status: Phase 2 in progress on 2026-04-04. Item 1 is complete; items 2-6 are pending.
+Status: Phase 2 in progress on 2026-04-04. Items 1-2 are complete; items 3-6 are pending.
 
 - Repository state audited: superproject `7d2b4dc2`, `vendor/radiant` `427e115b`
 - Workspace note: the live tree is dirty with unrelated user edits; Phase 2 must avoid overwriting them.
@@ -55,7 +55,7 @@ Status: Phase 2 in progress on 2026-04-04. Item 1 is complete; items 2-6 are pen
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency = 2617us` p95, `hover_latency = 4288us` p95, `wheel_latency = 3169us` p95, `browser_focus_preview_latency = 179us` p95, and `browser_focus_commit_latency = 228us` p95.
 
-### [ ] 2. Remove UI-thread wav page loads from browser row projection and BPM preload
+### [x] 2. Remove UI-thread wav page loads from browser row projection and BPM preload
 - ROI: High
 - Effort: M
 - Expected impact: p95 interaction latency, CPU, I/O
@@ -75,7 +75,14 @@ Status: Phase 2 in progress on 2026-04-04. Item 1 is complete; items 2-6 are pen
   - Extend browser preload and browser search cache tests for first-window exposure.
   - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
   - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` and verify filter, hover, and wheel improvements.
-- Completion record: Pending
+- Completion record: 2026-04-04, commit `362dd5bc`
+- Validation result:
+  - Browser row projection, BPM preload path collection, and browser search label fill now read from the retained browser pipeline snapshot before touching paged wav entries.
+  - `browser_rows_projection_uses_pipeline_snapshot_when_pages_are_unloaded` passed.
+  - `label_lookup_uses_pipeline_snapshot_when_pages_are_unloaded` passed.
+  - `text_query_branch_uses_search_scores_to_filter_visible_rows` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency = 2416us` p95, `browser_query_churn_latency = 159us` p95, `browser_sort_toggle_latency = 154us` p95, `hover_latency = 2351us` p95, `wheel_latency = 2508us` p95, `browser_focus_preview_latency = 152us` p95, `browser_focus_commit_latency = 172us` p95, `waveform_interaction_latency = 207us` p95, and `waveform_pan_zoom_adjacent_latency = 175us` p95.
 
 ### [ ] 3. Move feature-refresh scheduling and base-stage DB revision probes out of the hot row-projection path
 - ROI: High
