@@ -4,7 +4,7 @@ Generated: 2026-04-04 (Europe/Amsterdam)
 Observed superproject commit: `7c4ea8fde2e1c6d1966aaff578c920365549e6f5`
 Observed `vendor/radiant` commit: `58e5fe249e86eae2f01ec3031a1397210b507e9d`
 Observed workspace state at audit time: dirty worktree with unrelated edits in `src/app/controller/library/source_folders/actions/rename_move_delete.rs`, `src/app/controller/library/wavs/selection_ops.rs`, and `src/app/controller/tests/browser_actions/focus_navigation/commit_focus.rs`
-Status: Phase 2 in progress on 2026-04-04. Items 1-3 are complete in commits `fc2fca4e`, `ef649778`, and vendor/radiant `d13e5f55`; item 4 is next.
+Status: Phase 2 in progress on 2026-04-04. Items 1-4 are complete in commits `fc2fca4e`, `ef649778`, vendor/radiant `d13e5f55`, `ca24b6d3`, and `18f8d5d5`; item 5 is next.
 
 ## Scope
 
@@ -130,10 +130,11 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-3 are complete in commits `fc
     - `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1` passed
     - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2971`, `hover_latency.p95_us = 3076`, `wheel_latency.p95_us = 3091`, `browser_focus_preview_latency.p95_us = 148`, and `browser_focus_commit_latency.p95_us = 156`
 
-- [ ] 4. Split first-paint source hydration into a minimal page-0 payload and deferred heavy follow-up work
+- [x] 4. Split first-paint source hydration into a minimal page-0 payload and deferred heavy follow-up work
   - ROI: High
   - Effort: M
   - Expected impact: startup, first interaction latency, CPU, I/O
+  - Completed: 2026-04-04 in commits `ca24b6d3` and `18f8d5d5`
   - Evidence:
     - `src/app/controller/config.rs:15-148` applies configuration and immediately calls `refresh_wavs()` when a selected source exists during startup
     - `src/app/controller/library/sources/selection.rs:80-88` refreshes wavs immediately from `select_first_source()`
@@ -152,6 +153,12 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-3 are complete in commits `fc
     - Extend `src/app/controller/tests/source_async.rs`
     - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
     - Manual startup timing check with native runtime logs
+    - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+  - Validation result:
+    - `cargo test source_async --quiet` passed
+    - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+    - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency.p95_us = 2940`, `hover_latency.p95_us = 3272`, `wheel_latency.p95_us = 4023`, `browser_focus_preview_latency.p95_us = 172`, and `browser_focus_commit_latency.p95_us = 205`
+    - Manual startup timing check with native runtime logs was not run in this agent environment
 
 - [ ] 5. Tighten the retained browser row-cache hot loop to remove avoidable timestamp/path churn
   - ROI: Medium
