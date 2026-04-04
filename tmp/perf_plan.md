@@ -1,6 +1,6 @@
 # Runtime Performance Audit Plan
 
-Status: Phase 2 in progress on 2026-04-04. Items 1-4 are complete; items 5-6 are pending.
+Status: Phase 2 in progress on 2026-04-04. Items 1-5 are complete; item 6 remains pending.
 
 - Repository state audited: superproject `7d2b4dc2`, `vendor/radiant` `427e115b`
 - Workspace note: the live tree is dirty with unrelated user edits; Phase 2 must avoid overwriting them.
@@ -145,7 +145,7 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-4 are complete; items 5-6 are
   - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
 
-### [ ] 5. Defer expensive audio device probing until after first present or explicit settings access
+### [x] 5. Defer expensive audio device probing until after first present or explicit settings access
 - ROI: Medium
 - Effort: S
 - Expected impact: startup, first interaction latency
@@ -165,7 +165,14 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-4 are complete; items 5-6 are
   - Add controller tests for startup config apply without immediate device probing.
   - Add playback settings tests that ensure deferred refresh eventually populates host and device lists.
   - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
-- Completion record: Pending
+- Completion record: 2026-04-04, commit `43373e1f`
+- Validation result:
+  - Startup config apply now preserves the persisted audio selections but clears probed host/device/rate detail and arms a controller-owned deferred refresh that runs after first present.
+  - Opening the options panel forces the deferred refresh immediately if it has not already run, so explicit settings access still sees the probed audio model without waiting for a later frame.
+  - `apply_configuration_arms_deferred_startup_audio_refresh` passed.
+  - `startup_audio_refresh_waits_until_after_first_prepare` passed.
+  - `open_options_menu_flushes_deferred_startup_audio_refresh_once` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
 
 ### [ ] 6. Reduce retained renderer composition churn and transient browser row text allocations
 - ROI: Medium
