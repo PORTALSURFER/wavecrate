@@ -312,12 +312,13 @@ fn derive_available_folders(source_root: &Path, entries: &[PathBuf]) -> BTreeSet
     for entry in entries {
         let mut current = entry.parent();
         while let Some(path) = current {
-            if !path.as_os_str().is_empty() && source_root.join(path).is_dir() {
+            if !path.as_os_str().is_empty() {
                 folders.insert(path.to_path_buf());
             }
             current = path.parent();
         }
     }
+    folders.retain(|path| source_root.join(path).is_dir());
     folders
 }
 

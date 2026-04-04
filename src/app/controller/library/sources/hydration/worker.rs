@@ -7,7 +7,7 @@ use crate::app::controller::library::source_folders::FolderTreeSnapshot;
 use crate::app::controller::library::wav_entries_loader;
 use crate::app::controller::library::wavs::build_feature_cache_for_paths;
 use std::collections::{BTreeSet, HashMap};
-use std::path::{Path, PathBuf};
+use std::path::{Component, PathBuf};
 use std::time::Instant;
 
 #[cfg(test)]
@@ -52,32 +52,25 @@ fn build_source_hydration_snapshot(
         };
         (result?, total, job.page_size, false)
     };
-    let available_folders = if deferred_follow_up_work {
-        BTreeSet::new()
-    } else {
-        derive_available_folders(&job.source_root, &entries)
-    };
+    let entry_maps =
+        build_hydration_entry_maps(&job.source_root, &entries, !deferred_follow_up_work);
     let feature_cache = if deferred_follow_up_work {
         None
     } else if job.kind == crate::app::controller::jobs::SourceHydrationKind::ActiveSelection {
-        let entry_paths = entries
-            .iter()
-            .map(|entry| entry.relative_path.clone())
-            .collect::<Vec<_>>();
         Some(build_feature_cache_for_paths(
             &job.source_id,
             &job.source_root,
-            &entry_paths,
+            &entry_maps.entry_paths,
             &[],
         )?)
     } else {
         None
     };
     Ok(SourceHydrationSnapshot {
-        folder_tree: FolderTreeSnapshot::from_available(&available_folders),
-        available_folders,
+        folder_tree: FolderTreeSnapshot::from_available(&entry_maps.available_folders),
+        available_folders: entry_maps.available_folders,
         feature_cache,
-        path_lookup: build_path_lookup(&entries),
+        path_lookup: entry_maps.path_lookup,
         entries,
         total,
         page_size,
@@ -86,31 +79,64 @@ fn build_source_hydration_snapshot(
     })
 }
 
-fn build_path_lookup(entries: &[WavEntry]) -> HashMap<PathBuf, usize> {
-    entries
-        .iter()
-        .enumerate()
-        .map(|(index, entry)| {
-            (
-                PathBuf::from(entry.relative_path.to_string_lossy().replace('\\', "/")),
-                index,
-            )
-        })
-        .collect()
+struct HydrationEntryMaps {
+    path_lookup: HashMap<PathBuf, usize>,
+    available_folders: BTreeSet<PathBuf>,
+    entry_paths: Vec<PathBuf>,
 }
 
-fn derive_available_folders(source_root: &Path, entries: &[WavEntry]) -> BTreeSet<PathBuf> {
-    let mut folders = BTreeSet::new();
-    for entry in entries {
-        let mut current = entry.relative_path.parent();
-        while let Some(path) = current {
-            if !path.as_os_str().is_empty() && source_root.join(path).is_dir() {
-                folders.insert(path.to_path_buf());
+fn build_hydration_entry_maps(
+    source_root: &std::path::Path,
+    entries: &[WavEntry],
+    include_available_folders: bool,
+) -> HydrationEntryMaps {
+    let mut path_lookup = HashMap::with_capacity(entries.len());
+    let mut available_folders = BTreeSet::new();
+    let mut entry_paths = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.iter().enumerate() {
+        path_lookup.insert(normalized_lookup_path(&entry.relative_path), index);
+        if include_available_folders {
+            let mut current = entry.relative_path.parent();
+            while let Some(path) = current {
+                if !path.as_os_str().is_empty() {
+                    available_folders.insert(path.to_path_buf());
+                }
+                current = path.parent();
             }
-            current = path.parent();
+        }
+        entry_paths.push(entry.relative_path.clone());
+    }
+    if include_available_folders {
+        available_folders.retain(|path| source_root.join(path).is_dir());
+    }
+    HydrationEntryMaps {
+        path_lookup,
+        available_folders,
+        entry_paths,
+    }
+}
+
+fn normalized_lookup_path(path: &std::path::Path) -> PathBuf {
+    let mut normalized = String::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::Normal(part) => {
+                if !normalized.is_empty() {
+                    normalized.push('/');
+                }
+                normalized.push_str(&part.to_string_lossy());
+            }
+            Component::ParentDir => {
+                if !normalized.is_empty() {
+                    normalized.push('/');
+                }
+                normalized.push_str("..");
+            }
+            Component::RootDir | Component::Prefix(_) => {}
         }
     }
-    folders
+    PathBuf::from(normalized)
 }
 
 pub(super) fn source_hydration_async_enabled() -> bool {
@@ -158,4 +184,103 @@ pub(crate) fn with_source_hydration_async_enabled_for_tests<T>(
         };
         run()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sample_sources::Rating;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn hydration_entry_maps_build_lookup_and_folders_in_one_pass() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir_all(temp.path().join("kits").join("drums")).expect("create drums");
+        std::fs::create_dir_all(temp.path().join("kits").join("perc")).expect("create perc");
+        let entries = vec![
+            WavEntry {
+                relative_path: PathBuf::from(r"kits\drums\kick.wav"),
+                file_size: 0,
+                modified_ns: 0,
+                content_hash: None,
+                tag: Rating::NEUTRAL,
+                looped: false,
+                locked: false,
+                missing: false,
+                last_played_at: None,
+            },
+            WavEntry {
+                relative_path: PathBuf::from("kits/perc/snare.wav"),
+                file_size: 0,
+                modified_ns: 0,
+                content_hash: None,
+                tag: Rating::NEUTRAL,
+                looped: false,
+                locked: false,
+                missing: false,
+                last_played_at: None,
+            },
+        ];
+
+        let maps = build_hydration_entry_maps(temp.path(), &entries, true);
+
+        assert_eq!(
+            maps.path_lookup.get(Path::new("kits/drums/kick.wav")),
+            Some(&0)
+        );
+        assert_eq!(
+            maps.path_lookup.get(Path::new("kits/perc/snare.wav")),
+            Some(&1)
+        );
+        assert!(maps.available_folders.contains(Path::new("kits")));
+        assert!(maps.available_folders.contains(Path::new("kits/drums")));
+        assert!(maps.available_folders.contains(Path::new("kits/perc")));
+    }
+
+    #[test]
+    fn hydration_entry_maps_skip_folder_derivation_for_deferred_follow_up_work() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let entries = vec![WavEntry {
+            relative_path: PathBuf::from("kits/drums/kick.wav"),
+            file_size: 0,
+            modified_ns: 0,
+            content_hash: None,
+            tag: Rating::NEUTRAL,
+            looped: false,
+            locked: false,
+            missing: false,
+            last_played_at: None,
+        }];
+
+        let maps = build_hydration_entry_maps(temp.path(), &entries, false);
+
+        assert!(maps.available_folders.is_empty());
+        assert_eq!(maps.entry_paths, vec![PathBuf::from("kits/drums/kick.wav")]);
+        assert_eq!(
+            maps.path_lookup.get(Path::new("kits/drums/kick.wav")),
+            Some(&0)
+        );
+    }
+
+    #[test]
+    fn hydration_entry_maps_filter_missing_folder_ancestors_once_per_unique_path() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir_all(temp.path().join("kits")).expect("create kits");
+        let entries = vec![WavEntry {
+            relative_path: PathBuf::from("kits/drums/kick.wav"),
+            file_size: 0,
+            modified_ns: 0,
+            content_hash: None,
+            tag: Rating::NEUTRAL,
+            looped: false,
+            locked: false,
+            missing: false,
+            last_played_at: None,
+        }];
+
+        let maps = build_hydration_entry_maps(temp.path(), &entries, true);
+
+        assert!(maps.available_folders.contains(Path::new("kits")));
+        assert!(!maps.available_folders.contains(Path::new("kits/drums")));
+    }
 }
