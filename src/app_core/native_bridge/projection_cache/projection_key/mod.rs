@@ -20,6 +20,7 @@ pub(super) struct DerivedProjectionKeyParts {
     pub(super) map_key: super::MapProjectionCacheKey,
     pub(super) waveform_key: super::WaveformProjectionCacheKey,
     pub(super) non_segment_static_key: super::NonSegmentStaticProjectionCacheKey,
+    pub(super) non_segment_overlay_key: super::NonSegmentOverlayProjectionCacheKey,
 }
 
 /// Build the full projection cache key from current controller state.
@@ -38,7 +39,7 @@ pub(super) fn derive_projection_key_parts(controller: &AppController) -> Derived
     let map_key = build_map_projection_key(controller);
     let waveform_key = build_waveform_projection_key(controller);
     let non_segment_static_key = build_non_segment_static_projection_key(controller);
-    let options_panel = crate::app_core::native_shell::project_options_panel_model(&controller.ui);
+    let non_segment_overlay_key = build_non_segment_overlay_projection_key(controller);
     let app_key = NativeProjectionCacheKey {
         status_revision: controller.ui.projection_revisions.status,
         sources_selected: non_segment_static_key.sources_selected,
@@ -67,48 +68,13 @@ pub(super) fn derive_projection_key_parts(controller: &AppController) -> Derived
         browser_filter: encode_browser_filter(controller.ui.browser.search.filter),
         browser_sort: browser_frame_key.browser_sort,
         browser_tab: browser_frame_key.browser_tab,
-        progress_visible: controller.ui.progress.visible,
-        progress_completed: controller.ui.progress.completed,
-        progress_total: controller.ui.progress.total,
-        prompt_active: controller.ui.browser.pending_action.is_some()
-            || controller.ui.sources.folders.pending_action.is_some()
-            || controller.ui.sources.folders.inline_edit.is_some()
-            || controller.ui.waveform.pending_destructive.is_some(),
-        drag_active: controller.ui.drag.payload.is_some(),
-        options_panel_visible: options_panel.visible,
-        options_panel_input_monitoring_enabled: options_panel.input_monitoring_enabled,
-        options_panel_advance_after_rating_enabled: options_panel.advance_after_rating_enabled,
-        options_panel_destructive_yolo_mode_enabled: options_panel.destructive_yolo_mode_enabled,
-        options_panel_invert_waveform_scroll_enabled: options_panel.invert_waveform_scroll_enabled,
-        options_panel_trash_folder_hash: controller
-            .ui
-            .trash_folder
-            .as_ref()
-            .map(|path| shared::hash_path_for_projection_key(path.as_path())),
         audio_engine_chip_state: non_segment_static_key.audio_engine_chip_state,
         audio_engine_chip_label_hash: non_segment_static_key.audio_engine_chip_label_hash,
-        audio_engine_detail_hash: non_segment_static_key.audio_engine_detail_hash,
-        audio_engine_active_picker: non_segment_static_key.audio_engine_active_picker,
-        audio_engine_output_host_hash: non_segment_static_key.audio_engine_output_host_hash,
-        audio_engine_output_device_hash: non_segment_static_key.audio_engine_output_device_hash,
-        audio_engine_output_sample_rate_hash: non_segment_static_key
-            .audio_engine_output_sample_rate_hash,
-        audio_engine_input_host_hash: non_segment_static_key.audio_engine_input_host_hash,
-        audio_engine_input_device_hash: non_segment_static_key.audio_engine_input_device_hash,
-        audio_engine_input_sample_rate_hash: non_segment_static_key
-            .audio_engine_input_sample_rate_hash,
-        audio_engine_output_host_options_hash: non_segment_static_key
-            .audio_engine_output_host_options_hash,
-        audio_engine_output_device_options_hash: non_segment_static_key
-            .audio_engine_output_device_options_hash,
-        audio_engine_output_sample_rate_options_hash: non_segment_static_key
-            .audio_engine_output_sample_rate_options_hash,
-        audio_engine_input_host_options_hash: non_segment_static_key
-            .audio_engine_input_host_options_hash,
-        audio_engine_input_device_options_hash: non_segment_static_key
-            .audio_engine_input_device_options_hash,
-        audio_engine_input_sample_rate_options_hash: non_segment_static_key
-            .audio_engine_input_sample_rate_options_hash,
+        audio_engine_overlay_hash: non_segment_overlay_key.audio_engine_overlay_hash,
+        options_panel_hash: non_segment_overlay_key.options_panel_hash,
+        progress_overlay_hash: non_segment_overlay_key.progress_overlay_hash,
+        confirm_prompt_hash: non_segment_overlay_key.confirm_prompt_hash,
+        drag_overlay_hash: non_segment_overlay_key.drag_overlay_hash,
         waveform_signature: waveform_key.waveform_signature,
         waveform_selection_start_milli: waveform_key.waveform_selection_start_milli,
         waveform_selection_end_milli: waveform_key.waveform_selection_end_milli,
@@ -169,6 +135,7 @@ pub(super) fn derive_projection_key_parts(controller: &AppController) -> Derived
         map_key,
         waveform_key,
         non_segment_static_key,
+        non_segment_overlay_key,
     }
 }
 
@@ -218,4 +185,11 @@ pub(super) fn build_non_segment_static_projection_key(
     controller: &AppController,
 ) -> super::NonSegmentStaticProjectionCacheKey {
     non_segment::build_non_segment_static_projection_key(controller)
+}
+
+/// Build a projection key for overlay model fields outside explicit segment keys.
+pub(super) fn build_non_segment_overlay_projection_key(
+    controller: &AppController,
+) -> super::NonSegmentOverlayProjectionCacheKey {
+    non_segment::build_non_segment_overlay_projection_key(controller)
 }

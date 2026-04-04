@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 1 complete on 2026-04-04; awaiting explicit Phase 2 confirmation
+Status: Phase 2 in progress on 2026-04-04; items 1-2 are complete and items 3-7 remain in ranked order
 
 ## Evidence Snapshot
 
@@ -51,8 +51,9 @@ Status: Phase 1 complete on 2026-04-04; awaiting explicit Phase 2 confirmation
   - `cargo test native_bridge::tests::bridge_runtime` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Pushed commit: `ed1e7f98` (`perf(native-bridge): reuse derived projection snapshots`)
 
-### [ ] 2. Split non-segment static and overlay projection so browser-only interactions stop paying audio/sidebar/options costs
+### [x] 2. Split non-segment static and overlay projection so browser-only interactions stop paying audio/sidebar/options costs
 - ROI: Very High
 - Effort: L
 - Expected impact: p95 interaction latency, startup, memory, CPU
@@ -77,6 +78,13 @@ Status: Phase 1 complete on 2026-04-04; awaiting explicit Phase 2 confirmation
   - Add cache-behavior tests for isolated browser, sidebar, and audio-option invalidation.
   - Exercise startup, opening options early, switching folder panes, and browser focus churn.
   - Rerun perf guard plus targeted native-bridge projection-cache tests.
+- Completed on: `2026-04-04`
+- Commit: pending until this item's focused commit is created
+- Validation outcome:
+  - `cargo test native_bridge::tests::projection_cache` passed
+  - `cargo test native_bridge::tests` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 
 ### [ ] 3. Make waveform preview and selection batches overlay-first instead of full-key apply work
 - ROI: High

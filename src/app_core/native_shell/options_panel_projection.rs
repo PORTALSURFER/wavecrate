@@ -3,16 +3,22 @@
 use super::*;
 use std::path::Path;
 
-/// Project the native audio-engine model from UI state.
-pub(crate) fn project_audio_engine_model(
-    ui: &UiState,
-) -> crate::app_core::actions::NativeAudioEngineModel {
+/// Lightweight audio-chip summary used by the top bar and retained cache keys.
+pub(crate) struct ProjectedAudioEngineChipModel {
+    /// Health state rendered in the compact top-bar chip.
+    pub(crate) chip_state: crate::app_core::actions::NativeAudioEngineChipStateModel,
+    /// Label rendered in the compact top-bar chip.
+    pub(crate) chip_label: String,
+}
+
+/// Project the compact audio-engine chip state without materializing picker options.
+pub(crate) fn project_audio_engine_chip_model(ui: &UiState) -> ProjectedAudioEngineChipModel {
     let output_mismatch = output_selection_mismatch(ui);
     let chip_error = ui.audio.output_runtime_error.is_some()
         || ui.audio.applied.is_none()
         || ui.audio.warning.is_some()
         || output_mismatch;
-    crate::app_core::actions::NativeAudioEngineModel {
+    ProjectedAudioEngineChipModel {
         chip_state: if chip_error {
             crate::app_core::actions::NativeAudioEngineChipStateModel::Error
         } else {
@@ -29,6 +35,18 @@ pub(crate) fn project_audio_engine_model(
                     .unwrap_or(0),
             )
         },
+    }
+}
+
+/// Project the native audio-engine model from UI state.
+pub(crate) fn project_audio_engine_model(
+    ui: &UiState,
+) -> crate::app_core::actions::NativeAudioEngineModel {
+    let chip = project_audio_engine_chip_model(ui);
+    let output_mismatch = output_selection_mismatch(ui);
+    crate::app_core::actions::NativeAudioEngineModel {
+        chip_state: chip.chip_state,
+        chip_label: chip.chip_label,
         detail_label: audio_engine_detail_label(ui, output_mismatch),
         output_host: crate::app_core::actions::NativeAudioFieldModel {
             label: String::from("Output Host"),

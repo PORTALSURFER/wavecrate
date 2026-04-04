@@ -31,6 +31,13 @@ fn projection_cache_key_changes_when_options_panel_state_changes() {
 #[test]
 fn projection_cache_key_changes_when_audio_engine_chip_state_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.ui.audio.applied = Some(crate::app_core::app_api::state::ActiveAudioOutput {
+        host_id: String::from("asio"),
+        device_name: String::from("Studio"),
+        sample_rate: 48_000,
+        buffer_size_frames: Some(256),
+        channel_count: 2,
+    });
     let first = build_projection_cache_key(&controller);
     controller.ui.audio.output_runtime_error = Some(String::from("USB disconnected"));
     let second = build_projection_cache_key(&controller);
@@ -40,6 +47,7 @@ fn projection_cache_key_changes_when_audio_engine_chip_state_changes() {
 #[test]
 fn projection_cache_key_changes_when_audio_picker_and_option_lists_change() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.ui.options_panel.open = true;
     let first = build_projection_cache_key(&controller);
     controller.ui.options_panel.active_audio_picker =
         Some(crate::app::state::AudioPickerTarget::OutputHost);

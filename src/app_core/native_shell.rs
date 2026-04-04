@@ -93,7 +93,7 @@ pub(crate) use browser_projection::{
 pub(crate) use confirm_prompt_projection::project_confirm_prompt_model;
 pub(crate) use map_projection::project_map_model;
 pub(crate) use options_panel_projection::{
-    project_audio_engine_model, project_options_panel_model,
+    project_audio_engine_chip_model, project_audio_engine_model, project_options_panel_model,
 };
 pub(crate) use sources_projection::project_sources_model;
 use status_projection::status_bar_right_text;

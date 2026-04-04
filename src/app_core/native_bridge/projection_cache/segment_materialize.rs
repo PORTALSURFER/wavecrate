@@ -70,10 +70,17 @@ pub(super) fn resolve_or_project_with_derived(
     if non_segment_static_changed {
         dirty_segments.insert(NativeDirtySegments::GLOBAL_STATIC);
         refresh_non_segment_static_fields(model, controller);
+        refresh_non_segment_audio_chip_fields(model, &controller.ui);
+    }
+
+    let non_segment_overlay_changed =
+        update_non_segment_overlay_key(cache, derived, has_retained_model);
+    if non_segment_overlay_changed {
+        dirty_segments.insert(NativeDirtySegments::STATE_OVERLAY);
+        refresh_non_segment_overlay_fields(model, controller);
     }
 
     refresh_non_segment_always_fields(model, derived.selected_column);
-    refresh_non_segment_overlay_fields(model, controller);
     cache.app_key = Some(derived.app_key.clone());
     cache.app_model = Some(Arc::clone(&snapshot));
     (snapshot, dirty_segments)
@@ -126,9 +133,22 @@ fn refresh_non_segment_static_fields(model: &mut NativeAppModel, controller: &mu
     model.update = native_shell::project_update_model(&controller.ui);
 }
 
+/// Refresh the lightweight audio-chip fields consumed by the static top bar.
+fn refresh_non_segment_audio_chip_fields(
+    model: &mut NativeAppModel,
+    ui: &crate::app::state::UiState,
+) {
+    let chip = native_shell::project_audio_engine_chip_model(ui);
+    model.audio_engine.chip_state = chip.chip_state;
+    model.audio_engine.chip_label = chip.chip_label;
+}
+
 /// Refresh transient non-segment overlays from current controller state.
 fn refresh_non_segment_overlay_fields(model: &mut NativeAppModel, controller: &AppController) {
-    model.audio_engine = native_shell::project_audio_engine_model(&controller.ui);
+    let refresh_audio_engine = controller.ui.options_panel.open || model.options_panel.visible;
+    if refresh_audio_engine {
+        model.audio_engine = native_shell::project_audio_engine_model(&controller.ui);
+    }
     model.options_panel = native_shell::project_options_panel_model(&controller.ui);
     model.progress_overlay = native_shell::project_progress_overlay_model(&controller.ui);
     model.confirm_prompt = native_shell::project_confirm_prompt_model(&controller.ui);
@@ -292,5 +312,20 @@ fn update_non_segment_static_key(
         &derived.non_segment_static_key,
     );
     cache.non_segment_static_key = Some(derived.non_segment_static_key.clone());
+    changed
+}
+
+/// Update the retained non-segment overlay key and return whether it changed.
+fn update_non_segment_overlay_key(
+    cache: &mut NativeProjectionCache,
+    derived: &DerivedProjectionState,
+    has_retained_model: bool,
+) -> bool {
+    let changed = segment_key_changed(
+        has_retained_model,
+        &cache.non_segment_overlay_key,
+        &derived.non_segment_overlay_key,
+    );
+    cache.non_segment_overlay_key = Some(derived.non_segment_overlay_key.clone());
     changed
 }

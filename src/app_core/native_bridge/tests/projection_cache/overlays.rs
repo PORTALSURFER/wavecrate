@@ -140,7 +140,7 @@ fn projection_segment_non_segment_static_dirty_mask_and_lookup_counts() {
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
 }
 
-/// Prompt/progress/drag app-key misses should not flip static dirty segments.
+/// Prompt/progress/drag app-key misses should route through the overlay dirty lane.
 #[test]
 fn projection_segment_overlay_only_changes_keep_segment_hits_and_static_clean() {
     let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
@@ -149,7 +149,10 @@ fn projection_segment_overlay_only_changes_keep_segment_hits_and_static_clean() 
         controller.ui.progress.completed = 2;
         controller.ui.progress.total = 5;
     });
-    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::STATE_OVERLAY)
+    );
     assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
     assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
     assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
@@ -173,7 +176,10 @@ fn projection_overlay_only_miss_skips_static_non_segment_refresh() {
     controller.ui.progress.total = 3;
 
     let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
-    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::STATE_OVERLAY)
+    );
     assert_eq!(model.sources_label.as_str(), "sentinel");
     assert!(model.progress_overlay.visible);
 }
@@ -192,7 +198,10 @@ fn projection_overlay_only_miss_refreshes_options_panel_fields() {
     controller.ui.trash_folder = Some(PathBuf::from("trash_bin"));
 
     let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
-    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::STATE_OVERLAY)
+    );
     assert!(model.options_panel.visible);
     assert_eq!(
         model.options_panel.trash_folder_label.as_deref(),
@@ -215,7 +224,10 @@ fn projection_overlay_only_miss_reuses_unique_snapshot_arc() {
 
     let (second_model, dirty_segments) = cache.resolve_or_project(&mut controller);
 
-    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::STATE_OVERLAY)
+    );
     assert_eq!(Arc::as_ptr(&second_model), first_ptr);
     assert!(second_model.progress_overlay.visible);
 }
@@ -223,6 +235,13 @@ fn projection_overlay_only_miss_reuses_unique_snapshot_arc() {
 #[test]
 fn projection_audio_engine_dirty_refreshes_retained_chip_and_panel_state() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.ui.audio.applied = Some(crate::app_core::app_api::state::ActiveAudioOutput {
+        host_id: String::from("asio"),
+        device_name: String::from("Studio"),
+        sample_rate: 48_000,
+        buffer_size_frames: Some(256),
+        channel_count: 2,
+    });
     let mut cache = NativeProjectionCache::default();
     let (first_model, _) = cache.resolve_or_project(&mut controller);
     let mut retained = Arc::unwrap_or_clone(first_model);
@@ -231,13 +250,16 @@ fn projection_audio_engine_dirty_refreshes_retained_chip_and_panel_state() {
     cache.app_model = Some(Arc::new(retained));
 
     controller.ui.audio.output_runtime_error = Some(String::from("USB disconnected"));
+    controller.ui.options_panel.open = true;
     controller.ui.options_panel.active_audio_picker =
         Some(crate::app::state::AudioPickerTarget::OutputHost);
 
     let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
     assert_eq!(
         dirty_segments,
-        NativeDirtySegments::from_bits(NativeDirtySegments::GLOBAL_STATIC)
+        NativeDirtySegments::from_bits(
+            NativeDirtySegments::GLOBAL_STATIC | NativeDirtySegments::STATE_OVERLAY
+        )
     );
     assert_eq!(model.audio_engine.chip_label, "Audio Err");
     assert_eq!(
@@ -264,7 +286,10 @@ fn projection_overlay_only_miss_clones_when_prior_snapshot_is_aliased() {
 
     let (second_model, dirty_segments) = cache.resolve_or_project(&mut controller);
 
-    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::STATE_OVERLAY)
+    );
     assert!(!Arc::ptr_eq(&first_model, &second_model));
     assert!(!first_model.progress_overlay.visible);
     assert!(second_model.progress_overlay.visible);
@@ -301,7 +326,10 @@ fn projection_overlay_only_miss_reuses_browser_row_text_arcs() {
     let (second_model, dirty_segments) = cache.resolve_or_project(&mut controller);
     let second_row = &second_model.browser.rows[0];
 
-    assert_eq!(dirty_segments, NativeDirtySegments::empty());
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::STATE_OVERLAY)
+    );
     assert!(!Arc::ptr_eq(&first_model, &second_model));
     assert!(Arc::ptr_eq(&first_label, &second_row.label));
 }
@@ -345,7 +373,9 @@ fn projection_status_segment_refreshes_for_footer_progress_updates() {
     let (_, dirty_segments) = cache.resolve_or_project(&mut controller);
     assert_eq!(
         dirty_segments,
-        NativeDirtySegments::from_bits(NativeDirtySegments::STATUS_BAR)
+        NativeDirtySegments::from_bits(
+            NativeDirtySegments::STATUS_BAR | NativeDirtySegments::STATE_OVERLAY
+        )
     );
 
     controller.ui.progress.completed = 2;
@@ -353,7 +383,9 @@ fn projection_status_segment_refreshes_for_footer_progress_updates() {
     let (_, dirty_segments) = cache.resolve_or_project(&mut controller);
     assert_eq!(
         dirty_segments,
-        NativeDirtySegments::from_bits(NativeDirtySegments::STATUS_BAR)
+        NativeDirtySegments::from_bits(
+            NativeDirtySegments::STATUS_BAR | NativeDirtySegments::STATE_OVERLAY
+        )
     );
 }
 

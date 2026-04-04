@@ -9,8 +9,9 @@ use super::trace_projection_segment_lookup;
 use super::{
     BrowserFrameProjectionCacheKey, BrowserRowsProjectionCacheKey,
     BrowserRowsStateProjectionCacheKey, MapProjectionCacheKey, NativeProjectionCacheKey,
-    NonSegmentStaticProjectionCacheKey, ProjectionSegment, ProjectionSegmentLookupCounts,
-    StatusProjectionCacheKey, WaveformProjectionCacheKey, segment_materialize,
+    NonSegmentOverlayProjectionCacheKey, NonSegmentStaticProjectionCacheKey, ProjectionSegment,
+    ProjectionSegmentLookupCounts, StatusProjectionCacheKey, WaveformProjectionCacheKey,
+    segment_materialize,
 };
 
 /// Lightweight derived projection snapshot computed before materialization.
@@ -37,6 +38,8 @@ pub(crate) struct DerivedProjectionState {
     pub(crate) waveform_key: WaveformProjectionCacheKey,
     /// Non-segment static-field key.
     pub(crate) non_segment_static_key: NonSegmentStaticProjectionCacheKey,
+    /// Non-segment overlay-field key.
+    pub(crate) non_segment_overlay_key: NonSegmentOverlayProjectionCacheKey,
 }
 
 impl DerivedProjectionState {
@@ -53,6 +56,7 @@ impl DerivedProjectionState {
             map_key: derived.map_key,
             waveform_key: derived.waveform_key,
             non_segment_static_key: derived.non_segment_static_key,
+            non_segment_overlay_key: derived.non_segment_overlay_key,
         }
     }
 }
@@ -69,6 +73,7 @@ pub(crate) struct NativeProjectionCache {
     pub(crate) map_key: Option<MapProjectionCacheKey>,
     pub(crate) waveform_key: Option<WaveformProjectionCacheKey>,
     pub(crate) non_segment_static_key: Option<NonSegmentStaticProjectionCacheKey>,
+    pub(crate) non_segment_overlay_key: Option<NonSegmentOverlayProjectionCacheKey>,
     pub(crate) segment_lookup_counts: ProjectionSegmentLookupCounts,
 }
 
@@ -113,6 +118,7 @@ impl NativeProjectionCache {
         self.map_key = None;
         self.waveform_key = None;
         self.non_segment_static_key = None;
+        self.non_segment_overlay_key = None;
     }
 
     /// Invalidate only the global key so the next pull runs segment refresh.

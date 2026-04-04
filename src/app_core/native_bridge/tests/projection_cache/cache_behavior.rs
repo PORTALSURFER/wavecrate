@@ -208,6 +208,7 @@ fn projection_cache_invalidate_forces_refresh() {
                 | NativeDirtySegments::MAP_PANEL
                 | NativeDirtySegments::WAVEFORM_OVERLAY
                 | NativeDirtySegments::GLOBAL_STATIC
+                | NativeDirtySegments::STATE_OVERLAY
         )
     );
 }

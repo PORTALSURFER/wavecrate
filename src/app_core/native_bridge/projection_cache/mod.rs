@@ -15,7 +15,8 @@ pub(super) use cache_state::{DerivedProjectionState, NativeProjectionCache};
 pub(super) use key_types::{
     BrowserFrameProjectionCacheKey, BrowserRowsProjectionCacheKey,
     BrowserRowsStateProjectionCacheKey, MapProjectionCacheKey, NativeProjectionCacheKey,
-    NonSegmentStaticProjectionCacheKey, StatusProjectionCacheKey, WaveformProjectionCacheKey,
+    NonSegmentOverlayProjectionCacheKey, NonSegmentStaticProjectionCacheKey,
+    StatusProjectionCacheKey, WaveformProjectionCacheKey,
 };
 pub use probe_metrics::ProjectionRebuildCauseCounts;
 pub(super) use segment_lookup::ProjectionSegment;
