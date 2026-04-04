@@ -94,6 +94,8 @@ pub(crate) struct ProjectedBrowserRowCacheEntry {
     pub bpm_value_bits: Option<u32>,
     /// Whether the backing sample currently carries the long-sample marker.
     pub long_sample_mark: bool,
+    /// Monotonic usage tick used for bounded least-recently-used eviction.
+    pub last_used_tick: u64,
 }
 
 /// Visible browser window metadata retained for incremental BPM preloads.
@@ -157,6 +159,8 @@ pub struct AppController {
     pub(crate) projected_browser_rows_source_id: Option<SourceId>,
     /// Static browser-row projection fields keyed by absolute entry index.
     pub(crate) projected_browser_rows: HashMap<usize, ProjectedBrowserRowCacheEntry>,
+    /// Monotonic usage clock for bounded browser-row cache eviction.
+    pub(crate) projected_browser_row_cache_clock: u64,
     /// Last visible browser window used to diff BPM preload requests.
     pub(crate) projected_browser_preload_window: Option<ProjectedBrowserPreloadWindow>,
     /// Selected-path revision for the retained browser selected-path lookup cache.
@@ -226,6 +230,7 @@ impl AppController {
             projected_waveform_image: None,
             projected_browser_rows_source_id: None,
             projected_browser_rows: HashMap::new(),
+            projected_browser_row_cache_clock: 0,
             projected_browser_preload_window: None,
             projected_selected_paths_revision: None,
             projected_selected_paths_lookup: None,

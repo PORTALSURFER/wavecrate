@@ -3,7 +3,6 @@
 use super::*;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Hash one relative path into a stable row-identity scalar.
 pub(in crate::app_core::native_shell) fn browser_row_identity_hash(path: &Path) -> u64 {
@@ -120,54 +119,46 @@ fn cached_browser_row_matches_entry(
         && cached.long_sample_mark == fingerprint.long_sample_mark
 }
 
+/// Return the next retained browser-row cache usage tick.
+fn next_projected_browser_row_cache_tick(controller: &mut AppController) -> u64 {
+    let next = controller
+        .projected_browser_row_cache_clock
+        .wrapping_add(1)
+        .max(1);
+    controller.projected_browser_row_cache_clock = next;
+    next
+}
+
+/// Evict one least-recently-used retained browser row instead of clearing the full cache.
+fn evict_least_recently_used_browser_row(controller: &mut AppController) {
+    let Some((&absolute_index, _)) = controller
+        .projected_browser_rows
+        .iter()
+        .min_by_key(|(_, cached)| cached.last_used_tick)
+    else {
+        return;
+    };
+    controller.projected_browser_rows.remove(&absolute_index);
+}
+
 /// Resolve static browser-row projection fields from cache, inserting on cache miss.
 pub(in crate::app_core::native_shell) fn project_cached_browser_row(
     controller: &mut AppController,
     absolute_index: usize,
+    playback_age_now_unix_secs: i64,
 ) -> Option<(&ProjectedBrowserRowCacheEntry, bool)> {
     let selected_source_id = controller.selected_source_id();
-    let playback_age_now_unix_secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
-    let (entry_tag, row_identity_hash, missing, looped, locked, last_played_at, marked) =
-        controller
-            .wav_entry(absolute_index)
-            .map(|entry| {
-                (
-                    entry.tag,
-                    browser_row_identity_hash(entry.relative_path.as_path()),
-                    entry.missing,
-                    entry.looped,
-                    entry.locked,
-                    entry.last_played_at,
-                    entry.relative_path.clone(),
-                )
-            })
-            .map(
-                |(
-                    entry_tag,
-                    row_identity_hash,
-                    missing,
-                    looped,
-                    locked,
-                    last_played_at,
-                    relative_path,
-                )| {
-                    let marked = selected_source_id.as_ref().is_some_and(|source_id| {
-                        controller.browser_sample_marked(source_id, &relative_path)
-                    });
-                    (
-                        entry_tag,
-                        row_identity_hash,
-                        missing,
-                        looped,
-                        locked,
-                        last_played_at,
-                        marked,
-                    )
-                },
-            )?;
+    let entry = controller.wav_entry(absolute_index)?;
+    let relative_path = entry.relative_path.clone();
+    let entry_tag = entry.tag;
+    let row_identity_hash = browser_row_identity_hash(relative_path.as_path());
+    let missing = entry.missing;
+    let looped = entry.looped;
+    let locked = entry.locked;
+    let last_played_at = entry.last_played_at;
+    let marked = selected_source_id
+        .as_ref()
+        .is_some_and(|source_id| controller.browser_sample_marked(source_id, &relative_path));
     let column_index = super::browser_column_index(entry_tag);
     let rating_level = entry_tag.val();
     let playback_age_bucket =
@@ -176,17 +167,6 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
         .cached_feature_status_for_entry(absolute_index)
         .and_then(|status| status.long_sample_mark)
         == Some(true);
-    let cached_path = controller
-        .projected_browser_rows
-        .get(&absolute_index)
-        .filter(|cached| cached.row_identity_hash == row_identity_hash)
-        .map(|cached| cached.relative_path.clone());
-    let relative_path = match cached_path {
-        Some(path) => path,
-        None => controller
-            .wav_entry(absolute_index)
-            .map(|entry| entry.relative_path.clone())?,
-    };
     let bpm_value = controller.bpm_value_for_path(relative_path.as_path());
     let bpm_value_bits = bpm_value.map(f32::to_bits);
     let fingerprint = BrowserRowCacheFingerprint {
@@ -206,16 +186,21 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
         .get(&absolute_index)
         .is_some_and(|cached| cached_browser_row_matches_entry(cached, &fingerprint));
     trace_browser_row_cache_lookup(cache_hit);
-    if !cache_hit {
-        let bucket_label = super::browser_bucket_label(bpm_value, looped, long_sample_mark);
-        let row_label = controller
+    let row_label = (!cache_hit).then(|| {
+        controller
             .label_for_ref(absolute_index)
             .map(str::to_string)
-            .unwrap_or_else(|| view_model::sample_display_label(relative_path.as_path()));
+            .unwrap_or_else(|| view_model::sample_display_label(relative_path.as_path()))
+    });
+    let relative_path_for_insert = (!cache_hit).then_some(relative_path);
+    let last_used_tick = next_projected_browser_row_cache_tick(controller);
+    if !cache_hit {
+        let bucket_label = super::browser_bucket_label(bpm_value, looped, long_sample_mark);
         let cached = ProjectedBrowserRowCacheEntry {
             row_identity_hash,
-            relative_path,
-            row_label,
+            relative_path: relative_path_for_insert
+                .expect("cache miss should retain one relative path"),
+            row_label: row_label.expect("cache miss should retain one row label"),
             column_index,
             rating_level,
             playback_age_bucket,
@@ -226,13 +211,16 @@ pub(in crate::app_core::native_shell) fn project_cached_browser_row(
             marked,
             bpm_value_bits,
             long_sample_mark,
+            last_used_tick,
         };
         if controller.projected_browser_rows.len() >= MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE {
-            super::clear_projected_browser_row_cache(controller);
+            evict_least_recently_used_browser_row(controller);
         }
         controller
             .projected_browser_rows
             .insert(absolute_index, cached);
+    } else if let Some(cached) = controller.projected_browser_rows.get_mut(&absolute_index) {
+        cached.last_used_tick = last_used_tick;
     }
     let projected = controller.projected_browser_rows.get(&absolute_index)?;
     Some((

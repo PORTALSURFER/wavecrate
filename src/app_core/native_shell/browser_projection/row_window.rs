@@ -1,5 +1,6 @@
 use super::*;
 use crate::app_core::app_api::state::BrowserDuplicateCleanupState;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Number of rows kept between the focused row and the window edge before scrolling.
 ///
@@ -58,6 +59,10 @@ pub(crate) fn project_browser_rows_model_into(
     );
     controller.ui.browser.viewport.render_window_start = window_start;
     super::preload_browser_window_bpms(controller, window_start, window_len);
+    let playback_age_now_unix_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
     let duplicate_cleanup = controller.ui.browser.duplicate_cleanup.clone();
     if rows.capacity() < window_len {
         rows.reserve(window_len.saturating_sub(rows.len()));
@@ -67,9 +72,11 @@ pub(crate) fn project_browser_rows_model_into(
         let Some(absolute_index) = controller.ui.browser.viewport.visible.get(visible_row) else {
             continue;
         };
-        let Some((cached_row, selected)) =
-            super::project_cached_browser_row(controller, absolute_index)
-        else {
+        let Some((cached_row, selected)) = super::project_cached_browser_row(
+            controller,
+            absolute_index,
+            playback_age_now_unix_secs,
+        ) else {
             let focused = selected_visible_row.is_some_and(|focused| focused == visible_row);
             write_browser_row_into_slot(
                 rows,
@@ -153,6 +160,7 @@ pub(super) fn browser_bucket_label(
 /// Clear retained browser-row projection fields.
 pub(super) fn clear_projected_browser_row_cache(controller: &mut AppController) {
     controller.projected_browser_rows.clear();
+    controller.projected_browser_row_cache_clock = 0;
     controller.projected_browser_preload_window = None;
 }
 
