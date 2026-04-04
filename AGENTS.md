@@ -59,12 +59,12 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `X:\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: executing the rebuilt runtime performance backlog for the current live tree
-- Source of truth: `tmp/perf_plan.md` for the 2026-04-04 Phase 2 runtime performance execution record; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
-- Current status: Phase 2 is in progress on `2026-04-04`. Items 1-7 are complete (`vendor/radiant` `e5c91739`, root `3c91fbef`, root `dacfedac`, root `d573ddeb`, root `849f0cf6`, root `faf927d8`, root `4ac3945e`, and root `0efad4c2`), and item 8 is next. The latest perf-guard run stays warning-free with `browser_filter_churn_latency = 2994us` p95, `browser_query_churn_latency = 158us` p95, `browser_sort_toggle_latency = 224us` p95, `hover_latency = 2939us` p95, `wheel_latency = 3277us` p95, `browser_focus_preview_latency = 154us` p95, `browser_focus_commit_latency = 150us` p95, and `waveform_interaction_latency = 202us` p95.
+- Program: completed the rebuilt runtime performance backlog for the current live tree
+- Source of truth: `tmp/perf_plan.md` for the 2026-04-04 completed runtime performance execution record; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
+- Current status: Phase 2 is complete on `2026-04-04`. Items 1-8 are complete (`vendor/radiant` `e5c91739`, root `3c91fbef`, root `dacfedac`, root `d573ddeb`, root `849f0cf6`, root `faf927d8`, root `4ac3945e`, root `0efad4c2`, `vendor/radiant` `2f53bf98`, and root `46a7168b`). The latest perf-guard run stays warning-free with `browser_filter_churn_latency = 2075us` p95, `browser_query_churn_latency = 176us` p95, `browser_sort_toggle_latency = 157us` p95, `hover_latency = 2809us` p95, `wheel_latency = 2511us` p95, `browser_focus_preview_latency = 142us` p95, `browser_focus_commit_latency = 151us` p95, and `waveform_interaction_latency = 1444us` p95.
 
 ## Immediate Next Actions
-1. Treat `tmp/perf_plan.md` as the active runtime-performance execution record and continue with item 8 unless the user redirects the lane.
+1. Treat `tmp/perf_plan.md` as the completed runtime-performance execution record until the user opens a new performance lane.
 2. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 

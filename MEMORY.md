@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-04T21:35:00Z
+Last Updated: 2026-04-04T22:05:00Z
 Updated By: Codex
 
 ## Purpose
@@ -12,7 +12,7 @@ Updated By: Codex
 
 - I am on `next` in `X:\sempal`.
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The user confirmed Phase 2 of the rebuilt runtime performance lane, and execution is now in progress.
+- The rebuilt runtime performance lane is complete.
 - The current workspace is dirty with unrelated user edits, including `docs/README.md`, `docs/plans/index.md`, and multiple controller files outside this performance lane; I must not overwrite them.
 - `tmp/perf_plan.md` is now the active Phase 2 execution record for the rebuilt runtime-performance lane.
 - Item 1 is complete in `vendor/radiant` commit `e5c91739` (`perf(app): retain projected rows across model clones`) and root commit `3c91fbef` (`perf(app_core): retain projected row collections`).
@@ -36,7 +36,10 @@ Updated By: Codex
 - Item 7 is complete in root commit `0efad4c2` (`perf(search): retain browser cache refresh state`).
 - Item 7 now caches the next playback-age filter rollover token by base snapshot and filter shape, preserves known browser label slots across in-memory rename/insert mutations, and refreshes worker search-entry metadata in place when source revisions change without changing ordered paths.
 - The latest perf-guard snapshot after item 7 stays warning-free with `browser_filter_churn_latency = 2994us` p95, `browser_query_churn_latency = 158us` p95, `browser_sort_toggle_latency = 224us` p95, `hover_latency = 2939us` p95, `wheel_latency = 3277us` p95, `browser_focus_preview_latency = 154us` p95, `browser_focus_commit_latency = 150us` p95, and `waveform_interaction_latency = 202us` p95.
-- Item 8, browser/runtime text allocation churn reduction in `vendor/radiant`, is next in strict ROI order.
+- Item 8 is complete in `vendor/radiant` commit `2f53bf98` (`perf(text): retain browser runtime text state`) and root commit `46a7168b` (`perf(renderer): reduce browser text churn`).
+- Item 8 now reuses cached inline-tag widths and visible-row labels during browser/focus rendering, borrows overlay editor visuals instead of cloning them during overlay paint, and caches active text-field visual layouts by target/text/editor state so unchanged browser and folder editors stop relayouting every sync.
+- The latest perf-guard snapshot after item 8 stays warning-free with `browser_filter_churn_latency = 2075us` p95, `browser_query_churn_latency = 176us` p95, `browser_sort_toggle_latency = 157us` p95, `hover_latency = 2809us` p95, `wheel_latency = 2511us` p95, `browser_focus_preview_latency = 142us` p95, `browser_focus_commit_latency = 151us` p95, and `waveform_interaction_latency = 1444us` p95.
+- `tmp/perf_plan.md` is now the completed execution record for the 2026-04-04 runtime performance lane.
 - The Windows Cargo wrapper lane is still trustworthy in this environment because `scripts/use_cargo_cache.ps1` falls back to a local passthrough `rustc` wrapper when user-level Cargo config forces a broken `sccache`.
 - `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` remain parked unless the user explicitly reopens those lanes.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -44,14 +47,14 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Implement item 8 from `tmp/perf_plan.md` next, then rerun relevant validation, update the plan, commit, and push.
+1. Treat `tmp/perf_plan.md` as the completed runtime-performance execution record until the user opens a new performance lane.
 2. Keep the runtime-performance work in strict ROI order unless the user redirects the lane.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
 4. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
 
 ## Work Notes
 
-- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-04; items 1-7 complete)
+- Active audit plan: `tmp/perf_plan.md` (Phase 2 complete on 2026-04-04; items 1-8 complete)
 - Current hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
