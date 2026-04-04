@@ -59,12 +59,12 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `X:\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: completed runtime performance audit refresh for the current live tree
-- Source of truth: `tmp/perf_plan.md` for the completed 2026-04-04 ROI-ranked runtime performance execution record; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
-- Current status: Phase 2 is complete on `2026-04-04`. Item 6 is finalized in vendor/radiant commit `9e2bc927`, so `tmp/perf_plan.md` is now the completed execution record for this runtime-performance lane. The latest perf-guard run stayed warning-free with `browser_filter_churn_latency = 2398us` p95, `browser_query_churn_latency = 63us` p95, `browser_sort_toggle_latency = 68us` p95, `hover_latency = 2751us` p95, `wheel_latency = 2273us` p95, `browser_focus_preview_latency = 58us` p95, and `browser_focus_commit_latency = 64us` p95.
+- Program: executing the rebuilt runtime performance backlog for the current live tree
+- Source of truth: `tmp/perf_plan.md` for the 2026-04-04 Phase 2 runtime performance execution record; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
+- Current status: Phase 2 is in progress on `2026-04-04`. Item 1 is complete (`vendor/radiant` `e5c91739`, root `3c91fbef`), and item 2 is next.
 
 ## Immediate Next Actions
-1. Treat `tmp/perf_plan.md` as the completed runtime-performance execution record until the user opens a new performance lane.
+1. Treat `tmp/perf_plan.md` as the active runtime-performance execution record and continue with item 2 unless the user redirects the lane.
 2. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 
@@ -72,7 +72,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/perf_plan.md`: completed ROI-ranked runtime performance execution record for the live tree
+- `tmp/perf_plan.md`: active ROI-ranked runtime performance execution record for the live tree
 - `tmp/improvement_audit_plan.md`: separate evidence-driven repo-wide improvement backlog and execution record; resume only when the user reopens that lane
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform

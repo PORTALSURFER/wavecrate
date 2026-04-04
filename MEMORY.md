@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-04T12:38:17Z
+Last Updated: 2026-04-04T16:05:00Z
 Updated By: Codex
 
 ## Purpose
@@ -12,12 +12,13 @@ Updated By: Codex
 
 - I am on `next` in `X:\sempal`.
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The user explicitly confirmed Phase 2 of the reopened runtime performance audit for the current live tree, and that execution is now complete.
+- The user confirmed Phase 2 of the rebuilt runtime performance lane, and execution is now in progress.
 - The current workspace is dirty with unrelated user edits, including `docs/README.md`, `docs/plans/index.md`, and multiple controller files outside this performance lane; I must not overwrite them.
-- Items 1-6 are complete in commits `3c21e5ac` (`perf(browser): split retained row state invalidation`), `362dd5bc` (`perf(browser): avoid wav page loads in row projection`), `4ee6ad01` (`perf(browser): decouple feature refresh from row projection`), `8a9ca37e` (`perf(startup): collapse hydration folder derivation`), `43373e1f` (`perf(startup): defer initial audio device probing`), and vendor/radiant `9e2bc927` (`perf(renderer): reduce scene and row text churn`).
-- Item 6 now keeps `vendor/radiant` scene composition grouped into retained state/motion aggregate scenes and caches browser row index/inline-chip payloads at projection time instead of reallocating them during every repaint.
-- The completion validation lane passed focused `vendor/radiant` rendering tests, `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`, `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`, and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`. The latest perf-guard snapshot reports `browser_filter_churn_latency = 2398us` p95, `browser_query_churn_latency = 63us` p95, `browser_sort_toggle_latency = 68us` p95, `hover_latency = 2751us` p95, `wheel_latency = 2273us` p95, `browser_focus_preview_latency = 58us` p95, `browser_focus_commit_latency = 64us` p95, `map_pan_proxy_latency = 73us` p95, `waveform_interaction_latency = 288us` p95, `waveform_pan_zoom_adjacent_latency = 176us` p95, `volume_drag_latency = 103us` p95, and `idle_cursor_motion_latency = 8us` p95.
-- `tmp/perf_plan.md` is now the completed Phase 2 execution record for the runtime-performance lane.
+- `tmp/perf_plan.md` is now the active Phase 2 execution record for the rebuilt runtime-performance lane.
+- Item 1 is complete in `vendor/radiant` commit `e5c91739` (`perf(app): retain projected rows across model clones`) and root commit `3c91fbef` (`perf(app_core): retain projected row collections`).
+- Item 1 now keeps browser, source, and folder row collections behind retained shared vectors and stores browser row text in shared `Arc<str>` buffers so top-level app-model clones no longer copy those payloads on browser/map/static churn.
+- The latest perf-guard snapshot after item 1 reports `browser_filter_churn_latency = 2132us` p95 and `projection_stage = 2098us` p95 in `target/perf/bench.json`, down from the Phase 1 audit snapshot of `2396us` and `2342us`.
+- Item 2, latest-only waveform render plus async transient work, is next in strict ROI order.
 - The Windows Cargo wrapper lane is still trustworthy in this environment because `scripts/use_cargo_cache.ps1` falls back to a local passthrough `rustc` wrapper when user-level Cargo config forces a broken `sccache`.
 - `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` remain parked unless the user explicitly reopens those lanes.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -25,13 +26,14 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Treat `tmp/perf_plan.md` as the completed runtime-performance execution record until the user opens a new performance lane.
-2. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
-3. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
+1. Implement item 2 from `tmp/perf_plan.md` next, then rerun relevant validation, update the plan, commit, and push.
+2. Keep the runtime-performance work in strict ROI order unless the user redirects the lane.
+3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
+4. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
 
 ## Work Notes
 
-- Active audit plan: `tmp/perf_plan.md` (completed on 2026-04-04; items 1-6 complete with final vendor/radiant commit `9e2bc927`)
+- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-04; item 1 complete)
 - Current hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
