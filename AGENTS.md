@@ -61,10 +61,10 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: reopened runtime performance audit refresh for the current live tree
 - Source of truth: `tmp/perf_plan.md` for the refreshed 2026-04-04 ROI-ranked runtime performance backlog built against the current dirty live tree; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
-- Current status: Phase 2 is in progress on `2026-04-04`. Items 1-3 are complete in commits `3c21e5ac`, `362dd5bc`, and `4ee6ad01`; items 4-6 remain pending against superproject commit `4ee6ad01` and vendor/radiant commit `427e115b`. The latest item-3 validation perf-guard run stayed warning-free with `browser_filter_churn_latency = 3410us` p95, `browser_query_churn_latency = 62us` p95, `browser_sort_toggle_latency = 62us` p95, `hover_latency = 2296us` p95, `wheel_latency = 2442us` p95, `browser_focus_preview_latency = 51us` p95, and `browser_focus_commit_latency = 58us` p95.
+- Current status: Phase 2 is in progress on `2026-04-04`. Items 1-4 are complete in commits `3c21e5ac`, `362dd5bc`, `4ee6ad01`, and `8a9ca37e`; items 5-6 remain pending against superproject commit `8a9ca37e` and vendor/radiant commit `427e115b`. The latest startup-hydration validation lane for item 4 passed `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`; the latest perf-guard snapshot still comes from item 3 with `browser_filter_churn_latency = 3410us` p95, `browser_query_churn_latency = 62us` p95, `browser_sort_toggle_latency = 62us` p95, `hover_latency = 2296us` p95, `wheel_latency = 2442us` p95, `browser_focus_preview_latency = 51us` p95, and `browser_focus_commit_latency = 58us` p95.
 
 ## Immediate Next Actions
-1. Implement item 4 from `tmp/perf_plan.md`: collapse startup hydration path normalization and folder-derivation filesystem churn.
+1. Implement item 5 from `tmp/perf_plan.md`: defer expensive audio device probing until after first present or explicit settings access.
 2. Keep committing and pushing after each completed backlog item, updating `tmp/perf_plan.md` with the result.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
 4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.

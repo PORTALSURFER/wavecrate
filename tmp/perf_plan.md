@@ -1,6 +1,6 @@
 # Runtime Performance Audit Plan
 
-Status: Phase 2 in progress on 2026-04-04. Items 1-3 are complete; items 4-6 are pending.
+Status: Phase 2 in progress on 2026-04-04. Items 1-4 are complete; items 5-6 are pending.
 
 - Repository state audited: superproject `7d2b4dc2`, `vendor/radiant` `427e115b`
 - Workspace note: the live tree is dirty with unrelated user edits; Phase 2 must avoid overwriting them.
@@ -115,7 +115,7 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-3 are complete; items 4-6 are
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
   - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed with `browser_filter_churn_latency = 3410us` p95, `browser_query_churn_latency = 62us` p95, `browser_sort_toggle_latency = 62us` p95, `hover_latency = 2296us` p95, `wheel_latency = 2442us` p95, `browser_focus_preview_latency = 51us` p95, `browser_focus_commit_latency = 58us` p95, `waveform_interaction_latency = 216us` p95, and `waveform_pan_zoom_adjacent_latency = 168us` p95.
 
-### [ ] 4. Collapse startup hydration path normalization and folder-derivation filesystem churn
+### [x] 4. Collapse startup hydration path normalization and folder-derivation filesystem churn
 - ROI: High
 - Effort: M
 - Expected impact: startup, first interaction latency, CPU, I/O, memory
@@ -133,7 +133,17 @@ Status: Phase 2 in progress on 2026-04-04. Items 1-3 are complete; items 4-6 are
   - Add hydration worker tests for Windows-style separators, nested folders, and deleted-folder reconciliation.
   - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
   - Run a startup smoke check with `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`.
-- Completion record: Pending
+- Completion record: 2026-04-04, commit `8a9ca37e`
+- Validation result:
+  - Source hydration now builds lookup keys, entry-path clones, and folder availability from one retained entry pass, while folder validation happens once per unique folder instead of once per entry ancestor.
+  - Deferred folder refresh now also batches ancestor validation after collection instead of probing `is_dir()` inside the per-entry walk.
+  - `hydration_entry_maps_build_lookup_and_folders_in_one_pass` passed.
+  - `hydration_entry_maps_skip_folder_derivation_for_deferred_follow_up_work` passed.
+  - `hydration_entry_maps_filter_missing_folder_ancestors_once_per_unique_path` passed.
+  - `startup_active_source_hydration_defers_follow_up_work_after_first_paint` passed.
+  - `toggle_show_all_folders_keeps_previous_rows_while_projection_is_pending` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1` passed.
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed.
 
 ### [ ] 5. Defer expensive audio device probing until after first present or explicit settings access
 - ROI: Medium
